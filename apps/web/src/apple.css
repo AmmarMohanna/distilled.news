@@ -2238,3 +2238,16 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .sources-post-head { min-width: 0; }
 :root.apple-ui.apple-ui .sources-post-source { flex: 1 1 0; }
 :root.apple-ui.apple-ui .sources-post-head time { flex: 0 1 auto; min-width: 0; white-space: normal; }
+
+/* Reserve full line boxes for Latin descenders and Arabic diacritics. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-card-identity { overflow: visible; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-card-identity > :is(strong, small) { box-sizing: content-box; line-height: 1.5; padding-block: 2px; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .topic-name { align-self: center; min-height: min-content; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card { min-height: 84px; height: max(var(--feed-row-height, 84px), 84px); }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"] { grid-auto-rows: minmax(84px, auto); }
+
+/* More sources expand on request; story navigation stays on the right. */
+:root.apple-ui.apple-ui .sources-pagination { justify-content: flex-end; flex-direction: row; direction: ltr; }
+:root.apple-ui.apple-ui .sources-pagination > div { order: 2; }
+:root.apple-ui.apple-ui .sources-pagination .sources-reveal { width: auto; padding-inline: 12px; font-size: 14px; }
+:root.apple-ui.apple-ui .sources-story { align-items: start; }

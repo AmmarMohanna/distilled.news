@@ -1925,9 +1925,10 @@ function SourcesSheet(props: {
   const { edition, language } = props;
   const textDir = textDirection(language);
   const [storyIndex, setStoryIndex] = useState(props.selectedIndex);
-  const [postIndex, setPostIndex] = useState(0);
+  const [moreSources, setMoreSources] = useState(false);
+  const sourcesListId = useId();
   const { t } = useLanguage();
-  useEffect(() => { setStoryIndex(props.selectedIndex); setPostIndex(0); }, [props.selectedIndex]);
+  useEffect(() => { setStoryIndex(props.selectedIndex); setMoreSources(false); }, [props.selectedIndex]);
   return (
     <Sheet
       title={sourcesLabel(language)}
@@ -1962,17 +1963,17 @@ function SourcesSheet(props: {
               </div>
               {section.evidence.length === 0
                 ? <p className="muted">{noReferencesLabel(language)}</p>
-                : <ul className="sources-posts">
-                    {section.evidence.slice(postIndex, postIndex + 1).map((entry) => (
-                      <SourcePost key={`${entry.messageId}:${entry.postedAt}:${postIndex}`} entry={entry} language={language} />
+                : <ul className="sources-posts" id={sourcesListId}>
+                    {section.evidence.slice(0, moreSources ? undefined : 1).map((entry, sourceIndex) => (
+                      <SourcePost key={`${entry.messageId}:${entry.postedAt}:${sourceIndex}`} entry={entry} language={language} />
                     ))}
                   </ul>}
             </li>
           ) : null; })}
         </ol>
         {(edition.sections.length > 1 || (edition.sections[storyIndex]?.evidence.length ?? 0) > 1) && <div className="sources-pagination">
-          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); setPostIndex(0); }}><ChevronLeft size={18}/></button><span>{storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); setPostIndex(0); }}><ChevronRight size={18}/></button></div>}
-          {(edition.sections[storyIndex]?.evidence.length ?? 0) > 1 && <div><button type="button" aria-label={t("Previous source")} disabled={postIndex === 0} onClick={() => setPostIndex(i => i - 1)}><ChevronLeft size={18}/></button><span>{sourcesLabel(language)} {postIndex + 1} / {edition.sections[storyIndex].evidence.length}</span><button type="button" aria-label={t("Next source")} disabled={postIndex === edition.sections[storyIndex].evidence.length - 1} onClick={() => setPostIndex(i => i + 1)}><ChevronRight size={18}/></button></div>}
+          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); setMoreSources(false); }}><ChevronLeft size={18}/></button><span>{language === "ar" ? "???" : language === "fr" ? "Article" : "Story"} {storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); setMoreSources(false); }}><ChevronRight size={18}/></button></div>}
+          {(edition.sections[storyIndex]?.evidence.length ?? 0) > 1 && <button className="sources-reveal" type="button" aria-expanded={moreSources} aria-controls={sourcesListId} onClick={() => setMoreSources(value => !value)}>{moreSources ? showLessLabel(language) : language === "ar" ? "???????" : language === "fr" ? "Plus?" : "More?"}</button>}
         </div>}
       </div>
     </Sheet>
@@ -2016,7 +2017,6 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
       <div className="sources-post-head" dir="ltr">
         <span className="sources-publisher-logo" aria-hidden><SourceLogo source={entry.sourceUrl || entry.links[0] || entry.sourceTitle}/></span>
         <strong className="sources-post-source"><bdi>{publisher}</bdi></strong>
-        <span className="sources-meta-separator" aria-hidden>&middot;</span>
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
       {hasText ? (
@@ -2029,7 +2029,7 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
             {textDir === "rtl" ? <ChevronLeft size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
           </button>
         ) : null}
-        {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Link2 size={16} aria-hidden /><span aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
+        {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Copy size={16} aria-hidden /><span aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
         {websiteLinks.map((link) => <a key={link} href={link} target="_blank" rel="noreferrer"><Link2 size={16} aria-hidden />{linkHostLabel(link, language)}</a>)}
         {entry.media.map((media, index) =>
           media.url ? (
