@@ -8,6 +8,7 @@ import { InMemoryRepository } from "./repository";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
 import type { BriefingEdition, BriefingItem, EventReviewAdapter, NormalizedMessage, SummaryAdapter } from "@distilled/core";
 import type { DistilledQueueMessage, Env, ProcessingJobMessage } from "./types";
+import {rememberSourceAssessment} from './source-assessment-cache';
 
 class FakeBucket {
   objects = new Map<string, string>();
@@ -1898,6 +1899,12 @@ describe("worker app accounts", () => {
     const events=(await response.text()).trim().split('\n').map(line=>JSON.parse(line));
     expect(events[0]).toMatchObject({type:'progress',sources:['https://publisher.example/feed.xml']});
     expect(events.at(-1)).toMatchObject({type:'complete',sources:['https://publisher.example/feed.xml']});
+    const diagnostic=await app.request('/api/internal/collectors/recommend',{method:'POST',headers:{'x-distilled-internal':'internal-secret','content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({ownerAccountId:owner.account.id,title:'Solar',description:'Solar technology and policy'})},{...env(),SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test'});
+    expect(diagnostic.headers.get('content-type')).toContain('application/x-ndjson');
+    expect(diagnostic.headers.get('cache-control')).toBe('private, no-store');
+    const diagnosticEvents=(await diagnostic.text()).trim().split('\n').map(line=>JSON.parse(line));
+    expect(diagnosticEvents[0]).toMatchObject({type:'progress',sources:['https://publisher.example/feed.xml']});
+    expect(diagnosticEvents.at(-1)).toMatchObject({type:'complete',sources:['https://publisher.example/feed.xml'],budget:{configured:false}});
   });
   it("allows three source recommendations per user in a rolling five-hour window", async () => {
     const repo = new InMemoryRepository();
@@ -1919,6 +1926,27 @@ describe("worker app accounts", () => {
     expect(blocked.headers.get("Retry-After")).toBe("18000");
     expect(await blocked.json()).toMatchObject({ error: expect.stringContaining("three times every five hours") });
     expect(calls).toBe(3);
+  });
+
+  it('persists recently recommended sources using their exact owner-scoped evidence',async()=>{
+    const repo=new InMemoryRepository();
+    const fetcher=vi.fn<typeof fetch>(async()=>{throw Error('A second model verdict must not replace the recent assessment');});
+    const app=createApp({repository:repo,fetcher});
+    const owner=await createVerifiedUser(app,repo,'recommendation-save@test.com','Recommendation Save');
+    const original=(await repo.listBriefings(owner.account.id))[0];
+    await repo.upsertBriefing({...original,paused:true});
+    const objects=new Map<string,string>();
+    const statement={bind:()=>statement,first:async()=>null,run:async()=>({meta:{changes:1}})};
+    const configured={...env(),PRODUCT_FEEDS_ENABLED:'true',SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test',
+      DB:{prepare:()=>statement},RAW_ARCHIVE:{put:async(key:string,text:string)=>{objects.set(key,text);},get:async(key:string)=>objects.has(key)?{json:async()=>JSON.parse(objects.get(key)!)}:null,head:async()=>null}} as unknown as Env;
+    const source='rss: https://solar.example/feed/';
+    await rememberSourceAssessment(configured,owner.account.id,{title:'Solar',description:'Solar energy projects'},
+      {input:source,status:'accepted',reason:'Directly relevant fetched evidence.',checkedAt:new Date().toISOString(),evidenceQuote:'Solar energy projects are expanding in the region.',evidenceUrl:'https://solar.example/feed/'});
+    const response=await app.request('/api/me/feeds',{method:'POST',headers:{cookie:owner.cookie,'content-type':'application/json'},body:JSON.stringify({id:original.id,title:'Solar',interestProfile:'Solar energy projects',sourceInputs:[source],publicFeedEnabled:true,updateIntervalMinutes:60,briefingTimezone:'UTC',language:'en'})},configured);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({briefing:{paused:true,title:'Solar'}});
+    expect(await repo.listSources(original.id)).toHaveLength(1);
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("blocks unassessed sources before creating a feed or changing its existing sources", async () => {

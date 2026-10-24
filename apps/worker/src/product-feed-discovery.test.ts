@@ -3,6 +3,12 @@ import {discoverPublicRssFeed} from './product-feed-discovery';
 import {resolveProductSourceInput} from './product-feeds';
 
 const feed=`<?xml version="1.0"?><rss version="2.0"><channel><title>News</title><item><guid>one</guid><title>One</title><link>https://example.com/one</link></item></channel></rss>`;
+it.each(['/tag/subject','/football/club','/ar/economy'])('discovers an advertised topic feed at %s without guessing paths',async section=>{
+ const seen:string[]=[];
+ const fetcher=(async(input:RequestInfo|URL)=>{const url=String(input);seen.push(url);return url.endsWith('/rss')?new Response(feed,{headers:{'content-type':'application/rss+xml'}}):new Response(`<link rel="alternate" type="application/rss+xml" href="/feed/"><link rel="alternate" type="application/rss+xml" href="${section}/rss">`,{headers:{'content-type':'text/html'}});}) as typeof fetch;
+ expect(await discoverPublicRssFeed('https://example.com'+section,fetcher)).toBe('https://example.com'+section+'/rss');
+ expect(seen).toEqual(['https://example.com'+section,'https://example.com'+section+'/rss']);
+});
 it('prefers an advertised same-origin section feed over a generic site feed',async()=>{
  const seen:string[]=[];
  const fetcher=(async(input:RequestInfo|URL)=>{

@@ -616,8 +616,11 @@ async def resolve_telegram(data):
         await client.connect()
         if not await client.is_user_authorized():
             return {'error': 'AUTH_REQUIRED'}
-        # Resolve a public username without joining or subscribing to the channel.
-        entity = await client.get_entity(username)
+        # Reuse this session's cached input peer before refreshing the public
+        # channel metadata. get_entity(username) forces ResolveUsernameRequest
+        # even for known channels and can exhaust Telegram's lookup allowance.
+        peer = await client.get_input_entity(username)
+        entity = await client.get_entity(peer)
         if not isinstance(entity, Channel) or not entity.username or entity.username.lower() != username.lower():
             return {'error': 'UNAVAILABLE'}
         return {'channelId': str(utils.get_peer_id(entity)), 'username': entity.username}

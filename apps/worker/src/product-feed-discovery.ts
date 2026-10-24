@@ -5,8 +5,9 @@ import {WorkerPublicSourceFetch} from './public-source-fetch';
  * section-specific feed; the site's generic feed is not a substitute. */
 export async function discoverPublicRssFeed(pageUrl:string,fetcher:typeof fetch=fetch):Promise<string|undefined>{
  const page=new URL(pageUrl);
- const section=/^\/(?:category|section|topic|topics)\//i.test(page.pathname);
- if(page.pathname!=='/'&&!section)return undefined;
+ // Publishers also use /tag/name, /football/club and localized section paths.
+ // Only a feed explicitly advertised below that exact path is admissible.
+ const section=page.pathname!=='/';
  const port=new WorkerPublicSourceFetch(page.href,fetcher);
  let document:Awaited<ReturnType<WorkerPublicSourceFetch['get']>>;
  try{document=await port.get(page.href)}catch{return undefined}

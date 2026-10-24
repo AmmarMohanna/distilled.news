@@ -130,6 +130,10 @@ export class DurableProviderHttp implements ProviderHttpPort {
   }
 }
 export function requireProviderSuccess(result:ProviderHttpResult) {
+  // Apify uses 403 for an exhausted monthly account limit as well as access
+  // failures. Keep this distinct from invalid credentials and local ceilings.
+  const error=result.json&&typeof result.json==='object'&&'error' in result.json?result.json.error:undefined;
+  if(result.status===403&&error&&typeof error==='object'&&'type' in error&&error.type==='platform-feature-disabled'&&'message' in error&&typeof error.message==='string'&&/monthly usage hard limit exceeded/i.test(error.message))throw new SourceProviderError('BUDGET_EXCEEDED',undefined,{detail:'PROVIDER_MONTHLY_USAGE_LIMIT',httpStatus:403});
   if(result.status===451)throw new SourceProviderError('POLICY_REFUSAL');
   if(result.status===429){
     const v=result.headers['retry-after'];const seconds=v?Number(v):NaN;

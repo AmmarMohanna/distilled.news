@@ -7,6 +7,14 @@ const env = { SOURCE_CONNECTORS_ENABLED: 'true', SOURCE_RECOMMENDATIONS_ENABLED:
 const context = { title: 'Solar', description: 'Solar energy policy and technology' };
 const feed = (title: string) => `<rss><channel><title>Updates</title><item><guid>one</guid><title>${title}</title><description>Detailed reporting, analysis and substantive updates about the latest developments.</description><link>https://publisher.example/story</link></item></channel></rss>`;
 const verdict = (match: 'DIRECT'|'RELATED'|'NONE' = 'DIRECT') => ({realWorldInterest:'YES',exactTopic:match==='DIRECT'?'YES':'NO',concern:'NO',reason:'Evidence of the requested topic in the supplied feed.',evidenceId:'E1'});
+it('bounds concurrent publisher response buffers while retaining parallel reads',async()=>{
+ let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});let active=0,maximum=0;
+ const dispatch=vi.fn<typeof fetch>(async()=>{active++;maximum=Math.max(maximum,active);await gate;active--;return new Response('bounded body');});
+ const fetcher=recommendationFetch(dispatch);
+ const pending=Promise.all(Array.from({length:18},(_,i)=>fetcher(`https://publisher${i}.example/feed`)));
+ await vi.waitFor(()=>expect(dispatch).toHaveBeenCalledTimes(6));release();
+ const responses=await pending;expect(responses).toHaveLength(18);expect(maximum).toBe(6);
+});
 it('starts checked catalog suggestions before slow web discovery finishes',async()=>{
  let release!:()=>void;const waiting=new Promise<void>(resolve=>release=resolve);let discoveryFinished=false;
  const fetcher=vi.fn<typeof fetch>(async(url,init)=>{
@@ -29,7 +37,8 @@ it('returns only readable relevant sources, reuses evidence, and checks candidat
     if (String(url).includes('openrouter.ai')) {
       const body = JSON.parse(init!.body as string);
       if (body.messages[0].content.startsWith('Suggest')) return Response.json({ choices: [{ message: { content: JSON.stringify({ sources: ['https://publisher.example/solar.xml', 'https://publisher.example/sport.xml', 'https://127.0.0.1/feed.xml'] }) } }] });
-      const evidence = JSON.parse(body.messages[1].content).source.evidence;
+      const state=JSON.parse(body.messages[1].content);
+      const evidence = state.passage??state.source.evidence;
       return Response.json({ choices: [{ message: { content: JSON.stringify(verdict(evidence.includes('Solar') ? 'DIRECT' : 'NONE')) } }] });
     }
     started.push(String(url));
@@ -39,9 +48,12 @@ it('returns only readable relevant sources, reuses evidence, and checks candidat
   });
   const result = await verifiedSourceRecommendations(env, context, fetcher);
   expect(result.sources).toEqual(['https://publisher.example/solar.xml']);
-  expect(result.checks.map(check => check.status)).toEqual(['accepted', 'rejected']);
+  expect(result.checks).toEqual(expect.arrayContaining([
+    expect.objectContaining({input:'https://publisher.example/solar.xml',status:'accepted'}),
+    expect.objectContaining({input:'https://publisher.example/sport.xml',status:'rejected'})
+  ]));
   expect(started).toHaveLength(2); // no second publisher read during assessment
-  expect(fetcher.mock.calls.filter(([url]) => String(url).includes('openrouter.ai'))).toHaveLength(4);
+  expect(fetcher.mock.calls.filter(([url]) => String(url).includes('openrouter.ai'))).toHaveLength(5);
 });
 
 it('fails closed on malformed standard model output', async () => {
