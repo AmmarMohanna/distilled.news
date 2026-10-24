@@ -2230,3 +2230,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .sources-story-head { gap: 14px; }
 :root.apple-ui.apple-ui .sources-story-number { width: 32px; height: 32px; font-size: 17px; }
 :root.apple-ui.apple-ui .sources-story-head h3 { display: block; font-weight: 700; }
+
+/* Bound evidence content to its grid track, including long retained headlines. */
+:root.apple-ui.apple-ui .sources-story > *, :root.apple-ui.apple-ui .sources-post > * { min-width: 0; max-width: 100%; }
+:root.apple-ui.apple-ui .sources-post { grid-template-columns: minmax(0, 1fr); width: 100%; box-sizing: border-box; }
+:root.apple-ui.apple-ui .sources-post-title, :root.apple-ui.apple-ui .sources-post-text { white-space: normal; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .sources-post-head { min-width: 0; }
+:root.apple-ui.apple-ui .sources-post-source { flex: 1 1 0; }
+:root.apple-ui.apple-ui .sources-post-head time { flex: 0 1 auto; min-width: 0; white-space: normal; }

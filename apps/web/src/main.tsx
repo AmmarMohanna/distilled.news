@@ -1979,27 +1979,48 @@ function SourcesSheet(props: {
   );
 }
 
+function sourceDisplayText(value: string): string {
+  const decoder = document.createElement("textarea");
+  for (let pass = 0; pass < 3; pass++) {
+    const next = value.replace(/&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]+);/gi, entity => { decoder.innerHTML = entity; return decoder.value; });
+    if (next === value) break;
+    value = next;
+  }
+  return value;
+}
+
 function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "fr" }) {
   const { entry, language } = props;
   const textDir = textDirection(language);
   const [open, setOpen] = useState(false);
   const textId = useId();
-  const hasText = entry.text.trim().length > 0;
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const sourceTitle = sourceDisplayText(entry.sourceTitle);
+  const headline = sourceDisplayText(entry.headline?.trim() || (sourceTitle.length > 60 || sourceTitle.split(/\s+/).length > 8 ? sourceTitle : ""));
+  let publisher = sourceTitle;
+  if (headline === sourceTitle) {
+    try { publisher = new URL(entry.sourceUrl || entry.links[0]).hostname.replace(/^www\./, ""); } catch { publisher = ""; }
+  }
+  const sourceText = sourceDisplayText(entry.text);
+  const hasText = sourceText.trim().length > 0;
+  const copyLabel = language === "ar" ? "??? ??????" : language === "fr" ? "Copier le lien" : "Copy link";
+  const copiedLabel = language === "ar" ? "?? ?????" : language === "fr" ? "Copi?" : "Copied";
+  const failedLabel = language === "ar" ? "???? ?????" : language === "fr" ? "?chec de copie" : "Could not copy";
   const websiteLinks = [...entry.links];
   if (!websiteLinks.length && entry.sourceUrl) {
     try { websiteLinks.push(new URL(entry.sourceUrl).origin); } catch { /* Keep malformed legacy URLs out of the website action. */ }
   }
   return (
     <li className="sources-post">
-      {entry.headline?.trim() ? <h4 className="sources-post-title"><bdi>{entry.headline}</bdi></h4> : null}
+      {headline ? <h4 className="sources-post-title"><bdi>{headline}</bdi></h4> : null}
       <div className="sources-post-head" dir="ltr">
         <span className="sources-publisher-logo" aria-hidden><SourceLogo source={entry.sourceUrl || entry.links[0] || entry.sourceTitle}/></span>
-        <strong className="sources-post-source"><bdi>{entry.sourceTitle}</bdi></strong>
-        <span className="sources-meta-separator" aria-hidden>?</span>
+        <strong className="sources-post-source"><bdi>{publisher}</bdi></strong>
+        <span className="sources-meta-separator" aria-hidden>&middot;</span>
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
       {hasText ? (
-        <p id={textId} className={`sources-post-text${open ? " is-open" : ""}`} dir={textDir}><bdi dir={textDir}>{entry.text}</bdi></p>
+        <p id={textId} className={`sources-post-text${open ? " is-open" : ""}`} dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p>
       ) : null}
       <div className="sources-post-actions">
         {hasText && entry.text.trim().length > 160 ? (
@@ -2008,7 +2029,7 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
             {textDir === "rtl" ? <ChevronLeft size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
           </button>
         ) : null}
-        {entry.sourceUrl ? <a href={entry.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} aria-hidden />{openPostLabel(language)}</a> : null}
+        {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Link2 size={16} aria-hidden /><span aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
         {websiteLinks.map((link) => <a key={link} href={link} target="_blank" rel="noreferrer"><Link2 size={16} aria-hidden />{linkHostLabel(link, language)}</a>)}
         {entry.media.map((media, index) =>
           media.url ? (
