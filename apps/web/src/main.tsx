@@ -1942,7 +1942,12 @@ function SourcesSheet(props: {
           <span>{formatClock(edition.publishedAt, language)}</span>
         </p>
         <ol className="sources-stories">
-          {edition.sections.map((section, index) => index === storyIndex ? (
+          {edition.sections.map((section, index) => {
+            const text = section.summary.replace(/\r\n/g, "\n");
+            const boundary = text.indexOf("\n");
+            const title = section.title.trim() || (boundary > 0 ? text.slice(0, boundary).trim() : "");
+            const body = !section.title.trim() && boundary > 0 ? text.slice(boundary + 1).trim() : title && text.startsWith(title) ? text.slice(title.length).trimStart() : text;
+            return index === storyIndex ? (
             <li
               key={`${section.title}:${index}`}
               id={`${edition.id}-source-${index + 1}`}
@@ -1950,9 +1955,10 @@ function SourcesSheet(props: {
             >
               <div className="sources-story-brief">
               <div className="sources-story-head">
-                <h3><bdi>{section.title}</bdi></h3>
+                <span className="sources-story-number" aria-hidden>{index + 1}</span>
+                {title ? <h3><bdi>{title}</bdi></h3> : null}
               </div>
-              <p className="sources-story-summary"><bdi dir={textDir}>{section.summary}</bdi></p>
+              <p className="sources-story-summary"><bdi dir={textDir}>{body}</bdi></p>
               </div>
               {section.evidence.length === 0
                 ? <p className="muted">{noReferencesLabel(language)}</p>
@@ -1962,7 +1968,7 @@ function SourcesSheet(props: {
                     ))}
                   </ul>}
             </li>
-          ) : null)}
+          ) : null; })}
         </ol>
         {(edition.sections.length > 1 || (edition.sections[storyIndex]?.evidence.length ?? 0) > 1) && <div className="sources-pagination">
           {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); setPostIndex(0); }}><ChevronLeft size={18}/></button><span>{storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); setPostIndex(0); }}><ChevronRight size={18}/></button></div>}
@@ -1989,6 +1995,7 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
       <div className="sources-post-head" dir="ltr">
         <span className="sources-publisher-logo" aria-hidden><SourceLogo source={entry.sourceUrl || entry.links[0] || entry.sourceTitle}/></span>
         <strong className="sources-post-source"><bdi>{entry.sourceTitle}</bdi></strong>
+        <span className="sources-meta-separator" aria-hidden>?</span>
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
       {hasText ? (

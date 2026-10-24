@@ -2220,3 +2220,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .sheet-dialog:has(.sources-module) .sheet { padding: 20px; }
   :root.apple-ui.apple-ui .sources-story-brief, :root.apple-ui.apple-ui .sources-post { padding: 16px; }
 }
+
+/* Keep the publisher logo beside its name and date, below the headline. */
+:root.apple-ui.apple-ui .sources-post-head { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 10px; }
+:root.apple-ui.apple-ui .sources-post-source { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root.apple-ui.apple-ui .sources-meta-separator { flex: none; color: var(--muted); }
+:root.apple-ui.apple-ui .sources-post-head time { flex: none; white-space: nowrap; overflow-wrap: normal; }
+
+:root.apple-ui.apple-ui .sources-story-head { gap: 14px; }
+:root.apple-ui.apple-ui .sources-story-number { width: 32px; height: 32px; font-size: 17px; }
+:root.apple-ui.apple-ui .sources-story-head h3 { display: block; font-weight: 700; }
