@@ -8,12 +8,15 @@ import {
   consolidateUser,
   editorUser,
   repairUser,
-  verifyUser
+  verifyUser,
+  type PreviousReview
 } from "./prompts";
 import { significantNumbers } from "./text";
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem } from "./types";
 
 export interface EngineOptions {
+  /** Legacy frozen windows retain their original paid-request bytes. */
+  promptVersion: 1 | 2;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
   maxEditorChars: number;
   /** Source text budget for one verification call; larger briefings verify in parallel batches. */
@@ -27,6 +30,7 @@ export interface EngineOptions {
 }
 
 export const DEFAULT_ENGINE: EngineOptions = {
+  promptVersion: 2,
   maxEditorChars: 90_000,
   maxVerifyChars: 80_000,
   maxItems: 30,
@@ -122,7 +126,8 @@ async function edit(
   input: BriefingInput,
   articles: PreparedArticle[],
   prior: PriorItem[],
-  partial = false
+  partial = false,
+  promptVersion: 1 | 2 = 2
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -133,7 +138,7 @@ async function edit(
     {
       model: models.editor,
       system: EDITOR_SYSTEM,
-      user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial }),
+      user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion }),
       maxTokens: 4000
     },
     (raw) => ({
@@ -150,7 +155,8 @@ async function consolidate(
   input: BriefingInput,
   drafts: Draft[],
   prior: PriorItem[],
-  idsOfRefs: (refs: string[]) => string[]
+  idsOfRefs: (refs: string[]) => string[],
+  promptVersion: 1 | 2
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -160,6 +166,7 @@ async function consolidate(
       model: models.editor,
       system: CONSOLIDATE_SYSTEM,
       user: consolidateUser({
+        promptVersion,
         feed: input.feed,
         prior,
         drafts: drafts.map((d) => ({ headline: d.headline, body: d.body, relation: d.relation, updates: d.updatesId, importance: d.importance }))
@@ -250,7 +257,9 @@ async function verify(
   indices: number[],
   byRef: Map<string, PreparedArticle>,
   prior: PriorItem[],
-  maxChars: number
+  maxChars: number,
+  previousReviews: Map<number, Omit<PreviousReview, "index">>,
+  promptVersion: 1 | 2
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -266,6 +275,11 @@ async function verify(
           model: models.verifier,
           system: VERIFY_SYSTEM,
           user: verifyUser({
+            promptVersion,
+            previousReviews: batch.flatMap((index, localIndex) => {
+              const previous = previousReviews.get(index);
+              return previous ? [{ index: localIndex, ...previous }] : [];
+            }),
             windowEnd: input.windowEnd,
             prior,
             sources,
@@ -406,15 +420,15 @@ export async function generateBriefing(
   let drafts: Draft[];
   const omitted: OmittedStory[] = [];
   if (chunks.length === 1) {
-    const edited = await timed("edit", () => edit(port, meter, models, input, prepared, prior));
+    const edited = await timed("edit", () => edit(port, meter, models, input, prepared, prior, false, options.promptVersion));
     drafts = edited.drafts;
     omitted.push(...edited.omitted);
   } else {
-    const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior, true))));
+    const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior, true, options.promptVersion))));
     const merged = parts.flatMap((part) => part.drafts);
     omitted.push(...parts.flatMap((part) => part.omitted));
     if (merged.length > 1) {
-      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs));
+      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion));
       drafts = consolidated.drafts;
       omitted.push(...consolidated.omitted);
     } else {
@@ -435,9 +449,10 @@ export async function generateBriefing(
   // 2. Verify, repair what is repairable once, drop what is not.
   const dropped: DroppedItem[] = [];
   const accepted = new Set<number>();
+  const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
-    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, prior, options.maxVerifyChars));
+    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, prior, options.maxVerifyChars, previousReviews, options.promptVersion));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
     for (const index of todo) {
@@ -458,6 +473,7 @@ export async function generateBriefing(
           dropped.push({ headline: drafts[index].headline, reason: `could not be repaired: ${flagged.get(index)!.join(" | ")}`, carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
           continue;
         }
+        previousReviews.set(index, { headline: drafts[index].headline, body: drafts[index].body, issues: [...flagged.get(index)!] });
         drafts[index] = { ...drafts[index], ...fixed };
         todo.push(index);
       }
