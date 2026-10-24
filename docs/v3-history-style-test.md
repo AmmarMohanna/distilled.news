@@ -1,5 +1,7 @@
 # Does old briefing style influence new output?
 
+Update: the deterministic reader-copy filter was subsequently reverted at the user's request. It was never deployed. The clean staging feed remains unchanged. The experiment and raw results below are retained as evidence, not as an active filtering implementation.
+
 User-requested controlled comparison, October 24, 2026. Four fresh GPT-4.1 editor requests used the same system instructions, temporal style, original articles, reporting window and history identifiers/dates/format. Within each English/Arabic pair, only prior briefing prose changed: routine sourcing was shortened and missing-detail/publication-date/topic-absence commentary was removed. Counts, locations, reported actions and meaningful attribution were preserved.
 
 **No output cleanup was applied.** These are raw editor responses, not results made concise by the new copy cleaner. All four provider responses reported zero cached input tokens.
