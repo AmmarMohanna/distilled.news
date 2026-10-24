@@ -2251,3 +2251,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .sources-pagination > div { order: 2; }
 :root.apple-ui.apple-ui .sources-pagination .sources-reveal { width: auto; padding-inline: 12px; font-size: 14px; }
 :root.apple-ui.apple-ui .sources-story { align-items: start; }
+
+/* Stable reader frame; additional evidence continues inside the same panel. */
+:root.apple-ui.apple-ui .sheet-dialog:has(.sources-module) { height: min(680px, calc(100dvh - 48px)); max-height: calc(100dvh - 48px); overflow: hidden; }
+:root.apple-ui.apple-ui .sheet-dialog:has(.sources-module) .sheet { height: 100%; max-height: none; min-height: 0; overflow: hidden; grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
+:root.apple-ui.apple-ui .sources-module { min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
+:root.apple-ui.apple-ui .sources-stories { min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; scrollbar-gutter: stable; }
+:root.apple-ui.apple-ui .sources-posts { gap: 0; overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 10%, var(--surface)); border-radius: 18px; background: var(--surface); }
+:root.apple-ui.apple-ui .sources-posts .sources-post { border: 0; border-radius: 0; }
+:root.apple-ui.apple-ui .sources-posts .sources-post + .sources-post { border-top: 1px solid var(--line); }
+:root.apple-ui.apple-ui .sources-post-text:has(.sources-reveal) { display: block; }
+:root.apple-ui.apple-ui .sources-post-text .sources-reveal { display: inline; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--accent); font: inherit; font-weight: 600; text-decoration: none; }
