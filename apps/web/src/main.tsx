@@ -1,3 +1,4 @@
+import { SourceLogo } from "./SourceLogo";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
 import React, { useEffect, useId, useRef, useState } from "react";
@@ -27,6 +28,7 @@ import {
   Compass,
   Copy,
   ExternalLink,
+  Link2,
   Gauge,
   Globe,
   Github,
@@ -1922,11 +1924,10 @@ function SourcesSheet(props: {
 }) {
   const { edition, language } = props;
   const textDir = textDirection(language);
-  const selected = useRef<HTMLLIElement | null>(null);
-  useEffect(() => {
-    // Land on the story that was tapped; content above it stays one scroll away.
-    if (props.selectedIndex > 0) selected.current?.scrollIntoView({ block: "start" });
-  }, [props.selectedIndex]);
+  const [storyIndex, setStoryIndex] = useState(props.selectedIndex);
+  const [postIndex, setPostIndex] = useState(0);
+  const { t } = useLanguage();
+  useEffect(() => { setStoryIndex(props.selectedIndex); setPostIndex(0); }, [props.selectedIndex]);
   return (
     <Sheet
       title={sourcesLabel(language)}
@@ -1941,16 +1942,14 @@ function SourcesSheet(props: {
           <span>{formatClock(edition.publishedAt, language)}</span>
         </p>
         <ol className="sources-stories">
-          {edition.sections.map((section, index) => (
+          {edition.sections.map((section, index) => index === storyIndex ? (
             <li
               key={`${section.title}:${index}`}
               id={`${edition.id}-source-${index + 1}`}
-              ref={index === props.selectedIndex ? selected : undefined}
               className={`sources-story${index === props.selectedIndex ? " is-selected" : ""}`}
             >
               <div className="sources-story-brief">
               <div className="sources-story-head">
-                <span className="sources-story-number" aria-hidden>{index + 1}</span>
                 <h3><bdi>{section.title}</bdi></h3>
               </div>
               <p className="sources-story-summary"><bdi dir={textDir}>{section.summary}</bdi></p>
@@ -1958,13 +1957,17 @@ function SourcesSheet(props: {
               {section.evidence.length === 0
                 ? <p className="muted">{noReferencesLabel(language)}</p>
                 : <ul className="sources-posts">
-                    {section.evidence.map((entry, postIndex) => (
+                    {section.evidence.slice(postIndex, postIndex + 1).map((entry) => (
                       <SourcePost key={`${entry.messageId}:${entry.postedAt}:${postIndex}`} entry={entry} language={language} />
                     ))}
                   </ul>}
             </li>
-          ))}
+          ) : null)}
         </ol>
+        {(edition.sections.length > 1 || (edition.sections[storyIndex]?.evidence.length ?? 0) > 1) && <div className="sources-pagination">
+          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); setPostIndex(0); }}><ChevronLeft size={18}/></button><span>{storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); setPostIndex(0); }}><ChevronRight size={18}/></button></div>}
+          {(edition.sections[storyIndex]?.evidence.length ?? 0) > 1 && <div><button type="button" aria-label={t("Previous source")} disabled={postIndex === 0} onClick={() => setPostIndex(i => i - 1)}><ChevronLeft size={18}/></button><span>{sourcesLabel(language)} {postIndex + 1} / {edition.sections[storyIndex].evidence.length}</span><button type="button" aria-label={t("Next source")} disabled={postIndex === edition.sections[storyIndex].evidence.length - 1} onClick={() => setPostIndex(i => i + 1)}><ChevronRight size={18}/></button></div>}
+        </div>}
       </div>
     </Sheet>
   );
@@ -1976,11 +1979,15 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
   const [open, setOpen] = useState(false);
   const textId = useId();
   const hasText = entry.text.trim().length > 0;
+  const websiteLinks = [...entry.links];
+  if (!websiteLinks.length && entry.sourceUrl) {
+    try { websiteLinks.push(new URL(entry.sourceUrl).origin); } catch { /* Keep malformed legacy URLs out of the website action. */ }
+  }
   return (
     <li className="sources-post">
       {entry.headline?.trim() ? <h4 className="sources-post-title"><bdi>{entry.headline}</bdi></h4> : null}
       <div className="sources-post-head" dir="ltr">
-        <span className="sources-publisher-avatar" aria-hidden>{entry.sourceTitle.trim().slice(0, 2).toUpperCase()}</span>
+        <span className="sources-publisher-logo" aria-hidden><SourceLogo source={entry.sourceUrl || entry.links[0] || entry.sourceTitle}/></span>
         <strong className="sources-post-source"><bdi>{entry.sourceTitle}</bdi></strong>
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
@@ -1994,8 +2001,8 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
             {textDir === "rtl" ? <ChevronLeft size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
           </button>
         ) : null}
-        {entry.sourceUrl ? <a href={entry.sourceUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={16} aria-hidden />{openPostLabel(language)}</a> : null}
-        {entry.links.map((link) => <a key={link} href={link} target="_blank" rel="noreferrer"><ArrowUpRight size={16} aria-hidden />{linkHostLabel(link, language)}</a>)}
+        {entry.sourceUrl ? <a href={entry.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} aria-hidden />{openPostLabel(language)}</a> : null}
+        {websiteLinks.map((link) => <a key={link} href={link} target="_blank" rel="noreferrer"><Link2 size={16} aria-hidden />{linkHostLabel(link, language)}</a>)}
         {entry.media.map((media, index) =>
           media.url ? (
             <a key={`${media.url}-${index}`} href={media.url} target="_blank" rel="noreferrer">
