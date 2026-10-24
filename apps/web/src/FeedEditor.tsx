@@ -84,7 +84,7 @@ export function FeedEditor(props: {
   const matchingSources = recommendations.filter(source => !sources.includes(source) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(false); } }
   return <Dialog className="feed-editor" label={t(props.feed ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
-    
+
     <form className="dialog-inner" onSubmit={event => {
       event.preventDefault();
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
