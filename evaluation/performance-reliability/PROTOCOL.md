@@ -197,7 +197,7 @@ Qualification gates, in order:
 5. For paid/live work, obtain explicit campaign authorization and positive bounded account/provider allowances through existing durable controls. Prior expired grants and earlier test approvals are not reused. Run only isolated resources; never reset histories, reservations, unknown fences or real user subscriptions to improve the numbers.
 6. Execute the preregistered campaign, reconcile costs, follow outstanding jobs, restore test state and report limitations. Preserve unknown outcomes until evidence resolves them.
 
-Current implementation status: protocol, repository audit, versioned catalog and offline arithmetic qualification are implemented. Collectors, full runner/baselines, cluster analysis, real users and live campaign results are not yet implemented. This phase changes no product paths and claims no performance improvement.
+Current implementation status: protocol, repository audit, versioned catalog, offline arithmetic qualification, strict v0.1 evidence schemas, the idempotent importer and the offline JSON/CSV report are implemented. Collectors, full runner/baselines, cluster analysis, real users and live campaign results are not yet implemented. This phase changes no product paths and claims no performance improvement.
 
 ## Method references
 

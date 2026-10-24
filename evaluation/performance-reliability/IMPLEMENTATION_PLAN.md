@@ -10,6 +10,8 @@ The tests cover null versus zero, malformed/negative timing, R7 interpolation, a
 
 ## Stage 1 — normalized evidence contract and offline report
 
+Status: **implemented offline** (`evidence-schema.mjs`, `import-evidence.mjs`, `report.mjs`, fixture and 26 tests). The qualification items below are covered by those tests on synthetic fixtures. Not yet done: a reviewed real bundle, the evidence-revision record needed for `evidence_availability_to_public_readback`, and a manual reconciliation against raw records (Stage 4).
+
 Deliverables:
 
 - Versioned schemas for campaign manifest, opportunity, attempt, timestamp/clock provenance, canonical financial operation, publication/read-back, subscription receipt and intervention event.
