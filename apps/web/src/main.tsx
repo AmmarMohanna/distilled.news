@@ -1850,6 +1850,15 @@ function FeedEditionRow(props: {
             {textDirection(language) === "rtl" ? <ChevronLeft size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
           </button>
         ) : <span />}
+        <button
+          type="button"
+          className="read-button"
+          aria-pressed={props.isRead}
+          onClick={props.onToggleRead}
+        >
+          <Check size={16} aria-hidden />
+          {markReadLabel(props.isRead, language)}
+        </button>
       </div>
     </article>
   );
@@ -1939,11 +1948,13 @@ function SourcesSheet(props: {
               ref={index === props.selectedIndex ? selected : undefined}
               className={`sources-story${index === props.selectedIndex ? " is-selected" : ""}`}
             >
+              <div className="sources-story-brief">
               <div className="sources-story-head">
                 <span className="sources-story-number" aria-hidden>{index + 1}</span>
                 <h3><bdi>{section.title}</bdi></h3>
               </div>
               <p className="sources-story-summary"><bdi dir={textDir}>{section.summary}</bdi></p>
+              </div>
               {section.evidence.length === 0
                 ? <p className="muted">{noReferencesLabel(language)}</p>
                 : <ul className="sources-posts">
@@ -1967,7 +1978,9 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
   const hasText = entry.text.trim().length > 0;
   return (
     <li className="sources-post">
+      {entry.headline?.trim() ? <h4 className="sources-post-title"><bdi>{entry.headline}</bdi></h4> : null}
       <div className="sources-post-head" dir="ltr">
+        <span className="sources-publisher-avatar" aria-hidden>{entry.sourceTitle.trim().slice(0, 2).toUpperCase()}</span>
         <strong className="sources-post-source"><bdi>{entry.sourceTitle}</bdi></strong>
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
@@ -1978,6 +1991,7 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
         {hasText && entry.text.trim().length > 160 ? (
           <button type="button" className="sources-more" aria-expanded={open} aria-controls={textId} onClick={() => setOpen(value => !value)}>
             {open ? showLessLabel(language) : showMoreLabel(language)}
+            {textDir === "rtl" ? <ChevronLeft size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
           </button>
         ) : null}
         {entry.sourceUrl ? <a href={entry.sourceUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={16} aria-hidden />{openPostLabel(language)}</a> : null}
