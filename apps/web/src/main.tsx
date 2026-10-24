@@ -1434,7 +1434,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [readFilter, setReadFilter] = useState<"all" | "unread" | "read">("all");
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1536,7 +1535,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const currentEditions = payload ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
   const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
-  const filteredEditions = currentEditions.filter(edition => readFilter === "all" || (readFilter === "read" ? readIds.has(edition.id) : !readIds.has(edition.id)));
+  const filteredEditions = currentEditions;
   const visibleUnreadEditions = filteredEditions.slice(0, visibleUnreadCount);
   const hiddenUnreadCount = Math.max(0, filteredEditions.length - visibleUnreadEditions.length);
   const language = uiLanguage;
@@ -1636,8 +1635,7 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} contextual/>}
-      headingAction={feedActions}
+      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       description={feedStatusMessage || undefined}
@@ -1659,7 +1657,6 @@ function FeedPage(props: { username: string; slug: string }) {
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
       <div className={`feed-tools${payload?.editions.length ? "" : " is-empty-feed"}`} dir={pageDir}>
-        <div className="feed-filter" role="group" aria-label={t("Briefings")}>{(["all", "unread", "read"] as const).map(filter => <button type="button" key={filter} aria-pressed={readFilter === filter} onClick={() => { setReadFilter(filter); setVisibleUnreadCount(FEED_BATCH_SIZE); }}>{t(filter === "all" ? "All" : filter === "unread" ? "Unread" : "Read")}</button>)}</div>
         <div className="feed-side-actions">
           <form
             className="search"
@@ -1853,15 +1850,6 @@ function FeedEditionRow(props: {
             {textDirection(language) === "rtl" ? <ChevronLeft size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
           </button>
         ) : <span />}
-        <button
-          type="button"
-          className="read-button"
-          aria-pressed={props.isRead}
-          onClick={props.onToggleRead}
-        >
-          <Check size={16} aria-hidden />
-          {markReadLabel(props.isRead, language)}
-        </button>
       </div>
     </article>
   );
