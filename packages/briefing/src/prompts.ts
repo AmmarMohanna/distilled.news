@@ -32,7 +32,7 @@ OUTPUT: one JSON object, nothing else:
 "left_out" lists every on-topic article you chose not to cover, so an editor can audit what was omitted. Articles that are plainly off-topic or empty need not be listed.
 importance: 1 = lead story, 2 = notable, 3 = worth a line. Order items most important first. Cite only refs that appear in the articles.`;
 
-function describePrior(prior: PriorItem[], promptVersion: 1 | 2 = 2): string {
+function describePrior(prior: PriorItem[], promptVersion: 1 | 2 | 3 = 2): string {
   if (!prior.length) return "(nothing yet: this is the reader's first briefing, or earlier ones are older than the memory window)";
   return prior.map((item) => {
     // V3 stores the first full reader claim as its legacy headline as well.
@@ -70,7 +70,7 @@ export function editorUser(input: {
   articles: PreparedArticle[];
   /** True when this call sees only part of the window; a later pass trims across all parts. */
   partial?: boolean;
-  promptVersion?: 1 | 2;
+  promptVersion?: 1 | 2 | 3;
 }): string {
   const { feed } = input;
   return [
@@ -99,7 +99,7 @@ OUTPUT: one JSON object, nothing else:
 {"items":[{"from":[0,3],"headline":"...","body":"...","relation":"new|update|correction","updates":"id or null","importance":1}],"cut":[{"from":[5],"why":"one short phrase"}]}
 "from" lists the draft numbers the item is built from (one number if unchanged). "cut" lists every draft you dropped for the reading budget, with the reason, so the cut can be audited.`;
 
-export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
+export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2 | 3; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
   return [
     `READER INTEREST: ${input.feed.interest}`,
     `WRITE IN: ${LANGUAGE_NAME[input.feed.language]}`,
@@ -112,7 +112,7 @@ export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2; 
   ].join("\n");
 }
 
-export const VERIFY_SYSTEM = `You are a meticulous fact-checker for a news briefing. For each ITEM, check it against the SOURCES it cites and against the ALREADY TOLD items. The sources are the only evidence; do not use outside knowledge to excuse or condemn a statement.
+export const LEGACY_VERIFY_SYSTEM = `You are a meticulous fact-checker for a news briefing. For each ITEM, check it against the SOURCES it cites and against the ALREADY TOLD items. The sources are the only evidence; do not use outside knowledge to excuse or condemn a statement.
 
 An implication or connection to the reader topic still needs support in the cited sources, even when phrased as may, could, or relevant to readers. Mark fix for an unsupported added implication; remove only the unsupported wording. Accept source-supported consequences, attributed predictions and concise reporting without an explanation of relevance.
 
@@ -134,10 +134,16 @@ OUTPUT: one JSON object, nothing else:
 {"results":[{"i":0,"verdict":"ok|fix|drop|redundant","issues":["offending words -> what the sources say"]}]}
 Include every item number exactly once.`;
 
+/** Disambiguate whose relative wording is being checked; legacy frozen jobs keep exact prompt bytes. */
+export const VERIFY_SYSTEM = LEGACY_VERIFY_SYSTEM.replace(
+  'Relative dates are read against the BRIEFING REPORTING CUTOFF, not against the source date; source "today" can be anchored to its supplied publication date;',
+  'Relative dates in SOURCE text (such as "today", "yesterday" or "tomorrow") are anchored to that source\'s supplied publication date, unless the source explicitly provides a different reference time. Relative dates in the reader-facing ITEM are anchored to the BRIEFING REPORTING CUTOFF; do not copy source-relative wording into the ITEM when that changes the date. An explicit calendar date correctly derived from source-relative wording is supported; do not replace it with briefing-relative wording or infer event timing from publication metadata alone;'
+);
+
 export interface PreviousReview {index: number; headline: string; body: string; issues: string[]}
 
 export function verifyUser(input: {
-  promptVersion?: 1 | 2;
+  promptVersion?: 1 | 2 | 3;
   previousReviews?: PreviousReview[];
   windowEnd: string;
   items: Array<{ index: number; headline: string; body: string; relation: string; sources: string[]; updatesText?: string; hints: string[] }>;

@@ -16,7 +16,7 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 
 const POLICY='v3-fixed-window-editor-verifier-v1';
-export interface V3WindowInput {promptVersion?:1|2;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[]}
+export interface V3WindowInput {promptVersion?:1|2|3;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[]}
 interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
 export const productV3Enabled=(env:Pick<Env,'BRIEFING_ENGINE'>)=>env.BRIEFING_ENGINE==='v3';
 export const productV3Ready=(env:Env)=>Boolean(env.OPENROUTER_API_KEY);
@@ -54,7 +54,7 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const carried=evidence.filter(({revision:r})=>!active.some(a=>a.revision.id===r.id)&&!previouslyUsed.has(r.id)&&beforeClose(r)&&pending.some(p=>newsWindowEligibility([r],p.window,feed.createdAt)==='IN_WINDOW'));
  active.push(...carried);active.sort((a,b)=>a.revision.id.localeCompare(b.revision.id));
  const input:BriefingInput={feed:{interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:active.map(({item,revision:r})=>({id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
- const value={promptVersion:2 as const,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
+ const value={promptVersion:3 as const,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }
 
