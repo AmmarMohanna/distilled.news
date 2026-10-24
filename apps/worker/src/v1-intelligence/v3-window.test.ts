@@ -8,6 +8,7 @@ import {V1FeedStore,feedTransact,FeedTransaction} from './store';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,windowIdentity} from './runtime';
 import {publicV1Edition} from './public-read';
 import {prepareV3Window} from './v3-window';
+import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
@@ -156,4 +157,15 @@ it('an interval edit preserves the original pending request and retries its froz
  expect(sent.at(-1).window).toEqual(oldMessage.window);
  const next=(await store.list<any>('feed-1','briefing_requests')).find(r=>r.id!==id)!;
  expect(next.window.start).toBe(oldMessage.window.end);expect(next.window.end).toBe('2026-10-03T13:35:40.123Z');
+},60000);
+
+it('keeps V3 briefing attempts intact while another feed operation owns the semantic lease',async()=>{
+ await article();const lease=await acquireSemanticWorkLease(store,'feed-1');const seen:string[]=[];
+ try{
+  for(let i=0;i<6;i++)await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch)).rejects.toBeInstanceOf(SemanticLeaseError);
+  expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'PENDING',attempts:0,engine:'v3'});
+  expect(seen).toHaveLength(0);
+ }finally{await releaseSemanticWorkLease(store,lease)}
+ expect((await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch))?.engine).toBe('v3');
+ expect(seen).toHaveLength(2);
 },60000);

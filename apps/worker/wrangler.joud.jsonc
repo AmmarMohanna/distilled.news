@@ -4,19 +4,33 @@
   "account_id": "e32b564514d4f9b9e383b7dd30dbb026",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-16",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
   "workers_dev": true,
   "routes": [],
-  "assets": { "directory": "../web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": true },
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
   "vars": {
+    "BRIEFING_ENGINE": "v3",
+    "BRIEFING_EDITOR_MODEL": "openai/gpt-4.1",
+    "BRIEFING_VERIFIER_MODEL": "openai/gpt-4.1-mini",
+    "BRIEFING_V3_DAILY_BUDGET_USD": "1",
+    "BRIEFING_V3_RUN_BUDGET_USD": "0.50",
     "STORAGE_MAINTENANCE_ENABLED": "true",
-    "SOURCE_DAILY_BUDGET_USD": "5",
+    "SOURCE_DAILY_BUDGET_USD": "10",
     "SOURCE_BUDGET_TIME_ZONE": "Asia/Beirut",
     "SOURCE_PAID_VERIFICATION_ENABLED": "true",
     "SOURCE_NATIVE_EXECUTION_ENABLED": "true",
     "SOURCE_EXECUTION_URL": "http://127.0.0.1:8791/v1/source-execution",
     "SOURCE_LEGACY_POLLING_ENABLED": "false",
     "SOURCE_RECOMMENDATIONS_ENABLED": "true",
+    "SOURCE_RECOMMENDATIONS_FAST_CATALOG": "true",
     "SOURCE_RECOMMENDATIONS_WEB_SEARCH": "true",
     "SOURCE_RECOMMENDATIONS_GOOGLE_NEWS": "true",
     "SOURCE_ASSESSMENT_ENABLED": "true",
@@ -43,16 +57,120 @@
     "DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE": "false",
     "DISTILLED_NEWS_PIPELINE_EVALUATION": "false",
     "SOURCE_OPERATION_CEILINGS_JSON": "{\"twitterApiIo\":0,\"apify\":0.05,\"zyte\":0}",
-    "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":0,\"x_apify\":5,\"google_apify\":5,\"linkedin_apify\":5,\"zyte\":0}"
+    "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":0,\"x_apify\":5,\"google_apify\":5,\"linkedin_apify\":5,\"zyte\":0}",
+    "SOURCE_FULL_ARTICLES_ENABLED": "true",
+    "SOURCE_QUEUE_SCHEDULING_ENABLED": "true",
+    "SOURCE_SHARED_PUBLIC_FETCH_ENABLED": "true",
+    "SOURCE_COLLECTION_INTERVAL_MS": "300000",
+    "SOURCE_POLL_MAX_JOBS_PER_TICK": "4",
+    "SOURCE_POLL_TICK_BUDGET_MS": "90000",
+    "V1_PUBLICATION_PREPARATION_ISOLATED": "true",
+    "V1_REVIEW_PREPARATION_ISOLATED": "true"
   },
-  "d1_databases": [{ "binding": "DB", "database_name": "distilled-news-joud", "database_id": "85d1c3a5-1004-4cfc-9da1-dd5a87dab9a2", "migrations_dir": "migrations" }],
-  "r2_buckets": [{ "binding": "RAW_ARCHIVE", "bucket_name": "distilled-news-joud-raw" }, { "binding": "AUTHENTICATED_SECRETS", "bucket_name": "distilled-news-joud-authenticated-secrets" }],
-  "vpc_services": [{ "binding": "SOURCE_EXECUTION_SERVICE", "service_id": "01a15fbb-d418-7871-a5ca-92f1be34925c" }],
-  "send_email": [{ "name": "EMAIL" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "distilled-news-joud",
+      "database_id": "85d1c3a5-1004-4cfc-9da1-dd5a87dab9a2",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "RAW_ARCHIVE",
+      "bucket_name": "distilled-news-joud-raw"
+    },
+    {
+      "binding": "AUTHENTICATED_SECRETS",
+      "bucket_name": "distilled-news-joud-authenticated-secrets"
+    }
+  ],
+  "vpc_services": [
+    {
+      "binding": "SOURCE_EXECUTION_SERVICE",
+      "service_id": "01a15fbb-d418-7871-a5ca-92f1be34925c"
+    }
+  ],
+  "send_email": [
+    {
+      "name": "EMAIL"
+    }
+  ],
   "queues": {
-    "producers": [{ "binding": "PROCESSING_QUEUE", "queue": "distilled-news-joud-processing" }, { "binding": "IMAGE_QUEUE", "queue": "distilled-news-joud-images" }],
-    "consumers": [{ "queue": "distilled-news-joud-processing", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 4, "dead_letter_queue": "distilled-news-joud-processing-dlq" }, { "queue": "distilled-news-joud-images", "max_batch_size": 1, "max_batch_timeout": 1, "max_concurrency": 2, "max_retries": 4, "dead_letter_queue": "distilled-news-joud-processing-dlq" }]
+    "producers": [
+      {
+        "binding": "PROCESSING_QUEUE",
+        "queue": "distilled-news-joud-processing"
+      },
+      {
+        "binding": "IMAGE_QUEUE",
+        "queue": "distilled-news-joud-images"
+      },
+      {
+        "binding": "SOURCE_COLLECTION_QUEUE",
+        "queue": "distilled-news-joud-collection"
+      },
+      {
+        "binding": "V1_ACQUISITION_QUEUE",
+        "queue": "distilled-news-joud-acquisition"
+      },
+      {
+        "binding": "V1_PROCESSING_QUEUE",
+        "queue": "distilled-news-joud-v1"
+      },
+      {
+        "binding": "SOURCE_SCHEDULING_QUEUE",
+        "queue": "distilled-news-joud-processing"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "distilled-news-joud-processing",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 4,
+        "dead_letter_queue": "distilled-news-joud-processing-dlq"
+      },
+      {
+        "queue": "distilled-news-joud-images",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_concurrency": 2,
+        "max_retries": 4,
+        "dead_letter_queue": "distilled-news-joud-processing-dlq"
+      },
+      {
+        "queue": "distilled-news-joud-collection",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "max_concurrency": 8,
+        "dead_letter_queue": "distilled-news-joud-collection-dlq"
+      },
+      {
+        "queue": "distilled-news-joud-acquisition",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "max_concurrency": 8,
+        "dead_letter_queue": "distilled-news-joud-acquisition-dlq"
+      },
+      {
+        "queue": "distilled-news-joud-v1",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "max_concurrency": 8,
+        "dead_letter_queue": "distilled-news-joud-v1-dlq"
+      }
+    ]
   },
-  "triggers": { "crons": ["* * * * *"] },
-  "observability": { "enabled": true }
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
+  "observability": {
+    "enabled": true
+  }
 }

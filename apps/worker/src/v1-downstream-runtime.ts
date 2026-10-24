@@ -17,7 +17,7 @@ import {admittedSourceExecution} from './source-execution-admission';
 import {verifyConnectorAuthority} from './connector-authority';
 import {sharedPublicHttp} from './connector-public-cache';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
-import {readPublicArticle} from './v1-intake/public-article-http';
+import {readPublicArticle,PUBLIC_ARTICLE_MAX_BYTES} from './v1-intake/public-article-http';
 import {runtimeArticleFallback} from './v1-intake/article-fallback';
 import {productConnectorSource} from './connector-source';
 
@@ -82,7 +82,7 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
  const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
  const authorizeArticle=async(url:string)=>{new WorkerPublicSourceFetch(url,fetcher);if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);};
- const articleMaxBytes=512000;
+ const articleMaxBytes=PUBLIC_ARTICLE_MAX_BYTES;
  const articleHttp=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,new BoundedFeedHttp(async(url,init)=>{await authorizeArticle(url);return fetcher(url,{...init,redirect:'manual'})},{maxBytes:articleMaxBytes}),authorizeArticle,Date.now,articleMaxBytes):undefined;
  const execution=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE&&env.SOURCE_NATIVE_EXECUTION_ENABLED!=='true'?
   new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'?nativeSourceExecution(async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)}):undefined;

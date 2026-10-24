@@ -58,3 +58,16 @@ it('foreign or mismatched receipt identity never authorizes a provider lookup',a
  await ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind('model_provider_receipts','foreign-header','feed-1',JSON.stringify({id:'foreign-header',feedId:'foreign',reservationId,generationId,provider:'OPENROUTER',model,stage:'HEADERS'})).run();const fetcher=vi.fn();
  expect(await recoverProviderGeneration(ctx.db,reservationId,'fixture-key',fetcher)).toMatchObject({state:'WAITING',reason:'GENERATION_BINDING_INVALID'});expect(fetcher).not.toHaveBeenCalled();
 });
+
+it('settles a provider-confirmed cancellation under the exact catalog canonical alias without retrying inference',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async()=>Response.json({data:metadata({model:'openai/gpt-4.1-mini-2025-04-14',cancelled:true,finish_reason:null,total_cost:.007682})}));
+ expect(await recoverProviderGeneration(ctx.db,reservationId,'fixture-key',fetcher)).toEqual({state:'SETTLED',costUsd:.007682});
+ expect(await spendingExposure(ctx.db,'account',testPolicy.now())).toMatchObject({heldCostUsd:0,reportedCostUsd:.007682,unsettledConcurrencySlots:0});
+ const result=await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='semantic_results' AND id='unknown-operation'").first<{json:string}>();
+ expect(JSON.parse(result!.json).failure).toBe('SEMANTIC_OUTCOME_UNKNOWN');
+ expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it.each([{model:'openai/gpt-4.1-mini-unknown-version',cancelled:true},{cancelled:'true',finish_reason:null},{cancelled:false,finish_reason:null},{id:'gen-unrelated',cancelled:true}])('retains holds for unproven cancellation or unrecognized aliases %j',async changes=>{
+ expect(await recoverProviderGeneration(ctx.db,reservationId,'fixture-key',async()=>Response.json({data:metadata(changes)}))).toMatchObject({state:'WAITING'});
+ expect(await spendingExposure(ctx.db,'account',testPolicy.now())).toMatchObject({heldCostUsd:.2,unsettledConcurrencySlots:1});
+});

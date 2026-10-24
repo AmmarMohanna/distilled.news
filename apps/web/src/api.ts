@@ -318,8 +318,29 @@ export interface SourceAssessment {
   reason: string;
   checkedAt: string;
 }
-export function recommendSourceCandidates(title: string, description: string): Promise<{ sources: string[]; checks?: SourceAssessment[] }> {
-  return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });
+export interface SourceRecommendations { sources: string[]; checks?: SourceAssessment[] }
+export async function recommendSourceCandidates(title: string, description: string, onProgress?: (result:SourceRecommendations)=>void): Promise<SourceRecommendations> {
+  if(!onProgress)return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });
+  const response=await fetch('/api/me/sources/recommend',{method:'POST',credentials:'include',headers:{'content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({title,description})});
+  if(!response.ok){const result=await response.json().catch(()=>({}));throw new Error(result.error??`Request failed: ${response.status}`);}
+  // Older deployments and deployments without assessment still return JSON.
+  if(!response.headers.get('content-type')?.includes('application/x-ndjson'))return response.json();
+  const reader=response.body?.getReader();if(!reader)throw new Error('Source recommendations unavailable');
+  const decoder=new TextDecoder();let pending='',complete:SourceRecommendations|undefined;
+  const consume=(line:string)=>{
+    if(!line.trim())return;
+    const event=JSON.parse(line) as SourceRecommendations&{type:string;error?:string};
+    if(event.type==='error')throw new Error(event.error??'Source recommendations unavailable');
+    if(!Array.isArray(event.sources))throw new Error('Invalid source recommendation response');
+    if(event.type==='complete')complete={sources:event.sources,checks:event.checks};
+    if(event.type==='progress'||event.type==='complete')onProgress({sources:event.sources,checks:event.checks});
+  };
+  try{
+    for(;;){const {value,done}=await reader.read();pending+=decoder.decode(value,{stream:!done});if(pending.length>256_000)throw new Error('Source recommendation response too large');let end;while((end=pending.indexOf('\n'))>=0){consume(pending.slice(0,end));pending=pending.slice(end+1);}if(done)break;}
+    consume(pending);
+    if(!complete)throw new Error('Source recommendations were interrupted. Please try again.');
+    return complete;
+  }finally{await reader.cancel().catch(()=>undefined);reader.releaseLock();}
 }
 export async function assessSourceInput(title: string, description: string, source: string): Promise<SourceAssessment> {
   const payload = await requestJson<{ assessment: SourceAssessment }>("/api/me/sources/assess", { method: "POST", body: JSON.stringify({ title, description, source }) });

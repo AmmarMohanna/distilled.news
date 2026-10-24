@@ -2,6 +2,9 @@ import {sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {modelSettlementStatement} from './model-spending';
 type Recovery={state:'SETTLED';costUsd:number}|{state:'WAITING';reason:string};
+// Exact canonical slugs from OpenRouter's model catalog, checked 2026-10-23.
+// Never strip arbitrary version suffixes or equate different model families.
+const canonicalModels:Record<string,string>={'openai/gpt-4.1':'openai/gpt-4.1-2025-04-14','openai/gpt-4.1-mini':'openai/gpt-4.1-mini-2025-04-14'};
 /** Metadata GET only. No inference retries, operation replacement or canonical
  * semantic writes. A generation handle alone never releases financial exposure. */
 export async function recoverProviderGeneration(db:D1Database,reservationId:string,apiKey:string,fetcher:typeof fetch=fetch):Promise<Recovery>{
@@ -21,8 +24,8 @@ export async function recoverProviderGeneration(db:D1Database,reservationId:stri
   let text='',size=0;const decoder=new TextDecoder();try{for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>65536)return {state:'WAITING',reason:'PROVIDER_METADATA_INVALID'};text+=decoder.decode(part.value,{stream:true})}text+=decoder.decode()}finally{await reader.cancel().catch(()=>{})}
   data=JSON.parse(text).data;
  }catch{return {state:'WAITING',reason:'PROVIDER_LOOKUP_UNAVAILABLE'}}
- if(data?.id!==generationId||data?.model!==reservation.model||typeof data?.total_cost!=='number'||!Number.isFinite(data.total_cost)||data.total_cost<0||!['stop','length','tool_calls','function_call','content_filter','error','cancelled'].includes(data?.finish_reason))return {state:'WAITING',reason:'PROVIDER_COMPLETION_UNPROVEN'};
- const proof={generationId,model:reservation.model,costUsd:data.total_cost,finishReason:data.finish_reason},proofId=JSON.stringify([reservationId,generationId,'provider-metadata-v1']),proofHash=await sha256(canonicalJson(proof));
+ if(data?.id!==generationId||typeof data?.model!=='string'||!(data?.model===reservation.model||canonicalModels[reservation.model]===data?.model)||typeof data?.total_cost!=='number'||!Number.isFinite(data.total_cost)||data.total_cost<0||!(data?.cancelled===true||['stop','length','tool_calls','function_call','content_filter','error','cancelled'].includes(data?.finish_reason)))return {state:'WAITING',reason:'PROVIDER_COMPLETION_UNPROVEN'};
+ const proof={generationId,model:reservation.model,costUsd:data.total_cost,finishReason:data.cancelled===true?'cancelled':data.finish_reason,providerModel:data.model,cancelled:data.cancelled===true},proofId=JSON.stringify([reservationId,generationId,'provider-metadata-v1']),proofHash=await sha256(canonicalJson(proof));
  const audit={id:proofId,reservationId,feedId:reservation.feed_id,source:'OPENROUTER_GENERATION_METADATA',...proof,proofHash};
  const guard=crypto.randomUUID();
  await db.batch([

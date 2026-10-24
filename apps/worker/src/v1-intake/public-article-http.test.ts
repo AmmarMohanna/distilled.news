@@ -1,5 +1,16 @@
 import {it,expect,vi} from 'vitest';import {readPublicArticle} from './public-article-http';
+import {BoundedFeedHttp} from '@distilled/connectors';
+import {PUBLIC_ARTICLE_MAX_BYTES} from './public-article-http';
 const reply=(status:number,headers:Record<string,string>={},text='')=>({status,headers,bytes:new TextEncoder().encode(text),telemetry:{requests:1,latencyMs:0,providerCostUsd:0 as const,status}});
+it('reads publisher HTML larger than 512 KB while retaining a bounded transport',async()=>{
+ const body='<html>'+ ' '.repeat(800_000)+'</html>';
+ const http=new BoundedFeedHttp(async()=>new Response(body),{maxBytes:PUBLIC_ARTICLE_MAX_BYTES});
+ expect((await readPublicArticle(http,'https://publisher.example/story')).body).toBe(body);
+});
+it('classifies oversized publisher responses instead of leaving an unexpected crash lease',async()=>{
+ const http=new BoundedFeedHttp(async()=>new Response('x'.repeat(PUBLIC_ARTICLE_MAX_BYTES+1)),{maxBytes:PUBLIC_ARTICLE_MAX_BYTES});
+ await expect(readPublicArticle(http,'https://publisher.example/story')).rejects.toMatchObject({code:'BODY_BUDGET_EXCEEDED',transient:false});
+});
 it('resolves an exact publisher-local redirect and exposes the final transport URL',async()=>{
  const get=vi.fn().mockResolvedValueOnce(reply(301,{location:'/news/story/'})).mockResolvedValueOnce(reply(200,{'content-type':'text/html'},'Article text'));
  expect(await readPublicArticle({get},'https://publisher.example/news/story')).toMatchObject({url:'https://publisher.example/news/story/',status:200,body:'Article text'});

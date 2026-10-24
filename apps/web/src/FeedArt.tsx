@@ -95,7 +95,7 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [feed?.ownerUsername, feed?.slug, feed?.id]);
   return <span className="topic-art pencil-art" title={failure || undefined} aria-hidden="true">
-    {!loaded && <span className="feed-art-loading"><span className="feed-skeleton-spinner"/></span>}
+
     {image && <img src={image} alt="" style={{ visibility: loaded ? "visible" : "hidden" }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); }}/>}
   </span>;
 }

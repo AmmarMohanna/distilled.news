@@ -25,7 +25,7 @@ export class HttpSourceExecution implements SourceExecutionPort {
     };
     const response=await bounded(this.dispatch(this.url,{method:'POST',redirect:'manual',signal,
       headers:{authorization:`Bearer ${this.token}`,'content-type':'application/json'},body}));
-    if(response.status!==200){await response.body?.cancel();if(response.status===503||response.status===429){const seconds=Number(response.headers.get('retry-after')??5);throw new SourceProviderError('BACKPRESSURE',new Date(Date.now()+Math.max(1000,Number.isFinite(seconds)?seconds*1000:5000)).toISOString());}throw new Error('SOURCE_EXECUTION_UNAVAILABLE');}
+    if(response.status!==200){await response.body?.cancel();if(response.status===503||response.status===429){const seconds=Number(response.headers.get('retry-after')??5);throw new SourceProviderError('BACKPRESSURE',new Date(Date.now()+Math.max(1000,Number.isFinite(seconds)?seconds*1000:5000)).toISOString());}throw Object.assign(new Error('SOURCE_EXECUTION_UNAVAILABLE'),{httpStatus:response.status});}
     const reader=response.body?.getReader();if(!reader)throw new Error('SOURCE_EXECUTION_INVALID_RESPONSE');
     let size=0;const chunks:Uint8Array[]=[];
     try {

@@ -13,6 +13,18 @@ export const sourceCatalog = [
  ['https://techcrunch.com/feed/', 'TechCrunch: technology companies, startups and venture capital'],
  ['https://www.theverge.com/rss/index.xml', 'The Verge: technology products and industry'],
  ['https://feeds.arstechnica.com/arstechnica/index', 'Ars Technica: technology, computing, science and security'],
+ ['https://www.wired.com/feed/rss', 'Wired: technology, artificial intelligence, science and digital culture'],
+ ['https://venturebeat.com/feed/', 'VentureBeat: artificial intelligence, enterprise technology and software'],
+ ['https://www.technologyreview.com/feed/', 'MIT Technology Review: artificial intelligence, technology research and science'],
+ ['https://www.engadget.com/rss.xml', 'Engadget: technology, computing, gadgets and consumer electronics'],
+ ['https://www.techradar.com/feeds/articletype/news', 'TechRadar: technology, computing, software and consumer electronics'],
+ ['https://www.tomshardware.com/feeds/all', 'Tom’s Hardware: computing technology, processors and hardware'],
+ ['https://www.theregister.com/headlines.atom', 'The Register: enterprise technology, computing, artificial intelligence and software'],
+ ['https://www.techspot.com/backend.xml', 'TechSpot: computing technology, hardware and software'],
+ ['https://openai.com/news/rss.xml', 'OpenAI: primary artificial intelligence model, research and product announcements'],
+ ['https://9to5google.com/feed/', '9to5Google: Google technology, artificial intelligence, Android and software'],
+ ['https://www.androidauthority.com/feed/', 'Android Authority: mobile technology, Google, Android and software'],
+ ['https://readwrite.com/feed/', 'ReadWrite: technology, artificial intelligence and connected devices'],
  ['https://www.bleepingcomputer.com/feed/', 'BleepingComputer: cybersecurity, vulnerabilities and ransomware'],
  ['https://krebsonsecurity.com/feed/', 'Krebs on Security: cybersecurity and online crime'],
  ['https://www.securityweek.com/feed/', 'SecurityWeek: cybersecurity, vulnerabilities, ransomware and enterprise defense'],
@@ -36,4 +48,9 @@ export const sourceCatalog = [
  ['https://www.espn.com/espn/rss/news', 'ESPN: sports news'],
  ['https://www.naharnet.com/tags/lebanon/en/feed.atom', 'Naharnet: Lebanese politics and public affairs in English'],
  ['https://sobhiye.news/api/feed', 'Sobhiye: Lebanese politics, economy and public affairs aggregation; not independent original reporting']
+] as const;
+
+/** Public account candidates; fetched posts still determine relevance. */
+export const sourceChannelCatalog = [
+ ['https://t.me/telegram', 'telegram', 'Telegram: messaging software, technology, artificial intelligence, bots and digital platform product updates']
 ] as const;

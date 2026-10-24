@@ -4,11 +4,11 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {transparentSketch} from './sketchImage';
 vi.mock('./sketchImage',()=>({transparentSketch:vi.fn(async(blob:Blob)=>blob)}));
 import {FeedArt} from './FeedArt';
-it('shows a loading spinner instead of substitute artwork when no generated sketch is saved',async()=>{
+it('waits quietly without a spinner or substitute artwork when no sketch is saved',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const fetcher=vi.fn().mockResolvedValue({ok:false,status:404});vi.stubGlobal('fetch',fetcher);
  const host=document.createElement('div'),root=createRoot(host);
  await act(async()=>root.render(<FeedArt feed={{id:'feed',title:'Science',ownerUsername:'owner',slug:'science'}}/>));
- expect(host.querySelectorAll('svg')).toHaveLength(0);expect(host.querySelector('.feed-art-loading')).not.toBeNull();expect(host.querySelector('button')).toBeNull();expect(fetcher).toHaveBeenCalledWith('/api/feed/owner/science/sketch',expect.objectContaining({cache:'no-store'}));
+ expect(host.querySelectorAll('svg')).toHaveLength(0);expect(host.querySelector('.feed-art-loading')).toBeNull();expect(host.querySelector('button')).toBeNull();expect(fetcher).toHaveBeenCalledWith('/api/feed/owner/science/sketch',expect.objectContaining({cache:'no-store'}));
  await act(async()=>root.unmount());vi.unstubAllGlobals();
 });
 
@@ -30,7 +30,7 @@ it('does not flash fallback artwork while a saved sketch is loading',async()=>{
  vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:()=> 'blob:stable-sketch',revokeObjectURL:vi.fn()}));
  const {host,root}=renderHost();await act(async()=>root.render(<FeedArt feed={{id:'stable',title:'Science',ownerUsername:'owner',slug:'stable'}}/>));
  expect(host.querySelector('svg')).toBeNull();
- expect(host.querySelector('.feed-art-loading')).not.toBeNull();
+ expect(host.querySelector('.feed-art-loading')).toBeNull();
  await act(async()=>pending.resolve(sketch()));expect(host.querySelector('svg')).toBeNull();
  const img=host.querySelector('img')!;expect(img.style.visibility).toBe('hidden');
  await act(async()=>img.dispatchEvent(new Event('load')));expect(img.style.visibility).toBe('visible');expect(host.querySelector('svg')).toBeNull();

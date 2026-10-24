@@ -7,6 +7,7 @@ export async function telegramVerificationEvidence(env:Env,username:string){
  if(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_URL||!env.SOURCE_EXECUTION_TOKEN)throw new Error('TELEGRAM_NOT_CONFIGURED');
  const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(value,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init),true);
  const resolved=await execution.execute('telegram_resolve',{username});
+ if(resolved&&typeof resolved==='object'&&'error' in resolved&&['AUTH_REQUIRED','RATE_LIMIT','EXECUTION_FAILED','UNAVAILABLE'].includes(String(resolved.error)))throw new Error(`TELEGRAM_${resolved.error}`);
  const identity=z.object({channelId:z.string().regex(/^-[1-9]\d*$/),username:z.string()}).safeParse(resolved);
  if(!identity.success||identity.data.username.toLowerCase()!==username.toLowerCase())throw new Error('TELEGRAM_IDENTITY_UNVERIFIED');
  const raw=await execution.execute('telethon',{channelId:identity.data.channelId,afterId:0,limit:20});

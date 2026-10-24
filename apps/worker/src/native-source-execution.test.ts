@@ -13,3 +13,12 @@ it('rejects private targets and does not pretend to support browser challenges o
  expect(await execution.execute('telegram_resolve',{username:'telegram'})).toEqual({error:'UNAVAILABLE'});
  expect(fetcher).not.toHaveBeenCalled();
 });
+
+it('reads an explicit publisher article body without requiring an article tag or including surrounding page copy',async()=>{
+ const execution=nativeSourceExecution();
+ const metadata='<meta property="og:type" content="article"><meta property="article:published_time" content="2026-10-22T13:38:55Z">';
+ const page=metadata+'<h1>Build an AI employee</h1><div>Subscribe and browse unrelated stories</div><div class="content-box" id="article-start"><p>Actual retained article body.</p><script>ignore this script</script></div><footer>Other stories</footer>';
+ expect(await execution.execute('extract',{url:'https://publisher.example/post',html:page})).toMatchObject({body:'Actual retained article body.',pageKind:'article',publishedAt:'2026-10-22T13:38:55.000Z'});
+ expect(await execution.execute('extract',{url:'https://publisher.example/post',html:page.replace(metadata,'')})).toMatchObject({body:''});
+ expect(await execution.execute('extract',{url:'https://publisher.example/post',html:page+'<div class="content-box" id="article-start">Ambiguous sibling</div>'})).toMatchObject({body:''});
+});

@@ -3,11 +3,11 @@ import {createRoot} from 'react-dom/client';
 import {expect,it,vi} from 'vitest';
 import {BriefingText} from './BriefingText';
 
-async function render(summary:string,sections:Array<{title:string;summary:string}>,direction:'ltr'|'rtl',check:(host:HTMLDivElement)=>void){
+async function render(summary:string,sections:Array<{title:string;summary:string}>,direction:'ltr'|'rtl',check:(host:HTMLDivElement)=>void,fallback:{fallbackHeadline?:string;fallbackSummary?:string}={}){
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
   const host=document.createElement('div'),root=createRoot(host);
   try{await act(async()=>root.render(<BriefingText summary={summary} sections={sections} direction={direction}
-    renderBody={text=><p className="news-summary">{text}</p>}/>));check(host)}
+    {...fallback} renderBody={text=><p className="news-summary">{text}</p>}/>));check(host)}
   finally{await act(async()=>root.unmount());vi.unstubAllGlobals()}
 }
 
@@ -44,4 +44,21 @@ it('preserves legacy or partial summaries without guessing a headline or losing 
     expect(host.querySelector('p')?.textContent).toBe('Existing summary [1]. More detail.');
   });
   await render('Complete summary [2]',[],'ltr',host=>expect(host.querySelector('p')?.textContent).toBe('Complete summary [2]'));
+});
+
+it('keeps Joud legacy headline styling and its supplied body without losing RTL or references',async()=>{
+  await render('عنوان محفوظ\nنص الخبر [1]',[],'rtl',host=>{
+    expect(host.querySelector('h3.news-headline')?.textContent).toBe('عنوان محفوظ');
+    expect(host.querySelector('h3')?.getAttribute('dir')).toBe('rtl');
+    expect(host.querySelector('p')?.textContent).toBe('نص الخبر [1]');
+  },{fallbackHeadline:'عنوان محفوظ',fallbackSummary:'نص الخبر [1]'});
+});
+
+it('keeps every explicit V3 story headline instead of substituting the legacy edition headline',async()=>{
+  const sections=[{title:'',summary:'First headline\nFirst body.'},{title:'',summary:'Second headline\nSecond body.'}];
+  await render(sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,'ltr',host=>{
+    expect([...host.querySelectorAll('h3.news-headline')].map(h=>h.textContent)).toEqual(['First headline','Second headline']);
+    expect(host.textContent).not.toContain('Edition label');
+    expect([...host.querySelectorAll('p')].map(p=>p.textContent)).toEqual(['First body. [1]','Second body. [2]']);
+  },{fallbackHeadline:'Edition label',fallbackSummary:'Unused legacy body'});
 });

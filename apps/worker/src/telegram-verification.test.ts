@@ -14,9 +14,13 @@ it('resolves the signed-in public identity before reading bounded recent posts',
  expect(requests).toEqual([{kind:'telegram_resolve',input:{username:'telegram'}},{kind:'telethon',input:{channelId:'-100123456',afterId:0,limit:20}}]);
 });
 it.each([{error:'AUTH_REQUIRED'},{channelId:'-100123456',username:'different'}])('does not read posts from an unverified identity: %j',async identity=>{
- const {env,fetch}=fixture(identity);await expect(telegramVerificationEvidence(env,'telegram')).rejects.toThrow('TELEGRAM_IDENTITY_UNVERIFIED');expect(fetch).toHaveBeenCalledTimes(1);
+ const {env,fetch}=fixture(identity);await expect(telegramVerificationEvidence(env,'telegram')).rejects.toThrow('error' in identity?'TELEGRAM_AUTH_REQUIRED':'TELEGRAM_IDENTITY_UNVERIFIED');expect(fetch).toHaveBeenCalledTimes(1);
 });
 it('rejects posts returned for another channel',async()=>{
  const {env}=fixture(undefined,{channelId:'-100999999',records:[{id:42,text:'wrong channel'}]});
  await expect(telegramVerificationEvidence(env,'telegram')).rejects.toThrow();
+});
+it('distinguishes an inaccessible channel from a broken runtime',async()=>{
+ const {env,fetch}=fixture({error:'UNAVAILABLE'});
+ await expect(telegramVerificationEvidence(env,'durov')).rejects.toThrow('TELEGRAM_UNAVAILABLE');expect(fetch).toHaveBeenCalledTimes(1);
 });

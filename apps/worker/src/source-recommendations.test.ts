@@ -2,13 +2,13 @@ import {expect,it,vi} from 'vitest';
 import {sourceRecommendations,verifiedSourceRecommendations} from './source-recommendations';
 import type {Env} from './types';
 const rss='<rss><channel><title>News</title><item><guid>one</guid><title>Topic news</title><link>https://publisher.example/story</link></item></channel></rss>';
-it('uses one bounded web search at initial discovery instead of waiting for unrelated guesses to fail',async()=>{
+it('starts with fast semantic discovery and uses one bounded web search for missing choices',async()=>{
  const dispatch=vi.fn<typeof fetch>(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:[]})}}]}));
  await verifiedSourceRecommendations({SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'Historical figure',description:'Historical research'},dispatch);
  const bodies=dispatch.mock.calls.map(([,init])=>JSON.parse(init!.body as string));
  expect(bodies).toHaveLength(2);
- expect(bodies[0].tools[0].parameters).toMatchObject({max_uses:1,max_results:5});
- expect(bodies[1]).not.toHaveProperty('tools');
+ expect(bodies[1].tools[0].parameters).toMatchObject({max_uses:1,max_results:5});
+ expect(bodies[0]).not.toHaveProperty('tools');
 });
 
 
@@ -24,7 +24,7 @@ it('bounds the call and excludes unsafe suggestions without subscribing anything
  expect(sources).toEqual(['https://feeds.bbci.co.uk/news/world/rss.xml']);
  expect(fetcher).toHaveBeenCalledTimes(2);
  const options=fetcher.mock.calls[0] as unknown as [string,RequestInit];
- expect(JSON.parse(options[1].body as string)).toMatchObject({max_tokens:400,temperature:0});
+ expect(JSON.parse(options[1].body as string)).toMatchObject({max_tokens:2400,temperature:0});
 });
 
 it('excludes unconfigured source families even when the model suggests them',async()=>{
@@ -49,7 +49,7 @@ it('retains social and website suggestions when their collectors are configured'
  const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:JSON.stringify({sources:candidates})}}]}));
  const configured={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test',SOURCE_EXECUTION_URL:'https://execution.example',SOURCE_EXECUTION_TOKEN:'test',SOURCE_EXECUTION_SERVICE:{},APIFY_API_TOKEN:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_apify":1,"linkedin_apify":1}',SOURCE_OPERATION_CEILINGS_JSON:'{"apify":0.1}'} as Env;
  expect(await sourceRecommendations(configured,{title:'World',description:'News'},fetcher)).toEqual(candidates);
- expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(fetcher).toHaveBeenCalledTimes(3);
 });
 
 it('does not pad recommendations with multiple queries to the same Google News provider',async()=>{
@@ -94,4 +94,41 @@ it('narrows an advertised WordPress feed to real topic-search results',async()=>
  const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env;
  expect(await sourceRecommendations(env,{title:'Coconut',description:'Coconut in Australia'},fetcher)).toEqual(['rss: https://publisher.example/?s=coconut+Australia&feed=rss2']);
  expect(fetcher.mock.calls.some(([url])=>String(url)==='https://publisher.example/?s=coconut+Australia&feed=rss2')).toBe(true);
+});
+
+
+it('retains a broad batch of distinct publisher candidates and anchors current discovery to today',async()=>{
+ const candidates=Array.from({length:12},(_,index)=>`https://publisher${index}.example/feed.xml`);
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:candidates})}}]}):new Response(rss,{headers:{'content-type':'application/rss+xml'}}));
+ const sources=await sourceRecommendations({SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'Technology',description:'AI industry updates'},fetcher);
+ expect(sources).toEqual(candidates);
+ const body=JSON.parse(fetcher.mock.calls[0][1]!.body as string);
+ expect(body.messages[0].content).toContain(`Today is ${new Date().toISOString().slice(0,10)}`);
+ expect(body.messages[0].content).toContain('Do not add a past year');
+});
+
+it('caps an oversized discovery answer instead of failing the whole recommendation request',async()=>{
+ const candidates=Array.from({length:40},(_,index)=>`https://publisher${index}.example/feed.xml`);
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('openrouter.ai')?Response.json({choices:[{message:{content:JSON.stringify({sources:candidates})}}]}):new Response(rss,{headers:{'content-type':'application/rss+xml'}}));
+ expect(await sourceRecommendations({SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'Technology',description:'AI industry updates'},fetcher)).toEqual(candidates.slice(0,30));
+ expect(fetcher).toHaveBeenCalledTimes(31);
+});
+
+it('uses semantic catalog selections for named subjects without literal catalog overlap',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('openrouter.ai')
+  ?Response.json({choices:[{message:{content:JSON.stringify({sources:[],catalogSources:['https://www.theguardian.com/football/rss','https://invented.example/feed']})}}]})
+  :new Response(rss,{headers:{'content-type':'application/rss+xml'}}));
+ const result=await sourceRecommendations({SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test'} as Env,{title:'A named athlete',description:'Follow their news'},fetcher);
+ expect(result).toEqual(['rss: https://www.theguardian.com/football/rss']);
+ expect(fetcher.mock.calls.some(([url])=>String(url).includes('invented.example'))).toBe(false);
+});
+
+it('retains dedicated social channel candidates even with a full publisher list',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('openrouter.ai')
+  ?Response.json({choices:[{message:{content:JSON.stringify({sources:Array.from({length:30},(_,i)=>`https://publisher${i}.example/feed.xml`),channels:{telegram:['https://t.me/examplechannel'],x:['https://x.com/exampleaccount'],linkedin:['https://www.linkedin.com/company/examplecompany']}})}}]})
+  :new Response(rss,{headers:{'content-type':'application/rss+xml'}}));
+ const configured={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_RECOMMENDATIONS_ENABLED:'true',OPENROUTER_API_KEY:'test',SOURCE_EXECUTION_URL:'https://execution.example',SOURCE_EXECUTION_TOKEN:'test',SOURCE_EXECUTION_SERVICE:{},APIFY_API_TOKEN:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_apify":1,"linkedin_apify":1}',SOURCE_OPERATION_CEILINGS_JSON:'{"apify":0.1}'} as Env;
+ const result=await sourceRecommendations(configured,{title:'A subject',description:'News about the subject'},fetcher);
+ expect(result).toEqual(expect.arrayContaining(['https://t.me/examplechannel','https://x.com/exampleaccount','https://www.linkedin.com/company/examplecompany']));
+ expect(result).toHaveLength(33);
 });
