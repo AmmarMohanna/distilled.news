@@ -1925,10 +1925,9 @@ function SourcesSheet(props: {
   const { edition, language } = props;
   const textDir = textDirection(language);
   const [storyIndex, setStoryIndex] = useState(props.selectedIndex);
-  const [moreSources, setMoreSources] = useState(false);
   const sourcesListId = useId();
   const { t } = useLanguage();
-  useEffect(() => { setStoryIndex(props.selectedIndex); setMoreSources(false); }, [props.selectedIndex]);
+  useEffect(() => { setStoryIndex(props.selectedIndex); }, [props.selectedIndex]);
   return (
     <Sheet
       title={sourcesLabel(language)}
@@ -1964,15 +1963,15 @@ function SourcesSheet(props: {
               {section.evidence.length === 0
                 ? <p className="muted">{noReferencesLabel(language)}</p>
                 : <ul className="sources-posts" id={sourcesListId}>
-                    {section.evidence.slice(0, moreSources ? undefined : 1).map((entry, sourceIndex) => (
-                      <SourcePost key={`${entry.messageId}:${entry.postedAt}:${sourceIndex}`} entry={entry} language={language} expandedEvidence={moreSources} continuation={sourceIndex === 0 && section.evidence.length > 1 ? <button className="sources-reveal" type="button" aria-expanded={moreSources} aria-controls={sourcesListId} onClick={() => setMoreSources(value => !value)}>{moreSources ? showLessLabel(language) : language === "ar" ? "\u0627\u0644\u0645\u0632\u064a\u062f\u2026" : language === "fr" ? "Plus\u2026" : "More\u2026"}</button> : undefined} />
+                    {section.evidence.map((entry, sourceIndex) => (
+                      <SourcePost key={`${entry.messageId}:${entry.postedAt}:${sourceIndex}`} entry={entry} language={language} />
                     ))}
                   </ul>}
             </li>
           ) : null; })}
         </ol>
         {(edition.sections.length > 1 || (edition.sections[storyIndex]?.evidence.length ?? 0) > 1) && <div className="sources-pagination">
-          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); setMoreSources(false); }}><ChevronLeft size={18}/></button><span>{language === "ar" ? "???" : language === "fr" ? "Article" : "Story"} {storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); setMoreSources(false); }}><ChevronRight size={18}/></button></div>}
+          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); }}><ChevronLeft size={18}/></button><span>{language === "ar" ? "\u062e\u0628\u0631" : language === "fr" ? "Article" : "Story"} {storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); }}><ChevronRight size={18}/></button></div>}
         </div>}
       </div>
     </Sheet>
@@ -1989,7 +1988,7 @@ function sourceDisplayText(value: string): string {
   return value;
 }
 
-function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "fr"; continuation?: React.ReactNode; expandedEvidence?: boolean }) {
+function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "fr" }) {
   const { entry, language } = props;
   const textDir = textDirection(language);
   const [open, setOpen] = useState(false);
@@ -2019,8 +2018,8 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
       {hasText ? (
-        <p id={textId} className={`sources-post-text${open ? " is-open" : ""}`} dir={textDir}><bdi dir={textDir}>{props.continuation && !props.expandedEvidence && !open && sourceText.length > 360 ? sourceText.slice(0, 360).replace(/\s+\S*$/, "") + "..." : sourceText}</bdi>{" "}{props.continuation}</p>
-      ) : props.continuation}
+        <p id={textId} className={`sources-post-text${open ? " is-open" : ""}`} dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p>
+      ) : null}
       <div className="sources-post-actions">
         {hasText && entry.text.trim().length > 160 ? (
           <button type="button" className="sources-more" aria-expanded={open} aria-controls={textId} onClick={() => setOpen(value => !value)}>

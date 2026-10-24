@@ -2262,3 +2262,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .sources-posts .sources-post + .sources-post { border-top: 1px solid var(--line); }
 :root.apple-ui.apple-ui .sources-post-text:has(.sources-reveal) { display: block; }
 :root.apple-ui.apple-ui .sources-post-text .sources-reveal { display: inline; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--accent); font: inherit; font-weight: 600; text-decoration: none; }
+
+/* Story navigation has a reserved footer, independent of article length. */
+:root.apple-ui.apple-ui .sheet-dialog:has(.sources-module) .sheet { position: relative; }
+:root.apple-ui.apple-ui .sources-module { padding-bottom: 44px; grid-template-rows: auto minmax(0, 1fr); }
+:root.apple-ui.apple-ui .sources-pagination { position: absolute; right: 24px; bottom: 24px; margin: 0; height: 36px; }
+:root.apple-ui.apple-ui .sources-pagination > div { display: grid; grid-template-columns: 36px 120px 36px; gap: 8px; }
+:root.apple-ui.apple-ui .sources-pagination > div > span { text-align: center; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  :root.apple-ui.apple-ui .sources-pagination { right: 20px; bottom: 20px; }
+}
