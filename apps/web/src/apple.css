@@ -2314,7 +2314,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { height: 64px; min-height: 64px; max-height: 64px; }
 }
 
-/* Feed rows end above their pager, without a clipped next row. */
-:root.apple-ui.apple-ui .feed-grid-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: 36px; margin-top: 12px; color: var(--muted); font-size: 14px; }
-:root.apple-ui.apple-ui .feed-grid-pagination button { display: grid; place-items: center; width: 36px; min-height: 36px; padding: 0; border: 0; background: transparent; color: var(--accent); }
-:root.apple-ui.apple-ui .feed-grid-pagination span { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+/* Keep every widget in a single adaptive list, scrolling by complete rows. */
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] {
+  height: var(--feed-visible-height, auto); max-height: var(--feed-visible-height, none);
+  grid-auto-rows: var(--feed-row-height, auto); align-content: start;
+  overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable;
+  scroll-snap-type: y mandatory; scroll-padding-block: 0;
+}
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"] > .topic-card { scroll-snap-align: start; scroll-snap-stop: always; }
