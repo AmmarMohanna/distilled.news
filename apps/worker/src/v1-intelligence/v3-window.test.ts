@@ -171,12 +171,13 @@ it('keeps V3 briefing attempts intact while another feed operation owns the sema
  expect(seen).toHaveLength(2);
 },60000);
 
-for (const promptVersion of [undefined,2] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
+for (const promptVersion of [undefined,2,3] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
  await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end);
- expect(prepared.promptVersion).toBe(2);
+ expect(prepared.promptVersion).toBe(3);
  const id=await windowIdentity('feed-1',window),full='Earlier notice\nOfficials say approval is still required.';
  const frozen={...prepared,id,input:{...prepared.input,prior:[{id:'previous-reader-item',at:'2026-10-03T11:30:00Z',headline:full,body:full}]}};
  if(promptVersion===undefined)delete frozen.promptVersion;
+ else frozen.promptVersion=promptVersion;
  await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',id,frozen));
  const seen:string[]=[],transport=fetcher(seen),original=FeedTransaction.prototype.write;let crash=true;
  vi.spyOn(FeedTransaction.prototype,'write').mockImplementation(async function(this:FeedTransaction,kind,key,value){if(kind==='v3_window_results'&&crash){crash=false;throw Error('result persistence interruption')}return original.call(this,kind,key,value)});
@@ -188,3 +189,19 @@ for (const promptVersion of [undefined,2] as const) it(`preserves frozen prompt 
  expect(seen).toHaveLength(2);
  expect((await store.read<{promptVersion?:number}>('feed-1','v3_window_inputs',id))?.promptVersion).toBe(promptVersion);
 },30000);
+
+for(const promptVersion of [2,3] as const)it(`cleans reporting boilerplate only for new windows, frozen version ${promptVersion}`,async()=>{
+ await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end),id=await windowIdentity('feed-1',window);
+ await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',id,{...prepared,id,promptVersion}));
+ let calls=0;
+ const provider=(async(_url,init)=>{
+  const request=JSON.parse(String(init?.body)),verify=request.messages[0].content.startsWith('You are a meticulous');calls++;
+  if(verify)expect(request.messages[1].content.includes('The reports gave no further details.')).toBe(promptVersion===2);
+  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required. The reports gave no further details.',sources:['S1'],relation:'new',importance:1}]};
+  return Response.json({id:`gen-copy-${calls}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+ }) as typeof fetch;
+ const result=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:34:00Z',undefined,provider);
+ expect(result?.engine).toBe('v3');expect(calls).toBe(2);
+ expect(JSON.stringify(result).includes('The reports gave no further details.')).toBe(promptVersion===2);
+ expect((await publicV1Edition(ctx.db,id))?.id).toBe(id);
+},60000);

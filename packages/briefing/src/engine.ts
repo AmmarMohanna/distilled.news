@@ -1,3 +1,4 @@
+import { cleanReaderCopy } from "./reader-copy";
 import { callJson, UsageMeter, type ModelPort } from "./model";
 import { chunkArticles, prepareArticles, selectPrior, type PrepareOptions, type PreparedArticle } from "./prepare";
 import {
@@ -16,7 +17,7 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 
 export interface EngineOptions {
   /** Legacy frozen windows retain their original paid-request bytes. */
-  promptVersion: 1 | 2;
+  promptVersion: 1 | 2 | 3;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
   maxEditorChars: number;
   /** Source text budget for one verification call; larger briefings verify in parallel batches. */
@@ -30,7 +31,7 @@ export interface EngineOptions {
 }
 
 export const DEFAULT_ENGINE: EngineOptions = {
-  promptVersion: 2,
+  promptVersion: 3,
   maxEditorChars: 90_000,
   maxVerifyChars: 80_000,
   maxItems: 30,
@@ -127,7 +128,7 @@ async function edit(
   articles: PreparedArticle[],
   prior: PriorItem[],
   partial = false,
-  promptVersion: 1 | 2 = 2
+  promptVersion: 1 | 2 | 3 = 2
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -156,7 +157,7 @@ async function consolidate(
   drafts: Draft[],
   prior: PriorItem[],
   idsOfRefs: (refs: string[]) => string[],
-  promptVersion: 1 | 2
+  promptVersion: 1 | 2 | 3
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -259,7 +260,7 @@ async function verify(
   prior: PriorItem[],
   maxChars: number,
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
-  promptVersion: 1 | 2
+  promptVersion: 1 | 2 | 3
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -444,6 +445,7 @@ export async function generateBriefing(
     omittedStories.push({ stage: "safety_cap", reason: `over the safety limit of ${options.maxItems} items`, headline: d.headline, sourceIds: sourceIdsOfRefs(d.refs) });
   }
   drafts = drafts.slice(0, options.maxItems);
+  if (options.promptVersion >= 3) drafts = drafts.map(d => ({ ...d, body: cleanReaderCopy(d.body) }));
   if (!drafts.length) return finish({ status: "empty", items: [], skipped, dropped: [] });
 
   // 2. Verify, repair what is repairable once, drop what is not.
@@ -474,7 +476,7 @@ export async function generateBriefing(
           continue;
         }
         previousReviews.set(index, { headline: drafts[index].headline, body: drafts[index].body, issues: [...flagged.get(index)!] });
-        drafts[index] = { ...drafts[index], ...fixed };
+        drafts[index] = { ...drafts[index], ...fixed, body: options.promptVersion >= 3 ? cleanReaderCopy(fixed.body) : fixed.body };
         todo.push(index);
       }
     }
