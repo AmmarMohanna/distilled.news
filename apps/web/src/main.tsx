@@ -2015,8 +2015,8 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
         <p id={textId} className="sources-post-text is-open" dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p>
       ) : null}
       <div className="sources-post-actions">
-        {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Copy size={16} aria-hidden /><span aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
-        {websiteLinks.map((link) => <a key={link} href={link} target="_blank" rel="noreferrer"><Link2 size={16} aria-hidden />{linkHostLabel(link, language)}</a>)}
+        {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Copy size={16} aria-hidden /><span className="source-action-label" aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
+        {websiteLinks.map((link) => <a key={link} href={link} title={linkHostLabel(link, language)} target="_blank" rel="noreferrer"><Link2 size={16} aria-hidden /><span className="source-action-label">{linkHostLabel(link, language)}</span></a>)}
         {entry.media.map((media, index) =>
           media.url ? (
             <a key={`${media.url}-${index}`} href={media.url} target="_blank" rel="noreferrer">
