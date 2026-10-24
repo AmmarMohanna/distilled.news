@@ -1958,7 +1958,7 @@ function SourcesSheet(props: {
               {section.evidence.length === 0
                 ? <p className="muted">{noReferencesLabel(language)}</p>
                 : <ul className="sources-posts" id={sourcesListId}>
-                    {section.evidence.map((entry, sourceIndex) => (
+                    {section.evidence.slice(0, 1).map((entry, sourceIndex) => (
                       <SourcePost key={`${entry.messageId}:${entry.postedAt}:${sourceIndex}`} entry={entry} language={language} />
                     ))}
                   </ul>}
@@ -1966,7 +1966,7 @@ function SourcesSheet(props: {
           ) : null; })}
         </ol>
         {(edition.sections.length > 1 || (edition.sections[storyIndex]?.evidence.length ?? 0) > 1) && <div className="sources-pagination">
-          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); }}><ChevronLeft size={18}/></button><span>{language === "ar" ? "\u062e\u0628\u0631" : language === "fr" ? "Article" : "Story"} {storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); }}><ChevronRight size={18}/></button></div>}
+          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); }}><ChevronLeft size={18}/></button><span>{storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); }}><ChevronRight size={18}/></button></div>}
         </div>}
       </div>
     </Sheet>
@@ -1986,7 +1986,6 @@ function sourceDisplayText(value: string): string {
 function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "fr" }) {
   const { entry, language } = props;
   const textDir = textDirection(language);
-  const [open, setOpen] = useState(false);
   const textId = useId();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const sourceTitle = sourceDisplayText(entry.sourceTitle);
@@ -2013,15 +2012,9 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
       {hasText ? (
-        <p id={textId} className={`sources-post-text${open ? " is-open" : ""}`} dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p>
+        <p id={textId} className="sources-post-text is-open" dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p>
       ) : null}
       <div className="sources-post-actions">
-        {hasText && entry.text.trim().length > 160 ? (
-          <button type="button" className="sources-more" aria-expanded={open} aria-controls={textId} onClick={() => setOpen(value => !value)}>
-            {open ? showLessLabel(language) : showMoreLabel(language)}
-            {textDir === "rtl" ? <ChevronLeft size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
-          </button>
-        ) : null}
         {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Copy size={16} aria-hidden /><span aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
         {websiteLinks.map((link) => <a key={link} href={link} target="_blank" rel="noreferrer"><Link2 size={16} aria-hidden />{linkHostLabel(link, language)}</a>)}
         {entry.media.map((media, index) =>
