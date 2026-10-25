@@ -1,3 +1,4 @@
+import { sourceEvidenceLabels } from "./source-evidence-labels";
 import { SourceLogo } from "./SourceLogo";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
@@ -2004,17 +2005,14 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
   const textDir = textDirection(language);
   const textId = useId();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
-  const sourceTitle = sourceDisplayText(entry.sourceTitle);
-  const headline = sourceDisplayText(entry.headline?.trim() || (sourceTitle.length > 60 || sourceTitle.split(/\s+/).length > 8 ? sourceTitle : ""));
-  let publisher = sourceTitle;
-  if (headline === sourceTitle) {
-    try { publisher = new URL(entry.sourceUrl || entry.links[0]).hostname.replace(/^www\./, ""); } catch { publisher = ""; }
-  }
+  const labels = sourceEvidenceLabels(entry);
+  const headline = sourceDisplayText(labels.headline);
+  const publisher = sourceDisplayText(labels.publisher);
   const sourceText = sourceDisplayText(entry.text);
   const hasText = sourceText.trim().length > 0;
-  const copyLabel = language === "ar" ? "??? ??????" : language === "fr" ? "Copier le lien" : "Copy link";
-  const copiedLabel = language === "ar" ? "?? ?????" : language === "fr" ? "Copi?" : "Copied";
-  const failedLabel = language === "ar" ? "???? ?????" : language === "fr" ? "?chec de copie" : "Could not copy";
+  const copyLabel = language === "ar" ? "\u0646\u0633\u062e \u0627\u0644\u0631\u0627\u0628\u0637" : language === "fr" ? "Copier le lien" : "Copy link";
+  const copiedLabel = language === "ar" ? "\u062a\u0645 \u0627\u0644\u0646\u0633\u062e" : language === "fr" ? "Copi\u00e9" : "Copied";
+  const failedLabel = language === "ar" ? "\u062a\u0639\u0630\u0631 \u0627\u0644\u0646\u0633\u062e" : language === "fr" ? "\u00c9chec de copie" : "Could not copy";
   const websiteLinks = [...entry.links];
   if (!websiteLinks.length && entry.sourceUrl) {
     try { websiteLinks.push(new URL(entry.sourceUrl).origin); } catch { /* Keep malformed legacy URLs out of the website action. */ }
@@ -2069,7 +2067,7 @@ function FeedBackLink({ language }: { language: "en" | "ar" | "fr" }) {
   return <a className="feed-nav-back" href="/" onClick={event => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
-  }}>{language === "ar" ? <ChevronRight size={24} aria-hidden /> : <ChevronLeft size={24} aria-hidden />}<span>{label}</span></a>;
+  }}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
 }
 
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {

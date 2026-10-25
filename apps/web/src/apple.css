@@ -2383,3 +2383,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .sources-summary-slot .sources-story-summary, :root.apple-ui.apple-ui .sources-body-slot .sources-post-text { height: auto; margin: 0; }
 
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"] > .topic-card { scroll-snap-align: none; scroll-snap-stop: normal; }
+
+/* Language changes translate text without moving the shared header rail. */
+:root.apple-ui.apple-ui[dir] .experience-header.experience-header { direction: ltr; flex-direction: row; }
+:root.apple-ui.apple-ui[dir] .feed-shell .experience-header.experience-header .experience-header-actions,
+:root.apple-ui.apple-ui[dir] .experience-header.experience-header .experience-header-actions { direction: ltr; margin-left: auto; margin-right: 0; margin-inline-end: 0; }
+:root.apple-ui.apple-ui[dir] .feed-shell .feed-nav-back { direction: ltr; }
+:root.apple-ui.apple-ui[dir] .feed-shell .feed-nav-back svg { transform: none; }
