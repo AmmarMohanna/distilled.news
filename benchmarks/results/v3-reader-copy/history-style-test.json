@@ -1,0 +1,360 @@
+{
+  "at": "2026-10-24T16:21:41.495Z",
+  "purpose": "User-requested controlled test: does clean previous-publication prose prevent recurring boilerplate?",
+  "model": "openai/gpt-4.1",
+  "calls": 4,
+  "actualCostUsd": 0.029892000000000002,
+  "maximumReservedUsd": 0.192,
+  "changes": "Only publication-history prose changed. Same model, system prompt, reader interest, output language within each pair, temporal style, reporting window, original articles, history identifiers/dates/format, output limit and temperature.",
+  "outputCleanupApplied": false,
+  "allCachedInputTokensZero": true,
+  "history": [
+    {
+      "header": "[0d7489ae7203f95f01258d818cf71a7ec5b30c502336fcae5ea4c91559ccffab:0d7489ae7203f95f01258d818cf71a7ec5b30c502336fcae5ea4c91559ccffab:0] 2026-10-24 | ",
+      "before": "Eight explosions reported in Khiam, southern Lebanon\nA Telegram channel reported eight consecutive explosions in the city of Khiam, southern Lebanon. The source attributed the blasts to Israeli actions. No details on casualties or damage were provided as of the source's publication on October 24.",
+      "after": "Eight explosions reported in Khiam, southern Lebanon\nEight consecutive explosions were reported in the city of Khiam, southern Lebanon. The source attributed the blasts to Israeli actions."
+    },
+    {
+      "header": "[4ba9ddb799612d929a2e682e54ad3dfc95d3accbe559bcc0843411eba7c079b8:4ba9ddb799612d929a2e682e54ad3dfc95d3accbe559bcc0843411eba7c079b8:0] 2026-10-24 | ",
+      "before": "Israeli force with bulldozers reported building road near Shebaa\nA Telegram channel reported that an Israeli force, supported by bulldozers, was working to build a road from the Sadana area toward the Wadi area in the town of Shebaa. The report did not mention casualties or confrontations as of its publication on October 24.",
+      "after": "Israeli force with bulldozers reported building road near Shebaa\nAn Israeli force, supported by bulldozers, was reported working to build a road from the Sadana area toward the Wadi area in the town of Shebaa."
+    },
+    {
+      "header": "[3e59bd9b4747e31f6c4d8574898982c4bfd195ab29c870794bb4e7d32c412ee6:3e59bd9b4747e31f6c4d8574898982c4bfd195ab29c870794bb4e7d32c412ee6:0] 2026-10-24 | ",
+      "before": "U.S. embassies in Israel, Kuwait, UAE, and Oman warn of increased regional attack risk\nU.S. embassies in Israel, Kuwait, the United Arab Emirates, and Oman have warned of increased risk of regional attacks and advised reconsidering travel, according to a report published October 24.",
+      "after": "U.S. embassies in Israel, Kuwait, UAE, and Oman warn of increased regional attack risk\nU.S. embassies in Israel, Kuwait, the United Arab Emirates, and Oman have warned of increased risk of regional attacks and advised reconsidering travel."
+    },
+    {
+      "header": "[3ae2a68e634f44a82ec5991647c35e0faad8639a1bdddc25156872ea2e635767:3ae2a68e634f44a82ec5991647c35e0faad8639a1bdddc25156872ea2e635767:0] 2026-10-24 | ",
+      "before": "Reports of heavy missile launches from Iran during IRGC drills\nReports indicate intensive missile launches from Iran, with missiles observed from Kerman, Qazvin, and Yazd, coinciding with missile exercises by the Islamic Revolutionary Guard Corps. No direct mention of Lebanon or regional consequences as of the source's publication on October 24.",
+      "after": "Reports of heavy missile launches from Iran during IRGC drills\nReports indicate intensive missile launches from Iran, with missiles observed from Kerman, Qazvin, and Yazd, coinciding with missile exercises by the Islamic Revolutionary Guard Corps."
+    }
+  ],
+  "results": [
+    {
+      "language": "en",
+      "originalHistory": {
+        "items": 3,
+        "boilerplateItems": 2,
+        "costUsd": 0.007738,
+        "wallMs": 4404
+      },
+      "cleanHistory": {
+        "items": 3,
+        "boilerplateItems": 0,
+        "costUsd": 0.007316,
+        "wallMs": 6133
+      },
+      "selection": "Both retain embassy warning and both strike locations; same source references."
+    },
+    {
+      "language": "ar",
+      "originalHistory": {
+        "items": 2,
+        "boilerplateItems": 2,
+        "costUsd": 0.007714,
+        "wallMs": 3707
+      },
+      "cleanHistory": {
+        "items": 2,
+        "boilerplateItems": 0,
+        "costUsd": 0.007124,
+        "wallMs": 3703
+      },
+      "selection": "Original history output omitted Wadi al-Hujayr; clean history output retains it alongside Kfar Tibnit. Its body distinguishes the two strikes rather than asserting one coordinated event."
+    }
+  ],
+  "conclusion": "Supports publication-history prose as a contributor to the recurrent writing style. Clean history improved raw output in both tested languages without altering instructions or applying the copy cleaner.",
+  "limitations": [
+    "One paired observation per output language on one retained window, not a general causal proof.",
+    "Publication history prose remains English in both pairs to keep the input identical except requested output language.",
+    "Historical generic report wrappers were replaced with concise reported wording; substantive attribution to Israeli actions was retained.",
+    "No model-result postprocessing or product changes.",
+    "This is a style/selection comparison, not a fresh full application publication or complete independent factual audit.",
+    "One observation per condition/language; not a general reliability estimate or proof that history is the only cause.",
+    "Candidate Arabic places the strikes in southern Lebanon, geographic context not explicitly spelled out in the very short source excerpts; no independent geography evaluation was performed.",
+    "No runtime history transformation or deployment was implemented in this test."
+  ],
+  "recommendedNextStep": "Validate presentation-only cleanup of history, with all facts/uncertainty/provenance preserved, across additional independent windows before replacing or removing the current narrow reader-copy safeguard.",
+  "runs": [
+    {
+      "name": "history-test-en-original-history",
+      "language": "en",
+      "variant": "original-history",
+      "requestSha256": "d625a80d881215dd1fb5a16d886e3be1c74d643645076bd2fe3b2eb74cd68113",
+      "wallMs": 4404,
+      "usage": {
+        "prompt_tokens": 2609,
+        "completion_tokens": 315,
+        "total_tokens": 2924,
+        "cost": 0.007738,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.007738,
+          "upstream_inference_prompt_cost": 0.005218,
+          "upstream_inference_completions_cost": 0.00252
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "finishReason": "stop",
+      "output": {
+        "items": [
+          {
+            "headline": "U.S. Embassy in Beirut warns Americans to avoid travel due to unstable security",
+            "body": "The U.S. Embassy in Beirut advised American citizens to avoid travel to Beirut, including the Dahieh area, citing an unstable security environment and significant risk of armed violence, crossfire, and rocket attacks.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Airstrike reported in Kfar Tibnit, southern Lebanon",
+            "body": "An airstrike was reported targeting the town of Kfar Tibnit in southern Lebanon. No details on casualties or damage were provided as of the source's publication.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "headline": "Airstrike reported in Wadi al-Hujayr, southern Lebanon",
+            "body": "A report indicated an airstrike targeting Wadi al-Hujayr in southern Lebanon. No further details were available as of the source's publication.",
+            "sources": [
+              "S3"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 3
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "off-topic; no Lebanon-specific developments"
+          }
+        ]
+      }
+    },
+    {
+      "name": "history-test-en-clean-history",
+      "language": "en",
+      "variant": "clean-history",
+      "requestSha256": "b59ac4111b13ff258755a7e37ff1a87edd7c0ed7f27461a1ea0063beb0c8b9b5",
+      "wallMs": 6133,
+      "usage": {
+        "prompt_tokens": 2538,
+        "completion_tokens": 280,
+        "total_tokens": 2818,
+        "cost": 0.007316,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.007316,
+          "upstream_inference_prompt_cost": 0.005076,
+          "upstream_inference_completions_cost": 0.00224
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "finishReason": "stop",
+      "output": {
+        "items": [
+          {
+            "headline": "U.S. Embassy in Beirut urges Americans to avoid travel due to unstable security",
+            "body": "The U.S. Embassy in Beirut strongly advised American citizens to avoid travel to Beirut, including the Dahieh area, citing an unstable security environment and significant risk of armed violence, crossfire, and rocket attacks.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Airstrike reported on Kfar Tibnit",
+            "body": "An airstrike was reported targeting the town of Kfar Tibnit in Lebanon.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "headline": "Airstrike reported on Wadi al-Hujayr",
+            "body": "An airstrike was reported targeting Wadi al-Hujayr in Lebanon.",
+            "sources": [
+              "S3"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 3
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "off-topic; no Lebanon-specific developments"
+          }
+        ]
+      }
+    },
+    {
+      "name": "history-test-ar-original-history",
+      "language": "ar",
+      "variant": "original-history",
+      "requestSha256": "00935e23dff6b3b9b2d7ae7ffde8366976de211942b54f6e42ef71c9c62d3e10",
+      "wallMs": 3707,
+      "usage": {
+        "prompt_tokens": 2609,
+        "completion_tokens": 312,
+        "total_tokens": 2921,
+        "cost": 0.007714,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.007714,
+          "upstream_inference_prompt_cost": 0.005218,
+          "upstream_inference_completions_cost": 0.002496
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "finishReason": "stop",
+      "output": {
+        "items": [
+          {
+            "headline": "السفارة الأميركية في بيروت تحذر من السفر بسبب الوضع الأمني",
+            "body": "أصدرت السفارة الأميركية في بيروت تحذيراً شديداً للمواطنين الأميركيين بتجنب السفر إلى بيروت، بما في ذلك منطقة الضاحية، بسبب عدم استقرار البيئة الأمنية وارتفاع خطر تبادل إطلاق النار والهجمات الصاروخية وأعمال العنف المسلح، وذلك بحسب بيان نشر في 24 أكتوبر 2026.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "غارة reported استهدفت كفرتبنيت",
+            "body": "أفاد مصدر بوقوع غارة استهدفت بلدة كفرتبنيت في جنوب لبنان، دون تفاصيل إضافية حول توقيت الغارة أو نتائجها حتى وقت نشر المصدر في 24 أكتوبر 2026.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "لا توجد تطورات مباشرة تخص لبنان"
+          },
+          {
+            "sources": [
+              "S3"
+            ],
+            "why": "غارة محلية دون تفاصيل أو أهمية إضافية مقارنة بغارة كفرتبنيت"
+          }
+        ]
+      }
+    },
+    {
+      "name": "history-test-ar-clean-history",
+      "language": "ar",
+      "variant": "clean-history",
+      "requestSha256": "54d0cc7e2628c83f32fdc753dbf52faa92f236ee21ee9c7658e5951a11d18ca7",
+      "wallMs": 3703,
+      "usage": {
+        "prompt_tokens": 2538,
+        "completion_tokens": 256,
+        "total_tokens": 2794,
+        "cost": 0.007124,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.007124,
+          "upstream_inference_prompt_cost": 0.005076,
+          "upstream_inference_completions_cost": 0.002048
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "finishReason": "stop",
+      "output": {
+        "items": [
+          {
+            "headline": "السفارة الأميركية في بيروت تحذر من السفر إلى بيروت بسبب الوضع الأمني",
+            "body": "أصدرت السفارة الأميركية في بيروت تحذيراً شديداً للمواطنين الأميركيين بتجنب السفر إلى بيروت، بما في ذلك منطقة الضاحية، بسبب عدم استقرار الوضع الأمني وخطر كبير لتبادل إطلاق النار والهجمات الصاروخية وأعمال العنف المسلح.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "غارتان تستهدفان كفرتبنيت ووادي الحجير",
+            "body": "أفادت تقارير بتنفيذ غارة استهدفت كفرتبنيت وغارة أخرى استهدفت وادي الحجير في جنوب لبنان.",
+            "sources": [
+              "S1",
+              "S3"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "خارج نطاق لبنان"
+          }
+        ]
+      }
+    }
+  ]
+}

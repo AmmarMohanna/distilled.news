@@ -5,6 +5,7 @@ import {
   EDITOR_SYSTEM,
   REPAIR_SYSTEM,
   VERIFY_SYSTEM,
+  LEGACY_VERIFY_SYSTEM,
   consolidateUser,
   editorUser,
   repairUser,
@@ -16,7 +17,7 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 
 export interface EngineOptions {
   /** Legacy frozen windows retain their original paid-request bytes. */
-  promptVersion: 1 | 2;
+  promptVersion: 1 | 2 | 3;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
   maxEditorChars: number;
   /** Source text budget for one verification call; larger briefings verify in parallel batches. */
@@ -30,7 +31,7 @@ export interface EngineOptions {
 }
 
 export const DEFAULT_ENGINE: EngineOptions = {
-  promptVersion: 2,
+  promptVersion: 3,
   maxEditorChars: 90_000,
   maxVerifyChars: 80_000,
   maxItems: 30,
@@ -127,7 +128,7 @@ async function edit(
   articles: PreparedArticle[],
   prior: PriorItem[],
   partial = false,
-  promptVersion: 1 | 2 = 2
+  promptVersion: 1 | 2 | 3 = 2
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -156,7 +157,7 @@ async function consolidate(
   drafts: Draft[],
   prior: PriorItem[],
   idsOfRefs: (refs: string[]) => string[],
-  promptVersion: 1 | 2
+  promptVersion: 1 | 2 | 3
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -259,7 +260,7 @@ async function verify(
   prior: PriorItem[],
   maxChars: number,
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
-  promptVersion: 1 | 2
+  promptVersion: 1 | 2 | 3
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -273,7 +274,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: VERIFY_SYSTEM,
+          system: promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
