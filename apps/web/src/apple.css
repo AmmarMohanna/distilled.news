@@ -2349,3 +2349,37 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience-header > :is(.experience-brand, .experience-leading) { min-width: 0; flex: 1 1 0; }
 :root.apple-ui.apple-ui .experience-header > .experience-brand .distilled-logo { max-width: 100%; overflow: hidden; }
 :root.apple-ui.apple-ui .experience-header .experience-header-actions { flex: 0 0 auto; }
+
+/* Scroll the page, never a separate feed-widget viewport. */
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] { height: auto; max-height: none; overflow: visible; scrollbar-gutter: auto; scroll-snap-type: none; }
+:root.apple-ui.apple-ui .app-pages > .screen-page-viewport:has(.adaptive-feed-grid) { scroll-snap-type: none; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"] > .topic-card { scroll-margin-top: 76px; }
+/* Sources has fixed content slots; long copy ends with an ellipsis. */
+:root.apple-ui.apple-ui .sources-stories { height: 100%; overflow: hidden; align-content: stretch; }
+:root.apple-ui.apple-ui .sources-story { height: 100%; min-height: 0; align-items: stretch; overflow: hidden; }
+:root.apple-ui.apple-ui .sources-story-brief { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; }
+:root.apple-ui.apple-ui .sources-story-head h3, :root.apple-ui.apple-ui .sources-post-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+:root.apple-ui.apple-ui .sources-posts { height: 100%; min-height: 0; }
+:root.apple-ui.apple-ui .sources-post { height: 100%; min-height: 0; overflow: hidden; grid-template-areas: "title" "publisher" "body" "actions"; grid-template-rows: auto auto minmax(0, 1fr) 58px; }
+:root.apple-ui.apple-ui .sources-post-title { grid-area: title; }
+:root.apple-ui.apple-ui .sources-post-head { grid-area: publisher; }
+:root.apple-ui.apple-ui .sources-post-text.is-open, :root.apple-ui.apple-ui .sources-story-summary { min-height: 0; height: 100%; box-sizing: border-box; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--source-lines, 4); overflow: hidden; }
+:root.apple-ui.apple-ui .sources-story-summary { margin-top: 0; padding-top: 0; align-self: stretch; }
+:root.apple-ui.apple-ui .sources-story-brief { gap: 16px; }
+:root.apple-ui.apple-ui .sources-post-actions { grid-area: actions; margin: 0; padding-top: 14px; height: 58px; box-sizing: border-box; align-self: end; overflow: hidden; }
+@media (max-width: 760px) {
+  :root.apple-ui.apple-ui .sources-story { grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+  :root.apple-ui.apple-ui .sources-story-head { flex-direction: row; gap: 10px; }
+  :root.apple-ui.apple-ui .sources-story-head h3, :root.apple-ui.apple-ui .sources-post-title { font-size: 16px; -webkit-line-clamp: 2; }
+  :root.apple-ui.apple-ui .sources-posts .sources-post { padding: 12px; gap: 8px; }
+  :root.apple-ui.apple-ui .sources-post-head { gap: 6px; }
+  :root.apple-ui.apple-ui .sources-post-text, :root.apple-ui.apple-ui .sources-story-summary { font-size: 14px; }
+  :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"] > .topic-card { scroll-margin-top: 64px; }
+}
+
+:root.apple-ui.apple-ui .sources-posts { display: block; }
+:root.apple-ui.apple-ui .sources-summary-slot, :root.apple-ui.apple-ui .sources-body-slot { min-height: 0; overflow: hidden; }
+:root.apple-ui.apple-ui .sources-body-slot { grid-area: body; }
+:root.apple-ui.apple-ui .sources-summary-slot .sources-story-summary, :root.apple-ui.apple-ui .sources-body-slot .sources-post-text { height: auto; margin: 0; }
+
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"] > .topic-card { scroll-snap-align: none; scroll-snap-stop: normal; }

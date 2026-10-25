@@ -1921,6 +1921,22 @@ function SourcesSheet(props: {
   const textDir = textDirection(language);
   const [storyIndex, setStoryIndex] = useState(props.selectedIndex);
   const sourcesListId = useId();
+  const moduleRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const module = moduleRef.current;
+    if (!module) return;
+    const paragraphs = module.querySelectorAll<HTMLElement>(".sources-story-summary, .sources-post-text");
+    const fit = () => paragraphs.forEach(node => {
+      const lineHeight = parseFloat(getComputedStyle(node).lineHeight);
+      const lines = Math.max(1, Math.floor(node.parentElement!.clientHeight / lineHeight));
+      node.style.setProperty("--source-lines", String(lines));
+      node.style.maxHeight = (lines * lineHeight) + "px";
+    });
+    const observer = new ResizeObserver(fit);
+    paragraphs.forEach(node => observer.observe(node.parentElement!));
+    fit();
+    return () => observer.disconnect();
+  }, [storyIndex, edition]);
   const { t } = useLanguage();
   useEffect(() => { setStoryIndex(props.selectedIndex); }, [props.selectedIndex]);
   return (
@@ -1931,7 +1947,7 @@ function SourcesSheet(props: {
       onClose={props.onClose}
       wide
     >
-      <div className="sources-module" lang={language} dir={textDir}>
+      <div ref={moduleRef} className="sources-module" lang={language} dir={textDir}>
         <p className="sources-edition">
           <strong>{formatDayHeading(edition.publishedAt, language)}</strong>
           <span>{formatClock(edition.publishedAt, language)}</span>
@@ -1953,7 +1969,7 @@ function SourcesSheet(props: {
                 <span className="sources-story-number" aria-hidden>{index + 1}</span>
                 {title ? <h3><bdi>{title}</bdi></h3> : null}
               </div>
-              <p className="sources-story-summary"><bdi dir={textDir}>{body}</bdi></p>
+              <div className="sources-summary-slot"><p className="sources-story-summary"><bdi dir={textDir}>{body}</bdi></p></div>
               </div>
               {section.evidence.length === 0
                 ? <p className="muted">{noReferencesLabel(language)}</p>
@@ -2012,7 +2028,7 @@ function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "f
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
       {hasText ? (
-        <p id={textId} className="sources-post-text is-open" dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p>
+        <div className="sources-body-slot"><p id={textId} className="sources-post-text is-open" dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p></div>
       ) : null}
       <div className="sources-post-actions">
         {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Copy size={16} aria-hidden /><span className="source-action-label" aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
