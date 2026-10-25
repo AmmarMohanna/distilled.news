@@ -24,7 +24,10 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       const scale = grid.offsetWidth ? rect.width / grid.offsetWidth : 1;
       const viewport = grid.closest<HTMLElement>('.screen-page-viewport');
       const navigation = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
-      const bottom = Math.min(window.innerHeight - (window.innerWidth < 900 ? 80 : 0), window.innerWidth < 900 ? navigation?.top ?? window.innerHeight - 80 : window.innerHeight);
+      const viewportBottom = viewport?.getBoundingClientRect().bottom ?? window.innerHeight;
+      const visualBottom = window.visualViewport ? window.visualViewport.offsetTop + window.visualViewport.height : window.innerHeight;
+      const navigationTop = window.innerWidth < 900 && navigation && navigation.height > 0 ? navigation.top : window.innerHeight;
+      const bottom = Math.min(window.innerHeight, viewportBottom, visualBottom, navigationTop);
       const top = rect.top + (viewport?.scrollTop ?? 0) * scale;
       const layout = feedGridLayout(count, grid.clientWidth, Math.max(0, (bottom - top) / scale), window.innerWidth >= 900);
       grid.dataset.layout = 'list';
@@ -42,8 +45,13 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
     observer.observe(grid);
     const main = grid.closest('main');
     if (main) observer.observe(main);
+    const navigation = document.querySelector('.bottom-navigation');
+    if (navigation) observer.observe(navigation);
+    const viewport = grid.closest('.screen-page-viewport');
+    if (viewport) observer.observe(viewport);
     window.addEventListener('resize', measure);
-    return () => { active = false; cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', measure); };
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => { active = false; cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', measure); window.visualViewport?.removeEventListener('resize', measure); };
   }, [count]);
   return <div className={'adaptive-feed-grid ' + className} ref={ref}>{children}</div>;
 }
