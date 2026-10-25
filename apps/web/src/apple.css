@@ -2444,3 +2444,12 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 .home-archive-button:focus-visible, .archive-resume-button:focus-visible, .archived-feed-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 @media (max-width: 600px) { :root.apple-ui.apple-ui .experience.product-refresh .home-view .home-controls { grid-template-columns: minmax(0, 1fr) 44px 48px !important; } }
 @media (max-width: 400px) { .archive-heading { display: block; padding-inline-end: 0; } .archive-heading > svg { display: block; margin-block-end: 12px; } }
+
+/* Pagination is a quiet continuation action, not a disabled grey form control. */
+:root.apple-ui.apple-ui .feed-shell .load-more-row { flex-direction: column; gap: 8px; padding: 24px 16px; border: 0; }
+:root.apple-ui.apple-ui .feed-shell .load-more-row > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: 100%; padding: 10px 22px; border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--accent-ink); font: inherit; font-weight: 600; line-height: 1.4; box-shadow: none; cursor: pointer; }
+:root.apple-ui.apple-ui .feed-shell .load-more-row > button:hover { background: color-mix(in srgb, var(--accent) 17%, var(--surface)); }
+:root.apple-ui.apple-ui .feed-shell .load-more-row > button:active { background: color-mix(in srgb, var(--accent) 23%, var(--surface)); }
+:root.apple-ui.apple-ui .feed-shell .load-more-row > button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+:root.apple-ui.apple-ui .feed-shell .load-more-row > button svg { flex-shrink: 0; }
+:root.apple-ui.apple-ui .feed-shell .load-more-row > .muted { font-size: .875rem; }

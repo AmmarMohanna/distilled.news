@@ -1762,6 +1762,7 @@ function FeedPage(props: { username: string; slug: string }) {
           <div className="load-more-row">
             <button type="button" title={loadMoreLabel(language)} onClick={() => setVisibleUnreadCount((count) => count + FEED_BATCH_SIZE)}>
               {loadMoreLabel(language)}
+              <ChevronDown size={18} aria-hidden="true"/>
             </button>
             <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
           </div>
