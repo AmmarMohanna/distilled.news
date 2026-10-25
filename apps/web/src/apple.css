@@ -2336,6 +2336,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience-header .experience-header-actions > .button-link { width: 80px; min-width: 80px; flex-basis: 80px; padding-inline: 6px; }
 }
 
+/* Keep Back reachable when feed actions and guest preferences outgrow one row. */
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { height: auto; max-height: none; flex-wrap: wrap; row-gap: 4px; }
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header > .experience-leading { flex: 0 0 auto; }
+  :root.apple-ui.apple-ui .feed-shell .experience-header.experience-header .experience-header-actions { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+}
+
 /* Source actions keep their slots even when a hostname is very long. */
 :root.apple-ui.apple-ui .sources-post-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 :root.apple-ui.apple-ui .sources-post-actions :is(a, button) { min-width: 0; white-space: nowrap; overflow: hidden; flex-wrap: nowrap; }

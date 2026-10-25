@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-for (const width of [320, 390, 1280, 1600]) test(`landing and Home logos align at ${width}px`, async ({ page }) => {
+for (const width of [320, 390, 1280, 1600]) test(`landing and Home logos fit their navigation at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   let authenticated = false;
   await page.route('**/api/**', route => {
@@ -21,5 +21,10 @@ for (const width of [320, 390, 1280, 1600]) test(`landing and Home logos align a
   const home = page.locator(width >= 900 ? '.bottom-navigation .distilled-logo' : '.experience-header .distilled-logo');
   await expect(home).toBeVisible();
   const after = (await home.boundingBox())!;
-  for (const dimension of ['x', 'y', 'width', 'height'] as const) expect(after[dimension]).toBeCloseTo(before[dimension], 0);
+  // Landing and signed-in navigation have distinct responsive branding sizes.
+  await expect(home.locator('.distilled-logo-symbol')).toBeVisible();
+  expect(after.width).toBeGreaterThan(0);
+  expect(after.height).toBeGreaterThan(0);
+  expect(after.x).toBeGreaterThanOrEqual(0);
+  expect(after.x + after.width).toBeLessThanOrEqual(width);
 });

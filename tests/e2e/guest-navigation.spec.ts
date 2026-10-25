@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import {cycleLanguage} from "./helpers";
 
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", publicFeedEnabled: true, paused: false, language: "en", intensity: "medium", briefingCadence: "daily", briefingTimeOfDay: "00:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mockGuest(page: Page) {
@@ -24,7 +25,7 @@ test("guest landing browses and searches public feeds without a menu", async ({ 
   await expect(page.getByText("You choose what matters.")).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "All feeds", exact: true })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "Search feeds" })).toBeVisible();
   await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(1);
   await page.getByRole("searchbox", { name: "Search feeds" }).fill("nonexistent");
   await expect(page.locator(".curated-feed-grid .topic-card")).toHaveCount(0);
@@ -82,9 +83,9 @@ test("create feed continues to the editor after login", async ({ page }) => {
 test("website language cycles to Arabic without opening a menu", async ({ page }) => {
   await mockGuest(page);
   await page.goto("/");
-  await page.getByRole("button", { name: /^Website language: EN/ }).click();
+  await cycleLanguage(page);
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
-  await page.getByRole("button", { name: /^Website language: FR/ }).click();
+  await cycleLanguage(page);
   await expect(page.locator("html")).toHaveAttribute("lang", "ar");
   await expect(page.locator(".language-menu")).toHaveCount(0);
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");

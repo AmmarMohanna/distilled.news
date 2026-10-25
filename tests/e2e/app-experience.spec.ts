@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { cycleLanguage, openEditSettings, openMore } from "./helpers";
+import { cycleLanguage, openEditSettings } from "./helpers";
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
@@ -14,6 +14,7 @@ async function mock(page: any, authenticated = true, username = 'joud') {
  : path === '/api/me/briefings' || path === '/api/me/feeds' ? (route.request().method()==='POST' ? {briefing:currentFeed} : {briefings:[currentFeed]})
  : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[feed]}
  : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:currentFeed,editions:[],viewerHasStarred:false}
+ : path === '/api/me/sources/assess' ? {assessment:{status:'accepted',input:route.request().postDataJSON().source,reason:'Fixture source matches',checkedAt:'2026-10-24T12:00:00Z'}}
  : path === '/api/me/sources' ? {sources:[{id:'rss-1',enabled:true,input:'https://example.test/feed.xml',title:'Science',provider:'rss',kind:'rss_feed'}]}
  : path === '/api/me/health' ? {health:{processing:{queued:0,completed:0,failed:0}}} : {};
  await route.fulfill({json:body});
@@ -49,15 +50,15 @@ test('owner opens feed settings from feed page',async({page})=>{
  await expect(dialog.getByLabel('Feed name')).toHaveValue('Lebanon');
  await dialog.getByRole('button',{name:'Preferences',exact:true}).click();
  await expect(dialog.getByRole('button',{name:'Pause feed',exact:true})).toBeVisible();
- await expect(dialog.getByRole('button',{name:'Copy URL',exact:true})).toBeVisible();
+ await expect(dialog.getByRole('button',{name:'Copy link',exact:true})).toBeVisible();
  await expect(dialog.getByRole('button',{name:'Delete feed',exact:true})).toBeVisible();
 });
-test('a signed-in feed header keeps only feed actions; the account profile lives on Home',async({page})=>{
+test('a signed-in feed keeps feed actions and an accessible account profile',async({page})=>{
  await mock(page); await page.goto('/joud/lebanon/');
  await expect(page.locator('.experience-header .experience-leading')).toBeVisible();
- await expect(page.locator('.experience-header .avatar-button')).toHaveCount(0);
- await expect(page.locator('.experience-header .language-cycle')).toHaveCount(0);
- await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(0);
+ await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
+ await expect(page.locator('.experience-header .language-cycle')).toHaveCount(1);
+ await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(1);
  await page.goto('/');
  await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
  await page.getByRole('button',{name:'Account profile',exact:true}).click();
@@ -138,9 +139,10 @@ test('feed language and advanced settings persist independently of website langu
  await mock(page); await page.goto('/joud/lebanon/');
  const edits: any[]=[];
  page.on('request',request=>{if(request.url().endsWith('/api/me/feeds')&&request.method()==='POST')edits.push(request.postDataJSON());});
+ await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();
  await cycleLanguage(page);
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
- await openMore(page);await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
+ await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.locator('.feed-preferences-disclosure').click();
  await expect(dialog.locator('.feed-preferences-fields select').last()).toHaveValue('en');
@@ -152,7 +154,7 @@ test('feed language and advanced settings persist independently of website langu
  expect((await saved).postDataJSON()).toMatchObject({language:'ar',briefingTimezone:'Asia/Beirut',sourceInputs:['https://example.test/feed.xml']});
  await expect(page.getByRole('dialog')).toHaveCount(0);
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
- await openMore(page);await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
+ await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  await page.locator('.feed-preferences-disclosure').click();
  await expect(page.locator('.feed-preferences-fields select').last()).toHaveValue('ar');
  await page.mouse.click(4,4);

@@ -24,8 +24,8 @@ for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }, {
     await dialog.getByLabel("What would you like to follow?", { exact: true }).fill("Botanical discoveries");
     await expect(dialog.getByLabel("Time zone", { exact: true })).toHaveCount(0);
     await dialog.getByRole("button", { name: "Preferences", exact: true }).click();
-    await dialog.getByRole("radio", { name: "FR", exact: true }).check();
-    await expect(dialog.getByRole("radio", { name: "FR", exact: true })).toBeChecked();
+    await dialog.getByLabel('Briefing language').selectOption('fr');
+    await expect(dialog.getByLabel('Briefing language')).toHaveValue('fr');
     const bounds = await dialog.boundingBox();
     expect(bounds!.y).toBeGreaterThanOrEqual(0);
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
@@ -157,7 +157,7 @@ test("language changes keep navigation in place and localize empty Explore", asy
   await expect(page.getByRole('heading', { name: 'Explore', exact: true })).toBeVisible();
   await expect(navigation).toBeVisible();
   const before = await navigation.boundingBox();
-  const searchBefore = await page.locator('.explore-search').boundingBox();
+  const searchBefore = await page.locator('.explore-search:visible').boundingBox();
   for (const language of ['fr', 'ar']) {
     await cycleLanguage(page);
     await expect(page.locator('html')).toHaveAttribute('lang', language);
@@ -165,9 +165,9 @@ test("language changes keep navigation in place and localize empty Explore", asy
     const after = await navigation.boundingBox();
     expect(after!.x).toBeCloseTo(before!.x, 0);
     expect(after!.y).toBeCloseTo(before!.y, 0);
-    if (language !== 'ar') expect((await page.locator('.explore-search').boundingBox())!.x).toBeCloseTo(searchBefore!.x, 0);
+    if (language !== 'ar') expect((await page.locator('.explore-search:visible').boundingBox())!.x).toBeCloseTo(searchBefore!.x, 0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    expect((await page.locator('.explore-search').boundingBox())!.y).toBeCloseTo(searchBefore!.y, 0);
+    expect((await page.locator('.explore-search:visible').boundingBox())!.y).toBeCloseTo(searchBefore!.y, 0);
   }
   await expect(page.getByRole('heading', { name: 'استكشف', exact: true })).toBeVisible();
   await expect(page.locator('.topic-card')).toHaveCount(0);
@@ -191,9 +191,9 @@ test("mobile search and create stay together across languages", async ({ page })
     await cycleLanguage(page);
     await page.waitForTimeout(200);
   }
-  const homeFont = await page.locator('h1').evaluate(el => getComputedStyle(el).fontFamily);
+  const homeFont = await page.locator('h1:visible').evaluate(el => getComputedStyle(el).fontFamily);
   await page.getByRole('navigation').getByRole('button', {name:'Explore', exact:true}).click();
-  expect(await page.locator('h1').evaluate(el => getComputedStyle(el).fontFamily)).toBe(homeFont);
+  expect(await page.locator('h1:visible').evaluate(el => getComputedStyle(el).fontFamily)).toBe(homeFont);
   await page.screenshot({ path: 'test-results/mobile-explore-updated.png' });
 });
 

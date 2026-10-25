@@ -28,8 +28,8 @@ test("phone header aligns the full logo and controls with an icon-only create bu
  await expect(brand.locator('.distilled-logo-wordmark')).toBeVisible();
  await expect(brand.locator('.distilled-logo-symbol')).toBeVisible();
  const symbol = await brand.locator('.distilled-logo-symbol').boundingBox();
- await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
- await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
+ await expect(page.locator('.experience-header .language-cycle')).toBeVisible();
+ await expect(page.locator('.experience-header .theme-toggle')).toBeVisible();
  await expect(page.locator('.experience-header .mobile-appearance-settings')).toHaveCount(0);
  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
  const login = await page.getByRole('link', { name: 'Log in', exact: true }).boundingBox();
@@ -80,8 +80,9 @@ test("feed cards have rounded artwork, plain controls, and real update times", a
  await expect(card.locator("time")).toHaveText("Updated 2 hours ago");
  await expect(card.locator("time")).toHaveAttribute("datetime", "2026-10-02T12:00:00Z");
  await expect(card).toHaveCSS("border-radius", "20px");
- await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", /^1[46]px$/);
- for (const selector of [".theme-toggle", ".language-cycle", ".personal-feed-grid .feed-card-actions > button", ".personal-feed-grid .feed-options > summary"]) {
+ await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", /^1[246]px$/);
+ await expect(card.locator(".feed-card-meta > button")).toBeVisible();
+ for (const selector of [".theme-toggle", ".language-cycle", ".personal-feed-grid .feed-options > summary"]) {
   await expect(page.locator(selector)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
  }
  await expect(page.locator(".avatar-button")).toHaveCSS("color", "rgb(94, 92, 230)");
@@ -91,7 +92,7 @@ test("feed cards have rounded artwork, plain controls, and real update times", a
  await expect(card.locator("details")).not.toHaveAttribute("open", "");
  await toggleTheme(page);
  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
- await expect(page.locator(".theme-toggle")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+ await expect(page.locator(".theme-toggle")).toHaveAttribute("aria-label", /light mode/i);
  await expect(card.locator(".feed-options > summary")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

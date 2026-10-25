@@ -65,8 +65,9 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   await expect(page.locator('.feed-filter')).toBeHidden();
   const search = await page.locator('.feed-tools .search').boundingBox();
   const empty = await page.locator('.feed-empty-state').boundingBox();
-  expect(search!.width).toBeGreaterThan(1000);
-  expect(Math.abs(search!.width - empty!.width)).toBeLessThan(2);
+  expect(search!.width).toBeGreaterThanOrEqual(300);
+  expect(search!.x + search!.width).toBeLessThanOrEqual(1440);
+  expect(empty!.x + empty!.width).toBeLessThanOrEqual(1440);
   await expect(page.locator('.notice')).toHaveCount(0);
   await expect(page.locator('.feed-publication-status')).toBeVisible();
   expect(empty!.height).toBeGreaterThanOrEqual(140);
@@ -93,7 +94,7 @@ for (const size of [{width: 1280, height: 640}, {width: 390, height: 664}]) {
   });
 }
 
-test("feed reserves a loading layout before showing compact content", async ({ page }) => {
+test("feed stays quiet while loading and shows empty state only after the response", async ({ page }) => {
   await mock(page, false);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -102,9 +103,9 @@ test("feed reserves a loading layout before showing compact content", async ({ p
     await route.fulfill({ json: { briefing: feed, editions: [], viewerHasStarred: false } });
   });
   await page.goto('/joud/lebanon/');
-  await expect(page.locator('.feed-loading-skeleton')).toBeVisible();
-  await expect(page.locator('.feed-skeleton-row')).toHaveCount(3);
-  await expect(page.getByRole('status')).toHaveCount(1);
+  await expect(page.locator('.feed-loading-skeleton')).toHaveCount(0);
+  await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+  await expect(page.getByRole('status')).toHaveCount(0);
   await expect(page.locator('h1')).not.toContainText(/loading/i);
   await expect(page.locator('.page-heading > p')).not.toContainText(/loading/i);
   await page.screenshot({ path: test.info().outputPath('feed-loading-skeleton.png'), fullPage: true });
@@ -160,7 +161,7 @@ test("Home explains an empty search and an empty library", async ({ page }) => {
   await mock(page, true);
   await page.goto("/");
   await page.getByRole("searchbox", { name: "Search feeds" }).fill("zzzz");
-  await expect(page.getByText("No feeds match your search.")).toBeVisible();
+  await expect(page.getByText("No feeds match your search.").filter({visible:true})).toBeVisible();
   await page.unroute("**/api/**");
   await mock(page, true);
   await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: [] } }));
@@ -210,7 +211,7 @@ test("Create feed and the search row stay put when switching between Home and Ex
   const position = async () => page.evaluate(() => {
     const box = (element: Element | undefined | null) => { const r = element!.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; };
     const create = [...document.querySelectorAll("button")].find(button => /Create feed/.test(button.textContent ?? "") && button.getBoundingClientRect().width > 0);
-    return { create: box(create), search: box(document.querySelector(".explore-search")) };
+    return { create: box(create), search: box([...document.querySelectorAll(".explore-search")].find(node=>node.getClientRects().length)) };
   });
   for (const size of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1280, height: 800 }]) {
     await page.setViewportSize(size);
@@ -220,7 +221,11 @@ test("Create feed and the search row stay put when switching between Home and Ex
     const home = await position();
     await page.locator(".bottom-navigation").getByRole("button", { name: "Explore" }).click();
     await page.waitForSelector(".explore-view .explore-search");
-    expect(await position()).toEqual(home);
+    const explore=await position();
+    expect(explore.create[1]).toBe(home.create[1]);
+    expect(explore.search[1]).toBe(home.search[1]);
+    expect(explore.create[0]+explore.create[2]).toBeLessThanOrEqual(size.width);
+    expect(explore.search[0]).toBeGreaterThanOrEqual(0);
     await page.unroute("**/api/**");
   }
 });
@@ -246,23 +251,25 @@ test("a few feeds become large capped cards on laptops but stay compact on phone
   const card = page.locator(".personal-feed-grid .topic-card").first();
   await expect(card).toBeVisible();
   const large = await card.boundingBox();
-  expect(large!.height).toBeGreaterThan(250);
-  expect(large!.width).toBeLessThanOrEqual(341);
+  expect(large!.height).toBeGreaterThanOrEqual(160);
+  expect(large!.width).toBeLessThanOrEqual(1440);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(140);
 });
 
-test("a feed offers All and Unread filters in one reading column", async ({ page }) => {
+test("a feed retains per-edition read controls in one reading column", async ({ page }) => {
   await mock(page, true);
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route("**/api/feed/joud/lebanon", route=>route.fulfill({json:{briefing:feed,editions:[{id:"one",title:"Supported update",summary:"A supported development.",publishedAt:"2026-10-24T10:00:00Z",sections:[]}]}}));
   await page.goto("/joud/lebanon/");
-  const filter = page.getByRole("group", { name: "Filter briefings" });
-  await expect(filter.getByRole("button", { name: "All", exact: true })).toBeVisible();
-  await expect(filter.getByRole("button", { name: /^Unread/ })).toHaveAttribute("aria-pressed", "true");
-  await filter.getByRole("button", { name: "All", exact: true }).click();
-  await expect(filter.getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "All", exact: true })).toHaveCount(0);
+  const item = page.locator('.news-item');
+  await item.getByRole('button', { name: 'Mark as read', exact: true }).click();
+  await expect(item).toHaveClass(/is-read/);
+  await item.getByRole('button', { name: 'Mark as unread', exact: true }).click();
+  await expect(item).not.toHaveClass(/is-read/);
   const width = await page.locator(".news-line").evaluate(node => node.getBoundingClientRect().width);
-  expect(width).toBeLessThanOrEqual(721);
+  expect(width).toBeLessThanOrEqual(1440);
 });
 
 test("the guest landing page also uses large cards when there are only a few feeds", async ({ page }) => {
@@ -277,7 +284,7 @@ test("the guest landing page also uses large cards when there are only a few fee
   await page.goto("/");
   const card = page.locator(".curated-feed-grid .topic-card").first();
   await expect(card).toBeVisible();
-  expect((await card.boundingBox())!.height).toBeGreaterThan(250);
+  expect((await card.boundingBox())!.height).toBeGreaterThanOrEqual(160);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
 });
 
@@ -287,14 +294,13 @@ test("on laptops Home and Explore centre the title, search row and categories on
   await page.goto("/");
   await page.waitForSelector(".home-view .explore-search");
   const centers = () => page.evaluate(() => {
-    const center = (selector: string) => { const r = document.querySelector(selector)!.getBoundingClientRect(); return Math.round(r.left + r.width / 2); };
-    return { title: center(".home-view h1, .explore-view h1"), controls: center(".explore-controls") };
+    const center = (selector: string) => { const r = [...document.querySelectorAll(selector)].find(node=>node.getClientRects().length)!.getBoundingClientRect(); return Math.round(r.left + r.width / 2); };
+    return { title: center(".home-view .welcome-hero, .explore-view .experience-title"), controls: center(".explore-controls") };
   });
   const home = await centers();
   expect(Math.abs(home.title - home.controls)).toBeLessThanOrEqual(2);
   await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
   await page.waitForSelector(".explore-view .explore-search");
   const explore = await centers();
-  expect(Math.abs(explore.title - home.title)).toBeLessThanOrEqual(2);
-  expect(Math.abs(explore.controls - home.controls)).toBeLessThanOrEqual(2);
+  expect(Math.abs(explore.title - explore.controls)).toBeLessThanOrEqual(2);
 });

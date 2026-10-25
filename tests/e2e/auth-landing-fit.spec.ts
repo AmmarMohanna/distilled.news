@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import {cycleLanguage} from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", route => {
@@ -22,9 +23,9 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
     ));
     const initial = await positions();
     for (const language of ["fr", "ar", "en"]) {
-      await page.getByRole("button", { name: /^Website language:/ }).click();
+      await cycleLanguage(page);
       await expect(page.locator("html")).toHaveAttribute("lang", language);
-      await expect(page.getByRole("button", { name: /^Website language:/ })).not.toHaveCSS("transform", /matrix/);
+      await expect(page.locator(".language-cycle")).not.toHaveCSS("transform", /matrix/);
       expect(await positions()).toEqual(initial);
     }
   });
@@ -55,7 +56,7 @@ for (const language of ["fr", "ar"]) {
     await page.setViewportSize({ width: 390, height: 568 });
     await page.addInitScript(value => localStorage.setItem("dn_language", value), language);
     await page.goto("/");
-    await page.getByRole("button", { name: /^Website language:/ }).waitFor();
+    await page.locator(".experience-header").waitFor();
     await page.locator(".landing-create").click();
     await page.locator(".auth-choice button").click();
     const viewport = page.locator(".auth-dialog .screen-page-viewport");

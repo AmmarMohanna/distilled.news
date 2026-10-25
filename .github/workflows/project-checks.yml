@@ -30,6 +30,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm -r typecheck
+      - run: pnpm exec tsc -p tsconfig.e2e.json
       - run: node --test scripts/*.test.mjs
       - run: python scripts/test_source_execution.py
       - run: pnpm -r --workspace-concurrency=1 --no-bail test
