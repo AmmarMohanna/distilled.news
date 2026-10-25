@@ -25,7 +25,7 @@ PRODUCT_FEEDS_ENABLED = "true"
 BRIEFING_ENGINE = "v3"
 BRIEFING_EDITOR_MODEL = "openai/gpt-4.1"
 BRIEFING_VERIFIER_MODEL = "openai/gpt-4.1-mini"
-SOURCE_RECOMMENDATIONS_ENABLED = "false"
+SOURCE_RECOMMENDATIONS_ENABLED = "true"
 # Preserve the deployed staging source/provider authorization exactly. Google
 # Apify and Zyte remain disabled; D1 grants and uncertain holds are unchanged.
 SOURCE_PER_PROVIDER_BUDGET_USD = "15"
