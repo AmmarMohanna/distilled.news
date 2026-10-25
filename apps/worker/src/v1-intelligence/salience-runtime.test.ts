@@ -11,7 +11,7 @@ beforeEach(async()=>{ctx=await createIntakeDatabase();await seedIntakeScope(new 
 afterEach(async()=>ctx.dispose());
 it.each(['SOURCE','FEED'] as const)('%s revocation during JEV prevents a subsequent GPT request',async mode=>{
  const version=(await store.list<EventVersion>('feed-1','event_versions'))[0];let calls=0;
- const env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',OPENROUTER_API_KEY:'synthetic'} as Env;
+ const env={DISTILLED_LLM_API_GATEWAY:'openrouter',DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',OPENROUTER_API_KEY:'synthetic'} as Env;
  const scorer=createSemanticSalienceScorer(env,async()=>{
   calls++;
   if(mode==='SOURCE'){const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;await intake.registerScope({...scope,enabled:false})}

@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    // Local D1 setup and durable publication span multiple native-process round trips.
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
     include: ["src/**/*.test.ts"],
     // Each recovery worker may own both a Miniflare workerd process and a
     // Playwright browser. Bound file concurrency so process scheduling cannot

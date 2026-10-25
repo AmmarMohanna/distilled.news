@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { afterAll,afterEach,beforeAll,describe,expect,it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
@@ -145,7 +146,7 @@ describe.sequential("durable D1/R2 crash recovery",()=>{
 async function applyAgentRuntimeMigrations(db:D1Database) {
   for (const migration of ["0011_agent_runtime.sql","0012_agent_runtime_security_and_provenance.sql","0016_model_attempt_timeout_provenance.sql","0018_model_gateway_diagnostics.sql"]) {
     const sql=await readFile(new URL(`../migrations/${migration}`,import.meta.url),"utf8");
-    for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((value)=>value.trim()).filter(Boolean)) await db.prepare(statement).run();
+    for (const statement of migrationStatements(sql)) await db.prepare(statement).run();
   }
 }
 

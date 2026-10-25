@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import {readFileSync,readdirSync} from 'node:fs';
 import { Miniflare } from "miniflare";
 import { describe, expect, it } from "vitest";
@@ -16,7 +17,7 @@ describe("generic live source route", () => {
       const db = await mf.getD1Database("DB");
       const directory=new URL('../migrations/',import.meta.url);
       for(const name of readdirSync(directory).filter(name=>/^\d+.*\.sql$/.test(name)).sort()){
-        const statements=readFileSync(new URL(name,directory),'utf8').split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(value=>value.replace(/--[^\r\n]*/g,'').trim());
+        const statements=migrationStatements(readFileSync(new URL(name,directory),'utf8'));
         if(statements.length)await db.batch(statements.map(value=>db.prepare(value)));
       }
       const repo = new InMemoryRepository();

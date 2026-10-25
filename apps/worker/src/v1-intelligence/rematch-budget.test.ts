@@ -24,7 +24,7 @@ it('unmapped historical liabilities durably defer canonical rematch without issu
   // Retained paid intents have no explicit account mapping. A new account
   // reservation must wait for reconciliation even though the test grant fits.
   expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_model_spending_reservations').first()).toEqual({n:0});
-  const [request]=await store.list<any>('feed-1','rematch_requests');await processV1Rematch({DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',OPENROUTER_API_KEY:'test-only',V1_SEMANTIC_POLICY:'SEMANTIC'} as any,'feed-1',request.id,now);
+  const [request]=await store.list<any>('feed-1','rematch_requests');await processV1Rematch({DISTILLED_LLM_API_GATEWAY:'openrouter',DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',OPENROUTER_API_KEY:'test-only',V1_SEMANTIC_POLICY:'SEMANTIC'} as any,'feed-1',request.id,now);
   const [attempt]=await store.list<RematchAttempt>('feed-1','rematch_attempts');expect(attempt).toMatchObject({state:'WAITING_BUDGET',attempt:1,reason:'ACCOUNT_RESOURCE_WAIT',resourcePolicy:'semantic-cost-admission-v1',nextAttemptAt:semanticResourceRetryAt(request.id,now,0)});expect(fetcher).not.toHaveBeenCalled();expect(nextRematch(request,[attempt],now)).toBeUndefined();expect(nextRematch(request,[attempt],attempt.nextAttemptAt!)).toBe(1);expect(Date.parse(attempt.nextAttemptAt!)-Date.parse(now)).toBeGreaterThanOrEqual(300000);expect(Date.parse(attempt.nextAttemptAt!)-Date.parse(now)).toBeLessThan(420000);expect(await store.revision('feed-1',revision.id)).toEqual(revision);
  }finally{fetcher.mockRestore();await ctx.dispose()}
 },25000);

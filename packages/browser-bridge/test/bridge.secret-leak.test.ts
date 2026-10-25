@@ -91,8 +91,7 @@ describe("secret handling across the real bridge (synthetic markers only)",()=>{
     expect(sinks.filter(chunk=>leaks(chunk).length>0)).toEqual([]);
     // 6. Persistence: no secret in Chromium's temp profile while live, and no browser temp state left after close.
     expect(diskHits).toEqual([]);
-    await new Promise(resolve=>setTimeout(resolve,500));
-    expect(browserTempDirs()).toEqual([]);
+    await expect.poll(()=>browserTempDirs(),{timeout:10_000,interval:100}).toEqual([]);
   },90_000);
 
   it("keeps secrets out of failure paths: typed errors, rejected credentials and forced browser errors",async()=>{

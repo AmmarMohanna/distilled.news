@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { readFileSync } from "node:fs";
 import { Miniflare } from "miniflare";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -16,7 +17,7 @@ beforeAll(async () => {
   mf = new Miniflare({ modules: true, script: "export default {fetch(){return new Response('ok')}}", d1Databases: ["DB"] });
   db = (await mf.getD1Database("DB")) as unknown as D1Database;
   const sql = readFileSync(new URL("../migrations/0067_v3_model_spend.sql", import.meta.url), "utf8");
-  const statements = sql.split(/;\s*(?:\r?\n|$)/).map((x) => x.trim()).filter((x) => x.replace(/--[^\r\n]*/g, "").trim());
+  const statements = migrationStatements(sql);
   await db.batch(statements.map((x) => db.prepare(x)));
 });
 afterAll(async () => mf.dispose());

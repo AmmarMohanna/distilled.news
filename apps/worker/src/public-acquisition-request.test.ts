@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { readFileSync } from "node:fs";
 import { Miniflare } from "miniflare";
 import { describe, expect, it, vi } from "vitest";
@@ -12,7 +13,7 @@ describe("queued protected acquisition", () => {
       await db.exec("CREATE TABLE source_acquisition_leases(scope_key TEXT PRIMARY KEY,request_id TEXT NOT NULL,expires_at TEXT NOT NULL);");
       await db.exec("CREATE TABLE browser_use_discovery_runs(state TEXT,outcome TEXT,completed_at TEXT,started_at TEXT);");
       const sql=readFileSync(new URL("../migrations/0029_public_acquisition_requests.sql",import.meta.url),"utf8");
-      for(const statement of sql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
+      for(const statement of migrationStatements(sql))await db.prepare(statement).run();
       const payload={sourceUrl:"https://news.example/listing",ownerAccountId:"owner",startTime:"2026-09-20T00:00:00Z",endTime:"2026-09-21T00:00:00Z",idempotencyKey:"fixture-run"};
       await db.prepare("INSERT INTO public_acquisition_requests(request_id,idempotency_key,owner_account_id,request_json,state,created_at) VALUES(?,?,?,?,'pending',?)")
         .bind("request-1",payload.idempotencyKey,"owner",JSON.stringify(payload),new Date().toISOString()).run();

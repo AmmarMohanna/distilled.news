@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import {readFileSync,readdirSync} from "node:fs";
 import {Miniflare} from "miniflare";
 import {expect,it} from "vitest";
@@ -18,7 +19,7 @@ it("evaluates the real account/queue/service/D1 handoff and scheduled next windo
     const db=await mf.getD1Database("DB");
     const directory=new URL("../migrations/",import.meta.url);
     for(const name of readdirSync(directory).filter(name=>/^\d+.*\.sql$/.test(name)).sort()){
-      const statements=readFileSync(new URL(name,directory),"utf8").split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(value=>value.replace(/--[^\r\n]*/g,"").trim());
+      const statements=migrationStatements(readFileSync(new URL(name,directory),"utf8")).filter(value=>value.replace(/--[^\r\n]*/g,"").trim());
       if(statements.length)await db.batch(statements.map(value=>db.prepare(value)));
     }
     const now=new Date("2026-09-28T00:00:00Z"),repo=new D1Repository(db);

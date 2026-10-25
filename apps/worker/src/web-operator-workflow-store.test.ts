@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { afterEach, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
@@ -258,7 +259,7 @@ async function applyMigration(db: D1Database, migration: string) {
     .split(/\r?\n/)
     .filter((line) => !line.trimStart().startsWith("--"))
     .join("\n");
-  for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((value) => value.trim()).filter(Boolean)) {
+  for (const statement of migrationStatements(sql)) {
     if (!/\S/.test(statement)) continue;
     await db.prepare(statement).run();
   }

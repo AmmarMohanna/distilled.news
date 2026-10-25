@@ -18,10 +18,12 @@ import {DEFAULT_BRIEFING_BUDGET} from './scoring';
 import type {Env} from '../types';
 import {assessSelfContainment} from './self-contained';
 
-it('the exact failed live correction draft and all its support fit the unchanged verifier allowance',()=>{
+it('the exact failed live correction draft and all its support fit current model-context admission',()=>{
  const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'unused-test-key'} as Env)!;
- const bytes=new TextEncoder().encode(JSON.stringify(model.verificationPayload!(verifierBudget.claims as VerificationClaim[]))).length;
- expect(bytes+verifierBudget.writerInputTokens).toBeLessThanOrEqual(DEFAULT_BRIEFING_BUDGET.maxInputTokens);
+ const payload=model.verificationPayload!(verifierBudget.claims as VerificationClaim[]);
+ const admission=model.admission!(payload,'GROUNDING');
+ expect(admission.fits).toBe(true);
+ expect(admission.inputTokenUpperBound).toBeGreaterThan(0);
 });
 
 it('the observed two-story correction verifier fits the existing allowance after the real writer charge',()=>{

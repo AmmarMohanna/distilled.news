@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { readFileSync } from "node:fs";
 import { Miniflare } from "miniflare";
 import { describe,expect,it,vi } from "vitest";
@@ -10,7 +11,7 @@ describe("queued authenticated X acquisition",()=>{
     try{
       const db=await mf.getD1Database("DB");
       const sql=readFileSync(new URL("../migrations/0030_authenticated_x_acquisition_requests.sql",import.meta.url),"utf8");
-      for(const statement of sql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
+      for(const statement of migrationStatements(sql))await db.prepare(statement).run();
       const payload={authenticatedProfileId:"authenticated_profile_fixture",ownerAccountId:"owner",sourceUrl:"https://x.com/source",startTime:"2026-09-25T00:00:00Z",endTime:"2026-09-28T00:00:00Z",idempotencyKey:"x-fixture-run"};
       await db.prepare("INSERT INTO authenticated_x_acquisition_requests(request_id,idempotency_key,owner_account_id,authenticated_profile_id,request_json,state,created_at) VALUES(?,?,?,?,?,'pending',?)")
         .bind("request-1",payload.idempotencyKey,"owner",payload.authenticatedProfileId,JSON.stringify(payload),new Date().toISOString()).run();

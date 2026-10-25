@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 vi.mock('./cloudflare-container-browser',()=>({AuthenticatedBrowserContainer:class {}}));
 import { afterEach,describe,expect,it,vi } from "vitest";
 import { readFile } from "node:fs/promises";
@@ -197,5 +198,5 @@ function invocation():KnownCandidateInvocation {
 
 async function applyMigration(db:D1Database,migration:string) {
   const sql=await readFile(new URL(`../migrations/${migration}`,import.meta.url),"utf8");
-  for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((value)=>value.trim()).filter(Boolean)) await db.prepare(statement).run();
+  for (const statement of migrationStatements(sql)) await db.prepare(statement).run();
 }

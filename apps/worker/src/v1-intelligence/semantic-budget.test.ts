@@ -27,7 +27,7 @@ describe('retries read back what already succeeded instead of re-spending the al
   return JSON.stringify(['REASSESS','observation-2','']);
  }
  it('relation and effect judgments that succeeded under attempt 0 cost no call and no allowance on attempts 1 and 2',async()=>{
-  const job=await corroboration(),counter={n:0},strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async()=>{throw Error('construction not needed')}},env={OPENROUTER_API_KEY:'test-only'} as Env;
+  const job=await corroboration(),counter={n:0},strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async()=>{throw Error('construction not needed')}},env={DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test-only'} as Env;
   const first=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong,fetcher:jevFetcher(counter)});
   expect(first?.prepared.decision.structuralRelation).toBe('SAME_EVENT');expect(counter.n).toBe(2);expect(await intents()).toHaveLength(2);
   for(const attempt of [1,2]){const again=await prepareSemanticMatch(store,env,job,testPolicy.now(),{strong,fetcher:jevFetcher(counter),attempt});expect(again?.prepared.decision.structuralRelation).toBe('SAME_EVENT');expect(again?.prepared.decision.provenance.judgmentId).toBe(first?.prepared.decision.provenance.judgmentId)}
@@ -59,7 +59,7 @@ describe('teasers, promotions and calls to action consume no semantic allowance'
   const intake=new V1IntakeStore(ctx.db),batch=batchFixture(2);batch.observations[0].sourceItemKey='item-2';batch.proposals[0].sourceItemKey='item-2';const accepted=await createCandidateIntakePort(intake,testPolicy).acceptBatch(batch);
   await acceptAcquiredContent(intake,{id:'teaser',feedId:'feed-1',candidateId:accepted.receipts[0].candidateItemId!,sourceObservationId:'observation-2',title:'Here are the top AI agents that can live in your text messages',body:'We created a list of the most notable AI agents that can live in your text messages, from general assistants to agents designed for families, travel, and work.',representation:'ARTICLE_EXCERPT',contentCompleteness:'COMPLETE',acquisitionMethod:'supplied_payload',acquiredAt:testPolicy.now()},testPolicy);
   let fetches=0,strongCalls=0;const strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async()=>{strongCalls++;throw Error('no')}},fetcher:typeof fetch=async()=>{fetches++;throw Error('no')};
-  const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test-only'} as Env,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now(),{strong,fetcher});
+  const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test-only'} as Env,JSON.stringify(['REASSESS','observation-2','']),testPolicy.now(),{strong,fetcher});
   expect(prepared).toBeUndefined();expect(fetches).toBe(0);expect(strongCalls).toBe(0);expect(await intents()).toHaveLength(0);
  },40000);
 });

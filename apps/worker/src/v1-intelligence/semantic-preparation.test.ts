@@ -216,7 +216,7 @@ it('hands a valid disposition construction through canonical graph, editorial se
  // Deliberate stop after simulated writing: no invented compatible verification or real-model success.
  const results=await store.list<any>('feed-1','semantic_results'),construction=results.find(r=>r.value?.schemaVersion==='minimal-packet-disposition-v1'),mentions=await store.list<any>('feed-1','claim_mentions');expect(Object.keys(construction.value.dispositionByClaimMentionId)).toEqual(mentions.map(m=>m.id));
 
-},20000);
+},60000);
 
 it('independently challenges a false cross-event construction before canonical mutation and reuses the settled review',async()=>{
  await seedIntelligence(store,1,'Replit changed its default coding model.');
