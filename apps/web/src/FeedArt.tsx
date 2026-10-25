@@ -34,7 +34,8 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
   const [failure, setFailure] = useState("");
   useEffect(() => {
     setImage(""); setLoaded(false); setFailure("");
-    if (!feed?.ownerUsername || !feed?.slug) { return; }
+    // Wait for feed metadata rather than fetching the placeholder before visibility is known.
+    if (!feed?.ownerUsername || !feed?.slug || feed.publicFeedEnabled === undefined) { return; }
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let objectUrl = "";
