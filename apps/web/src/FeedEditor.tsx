@@ -14,9 +14,8 @@ export function FeedEditor(props: {
   feed?: BriefingConfig; onClose: () => void; onSave: (input: FeedInput) => Promise<void>;
   onPause?: () => Promise<void>; onCopy?: () => Promise<void>; onDelete?: () => Promise<void>;
 }) {
-  const [id, setId] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
-  const [duplicating, setDuplicating] = useState(false);
-  const editing = Boolean(props.feed && !duplicating);
+  const [id] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
+  const editing = Boolean(props.feed);
   const [sourcesReady, setSourcesReady] = useState(!props.feed);
   useEffect(() => {
     if (!props.feed) return;
@@ -124,10 +123,10 @@ export function FeedEditor(props: {
       {message && <p className="error" role="alert">{message}</p>}
       {editing && props.feed && <section className="feed-actions-panel" aria-labelledby="feed-actions-title">
         <h3 id="feed-actions-title">{t("Feed actions")}</h3>
-        <p>{t("Manage this feed or create a copy.")}</p>
+        <p>{t("Manage this feed or copy its link.")}</p>
         <div className="feed-editor-actions">
           <button type="button" disabled={busy || !props.onPause} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{props.feed.paused ? <Play size={18} aria-hidden/> : <Pause size={18} aria-hidden/>}<span>{t(props.feed.paused ? "Resume feed" : "Pause feed")}</span></button>
-          <button type="button" disabled={busy || !sourcesReady || checkingSource} onClick={() => { setId('briefing_' + crypto.randomUUID()); setTitle(value => value + ' (' + t('Copy') + ')'); setDuplicating(true); setMessage(''); }}><Copy size={18} aria-hidden/><span>{t("Duplicate")}</span></button>
+          <button type="button" disabled={busy || !props.onCopy} onClick={() => void run(async () => { await props.onCopy?.(); setMessage(t("URL copied")); })}><Copy size={18} aria-hidden/><span>{t("Copy link")}</span></button>
           <button type="button" className="danger-button" disabled={busy || !props.onDelete} onClick={async () => { if (await confirm('Delete "' + props.feed?.title + '" and its published content?')) void run(async () => { await props.onDelete?.(); }); }}><Trash2 size={18} aria-hidden/><span>{t("Delete feed")}</span></button>
         </div>
       </section>}

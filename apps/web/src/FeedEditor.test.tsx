@@ -1,7 +1,7 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import { FeedEditor, type FeedInput } from './FeedEditor';
+import { FeedEditor } from './FeedEditor';
 import { getSources, recommendSourceCandidates, assessSourceInput } from './api';
 import { personalNewsBriefing } from '@distilled/core';
 
@@ -123,21 +123,20 @@ it('does not add a suggestion when its independent assessment is inconclusive', 
   await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();
 });
 
-it('places feed actions above save and duplicates into an unsaved new identity', async () => {
+it('copies the feed link without creating a copy or changing its identity', async () => {
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
- const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async(_input:FeedInput)=>{});
+ const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async(_input:unknown)=>{}),onCopy=vi.fn(async()=>{});
  const feed={...personalNewsBriefing,title:'Technology',interestProfile:'AI news',briefingTimezone:'UTC'};
- await act(async()=>root.render(<FeedEditor feed={feed} onClose={()=>{}} onSave={onSave}/>));
+ await act(async()=>root.render(<FeedEditor feed={feed} onClose={()=>{}} onSave={onSave} onCopy={onCopy}/>));
  const panel=host.querySelector('.feed-actions-panel')!;
- const saveRow=host.querySelector('.experience-dialog-actions')!;
- expect(panel.compareDocumentPosition(saveRow)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
- const duplicate=[...panel.querySelectorAll('button')].find(button=>button.textContent==='Duplicate')!;
- await act(async()=>duplicate.click());
+ expect(panel.compareDocumentPosition(host.querySelector('.experience-dialog-actions')!)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ expect(panel.textContent).not.toMatch(/Duplicate|create a copy/);
+ const copy=[...panel.querySelectorAll('button')].find(button=>button.textContent==='Copy link')!;
+ await act(async()=>copy.click());
+ expect(onCopy).toHaveBeenCalledOnce();
  expect(onSave).not.toHaveBeenCalled();
- expect(host.querySelector('.feed-actions-panel')).toBeNull();
- expect(host.querySelector('.primary-button')?.textContent).toBe('Create feed');
+ expect(host.querySelector('.primary-button')?.textContent).toBe('Save changes');
  await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
- expect(onSave).toHaveBeenCalledWith(expect.objectContaining({title:'Technology (Copy)',sourceInputs:['https://example.com/feed.xml']}));
- expect(onSave.mock.calls[0][0].id).not.toBe(feed.id);
+ expect(onSave).toHaveBeenCalledWith(expect.objectContaining({id:feed.id,title:'Technology'}));
  await act(async()=>root.unmount());vi.unstubAllGlobals();
 });

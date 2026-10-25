@@ -6,10 +6,9 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Copy link": ["Copier le lien", "\u0646\u0633\u062e \u0627\u0644\u0631\u0627\u0628\u0637"],
+  "Manage this feed or copy its link.": ["G\u00e9rez ce fil ou copiez son lien.", "\u0623\u062f\u0631 \u0647\u0630\u0647 \u0627\u0644\u062e\u0644\u0627\u0635\u0629 \u0623\u0648 \u0627\u0646\u0633\u062e \u0631\u0627\u0628\u0637\u0647\u0627."],
   "Feed actions": ["Actions du fil", "\u0625\u062c\u0631\u0627\u0621\u0627\u062a \u0627\u0644\u062e\u0644\u0627\u0635\u0629"],
-  "Manage this feed or create a copy.": ["G\u00e9rez ce fil ou cr\u00e9ez une copie.", "\u0623\u062f\u0631 \u0647\u0630\u0647 \u0627\u0644\u062e\u0644\u0627\u0635\u0629 \u0623\u0648 \u0623\u0646\u0634\u0626 \u0646\u0633\u062e\u0629 \u0645\u0646\u0647\u0627."],
-  "Duplicate": ["Dupliquer", "\u0625\u0646\u0634\u0627\u0621 \u0646\u0633\u062e\u0629"],
-  "Copy": ["Copie", "\u0646\u0633\u062e\u0629"],
   "Your account username": ["Votre nom d’utilisateur", "اسم المستخدم لحسابك"],
   "Security": ["Sécurité", "الأمان"],
   "Update your account password": ["Modifier le mot de passe de votre compte", "تحديث كلمة مرور حسابك"],
