@@ -134,6 +134,8 @@ it('copies the feed link without creating a copy or changing its identity', asyn
  const copy=[...panel.querySelectorAll('button')].find(button=>button.textContent==='Copy link')!;
  await act(async()=>copy.click());
  expect(onCopy).toHaveBeenCalledOnce();
+ expect(copy.textContent).toBe('Copied');
+ expect(host.textContent).not.toContain('URL copied');
  expect(onSave).not.toHaveBeenCalled();
  expect(host.querySelector('.primary-button')?.textContent).toBe('Save changes');
  await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));

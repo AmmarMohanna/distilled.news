@@ -43,6 +43,7 @@ export function FeedEditor(props: {
   const [recommending, setRecommending] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [message, setMessage] = useState("");
   const { t } = useLanguage();
   const { confirm, confirmation } = useConfirmation();
@@ -126,7 +127,7 @@ export function FeedEditor(props: {
         <p>{t("Manage this feed or copy its link.")}</p>
         <div className="feed-editor-actions">
           <button type="button" disabled={busy || !props.onPause} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{props.feed.paused ? <Play size={18} aria-hidden/> : <Pause size={18} aria-hidden/>}<span>{t(props.feed.paused ? "Resume feed" : "Pause feed")}</span></button>
-          <button type="button" disabled={busy || !props.onCopy} onClick={() => void run(async () => { await props.onCopy?.(); setMessage(t("URL copied")); })}><Copy size={18} aria-hidden/><span>{t("Copy link")}</span></button>
+          <button type="button" disabled={busy || !props.onCopy} onClick={() => void run(async () => { await props.onCopy?.(); setLinkCopied(true); })}><Copy size={18} aria-hidden/><span aria-live="polite">{t(linkCopied ? "Copied" : "Copy link")}</span></button>
           <button type="button" className="danger-button" disabled={busy || !props.onDelete} onClick={async () => { if (await confirm('Delete "' + props.feed?.title + '" and its published content?')) void run(async () => { await props.onDelete?.(); }); }}><Trash2 size={18} aria-hidden/><span>{t("Delete feed")}</span></button>
         </div>
       </section>}
