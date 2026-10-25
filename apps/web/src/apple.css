@@ -2142,7 +2142,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Reader controls share one header rhythm and a flat page surface. */
 :root.apple-ui.apple-ui .feed-shell > .experience-header { background: var(--page); box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 :root.apple-ui.apple-ui .feed-shell .experience-header-actions { gap: 20px; }
-:root.apple-ui.apple-ui .feed-shell .experience-header-actions .feed-header-actions { display: contents; }
+:root.apple-ui.apple-ui .feed-shell .experience-header-actions .feed-header-actions { display: flex; flex: 0 0 auto; gap: 4px; }
 :root.apple-ui.apple-ui .feed-shell .experience-header-actions .feed-header-actions > button,
 :root.apple-ui.apple-ui .feed-shell .experience-header-actions .feed-more > summary { background: transparent; color: var(--accent); border: 0; box-shadow: none; padding-inline: 0; }
 :root.apple-ui.apple-ui .feed-shell .feed-side-actions { margin-inline-start: 0; }
@@ -2398,8 +2398,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui[dir] .feed-shell .feed-nav-back { direction: ltr; }
 :root.apple-ui.apple-ui[dir] .feed-shell .feed-nav-back svg { transform: none; }
 
-/* Feed pages reserve the profile slot so all other header controls stay put. */
-:root.apple-ui.apple-ui .feed-shell .experience-header .avatar-button { visibility: hidden; pointer-events: none; }
+/* Feed pages omit the profile control without leaving an empty toolbar slot. */
+:root.apple-ui.apple-ui .feed-shell .experience-header .avatar-button { display: none; }
 
 /* Header preferences share the blue-magenta action accent. */
 :root.apple-ui.apple-ui .experience-header :is(.language-cycle, .theme-toggle),
