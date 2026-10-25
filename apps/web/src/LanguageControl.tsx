@@ -6,6 +6,15 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Archived feeds": ["Fils archivés", "الخلاصات المؤرشفة"],
+  "Resume": ["Reprendre", "استئناف"],
+  "Resuming…": ["Reprise…", "جارٍ الاستئناف…"],
+  "Feed resumed.": ["Fil réactivé.", "تم استئناف الخلاصة."],
+  "Could not resume feed. Try again.": ["Impossible de réactiver le fil. Réessayez.", "تعذر استئناف الخلاصة. حاول مجددًا."],
+  "Paused feeds keep their published briefings. Resume one to receive new updates.": ["Les fils en pause conservent leurs bulletins publiés. Réactivez un fil pour recevoir de nouvelles actualités.", "تحتفظ الخلاصات المتوقفة بنشراتها المنشورة. استأنف إحداها لتلقي تحديثات جديدة."],
+  "No archived feeds": ["Aucun fil archivé", "لا توجد خلاصات مؤرشفة"],
+  "Feeds you pause will appear here.": ["Les fils que vous mettez en pause apparaîtront ici.", "ستظهر هنا الخلاصات التي توقفها مؤقتًا."],
+  "Your feeds are paused. Find them in the archive.": ["Vos fils sont en pause. Retrouvez-les dans les archives.", "خلاصاتك متوقفة مؤقتًا. يمكنك العثور عليها في الأرشيف."],
   "Copied": ["Copi\u00e9", "\u062a\u0645 \u0627\u0644\u0646\u0633\u062e"],
   "Copy link": ["Copier le lien", "\u0646\u0633\u062e \u0627\u0644\u0631\u0627\u0628\u0637"],
   "Manage this feed or copy its link.": ["G\u00e9rez ce fil ou copiez son lien.", "\u0623\u062f\u0631 \u0647\u0630\u0647 \u0627\u0644\u062e\u0644\u0627\u0635\u0629 \u0623\u0648 \u0627\u0646\u0633\u062e \u0631\u0627\u0628\u0637\u0647\u0627."],

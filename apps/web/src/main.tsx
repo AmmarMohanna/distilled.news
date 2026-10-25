@@ -497,6 +497,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     <>
       <AppExperience key="account" account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
         onAccount={() => setAccountDialogOpen(true)}
+        onResumeFeed={async feed => { await persistBriefing({...feed,paused:false}, "resumed", null); window.dispatchEvent(new Event("dn-explore-changed")); }}
         onCreate={() => setCreationOpen(true)} onHelp={() => setHelpOpen(true)} error={error}>
 {account.role === "admin" ? <AdminAccountsSection accounts={accounts} currentAccountId={account.id} onAccountsChanged={setAccounts}/> : null}
       </AppExperience>

@@ -17,7 +17,7 @@ async function mock(page: Page, role: "user" | "admin" | null) {
     const path = new URL(route.request().url()).pathname;
     const body: unknown = path === "/api/auth/session" ? (role ? { authenticated: true, setupRequired: false, account: { id: "joud", username: "joud", email: "j@example.test", role } } : { authenticated: false, setupRequired: false })
       : path === "/api/me/briefings" || path === "/api/me/feeds" ? { briefings: role ? feeds : [] }
-      : path === "/api/explore/feeds" ? { feeds }
+      : path === "/api/explore/feeds" ? { feeds: feeds.map(feed => ({...feed, id: `community-${feed.id}`, ownerAccountId: "community", ownerUsername: "community"})) }
       : path === "/api/me/sources" ? { sources: [] }
       : path === "/api/me/health" ? { health: { processing: { queued: 0, completed: 0, failed: 0 } } }
       : path.startsWith("/api/admin/") ? { accounts: [], briefings: feeds }

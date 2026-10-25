@@ -455,7 +455,7 @@ export class D1Repository implements Repository {
     return rows.map(rowToBriefing);
   }
 
-  async listExploreBriefings(limit: number, offset = 0): Promise<BriefingConfig[]> {
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string): Promise<BriefingConfig[]> {
     if (limit <= 0) return [];
     const rows = await all<BriefingRow>(
       this.db
@@ -463,11 +463,12 @@ export class D1Repository implements Repository {
           `SELECT briefings.*, accounts.username as owner_username
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
-          WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1
+          WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
+          AND (? IS NULL OR briefings.owner_account_id != ?)
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ? OFFSET ?`
         )
-        .bind(limit, offset)
+        .bind(excludeOwnerId ?? null, excludeOwnerId ?? null, limit, offset)
     );
     return rows.map(rowToBriefing);
   }
@@ -1874,10 +1875,10 @@ export class InMemoryRepository implements Repository {
       .map((briefing) => briefing);
   }
 
-  async listExploreBriefings(limit: number, offset = 0): Promise<BriefingConfig[]> {
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string): Promise<BriefingConfig[]> {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
-      .filter((briefing) => briefing.publicFeedEnabled && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter((briefing) => briefing.publicFeedEnabled && !briefing.paused && briefing.ownerAccountId !== excludeOwnerId && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .slice(offset, offset + limit);

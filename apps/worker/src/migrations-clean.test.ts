@@ -29,6 +29,10 @@ it("applies the complete migration chain to clean D1 with workflow and decision 
     await repo.upsertBriefing({...feed,publicFeedEnabled:true,stars:0});
     expect((await repo.listExploreBriefings(10)).map(f=>f.id)).toContain(feed.id);
     expect(await repo.listExploreBriefings(10, 1)).toEqual([]);
+    expect(await repo.listExploreBriefings(10, 0, owner.id)).toEqual([]);
+    await repo.upsertBriefing({...feed, publicFeedEnabled:true, paused:true});
+    expect(await repo.listExploreBriefings(10)).toEqual([]);
+    expect(await repo.getBriefingById(feed.id)).toMatchObject({paused:true});
     for(const table of ["upstream_resources","web_operator_workflows","source_acquisition_state","browser_use_discovery_runs","bounded_decision_events","public_acquisition_requests","authenticated_x_acquisition_requests","acquired_source_items","source_acquisition_leases"]){
       expect(await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").bind(table).first()).not.toBeNull();
     }

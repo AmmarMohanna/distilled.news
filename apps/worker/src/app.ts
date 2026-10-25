@@ -1129,7 +1129,11 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/explore/feeds", async (c) => {
     const repo = repoFor(c);
     const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
-    const feeds = await repo.listExploreBriefings(101, offset);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const feeds = await repo.listExploreBriefings(101, offset, viewer && !viewer.disabledAt ? viewer.id : undefined);
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     return c.json({ feeds: feeds.slice(0, 100).map(publicBriefing), nextOffset: feeds.length > 100 ? offset + 100 : null });
   });
 

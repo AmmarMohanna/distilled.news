@@ -8,7 +8,7 @@ async function openApp(page: import("@playwright/test").Page, count: number) {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/auth/session") return route.fulfill({ json: { authenticated: true, account: { id: "owner", username: "owner", role: "user" } } });
     if (path === "/api/me/briefings") return route.fulfill({ json: { briefings: Array.from({ length: count }, (_, index) => feed(index)) } });
-    if (path === "/api/explore/feeds") return route.fulfill({ json: { feeds: Array.from({ length: count }, (_, index) => feed(index)) } });
+    if (path === "/api/explore/feeds") return route.fulfill({ json: { feeds: Array.from({ length: count }, (_, index) => ({...feed(index), id: `community-${index}`, ownerUsername: "community"})) } });
     if (path === "/api/me/sources") return route.fulfill({ json: { sources: [] } });
     if (path === "/api/me/health") return route.fulfill({ json: { health: { processing: { queued: 0, completed: 0, failed: 0 } } } });
     if (path.endsWith("/sketch")) return route.fulfill({ status: 404 });

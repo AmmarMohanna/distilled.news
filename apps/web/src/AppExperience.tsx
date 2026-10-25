@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
-import { PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, HealthStatus, PublicBriefing } from "./types";
 import { getExploreFeeds, getFeed, setFeedStar } from "./api";
@@ -8,6 +8,7 @@ import { ThemeToggle, useTheme } from "./ThemeToggle";
 import { LanguageControl, languageNames, setWebsiteLanguage, useLanguage } from "./LanguageControl";
 import { installApp, notificationsEnabled, setNotificationsEnabled } from "./pwa";
 import { InstallDialog, type InstallStatus } from "./SettingsDialogs";
+import { Dialog } from "./Dialog";
 import { FeedArt } from "./FeedArt";
 import { AdaptiveFeedGrid } from "./AdaptiveFeedGrid";
 import { formatFeedUpdated } from "./helpers";
@@ -31,10 +32,14 @@ export function AppHeader({ account, onAccount, leading, actions, contextual }: 
 export function AppExperience(props: {
   account: AccountRecord | null; briefings: BriefingConfig[]; briefing?: BriefingConfig; health?: HealthStatus | null;
   onAccount: () => void; onFeedSettings?: () => void; onCreate?: () => void;
-  onHelp: () => void; error?: string; children?: React.ReactNode; initialTab?: "home" | "explore" | "settings";
+  onHelp: () => void; onResumeFeed?: (feed: BriefingConfig) => Promise<void>; error?: string; children?: React.ReactNode; initialTab?: "home" | "explore" | "settings";
 }) {
   const [tab, setTab] = useState(props.initialTab ?? "home");
   const [query, setQuery] = useState("");
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [resumingFeed, setResumingFeed] = useState<string | null>(null);
+  const [archiveError, setArchiveError] = useState("");
+  const [archiveStatus, setArchiveStatus] = useState("");
   const [feeds, setFeeds] = useState<Array<PublicBriefing & { viewerHasStarred?: boolean; latestUpdatedAt?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -71,11 +76,14 @@ export function AppExperience(props: {
     return () => { active = false; window.removeEventListener(EXPLORE_CHANGED_EVENT, changed); };
   }, []);
   const matching = (title: string) => (!query || title.toLowerCase().includes(query.toLowerCase()));
-  const ownFeeds = props.briefings.filter(feed => !query || feed.title.toLowerCase().includes(query.toLowerCase()));
-  const visibleFeeds = feeds.filter(feed => matching(`${feed.title} ${feed.ownerUsername}`));
+  const activeFeeds = props.briefings.filter(feed => !feed.paused);
+  const archivedFeeds = props.briefings.filter(feed => feed.paused);
+  const ownFeeds = activeFeeds.filter(feed => matching(feed.title));
+  const owns = (feed: PublicBriefing) => Boolean(props.account && ((Boolean(props.account.id) && feed.ownerAccountId === props.account.id) || feed.ownerUsername === props.account.username));
+  const visibleFeeds = feeds.filter(feed => !feed.paused && !owns(feed) && matching(`${feed.title} ${feed.ownerUsername}`));
   const setting = (icon: React.ReactNode, label: string, action: () => void) => <button type="button" className="setting-row" onClick={action}>{icon}<span>{t(label)}</span><ChevronRight size={17}/></button>;
   function changeTab(next: typeof tab) {
-    setTab(next); setSettingsDialog(null); window.scrollTo({ top: 0 });
+    setTab(next); setArchiveOpen(false); setSettingsDialog(null); window.scrollTo({ top: 0 });
   }
   useEffect(() => { if (new URLSearchParams(window.location.search).get("view") === "settings" && props.account) setTab("settings"); }, []);
   useEffect(() => {
@@ -102,8 +110,8 @@ export function AppExperience(props: {
         and their decoded images survive tab switches. */}
     {props.account && <div className="home-view" style={tab !== "home" ? { display: "none" } : undefined}>
       <section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
-      <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button></div>
-      <section className="your-feeds" aria-label={t("Your feeds")}><AdaptiveFeedGrid count={ownFeeds.length} className="personal-feed-grid">{ownFeeds.map(feed => <article className="topic-card" key={feed.id}><a href={feedUrl(feed)}><FeedArt feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a><FeedCardActions feed={feed} owner onError={setError}/></article>)}</AdaptiveFeedGrid>{ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(props.briefings.length === 0 ? "You haven’t created any feeds yet." : "No feeds match your search.")}</p> : null}{!props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
+      <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button type="button" className="home-archive-button" aria-label={t("Archived feeds")} title={t("Archived feeds")} aria-haspopup="dialog" onClick={() => { setArchiveError(""); setArchiveStatus(""); setArchiveOpen(true); }}><Archive size={20} aria-hidden/>{archivedFeeds.length > 0 && <span className="archive-count" aria-hidden="true">{archivedFeeds.length}</span>}</button><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button></div>
+      <section className="your-feeds" aria-label={t("Your feeds")}><AdaptiveFeedGrid count={ownFeeds.length} className="personal-feed-grid">{ownFeeds.map(feed => <article className="topic-card" key={feed.id}><a href={feedUrl(feed)}><FeedArt feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a><FeedCardActions feed={feed} owner onError={setError}/></article>)}</AdaptiveFeedGrid>{ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(query.trim() ? "No feeds match your search." : archivedFeeds.length ? "Your feeds are paused. Find them in the archive." : "You haven’t created any feeds yet.")}</p> : null}{!props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
     </div>}
     <section className="explore-view" style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
@@ -125,6 +133,25 @@ export function AppExperience(props: {
       </section>
     </section>
     {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label settings-account-label">{t("Account")}</p><div className="settings-group settings-account-group">{setting(<User/>, "Profile", props.onAccount)}<button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Notifications")} aria-checked={notificationEnabled ?? false} disabled={notificationBusy || notificationEnabled === undefined} onClick={() => void toggleNotifications()}><Bell/><span>{t("Notifications")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div>{notificationError && <p className="error" role="alert">{t(notificationError)}</p>}<p className="settings-group-label settings-preferences-label">{t("Preferences")}</p><div className="settings-group settings-preferences-group"><div className="setting-row setting-language" role="group" aria-label={t("Language")}><Globe/><span>{t("Language")}</span><span className="language-segments">{(["en", "fr", "ar"] as const).map(code => <button key={code} type="button" lang={code} aria-pressed={language === code} onClick={() => setWebsiteLanguage(code)} aria-label={languageNames[code]}><span className="language-name">{languageNames[code]}</span><span className="language-code" aria-hidden="true">{code.toUpperCase()}</span></button>)}</span></div><button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Dark mode")} aria-checked={theme === "dark"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><Moon/><span>{t("Dark mode")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div><p className="settings-group-label settings-app-label">{t("App")}</p><div className="settings-group settings-app-group">{setting(<Smartphone/>, "Install app", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
+    {props.account && archiveOpen && <Dialog label={t("Archived feeds")} className="feed-archive-dialog" onClose={() => setArchiveOpen(false)}>
+      <section className="dialog-inner feed-archive-content">
+        <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={() => setArchiveOpen(false)}><X size={22}/></button>
+        <div className="archive-heading"><Archive size={26} aria-hidden/><h2>{t("Archived feeds")}</h2></div>
+        <p className="archive-description">{t("Paused feeds keep their published briefings. Resume one to receive new updates.")}</p>
+        {archiveError && <p className="error" role="alert">{archiveError}</p>}
+        <p className="archive-status" role="status">{archiveStatus}</p>
+        {archivedFeeds.length ? <ul className="archived-feed-list">{archivedFeeds.map(feed => <li key={feed.id}>
+          <a className="archived-feed-link" href={feedUrl(feed)}><FeedArt feed={feed}/><span><strong dir="auto">{feed.title}</strong><small>{t("Paused")}</small></span></a>
+          <button type="button" className="archive-resume-button" disabled={Boolean(resumingFeed) || !props.onResumeFeed} aria-label={`${t("Resume feed")}: ${feed.title}`} onClick={async () => {
+            if (!props.onResumeFeed || resumingFeed) return;
+            setResumingFeed(feed.id); setArchiveError(""); setArchiveStatus("");
+            try { await props.onResumeFeed(feed); setArchiveStatus(t("Feed resumed.")); }
+            catch (cause) { setArchiveError(cause instanceof Error ? cause.message : t("Could not resume feed. Try again.")); }
+            finally { setResumingFeed(null); }
+          }}><Play size={16} aria-hidden/>{t(resumingFeed === feed.id ? "Resuming…" : "Resume")}</button>
+        </li>)}</ul> : <div className="archive-empty"><Archive size={36} aria-hidden/><h3>{t("No archived feeds")}</h3><p>{t("Feeds you pause will appear here.")}</p></div>}
+      </section>
+    </Dialog>}
     {settingsDialog === "install" && <InstallDialog status={installStatus} error={installError} onInstalled={() => setInstallStatus("installed")} onClose={() => setSettingsDialog(null)}/>}
     {props.account && <SidebarNavigation active={tab} onNavigate={changeTab}/>}
   </main>;

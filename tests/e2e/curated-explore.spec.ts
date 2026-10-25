@@ -18,7 +18,7 @@ async function mock(page: Page, role: "admin" | "user" | "guest" = "admin", init
     }
     const body = path === "/api/auth/session" ? { authenticated: role !== "guest", setupRequired: false, account: role === "guest" ? null : { id: role, username: role, email: `${role}@example.test`, role } }
       : path === "/api/me/briefings" ? { briefings: role === "admin" ? allFeeds : [{ ...feed, ownerAccountId: "user", ownerUsername: "user", title: "My user feed" }] }
-      : path === "/api/explore/feeds" ? { feeds: selected.map(id => allFeeds.find(item => item.id === id)) }
+      : path === "/api/explore/feeds" ? { feeds: selected.map(id => ({...allFeeds.find(item => item.id === id), id: `community-${id}`, ownerAccountId: "community", ownerUsername: "community"})) }
       : path.startsWith("/api/feed/") ? { briefing: path.includes("/quiet") ? feed : starredFeed, editions: [], viewerHasStarred: false }
       : path === "/api/admin/accounts" ? { accounts: [] }
       : path === "/api/me/sources" ? { sources: [] }
