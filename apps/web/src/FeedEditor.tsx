@@ -14,7 +14,9 @@ export function FeedEditor(props: {
   feed?: BriefingConfig; onClose: () => void; onSave: (input: FeedInput) => Promise<void>;
   onPause?: () => Promise<void>; onCopy?: () => Promise<void>; onDelete?: () => Promise<void>;
 }) {
-  const [id] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
+  const [id, setId] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
+  const [duplicating, setDuplicating] = useState(false);
+  const editing = Boolean(props.feed && !duplicating);
   const [sourcesReady, setSourcesReady] = useState(!props.feed);
   useEffect(() => {
     if (!props.feed) return;
@@ -83,7 +85,7 @@ export function FeedEditor(props: {
   }
   const matchingSources = recommendations.filter(source => !sources.includes(source) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(false); } }
-  return <Dialog className="feed-editor" label={t(props.feed ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
+  return <Dialog className="feed-editor" label={t(editing ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
 
     <form className="dialog-inner" onSubmit={event => {
       event.preventDefault();
@@ -94,12 +96,8 @@ export function FeedEditor(props: {
       void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
       <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={props.onClose}><X size={20}/></button>
-      <div className="feed-editor-heading"><span className="feed-heading-icon"><SquarePlus size={23}/></span><h2>{t(props.feed ? "Edit feed settings" : "Add feed")}</h2></div>
-      {props.feed && <div className="feed-editor-actions">
-        <button type="button" aria-label={t(props.feed.paused ? "Resume feed" : "Pause feed")} title={t(props.feed.paused ? "Resume feed" : "Pause feed")} disabled={busy} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{props.feed.paused ? <Play size={21} aria-hidden="true"/> : <Pause size={21} aria-hidden="true"/>}</button>
-        <button type="button" aria-label={t("Copy URL")} title={t("Copy URL")} disabled={busy} onClick={() => void run(async () => { await props.onCopy?.(); setMessage(t("URL copied")); })}><Copy size={21} aria-hidden="true"/></button>
-        <button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy} onClick={async () => { if (await confirm(`Delete "${props.feed?.title}" and its published content?`)) void run(async () => { await props.onDelete?.(); }); }}><Trash2 size={21} aria-hidden="true"/></button>
-      </div>}
+      <div className="feed-editor-heading"><span className="feed-heading-icon"><SquarePlus size={23}/></span><h2>{t(editing ? "Edit feed settings" : "Add feed")}</h2></div>
+
       <div className="feed-details-fields">
         <label>{t("Feed name")}<span className="voice-field"><input aria-label={t("Feed name")} placeholder={t("e.g. My news feed")} autoFocus required maxLength={120} value={title} onChange={event => setTitle(event.target.value)}/><VoiceInput language={feedLanguage} label="Record feed title" onText={text => setTitle(text.slice(0,120))}/></span></label>
         <label>{t("What would you like to follow?")}<span className="voice-field"><textarea aria-label={t("What would you like to follow?")} placeholder={t("e.g. topics, keywords...")} required rows={1} value={prompt} onChange={event => setPrompt(event.target.value)}/><VoiceInput language={feedLanguage} onText={setPrompt}/></span></label>
@@ -124,7 +122,16 @@ export function FeedEditor(props: {
       <label><span className="feed-preference-label"><Globe aria-hidden="true"/>{t("Briefing language")}</span><select value={feedLanguage} onChange={event=>setFeedLanguage(event.target.value as BriefingConfig["language"])}>{(["en", "fr", "ar"] as const).map(option=><option key={option} value={option}>{t(({en:"English",fr:"French",ar:"Arabic"} as const)[option])}</option>)}</select></label>
       </div>
       {message && <p className="error" role="alert">{message}</p>}
-      <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || checkingSource || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(props.feed ? "Save changes" : "Create feed")}</button></div>
+      {editing && props.feed && <section className="feed-actions-panel" aria-labelledby="feed-actions-title">
+        <h3 id="feed-actions-title">{t("Feed actions")}</h3>
+        <p>{t("Manage this feed or create a copy.")}</p>
+        <div className="feed-editor-actions">
+          <button type="button" disabled={busy || !props.onPause} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{props.feed.paused ? <Play size={18} aria-hidden/> : <Pause size={18} aria-hidden/>}<span>{t(props.feed.paused ? "Resume feed" : "Pause feed")}</span></button>
+          <button type="button" disabled={busy || !sourcesReady || checkingSource} onClick={() => { setId('briefing_' + crypto.randomUUID()); setTitle(value => value + ' (' + t('Copy') + ')'); setDuplicating(true); setMessage(''); }}><Copy size={18} aria-hidden/><span>{t("Duplicate")}</span></button>
+          <button type="button" className="danger-button" disabled={busy || !props.onDelete} onClick={async () => { if (await confirm('Delete "' + props.feed?.title + '" and its published content?')) void run(async () => { await props.onDelete?.(); }); }}><Trash2 size={18} aria-hidden/><span>{t("Delete feed")}</span></button>
+        </div>
+      </section>}
+      <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || checkingSource || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(editing ? "Save changes" : "Create feed")}</button></div>
 
     </form>
     {confirmation}

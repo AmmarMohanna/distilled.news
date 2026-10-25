@@ -2393,3 +2393,17 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Feed pages reserve the profile slot so all other header controls stay put. */
 :root.apple-ui.apple-ui .feed-shell .experience-header .avatar-button { visibility: hidden; pointer-events: none; }
+
+/* Header preferences share the blue-magenta action accent. */
+:root.apple-ui.apple-ui .experience-header :is(.language-cycle, .theme-toggle),
+:root.apple-ui.apple-ui .auth-header :is(.language-cycle, .theme-toggle),
+:root.apple-ui.apple-ui .shell > header :is(.language-cycle, .theme-toggle) { color: var(--accent); }
+
+/* Feed action panel sits immediately above the save/cancel row. */
+:root.apple-ui.apple-ui .feed-editor .feed-actions-panel { padding: 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+:root.apple-ui.apple-ui .feed-editor .feed-actions-panel h3 { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 700; }
+:root.apple-ui.apple-ui .feed-editor .feed-actions-panel > p { margin: 2px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+:root.apple-ui.apple-ui .feed-editor .feed-actions-panel .feed-editor-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 0; border: 0; }
+:root.apple-ui.apple-ui .feed-editor .feed-actions-panel .feed-editor-actions button { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 42px; padding: 8px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 10px; background: transparent; color: var(--accent); font-size: 13px; }
+:root.apple-ui.apple-ui .feed-editor .feed-actions-panel .feed-editor-actions .danger-button { color: #e5484d; border-color: #e5484d40; background: #e5484d08; }
+:root.apple-ui.apple-ui .feed-editor .feed-actions-panel svg { flex-shrink: 0; }
