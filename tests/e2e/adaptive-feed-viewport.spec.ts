@@ -36,6 +36,8 @@ for (const view of ['Home', 'Explore'] as const) {
     await page.setViewportSize({ width: 1280, height: 720 });
     await openFeeds(page, 4);
     await page.locator('.bottom-navigation').getByRole('button', { name: view, exact: true }).click();
+    // Leave the hover-expanding sidebar before measuring or opening a card menu.
+    await page.mouse.move(1270, 70);
     const grid = page.locator(gridSelector);
     await expect(grid.locator('.topic-card')).toHaveCount(4);
     const tops = await grid.locator('.topic-card').evaluateAll(cards => cards.map(card => Math.round(card.getBoundingClientRect().top)));
@@ -43,9 +45,13 @@ for (const view of ['Home', 'Explore'] as const) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const first = grid.locator('.topic-card').first(), summary = first.locator('.feed-options > summary');
     await summary.click();
-    const menu = (await first.locator('.feed-options-popover').boundingBox())!, trigger = (await summary.boundingBox())!;
+    const popover = first.locator('.feed-options-popover');
+    await expect(first.locator('.feed-options')).toHaveAttribute('open', '');
+    await expect(popover).toBeVisible();
+    const menu = (await popover.boundingBox())!;
     expect(menu.y + menu.height).toBeLessThanOrEqual(720);
     expect(menu.x).toBeGreaterThanOrEqual(0);
+    expect(menu.x + menu.width).toBeLessThanOrEqual(1280);
     expect(menu.y).toBeGreaterThanOrEqual(0);
   });
 }
