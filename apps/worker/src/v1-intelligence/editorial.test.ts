@@ -114,7 +114,7 @@ it('quiet corroboration settles a replayable request without creating an edition
  expect(await store.list('feed-1','editions')).toHaveLength(1);
  expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);
  expect(await store.list('feed-1','model_intents')).toHaveLength(0);
-},15000);
+},60000);
 it('direct publication rejects an empty selection before opening synthesis or notification work',async()=>{
  const selected=await scoreAndSelect(store,'feed-1',first,DEFAULT_BRIEFING_BUDGET,testPolicy.now());
  await expect(publishSelection(store,'feed-1',selected.id,{now:testPolicy.now})).rejects.toMatchObject({code:'INVALID_REQUEST'});

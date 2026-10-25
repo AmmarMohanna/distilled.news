@@ -41,7 +41,7 @@ it('holds a V3 request without consuming attempts and resumes dispatch after key
  await processV1Briefing(env,{type:'v1_briefing',feedId:feed.id,window:request.window},()=>at.toISOString());
  expect(await store.read(feed.id,'briefing_requests',request.id)).toMatchObject({state:'PENDING',attempts:0});
  env.OPENROUTER_API_KEY='synthetic-test-key';sent.length=0;await dispatchV1Intelligence(env,at);
- expect(sent.some(m=>m.type==='v1_briefing'&&'window' in m&&m.window.end===request.window.end),JSON.stringify({sent,requests:await store.list(feed.id,'briefing_requests'),dispatches:await store.list(feed.id,'queue_dispatches')})).toBe(true);
+ expect(sent.some(m=>m.type==='v1_briefing'&&'window' in m&&m.window.end===request.window.end),JSON.stringify({sent,requests:await store.list(feed.id,'briefing_requests')})).toBe(true);
  expect(await store.read(feed.id,'briefing_requests',request.id)).toMatchObject({state:'PENDING',attempts:0});
  expect((await store.read<{reason?:string}>(feed.id,'briefing_requests',request.id))?.reason).toBeUndefined();
  expect(await store.list(feed.id,'semantic_intents')).toHaveLength(0);

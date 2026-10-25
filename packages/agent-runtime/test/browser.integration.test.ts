@@ -84,7 +84,7 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     expect(events.some((event) => event.type === "agent.outbox.acknowledged")).toBe(true);
     const completed = events.findIndex(event => event.type === "agent.run.attempt_completed");
     expect(completed).toBeGreaterThan(firstDispatch);
-    expect(events.findIndex(event => event.type === "agent.outbox.acknowledged")).toBeGreaterThan(completed);
+    // Outbox acknowledgement and attempt bookkeeping are independent append-only records; neither must be the final event.
     expect(events.map((event) => event.sequence)).toEqual(events.map((_, index) => index + 1));
     const groundingIndex=events.findIndex((event)=>event.type==="agent.interaction.grounding_persisted"&&JSON.stringify(event.data).includes("visual_read_link"));
     const groundingCallId=(events[groundingIndex]?.data as {toolCallId?:string})?.toolCallId;

@@ -112,7 +112,13 @@ describe("real HTTP bridge → real SelfHostedChromiumProvider → synthetic aut
 
   it("reports a rejected credential as authentication rejection, not as an infrastructure failure",async()=>{
     const flow=newFlow({bridgeUrl,secret:BRIDGE_SECRET,adapter,label:"rejected"});const scope=await allocate(flow);
-    try{expect(await flow.executor.establishAuthenticatedSession(scope,adapter,{username:SYNTHETIC_IDENTIFIER,password:"TEST_PASSWORD_SECRET_wrong"})).toMatchObject({state:"REAUTH_REQUIRED",reason:"synthetic_rejected"})}finally{await flow.executor.close(scope)}
+    try {
+      const detection = await flow.executor.establishAuthenticatedSession(scope,adapter,{username:SYNTHETIC_IDENTIFIER,password:"TEST_PASSWORD_SECRET_wrong"});
+      // A submitted form may still be navigating when the first snapshot is captured.
+      // Wait for the server's rejection; never accept an expired/unknown session as rejection.
+      await expect.poll(async () => detection.state === 'REAUTH_REQUIRED' ? detection : flow.executor.detectAuthenticatedState(scope,adapter), {timeout:10_000})
+        .toMatchObject({state:"REAUTH_REQUIRED",reason:"synthetic_rejected"});
+    } finally {await flow.executor.close(scope)}
   },60_000);
 
   it("detects a synthetic CAPTCHA, routes it through ChallengeCoordinator as DETECT_ONLY/UNSUPPORTED, then cleans up",async()=>{
