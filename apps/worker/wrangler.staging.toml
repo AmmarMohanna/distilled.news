@@ -26,6 +26,10 @@ BRIEFING_ENGINE = "v3"
 BRIEFING_EDITOR_MODEL = "openai/gpt-4.1"
 BRIEFING_VERIFIER_MODEL = "openai/gpt-4.1-mini"
 SOURCE_RECOMMENDATIONS_ENABLED = "true"
+# Match Joud's explicit GPT source discovery and relevance-assessment routing.
+SOURCE_DISCOVERY_MODEL = "openai/gpt-4.1"
+SOURCE_ASSESSMENT_ENABLED = "true"
+SOURCE_ASSESSMENT_MODEL = "openai/gpt-4.1-mini"
 # Preserve the deployed staging source/provider authorization exactly. Google
 # Apify and Zyte remain disabled; D1 grants and uncertain holds are unchanged.
 SOURCE_PER_PROVIDER_BUDGET_USD = "15"
