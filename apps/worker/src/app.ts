@@ -1137,8 +1137,14 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const object = await c.env.RAW_ARCHIVE?.get(sketchKey(resolved.briefing));
-    if (!object) return c.body(null, 404, { "Cache-Control": "no-store" });
-    return new Response(object.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+    if (!object) {
+      const job = c.env.DB ? await c.env.DB.prepare("SELECT state FROM feed_sketch_jobs WHERE feed_id=?").bind(resolved.briefing.id).first<{state:string}>() : null;
+      return c.body(null, 404, { "Cache-Control": "no-store", ...(job && job.state !== 'ready' ? {"Retry-After":"3"} : {}) });
+    }
+    // Resolve visibility before every network read. Never put private artwork in a shared cache.
+    const headers = { "Content-Type": "image/jpeg", "Cache-Control": resolved.briefing.publicFeedEnabled ? "private, max-age=300" : "no-store", "X-Content-Type-Options": "nosniff", "Vary": "Cookie", ...(object.httpEtag ? {ETag:object.httpEtag} : {}) };
+    if (object.httpEtag && c.req.header('If-None-Match') === object.httpEtag) return new Response(null, {status:304,headers});
+    return new Response(object.body, { headers });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
