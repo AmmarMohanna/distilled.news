@@ -1,5 +1,7 @@
 ﻿# Continuity and Lebanon relevance — frozen test plan
 
+**Later status:** the ten calls were separately authorized and completed for $0.058956. Neither candidate demonstrated improvement; no prompt was activated. See [controlled results](v3-continuity-relevance-results.md). The original pre-authorization plan below remains preserved.
+
 ## Scope and status
 
 The user requested testing and permitted paid API use. Their standing restriction also requires approval of the exact maximum budget before paid requests. This plan is **not yet authorized for execution**: the proposed bound is **10 GPT-4.1 calls / $0.56 total exposure / two hours**. Calculated conservative reservations sum to **$0.553114**. No paid requests, reservations, deployments, publication, notifications or live-feed changes have occurred for this plan.
