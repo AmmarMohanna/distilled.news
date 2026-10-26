@@ -170,6 +170,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const [creationOpen, setCreationOpen] = useState(false);
   const [createAfterLogin, setCreateAfterLogin] = useState(false);
   const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
+  const [briefingsState, setBriefingsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceRecord[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -237,6 +238,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
         const next = await getBriefings();
         if (!active) return;
         setBriefings(next);
+        setBriefingsState('ready');
         setSelectedBriefingId(current => current && next.some(feed => feed.id === current) ? current : next[0]?.id ?? null);
       } catch {
         // A background failure must not clear the working list or interrupt a draft.
@@ -273,14 +275,19 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
 
   async function loadBriefings(preferredId?: string) {
     briefingsLoadingRef.current = true;
+    if (!briefingsRef.current.length) setBriefingsState('loading');
     try {
       const nextBriefings = await getBriefings();
       setBriefings(nextBriefings);
+      setBriefingsState('ready');
       const activeId =
         preferredId && nextBriefings.some((item) => item.id === preferredId)
           ? preferredId
           : nextBriefings[0]?.id ?? null;
       setSelectedBriefingId(activeId);
+    } catch (cause) {
+      setBriefingsState('error');
+      throw cause;
     } finally {
       briefingsLoadingRef.current = false;
     }
@@ -360,6 +367,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     await logout();
     setSession({ authenticated: false, setupRequired: false });
     setBriefings([]);
+    setBriefingsState('loading');
     setSelectedBriefingId(null);
     setSources([]);
     setHealth(null);
@@ -496,7 +504,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
 
   return (
     <>
-      <AppExperience key="account" account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
+      <AppExperience key="account" account={account} briefings={orderedBriefings} briefingsState={briefingsState} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
         onAccount={() => setAccountDialogOpen(true)}
         onResumeFeed={async feed => { await persistBriefing({...feed,paused:false}, "resumed", null); window.dispatchEvent(new Event("dn-explore-changed")); }}
         onCreate={() => setCreationOpen(true)} onHelp={() => setHelpOpen(true)} error={error}>

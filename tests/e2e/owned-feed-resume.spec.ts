@@ -109,3 +109,17 @@ test('an in-flight resume response is ignored if editing starts before it arrive
  await expect(cards(page).getByText(added.title,{exact:true})).toBeVisible();
  expect(state.reads).toBe(3);expect(state.writes).toBe(0);
 });
+
+test('initial owned-feed loading never flashes an empty list, including the archive',async({page})=>{
+ const state=await mock(page);let release!:()=>void;state.hold=new Promise<void>(resolve=>{release=resolve;});await page.goto('/');
+ await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toBeVisible();await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);await expect(cards(page).locator('.topic-card')).toHaveCount(0);
+ await page.getByRole('button',{name:'Archived feeds',exact:true}).click();await expect(page.getByRole('dialog').getByText(/^Loading feeds/)).toBeVisible();await expect(page.getByText('No archived feeds',{exact:true})).toHaveCount(0);await page.getByRole('button',{name:'Close dialog'}).click();
+ release();await expect(cards(page).getByText(existing.title,{exact:true})).toBeVisible();await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toHaveCount(0);
+});
+test('a genuinely empty owned list appears only after a successful response',async({page})=>{
+ const state=await mock(page,[]);let release!:()=>void;state.hold=new Promise<void>(resolve=>{release=resolve;});await page.goto('/');
+ await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toBeVisible();await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);release();await expect(page.getByText(/created any feeds yet/)).toBeVisible();
+});
+test('an initial owned-feed API failure is not presented as having no feeds',async({page})=>{
+ const state=await mock(page);state.failNext=true;await page.goto('/');await expect(page.getByRole('alert')).toContainText('temporarily unavailable');await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toHaveCount(0);
+});
