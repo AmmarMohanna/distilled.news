@@ -1,3 +1,5 @@
+import { startFrontendUpdates } from './frontend-updates';
+
 type InstallEvent = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> };
 const installedKey = "dn_pwa_installed_on_device";
 let installPrompt: InstallEvent | undefined;
@@ -5,7 +7,8 @@ let installed = matchMedia("(display-mode: standalone)").matches;
 window.addEventListener("beforeinstallprompt", event => { event.preventDefault(); installPrompt = event as InstallEvent; installed = false; localStorage.removeItem(installedKey); });
 window.addEventListener("appinstalled", () => { installPrompt = undefined; installed = true; localStorage.setItem(installedKey, "1"); });
 const registration = "serviceWorker" in navigator
-  ? navigator.serviceWorker.register("/sw.js").catch(() => null) : Promise.resolve(null);
+  ? navigator.serviceWorker.register("/sw.js", {updateViaCache:'none'}).catch(() => null) : Promise.resolve(null);
+startFrontendUpdates();
 
 export async function installApp() {
   const browser = navigator as Navigator & { standalone?: boolean; getInstalledRelatedApps?: () => Promise<Array<{ platform: string; url?: string; id?: string }>> };
