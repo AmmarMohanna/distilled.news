@@ -1,4 +1,4 @@
-# Unread catch-up summary (not yet enabled)
+# Unread catch-up summary
 
 ## Interface
 
@@ -16,7 +16,7 @@ The feed reader has a compact **Summarize unread** action beside search on deskt
 
 ## Qualification and activation
 
-**Not deployed and not enabled.** Activation requires migration 0070, `BRIEFING_ENGINE=v3`, an OpenRouter key, and explicitly setting `UNREAD_SUMMARY_ENABLED=true`. Keep that flag unset until the real model evaluation passes. Existing V3 editor/verifier prompts, scheduled publication, source collection and notifications are unchanged.
+**Enabled on the user's staging environment by explicit request after the evaluation (see deployment record below).** Activation requires migration 0070, `BRIEFING_ENGINE=v3`, an OpenRouter key, and explicitly setting `UNREAD_SUMMARY_ENABLED=true`. Other deployments remain opt-in. The user accepted staging activation with the recorded model limitations; this is not a claim that the candidate passed factual qualification. Existing V3 editor/verifier prompts, scheduled publication, source collection and notifications are unchanged.
 
 ## Evaluation, October 26, 2026
 
@@ -53,3 +53,13 @@ A separate process reopened the persisted local database after the run and confi
 ## Length tolerance adjustment
 
 At the user's request, the application now accepts summaries of up to **120 words** while retaining **40?80 words** as the writing target. The recorded 106-word output therefore passes the current length check. Historical evaluation records above retain the original 100-word policy and its actual rejection; no paid operation is retried or retrospectively rewritten. This change does not resolve the independently identified factual failures or enable deployment. Boundary regressions cover 106, 120 and 121 words. No further inference was needed.
+
+## Staging activation, October 26, 2026
+
+Explicitly authorized by the user. Deployed application revision `eb0ef91` to `https://distilled-news-staging.distillednews-platform.workers.dev/`, version `82020822-099f-46a3-9fa9-4b9c901b1d41`, 100% staging traffic. `UNREAD_SUMMARY_ENABLED=true`; the acceptance ceiling is 120 words. Production was not changed.
+
+The direct D1 query path and migration-list checks continued reporting CPU-limit/reset errors even for small reads. Wrangler's remote file-import path successfully applied **only** the idempotent cache table/index and migration marker (7 rows written; no news or financial records altered). No broad pending-migration batch, database reset or financial amendment was performed. This is a deployment-path workaround, not proof that the failing administrative query path has been repaired.
+
+Post-deployment checks confirmed exact HTML, JavaScript, CSS and service-worker build hashes; the new flag; preservation of all other live bindings, secrets, compatibility and queue consumers; and 401 rejection of signed-out summary requests. Lebanon news2 returned 200 with 36 editions and `unreadSummaryAvailable=true`. The English `lebanon-news` read endpoint still returned 500, consistent with its pre-feature failure; that feed-read issue remains unresolved. The summary feature cannot help a feed whose ordinary read fails.
+
+No extra paid model test, notification or publication was triggered during deployment. A signed-in live summary generation was not tested after the paid test scope expired. Earlier local paid quality findings remain applicable and unresolved. Deployment evidence is in `.local-reports/staging-unread-summary/`.
