@@ -16,7 +16,7 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 
 const POLICY='v3-fixed-window-editor-verifier-v1';
-export interface V3WindowInput {id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[]}
+export interface V3WindowInput {id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
 interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
 export const productV3Enabled=(env:Pick<Env,'BRIEFING_ENGINE'>)=>env.BRIEFING_ENGINE==='v3';
 export const productV3Ready=(env:Env)=>Boolean(env.OPENROUTER_API_KEY);
@@ -53,7 +53,7 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const pending=(await store.list<BriefingRequest>(feedId,'briefing_requests')).filter(r=>r.state!=='DONE'||r.result==='DEFERRED').filter(r=>Date.parse(r.window.end)<=Date.parse(window.start)&&Date.parse(r.window.start)>=Date.parse(feed.createdAt));
  const carried=evidence.filter(({revision:r})=>!active.some(a=>a.revision.id===r.id)&&!previouslyUsed.has(r.id)&&beforeClose(r)&&pending.some(p=>newsWindowEligibility([r],p.window,feed.createdAt)==='IN_WINDOW'));
  active.push(...carried);active.sort((a,b)=>a.revision.id.localeCompare(b.revision.id));
- const input:BriefingInput={feed:{interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:active.map(({item,revision:r})=>({id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
+ const input:BriefingInput={feed:{interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:active.map(({item,revision:r})=>({id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.representation==='LISTING_RESULT'?'[Source content: catalogue/listing snapshot. Descriptions, ratings and review excerpts are not full linked reviews. Do not infer a product release or news event date from this page timestamp.]\n'+(r.body??r.title??''):r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
  const value={feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }
@@ -94,19 +94,47 @@ function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,windowId
  * exclusive feed write turns; final publication remains one fenced transaction. */
 export async function publishProductV3Window(env:Env,feedId:string,window:PublicationWindow,id:string,now:()=>string,fetcher:typeof fetch):Promise<BriefingEditionRecord|undefined>{
  return withSemanticWorkLease(env.DB,feedId,async store=>{
+  // Editor/verifier batches share this store. Serialize only their database
+  // transactions so local siblings cannot starve one another's feed write turn.
+  // Provider execution remains outside feedTransact and keeps its own limits.
+  store.transactionQueue={tail:Promise.resolve()};
   const existing=await store.read<BriefingEditionRecord>(feedId,'editions',id);if(existing)return existing;
-  let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',id);
+  const request=await store.read<BriefingRequest>(feedId,'briefing_requests',id);
+  let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',request?.v3InputId??id);
   if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env));snapshot=await feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<V3WindowInput>('v3_window_inputs',id);if(prior)return prior;
    if(tx.snapshot.feed.revision!==prepared.feedRevision)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    const frozen={...prepared,id};await tx.write('v3_window_inputs',id,frozen);return frozen;
   })}
+  // Refresh only unstarted work; retain the predecessor and its paid identity.
+  // A deleted/revoked source never supplies authority for a replacement input.
+  const activeIds=await store.activeEvidenceRevisionIds(feedId);
+  if(snapshot.evidenceRevisionIds.some(ref=>!activeIds.has(ref))){
+   const prepared=await prepareV3Window(store,feedId,window,now(),snapshot.models),priorSnapshot=snapshot;
+   if(prepared.feedRevision!==priorSnapshot.feedRevision)throw new HandoffError('SCOPE_DENIED');
+   for(const ref of priorSnapshot.evidenceRevisionIds.filter(ref=>!activeIds.has(ref))){
+    const revision=await store.revision(feedId,ref);
+    const replacement=revision&&await store.db.prepare("SELECT 1 FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id WHERE e.id=? AND s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL").bind(revision.evidenceId,feedId).first();
+    if(!replacement)throw new HandoffError('SCOPE_DENIED');
+   }
+   snapshot=await feedTransact(store,feedId,async tx=>{
+    const current=await tx.read<BriefingRequest>('briefing_requests',id);
+    if(!current||current.engine!=='v3'||(current.v3InputId??id)!==priorSnapshot.id||tx.snapshot.feed.revision!==prepared.feedRevision)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+    const started=await store.db.prepare("SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.state.inputId')=? LIMIT 1").bind(feedId,priorSnapshot.fingerprint).first();
+    if(started||await tx.read('v3_window_results',priorSnapshot.id))throw new ModelSpendingWait('V3_FROZEN_EVIDENCE_SUPERSEDED');
+    const inputId=await sha256(canonicalJson([id,'unstarted-evidence-recovery-v1',prepared.fingerprint]));
+    const next={...prepared,id:inputId,recovery:{priorInputId:priorSnapshot.id,recoveredAt:now(),reason:'SUPERSEDED_UNSTARTED_EVIDENCE' as const}};
+    await tx.write('v3_window_inputs',inputId,next);
+    await tx.write('briefing_requests',id,{...current,v3InputId:inputId});
+    return next;
+   });
+  }
   const frozen=snapshot;
-  let saved=await store.read<V3WindowResult>(feedId,'v3_window_results',id);
+  let saved=await store.read<V3WindowResult>(feedId,'v3_window_results',frozen.id);
   if(!saved){const operations=new Set<string>(),port=durableV3Port(store,env,frozen,id,now,fetcher,operations);let result:BriefingResult;
    try{result=await generateBriefing(frozen.input,port,frozen.models,{now:()=>new Date(window.end),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}})}finally{await port.drain()}
-   saved={id,feedId,inputId:frozen.fingerprint,windowEnd:window.end,result,operationIds:[...operations].sort()};
-   await feedTransact(store,feedId,tx=>tx.write('v3_window_results',id,saved!));
+   saved={id:frozen.id,feedId,inputId:frozen.fingerprint,windowEnd:window.end,result,operationIds:[...operations].sort()};
+   await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,saved!));
   }
   const completed=saved;
   return feedTransact(store,feedId,async tx=>{
@@ -132,13 +160,14 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
 async function v3Edition(tx:FeedTransaction,id:string,input:V3WindowInput,saved:V3WindowResult,now:string):Promise<BriefingEditionRecord>{
  const revisions=new Map<string,EvidenceRevision>();for(const ref of input.evidenceRevisionIds){const r=await tx.revision(ref);if(!r)throw new HandoffError('SCOPE_DENIED');revisions.set(ref,r)}
  const stories=saved.result.items.map((item,i)=>({candidateId:`${id}:${i}`,claims:[{id:`${id}:${i}:text`,text:`${item.headline}\n${item.body}`,support:item.sourceIds.map(ref=>{const r=revisions.get(ref);if(!r)throw new HandoffError('SCOPE_DENIED');return {evidenceRevisionId:ref,quote:r.body??r.title??''}})}]}));
- return {engine:'v3',id,feedId:input.feedId,feedRevision:input.feedRevision,windowStart:input.input.windowStart,windowEnd:input.input.windowEnd,language:input.input.feed.language,selectionId:id,selectedCandidateIds:stories.map(s=>s.candidateId),eventVersionIds:[],storylineVersionIds:[],evidenceRevisionIds:[...new Set(stories.flatMap(s=>s.claims.flatMap(c=>c.support.map(r=>r.evidenceRevisionId))))].sort(),stories,generation:{model:`${input.models.editor};${input.models.verifier}`,provider:'OPENROUTER',promptVersion:POLICY,routerVersion:POLICY,tokensIn:saved.result.usage.inputTokens,tokensOut:saved.result.usage.outputTokens,cost:saved.result.usage.costUsd??0,latencyMs:saved.result.timings.totalMs,usageConfirmed:true,verificationId:id},selectionPolicyVersion:POLICY,groundingPolicyVersion:POLICY,createdAt:now};
+ return {engine:'v3',id,...(input.id!==id?{v3InputId:input.id}:{}),feedId:input.feedId,feedRevision:input.feedRevision,windowStart:input.input.windowStart,windowEnd:input.input.windowEnd,language:input.input.feed.language,selectionId:id,selectedCandidateIds:stories.map(s=>s.candidateId),eventVersionIds:[],storylineVersionIds:[],evidenceRevisionIds:[...new Set(stories.flatMap(s=>s.claims.flatMap(c=>c.support.map(r=>r.evidenceRevisionId))))].sort(),stories,generation:{model:`${input.models.editor};${input.models.verifier}`,provider:'OPENROUTER',promptVersion:POLICY,routerVersion:POLICY,tokensIn:saved.result.usage.inputTokens,tokensOut:saved.result.usage.outputTokens,cost:saved.result.usage.costUsd??0,latencyMs:saved.result.timings.totalMs,usageConfirmed:true,verificationId:id},selectionPolicyVersion:POLICY,groundingPolicyVersion:POLICY,createdAt:now};
 }
 
 /** The V3 edition is a projection of an immutable verified result, never a
  * bypass around the V2 selection graph validator. Source scope remains live. */
 export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditionRecord):Promise<void>{
- const input=await tx.read<V3WindowInput>('v3_window_inputs',edition.id),saved=await tx.read<V3WindowResult>('v3_window_results',edition.id);
+ const inputId=edition.v3InputId??edition.id;
+ const input=await tx.read<V3WindowInput>('v3_window_inputs',inputId),saved=await tx.read<V3WindowResult>('v3_window_results',inputId);
  if(!input||!saved||saved.inputId!==input.fingerprint||saved.result.status!=='published'||input.feedRevision!==tx.snapshot.feed.revision)throw new HandoffError('SCOPE_DENIED');
  const active=await tx.store.activeEvidenceRevisionIds(edition.feedId);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');
  for(const id of saved.operationIds){const operation=await tx.read<{status:string;usage:{reported:boolean};input:{state:{inputId:string}}}>('semantic_results',id);if(operation?.status!=='SUCCEEDED'||!operation.usage.reported||operation.input.state.inputId!==input.fingerprint)throw new HandoffError('SCOPE_DENIED')}

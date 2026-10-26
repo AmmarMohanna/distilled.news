@@ -2,6 +2,16 @@ import {describe,it,expect} from 'vitest';
 import {discoverWebsiteArticles} from '../src/source-runtime/website-discovery';
 const url='https://publisher.example/news';
 describe('source-scoped article discovery',()=>{
+ it('does not classify an article as its embedded parent CollectionPage',()=>{
+  for(const collection of [{'@type':'CollectionPage',url:'/soccer/'},{'@type':'CollectionPage'},{'@type':'SearchResultsPage',url:'/search/'}]){
+   const html='<meta property="og:type" content="article"><article><h1>Player update</h1><p>Reported development.</p></article><script type="application/ld+json">'+JSON.stringify({'@type':'NewsArticle',url, isPartOf:collection})+'</script>';
+   expect(discoverWebsiteArticles(html,url)).toBeUndefined();
+  }
+ });
+ it('keeps an explicitly bound CollectionPage as discovery even with article metadata',()=>{
+  const html='<meta property="og:type" content="article"><script type="application/ld+json">'+JSON.stringify({'@type':'CollectionPage',url})+'</script><h2><a href="/one">One</a></h2>';
+  expect(discoverWebsiteArticles(html,url)?.articles).toEqual([{url:'https://publisher.example/one',title:'One'}]);
+ });
  it('treats a news index as discovery despite misleading article metadata',()=>{
   const html='<meta property="og:type" content="article"><article><h1>All NASA News</h1><p>Unrelated summaries</p><h2><a href="/missions/artemis/flight">Flight news</a></h2><h2><a href="/science/research">Research news</a></h2></article>';
   expect(discoverWebsiteArticles(html,'https://www.nasa.gov/news/all-news/')?.articles).toEqual([{url:'https://www.nasa.gov/missions/artemis/flight',title:'Flight news'},{url:'https://www.nasa.gov/science/research',title:'Research news'}]);

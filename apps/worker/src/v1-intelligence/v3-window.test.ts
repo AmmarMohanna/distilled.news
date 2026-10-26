@@ -12,6 +12,34 @@ import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} fr
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
+async function supersedeFrozenRevision(id:string){
+ const row=await ctx.db.prepare('SELECT feed_source_id,item_key,json FROM v1_revisions WHERE id=?').bind(id).first<any>();
+ const revision=JSON.parse(row.json),next={...revision,id:id+'-new',revision:revision.revision+1};
+ await ctx.db.prepare('INSERT INTO v1_revisions(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(next.id,row.feed_source_id,row.item_key,JSON.stringify(next)).run();
+ await ctx.db.prepare("UPDATE v1_evidence SET json=json_set(json,'$.currentRevisionId',?) WHERE id=?").bind(next.id,revision.evidenceId).run();
+ await ctx.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(row.feed_source_id).run();return next.id;
+}
+it('refreshes an unstarted stale snapshot while preserving its predecessor and reporting window',async()=>{
+ await article();const id=await windowIdentity('feed-1',window),prepared={...await prepareV3Window(store,'feed-1',window,window.end),id};
+ await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
+ const next=await supersedeFrozenRevision(prepared.evidenceRevisionIds[0]),seen:string[]=[];
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:34:00Z',undefined,fetcher(seen) as typeof fetch);
+ expect(edition).toMatchObject({id,windowStart:window.start,windowEnd:window.end,evidenceRevisionIds:[next]});expect(edition?.v3InputId).not.toBe(id);
+ expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(prepared);
+ expect(await store.read('feed-1','v3_window_inputs',edition!.v3InputId!)).toMatchObject({recovery:{priorInputId:id,reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}});
+ expect(seen).toHaveLength(2);expect(await publicV1Edition(ctx.db,id)).toBeDefined();
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:35:00Z',undefined,fetcher(seen) as typeof fetch);expect(seen).toHaveLength(2);
+},30000);
+it('never refreshes stale evidence after an uncertain paid call',async()=>{
+ await article();let calls=0;const offline=(async()=>{calls++;throw Error('lost after send')}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ await processV1Briefing(env,message,()=>window.end,undefined,offline);
+ const snapshot=await store.read<any>('feed-1','v3_window_inputs',id);await supersedeFrozenRevision(snapshot.evidenceRevisionIds[0]);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,offline);
+ expect(calls).toBe(1);expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(1);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',reason:'V3_FROZEN_EVIDENCE_SUPERSEDED'});
+ expect(await store.list('feed-1','editions')).toHaveLength(0);
+},30000);
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env;
 beforeEach(async()=>{
  ctx=await createIntakeDatabase();await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);
@@ -168,4 +196,11 @@ it('keeps V3 briefing attempts intact while another feed operation owns the sema
  }finally{await releaseSemanticWorkLease(store,lease)}
  expect((await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch))?.engine).toBe('v3');
  expect(seen).toHaveLength(2);
+},60000);
+it('large V3 batches serialize feed commits and can replay paid chunks without local lock starvation',async()=>{
+ for(let n=1;n<=2;n++){await acceptEvidence(store,n,(n===1?'Parliament approved banking legislation while presidential approval remains required. ':'Scientists discovered a meteorite beneath Antarctic ice during an expedition studying ancient asteroid material. ').repeat(1200),'publisher-'+n,'2026-10-03T12:10:00Z','en','2026-10-03T12:05:00Z',undefined,'https://publisher.example/'+n);await processV1Reassessment(env,JSON.stringify(['REASSESS',`observation-${n}`,'']),'2026-10-03T12:10:00Z')}
+ const original=V1FeedStore.prototype.commit;let active=0,maxActive=0;
+ vi.spyOn(V1FeedStore.prototype,'commit').mockImplementation(async function(this:V1FeedStore,tx){active++;maxActive=Math.max(maxActive,active);try{await new Promise(resolve=>setTimeout(resolve,1));if(active>1)throw Error('competing feed commit');return await original.call(this,tx)}finally{active--}});
+ const seen:string[]=[];const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(seen.length).toBeGreaterThan(2);expect(maxActive).toBe(1);
 },60000);

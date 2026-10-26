@@ -18,6 +18,8 @@ export interface DownstreamJob {
   nextAttemptAt?: string; exhausted?: boolean; conflictId?: string;
   leaseToken?: string; leaseUntil?: string; failureCode?: string;
   resumeAttempts?: number;
+    /** Explicit operator recovery; cumulative attempts and prior failures survive. */
+    recoveryAuthorizations?: {id:string;authorizedAt:string;priorAttempts:number;priorFailureCode:string;priorFailureDetail?:string;maxAttempts:number;redirectEvidence?:{from:string;to:string}}[];
   resourceWaits?: number;
   failureDetail?: string;
   httpStatus?: number;
@@ -29,7 +31,7 @@ export interface AcceptedAcquiredContent {
   acquisitionMethod: 'supplied_payload' | 'platform_api' | 'direct_http' | 'browser'; acquisitionProvider?: string;
   sourceId?: string; resolvedUrl?: string;
   quality?: { transportSuccess: boolean; extractionSuccess: boolean; extractionComplete: boolean };
-  provenance?: { routerVersion: string; stages: string[]; rawPayloadRef?: string; languageResolution?:import('../v1-intelligence/language').LanguageResolution;publicationDate?:ReturnType<typeof import('./publication-date').resolvePublicationDate>;browserEvidence?: {acceptanceId?:string;observationId?:string;rawArtifactRef?:string} };
+  provenance?: { contentKind?:'PRODUCT_DETAIL'|'CATALOGUE'; routerVersion: string; stages: string[]; rawPayloadRef?: string; languageResolution?:import('../v1-intelligence/language').LanguageResolution;publicationDate?:ReturnType<typeof import('./publication-date').resolvePublicationDate>;browserEvidence?: {acceptanceId?:string;observationId?:string;rawArtifactRef?:string} };
 }
 export interface AcceptedInput { observation: SourceObservation; proposal?: CandidateProposal }
 export interface CandidateRecord {

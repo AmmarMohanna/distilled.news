@@ -26,11 +26,13 @@ BRIEFING_ENGINE = "v3"
 BRIEFING_EDITOR_MODEL = "openai/gpt-4.1"
 BRIEFING_VERIFIER_MODEL = "openai/gpt-4.1-mini"
 SOURCE_RECOMMENDATIONS_ENABLED = "false"
-# Preserve the deployed staging source/provider authorization exactly. Google
-# Apify and Zyte remain disabled; D1 grants and uncertain holds are unchanged.
+# Exact-article recovery uses native extraction and funded durable Zyte fallback.
+# Google Apify authorization and existing uncertain provider holds are retained.
+SOURCE_NATIVE_EXECUTION_ENABLED = "true"
+SOURCE_COLLECTION_BUDGET_MODE = "unlimited"
 SOURCE_PER_PROVIDER_BUDGET_USD = "15"
-SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0.25,"zyte":0}'
-SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":0,"linkedin_apify":15,"zyte":0}'
+SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0.25,"zyte":0.05}'
+SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":0,"linkedin_apify":15,"zyte":15}'
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 V1_DOWNSTREAM_ENABLED = "true"
 V1_DOWNSTREAM_FEED_SOURCE_IDS = "staging-rss-source,staging-twitter-source"

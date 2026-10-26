@@ -1,6 +1,11 @@
 import {expect,it} from 'vitest';
 import {sourceAvailability,feedSourceAvailability,collectionFailureReason} from './connector-availability';
 import type {Env} from './types';
+it('unlimited collection does not surface historical app budget exhaustion as a current block',async()=>{
+ const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM sources')?[{id:'x',title:'@test',provider:'twitterapi_io',kind:'x_profile',source_url:'https://x.com/test',input:JSON.stringify({username:'test'}),actor_id:null}]:[]}},async first(){return sql.includes('connector_provider_operations')?null:{state:'BLOCKED',last_error:'BUDGET_EXCEEDED',result:null}}})};
+ const env={DB,SOURCE_CONNECTORS_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_COLLECTION_BUDGET_MODE:'unlimited',SOURCE_PER_PROVIDER_BUDGET_USD:'0',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.01}',TWITTERAPI_IO_API_KEY:'test'} as unknown as Env;
+ expect((await feedSourceAvailability(env,'feed'))[0]).toMatchObject({state:'AVAILABLE',providers:['x_twitterapi_io']});
+});
 it('zero budgets or missing credentials explicitly deny paid sources while free news remains available',()=>{
  const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{}',SOURCE_OPERATION_CEILINGS_JSON:'{}'} as Env;
  expect(sourceAvailability(env,'x_profile')).toMatchObject({state:'UNAVAILABLE',providers:[]});

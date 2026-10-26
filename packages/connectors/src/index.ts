@@ -22,7 +22,7 @@ export * from "./source-runtime/social-providers";
 export * from "./source-runtime/website-providers";
 export {SourceHandoffWait} from './source-runtime/handoff-wait';
 export {discoverWebsiteArticles,isWebsiteListingUrl} from './source-runtime/website-discovery';
-export {extractPublicHtml} from './source-runtime/public-html';
+export {extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES} from './source-runtime/public-html';
 export type { SourceScope, SourceRepository, ImmutablePayloadStore, FeedHttpPort, RssRequest, StoredRssBatch, FetchRun, RssCheckpoint } from "./source-runtime/ports";
 export type { CandidateProposal as ConnectorCandidateProposal, ConnectorBatch, ConnectorScope, Coverage as ConnectorCoverage, Checkpoint as ConnectorCheckpoint, PayloadStore, CandidateIntakePort, IntakeReceipt, CheckpointStore, HttpPort } from "./acquisition/contracts";
 

@@ -1,7 +1,8 @@
 import {collectorBudgetDay} from '@distilled/connectors';
 import type {Env} from './types';
-export async function collectorBudgetStatus(env:Pick<Env,'DB'|'SOURCE_DAILY_BUDGET_USD'|'SOURCE_BUDGET_TIME_ZONE'>){
+export async function collectorBudgetStatus(env:Pick<Env,'DB'|'SOURCE_DAILY_BUDGET_USD'|'SOURCE_BUDGET_TIME_ZONE'|'SOURCE_COLLECTION_BUDGET_MODE'>){
  const timeZone=env.SOURCE_BUDGET_TIME_ZONE??'UTC',day=collectorBudgetDay(new Date(),timeZone);
+ if(env.SOURCE_COLLECTION_BUDGET_MODE==='unlimited')return {configured:false,mode:'unlimited',day,timeZone};
  if(env.SOURCE_DAILY_BUDGET_USD===undefined)return {configured:false,day,timeZone};
  const limitUsd=Number(env.SOURCE_DAILY_BUDGET_USD);
  if(!Number.isFinite(limitUsd)||limitUsd<0)throw Error('INVALID_DAILY_BUDGET');

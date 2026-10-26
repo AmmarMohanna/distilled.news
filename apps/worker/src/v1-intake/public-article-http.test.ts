@@ -2,6 +2,11 @@ import {it,expect,vi} from 'vitest';import {readPublicArticle} from './public-ar
 import {BoundedFeedHttp} from '@distilled/connectors';
 import {PUBLIC_ARTICLE_MAX_BYTES} from './public-article-http';
 const reply=(status:number,headers:Record<string,string>={},text='')=>({status,headers,bytes:new TextEncoder().encode(text),telemetry:{requests:1,latencyMs:0,providerCostUsd:0 as const,status}});
+it('distinguishes a public cross-origin redirect so the exact-article fallback can handle it',async()=>{
+ const get=vi.fn().mockResolvedValue(reply(303,{location:'https://idp.nature.com/authorize?response_type=cookie'}));
+ await expect(readPublicArticle({get},'https://www.nature.com/articles/story')).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'ARTICLE_CROSS_ORIGIN_REDIRECT'}});
+ expect(get).toHaveBeenCalledTimes(1);
+});
 it('reads publisher HTML larger than 512 KB while retaining a bounded transport',async()=>{
  const body='<html>'+ ' '.repeat(800_000)+'</html>';
  const http=new BoundedFeedHttp(async()=>new Response(body),{maxBytes:PUBLIC_ARTICLE_MAX_BYTES});

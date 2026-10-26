@@ -675,6 +675,12 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const result=await p.fetch({...request,source:{family:'website',locator:'https://publisher.example/article'}},run);
     expect(result.items[0]).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN'});expect(result.items[0]).not.toHaveProperty('modelId');
   });
+  it('a paywalled teaser stops collection before extraction or paid fallback',async()=>{
+    const execute=vi.fn(),html='<script type="application/ld+json">{"@type":"WebPage","isAccessibleForFree":false}</script><h1>Story</h1><main><p>Only a teaser.</p><div id="paywall-prompt"></div><h2><a href="/one">One</a></h2><h2><a href="/two">Two</a></h2></main>';
+    const p=new WebsiteSourceProvider('website_http',feed(html),{execute});
+    await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/article'}},run)).rejects.toMatchObject({code:'AUTH_REQUIRED',diagnostic:{detail:'ARTICLE_ACCESS_RESTRICTED'}});
+    expect(execute).not.toHaveBeenCalled();
+  });
   it('a website listing emits independent article candidates and preserves pagination instead of a homepage story',async()=>{
     const p=new WebsiteSourceProvider('website_http',feed('<article>Listing</article>'),{execute:async()=>({body:'Homepage aggregate '.repeat(40),pageKind:'listing',articleLinks:['https://publisher.example/one','https://publisher.example/two','https://other.example/three']})});
     const first=await p.fetch({...request,limit:1,source:{family:'website',locator:'https://publisher.example/'}},run);

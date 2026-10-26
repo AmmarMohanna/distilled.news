@@ -67,7 +67,10 @@ export class V1IntakeStore {
     // Pending/running bookkeeping has an exact row CAS instead of changing
     // every review's evidence epoch. Terminal outcomes still advance the epoch
     // because they affect publication coverage and canonical availability.
-    const acquisitionOnly=writes.every(w=>w.table==='jobs'&&(w.value as DownstreamJob).kind==='ACQUIRE'&&['PENDING','RUNNING'].includes((w.value as DownstreamJob).state)&&guarded.has(w.id));
+    // Reopening a terminal failure changes reporting-window coverage. It must
+    // fence a publication snapshot even though the new state is PENDING.
+    const reopeningFailure=acquisitionGuards.some(g=>(JSON.parse(g.serialized) as DownstreamJob).state==='FAILED');
+    const acquisitionOnly=!reopeningFailure&&writes.every(w=>w.table==='jobs'&&(w.value as DownstreamJob).kind==='ACQUIRE'&&['PENDING','RUNNING'].includes((w.value as DownstreamJob).state)&&guarded.has(w.id));
     // Evidence-free coverage and immutable fetched-result journals do not
     // change canonical evidence. Result persistence still checks the scope
     // epoch (including acquisition lease changes) and immutable identity.

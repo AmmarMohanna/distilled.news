@@ -6,7 +6,8 @@ const MAX_BODY_BYTES = 2_000_000;
  * and remain bounded and confined to the original public HTTPS origin. */
 export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
   private readonly origin: string;
-  constructor(sourceUrl: string, private readonly fetcher: typeof fetch = fetch,private readonly options:{followSameOriginRedirects?:boolean}={}) {
+  constructor(sourceUrl: string, private readonly fetcher: typeof fetch = fetch,private readonly options:{followSameOriginRedirects?:boolean;maxBytes?:number}={}) {
+    if(options.maxBytes!==undefined&&(!Number.isSafeInteger(options.maxBytes)||options.maxBytes<1||options.maxBytes>10_000_000))throw Error('INVALID_HTTP_LIMITS');
     const source = admittedUrl(sourceUrl);
     this.origin = source.origin;
   }
@@ -33,7 +34,8 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
       if(!this.options.followSameOriginRedirects||![301,302,303,307,308].includes(response.status)||!location)throw new PublicSourcePolicyError();
       return this.read(new URL(location,url).href,seen);
     }
-    if (Number(response.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED");
+    const maxBytes=this.options.maxBytes??MAX_BODY_BYTES;
+    if (Number(response.headers.get("content-length") ?? 0) > maxBytes) {await response.body?.cancel();throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED");}
     const reader = response.body?.getReader();
     if (!reader) return { url: url.href, contentType: response.headers.get("content-type") ?? "", body: "", status: response.status, ...(response.headers.has('www-authenticate')?{authenticationRequired:true}:{}),...(response.headers.has('retry-after')?{retryAfter:response.headers.get('retry-after')!}:{}) };
     const chunks: Uint8Array[] = [];
@@ -43,7 +45,7 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
         const { done, value: chunk } = await reader.read();
         if (done) break;
         size += chunk.byteLength;
-        if (size > MAX_BODY_BYTES) { await reader.cancel(); throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED"); }
+        if (size > maxBytes) { await reader.cancel(); throw new PublicSourceFetchFailure("BODY_BUDGET_EXCEEDED"); }
         chunks.push(chunk);
       }
     } catch (error) {

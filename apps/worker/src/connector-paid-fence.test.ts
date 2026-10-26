@@ -18,3 +18,9 @@ it('unattributed legacy uncertainty blocks only the affected provider and never 
  expect(await hasUncertainSourcePayment(ctx.db,'another','source',['x_apify'])).toBe(false);
  expect((await ctx.db.prepare("SELECT feed_source_id FROM connector_provider_operations WHERE operation_id='legacy'").first())?.feed_source_id).toBeNull();
 });
+it('distinguishes an audited completed response loss from a genuinely unknown payment',async()=>{
+ await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,headers,feed_id,feed_source_id) VALUES('zyte','confirmed-loss','hash',0.05,200,?,'receipt-feed','receipt-source')").bind(JSON.stringify({reconciliation:{kind:'COMPLETED_RESPONSE_LOST',requestId:'verified'}})).run();
+ expect(await hasUncertainSourcePayment(ctx.db,'receipt-feed','receipt-source',['zyte'])).toBe(false);expect(await inspectSourcePaymentHolds(ctx.db,'receipt-feed')).toHaveLength(1); // The unattributed unrelated legacy hold remains visible.
+ await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,feed_id,feed_source_id) VALUES('zyte','unverified-loss','hash',0.05,200,'unverified-feed','source')").run();
+ expect(await hasUncertainSourcePayment(ctx.db,'unverified-feed','source',['zyte'])).toBe(true);
+});

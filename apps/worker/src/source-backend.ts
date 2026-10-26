@@ -4,7 +4,7 @@ import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1Provi
   type SourceFetchRequest} from '@distilled/connectors';
 import type {CandidateIntakePort} from '@distilled/contracts';
 import {sharedPublicHttp,PUBLIC_SOURCE_MAX_BYTES} from './connector-public-cache';
-import {nativeSourceExecution} from './native-source-execution';
+import {composeSourceExecution} from './native-source-execution';
 import {rateLimitedPublicHttp} from './connector-rate-limit';
 import {admittedSourceExecution} from './source-execution-admission';
 
@@ -19,6 +19,7 @@ export interface SourceBackendEnv {
   SOURCE_EXECUTION_SERVICE?:Fetcher;
   SOURCE_GOOGLE_RESOLUTION_ENABLED?:string;
   SOURCE_OPERATION_CEILINGS_JSON?:string;
+  SOURCE_COLLECTION_BUDGET_MODE?: 'limited'|'unlimited';
   SOURCE_PER_PROVIDER_BUDGET_USD?:string;
   SOURCE_SHARED_PUBLIC_FETCH_ENABLED?:string;
   SOURCE_QUEUE_SCHEDULING_ENABLED?:string;
@@ -36,6 +37,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   authorize:(request:SourceFetchRequest)=>Promise<boolean>;
   fetcher?:typeof fetch;
   providerPageLimit?:number;
+  paidResponseMaxBytes?:number;
 }) {
   const sql=sourceSqlFromD1(env.DB),payloads=new R2SourcePayloadStore(env.RAW_ARCHIVE);
   const dispatch=options.fetcher??fetch;
@@ -53,7 +55,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   const deploymentLimits=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'):undefined;
   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.keys(deploymentLimits).some(k=>!['x_twitterapi_io','x_apify','google_apify','linkedin_apify','zyte'].includes(k))))throw new Error('INVALID_SOURCE_BUDGETS');
   const dailyBudget=env.SOURCE_DAILY_BUDGET_USD===undefined?undefined:{limitUsd:Number(env.SOURCE_DAILY_BUDGET_USD),timeZone:env.SOURCE_BUDGET_TIME_ZONE??'UTC'};
-  const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,4_000_000,20_000,sourceProviderLimit,deploymentLimits,dailyBudget);
+  const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,options.paidResponseMaxBytes??4_000_000,20_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited');
   const makeCollector=(request:SourceFetchRequest)=>{
     const guardedDispatch:typeof fetch=async(value,init)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
@@ -64,11 +66,10 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
       // Private execution has no public-fetch fallback when a VPC binding is configured.
       return env.SOURCE_EXECUTION_SERVICE?admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init)):guardedDispatch(value,init);
     };
-    // Keep ordinary public collection on the native path so background Google
-    // and website work cannot occupy the signed-in Telegram collector's slots.
-    const execution=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&(request.source.family==='telegram'||env.SOURCE_NATIVE_EXECUTION_ENABLED!=='true')?
-      new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,executionDispatch,!!env.SOURCE_EXECUTION_SERVICE):
-      env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'?nativeSourceExecution(guardedDispatch):{execute:async()=>({error:'UNAVAILABLE'})};
+    // Parsing stays native; decoding/browser work retains helper admission.
+    const helper=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN?
+      new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,executionDispatch,!!env.SOURCE_EXECUTION_SERVICE):undefined;
+    const execution=composeSourceExecution(env.SOURCE_NATIVE_EXECUTION_ENABLED==='true',helper,guardedDispatch);
     const intake:CandidateIntakePort={acceptBatch:async batch=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
       return (options.intakeForRequest?.(request)??options.intake).acceptBatch(batch);
@@ -85,7 +86,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return dispatch(value,{...init,redirect:'manual'})},{maxBytes:PUBLIC_SOURCE_MAX_BYTES,followSameOriginRedirects:request.source.family==='rss'||request.source.family==='website'});
     const originHttp=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?rateLimitedPublicHttp(env.DB,baseHttp,authorizeUrl):baseHttp;
     const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,originHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):originHttp;
-    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceProviderLimit,deploymentLimits,dailyBudget),execution,secrets,ceilings,
+    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,20_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited'),execution,secrets,ceilings,
 
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};

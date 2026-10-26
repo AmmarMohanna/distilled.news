@@ -8,7 +8,7 @@ import { acquiredSchema } from './evidence';
 import type { AcceptedAcquiredContent } from './types';
 import type {LanguageResolution} from '../v1-intelligence/language';
 import {resolvePublicationDate,helperArticleDates,type PublicationDate} from './publication-date';
-import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
+import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
 
 export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
 export interface CandidateAcquisitionOptions {
@@ -16,6 +16,8 @@ export interface CandidateAcquisitionOptions {
  readPayload?(claim:AcquisitionClaim):Promise<SuppliedPayload|undefined>;
  fetcher?:typeof fetch;
  preferFullArticle?:boolean;
+ /** Trusted decoder attests a collected Google listing -> public publisher. */
+ resolveGoogleArticle?(url:string):Promise<unknown>;
  extractHtml?(url:string,html:string):Promise<unknown>;
  publicGet?(url:string):Promise<{url:string;body:string;contentType:string;status:number;authenticationRequired?:boolean;retryAfter?:string}>;
  /** Anonymous exact-URL private HTTP, never a login or challenge-solving path. */
@@ -30,6 +32,23 @@ export interface CandidateAcquisitionOptions {
  * Exact-candidate binding is verified after every route; no discovered sibling can become evidence. */
 export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOptions) {
  return async (claim:AcquisitionClaim):Promise<AcceptedAcquiredContent>=>{
+  const listing=claim.input.observation.canonicalUrl;
+  if(listing&&new URL(listing).hostname==='news.google.com'&&options.preferFullArticle){
+   let value:unknown;
+   try{value=await options.resolveGoogleArticle?.(listing)}catch(error){
+    if(error instanceof AcquisitionFailure)throw error;
+    if(error instanceof SourceProviderError&&error.code==='BACKPRESSURE')throw new AcquisitionFailure('BACKPRESSURE',true,{detail:'GOOGLE_RESOLUTION_CAPACITY_WAIT',retryNotBefore:error.retryNotBefore});
+    if(error instanceof SourceProviderError&&error.code==='RATE_LIMIT')throw new AcquisitionFailure('RATE_LIMIT',true,{detail:'GOOGLE_RESOLUTION_RATE_LIMIT',retryNotBefore:error.retryNotBefore});
+    if(error instanceof SourceProviderError&&['AUTH_REQUIRED','POLICY_REFUSAL'].includes(error.code))throw new AcquisitionFailure(error.code==='AUTH_REQUIRED'?'AUTH_REQUIRED':'POLICY_DENIED',false);
+    throw new AcquisitionFailure('NETWORK',true,{detail:'GOOGLE_NEWS_RESOLUTION_UNAVAILABLE'});
+   }
+   const result=value&&typeof value==='object'?value as Record<string,unknown>:undefined;
+   if(result?.inputUrl!==listing||typeof result.url!=='string')throw new AcquisitionFailure('NETWORK',true,{detail:'GOOGLE_NEWS_UNRESOLVED'});
+   try{new WorkerPublicSourceFetch(result.url,options.fetcher);if(new URL(result.url).hostname==='news.google.com')throw Error('UNRESOLVED')}catch{throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'GOOGLE_PUBLISHER_URL_INVALID'})}
+   // Preserve stored observation/candidate IDs. The collected listing is still
+   // retained in intake; only this exact acquisition uses the attested target.
+   claim={...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:result.url}}};
+  }
   const o=claim.input.observation,base={id:JSON.stringify(['acquired',o.id]),feedId:o.feedId,candidateId:claim.candidate.id,sourceId:o.sourceId,sourceObservationId:o.id,acquiredAt:options.now()};
   if(o.suppliedPayloadRef && options.readPayload && !(options.preferFullArticle&&o.canonicalUrl&&['ARTICLE_EXCERPT','LISTING_RESULT','LINK_ONLY'].includes(o.representation))) {
    const payload=await options.readPayload(claim);
@@ -47,7 +66,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
   if(!o.canonicalUrl) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'MISSING_CANONICAL_URL'});
   if(isWebsiteListingUrl(o.canonicalUrl))throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
   let fetchPort:WorkerPublicSourceFetch;
-  try {fetchPort=new WorkerPublicSourceFetch(o.canonicalUrl,options.fetcher)} catch {throw new AcquisitionFailure('POLICY_DENIED',false)}
+  try {fetchPort=new WorkerPublicSourceFetch(o.canonicalUrl,options.fetcher,{maxBytes:PUBLIC_ARTICLE_HTML_MAX_BYTES})} catch {throw new AcquisitionFailure('POLICY_DENIED',false)}
   const request:SourceAcquisitionRequest={source:{canonicalSourceUrl:o.canonicalUrl,resourceLocator:o.canonicalUrl},window:{startTime:'1970-01-01T00:00:00Z',endTime:options.now()},authentication:'PUBLIC',limits:{maxItems:1,maxPages:1,maxScrolls:0,maxPhysicalAttempts:2,maxExecutionMs:60_000}};
   const privateArticle=async()=>{
    if(!options.publicArticle)return undefined;
@@ -64,17 +83,19 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
   const helperArticle=(value:unknown,mechanism:string)=>{
    if(!value||typeof value!=='object'||Array.isArray(value))return undefined;
    const r=value as Record<string,unknown>;
-   if(r.error==='TRANSIENT'||(typeof r.status==='number'&&(r.status>=500||r.status===408||r.status===425)))throw new AcquisitionFailure('NETWORK',true,{detail:'HELPER_TRANSIENT_FAILURE',httpStatus:typeof r.status==='number'?r.status:undefined});
+   if(r.accessRestricted===true)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
+   if(r.error==='TRANSIENT'||(typeof r.status==='number'&&(r.status>=500||r.status===408||r.status===425)))throw new AcquisitionFailure('NETWORK',true,{detail:r.failureOrigin==='upstream_http'?'UPSTREAM_SERVER_ERROR':r.failureOrigin==='upstream_transport'?'UPSTREAM_TRANSPORT_FAILURE':'HELPER_TRANSIENT_FAILURE',httpStatus:typeof r.status==='number'?r.status:undefined});
    if(r.status===429)throw new AcquisitionFailure('RATE_LIMIT',true);
    if(r.status===451)throw new AcquisitionFailure('POLICY_DENIED',false);
    if(r.status===401)throw new AcquisitionFailure('AUTH_REQUIRED',false);
-   if(r.status!==200||r.url!==o.canonicalUrl||r.pageKind!=='article'||typeof r.body!=='string'||r.body.length<200||new TextEncoder().encode(r.body).length>500_000)return undefined;
+   const contentKind=r.pageKind==='catalogue'&&(r.contentKind==='PRODUCT_DETAIL'||r.contentKind==='CATALOGUE')?r.contentKind:undefined;
+   if(r.status!==200||r.url!==o.canonicalUrl||(r.pageKind!=='article'&&!contentKind)||typeof r.body!=='string'||r.body.length<200||new TextEncoder().encode(r.body).length>500_000)return undefined;
    // A different canonical identity needs a newly observed candidate; it cannot
    // silently replace this exact item's evidence during fallback acquisition.
    if(r.canonicalUrl&&r.canonicalUrl!==o.canonicalUrl)return undefined;
    requireReadableArticle(r.body);
    const date=resolvePublicationDate(undefined,o.publishedAtHint,helperArticleDates(r.dateMetadata),r.extractedDate??r.publishedAt);
-   return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism,publicationDate:date,contentCompleteness:'UNKNOWN'}};
+   return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism,publicationDate:date,contentCompleteness:'UNKNOWN',...(contentKind?{contentKind}:{})}};
   };
   const fallbackSuccess=(item:NonNullable<Awaited<ReturnType<typeof privateArticle>>>):AcquisitionStageOutcome=>({stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},provenance:{mechanism:item.acquisitionEvidence.mechanism}}});
   const http=async():Promise<AcquisitionStageOutcome>=>{
@@ -110,6 +131,16 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
     throw new AcquisitionFailure('NETWORK',true,{detail:document.status>=500?'UPSTREAM_SERVER_ERROR':'UPSTREAM_TEMPORARY_FAILURE',httpStatus:document.status});
    }
    if(document.status>=400) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:document.status===404||document.status===410?'HTTP_NOT_FOUND':'UPSTREAM_HTTP_ERROR',httpStatus:document.status});
+   if(document.body.includes('isAccessibleForFree')&&/paywall/i.test(document.body)&&new TextEncoder().encode(document.body).length<=PUBLIC_ARTICLE_HTML_MAX_BYTES&&extractPublicHtml(document.body,document.url).accessRestricted)
+    throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
+   if(/schema\.org\/Product\b|CollectionPage|[\"']Product[\"']/i.test(document.body)){
+    const page=extractPublicHtml(document.body,document.url);
+    if(page.pageKind==='catalogue'){
+     const item=helperArticle({...page,status:200,url:o.canonicalUrl,dateMetadata:readArticleDateMetadata(document.body,document.url)},'catalogue_http');
+     if(item)return fallbackSuccess(item);
+     throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'CATALOGUE_TEXT_UNAVAILABLE'});
+    }
+   }
    if(discoverWebsiteArticles(document.body,document.url))throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
    // Existing extractor requires an article body and publication metadata, rather than treating 200 as extraction success.
    const metadata=readArticleDateMetadata(document.body,document.url);
@@ -139,7 +170,8 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    let outcome:AcquisitionStageOutcome|undefined,failure:unknown;
    try {outcome=await http();}
    catch(error){
-    const recoverable=error instanceof AcquisitionFailure&&['NETWORK','EXTRACTION_FAILED'].includes(error.code)||
+    const recoverable=error instanceof AcquisitionFailure&&['NETWORK','EXTRACTION_FAILED','BODY_BUDGET_EXCEEDED'].includes(error.code)||
+     error instanceof PublicSourceFetchFailure&&error.category==='BODY_BUDGET_EXCEEDED'||
      error instanceof SourceProviderError&&['TRANSIENT','UNAVAILABLE'].includes(error.code)||
      error instanceof Error&&['SOURCE_EXECUTION_TIMEOUT','SOURCE_EXECUTION_UNAVAILABLE'].includes(error.message);
     if(!recoverable||!options.articleFallback)throw error;
@@ -168,14 +200,16 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(!item.canonicalItemUrl || normalizedUrl(item.canonicalItemUrl)!==normalizedUrl(o.canonicalUrl)) throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'CANONICAL_IDENTITY_MISMATCH'});
    const stage=outcome.stages.at(-1)?.stage;
    const browserEvidence=stage==='BROWSER_WORKFLOW' || stage==='WEB_OPERATOR'?Object.fromEntries(['acceptanceId','observationId','rawArtifactRef'].filter(key=>typeof item.acquisitionEvidence?.[key]==='string').map(key=>[key,item.acquisitionEvidence[key]])):undefined;
-   const completeness=item.acquisitionEvidence?.contentCompleteness==='UNKNOWN'?'UNKNOWN':'COMPLETE';
-   const parsed=acquiredSchema.safeParse({...base,title:item.title,body:item.text,language:o.languageHint,publishedAt:publicationDate.publishedAt,canonicalUrl:item.canonicalItemUrl,resolvedUrl:item.originalSourceReference??item.canonicalItemUrl,representation:'FULL_ARTICLE',contentCompleteness:completeness,acquisitionMethod:outcome.result?.provenance?.mechanism==='website_playwright'?'browser':stage==='STRUCTURED'?'platform_api':stage==='HTTP'?'direct_http':'browser',acquisitionProvider:outcome.result?.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:completeness==='COMPLETE'},provenance:{routerVersion:'v1-existing-orchestrator',stages:outcome.stages.map(s=>s.stage),publicationDate,...(browserEvidence?{browserEvidence}:{})}});
+   const contentKind=item.acquisitionEvidence?.contentKind==='PRODUCT_DETAIL'||item.acquisitionEvidence?.contentKind==='CATALOGUE'?item.acquisitionEvidence.contentKind:undefined;
+   const completeness=contentKind||item.acquisitionEvidence?.contentCompleteness==='UNKNOWN'?'UNKNOWN':'COMPLETE';
+   const parsed=acquiredSchema.safeParse({...base,title:item.title,body:item.text,language:o.languageHint,publishedAt:publicationDate.publishedAt,canonicalUrl:item.canonicalItemUrl,resolvedUrl:item.originalSourceReference??item.canonicalItemUrl,representation:contentKind?'LISTING_RESULT':'FULL_ARTICLE',contentCompleteness:completeness,acquisitionMethod:outcome.result?.provenance?.mechanism==='website_playwright'?'browser':stage==='STRUCTURED'?'platform_api':stage==='HTTP'?'direct_http':'browser',acquisitionProvider:outcome.result?.provenance?.mechanism,quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:completeness==='COMPLETE'},provenance:{routerVersion:'v1-existing-orchestrator',stages:outcome.stages.map(s=>s.stage),publicationDate,...(contentKind?{contentKind}:{}),...(browserEvidence?{browserEvidence}:{})}});
    if(!parsed.success) throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'ACQUIRED_CONTENT_SCHEMA'});
    return parsed.data;
   } catch(error) {
    if(error instanceof AcquisitionFailure) throw error;
    if(error instanceof SourceProviderError){
-    if(error.code==='BACKPRESSURE')throw new AcquisitionFailure('BACKPRESSURE',true,{detail:'HELPER_CAPACITY_WAIT',retryNotBefore:error.retryNotBefore});
+    if(error.code==='RESULT_LOST')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'PAID_ARTICLE_RESPONSE_LOST'});
+    if(error.code==='BACKPRESSURE')throw new AcquisitionFailure('BACKPRESSURE',true,{detail:error.diagnostic?.detail==='PROVIDER_REQUEST_IN_FLIGHT'?'ARTICLE_PROVIDER_IN_FLIGHT':'HELPER_CAPACITY_WAIT',retryNotBefore:error.retryNotBefore});
     if(error.code==='RATE_LIMIT')throw new AcquisitionFailure('RATE_LIMIT',true,{detail:'HELPER_RATE_LIMIT',retryNotBefore:error.retryNotBefore});
     if(error.code==='BUDGET_EXCEEDED')throw new AcquisitionFailure('BUDGET_EXHAUSTED',true,{detail:'ARTICLE_PROVIDER_BUDGET'});
     if(error.code==='UNCERTAIN_PAID_SUBMISSION')throw new AcquisitionFailure('UNCERTAIN_PAID_SUBMISSION',false,{detail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'});

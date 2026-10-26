@@ -2,10 +2,10 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { createIntakeDatabase, seedIntakeScope, batchFixture, testPolicy, scopeFixture } from './test-utils';
 import { V1IntakeStore } from './store';
 import { createCandidateIntakePort } from './intake';
-import { claimAcquisition, persistAcquisitionResult, completeAcquisition, runAcquisitionJob, AcquisitionFailure } from './acquisition';
+import { claimAcquisition, persistAcquisitionResult, completeAcquisition, runAcquisitionJob, AcquisitionFailure,authorizeAcquisitionRecovery } from './acquisition';
 import type { AcceptedAcquiredContent, DownstreamJob } from './types';
 import { createCandidateAcquisitionRouter } from './acquisition-router';
-import { hashContent } from '@distilled/contracts';
+import { hashContent,sha256 } from '@distilled/contracts';
 import {SourceProviderError} from '@distilled/connectors';
 import {V1FeedStore,FeedTransaction} from '../v1-intelligence/store';
 import {feedFixture} from '../v1-intelligence/test-utils';
@@ -14,6 +14,87 @@ const jobId=JSON.stringify(['ACQUIRE','observation-1','']);
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())});
 afterEach(async()=>ctx.dispose());
 const now='2026-10-03T12:00:00Z',later='2026-10-03T12:02:00Z';
+it('resolves a Google listing at acquisition while retaining observation identity',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,listing='https://news.google.com/rss/articles/encoded',publisher='https://publisher.example/news/report';
+ claim.input.observation={...claim.input.observation,canonicalUrl:listing,representation:'LISTING_RESULT'};
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,resolveGoogleArticle:async url=>({inputUrl:url,url:publisher}),publicGet:async url=>{expect(url).toBe(publisher);return {url,body:'<html><head><meta property="article:published_time" content="2026-10-03T11:00:00Z"></head><body><article><h1>Report</h1><p>Parliament approved banking legislation after a lengthy debate. Presidential approval is still required before the measure becomes law. Officials said the vote followed consultations with local banking representatives and consumer protection organizations.</p></article></body></html>',contentType:'text/html',status:200}}});
+ const result=await router(claim);expect(result.canonicalUrl).toBe(publisher);expect(result.sourceObservationId).toBe('observation-1');expect(claim.input.observation.canonicalUrl).toBe(listing);
+},30000);
+it.each([undefined,{inputUrl:'https://other.example',url:'https://publisher.example/report'},{inputUrl:'https://news.google.com/rss/articles/encoded',url:'http://127.0.0.1/private'}])('never scrapes or pays for unresolved or unsafe Google targets: %j',async decoded=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;claim.input.observation={...claim.input.observation,canonicalUrl:'https://news.google.com/rss/articles/encoded',representation:'LISTING_RESULT'};
+ let calls=0;const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,resolveGoogleArticle:async()=>decoded,publicGet:async()=>{calls++;throw Error('must not scrape')},articleFallback:async()=>{calls++;throw Error('must not pay')}});
+ await expect(router(claim)).rejects.toBeInstanceOf(AcquisitionFailure);expect(calls).toBe(0);
+},30000);
+async function terminalRecoveryFixture(failureCode='NETWORK',attempts=5){
+ const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,state:'FAILED',exhausted:true,attempts,failureCode,failureDetail:'HELPER_TRANSPORT_FAILURE'}}]);
+}
+it('operator recovery grants one attempt and retains cumulative attempts and failure history',async()=>{
+ await terminalRecoveryFixture();
+ const before=(await store.snapshot('feed-source-1')).epoch;
+ await authorizeAcquisitionRecovery(store,jobId,'qa-fix-1',now);
+ expect((await store.snapshot('feed-source-1')).epoch).toBeGreaterThan(before);
+ await authorizeAcquisitionRecovery(store,jobId,'qa-fix-1',now);
+ const reopened=(await store.read<DownstreamJob>('jobs',jobId))!.value;
+ expect(reopened).toMatchObject({state:'PENDING',attempts:5,recoveryAuthorizations:[{id:'qa-fix-1',priorAttempts:5,priorFailureCode:'NETWORK',maxAttempts:6}]});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('NETWORK',true)})).toBe('FAILED');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'FAILED',attempts:6,exhausted:true});
+});
+it('operator recovery after an early extraction failure grants exactly one attempt',async()=>{
+ await terminalRecoveryFixture('EXTRACTION_FAILED',1);await authorizeAcquisitionRecovery(store,jobId,'qa-fix-1',now);
+ expect(await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('NETWORK',true)})).toBe('FAILED');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value.attempts).toBe(2);
+});
+it('recovers a competing job after the original paid request has completed and its response is retained',async()=>{
+ await terminalRecoveryFixture('UNCERTAIN_PAID_SUBMISSION');const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'}}]);
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,operation_id TEXT)');
+ await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,200,?,NULL,?)').bind(row.feedSourceId,'retained-response','other-job').run();
+ await authorizeAcquisitionRecovery(store,jobId,'active-owner-finished',now);
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:5,recoveryAuthorizations:[{priorFailureCode:'UNCERTAIN_PAID_SUBMISSION',maxAttempts:6}]});
+});
+it.each(['CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'])('operator recovery preserves %s history after a route repair',async code=>{
+ await terminalRecoveryFixture(code,1);await authorizeAcquisitionRecovery(store,jobId,'route-fix',now);
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{priorFailureCode:code,maxAttempts:2}]});
+});
+it('requires exact public redirect evidence to recover a historical redirect policy failure',async()=>{
+ await terminalRecoveryFixture('POLICY_DENIED',1);
+ const row=(await store.read<DownstreamJob>('jobs',jobId))!;await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:undefined}}]);
+ const input=(await store.read<any>('inputs','observation-1'))!.value,from=input.observation.canonicalUrl;
+ await expect(authorizeAcquisitionRecovery(store,jobId,'route-fix',now,{from,to:'https://127.0.0.1/private'})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await expect(authorizeAcquisitionRecovery(store,jobId,'route-fix',now,{from:from+'/other',to:'https://idp.example/authorize'})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await authorizeAcquisitionRecovery(store,jobId,'route-fix',now,{from,to:'https://idp.example/authorize'});
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',recoveryAuthorizations:[{priorFailureCode:'POLICY_DENIED',redirectEvidence:{from,to:'https://idp.example/authorize'}}]});
+});
+it.each(['AUTH_REQUIRED','POLICY_DENIED','UNCERTAIN_PAID_SUBMISSION','INVALID_RESULT'])('operator recovery refuses %s',async code=>{
+ await terminalRecoveryFixture(code);await expect(authorizeAcquisitionRecovery(store,jobId,'qa-fix-1',now)).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+});
+it('operator recovery refuses unresolved paid work and leaves the terminal job untouched',async()=>{
+ await terminalRecoveryFixture();
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
+ await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,NULL,NULL,NULL)').bind('feed-source-1').run();
+ await expect(authorizeAcquisitionRecovery(store,jobId,'qa-fix-1',now)).rejects.toThrow('RECOVERY_PAID_OUTCOME_UNRESOLVED');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'FAILED',attempts:5});
+});
+it('can authorize a waiting job while another request owns a finite active claim',async()=>{
+ await terminalRecoveryFixture('CHALLENGE_REQUIRED',1);
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
+ await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,-1,NULL,?)').bind('feed-source-1',JSON.stringify({claimToken:'active-owner',claimExpiresAt:'2026-10-03T12:01:00.000Z'})).run();
+ await authorizeAcquisitionRecovery(store,jobId,'route-fix',now);expect((await store.read<DownstreamJob>('jobs',jobId))!.value.state).toBe('PENDING');
+});
+it('reports a restricted teaser as access-required and avoids paid recovery',async()=>{
+ let calls=0;
+ const html='<script type="application/ld+json">{"@type":"WebPage","isAccessibleForFree":false}</script><h1>Story</h1><main><p>Teaser only.</p><div id="paywall-prompt"></div><h2><a href="/one">One</a></h2><h2><a href="/two">Two</a></h2></main>';
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(html),articleFallback:async()=>{calls++;return undefined}});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('FAILED');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({failureCode:'AUTH_REQUIRED',failureDetail:'ARTICLE_ACCESS_RESTRICTED'});
+ expect(calls).toBe(0);expect(await store.list('revisions','feed-source-1')).toHaveLength(0);
+});
+it('retains an upstream failure origin returned through the HTTP helper',async()=>{
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response('',{status:403}),publicArticle:async()=>({status:503,failureOrigin:'upstream_http'})});
+ expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('RETRY');
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({failureCode:'NETWORK',failureDetail:'UPSTREAM_SERVER_ERROR',httpStatus:503});
+});
 it('the bounded fallback lease prevents a second owner during a long article chain',async()=>{
  const claimed=await claimAcquisition(store,jobId,now,180000);expect(claimed?.job.leaseUntil).toBe('2026-10-03T12:03:00.000Z');
  expect(await claimAcquisition(store,jobId,later)).toBeUndefined();
@@ -311,3 +392,18 @@ it('acquires a complete WordPress post without calling an unavailable helper and
  const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<link rel="canonical" href="${o.canonicalUrl}"><meta property="og:type" content="article"><meta property="article:published_time" content="2026-10-03T10:00:00Z"><h1>Fund announcement</h1><div class="entry-content wp-block-post-content"><p>${text}</p><div><p>${last}</p></div></div>`),extractHtml:async()=>{throw Error('UNAVAILABLE_HELPER_MUST_NOT_BE_CALLED')}});
  const acquired=await router(claim);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',canonicalUrl:o.canonicalUrl,acquisitionMethod:'direct_http'});expect(acquired.body).toContain(last);expect(acquired.body).toContain('5 percent');
 });
+it('Google resolution preserves approval denial without scraping or paying',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;claim.input.observation={...claim.input.observation,canonicalUrl:'https://news.google.com/rss/articles/encoded',representation:'LISTING_RESULT'};
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,resolveGoogleArticle:async()=>{throw new AcquisitionFailure('POLICY_DENIED',false)}});
+ await expect(router(claim)).rejects.toMatchObject({code:'POLICY_DENIED',transient:false});
+},30000);
+it.each([false,true])('operator recovery distinguishes a reconciled other-job hold from its own lost paid result: %s',async own=>{
+ await terminalRecoveryFixture('UNCERTAIN_PAID_SUBMISSION');const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'}}]);
+ const input=(await store.read<any>('inputs',row.value.observationId))!.value,o=input.observation;
+ const operationId=own?await sha256(JSON.stringify([{feedId:o.feedId,feedSourceId:o.feedSourceId,sourceId:o.sourceId},JSON.stringify(['article-fallback-v1',jobId,o.canonicalUrl])])):'different-job';
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,operation_id TEXT)');
+ await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,200,NULL,?,?)').bind(o.feedSourceId,JSON.stringify({reconciliation:{kind:'COMPLETED_RESPONSE_LOST',requestId:'verified-provider-receipt'}}),operationId).run();
+ if(own){await expect(authorizeAcquisitionRecovery(store,jobId,'qa-receipt',now)).rejects.toThrow('RECOVERY_PAID_RESULT_LOST');expect((await store.read<DownstreamJob>('jobs',jobId))!.value.state).toBe('FAILED')}
+ else{await authorizeAcquisitionRecovery(store,jobId,'qa-receipt',now);expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:5,recoveryAuthorizations:[{priorFailureCode:'UNCERTAIN_PAID_SUBMISSION'}]})}
+},30000);

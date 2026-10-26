@@ -75,7 +75,11 @@ class RuntimeTests(unittest.TestCase):
         for status in (301, 401, 403, 429, 451):
             error = runtime.urllib.error.HTTPError('https://publisher.example/story', status, 'blocked', {}, None)
             with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *a, **kw: (_ for _ in ()).throw(error))):
-                self.assertEqual(runtime.fetch_public_article({'url':'https://publisher.example/story'}), {'status':status})
+                self.assertEqual(runtime.fetch_public_article({'url':'https://publisher.example/story'}), {'status':status, 'failureOrigin':'upstream_http'})
+
+    def test_public_article_connection_failure_preserves_origin(self):
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *a, **kw: (_ for _ in ()).throw(TimeoutError()))):
+            self.assertEqual(runtime.fetch_public_article({'url':'https://publisher.example/story'}), {'error':'TRANSIENT', 'failureOrigin':'upstream_transport'})
 
     def test_article_inventory_is_same_origin_and_does_not_follow_body_references(self):
         links = runtime.ArticleLinks('https://publisher.example/')

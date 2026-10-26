@@ -6,6 +6,24 @@ import type {AcquisitionClaim} from './acquisition';
 const url='https://publisher.example/news/decision';
 const claim={job:{id:'stable-job'},input:{observation:{canonicalUrl:url,feedId:'feed',feedSourceId:'source',sourceId:'publisher'}}} as AcquisitionClaim;
 const html=`<meta property="article:published_time" content="2026-10-01T12:00:00Z"><article><h1>Decision</h1><p>${'The council approved the proposal. '.repeat(30)}</p></article>`;
+it('retains readable article text in a publisher page larger than two megabytes',async()=>{
+ const large=html+'<script>'+ 'x'.repeat(2_100_000)+'</script>';
+ const f=fixture({status:200,url,html:large});
+ expect(await f.fallback(claim)).toMatchObject({provider:'website_playwright',publishedAt:'2026-10-01T12:00:00.000Z'});
+ expect(f.request).not.toHaveBeenCalled();
+});
+it.each(['<title>Just a moment</title>',html+'<script>'+'x'.repeat(6_000_000)+'</script>'])('continues from browser challenge or oversized HTML to funded Zyte',async browserHtml=>{
+ const f=fixture({status:200,url,html:browserHtml});expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte'});expect(f.request).toHaveBeenCalledTimes(1);
+});
+it('accepts exact trailing-slash normalization without changing candidate identity',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:url+'/',httpResponseBody:btoa(html)}});
+ expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte',url,canonicalUrl:url});
+});
+it('accepts Nature HTML whose publisher canonical points to the same article PDF',async()=>{
+ const nature='https://www.nature.com/articles/s41586-026-11328-3',f=fixture({error:'UNAVAILABLE'});
+ f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:nature,httpResponseBody:btoa('<link rel="canonical" href="'+nature+'.pdf">'+html)}});
+ expect(await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:nature}}} as AcquisitionClaim)).toMatchObject({canonicalUrl:nature,provider:'website_zyte'});
+});
 function fixture(browser:unknown={status:200,url,html}){
  const execute=vi.fn().mockResolvedValue(browser),request=vi.fn().mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url,httpResponseBody:btoa(html)}});
  const authorize=vi.fn().mockResolvedValue(undefined),initialize=vi.fn().mockResolvedValue(undefined);
@@ -29,7 +47,17 @@ it('does not promote browser output from an old helper without final URL evidenc
 });
 it('does not treat listing HTML as acquired article evidence',async()=>{
  const f=fixture({status:200,url,html:'<html><nav>News</nav></html>'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url,httpResponseBody:btoa('<html>Listing</html>')}});
- expect(await f.fallback(claim)).toBeUndefined();
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'ZYTE_ARTICLE_TEXT_UNAVAILABLE'}});
+});
+it('reports a fetched catalogue as a listing instead of retaining the old publisher challenge',async()=>{
+ const f=fixture({error:'UNAVAILABLE'}),listing='<main><h2><a href="/one">One</a></h2><h2><a href="/two">Two</a></h2></main>';
+ f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url,httpResponseBody:btoa(listing)}});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'UNSUPPORTED',diagnostic:{detail:'LISTING_PAGE'}});
+});
+it('does not spend on Zyte after an explicit browser paywall without article content',async()=>{
+ const f=fixture({status:200,url,html:'<script type="application/ld+json">{"@type":"WebPage","isAccessibleForFree":false}</script><h1>Story</h1><main>Teaser only<div id="paywall-prompt"></div></main>'});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'AUTH_REQUIRED',diagnostic:{detail:'ARTICLE_ACCESS_RESTRICTED'}});
+ expect(f.request).not.toHaveBeenCalled();
 });
 it('never promotes a Zyte response for another URL',async()=>{
  const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url:url+'/other',httpResponseBody:btoa(html)}});

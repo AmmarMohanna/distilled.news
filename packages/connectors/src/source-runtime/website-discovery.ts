@@ -16,7 +16,7 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
  const origin=new URL(approvedUrl).origin,all=nodes(parse(html) as unknown as Node),articles=new Map<string,{url:string;title?:string}>();
  const scoped=(href:string)=>{try{const url=articleUrl(new URL(href,approvedUrl).href);return url&&new URL(url).origin===origin&&url!==articleUrl(approvedUrl)?url:undefined}catch{return undefined}};
  const add=(href:string,title?:string)=>{const url=scoped(href);if(url&&!articles.has(url))articles.set(url,{url,...(title?{title}:{})})};
- let isArticle=false,structuredListing=false,nextPage:string|undefined,paginationUnresolved=false;
+ let isArticle=false,structuredListing=false,boundSection=false,unboundSection=false,nextPage:string|undefined,paginationUnresolved=false;
  for(const node of all){
   if(node.tagName==='meta'&&attr(node,'property').toLowerCase()==='og:type'&&attr(node,'content').toLowerCase()==='article')isArticle=true;
   if(node.tagName!=='script'||attr(node,'type').toLowerCase()!=='application/ld+json')continue;
@@ -24,6 +24,11 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
    const stack:unknown[]=[JSON.parse(text(node))];
    while(stack.length){const entry=stack.pop();if(Array.isArray(entry)){stack.push(...entry);continue}if(!entry||typeof entry!=='object')continue;
     const item=entry as Record<string,any>,types=[item['@type']].flat();
+    if(types.some(t=>['CollectionPage','SearchResultsPage'].includes(t))){
+     const identity=item.url??item.mainEntityOfPage?.['@id']??item.mainEntityOfPage??item['@id'];
+     if(typeof identity!=='string')unboundSection=true;
+     else try{if(articleUrl(new URL(identity,approvedUrl).href)===articleUrl(approvedUrl))boundSection=true}catch{/* unrelated collection metadata is not this page */}
+    }
     if(types.some(t=>['NewsArticle','Article','BlogPosting'].includes(t))){
      const identity=item.url??item.mainEntityOfPage?.['@id']??item.mainEntityOfPage??item['@id'];
      try{if(typeof identity==='string'&&articleUrl(new URL(identity,approvedUrl).href)===articleUrl(approvedUrl))isArticle=true}catch{/* An unrelated embedded article is not the fetched page. */}
@@ -35,7 +40,10 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
  }
  const bodies=all.filter(n=>n.tagName==='article');
  const directBody=bodies.length===1&&nodes(bodies[0]).some(n=>n.tagName==='h1'&&!nodes(n).some(child=>child.tagName==='a'))&&nodes(bodies[0]).some(n=>n.tagName==='p'&&text(n));
- const section=isWebsiteListingUrl(approvedUrl)||all.some(n=>n.tagName==='script'&&attr(n,'type').toLowerCase()==='application/ld+json'&&/"@type"\s*:\s*"(?:CollectionPage|SearchResultsPage)"/.test(text(n)));
+ // Article pages can embed a CollectionPage for their parent section or
+ // related stories. Only metadata bound to this URL can override article
+ // evidence; an arbitrary nested CollectionPage must not reject the story.
+ const section=isWebsiteListingUrl(approvedUrl)||boundSection||unboundSection&&!isArticle&&!directBody;
  if(!section&&(isArticle||directBody))return undefined;
  for(const anchor of all.filter(n=>n.tagName==='a')){
   const href=attr(anchor,'href');if(!href)continue;

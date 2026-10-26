@@ -1,8 +1,8 @@
-import type {FeedHttpPort} from '@distilled/connectors';
+import {PUBLIC_ARTICLE_HTML_MAX_BYTES,type FeedHttpPort} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from '../public-source-fetch';
 import {AcquisitionFailure} from './acquisition';
 // Publisher HTML includes scripts and layout beyond the retained article text.
-export const PUBLIC_ARTICLE_MAX_BYTES = 2_000_000;
+export const PUBLIC_ARTICLE_MAX_BYTES = PUBLIC_ARTICLE_HTML_MAX_BYTES;
 /** Publisher-local redirects are transport resolution, not discovery. Never
  * forward credentials, change origin, follow a loop or guess another article.
  * The candidate router retains the observed canonical identity independently. */
@@ -19,7 +19,12 @@ export async function readPublicArticle(http:FeedHttpPort,initial:string){
   if(r.status===0)throw new AcquisitionFailure('NETWORK',true);
   if(r.status>=300&&r.status<400){
    if(hop===3||!r.headers.location)throw new AcquisitionFailure('POLICY_DENIED',false);
-   const next=new URL(r.headers.location,url);next.hash='';url=next.href;continue;
+   const next=new URL(r.headers.location,url);next.hash='';new WorkerPublicSourceFetch(next.href);
+   // Do not follow cross-origin sessions/cookies in the Worker HTTP route.
+   // A distinct diagnostic may admit an exact-article provider to resolve a
+   // public publisher redirect, without weakening private-network guards.
+   if(next.origin!==origin)throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'ARTICLE_CROSS_ORIGIN_REDIRECT'});
+   url=next.href;continue;
   }
   return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status,...(Object.keys(r.headers).some(k=>k.toLowerCase()==='www-authenticate')?{authenticationRequired:true}:{}),...(r.headers['retry-after']?{retryAfter:r.headers['retry-after']}:{})};
  }

@@ -5,6 +5,7 @@ import type { SecretResolver } from './social-providers';
 import { requireProviderSuccess, type ProviderHttpPort } from './provider-http';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type SourceFamily, type ProviderPage } from './provider-types';
 import {discoverWebsiteArticles} from './website-discovery';
+import {extractPublicHtml} from './public-html';
 import { record, articleUrl, string } from './provider-normalize';
 import {readArticleDateMetadata,unreadableArticleReason} from './article-integrity';
 
@@ -43,7 +44,11 @@ export class WebsiteSourceProvider implements SourceProvider {
       try{const bytes=Uint8Array.from(atob(data.httpResponseBody),(c)=>c.charCodeAt(0));html=new TextDecoder().decode(bytes);}catch{throw new SourceProviderError('MALFORMED');}
     }
     if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new SourceProviderError('CHALLENGE',undefined,{detail:'ACCESS_CHALLENGE_PAGE'});
-    const discovery=discoverWebsiteArticles(html,url);
+    if(html.includes('isAccessibleForFree')&&/paywall/i.test(html)&&new TextEncoder().encode(html).length<=2_000_000&&extractPublicHtml(html,url).accessRestricted)
+      throw new SourceProviderError('AUTH_REQUIRED',undefined,{detail:'ARTICLE_ACCESS_RESTRICTED'});
+    const catalogue=/schema\.org\/Product\b|CollectionPage|["']Product["']/i.test(html)?extractPublicHtml(html,url):undefined;
+    if(catalogue?.accessRestricted)throw new SourceProviderError('AUTH_REQUIRED',undefined,{detail:'ARTICLE_ACCESS_RESTRICTED'});
+    const inventory=discoverWebsiteArticles(html,url),discovery=catalogue?.pageKind==='catalogue'?undefined:inventory;
     if(discovery){
       // Do not report a readable but unrecognized section layout as success.
       if(!discovery.articles.length)throw new SourceProviderError('MALFORMED');
@@ -53,10 +58,10 @@ export class WebsiteSourceProvider implements SourceProvider {
         raw:new TextEncoder().encode(html),complete:!discovery.nextPage&&!discovery.paginationUnresolved,continuationToken:discovery.nextPage,
         requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
-    const result=record(await executeSource(this.execution,'extract',{url,html}));
+    const result=record(catalogue?.pageKind==='catalogue'?catalogue:await executeSource(this.execution,'extract',{url,html}));
     const links=Array.isArray(result.articleLinks)?[...new Set(result.articleLinks.filter((v):v is string=>typeof v==='string').map(v=>articleUrl(v)).filter((v):v is string=>!!v&&new URL(v).origin===new URL(url).origin&&v!==url))]:[];
     const landing=new URL(url).pathname==='/';
-    if(links.length&&(result.pageKind==='listing'||landing)){
+    if(links.length&&(result.pageKind==='listing'||landing&&result.pageKind!=='catalogue')){
       const offset=input.continuation?Number(input.continuation.token):0;
       if(!Number.isSafeInteger(offset)||offset<0)throw Error('INVALID_WEBSITE_CONTINUATION');
       const selected=links.slice(offset,offset+input.limit),items:ProviderPage['items']=[];
@@ -74,13 +79,13 @@ export class WebsiteSourceProvider implements SourceProvider {
     if(unreadable)throw new SourceProviderError('MALFORMED',undefined,{detail:unreadable});
     const dates=readArticleDateMetadata(html,url);
     // A homepage with no article inventory/date is not a complete news article.
-    if(landing||result.pageKind==='listing')throw new SourceProviderError('MALFORMED');
+    if(landing&&result.pageKind!=='catalogue'||result.pageKind==='listing')throw new SourceProviderError('MALFORMED');
     const canonical=articleUrl(string(result.canonicalUrl));
     // A misconfigured publisher canonical must not collapse all stories onto
     // the homepage. Cross-origin identities remain excluded as before.
     const article=canonical&&new URL(canonical).origin===new URL(url).origin&&new URL(canonical).pathname!=='/'?canonical:url;
     return {items:[{sourceItemKey:`url:${article}`,upstreamId:article,url:article,publisherId:new URL(article).hostname,title:string(result.title),body:result.body,
-      publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,language:string(result.language),representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
-      raw:new TextEncoder().encode(html),complete:Boolean(dates.publishedAt),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
+      publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,language:string(result.language),representation:result.pageKind==='catalogue'?'LISTING_RESULT':'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
+      raw:new TextEncoder().encode(html),complete:result.pageKind==='catalogue'?!inventory?.nextPage&&!inventory?.paginationUnresolved:Boolean(dates.publishedAt),...(result.pageKind==='catalogue'&&inventory?.nextPage?{continuationToken:inventory.nextPage}:{}),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
   }
 }

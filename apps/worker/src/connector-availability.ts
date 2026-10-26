@@ -9,7 +9,7 @@ export interface SourceAvailability {state:'AVAILABLE'|'UNAVAILABLE';providers:s
 export function sourceAvailability(env:Env,family:SourceFamily):SourceAvailability{
  if(env.SOURCE_CONNECTORS_ENABLED!=='true')return {state:'UNAVAILABLE',providers:[],reason:'CONNECTORS_DISABLED'};
  const budgets=JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'),ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}');
- const funded=(id:string,cost:string,key?:string)=>!!key&&typeof budgets[id]==='number'&&Number.isFinite(budgets[id])&&budgets[id]>0&&typeof ceilings[cost]==='number'&&Number.isFinite(ceilings[cost])&&ceilings[cost]>0&&env.SOURCE_PER_PROVIDER_BUDGET_USD!=='0';
+ const funded=(id:string,cost:string,key?:string)=>!!key&&typeof budgets[id]==='number'&&Number.isFinite(budgets[id])&&budgets[id]>0&&typeof ceilings[cost]==='number'&&Number.isFinite(ceilings[cost])&&ceilings[cost]>0&&(env.SOURCE_COLLECTION_BUDGET_MODE==='unlimited'||env.SOURCE_PER_PROVIDER_BUDGET_USD!=='0');
  let providers:string[]=[];
  if(family==='rss')providers=['rss_native'];
  if(family==='google_news')providers=['google_rss',...(funded('google_apify','apify',env.APIFY_API_TOKEN)?['google_apify']:[])];
@@ -24,9 +24,9 @@ export function sourceAvailability(env:Env,family:SourceFamily):SourceAvailabili
 }
 
 export async function feedSourceAvailability(env:Env,feedId:string){
- const financial=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true';
- const dailyBudget=env.SOURCE_DAILY_BUDGET_USD===undefined?undefined:await collectorBudgetStatus(env);
- const [globalRows,sourceRows]=financial?await Promise.all([
+ const financial=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true',enforceBudgets=env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited';
+ const dailyBudget=!enforceBudgets||env.SOURCE_DAILY_BUDGET_USD===undefined?undefined:await collectorBudgetStatus(env);
+ const [globalRows,sourceRows]=financial&&enforceBudgets?await Promise.all([
   env.DB.prepare("SELECT provider_id,limit_usd,reserved_usd FROM connector_provider_budgets WHERE provider_id IN ('x_twitterapi_io','x_apify','google_apify','linkedin_apify','zyte')").all<{provider_id:string;limit_usd:number;reserved_usd:number}>(),
   env.DB.prepare('SELECT feed_source_id,provider_id,reserved_usd FROM connector_source_provider_budgets WHERE feed_id=?').bind(feedId).all<{feed_source_id:string;provider_id:string;reserved_usd:number}>()
  ]):[{results:[]},{results:[]}];
@@ -39,7 +39,7 @@ export async function feedSourceAvailability(env:Env,feedId:string){
  const rows=await env.DB.prepare("SELECT id,title,provider,kind,source_url,input,actor_id FROM sources WHERE briefing_id=? AND collection_owner='connector' AND enabled=1 ORDER BY id").bind(feedId).all<{id:string;title:string;provider:string;kind:string;source_url:string|null;input:string|null;actor_id:string|null}>();
  return Promise.all(rows.results.map(async row=>{
   const source=productConnectorSource(row),availability:SourceAvailability=source?sourceAvailability(env,source.source.family):{state:'UNAVAILABLE',providers:[],reason:'UNSUPPORTED_SOURCE'};
-  if(financial&&availability.state==='AVAILABLE'){
+  if(financial&&enforceBudgets&&availability.state==='AVAILABLE'){
    availability.providers=availability.providers.filter(id=>{
     const paidId=id==='website_zyte'?'zyte':id;if(!costs[paidId])return true;
     const grant=global.get(paidId),ceiling=ceilings[costs[paidId]],reserved=reservations.get(`${row.id}:${paidId}`)??0;
@@ -55,7 +55,7 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   // Scheduling another job is not recovery. Keep the most recent completed
   // outcome visible until a later poll actually finishes or reports a failure.
   const latest=await env.DB.prepare(`SELECT state,last_error,result FROM ${table} WHERE json_extract(request,'$.scope.feedSourceId')=? AND (state IN ('DONE','BLOCKED') OR last_error IS NOT NULL) ORDER BY CASE WHEN state IN ('DONE','BLOCKED') OR last_error NOT IN ('INTAKE_BUSY','BACKPRESSURE') THEN 0 ELSE 1 END,scheduled_at DESC,job_id DESC LIMIT 1`).bind(row.id).first<{state:string;last_error:string|null;result:string|null}>();
-  if(latest?.state==='BLOCKED'&&availability.state==='AVAILABLE'){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
+  if(latest?.state==='BLOCKED'&&availability.state==='AVAILABLE'&&(enforceBudgets||latest.last_error!=='BUDGET_EXCEEDED')){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
   const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0};
   for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
   const failed=jobs.filter(j=>j.state==='FAILED');

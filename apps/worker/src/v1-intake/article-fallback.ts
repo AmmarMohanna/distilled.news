@@ -1,4 +1,4 @@
-import {extractPublicHtml,readArticleDateMetadata,unreadableArticleReason,requireProviderSuccess,SourceProviderError,type SourceExecutionPort,type ProviderHttpPort} from '@distilled/connectors';
+import {extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,readArticleDateMetadata,unreadableArticleReason,requireProviderSuccess,SourceProviderError,type SourceExecutionPort,type ProviderHttpPort} from '@distilled/connectors';
 import {AcquisitionFailure,type AcquisitionClaim} from './acquisition';
 import type {Env} from '../types';
 import {createSourceBackend} from '../source-backend';
@@ -6,7 +6,7 @@ import {createSourceBackend} from '../source-backend';
 export function runtimeArticleFallback(env:Env,execution:SourceExecutionPort|undefined,authorize:(url:string)=>Promise<void>,dispatch:typeof fetch){
  const budgets=JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'),ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}');
  const enabled=!!env.ZYTE_API_KEY&&typeof budgets.zyte==='number'&&budgets.zyte>0&&typeof ceilings.zyte==='number'&&ceilings.zyte>0;
- const backend=enabled?createSourceBackend(env,{authorize:async()=>false,intake:{acceptBatch:async()=>{throw Error('ARTICLE_ONLY')}},
+ const backend=enabled?createSourceBackend(env,{paidResponseMaxBytes:10_000_000,authorize:async()=>false,intake:{acceptBatch:async()=>{throw Error('ARTICLE_ONLY')}},
   fetcher:async(value,init)=>{await authorize(String((JSON.parse(String(init?.body)) as {url:string}).url));return dispatch(value,init);}}):undefined;
  return createArticleFallback({execution,authorize,zyte:backend?{http:backend.paidHttp,key:env.ZYTE_API_KEY!,ceilingUsd:ceilings.zyte,
   initialize:()=>backend.paidHttp.configureLimits({zyte:budgets.zyte},env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')}:undefined});
@@ -20,14 +20,23 @@ export function createArticleFallback(options:{
 }) {
  return async(claim:AcquisitionClaim):Promise<unknown>=>{
   const o=claim.input.observation,url=o.canonicalUrl!;
+  // Permit only a publisher's trailing-slash normalization, never a sibling,
+  // different origin, query, credentials or scheme.
+  const sameUrl=(value:unknown)=>{
+   if(typeof value!=='string')return false;
+   try{const a=new URL(value),b=new URL(url);return !a.username&&!a.password&&a.origin===b.origin&&a.search===b.search&&a.hash===b.hash&&a.pathname.replace(/\/$/,'')===b.pathname.replace(/\/$/,'')}catch{return false}
+  };
   const article=(html:string,provider:string,resolved?:unknown)=>{
-   if(resolved!==undefined&&resolved!==url)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_URL_MISMATCH'});
-   if(new TextEncoder().encode(html).length>2_000_000)throw new AcquisitionFailure('BODY_BUDGET_EXCEEDED',false);
+   if(resolved!==undefined&&!sameUrl(resolved))throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_URL_MISMATCH'});
+   if(new TextEncoder().encode(html).length>PUBLIC_ARTICLE_HTML_MAX_BYTES)throw new AcquisitionFailure('BODY_BUDGET_EXCEEDED',false);
    if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new AcquisitionFailure('CHALLENGE_REQUIRED',false);
    const result=extractPublicHtml(html,url);
-   if(result.canonicalUrl!==url)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_CANONICAL_MISMATCH'});
-   if(result.pageKind!=='article'||result.body.length<200||unreadableArticleReason(result.body))return undefined;
-   return {...result,status:200,url,dateMetadata:readArticleDateMetadata(html,url),provider};
+   if(result.accessRestricted)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
+   const naturePdf=new URL(url).hostname==='www.nature.com'&&/^\/articles\/[\w-]+$/.test(new URL(url).pathname)&&result.canonicalUrl===url+'.pdf';
+   if(!sameUrl(result.canonicalUrl)&&!naturePdf)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_CANONICAL_MISMATCH'});
+   if(result.pageKind==='listing')throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
+   if(!['article','catalogue'].includes(result.pageKind)||result.body.length<200||unreadableArticleReason(result.body))return undefined;
+   return {...result,canonicalUrl:url,status:200,url,dateMetadata:readArticleDateMetadata(html,url),provider};
   };
   const status=(value:Record<string,unknown>)=>{
    if(value.status===401||value.authenticationRequired===true||value.error==='AUTH_REQUIRED')throw new AcquisitionFailure('AUTH_REQUIRED',false);
@@ -47,8 +56,9 @@ export function createArticleFallback(options:{
    if(value&&typeof value==='object'&&!Array.isArray(value)){
     const r=value as Record<string,unknown>;status(r);
     // Older helpers cannot attest final URL; don't promote their browser output.
-    if(r.status===200&&r.url===url&&typeof r.html==='string'){
-     const result=article(r.html,'website_playwright',r.url);if(result)return result;
+    if(r.status===200&&sameUrl(r.url)&&typeof r.html==='string'){
+     try{const result=article(r.html,'website_playwright',r.url);if(result)return result;}
+     catch(error){if(!(error instanceof AcquisitionFailure)||!['CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'].includes(error.code))throw error;}
     }
    }
   }
@@ -62,10 +72,13 @@ export function createArticleFallback(options:{
   requireProviderSuccess(result);
   const r=result.json as Record<string,unknown>;if(!r||typeof r!=='object')throw new AcquisitionFailure('INVALID_RESULT',false);
   status({...r,status:r.statusCode});
-  if(r.url!==url)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_URL_MISMATCH'});
+  if(!sameUrl(r.url))throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_URL_MISMATCH'});
   if(Array.isArray(r.httpResponseHeaders)&&r.httpResponseHeaders.some(h=>h&&typeof h==='object'&&String((h as Record<string,unknown>).name).toLowerCase()==='www-authenticate'))throw new AcquisitionFailure('AUTH_REQUIRED',false);
+  if(r.statusCode===403)throw new AcquisitionFailure('CHALLENGE_REQUIRED',false,{detail:'ZYTE_PUBLISHER_CHALLENGE',httpStatus:403});
   if(r.statusCode!==200||typeof r.httpResponseBody!=='string')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'ZYTE_ARTICLE_UNAVAILABLE'});
   let html:string;try{html=new TextDecoder().decode(Uint8Array.from(atob(r.httpResponseBody),c=>c.charCodeAt(0)));}catch{throw new AcquisitionFailure('INVALID_RESULT',false);}
-  return article(html,'website_zyte',r.url);
+  const acquired=article(html,'website_zyte',r.url);
+  if(!acquired)throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'ZYTE_ARTICLE_TEXT_UNAVAILABLE'});
+  return acquired;
  };
 }

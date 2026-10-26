@@ -84,9 +84,15 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const authorizeArticle=async(url:string)=>{new WorkerPublicSourceFetch(url,fetcher);if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);};
  const articleMaxBytes=PUBLIC_ARTICLE_MAX_BYTES;
  const articleHttp=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,new BoundedFeedHttp(async(url,init)=>{await authorizeArticle(url);return fetcher(url,{...init,redirect:'manual'})},{maxBytes:articleMaxBytes}),authorizeArticle,Date.now,articleMaxBytes):undefined;
- const execution=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE&&env.SOURCE_NATIVE_EXECUTION_ENABLED!=='true'?
-  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'?nativeSourceExecution(async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)}):undefined;
+ const helper=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
+  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):undefined;
+ const execution=composeSourceExecution(env.SOURCE_NATIVE_EXECUTION_ENABLED==='true',helper,async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)});
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
+ resolveGoogleArticle:helper&&env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'?async url=>{
+  await authorizeArticle(url);
+  const result=await helper.execute('google_resolve',{urls:[url]},{timeoutMs:25000}) as {results?:unknown[]};
+  await authorizeArticle(url);return result?.results?.[0];
+ }:undefined,
  publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
  publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:25000});await authorizeArticle(url);return result;}:undefined,
  articleFallback:env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{
@@ -127,4 +133,4 @@ export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<num
  }
  return sent;
 }
-import {nativeSourceExecution} from './native-source-execution';
+import {composeSourceExecution} from './native-source-execution';

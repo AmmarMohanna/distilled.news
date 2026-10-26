@@ -74,6 +74,7 @@ export interface Env extends Cloudflare.Env {
   V1_REVIEW_PREPARATION_ISOLATED?: string;
   SOURCE_SHARED_PUBLIC_FETCH_ENABLED?: string;
   SOURCE_FULL_ARTICLES_ENABLED?: string;
+  SOURCE_COLLECTION_BUDGET_MODE?: 'limited'|'unlimited';
   SOURCE_PER_PROVIDER_BUDGET_USD?: string;
   SOURCE_COLLECTION_INTERVAL_MS?: string;
   SOURCE_COLLECTION_QUEUE?: Queue<import('./connector-scheduling').ConnectorQueueMessage>;

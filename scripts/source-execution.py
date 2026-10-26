@@ -243,9 +243,9 @@ def fetch_public_article(data):
                 return {'error': 'BODY_TOO_LARGE'}
             return {'status': 200, 'url': url, **result}
     except urllib.error.HTTPError as error:
-        return {'status': error.code}
+        return {'status': error.code, 'failureOrigin': 'upstream_http'}
     except (OSError, TimeoutError):
-        return {'error': 'TRANSIENT'}
+        return {'error': 'TRANSIENT', 'failureOrigin': 'upstream_transport'}
 
 
 def fetch_google_feed(data):
