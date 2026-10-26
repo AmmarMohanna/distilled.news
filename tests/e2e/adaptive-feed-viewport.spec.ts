@@ -6,7 +6,7 @@ async function openFeeds(page: Page, count: number) {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/sketch')) return route.fulfill({ status: 404 });
     return route.fulfill({ json: path === '/api/auth/session' ? { authenticated: true, account: { id: 'owner', username: 'owner', role: 'user' } }
-      : path === '/api/me/briefings' ? { briefings: feeds } : path === '/api/explore/feeds' ? { feeds }
+      : path === '/api/me/briefings' ? { briefings: feeds } : path === '/api/explore/feeds' ? { feeds: feeds.map(feed => ({...feed,id:`community-${feed.id}`,ownerAccountId:'community',ownerUsername:'community'})) }
       : path.startsWith('/api/feed/') ? { briefing: feeds[0], editions: [] } : { sources: [] } });
   });
   await page.goto('/');
