@@ -60,6 +60,11 @@ for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }]) 
 test("phone install control explains the browser install path", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" });
   const page = await context.newPage();
+  // This is a Safari fixture running in Chromium. Safari has no native
+  // beforeinstallprompt; don't let Chromium's installability timing change it.
+  await page.addInitScript(() => window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault(); event.stopImmediatePropagation();
+  }));
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
     const data = path === "/api/auth/session" ? { authenticated: true, account: { id: "owner", username: "admin", role: "user" } }
