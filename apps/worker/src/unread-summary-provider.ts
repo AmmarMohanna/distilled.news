@@ -1,10 +1,10 @@
 import {sha256} from '@distilled/contracts';
 import {BriefingBudgetError,BriefingModelError,openAiCompatibleModel,type ModelPort,type ModelResponse} from '@distilled/briefing';
 import type {Env} from './types';
-import {modelSpendingAccount,reserveModelSpending,settleModelSpending} from './v1-intelligence/model-spending';
+import {modelSpendingAccount,ModelSpendingWait,reserveModelSpending,settleModelSpending} from './v1-intelligence/model-spending';
 import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {modelCapability} from './v1-intelligence/model-capacity';
-import {summaryTokenUpperBound} from './unread-summary';
+import {summaryTokenUpperBound,UnreadSummaryResourceWait} from './unread-summary';
 
 /** Same provider account ledger and rate/concurrency admission as live V3.
  * Receipts survive a client disconnect; an uncertain call is never resubmitted. */
@@ -28,7 +28,11 @@ export function unreadSummaryPort(env:Env,feedId:string,readerId:string,fetcher:
     try{
       const accountId=await modelSpendingAccount(db,request.model,at);
       await reserveModelSpending(db,{id,accountId,feedId,model:request.model,token,reservedCostUsd:estimate,createdAt:at,leaseUntil:Date.now()+120_000,providerLimits:configuredProviderLimits(env,'openrouter')});
-    }catch{throw new BriefingBudgetError('Summaries are temporarily unavailable. Try again shortly.');}
+    }catch(error){
+      if(error instanceof ModelSpendingWait&&error.reason==='PROVIDER_RESOURCE_WAIT')throw new UnreadSummaryResourceWait();
+      console.warn('unread-summary-admission-failed',{reason:error instanceof ModelSpendingWait?error.reason:'DATABASE_OR_CONFIGURATION_FAILURE'});
+      throw new BriefingBudgetError('Summaries are temporarily unavailable. Try again shortly.');
+    }
     let response:ModelResponse;
     try{response=await raw.complete(request);}
     catch(error){

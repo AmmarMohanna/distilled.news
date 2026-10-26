@@ -45,6 +45,9 @@ export function parseUnreadSummary(text:string,finishReason?:string){
   return summary;
 }
 
+/** Admission failed before any paid reservation or provider request. */
+export class UnreadSummaryResourceWait extends Error {constructor(){super('PROVIDER_RESOURCE_WAIT');}}
+
 export type UnreadSummaryResult={status:'ready';summary:string}|{status:'pending'}|{status:'empty'};
 type RecordValue={status:'pending'|'ready'|'failed';createdAt:number;summary?:string;expiresAt:number;model:string;input:SummaryInput;usage?:unknown;response?:{text:string;finishReason?:string}};
 
@@ -89,6 +92,10 @@ export async function generateUnreadSummary(options:{
     await db.prepare(`DELETE FROM unread_summary_cache WHERE kind=? AND id IN (SELECT id FROM unread_summary_cache WHERE kind=? AND feed_id=? AND json_extract(json,'$.status')='ready' AND json_extract(json,'$.expiresAt')<=? LIMIT 25)`).bind(KIND,KIND,feedId,now).run().catch(()=>{});
     return {status:'ready',summary};
   }catch(error){
+    if(error instanceof UnreadSummaryResourceWait){
+      await db.prepare('DELETE FROM unread_summary_cache WHERE kind=? AND id=? AND feed_id=?').bind(KIND,id,feedId).run();
+      return {status:'pending'};
+    }
     if(error instanceof BriefingBudgetError||error instanceof BriefingModelError&&!error.uncertain){
       await db.prepare('DELETE FROM unread_summary_cache WHERE kind=? AND id=? AND feed_id=?').bind(KIND,id,feedId).run().catch(()=>{});
     }else{record.status='failed';await save().catch(()=>{});}

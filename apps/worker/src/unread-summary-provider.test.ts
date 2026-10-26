@@ -1,7 +1,7 @@
 import {afterAll,beforeAll,expect,it,vi} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {unreadSummaryPort} from './unread-summary-provider';
-import {generateUnreadSummary,unreadSummaryRequest} from './unread-summary';
+import {generateUnreadSummary,UnreadSummaryResourceWait,unreadSummaryRequest} from './unread-summary';
 import type {Env} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 beforeAll(async()=>{ctx=await createIntakeDatabase({product:true});await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('summary-test',JSON.stringify({revision:1,paused:true})).run();});
@@ -23,4 +23,12 @@ it('does not resubmit an uncertain provider request',async()=>{
 it('blocks unknown-cost responses without releasing or retrying the operation',async()=>{
  const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:'{"summary":"A change was proposed."}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20}}));const port=unreadSummaryPort(config(),'summary-test','missing-cost',fetcher);
  await expect(port.complete(unreadSummaryRequest(input))).rejects.toThrow('usage could not be confirmed');await expect(port.complete(unreadSummaryRequest(input))).rejects.toThrow('could not be confirmed');expect(fetcher).toHaveBeenCalledOnce();
+});
+
+it('preserves holds and returns pending when provider slots are full, without sending inference',async()=>{
+ const fetcher=vi.fn(async()=>{throw Error('MUST_NOT_SEND');});const port=unreadSummaryPort({...config(),V1_PROVIDER_MAX_CONCURRENCY:'1'},'summary-test','capacity-reader',fetcher);
+ const before=await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_model_spending_reservations').first();
+ await expect(port.complete(unreadSummaryRequest(input))).rejects.toBeInstanceOf(UnreadSummaryResourceWait);
+ expect(await generateUnreadSummary({db:ctx.db,feedId:'summary-test',accountId:'capacity-reader',input,port})).toEqual({status:'pending'});
+ expect(fetcher).not.toHaveBeenCalled();expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_model_spending_reservations').first()).toEqual(before);
 });

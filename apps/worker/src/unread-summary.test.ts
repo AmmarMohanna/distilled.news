@@ -4,7 +4,7 @@ import {afterAll,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {BriefingModelError,DEFAULT_PRICES,type ModelPort} from '@distilled/briefing';
 import type {BriefingEdition} from '@distilled/core';
 import {V3SpendGuard} from './v3-spend';
-import {generateUnreadSummary,parseUnreadSummary,prepareUnreadSummary,summaryTokenUpperBound,unreadSummaryRequest} from './unread-summary';
+import {generateUnreadSummary,parseUnreadSummary,prepareUnreadSummary,UnreadSummaryResourceWait,summaryTokenUpperBound,unreadSummaryRequest} from './unread-summary';
 import {migrationStatements} from './test-migrations';
 
 let mf:Miniflare,db:D1Database;
@@ -73,4 +73,12 @@ it('recovers a durably recorded response without another model call',async()=>{
 it('accepts summaries through 120 words without raising the 40-80 word writing target',()=>{
   for(const count of [106,120]){const summary=Array(count).fill('news').join(' ');expect(parseUnreadSummary(JSON.stringify({summary}))).toBe(summary);}
   expect(()=>parseUnreadSummary(JSON.stringify({summary:Array(121).fill('news').join(' ')}))).toThrow('not concise enough');
+});
+
+it('reports provider capacity as pending without retaining a failed cache claim or spending',async()=>{
+  const busy={complete:vi.fn(async()=>{throw new UnreadSummaryResourceWait();})};
+  expect(await generateUnreadSummary({db,accountId:'reader',feedId:'feed',input:input(),port:busy,now})).toEqual({status:'pending'});
+  expect(await db.prepare('SELECT id FROM unread_summary_cache').first()).toBeNull();
+  expect(await db.prepare('SELECT id FROM v3_model_spend').first()).toBeNull();
+  const available=port();expect(await run(available)).toMatchObject({status:'ready'});expect(available.complete).toHaveBeenCalledOnce();
 });

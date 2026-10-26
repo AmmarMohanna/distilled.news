@@ -23,3 +23,7 @@ it('leaves manual publication retired',async()=>{expect((await app.request('/api
 
 it('does not expose the unqualified feature unless explicitly enabled',async()=>{config.UNREAD_SUMMARY_ENABLED=undefined;expect((await post()).status).toBe(503);expect(generateUnreadSummary).not.toHaveBeenCalled();});
 it('does not allow an unverified account to incur summary costs',async()=>{const reader=await repo.createAccount({email:'reader@example.invalid',username:'reader',role:'user',passwordHash:'test'});const unverified='dn_session='+await createSession('test-secret',reader);expect((await post({readIds:[]},{cookie:unverified})).status).toBe(401);expect(generateUnreadSummary).not.toHaveBeenCalled();});
+
+it('returns a retryable pending response for pre-inference provider capacity waits',async()=>{
+ vi.mocked(generateUnreadSummary).mockResolvedValueOnce({status:'pending'});const response=await post();expect(response.status).toBe(202);expect(await response.json()).toEqual({status:'pending'});
+});
