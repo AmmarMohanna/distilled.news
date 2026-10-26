@@ -55,7 +55,7 @@ export class DurableProviderHttp implements ProviderHttpPort {
     private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=20_000,
     private readonly sourceProviderLimitUsd?:number,private readonly deploymentLimits?:Readonly<Record<string,number>>,
     private readonly dailyBudget?:DailyCollectorBudget,private readonly providerDeadlines:Readonly<Record<string,number>>={},private readonly enforceBudgetLimits=true) {
-    if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>10_000_000||!Number.isSafeInteger(deadlineMs)||deadlineMs<1||deadlineMs>60_000)throw new Error('INVALID_PROVIDER_LIMITS');
+    if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>22_000_000||!Number.isSafeInteger(deadlineMs)||deadlineMs<1||deadlineMs>60_000)throw new Error('INVALID_PROVIDER_LIMITS');
     if(sourceProviderLimitUsd!==undefined&&(!Number.isFinite(sourceProviderLimitUsd)||sourceProviderLimitUsd<0))throw new Error('INVALID_SOURCE_PROVIDER_BUDGET');
     if(deploymentLimits!==undefined&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.values(deploymentLimits).some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0)))throw new Error('INVALID_BUDGET');
     if(dailyBudget){if(!Number.isFinite(dailyBudget.limitUsd)||dailyBudget.limitUsd<0)throw Error('INVALID_DAILY_BUDGET');collectorBudgetDay(new Date(),dailyBudget.timeZone);}

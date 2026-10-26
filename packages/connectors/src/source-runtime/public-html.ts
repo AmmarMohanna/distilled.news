@@ -3,7 +3,7 @@ import {discoverWebsiteArticles} from './website-discovery';
 type Node={tagName?:string;nodeName?:string;value?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node};
 const attr=(n:Node,name:string)=>n.attrs?.find(a=>a.name===name)?.value??'';
 const excluded=new Set(['script','style','noscript','nav','header','footer','aside','form','button','svg']);
-export const PUBLIC_ARTICLE_HTML_MAX_BYTES=6_000_000;
+export const PUBLIC_ARTICLE_HTML_MAX_BYTES=15_000_000;
 function text(root:Node,skip=true,keepHeader=false):string {
  const parts:string[]=[],stack=[root];let seen=0;
  while(stack.length&&seen++<100000){const n=stack.pop()!;if(skip&&excluded.has(n.tagName??'')&&!(keepHeader&&n.tagName==='header'))continue;if(n.nodeName==='#text')parts.push(n.value??'');else stack.push(...[...(n.childNodes??[])].reverse());}

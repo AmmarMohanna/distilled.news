@@ -7,7 +7,7 @@ const MAX_BODY_BYTES = 2_000_000;
 export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
   private readonly origin: string;
   constructor(sourceUrl: string, private readonly fetcher: typeof fetch = fetch,private readonly options:{followSameOriginRedirects?:boolean;maxBytes?:number}={}) {
-    if(options.maxBytes!==undefined&&(!Number.isSafeInteger(options.maxBytes)||options.maxBytes<1||options.maxBytes>10_000_000))throw Error('INVALID_HTTP_LIMITS');
+    if(options.maxBytes!==undefined&&(!Number.isSafeInteger(options.maxBytes)||options.maxBytes<1||options.maxBytes>15_000_000))throw Error('INVALID_HTTP_LIMITS');
     const source = admittedUrl(sourceUrl);
     this.origin = source.origin;
   }

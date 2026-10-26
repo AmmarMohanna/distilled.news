@@ -1,18 +1,18 @@
 import {expect,it,vi} from 'vitest';
-import {SourceProviderError,type ProviderHttpPort,type SourceExecutionPort} from '@distilled/connectors';
+import {PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,type ProviderHttpPort,type SourceExecutionPort} from '@distilled/connectors';
 import {createArticleFallback,runtimeArticleFallback} from './article-fallback';
 import type {Env} from '../types';
 import type {AcquisitionClaim} from './acquisition';
 const url='https://publisher.example/news/decision';
 const claim={job:{id:'stable-job'},input:{observation:{canonicalUrl:url,feedId:'feed',feedSourceId:'source',sourceId:'publisher'}}} as AcquisitionClaim;
 const html=`<meta property="article:published_time" content="2026-10-01T12:00:00Z"><article><h1>Decision</h1><p>${'The council approved the proposal. '.repeat(30)}</p></article>`;
-it('retains readable article text in a publisher page larger than two megabytes',async()=>{
- const large=html+'<script>'+ 'x'.repeat(2_100_000)+'</script>';
+it('retains readable article text in a publisher page larger than the previous six-megabyte limit',async()=>{
+ const large=html+'<script>'+ 'x'.repeat(8_000_000)+'</script>';
  const f=fixture({status:200,url,html:large});
  expect(await f.fallback(claim)).toMatchObject({provider:'website_playwright',publishedAt:'2026-10-01T12:00:00.000Z'});
  expect(f.request).not.toHaveBeenCalled();
 });
-it.each(['<title>Just a moment</title>',html+'<script>'+'x'.repeat(6_000_000)+'</script>'])('continues from browser challenge or oversized HTML to funded Zyte',async browserHtml=>{
+it.each(['<title>Just a moment</title>',html+'<script>'+'x'.repeat(PUBLIC_ARTICLE_HTML_MAX_BYTES)+'</script>'])('continues from browser challenge or oversized HTML to funded Zyte',async browserHtml=>{
  const f=fixture({status:200,url,html:browserHtml});expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte'});expect(f.request).toHaveBeenCalledTimes(1);
 });
 it('accepts exact trailing-slash normalization without changing candidate identity',async()=>{

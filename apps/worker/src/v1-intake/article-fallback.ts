@@ -6,7 +6,8 @@ import {createSourceBackend} from '../source-backend';
 export function runtimeArticleFallback(env:Env,execution:SourceExecutionPort|undefined,authorize:(url:string)=>Promise<void>,dispatch:typeof fetch){
  const budgets=JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'),ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}');
  const enabled=!!env.ZYTE_API_KEY&&typeof budgets.zyte==='number'&&budgets.zyte>0&&typeof ceilings.zyte==='number'&&ceilings.zyte>0;
- const backend=enabled?createSourceBackend(env,{paidResponseMaxBytes:10_000_000,authorize:async()=>false,intake:{acceptBatch:async()=>{throw Error('ARTICLE_ONLY')}},
+ // Base64-encoded 15 MB article HTML needs 20 MB plus bounded JSON metadata.
+ const backend=enabled?createSourceBackend(env,{paidResponseMaxBytes:22_000_000,authorize:async()=>false,intake:{acceptBatch:async()=>{throw Error('ARTICLE_ONLY')}},
   fetcher:async(value,init)=>{await authorize(String((JSON.parse(String(init?.body)) as {url:string}).url));return dispatch(value,init);}}):undefined;
  return createArticleFallback({execution,authorize,zyte:backend?{http:backend.paidHttp,key:env.ZYTE_API_KEY!,ceilingUsd:ceilings.zyte,
   initialize:()=>backend.paidHttp.configureLimits({zyte:budgets.zyte},env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')}:undefined});

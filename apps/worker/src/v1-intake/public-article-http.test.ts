@@ -7,8 +7,8 @@ it('distinguishes a public cross-origin redirect so the exact-article fallback c
  await expect(readPublicArticle({get},'https://www.nature.com/articles/story')).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'ARTICLE_CROSS_ORIGIN_REDIRECT'}});
  expect(get).toHaveBeenCalledTimes(1);
 });
-it('reads publisher HTML larger than 512 KB while retaining a bounded transport',async()=>{
- const body='<html>'+ ' '.repeat(800_000)+'</html>';
+it('reads publisher HTML larger than the previous six-megabyte limit while retaining a bounded transport',async()=>{
+ const body='<html>'+ ' '.repeat(8_000_000)+'</html>';
  const http=new BoundedFeedHttp(async()=>new Response(body),{maxBytes:PUBLIC_ARTICLE_MAX_BYTES});
  expect((await readPublicArticle(http,'https://publisher.example/story')).body).toBe(body);
 });
