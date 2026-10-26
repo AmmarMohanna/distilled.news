@@ -1946,6 +1946,8 @@ async function maybeRedirectUsernameRoute(
 ): Promise<Response | null> {
   if (c.req.method !== "GET") return null;
   const path = new URL(c.req.url).pathname;
+  // Bundled files are assets, never username/feed aliases. Keep app loading independent of D1.
+  if (/^\/assets\/[^/]+\.(?:js|css|map)$/.test(path)) return null;
   const match = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
   if (!match) return null;
   const [, username, slug] = match;
