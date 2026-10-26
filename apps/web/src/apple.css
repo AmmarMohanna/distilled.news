@@ -2469,3 +2469,21 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui[data-theme="dark"] .auth-dialog .auth-choice { color: var(--muted); }
 :root.apple-ui.apple-ui[data-theme="dark"] :is(input,textarea)::placeholder { color: var(--muted); opacity: 1; }
 :root.apple-ui.apple-ui[data-theme="dark"] :is(.feed-editor .voice-field,.source-search-field,.auth-dialog .auth-input) { border-color: var(--line-strong); }
+
+/* One quiet catch-up action alongside search; the prose stays in the reader. */
+:root.apple-ui.apple-ui .feed-shell .feed-tools:has(.unread-summary) { display: grid; grid-template-columns: minmax(0,440px) auto; justify-content: start; align-items: center; gap: 12px; }
+:root.apple-ui.apple-ui .feed-shell .feed-tools:has(.unread-summary) .feed-side-actions { width: 100%; margin: 0; min-width: 0; }
+.unread-summary { display: contents; }
+:root.apple-ui.apple-ui .unread-summary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid color-mix(in srgb,var(--accent) 25%,var(--surface)); border-radius: 999px; background: color-mix(in srgb,var(--accent) 9%,var(--surface)); color: var(--accent-ink); font: inherit; font-size: .875rem; font-weight: 600; white-space: normal; max-width: 100%; cursor: pointer; }
+:root.apple-ui.apple-ui .unread-summary-button:hover:not(:disabled) { background: color-mix(in srgb,var(--accent) 16%,var(--surface)); }
+:root.apple-ui.apple-ui .unread-summary-button:disabled { cursor: progress; opacity: 1; }
+.unread-summary-button > svg { flex-shrink: 0; }
+:root.apple-ui.apple-ui .unread-summary-card { grid-column: 1 / -1; position: relative; max-width: 760px; padding: 20px 60px 20px 20px; border: 1px solid color-mix(in srgb,var(--accent) 25%,var(--line)); border-radius: 18px; background: color-mix(in srgb,var(--accent) 5%,var(--surface)); }
+:root.apple-ui.apple-ui[dir="rtl"] .unread-summary-card { padding: 20px 20px 20px 60px; }
+.unread-summary-card p { margin: 0; font-size: 1rem; line-height: 1.55; color: var(--text); }
+:root.apple-ui.apple-ui .unread-summary-close { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.unread-summary :is(button):focus-visible, .unread-summary-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.summary-spinner { animation: summary-spin 1s linear infinite; }
+@keyframes summary-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .summary-spinner { animation: none; } }
+@media (max-width: 600px) { :root.apple-ui.apple-ui .feed-shell .feed-tools:has(.unread-summary) { grid-template-columns: minmax(0,1fr); } :root.apple-ui.apple-ui .unread-summary-button { justify-self: start; } }

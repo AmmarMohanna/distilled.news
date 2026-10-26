@@ -1,4 +1,6 @@
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
+import {generateUnreadSummary,prepareUnreadSummary} from './unread-summary';
+import {unreadSummaryPort} from './unread-summary-provider';
 import {readTopicPublishers} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
 import {collectorBudgetStatus} from './collector-budget';
@@ -1159,6 +1161,7 @@ export function createApp(options: AppOptions = {}) {
     const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
+      unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
       sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
@@ -1206,7 +1209,24 @@ export function createApp(options: AppOptions = {}) {
     });
   });
 
-  // Retired in modern and legacy deployments; no collection/publication side effects.
+  app.post('/api/feed/:username/:briefingSlug/unread-summary',async(c)=>{
+    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
+    const claims=await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET??'');
+    const reader=claims?await resolved.repo.getAccountById(claims.sub):null;
+    if(!reader||reader.disabledAt||!reader.emailVerifiedAt)return c.json({error:'Sign in to summarize unread briefings.'},401);
+    const origin=c.req.header('origin');if(origin&&origin!==new URL(c.req.url).origin)return c.json({error:'Invalid request origin.'},403);
+    if(c.env.UNREAD_SUMMARY_ENABLED!=='true'||!c.env.DB||!c.env.OPENROUTER_API_KEY||c.env.BRIEFING_ENGINE!=='v3')return c.json({error:'Summaries are not configured on this deployment.'},503);
+    const {readIds}=z.object({readIds:z.array(z.string().min(1).max(300)).max(1000)}).strict().parse(await c.req.json());
+    const editions=c.env.PRODUCT_FEEDS_ENABLED==='true'?await publishedProductEditions(c.env,resolved.briefing):(await resolved.repo.listBriefingEditions(resolved.briefing.id,true)).filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
+    let input;try{input=prepareUnreadSummary(editions,readIds,resolved.briefing.language);}catch{return c.json({error:'These briefings are too long to summarize together.'},422);}
+    const task=generateUnreadSummary({db:c.env.DB,accountId:reader.id,feedId:resolved.briefing.id,input,port:unreadSummaryPort(c.env,resolved.briefing.id,reader.id),recordUsage:usage=>resolved.repo.recordLlmUsage({briefingId:resolved.briefing.id,purpose:'summary',phase:'unread_summary',outcome:'SUCCESS',model:usage.model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,estimatedCostUsd:usage.costUsd??0,reportedCostUsd:usage.costUsd,latencyMs:usage.latencyMs})});
+    try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
+    c.header('Cache-Control','private, no-store');
+    try{const result=await task;return c.json(result,result.status==='pending'?202:200);}
+    catch{return c.json({error:'Could not summarize right now. Try again shortly.'},503);}
+  });
+
+  // Retired: summaries above never collect articles or publish editions.
   app.post("/api/feed/:username/:briefingSlug/request-summary", (c) =>
     c.json({error:"Manual briefing generation is retired. Briefings publish automatically on the feed schedule."},410));
 

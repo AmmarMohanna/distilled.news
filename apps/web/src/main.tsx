@@ -6,6 +6,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./FeedNotice";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { FeedArt } from "./FeedArt";
+import { UnreadSummary } from './UnreadSummary';
 import { createRoot } from "react-dom/client";
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import {
@@ -1709,6 +1710,11 @@ function FeedPage(props: { username: string; slug: string }) {
             />
           </form>
         </div>
+        {account&&payload?.unreadSummaryAvailable&&payload.editions.some(edition=>!readIds.has(edition.id)&&Date.parse(edition.publishedAt)>Date.now()-86_400_000&&Date.parse(edition.publishedAt)<=Date.now())&&<UnreadSummary
+          username={props.username} slug={props.slug}
+          readIds={payload.editions.filter(edition=>readIds.has(edition.id)).map(edition=>edition.id)}
+          contentKey={JSON.stringify(payload.editions.map(edition=>[edition.id,edition.summary,readIds.has(edition.id)]))}
+        />}
       </div>
       {reportEdition && selectedReport ? (
         <SourcesSheet
