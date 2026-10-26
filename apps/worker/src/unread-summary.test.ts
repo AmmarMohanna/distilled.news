@@ -4,7 +4,7 @@ import {afterAll,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {BriefingModelError,DEFAULT_PRICES,type ModelPort} from '@distilled/briefing';
 import type {BriefingEdition} from '@distilled/core';
 import {V3SpendGuard} from './v3-spend';
-import {generateUnreadSummary,prepareUnreadSummary,summaryTokenUpperBound,unreadSummaryRequest} from './unread-summary';
+import {generateUnreadSummary,parseUnreadSummary,prepareUnreadSummary,summaryTokenUpperBound,unreadSummaryRequest} from './unread-summary';
 import {migrationStatements} from './test-migrations';
 
 let mf:Miniflare,db:D1Database;
@@ -68,4 +68,9 @@ it('recovers a durably recorded response without another model call',async()=>{
   const value=JSON.parse(row!.json);value.status='pending';delete value.summary;
   await db.prepare('UPDATE unread_summary_cache SET json=? WHERE id=?').bind(JSON.stringify(value),row!.id).run();
   expect(await run(p)).toMatchObject({status:'ready'});expect(p.complete).toHaveBeenCalledOnce();
+});
+
+it('accepts summaries through 120 words without raising the 40-80 word writing target',()=>{
+  for(const count of [106,120]){const summary=Array(count).fill('news').join(' ');expect(parseUnreadSummary(JSON.stringify({summary}))).toBe(summary);}
+  expect(()=>parseUnreadSummary(JSON.stringify({summary:Array(121).fill('news').join(' ')}))).toThrow('not concise enough');
 });

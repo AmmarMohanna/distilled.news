@@ -41,7 +41,7 @@ export function parseUnreadSummary(text:string,finishReason?:string){
   const parsed=JSON.parse(text);
   if(typeof parsed.summary!=='string')throw Error('The summary could not be read.');
   const summary=parsed.summary.replace(/\s+/gu,' ').trim();
-  if(!summary||summary.length>3000||summary.split(/\s+/u).length>100)throw Error('The summary was not concise enough.');
+  if(!summary||summary.length>3000||summary.split(/\s+/u).length>120)throw Error('The summary was not concise enough.');
   return summary;
 }
 

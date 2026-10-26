@@ -49,3 +49,7 @@ All eight calls settled: **$0.0031724**, 4,767 input tokens and 791 output token
 Exact inputs, outputs, provider usage and item-by-item findings are in `.local-reports/unread-summary/model-results.json`, `model-review.json` and the corresponding provider/input artifacts. Local financial history persists at the repository root in `.local-reports/unread-eval-20261026`. No further paid experiments are authorized by this exhausted eight-call scope. A small, separately authorized instruction comparison could test selective compression and preservation of epistemic qualifiers; do not broaden prompts or enable this candidate based on these results. Live Cloudflare integration remains blocked separately.
 
 A separate process reopened the persisted local database after the run and confirmed **8 settled operations totaling $0.0031724**, **7 ready summaries** and **1 failed summary**, with no outstanding hold in this new evaluation ledger (`independent-readback.json`).
+
+## Length tolerance adjustment
+
+At the user's request, the application now accepts summaries of up to **120 words** while retaining **40?80 words** as the writing target. The recorded 106-word output therefore passes the current length check. Historical evaluation records above retain the original 100-word policy and its actual rejection; no paid operation is retried or retrospectively rewritten. This change does not resolve the independently identified factual failures or enable deployment. Boundary regressions cover 106, 120 and 121 words. No further inference was needed.
