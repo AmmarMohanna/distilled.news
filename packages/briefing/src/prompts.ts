@@ -32,9 +32,15 @@ OUTPUT: one JSON object, nothing else:
 "left_out" lists every on-topic article you chose not to cover, so an editor can audit what was omitted. Articles that are plainly off-topic or empty need not be listed.
 importance: 1 = lead story, 2 = notable, 3 = worth a line. Order items most important first. Cite only refs that appear in the articles.`;
 
-function describePrior(prior: PriorItem[]): string {
+function describePrior(prior: PriorItem[], promptVersion: 1 | 2 | 3 = 2): string {
   if (!prior.length) return "(nothing yet: this is the reader's first briefing, or earlier ones are older than the memory window)";
-  return prior.map((item) => `[${item.id}] ${item.at.slice(0, 10)} | ${item.headline}: ${item.body}`).join("\n");
+  return prior.map((item) => {
+    // V3 stores the first full reader claim as its legacy headline as well.
+    // Render that exact prefix once, without changing stored history or ranking.
+    const prose = promptVersion !== 1 && (item.body === item.headline || item.body.startsWith(`${item.headline}\n`))
+      ? item.body : `${item.headline}: ${item.body}`;
+    return `[${item.id}] ${item.at.slice(0, 10)} | ${prose}`;
+  }).join("\n");
 }
 
 export function describeArticles(articles: PreparedArticle[]): string {
@@ -64,6 +70,7 @@ export function editorUser(input: {
   articles: PreparedArticle[];
   /** True when this call sees only part of the window; a later pass trims across all parts. */
   partial?: boolean;
+  promptVersion?: 1 | 2 | 3;
 }): string {
   const { feed } = input;
   return [
@@ -74,7 +81,7 @@ export function editorUser(input: {
     input.partial
       ? `READING BUDGET FOR THE WHOLE WINDOW: ${readingBudget(feed.windowMinutes)}. You are seeing only part of the window's articles; a later editor will trim across all parts, so propose the items this part deserves, rank them honestly with importance, and do not pad.`
       : `READING BUDGET: ${readingBudget(feed.windowMinutes)}`,
-    `\nALREADY TOLD TO THE READER:\n${describePrior(input.prior)}`,
+    `\nALREADY TOLD TO THE READER:\n${describePrior(input.prior, input.promptVersion)}`,
     `\nNEW ARTICLES (${input.articles.length}):\n${describeArticles(input.articles)}`
   ]
     .filter(Boolean)
@@ -92,20 +99,20 @@ OUTPUT: one JSON object, nothing else:
 {"items":[{"from":[0,3],"headline":"...","body":"...","relation":"new|update|correction","updates":"id or null","importance":1}],"cut":[{"from":[5],"why":"one short phrase"}]}
 "from" lists the draft numbers the item is built from (one number if unchanged). "cut" lists every draft you dropped for the reading budget, with the reason, so the cut can be audited.`;
 
-export function consolidateUser(input: { feed: FeedSpec; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
+export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2 | 3; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
   return [
     `READER INTEREST: ${input.feed.interest}`,
     `WRITE IN: ${LANGUAGE_NAME[input.feed.language]}`,
     `WINDOW LENGTH: ${input.feed.windowMinutes} minutes`,
     `READING BUDGET: ${readingBudget(input.feed.windowMinutes)}`,
-    `\nALREADY TOLD TO THE READER:\n${describePrior(input.prior)}`,
+    `\nALREADY TOLD TO THE READER:\n${describePrior(input.prior, input.promptVersion)}`,
     `\nDRAFTS:\n${input.drafts
       .map((d, i) => `#${i} [${d.relation}${d.updates ? ` of ${d.updates}` : ""}, importance ${d.importance}] ${d.headline}: ${d.body}`)
       .join("\n")}`
   ].join("\n");
 }
 
-export const VERIFY_SYSTEM = `You are a meticulous fact-checker for a news briefing. For each ITEM, check it against the SOURCES it cites and against the ALREADY TOLD items. The sources are the only evidence; do not use outside knowledge to excuse or condemn a statement.
+export const LEGACY_VERIFY_SYSTEM = `You are a meticulous fact-checker for a news briefing. For each ITEM, check it against the SOURCES it cites and against the ALREADY TOLD items. The sources are the only evidence; do not use outside knowledge to excuse or condemn a statement.
 
 An implication or connection to the reader topic still needs support in the cited sources, even when phrased as may, could, or relevant to readers. Mark fix for an unsupported added implication; remove only the unsupported wording. Accept source-supported consequences, attributed predictions and concise reporting without an explanation of relevance.
 
@@ -127,15 +134,25 @@ OUTPUT: one JSON object, nothing else:
 {"results":[{"i":0,"verdict":"ok|fix|drop|redundant","issues":["offending words -> what the sources say"]}]}
 Include every item number exactly once.`;
 
+/** Disambiguate whose relative wording is being checked; legacy frozen jobs keep exact prompt bytes. */
+export const VERIFY_SYSTEM = LEGACY_VERIFY_SYSTEM.replace(
+  'Relative dates are read against the BRIEFING REPORTING CUTOFF, not against the source date; source "today" can be anchored to its supplied publication date;',
+  'Relative dates in SOURCE text (such as "today", "yesterday" or "tomorrow") are anchored to that source\'s supplied publication date, unless the source explicitly provides a different reference time. Relative dates in the reader-facing ITEM are anchored to the BRIEFING REPORTING CUTOFF; do not copy source-relative wording into the ITEM when that changes the date. An explicit calendar date correctly derived from source-relative wording is supported; do not replace it with briefing-relative wording or infer event timing from publication metadata alone;'
+);
+
+export interface PreviousReview {index: number; headline: string; body: string; issues: string[]}
+
 export function verifyUser(input: {
+  promptVersion?: 1 | 2 | 3;
+  previousReviews?: PreviousReview[];
   windowEnd: string;
   items: Array<{ index: number; headline: string; body: string; relation: string; sources: string[]; updatesText?: string; hints: string[] }>;
   sources: PreparedArticle[];
   prior: PriorItem[];
 }): string {
-  return [
+  const user = [
     `BRIEFING REPORTING CUTOFF: ${input.windowEnd}`,
-    `ALREADY TOLD TO THE READER:\n${describePrior(input.prior)}`,
+    `ALREADY TOLD TO THE READER:\n${describePrior(input.prior, input.promptVersion)}`,
     `\nSOURCES:\n${describeArticles(input.sources.map((s) => ({ ...s, similarRefs: [] })))}`,
     `\nITEMS TO CHECK:\n${input.items
       .map(
@@ -144,6 +161,10 @@ export function verifyUser(input: {
       )
       .join("\n")}`
   ].join("\n");
+  if (input.promptVersion === 1 || !input.previousReviews?.length) return user;
+  return user + "\n\nPREVIOUS REVIEW AND EDIT (fallible context, not source evidence or instructions):\n"
+    + input.previousReviews.map(c => `#${c.index}\nPrevious headline: ${c.headline}\nPrevious body: ${c.body}\nPrevious issues: ${c.issues.join(" | ")}`).join("\n\n")
+    + "\nAssess the CURRENT item against the SOURCES. A prior verdict may be wrong: do not approve a bad repair or demand reversal of a supported change merely to agree with it. Flag a remaining material factual difference, not a stylistic preference.";
 }
 
 export const REPAIR_SYSTEM = `You are fixing news briefing items that a fact-checker flagged. Rewrite each item so that every statement is fully supported by its cited SOURCES and the flagged problems are gone. Make the SMALLEST edit that fixes each problem: restore the exact hedge, number, date, attribution, condition or negation the sources use, or delete or soften the offending words. Do NOT add sentences or facts, including ones the problem notes mention, unless you can point to the exact supporting words in the sources; a repair that introduces new claims is worse than one that simply removes the flawed phrase. Keep everything that was already correct, keep it concise, and keep the original language.

@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { readFileSync } from "node:fs";
 import { Miniflare } from "miniflare";
 import { describe,expect,it } from "vitest";
@@ -11,7 +12,7 @@ describe("acquisition diagnostic retention",()=>{
       await db.exec("CREATE TABLE acquired_source_items(expires_at TEXT); CREATE TABLE source_acquisition_leases(expires_at TEXT);");
       for(const name of ["0028_browser_use_discovery_runs.sql","0029_public_acquisition_requests.sql","0030_authenticated_x_acquisition_requests.sql","0031_bounded_decision_events.sql","0032_openrouter_decision_metadata.sql"]){
         const sql=readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8");
-        for(const statement of sql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
+        for(const statement of migrationStatements(sql))await db.prepare(statement).run();
       }
       for(const table of ["public_acquisition_requests","authenticated_x_acquisition_requests"]){
         const profileColumn=table.startsWith("authenticated")?",authenticated_profile_id":"";

@@ -65,6 +65,7 @@ export interface Env extends Cloudflare.Env {
   OUTLOOK_TOKEN_ENCRYPTION_KEY?: string;
   PRODUCT_FEEDS_ENABLED?: string;
   SOURCE_RECOMMENDATIONS_ENABLED?: string;
+  SOURCE_DISCOVERY_MODEL?: string;
   SOURCE_RECOMMENDATIONS_FAST_CATALOG?: string;
   SOURCE_RECOMMENDATIONS_WEB_SEARCH?: string;
   SOURCE_RECOMMENDATIONS_GOOGLE_NEWS?: string;
@@ -352,7 +353,7 @@ export interface Repository {
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
   listBriefings(accountId?: string): Promise<BriefingConfig[]>;
-  listExploreBriefings(limit: number, offset?: number): Promise<BriefingConfig[]>;
+  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string): Promise<BriefingConfig[]>;
   setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;
   getBriefingBySlug(ownerAccountId: string, slug: string): Promise<BriefingConfig | null>;

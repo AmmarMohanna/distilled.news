@@ -1,10 +1,11 @@
 import type { Env } from './types';
+import {expireSourceAssessments} from './source-assessment-cache';
 import { semanticWaitRecord } from './v1-intelligence/semantic-wait-record';
 
 const DAY = 86_400_000;
 const STATE_KEY = 'storage:maintenance:v1';
 type Row = { id: string; feed_id: string; json: string };
-type SweepState = { cursor: string; archived: number; bytesOffloaded: number; expired: number; updatedAt: string };
+type SweepState = { cursor: string; assessmentCacheCursor?: string; archived: number; bytesOffloaded: number; expired: number; updatedAt: string };
 const initialState = (): SweepState => ({ cursor: '', archived: 0, bytesOffloaded: 0, expired: 0, updatedAt: '' });
 
 export async function readStorageHealth(db: D1Database) {
@@ -45,6 +46,7 @@ async function archiveVerified(bucket: R2Bucket, text: string): Promise<{ key: s
  * never enter this cleanup path. No schema migration is needed to recover a full DB. */
 export async function runStorageMaintenance(env: Pick<Env, 'DB' | 'RAW_ARCHIVE'>, now = new Date()) {
   const state = await readState(env.DB);
+  try{state.assessmentCacheCursor=(await expireSourceAssessments(env.RAW_ARCHIVE,now.getTime(),state.assessmentCacheCursor)).cursor;}catch{console.warn('Source assessment cache cleanup deferred');}
   const deadline = Date.now() + 20_000;
   let scanned = 0, archived = 0, bytesOffloaded = 0, expired = 0;
   // Keyset pagination bounds both response memory and SQL work. Each query reads

@@ -1,3 +1,4 @@
+import {applyTestMigration} from '../test-migrations';
 import { readFileSync, existsSync,readdirSync } from 'node:fs';
 import { Miniflare } from 'miniflare';
 import { handoffFixture, hashContent, type ConnectorHandoffRequest, type NormalizedEvidenceItem, type EvidenceRevision } from '@distilled/contracts';
@@ -11,14 +12,16 @@ export const testPolicy: IntakePolicy = {
 };
 export async function createIntakeDatabase(options:{product?:boolean;modelSpending?:boolean}={}) {
   const mf = new Miniflare({modules:true, script:"export default {fetch(){return new Response('ok')}}", d1Databases:['DB']});
+  try {
   const db = await mf.getD1Database('DB') as unknown as D1Database;
   for(const name of options.product?readdirSync(new URL('../../migrations/',import.meta.url)).filter(n=>n.endsWith('.sql')).sort():['0035_v1_intake_evidence.sql','0036_v1_acquisition_results.sql','0037_v1_feed_intelligence.sql','0038_v1_publication_jobs.sql','0039_v1_product_sources.sql','0041_v1_briefing_outbox.sql','0042_v1_feed_versions.sql','0050_v1_queue_dispatch.sql','0051_model_spending_authority.sql','0052_model_spending_concurrency_amendments.sql','0064_model_provider_admission.sql']) {
     const path = new URL(`../../migrations/${name}`, import.meta.url);
-    if (existsSync(path)) {const sql=readFileSync(path,'utf8').replace(/^\s*--[^\n]*$/gm,'').replace(/\r?\n/g,' ').trim();if(sql) await db.exec(sql)}
+    if (existsSync(path)) {await applyTestMigration(db,readFileSync(path,'utf8'))}
   }
   // Local deterministic stand-ins only. No deployed authority is generated.
   if(options.modelSpending!==false)await db.prepare('INSERT INTO v1_model_spending_authorizations VALUES(?,?,?,?,?)').bind('test-only-grant','test-only-account','2000-01-01T00:00:00Z','2100-01-01T00:00:00Z',JSON.stringify({id:'test-only-grant',accountId:'test-only-account',modelIds:['*'],validFrom:'2000-01-01T00:00:00Z',validUntil:'2100-01-01T00:00:00Z',maxExposureUsd:100,maxConcurrentOperations:100})).run();
   return {db, dispose:()=>mf.dispose()};
+  } catch (error) { await mf.dispose(); throw error; }
 }
 export async function seedIntakeScope(store: V1IntakeStore) { await store.registerScope(scopeFixture) }
 export function batchFixture(sequence=1):ConnectorHandoffRequest {

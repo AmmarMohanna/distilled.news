@@ -187,6 +187,7 @@ it('an interval edit preserves the original pending request and retries its froz
  expect(next.window.start).toBe(oldMessage.window.end);expect(next.window.end).toBe('2026-10-03T13:35:40.123Z');
 },60000);
 
+
 it('keeps V3 briefing attempts intact while another feed operation owns the semantic lease',async()=>{
  await article();const lease=await acquireSemanticWorkLease(store,'feed-1');const seen:string[]=[];
  try{
@@ -204,3 +205,22 @@ it('large V3 batches serialize feed commits and can replay paid chunks without l
  const seen:string[]=[];const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
  expect(edition?.engine).toBe('v3');expect(seen.length).toBeGreaterThan(2);expect(maxActive).toBe(1);
 },60000);
+
+for (const promptVersion of [undefined,2,3] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
+ await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.promptVersion).toBe(3);
+ const id=await windowIdentity('feed-1',window),full='Earlier notice\nOfficials say approval is still required.';
+ const frozen={...prepared,id,input:{...prepared.input,prior:[{id:'previous-reader-item',at:'2026-10-03T11:30:00Z',headline:full,body:full}]}};
+ if(promptVersion===undefined)delete frozen.promptVersion;
+ else frozen.promptVersion=promptVersion;
+ await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',id,frozen));
+ const seen:string[]=[],transport=fetcher(seen),original=FeedTransaction.prototype.write;let crash=true;
+ vi.spyOn(FeedTransaction.prototype,'write').mockImplementation(async function(this:FeedTransaction,kind,key,value){if(kind==='v3_window_results'&&crash){crash=false;throw Error('result persistence interruption')}return original.call(this,kind,key,value)});
+ const checked=(async(url,init)=>{const request=JSON.parse(String(init?.body));if(request.messages?.[0]?.content.startsWith('You are the editor'))expect(request.messages[1].content.split(full)).toHaveLength(promptVersion===undefined?3:2);return transport(url,init);}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await expect(processV1Briefing(env,message,()=>window.end,undefined,checked)).rejects.toThrow();
+ expect(seen).toHaveLength(2);
+ expect((await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,checked))?.engine).toBe('v3');
+ expect(seen).toHaveLength(2);
+ expect((await store.read<{promptVersion?:number}>('feed-1','v3_window_inputs',id))?.promptVersion).toBe(promptVersion);
+},30000);

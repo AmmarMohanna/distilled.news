@@ -13,6 +13,36 @@ it.each([404,410,402,403,429,503])('reports the actual publisher HTTP %s without
  expect(fetch).toHaveBeenCalledTimes(status===503?2:1);
 });
 const rss = '<rss version="2.0"><channel><title>Lebanon News</title><item><guid>one</guid><title>Lebanon parliament discusses economic reforms and infrastructure investment</title><description>Reporting on the latest public policy and economic developments in Beirut and across Lebanon.</description><link>https://publisher.example/story</link></item></channel></rss>';
+it('does not infer historical user intent from an inactive basketball archive',async()=>{
+ const interest={title:'Lebanese basketball',description:'Lebanese basketball clubs, national team, league games and players'};
+ const old='<rss><channel><title>Basketball archive</title><item><guid>old</guid><title>Lebanese basketball league transfers</title><description>Lebanese basketball clubs announce their league rosters.</description><pubDate>Tue, 01 Jan 2013 12:00:00 GMT</pubDate><link>https://publisher.example/old</link></item></channel></rss>';
+ const dispatch=vi.fn<typeof fetch>(async(url,init)=>{
+  if(!String(url).includes('openrouter.ai'))return new Response(old);
+  const request=JSON.parse(init!.body as string);
+  if(request.messages[0].content.startsWith('Classify only')){
+   expect(JSON.parse(request.messages[1].content)).toEqual(interest);
+   expect(request.messages[1].content).not.toContain('2013');
+   return Response.json({choices:[{message:{content:JSON.stringify({historicalInterest:'NO'})}}]});
+  }
+  return Response.json({choices:[{message:{content:JSON.stringify({realWorldInterest:'YES',exactTopic:'YES',historicalInterest:'YES',concern:'NO',reason:'The articles cover Lebanese basketball.',evidenceId:'E1'})}}]});
+ });
+ expect(await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},interest,'rss: https://publisher.example/feed',dispatch)).toMatchObject({status:'unverified',reason:expect.stringContaining('past year')});
+ expect(dispatch).toHaveBeenCalledTimes(3);
+});
+it.each(['NO','UNKNOWN','HTTP_FAILURE'])('does not accept a source when its selected passage audit returns %s',async audit=>{
+ const unrelated='<rss><channel><title>Science</title><item><guid>dinosaur</guid><title>A dinosaur fossil discovered in China</title><description>Researchers describe a Jurassic dinosaur fossil.</description><link>https://publisher.example/dinosaur</link></item></channel></rss>';
+ const dispatch=vi.fn<typeof fetch>(async(url,init)=>{
+  if(!String(url).includes('openrouter.ai'))return new Response(unrelated);
+  const request=JSON.parse(init!.body as string),state=JSON.parse(request.messages[1].content);
+  if(state.passage){
+   expect(state.passage).toContain('dinosaur');expect(state).not.toHaveProperty('source');
+   return audit==='HTTP_FAILURE'?new Response('Unavailable',{status:503}):Response.json({choices:[{message:{content:JSON.stringify({exactTopic:audit,reason:'This passage does not establish Ancient Egypt coverage.'})}}]});
+  }
+  return Response.json({choices:[{message:{content:JSON.stringify({realWorldInterest:'YES',exactTopic:'YES',historicalInterest:'YES',concern:'NO',reason:'The source covers ancient history.',evidenceId:'E1'})}}]});
+ });
+ expect(await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},{title:'Ancient Egypt',description:'Ancient Egyptian archaeology'},'rss: https://publisher.example/feed',dispatch)).toMatchObject({status:audit==='NO'?'rejected':'unverified'});
+ expect(dispatch).toHaveBeenCalledTimes(3);
+});
 const answer = (choice = 'YES', confidence = 0.95) => ({ type: 'choice', choice, confidence, probabilities: { YES: choice === 'YES' ? 0.96 : 0.02, NO: choice === 'NO' ? 0.96 : 0.02, UNKNOWN: choice === 'UNKNOWN' ? 0.96 : 0.02 } });
 const decision = (alignment = answer(), concern = answer('NO')) => ({ answers: { news: answer(), alignment, concern } });
 it('checks Google News through native RSS even when paid verification is enabled',async()=>{
@@ -32,7 +62,14 @@ it.each([
  const result=await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},{title:'السلطان عبد الحميد الثاني',description:'تاريخ السلطان عبد الحميد الثاني'},'https://publisher.example/rss.xml',dispatch);
  expect(result.status).toBe(row.status);
  if(row.status==='accepted')expect(result).toMatchObject({freshness:'archive',coverage:'direct',evidenceQuote:expect.stringContaining('عبد الحميد')});
- expect(dispatch).toHaveBeenCalledTimes(2);
+ expect(dispatch).toHaveBeenCalledTimes(row.status==='accepted'?4:2);
+});
+it('reports a Telegram account rate limit separately from a broken runtime',async()=>{
+ const service=vi.fn(async()=>Response.json({error:'RATE_LIMIT',retryNotBefore:'2026-10-25T00:00:00Z'}));
+ const dispatch=vi.fn<typeof fetch>();
+ const configured={...env,SOURCE_EXECUTION_URL:'https://execution.example/v1/source-execution',SOURCE_EXECUTION_TOKEN:'test-only-token-'.repeat(3),SOURCE_EXECUTION_SERVICE:{fetch:service}} as unknown as Env;
+ expect(await assessSource(configured,context,'https://t.me/telegram',dispatch)).toMatchObject({status:'unverified',failureCode:'TELEGRAM_RATE_LIMIT',reason:expect.stringContaining('rate limiting')});
+ expect(service).toHaveBeenCalledTimes(1);expect(dispatch).not.toHaveBeenCalled();
 });
 it('checks Telegram relevance using authenticated recent posts, without fetching its public preview',async()=>{
  const service=vi.fn(async(_input:unknown,init:RequestInit)=>{
@@ -175,7 +212,9 @@ it('uses actual indexed topic articles only for their own readable publisher',as
  const hints=[{publisherOrigin:'https://publisher.example',title:'Named researcher announces a major discovery',url:'https://news.google.com/rss/articles/topic',excerpt:'A substantive report about the named researcher and their new discovery.'}];
  const dispatch=vi.fn<typeof fetch>(async(url,init)=>{
   if(!String(url).includes('openrouter.ai'))return new Response(rss,{headers:{'content-type':'application/rss+xml'}});
-  const request=JSON.parse(init!.body as string);const evidence=JSON.parse(request.messages[1].content).source.evidence;
+  const request=JSON.parse(init!.body as string);const state=JSON.parse(request.messages[1].content);
+  if(state.passage){expect(state.passage).toContain(hints[0].title);return Response.json({choices:[{message:{content:JSON.stringify({exactTopic:'YES',reason:'This specific passage covers the researcher.'})}}]});}
+  const evidence=state.source.evidence;
   expect(evidence).toContain('[E1] Search-indexed article from https://publisher.example');
   expect(evidence).toContain(hints[0].title);
   return Response.json({choices:[{message:{content:JSON.stringify({realWorldInterest:'YES',exactTopic:'YES',historicalInterest:'NO',concern:'NO',evidenceId:'E1',reason:'The publisher has a readable feed and an indexed article about the subject.'})}}]});
@@ -184,4 +223,16 @@ it('uses actual indexed topic articles only for their own readable publisher',as
  const unavailable=vi.fn<typeof fetch>(async()=>new Response('Missing',{status:404}));
  expect(await assessSource(env,context,'rss: https://publisher.example/feed',unavailable,undefined,hints)).toMatchObject({status:'unverified'});
  expect(unavailable).toHaveBeenCalledTimes(1);
+});
+
+it('does not expose another publisher’s indexed topic articles as relevance evidence',async()=>{
+ const hints=[{publisherOrigin:'https://other.example',title:'Named researcher announces a major discovery',url:'https://other.example/discovery',excerpt:'A real report from another publisher.'}];
+ const dispatch=vi.fn<typeof fetch>(async(url,init)=>{
+  if(!String(url).includes('openrouter.ai'))return new Response(rss,{headers:{'content-type':'application/rss+xml'}});
+  const request=JSON.parse(init!.body as string),state=JSON.parse(request.messages[1].content);
+  expect(state.feed).not.toHaveProperty('topicReferences');
+  expect(state.source.evidence).not.toContain(hints[0].title);
+  return Response.json({choices:[{message:{content:JSON.stringify({realWorldInterest:'YES',exactTopic:'NO',historicalInterest:'NO',concern:'NO',evidenceId:'',reason:'The source itself does not cover the researcher.'})}}]});
+ });
+ expect(await assessSource({...env,SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini'},{title:'Named researcher',description:'Current discoveries'},'rss: https://publisher.example/feed',dispatch,undefined,hints)).toMatchObject({status:'rejected'});
 });

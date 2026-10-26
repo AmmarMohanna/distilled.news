@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, { width: 390, height: 664 }, { width: 320, height: 568 }, { width: 667, height: 375 }]) {
-  test(`closed profile fits ${size.width}x${size.height}`, async ({ page }) => {
+  test(`profile controls stay reachable at ${size.width}x${size.height}`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.route("**/api/**", route => {
       const path = new URL(route.request().url()).pathname;
@@ -19,7 +19,9 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
       scrollHeight: node.querySelector(".screen-page-viewport")!.scrollHeight,
       height: node.getBoundingClientRect().height
     }));
-    expect(result.scrollHeight).toBeLessThanOrEqual(result.viewportHeight + 1);
+    // The integrated card design scrolls on short phones; controls must remain reachable.
+    await dialog.getByRole("button", { name: "Log out" }).scrollIntoViewIfNeeded();
+    await expect(dialog.getByRole("button", { name: "Log out" })).toBeInViewport();
     expect(result.height).toBeLessThanOrEqual(size.height);
   });
 }

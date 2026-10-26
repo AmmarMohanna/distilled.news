@@ -34,7 +34,7 @@ it.each(['source','coordinates','text','foreign'])('rejects %s witnesses against
 });
 it('text presence cannot override an adverse proposition-entailment judgment',()=>{
  const result=wire().decode(raw([check('fact_1'),check('fact_2',{readerEntailsProposition:false})]));
- expect(decidePublicationValidation(claims,result as any).status).toBe('UNRESOLVED');
+ expect(decidePublicationValidation(claims,result as any)).toMatchObject({status:'REJECT',reasons:expect.arrayContaining(['FACT_FACET_FAILED'])});
 });
 it('does not accept any old saved real-provider judgment as a new reader-witness verdict',()=>{
  for(const c of saved.cases)expect(decidePublicationValidation(c.question as any,c.providerVerdict as any).status,c.caseId).toBe('UNRESOLVED');
@@ -62,7 +62,7 @@ it('checks incorrect optional assertions but permits optional omission',()=>{
  const r:any={supportedClaimIds:['c'],claimEntailment:[{...whole,claimId:'c'}],semanticChecks:[]};
  expect(decidePublicationValidation(cs,r).status).toBe('ACCEPT');
  r.semanticChecks=[{...check('bridge',{sourceSupported:false,readerSpans:[{claimId:'c',text,start:0,end:text.length}]}),candidateId:'story'}];
- expect(decidePublicationValidation(cs,r).status).toBe('UNRESOLVED');
+ expect(decidePublicationValidation(cs,r)).toMatchObject({status:'REJECT',reasons:expect.arrayContaining(['OPTIONAL_FACT_FACET_FAILED'])});
 });
 it('keeps contradictory summary IDs unresolved rather than sanitizing them into a repairable rejection',()=>{
  const r=raw([check('fact_1',{communicated:false,readerEntailsProposition:false,readerSpans:[]}),check('fact_2',{communicated:false,readerEntailsProposition:false,readerSpans:[]})]);

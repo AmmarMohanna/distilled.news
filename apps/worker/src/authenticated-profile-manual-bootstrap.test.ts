@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { readFile,readdir } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { afterEach,expect,it,vi } from "vitest";
@@ -14,7 +15,7 @@ it("manually captures with existing encryption, fences writes, restores in fresh
   const db=await mf.getD1Database("DB");
   for(const name of (await readdir(new URL("../migrations/",import.meta.url))).filter(n=>n.endsWith(".sql")).sort()){
     const sql=(await readFile(new URL(`../migrations/${name}`,import.meta.url),"utf8")).split(/\r?\n/).filter(l=>!l.trimStart().startsWith("--")).join("\n");
-    for(const statement of sql.split(/;\s*(?:\r?\n|$)/).map(s=>s.trim()).filter(Boolean))await db.prepare(statement).run();
+    for(const statement of migrationStatements(sql))await db.prepare(statement).run();
   }
   await db.prepare("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('account_manual','manual@example.invalid','manual@example.invalid','manual','admin','hash','2026-01-01','2026-01-01','2026-01-01')").run();
   const bucket=await mf.getR2Bucket("AUTHENTICATED_SECRETS");

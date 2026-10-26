@@ -1,7 +1,7 @@
 import {it,expect} from 'vitest';
 import {createStrongSemanticModel} from './semantic-model';
 import type {Env} from '../types';
-const env={OPENROUTER_API_KEY:'private-fixture-secret',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env;
+const env={DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'private-fixture-secret',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env;
 it('retains a provider generation ID for investigation without treating it as termination proof',async()=>{
  const {readProviderRejection}=await import('../provider-outcome');
  const response=Response.json({error:{message:'transport failed'}},{status:502,headers:{'x-generation-id':'gen-123abc'}});

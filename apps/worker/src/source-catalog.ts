@@ -47,7 +47,8 @@ export const sourceCatalog = [
  ['https://www.skysports.com/rss/12040', 'Sky Sports Football: European football matches, teams and transfers'],
  ['https://www.espn.com/espn/rss/news', 'ESPN: sports news'],
  ['https://www.naharnet.com/tags/lebanon/en/feed.atom', 'Naharnet: Lebanese politics and public affairs in English'],
- ['https://sobhiye.news/api/feed', 'Sobhiye: Lebanese politics, economy and public affairs aggregation; not independent original reporting']
+ ['https://sobhiye.news/api/feed', 'Sobhiye: Lebanese politics, economy and public affairs aggregation; not independent original reporting'],
+ ['https://lebanesebasketballnews.com/feed/', 'Lebanese Basketball News: Lebanese basketball clubs, national team, league games, transfers and players']
 ] as const;
 
 /** Public account candidates; fetched posts still determine relevance. */

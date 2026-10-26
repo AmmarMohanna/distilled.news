@@ -1,0 +1,175 @@
+{
+  "reviewMethod": "AI-assisted engineering review of exact source evidence and draft text, not independent human gold.",
+  "decision": "REJECT_EDITOR_NO_DEMONSTRATED_GAIN_AND_CONSOLIDATION_REGRESSES",
+  "retainedRuntimeChanges": [],
+  "falseMergeReview": [
+    {
+      "pair": "known-arabic",
+      "baseline": 0,
+      "candidate": 0,
+      "detail": "Both current baseline and candidate keep Baraachit and prospective strikes separate. The historical reader-focused failure is a different system prompt, not this unchanged baseline."
+    },
+    {
+      "pair": "unused-en",
+      "baseline": 0,
+      "candidate": 0
+    },
+    {
+      "pair": "unused-ar",
+      "baseline": 0,
+      "candidate": 0
+    },
+    {
+      "pair": "known-consolidation",
+      "baseline": 0,
+      "candidate": 1,
+      "detail": "Candidate item from [0,3] explicitly contains both the EFS announcement and separate Barclays adoption. Not merely a shared background citation."
+    }
+  ],
+  "sameOccurrenceReview": {
+    "pair": "known-arabic",
+    "refs": [
+      "S7",
+      "S8"
+    ],
+    "baselineSingleItem": true,
+    "candidateSingleItem": true,
+    "unnecessarySplitsObserved": 0,
+    "limitation": "Only one clear same-occurrence control; no general split-rate estimate."
+  },
+  "recallReview": [
+    {
+      "pair": "known-arabic",
+      "importantDevelopmentsConsidered": 4,
+      "baselineIncluded": 4,
+      "candidateIncluded": 4
+    },
+    {
+      "pair": "unused-en",
+      "importantDevelopmentsConsidered": 2,
+      "baselineIncluded": 2,
+      "candidateIncluded": 2
+    },
+    {
+      "pair": "unused-ar",
+      "importantDevelopmentsConsidered": 2,
+      "baselineIncluded": 2,
+      "candidateIncluded": 2
+    },
+    {
+      "pair": "known-consolidation",
+      "labelStatus": "Pre-existing AI-assisted priority list, not human gold.",
+      "priorityDrafts": [
+        0,
+        1,
+        10,
+        11,
+        12,
+        15
+      ],
+      "baselineIncluded": 6,
+      "candidateIncluded": 3,
+      "candidateDropped": [
+        "Accenture evaluation investment",
+        "Genesis Mission funding",
+        "proposed Public Benefit Fund"
+      ],
+      "allRepresentedDraftsBaseline": 13,
+      "allRepresentedDraftsCandidate": 5,
+      "returnedItemsBaseline": 13,
+      "returnedItemsCandidate": 4
+    }
+  ],
+  "sourceSupportReview": {
+    "newWindow": "Both versions preserve reported Hormuz proposal, exchange condition, attributed conditional threat and less-than-one-hour claim. Neither states that a deal, reopening or attack happened.",
+    "sharedConcerns": "Both Arabic versions add October 24 narration from source metadata; this experiment does not qualify temporal reasoning or resolve routine date narration. No verifier output was generated for these drafts.",
+    "consolidation": "Previously identified draft-level factual concerns remain unqualified; output copying/valid JSON does not certify factual support."
+  },
+  "continuity": "Known Arabic candidate does not repeat previously communicated Karak, drills or Brent news; it preserves the four newly relevant developments. New-window versions do not add new update/correction links. No wider continuity claim.",
+  "metrics": [
+    {
+      "pair": "known-arabic",
+      "baseline": {
+        "items": 4,
+        "words": 123,
+        "costUsd": 0.01203,
+        "providerMs": 3572,
+        "promptTokens": 3755,
+        "completionTokens": 565
+      },
+      "candidate": {
+        "items": 4,
+        "words": 119,
+        "costUsd": 0.012426,
+        "providerMs": 3718,
+        "promptTokens": 3809,
+        "completionTokens": 601
+      }
+    },
+    {
+      "pair": "unused-en",
+      "baseline": {
+        "items": 2,
+        "words": 99,
+        "costUsd": 0.006486,
+        "providerMs": 2304,
+        "promptTokens": 2359,
+        "completionTokens": 221
+      },
+      "candidate": {
+        "items": 2,
+        "words": 99,
+        "costUsd": 0.006306,
+        "providerMs": 2233,
+        "promptTokens": 2413,
+        "completionTokens": 185
+      }
+    },
+    {
+      "pair": "unused-ar",
+      "baseline": {
+        "items": 2,
+        "words": 96,
+        "costUsd": 0.006798,
+        "providerMs": 2396,
+        "promptTokens": 2359,
+        "completionTokens": 260
+      },
+      "candidate": {
+        "items": 2,
+        "words": 96,
+        "costUsd": 0.006922,
+        "providerMs": 1975,
+        "promptTokens": 2413,
+        "completionTokens": 262
+      }
+    },
+    {
+      "pair": "known-consolidation",
+      "baseline": {
+        "items": 13,
+        "words": 983,
+        "costUsd": 0.020196,
+        "providerMs": 9046,
+        "promptTokens": 2434,
+        "completionTokens": 1916
+      },
+      "candidate": {
+        "items": 4,
+        "words": 411,
+        "costUsd": 0.011408,
+        "providerMs": 5641,
+        "promptTokens": 2460,
+        "completionTokens": 811
+      }
+    }
+  ],
+  "summary": {
+    "calls": 6,
+    "settledCalls": 6,
+    "actualUsd": 0.050345999999999995,
+    "reservedSumUsd": 0.345466,
+    "outstandingUsd": 0,
+    "authorizationCeilingUsd": 0.35
+  }
+}

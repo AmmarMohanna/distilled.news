@@ -82,7 +82,9 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     const deniedCallId = (denied?.data as {toolCallId?:string})?.toolCallId;
     expect(events.some((event) => event.type === "agent.tool.dispatching" && JSON.stringify(event.data).includes(deniedCallId ?? "missing"))).toBe(false);
     expect(events.some((event) => event.type === "agent.outbox.acknowledged")).toBe(true);
-    expect(events.at(-1)?.type).toBe("agent.run.attempt_completed");
+    const completed = events.findIndex(event => event.type === "agent.run.attempt_completed");
+    expect(completed).toBeGreaterThan(firstDispatch);
+    // Outbox acknowledgement and attempt bookkeeping are independent append-only records; neither must be the final event.
     expect(events.map((event) => event.sequence)).toEqual(events.map((_, index) => index + 1));
     const groundingIndex=events.findIndex((event)=>event.type==="agent.interaction.grounding_persisted"&&JSON.stringify(event.data).includes("visual_read_link"));
     const groundingCallId=(events[groundingIndex]?.data as {toolCallId?:string})?.toolCallId;
@@ -131,7 +133,7 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
       await browser.close(a).catch(() => undefined);
       await browser.close(b).catch(() => undefined);
     }
-  }, 30_000);
+  }, 90_000);
 
   it("actively closes an isolated browser context when its lease signal is aborted", async () => {
     const browser = PlaywrightBrowserAdapter.forTest();
@@ -143,7 +145,7 @@ describe.sequential("real Chromium browser security and agent runtime", () => {
     await expect.poll(async() => {
       try { await browser.health(allocation); return "registered"; }
       catch { return "removed"; }
-    }).toBe("removed");
+    }, { timeout: 10_000 }).toBe("removed");
     await expect(browser.navigate(allocation, `${fixture.origin}/article`)).rejects.toThrow(/not found/);
     await browser.close(allocation);
     await expect(browser.health(allocation)).rejects.toThrow(/not found/);

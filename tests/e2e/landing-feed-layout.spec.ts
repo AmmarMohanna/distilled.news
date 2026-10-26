@@ -34,7 +34,8 @@ for (const size of [
     const card = page.locator(".guest-landing .curated-feed-grid .topic-card");
     const bounds = await card.boundingBox();
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
-    expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+    if (size.height >= 500) expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+    else { await card.scrollIntoViewIfNeeded(); await expect(card).toBeInViewport(); }
   });
 }
 

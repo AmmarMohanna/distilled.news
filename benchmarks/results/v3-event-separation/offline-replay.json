@@ -1,0 +1,107 @@
+{
+  "paidCalls": 0,
+  "stage": "offline-recorded-replay",
+  "labels": "AI-assisted engineering labels checked against original retained posts; not independent human gold.",
+  "groupingIsNotFactuality": true,
+  "observedArabicGroupingFlags": [
+    {
+      "index": 1,
+      "refs": [
+        "S10",
+        "S13"
+      ],
+      "groups": [
+        "baraachit-reported-strike",
+        "prospective-strike-announcement"
+      ],
+      "requiresSourceReview": true
+    }
+  ],
+  "baselineEnglishGroupingFlags": [],
+  "sameOccurrenceControl": [],
+  "verifierTrace": {
+    "file": "benchmarks/results/v3-reader-notification/summary.json",
+    "run": "verify-baseline-ar",
+    "checkedItemNumbers": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "mergedBodyPresentInCheckedItems": false,
+    "conclusion": "The retained verifier checked four separate baseline items. This artifact does not establish verifier approval of the merged Arabic candidate."
+  },
+  "consolidationGroupingFlags": [
+    {
+      "index": 0,
+      "refs": [
+        "0",
+        "3"
+      ],
+      "groups": [
+        "efs-announcement",
+        "barclays-adoption"
+      ],
+      "requiresSourceReview": true
+    }
+  ],
+  "baselineRequestHashes": [
+    {
+      "name": "editor-baseline-en",
+      "requestSha256": "bd56d8e0d0bffeb625775100fc541db679c319f93dc6bdc13f81113c8bd7ea17"
+    },
+    {
+      "name": "editor-reader-focused-en",
+      "requestSha256": "a820ad2c2f49d84f4daca3ed32cd1b9ba8ae3977f8af2c8f0271b824141fd5f4"
+    },
+    {
+      "name": "editor-baseline-ar",
+      "requestSha256": "c2b69817bc5b152e168f9472f328a3bf673fa78ba87d0c8be314ea193ed6f729"
+    },
+    {
+      "name": "editor-reader-focused-ar",
+      "requestSha256": "f3842654e82b12f3475ba48fb690bf329dec0ee3acf294a1f7f18b8d53fd68b2"
+    },
+    {
+      "name": "verify-baseline-en",
+      "requestSha256": "71a5bb4d2ce6f98b0b9b9869cad575a68db551f7c5ec4211b0f6e9f7d5c89bbd"
+    },
+    {
+      "name": "verify-notification-en",
+      "requestSha256": "2a9dd3b5b24b69998f94eb7ccce99b61e3e343915a0db0e80f88b80acaa34667"
+    },
+    {
+      "name": "verify-baseline-ar",
+      "requestSha256": "8efce1adc9e1fb9ebc2bcf4d06abbc073cb556c3132a61fdcc21713af79a9890"
+    },
+    {
+      "name": "verify-notification-ar",
+      "requestSha256": "525f84ea817d4148048ab42a79dad62b0eec8098d95f2f5743cb5845cef45ec9"
+    },
+    {
+      "name": "verify-required-en",
+      "requestSha256": "3e862a8ee9cda5799ea9b36dabb61b65184c27eeb524be0b00d2dc139a23ed24"
+    },
+    {
+      "name": "verify-required-ar",
+      "requestSha256": "d781c236ed6e1b727c51366c5120943fb3443da305e570e385a1768ede0e272a"
+    }
+  ],
+  "sourceHashes": {
+    "https://t.me/lebanonnews2/107623": "30d347f26fa285b0804aae591a81ef53a05330553bf12a1c0c822633420e3b07",
+    "https://t.me/lebanonnews2/107624": "84c0377f0c4d3e96ceae15e86bd35b37ac5fa8237a2d3201e2e10984543f6757",
+    "https://t.me/lebanonnews2/107625": "c735b1f351e39379c089ec52b6e5eb65181a0dfe4cf7f19e2cb9bc969dfb395f",
+    "https://t.me/lebanonnews2/107626": "b63c8a7d8b859bbb4903e70742684ca813c7630a7a6cf63e694dbe9bbf8ec29e",
+    "https://t.me/lebanonnews2/107627": "bc445812e915e29e2d263f97098d216b968fecec891c75762c5142d413b89465",
+    "https://t.me/lebanonnews2/107628": "0bc71d324a8af963cfd3f3f63cda766404c79f9848ddc55225c506f244a95747",
+    "https://t.me/lebanonnews2/107629": "c3fe3a57c770f737bf685e884ffbfcb4d9260baaec7f130e60e9c8a434de905a",
+    "https://t.me/lebanonnews2/107630": "ab9a22a1f3ad64eefd66434afaa550bd0f680f9420914a31f559ad9f50394124",
+    "https://t.me/lebanonnews2/107631": "9e5563aaf3245d26ca00aadc3597d70ccd0fc1ee740dee3f16a4dfb9d1c3b192",
+    "https://t.me/lebanonnews2/107632": "83de0aa639d2b33f01c2cf269350ce3bc2a8e9ad0736382cb33820ea448723fc",
+    "https://t.me/lebanonnews2/107633": "f664a2c9591bd77db69c7bd2653bd2aaebadfb915ba5295fb7e8460a31c0bcab",
+    "https://t.me/lebanonnews2/107634": "56eb547687eb93cabd588397a61de36adf0590ed0e3bb011d4f5be0f4369bb63",
+    "https://t.me/lebanonnews2/107635": "89b3880e4061b7bb80d8e3c52281e3b562992f99a9d5a8179a669ae8244455c4",
+    "https://t.me/lebanonnews2/107636": "470a34fe710866871e0459dffb9ecd1b458f793e53ca2cd23b70608273463506",
+    "https://t.me/lebanonnews2/107637": "d4b3bb7d653c0d218861686af47ef7740c51581dbd7e6739e5e5a3dded7d0ec1"
+  }
+}

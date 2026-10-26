@@ -122,3 +122,23 @@ it('does not add a suggestion when its independent assessment is inconclusive', 
   expect(host.textContent).toContain('Not enough evidence.');
   await act(async()=>root.unmount());host.remove();vi.unstubAllGlobals();
 });
+
+it('copies the feed link without creating a copy or changing its identity', async () => {
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async(_input:unknown)=>{}),onCopy=vi.fn(async()=>{});
+ const feed={...personalNewsBriefing,title:'Technology',interestProfile:'AI news',briefingTimezone:'UTC'};
+ await act(async()=>root.render(<FeedEditor feed={feed} onClose={()=>{}} onSave={onSave} onCopy={onCopy}/>));
+ const panel=host.querySelector('.feed-actions-panel')!;
+ expect(panel.compareDocumentPosition(host.querySelector('.experience-dialog-actions')!)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+ expect(panel.textContent).not.toMatch(/Duplicate|create a copy/);
+ const copy=[...panel.querySelectorAll('button')].find(button=>button.textContent==='Copy link')!;
+ await act(async()=>copy.click());
+ expect(onCopy).toHaveBeenCalledOnce();
+ expect(copy.textContent).toBe('Copied');
+ expect(host.textContent).not.toContain('URL copied');
+ expect(onSave).not.toHaveBeenCalled();
+ expect(host.querySelector('.primary-button')?.textContent).toBe('Save changes');
+ await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+ expect(onSave).toHaveBeenCalledWith(expect.objectContaining({id:feed.id,title:'Technology'}));
+ await act(async()=>root.unmount());vi.unstubAllGlobals();
+});

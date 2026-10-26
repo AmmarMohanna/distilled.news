@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { readFile } from "node:fs/promises";
 import { OpenRouterGateway } from "@distilled/agent-runtime";
 import { Miniflare } from "miniflare";
@@ -73,7 +74,7 @@ describe("operator-controlled OpenRouter model diagnostic",()=>{
     mf=new Miniflare({modules:true,script:"export default {fetch(){return new Response('ok')}}",d1Databases:["DB"]});
     const db=await mf.getD1Database("DB");
     const sql=await readFile(new URL("../migrations/0019_openrouter_model_diagnostic.sql",import.meta.url),"utf8");
-    for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((value)=>value.trim()).filter(Boolean)) await db.prepare(statement).run();
+    for (const statement of migrationStatements(sql)) await db.prepare(statement).run();
     return db;
   }
 });

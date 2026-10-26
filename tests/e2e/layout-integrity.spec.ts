@@ -17,7 +17,7 @@ async function mock(page: Page, role: "user" | "admin" | null) {
     const path = new URL(route.request().url()).pathname;
     const body: unknown = path === "/api/auth/session" ? (role ? { authenticated: true, setupRequired: false, account: { id: "joud", username: "joud", email: "j@example.test", role } } : { authenticated: false, setupRequired: false })
       : path === "/api/me/briefings" || path === "/api/me/feeds" ? { briefings: role ? feeds : [] }
-      : path === "/api/explore/feeds" ? { feeds }
+      : path === "/api/explore/feeds" ? { feeds: feeds.map(feed => ({...feed, id: `community-${feed.id}`, ownerAccountId: "community", ownerUsername: "community"})) }
       : path === "/api/me/sources" ? { sources: [] }
       : path === "/api/me/health" ? { health: { processing: { queued: 0, completed: 0, failed: 0 } } }
       : path.startsWith("/api/admin/") ? { accounts: [], briefings: feeds }
@@ -29,18 +29,18 @@ async function mock(page: Page, role: "user" | "admin" | null) {
 }
 
 const CHECK = (): string[] => {
-  const desc = e => e ? `${e.tagName.toLowerCase()}${e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/)[0] : ""}[${(e.getAttribute("aria-label") || e.textContent || "").trim().replace(/\s+/g, " ").slice(0, 22)}]` : "none";
-  const shown = e => { if (e.closest("details:not([open])") && !e.matches("summary")) return false; const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== "hidden" && s.display !== "none" && parseFloat(s.opacity) > 0.05 && !e.closest("[inert],[aria-hidden='true']"); };
+  const desc = (e: Element | null) => e ? `${e.tagName.toLowerCase()}${e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/)[0] : ""}[${(e.getAttribute("aria-label") || e.textContent || "").trim().replace(/\s+/g, " ").slice(0, 22)}]` : "none";
+  const shown = (e: Element) => { if (e.closest("details:not([open])") && !e.matches("summary")) return false; const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== "hidden" && s.display !== "none" && parseFloat(s.opacity) > 0.05 && !e.closest("[inert],[aria-hidden='true']"); };
   const modal = document.querySelector("dialog[open]");
   const scope = modal || document;
   const controls = [...scope.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary, [role=switch], [role=button]")].filter(shown).filter(e => !e.closest(".sr-only") && !e.matches(".skip-link"));
   const issues: string[] = [];
-  const inView = r => r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
-  const overlay = n => n && n.closest && n.closest(".feed-options-popover, [class*=popover], [role=menu]");
-  const related = (a, b) => a.contains(b) || b.contains(a) || (a.closest("label") && a.closest("label") === b.closest("label"));
+  const inView = (r: DOMRect) => r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+  const overlay = (n: Element | null) => n && n.closest && n.closest(".feed-options-popover, [class*=popover], [role=menu]");
+  const related = (a: Element, b: Element) => a.contains(b) || b.contains(a) || (a.closest("label") && a.closest("label") === b.closest("label"));
   for (let i = 0; i < controls.length; i++) for (let j = i + 1; j < controls.length; j++) {
     const a = controls[i], b = controls[j]; if (related(a, b)) continue;
-    const chrome = n => { for (let e = n; e && e !== document.body; e = e.parentElement) { const pos = getComputedStyle(e).position; if (pos === "fixed" || pos === "sticky") return true; } return false; };
+    const chrome = (n: Element) => { for (let e: Element | null = n; e && e !== document.body; e = e.parentElement) { const pos = getComputedStyle(e).position; if (pos === "fixed" || pos === "sticky") return true; } return false; };
     if (chrome(a) !== chrome(b)) continue;
     if (!!overlay(a) !== !!overlay(b)) continue;
     const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); if (!inView(ra) || !inView(rb)) continue;
@@ -50,7 +50,8 @@ const CHECK = (): string[] => {
   for (const e of controls) {
     e.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
     const r = e.getBoundingClientRect(); if (!inView(r)) continue;
-    let blocked = 0, by = null, tested = 0;
+    let blocked = 0, tested = 0;
+    let by: Element | null = null;
     for (const [px, py] of [[.5, .5], [.2, .5], [.8, .5], [.5, .25], [.5, .75]]) {
       const x = r.left + r.width * px, y = r.top + r.height * py; if (x < 1 || y < 1 || x > innerWidth - 1 || y > innerHeight - 1) continue; tested++;
       const top = document.elementFromPoint(x, y); if (top && !related(e, top) && !(overlay(top) && !overlay(e))) { blocked++; by = top; }
@@ -60,21 +61,21 @@ const CHECK = (): string[] => {
   if (document.documentElement.scrollWidth > innerWidth + 1) issues.push(`H-SCROLL page ${document.documentElement.scrollWidth}>${innerWidth}`);
   for (const e of scope.querySelectorAll("h1,h2,h3,p,strong,span,a,button,label,summary,time,small")) {
     if (!shown(e)) continue; const s = getComputedStyle(e);
-    if ((s.overflow === "hidden" || s.overflowX === "hidden") && s.textOverflow !== "ellipsis" && s.display !== "-webkit-box" && e.scrollWidth > e.clientWidth + 2 && e.clientWidth > 0 && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) issues.push(`CLIPPED ${desc(e)} ${e.scrollWidth}>${e.clientWidth}`);
-    const r = e.getBoundingClientRect(); if (inView(r) && (r.right > innerWidth + 0.5 || r.left < -0.5) && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && !e.closest("[class*=popover]")) issues.push(`OFFSCREEN-TEXT ${desc(e)} ${Math.round(r.left)}..${Math.round(r.right)}`);
+    if ((s.overflow === "hidden" || s.overflowX === "hidden") && s.textOverflow !== "ellipsis" && s.display !== "-webkit-box" && e.scrollWidth > e.clientWidth + 2 && e.clientWidth > 0 && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim())) issues.push(`CLIPPED ${desc(e)} ${e.scrollWidth}>${e.clientWidth}`);
+    const r = e.getBoundingClientRect(); if (inView(r) && (r.right > innerWidth + 0.5 || r.left < -0.5) && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim()) && !e.closest("[class*=popover]")) issues.push(`OFFSCREEN-TEXT ${desc(e)} ${Math.round(r.left)}..${Math.round(r.right)}`);
   }
   return issues;
 };
 
 const scenes: { name: string; role: "user" | "admin" | null; url: string; act?: (page: Page) => Promise<void> }[] = [
   { name: "guest landing", role: null, url: "/" },
-  { name: "guest feed with menu", role: null, url: "/joud/lebanon/", act: async page => { await page.locator(".feed-more > summary").click(); } },
+  { name: "guest feed with read-only actions", role: null, url: "/joud/lebanon/", act: async page => { await expect(page.locator(".feed-more")).toHaveCount(0); } },
   { name: "home", role: "user", url: "/" },
   { name: "home with a card menu open", role: "admin", url: "/", act: async page => { await page.locator(".personal-feed-grid .topic-card").nth(1).locator(".feed-options > summary").click(); } },
   { name: "explore", role: "user", url: "/explore" },
   { name: "settings", role: "admin", url: "/", act: async page => { await page.locator(".bottom-navigation .navigation-settings").click(); } },
   { name: "feed", role: "user", url: "/joud/lebanon/" },
-  { name: "feed with the More menu open", role: "user", url: "/joud/lebanon/", act: async page => { await page.locator(".feed-more > summary").click(); } },
+  { name: "feed with settings open", role: "user", url: "/joud/lebanon/", act: async page => { await page.getByRole("button", { name: "Edit feed settings", exact: true }).click(); } },
   { name: "feed sources sheet", role: "user", url: "/joud/lebanon/", act: async page => { await page.locator(".news-item .inline-reference").nth(1).click(); } },
 ];
 const variants = [

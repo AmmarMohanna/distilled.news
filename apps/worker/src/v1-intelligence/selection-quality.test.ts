@@ -54,7 +54,7 @@ it('mixed promotional evidence retains factual reporting and exact spans',async(
 });
 it.each([['Officials confirmed the result.','Officials confirmed the result',false],['The agency confir\u200bmed the result.','The agency confirmed the result.',false],['Officials reported 12 deaths.','Officials reported 40 deaths.',true],['The minister may resign.','The minister will resign.',true],['The proposal was approved.','The proposal was not approved.',true],['Officials confirmed the claim.','Officials retracted the claim.',true],['The agency approved the result.','The agency approves the result.',true]])('revision materiality: %s → %s', (a,b,changed)=>expect(revisionChangesMeaning(a,b)).toBe(changed));
 it('editorial model is independent of deterministic Event configuration and explicit fallback is honored',()=>{
- const env={OPENROUTER_API_KEY:'synthetic',V1_SEMANTIC_POLICY:'DETERMINISTIC'} as Env;
+ const env={DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic',V1_SEMANTIC_POLICY:'DETERMINISTIC'} as Env;
  expect(createStrongSemanticModel(env,fetch,'EDITORIAL')).toBeDefined();expect(createStrongSemanticModel(env,fetch,'EVENT')).toBeUndefined();
  expect(createStrongSemanticModel({...env,V1_EDITORIAL_MODEL_POLICY:'DETERMINISTIC'},fetch,'EDITORIAL')).toBeUndefined();
 });
@@ -135,8 +135,8 @@ it('batched relevance uses valid JEV question handles and demotes confident irre
  await seedIntelligence(store,1,'Acme released an AI model.');await seedIntelligence(store,2,'A retailer sent unauthorized app notifications.','publisher-2');
  let calls=0;
  const fetcher=(async(_url:any,init:any)=>{calls++;const request=JSON.parse(init.body);expect(Object.keys(request.questions).every(k=>/^[a-z][a-z_]*$/.test(k))).toBe(true);const answers=Object.fromEntries(request.state.candidates.map((c:any)=>{const relevant=c.facts.includes('AI model');return [c.key,{type:'score',score:relevant?2:0,confidence:.9,probabilities:{'0':relevant?0:1,'1':0,'2':relevant?1:0}}]}));return new Response(JSON.stringify({answers,usage:{cost:.001,input_tokens:100,output_tokens:30}}))}) as typeof fetch;
- const env={OPENROUTER_API_KEY:'synthetic',V1_EDITORIAL_RANKING_POLICY:'SEMANTIC'} as Env,sl=await prepareSemanticShortlist(store,'feed-1',first,first.end,20,env,fetcher);
- expect(calls).toBe(1);expect(sl.candidates).toHaveLength(2);expect(sl.candidates[0].facts[0].text).toContain('AI model');expect(sl.candidates[1].ranking).toMatchObject({source:'JEV',relevance:0});
+ const env={DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic',V1_EDITORIAL_RANKING_POLICY:'SEMANTIC'} as Env,sl=await prepareSemanticShortlist(store,'feed-1',first,first.end,20,env,fetcher);
+ expect(calls,JSON.stringify(sl.candidates.map(c=>c.ranking))).toBe(1);expect(sl.candidates).toHaveLength(2);expect(sl.candidates[0].facts[0].text).toContain('AI model');expect(sl.candidates[1].ranking).toMatchObject({source:'JEV',relevance:0});
  await prepareSemanticShortlist(store,'feed-1',first,first.end,20,env,fetcher);expect(calls).toBe(1);
 },20000);
 

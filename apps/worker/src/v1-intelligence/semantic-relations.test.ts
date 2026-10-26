@@ -32,12 +32,18 @@ async function twoEvents(){
  await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.');
  await seedIntelligence(store,2,'Ukraine opened a new grain corridor through the Black Sea.','publisher-2');
 }
+
+// Script both existing semantic phases; this fixture tests wiring, not model quality.
+const identityModel=(structuralRelation:'SAME_EVENT'|'NEW_EVENT_EXISTING_STORYLINE',epistemicEffects:string[])=>({model:'controlled-identity',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_feed:string,_phase:string,state:any)=>{
+ const target=(structuralRelation==='SAME_EVENT'?state.events:state.storylines).find((x:any)=>x.state.toLowerCase().includes('lebanon'));
+ return {value:{groups:Object.fromEntries(Object.entries(state.groups).map(([key,g]:[string,any])=>[key,{structuralRelation,eventId:structuralRelation==='SAME_EVENT'?target.id:null,storylineId:structuralRelation==='NEW_EVENT_EXISTING_STORYLINE'?target.id:null,epistemicEffects,reason:'Controlled source and target identity comparison.',sourceWitness:g.claims[0].text,targetWitness:target.state}]))},usage};
+}});
 const incoming=(n:number,body:string,publisher='publisher-3')=>acceptEvidence(store,n,body,publisher);
 it('same Event from another publisher: effect and entailment are judged against the CHOSEN Event, and the cheap tier is enough',async()=>{
  await twoEvents();
  const {fetcher,seen}=jev({structure:pick('grain'),entails:1});const strong=strongThatMustNotRun();
  await incoming(3,'Ukraine opened a new grain corridor through the Black Sea.');
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
  expect(prepared?.prepared.decision.structuralRelation).toBe('SAME_EVENT');expect(prepared?.prepared.decision.epistemicEffects).toEqual(['CORROBORATES']);expect(strong.calls()).toBe(0);
  expect(seen.map(s=>s.questions)).toEqual([['structure'],['effect','forward','reverse','novelty']]);
  expect(seen[1].event).toBe(prepared!.prepared.decision.eventId);
@@ -45,18 +51,18 @@ it('same Event from another publisher: effect and entailment are judged against 
 it('same Event with a changed certainty keeps structural identity AND the epistemic effect, and is escalated as high consequence',async()=>{
  await twoEvents();
  const {fetcher}=jev({structure:pick('lebanon'),effect:'CHANGES_CERTAINTY',entails:.2});
- let escalated:string[]=[];const strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{escalated=state.reasons;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.prior.eventId,storylineId:null,epistemicEffects:['CHANGES_CERTAINTY'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
+ let escalated:string[]=[];const strong={model:'fake',forPhase:()=>identityModel('SAME_EVENT',['CHANGES_CERTAINTY']),admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>{escalated=state.reasons;return {value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'SAME_EVENT',eventId:state.prior.eventId,storylineId:null,epistemicEffects:['CHANGES_CERTAINTY'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage}}};
  await incoming(3,'Lebanon Parliament has now passed the banking reform law after Tuesday debate.');
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
  expect(escalated).toContain('HIGH_CONSEQUENCE');expect(prepared?.prepared.decision.structuralRelation).toBe('SAME_EVENT');expect(prepared?.prepared.decision.epistemicEffects).toContain('CHANGES_CERTAINTY');
 },60000);
 it('a new development in an existing Storyline is a NEW Event continuing that Storyline, not a collapse into the old Event',async()=>{
  await twoEvents();
  const {fetcher}=jev({structure:state=>`STORY_${state.storylines.findIndex((s:any)=>s.state.toLowerCase().includes('lebanon'))}`});
- const strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_EVENT_EXISTING_STORYLINE',eventId:null,storylineId:state.prior.storylineId,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage})};
+ const strong={model:'fake',forPhase:()=>identityModel('NEW_EVENT_EXISTING_STORYLINE',['CHANGES_STATE']),admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_EVENT_EXISTING_STORYLINE',eventId:null,storylineId:state.prior.storylineId,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage})};
  await incoming(3,'Lebanon central bank issued new depositor withdrawal rules.');
  const eventsBefore=(await store.list('feed-1','events')).length,storylinesBefore=(await store.list('feed-1','storylines')).length;
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
  expect(prepared?.prepared.decision.structuralRelation).toBe('NEW_EVENT_EXISTING_STORYLINE');expect(prepared?.prepared.decision.eventId).toBeUndefined();
  expect(eventsBefore).toBeGreaterThanOrEqual(2);expect(storylinesBefore).toBeGreaterThanOrEqual(2);
 },60000);
@@ -64,7 +70,7 @@ it('uncertain relation with no strong model defers conservatively, completes the
  await twoEvents();
  const {fetcher}=jev({structure:()=>'DEFER'});
  await incoming(3,'Officials said the matter remains under review.');
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{fetcher,strong:undefined});
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{fetcher,strong:undefined});
  expect(prepared?.prepared.decision.structuralRelation).toBe('DEFER');
  const receipt=await processEvidenceIntelligence(store,job(3),testPolicy.now(),prepared?.matchers);
  expect(receipt.semanticDeferred).toBe(true);expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
@@ -73,7 +79,7 @@ it('a prepared same-Event corroboration is consumed into the existing Event with
  await twoEvents();const {fetcher}=jev({structure:pick('grain'),entails:1});
  await incoming(3,'Ukraine opened a new grain corridor through the Black Sea.');
  const before={events:(await store.list('feed-1','events')).length,storylines:(await store.list('feed-1','storylines')).length};
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong:strongThatMustNotRun(),fetcher});
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong:strongThatMustNotRun(),fetcher});
  await processEvidenceIntelligence(store,job(3),testPolicy.now(),prepared?.matchers);
  expect({events:(await store.list('feed-1','events')).length,storylines:(await store.list('feed-1','storylines')).length}).toEqual(before);
 },60000);
@@ -81,17 +87,23 @@ it('choosing a non-first candidate Event no longer forces strong escalation and 
  await twoEvents();let second:string|undefined;
  const {fetcher,seen}=jev({structure:state=>{second=state.events[1].id;return 'EVENT_1'},entails:1});const strong=strongThatMustNotRun();
  await incoming(3,'Parliament in Lebanon and grain shipments from Ukraine were both discussed.');
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test'} as Env,job(3),testPolicy.now(),{strong,fetcher});
  expect(prepared?.prepared.decision.eventId).toBe(second);expect(seen[1].event).toBe(second);expect(strong.calls()).toBe(0);
 },60000);
-it('arrival order: an Event committed after preparation makes the prepared NEW judgment stale (defer + rematch), never a duplicate Event/Storyline',async()=>{
+it('arrival order: a stale NEW judgment keeps provisional evidence and schedules an idempotent rematch',async()=>{
  await incoming(2,'Ukraine opened a new grain corridor through the Black Sea.','publisher-2');
  const strong={model:'fake',admission:syntheticModelAdmission,usage:()=>usage,complete:async(_f:string,_p:string,state:any)=>({value:{groups:[{claimMentionIds:state.claimMentions.map((m:any)=>m.id),structuralRelation:'NEW_STORYLINE',eventId:null,storylineId:null,epistemicEffects:['CHANGES_STATE'],entities:[],slots:[]}],backgroundMentionIds:[],confidence:.9},usage})};
  // B is prepared against an empty memory, then A (same development) commits first.
- const prepared=await prepareSemanticMatch(store,{OPENROUTER_API_KEY:'test'} as Env,job(2),testPolicy.now(),{strong});
+ const prepared=await prepareSemanticMatch(store,{DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'test'} as Env,job(2),testPolicy.now(),{strong});
  expect(prepared?.prepared.decision.structuralRelation).toBe('NEW_STORYLINE');
  await seedIntelligence(store,1,'Ukraine opened a new grain corridor through the Black Sea.','publisher-1');
+ const before={events:(await store.list('feed-1','events')).length,storylines:(await store.list('feed-1','storylines')).length};
  const receipt=await processEvidenceIntelligence(store,job(2),testPolicy.now(),prepared?.matchers);
- expect(receipt.semanticDeferred).toBe(true);expect(await store.list('feed-1','rematch_requests')).toHaveLength(1);
- expect((await store.list('feed-1','storylines')).length).toBe(1);
+ expect(receipt.semanticDeferred).toBe(true);expect((await store.list<any>('feed-1','rematch_requests')).filter(r=>r.jobId===job(2))).toHaveLength(1);
+ // A stale semantic decision retains a provisional event, rather than discarding evidence or accepting the stale merge.
+ const provisional={events:(await store.list('feed-1','events')).length,storylines:(await store.list('feed-1','storylines')).length};
+ expect(provisional).toEqual({events:before.events+1,storylines:before.storylines+1});
+ await processEvidenceIntelligence(store,job(2),testPolicy.now(),prepared?.matchers);
+ expect({events:(await store.list('feed-1','events')).length,storylines:(await store.list('feed-1','storylines')).length}).toEqual(provisional);
+ expect((await store.list<any>('feed-1','rematch_requests')).filter(r=>r.jobId===job(2))).toHaveLength(1);
 },60000);

@@ -1,3 +1,4 @@
+import {sourceStreamHeartbeat} from './source-stream-heartbeat';
 import {readTopicPublishers} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
 import {collectorBudgetStatus} from './collector-budget';
@@ -6,7 +7,7 @@ import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intell
 import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
 import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
-import {sourceRecommendations,verifiedSourceRecommendations} from './source-recommendations';
+import {sourceRecommendations,verifiedSourceRecommendations,type SourceDiscoveryDiagnostic} from './source-recommendations';
 import {assessSource,assessSources} from './source-assessment';
 import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
@@ -901,12 +902,14 @@ export function createApp(options: AppOptions = {}) {
       c.header('Cache-Control','no-store');
       c.header('X-Content-Type-Options','nosniff');
       return stream(c,async output=>{
+        const stopHeartbeat=sourceStreamHeartbeat(output);
         try{
           const result=await verifiedSourceRecommendations(c.env,input,fetcher,{ownerAccountId:c.get('account')!.id},async progress=>{
             await output.writeln(JSON.stringify({type:'progress',...progress}));
           });
           await output.writeln(JSON.stringify({type:'complete',...result}));
         }catch(error){await output.writeln(JSON.stringify({type:'error',error:error instanceof Error?error.message:'Source recommendations unavailable'}));}
+        finally{await stopHeartbeat();}
       });
     }
     try {
@@ -1126,7 +1129,11 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/explore/feeds", async (c) => {
     const repo = repoFor(c);
     const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
-    const feeds = await repo.listExploreBriefings(101, offset);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const feeds = await repo.listExploreBriefings(101, offset, viewer && !viewer.disabledAt ? viewer.id : undefined);
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     return c.json({ feeds: feeds.slice(0, 100).map(publicBriefing), nextOffset: feeds.length > 100 ? offset + 100 : null });
   });
 
@@ -1134,8 +1141,14 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const object = await c.env.RAW_ARCHIVE?.get(sketchKey(resolved.briefing));
-    if (!object) return c.body(null, 404, { "Cache-Control": "no-store" });
-    return new Response(object.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+    if (!object) {
+      const job = c.env.DB ? await c.env.DB.prepare("SELECT state FROM feed_sketch_jobs WHERE feed_id=?").bind(resolved.briefing.id).first<{state:string}>() : null;
+      return c.body(null, 404, { "Cache-Control": "no-store", ...(job && job.state !== 'ready' ? {"Retry-After":"3"} : {}) });
+    }
+    // Resolve visibility before every network read. Never put private artwork in a shared cache.
+    const headers = { "Content-Type": "image/jpeg", "Cache-Control": resolved.briefing.publicFeedEnabled ? "private, max-age=300" : "no-store", "X-Content-Type-Options": "nosniff", "Vary": "Cookie", ...(object.httpEtag ? {ETag:object.httpEtag} : {}) };
+    if (object.httpEtag && c.req.header('If-None-Match') === object.httpEtag) return new Response(null, {status:304,headers});
+    return new Response(object.body, { headers });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
@@ -1268,7 +1281,21 @@ export function createApp(options: AppOptions = {}) {
         const input=z.object({ownerAccountId:z.string().min(1).max(128),title:z.string().min(1).max(120),description:z.string().min(1).max(4000)}).strict().parse(await c.req.json());
         const owner=await repoFor(c).getAccountById(input.ownerAccountId);
         if(!owner||owner.disabledAt)return c.json({error:'account not found'},404);
-        return c.json({...await verifiedSourceRecommendations(c.env,{title:input.title,description:input.description},fetcher,{ownerAccountId:owner.id}),budget:await collectorBudgetStatus(c.env)});
+        const diagnostics:SourceDiscoveryDiagnostic[]=[];
+        if(c.req.header('accept')?.includes('application/x-ndjson')){
+          c.header('Content-Type','application/x-ndjson; charset=utf-8');
+          c.header('X-Content-Type-Options','nosniff');
+          return stream(c,async output=>{
+            const stopHeartbeat=sourceStreamHeartbeat(output);
+            try{
+              const result=await verifiedSourceRecommendations(c.env,{title:input.title,description:input.description},fetcher,{ownerAccountId:owner.id},
+                async progress=>{await output.writeln(JSON.stringify({type:'progress',...progress,diagnostics}));},diagnostic=>diagnostics.push(diagnostic));
+              await output.writeln(JSON.stringify({type:'complete',...result,diagnostics,budget:await collectorBudgetStatus(c.env)}));
+            }catch(error){await output.writeln(JSON.stringify({type:'error',error:error instanceof Error?error.message:'Source recommendations unavailable'}));}
+            finally{await stopHeartbeat();}
+          });
+        }
+        return c.json({...await verifiedSourceRecommendations(c.env,{title:input.title,description:input.description},fetcher,{ownerAccountId:owner.id},undefined,diagnostic=>diagnostics.push(diagnostic)),diagnostics,budget:await collectorBudgetStatus(c.env)});
       }
       if(c.req.param('action')==='check'&&c.req.method==='POST'){
       const input=z.object({ownerAccountId:z.string().min(1).max(128),source:z.string().min(1).max(2048),title:z.string().min(1).max(120),description:z.string().min(1).max(4000)}).strict().parse(await c.req.json());

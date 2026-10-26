@@ -10,10 +10,10 @@ it('reads processed artwork from persistent storage', async () => {
   expect(await readSavedSketch('/api/feed/owner/science/sketch')).toBe(blob);
 });
 
-it('expires persistent artwork after one hour', async () => {
+it('expires persistent artwork after seven days', async () => {
   const remove = vi.fn();
   vi.stubGlobal('caches', { open: async () => ({
-    match: async () => ({ headers: new Headers({ 'x-sketch-saved-at': String(Date.now() - 3600000) }) }),
+    match: async () => ({ headers: new Headers({ 'x-sketch-saved-at': String(Date.now() - 7*24*3600000) }) }),
     delete: remove
   }) });
   expect(await readSavedSketch('/sketch')).toBeUndefined();

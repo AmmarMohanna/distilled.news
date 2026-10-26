@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import {expectCopiedSource, toggleTheme} from "./helpers";
 
 const briefing = {
   id: "briefing_default",
@@ -155,12 +156,12 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
   await expect(page.getByRole("link", { name: "create" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "A calmer perspective on a complex world." })).toBeVisible();
-  await page.getByRole("button", { name: "switch to dark mode" }).click();
+  await toggleTheme(page);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.reload();
-  await expect(page.getByRole("button", { name: "switch to light mode" })).toBeVisible();
+  await expect(page.locator(".theme-toggle")).toHaveAttribute("aria-label", /light mode/i);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("button", { name: "switch to light mode" }).click();
+  await toggleTheme(page);
   await page.getByRole("button", { name: "Create feed", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Continue with Email" })).toBeVisible();
   await expect(page.getByLabel("admin setup token")).toHaveCount(0);
@@ -270,7 +271,8 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   const reportDialog = page.getByRole("dialog", { name: "Sources" });
   await expect(reportDialog).toBeVisible();
   await expect(reportDialog.getByText("Beirut Local")).toBeVisible();
-  await expect(reportDialog.getByRole("link", { name: /open post/i })).toHaveAttribute("href", item.evidence[0].sourceUrl);
+  await expectCopiedSource(page, item.evidence[0].sourceUrl);
+  await expect(reportDialog.locator(".sources-posts a[href]").first()).toHaveAttribute("href", item.evidence[0].links[0]);
   await page.getByRole("button", { name: "Close", exact: true }).click();
 
   await page.getByPlaceholder("Search briefings").fill("power supply");
@@ -312,13 +314,13 @@ test("arabic feed keeps public chrome localized and summary stable when opening 
   await expect(page.getByRole("dialog", { name: "المصادر" })).toBeVisible();
   await page.getByRole("button", { name: "إغلاق", exact: true }).click();
   await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
-  await expect(page.locator(".news-summary").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
+  await expect(page.locator(".news-item").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);
   await expect(page.getByText("Search briefings")).toHaveCount(0);
 });
 
-test("feed shows twenty unread items and backfills when one is read", async ({ page }) => {
+test("feed pages twenty editions and preserves read status without hiding them", async ({ page }) => {
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -335,15 +337,16 @@ test("feed shows twenty unread items and backfills when one is read", async ({ p
 
   await page.goto("/ammar-mohanna/personal/");
 
-  const visibleUnread = page.locator(".news-line:not(.news-line-read) .news-item");
+  const visibleUnread = page.locator(".news-item:not(.is-read)");
   await expect(visibleUnread).toHaveCount(20);
   await expect(page.getByText("Published briefing item 20.")).toBeVisible();
   await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "load more" })).toBeVisible();
 
   await visibleUnread.first().getByRole("button", { name: /mark .* read/i }).click();
-  await expect(visibleUnread).toHaveCount(20);
-  await expect(page.getByText("Published briefing item 21.")).toBeVisible();
+  await expect(visibleUnread).toHaveCount(19);
+  await expect(page.locator('.news-item.is-read')).toHaveCount(1);
+  await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
 
   // A background status refresh can leave the debounced payload reconciliation
   // pending while the reader loads another page. Advancing that callback must
@@ -454,12 +457,13 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
   const accountDialog = page.getByRole("dialog", { name: "account", exact: true });
   await expect(accountDialog.getByLabel("username", { exact: true })).toHaveValue("ammar-mohanna");
   await expect(accountDialog.getByLabel("Current Password", { exact: true })).toBeHidden();
-  await accountDialog.getByRole("button", { name: "Change Password", exact: true }).click();
+  await accountDialog.getByRole("button", { name: /Security/ }).click();
   await expect(accountDialog.getByLabel("Current Password", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await page.goto("/ammar-mohanna/personal/?edit=1");
   const editor = page.getByRole("dialog", { name: "Edit feed settings", exact: true });
   await expect(editor.getByLabel("Feed name", { exact: true })).toHaveValue(briefing.title);
+  await page.route("**/api/me/sources/assess", route => route.fulfill({json:{assessment:{status:"accepted",input:route.request().postDataJSON().source,reason:"Fixture matches",checkedAt:"2026-10-24T12:00:00Z"}}}));
   await editor.getByLabel("Sources", { exact: true }).fill("https://t.me/LebUpdate");
   await editor.getByRole("button", { name: "Add source", exact: true }).click();
   await editor.getByRole("button", { name: "Preferences", exact: true }).click();
@@ -480,6 +484,7 @@ test("first feed creation submits its source and configuration atomically", asyn
       : path === "/api/me/feeds" ? { briefing: saved }
       : path === "/api/me/briefings" ? { briefings: saved ? [saved] : [] }
       : path === "/api/explore/feeds" ? { feeds: [] }
+      : path === "/api/me/sources/assess" ? {assessment:{status:"accepted",input:route.request().postDataJSON().source,reason:"Fixture source matches",checkedAt:"2026-10-24T12:00:00Z"}}
       : path === "/api/me/sources" ? { sources: [] }
       : path.startsWith("/api/feed/") ? { briefing: saved, editions: [], viewerHasStarred: false }
       : { health: { processing: { queued: 0, completed: 0, failed: 0 } } };

@@ -25,9 +25,12 @@ PRODUCT_FEEDS_ENABLED = "true"
 BRIEFING_ENGINE = "v3"
 BRIEFING_EDITOR_MODEL = "openai/gpt-4.1"
 BRIEFING_VERIFIER_MODEL = "openai/gpt-4.1-mini"
-SOURCE_RECOMMENDATIONS_ENABLED = "false"
-# Exact-article recovery uses native extraction and funded durable Zyte fallback.
-# Google Apify authorization and existing uncertain provider holds are retained.
+SOURCE_RECOMMENDATIONS_ENABLED = "true"
+SOURCE_DISCOVERY_MODEL = "openai/gpt-4.1"
+SOURCE_ASSESSMENT_ENABLED = "true"
+SOURCE_ASSESSMENT_MODEL = "openai/gpt-4.1-mini"
+# Preserve native exact-article recovery and durable Zyte fallback.
+# Unlimited collection retains accounting and uncertain-outcome retry fences.
 SOURCE_NATIVE_EXECUTION_ENABLED = "true"
 SOURCE_COLLECTION_BUDGET_MODE = "unlimited"
 SOURCE_PER_PROVIDER_BUDGET_USD = "15"

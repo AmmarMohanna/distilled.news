@@ -19,14 +19,18 @@ beforeEach(async()=>{
  await ctx.db.prepare("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('owner-1','owner@example.invalid','owner@example.invalid','owner','user','hash',?,?,?)").bind(cutoff,cutoff,cutoff).run();
  await ctx.db.prepare("INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,created_at,updated_at) VALUES('feed-1','owner-1','news','News','banking reform',1,?,?)").bind(cutoff,cutoff).run();
  await ctx.db.prepare("INSERT INTO username_aliases(username,account_id,is_current,created_at) VALUES('owner','owner-1',1,?)").bind(cutoff).run();
- await seedIntakeScope(new V1IntakeStore(ctx.db));await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});await seedIntelligence(store);
+ await seedIntakeScope(new V1IntakeStore(ctx.db));await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});await seedIntelligence(store,1,'Lebanon Parliament approved banking reform legislation.','publisher-1','2026-10-03T12:00:00Z','en','2026-10-03T12:00:00Z');
  const keys=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
  const browser=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveBits']);
  subscription=JSON.stringify({endpoint,expirationTime:null,keys:{p256dh:Buffer.from(await crypto.subtle.exportKey('raw',browser.publicKey)).toString('base64url'),auth:Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString('base64url')}});
- env={DB:ctx.db,PRODUCT_FEEDS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',V1_EDITORIAL_PLAN_ENABLED:'true',VAPID_PUBLIC_KEY:Buffer.from(await crypto.subtle.exportKey('raw',keys.publicKey)).toString('base64url'),VAPID_PRIVATE_KEY:(await crypto.subtle.exportKey('jwk',keys.privateKey)).d!,VAPID_SUBJECT:'https://distilled.news'} as unknown as Env;
+ env={DB:ctx.db,BRIEFING_ENGINE:'v3',OPENROUTER_API_KEY:'test-only',PRODUCT_FEEDS_ENABLED:'true',V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',V1_EDITORIAL_PLAN_ENABLED:'true',VAPID_PUBLIC_KEY:Buffer.from(await crypto.subtle.exportKey('raw',keys.publicKey)).toString('base64url'),VAPID_PRIVATE_KEY:(await crypto.subtle.exportKey('jwk',keys.privateKey)).d!,VAPID_SUBJECT:'https://distilled.news'} as unknown as Env;
  await ctx.db.prepare('INSERT INTO push_subscriptions(endpoint,account_id,subscription_json,language,last_notified_at,created_at,notification_version) VALUES(?,?,?,?,?,?,?)').bind(endpoint,'owner-1',subscription,'en',cutoff,cutoff,'subscription-v1').run();
- const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:cutoff,end:'2026-10-03T13:00:00Z',kind:'HOURLY'}},()=> '2026-10-03T13:00:00Z');expect(edition).toBeDefined();editionId=edition!.id;
-});
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:cutoff,end:'2026-10-03T13:00:00Z',kind:'HOURLY'}},()=> '2026-10-03T13:00:00Z',undefined,async(_url,init)=>{
+  const request=JSON.parse(String(init?.body));
+  const value=request.messages[0].content.includes('meticulous fact-checker')?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Lebanon Parliament approved banking reform legislation.',sources:['S1'],relation:'new',importance:1}]};
+  return Response.json({id:'push-integration-model',choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:30,cost:.001}});
+ });expect(edition?.engine).toBe('v3');editionId=edition!.id;
+},60000);
 afterEach(async()=>{vi.unstubAllGlobals();await ctx?.dispose()});
 it('connects verified editorial publication, actual frontend retrieval and push-service acceptance without replay',async()=>{
  const response=await createApp().request('/api/feed/owner/news',{},env);expect(response.status).toBe(200);

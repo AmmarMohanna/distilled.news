@@ -12,7 +12,7 @@ it.each(cases)('adaptive $name required fields are unique, including editorial i
  walk(schema);expect(inspectProviderSchema('openai/gpt-4.1-mini',schema).fits).toBe(true);
 });
 it('duplicate required fields cannot reach the provider even if all names are otherwise valid',async()=>{
- let calls=0;const model=createStrongSemanticModel({OPENROUTER_API_KEY:'fixture',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,(async()=>{calls++;throw Error('NO_PAID_CALL')}) as typeof fetch)!;
+ let calls=0;const model=createStrongSemanticModel({DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,(async()=>{calls++;throw Error('NO_PAID_CALL')}) as typeof fetch)!;
  const schema={type:'object',additionalProperties:false,required:['id','id'],properties:{id:{type:'string'}}};
  await expect(model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',{},schema)).rejects.toThrow('SEMANTIC_MODEL_SCHEMA_CONTINUATION_REQUIRED');expect(calls).toBe(0);
 });
@@ -24,7 +24,7 @@ it.each(cases)('admits all retained $name candidates and facts within provider s
  expect(Object.keys(schema.properties.stories.properties)).toHaveLength(state.candidates.length);
 });
 it('rejects invalid structured schemas before any paid provider request',async()=>{
- let calls=0;const model=createStrongSemanticModel({OPENROUTER_API_KEY:'fixture',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,(async()=>{calls++;throw Error('PAID')}) as typeof fetch)!;
+ let calls=0;const model=createStrongSemanticModel({DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini'} as Env,(async()=>{calls++;throw Error('PAID')}) as typeof fetch)!;
  const schema={type:'object',additionalProperties:false,required:['fact'],properties:{fact:{type:'string',enum:Array.from({length:1001},(_,i)=>'f'+i)}}};
  expect(model.admission!({},schema).fits).toBe(false);
  await expect(model.complete('feed','COMPARATIVE_EDITORIAL_PLAN',{},schema)).rejects.toThrow('SEMANTIC_MODEL_SCHEMA_CONTINUATION_REQUIRED');expect(calls).toBe(0);

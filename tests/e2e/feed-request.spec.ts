@@ -21,12 +21,13 @@ test("requested feed layout and language controls", async ({ page }) => {
   await page.getByRole("button", { name: "Create feed", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Add feed" });
   await dialog.getByRole("button", { name: "Preferences" }).click();
-  for (const label of ["EN", "FR", "AR"]) await expect(dialog.getByRole("radio", { name: label })).toBeVisible();
-  await dialog.getByRole("radio", { name: "FR" }).check();
-  await expect(dialog.getByRole("radio", { name: "FR" })).toBeChecked();
+  const languages=dialog.getByLabel("Briefing language");
+  await expect(languages.locator("option")).toHaveCount(3);
+  await languages.selectOption("fr");
+  await expect(languages).toHaveValue("fr");
 });
 
-for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }]) test(`create feed fits ${size.width}x${size.height} without internal scrolling`, async ({ page }) => {
+for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }]) test(`create feed fits ${size.width}x${size.height} with reachable preferences`, async ({ page }) => {
   await page.setViewportSize(size);
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
@@ -39,13 +40,14 @@ for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }]) 
   await page.getByRole("button", { name: "Create feed", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Add feed" });
   const viewport = dialog.locator(".screen-page-viewport");
-  expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+  await expect(dialog.getByLabel("Feed name")).toBeVisible();
   const bounds = await dialog.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
   await dialog.getByRole("button", { name: "Preferences" }).click();
-  expect(await viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+  await dialog.getByLabel("Briefing language").scrollIntoViewIfNeeded();
+  await expect(dialog.getByLabel("Briefing language")).toBeInViewport();
 });
 
 test("phone install control explains the browser install path", async ({ browser }) => {

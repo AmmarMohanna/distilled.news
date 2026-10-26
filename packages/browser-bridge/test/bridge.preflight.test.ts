@@ -1,6 +1,6 @@
 import type {Server} from "node:http";
 import type {AddressInfo} from "node:net";
-import {afterAll,beforeAll,describe,expect,it} from "vitest";
+import {afterEach,beforeEach,describe,expect,it} from "vitest";
 import {BRIDGE_PREFLIGHT_STAGES,runBridgePreflight,type BridgePreflightStage} from "@distilled/agent-runtime";
 import {AuthenticatedBrowserBridgeService} from "../src/service";
 import {createBridgeHttpServer} from "../src/server";
@@ -13,11 +13,11 @@ describe("production bridge preflight (all stages, local)",()=>{
   const site=new SyntheticSite();let service:AuthenticatedBrowserBridgeService;let server:Server;let url:string;
   const run=(stage:BridgePreflightStage)=>runBridgePreflight({url,serviceCredential:SECRET,allowLoopbackHttp:true},{stage,siteOrigin:site.origin,markers:{identifier:SYNTHETIC_IDENTIFIER,password:SYNTHETIC_PASSWORD},idleWaitMs:1_500});
 
-  beforeAll(async()=>{
-    await site.start();service=new AuthenticatedBrowserBridgeService({serviceCredential:SECRET,allowTestMode:true,idleTimeoutMs:600});server=createBridgeHttpServer(service);
+  beforeEach(async(context)=>{
+    await site.start();service=new AuthenticatedBrowserBridgeService({serviceCredential:SECRET,allowTestMode:true,idleTimeoutMs:context.task.name.includes("CLEANUP")?600:30_000});server=createBridgeHttpServer(service);
     await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));url=`http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/authenticated-browser`;
   });
-  afterAll(async()=>{await service.shutdown();await new Promise<void>(resolve=>server.close(()=>resolve()));await site.stop()});
+  afterEach(async()=>{await service.shutdown();await new Promise<void>(resolve=>server.close(()=>resolve()));await site.stop()});
 
   for(const stage of BRIDGE_PREFLIGHT_STAGES)it(`stage ${stage} passes with every check green`,async()=>{
     const result=await run(stage);

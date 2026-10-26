@@ -1,6 +1,19 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
-/** Keep card interiors consistent while the full feed list flows with the page. */
+export function feedGridLayout(count: number, width: number, available: number, desktop: boolean) {
+  const roomy = desktop && width >= 640 && available >= 380;
+  const columns = Math.max(1, Math.min(count, roomy ? 2 : desktop ? Math.max(1, Math.floor((width + 16) / 296)) : width >= 600 ? 2 : 1));
+  const gap = desktop ? 16 : 10;
+  const minimum = roomy ? 160 : 84;
+  // Fill the available screen with complete rows; the full page holds the rest.
+  const space = Math.max(0, available);
+  const rows = Math.max(1, Math.min(Math.ceil(count / columns), Math.floor((space + gap) / (minimum + gap))));
+  const fittedHeight = Math.floor((space - (rows - 1) * gap) / rows);
+  const rowHeight = Math.max(minimum, rows < Math.ceil(count / columns) ? fittedHeight : Math.min(roomy ? 208 : 120, fittedHeight));
+  return { columns, gap, roomy, rows, rowHeight };
+}
+
+/** Keep every feed in one adaptive list without pagination. */
 export function AdaptiveFeedGrid({ children, className, count }: { children: ReactNode; className: string; count: number }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -11,40 +24,34 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       const scale = grid.offsetWidth ? rect.width / grid.offsetWidth : 1;
       const viewport = grid.closest<HTMLElement>('.screen-page-viewport');
       const navigation = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
-      const bottom = Math.min(window.innerHeight, window.innerWidth < 900 ? navigation?.top ?? window.innerHeight : window.innerHeight);
+      const viewportBottom = viewport?.getBoundingClientRect().bottom ?? window.innerHeight;
+      const visualBottom = window.visualViewport ? window.visualViewport.offsetTop + window.visualViewport.height : window.innerHeight;
+      const navigationTop = window.innerWidth < 900 && navigation && navigation.height > 0 ? navigation.top : window.innerHeight;
+      const bottom = Math.min(window.innerHeight, viewportBottom, visualBottom, navigationTop);
       const top = rect.top + (viewport?.scrollTop ?? 0) * scale;
-      const available = Math.max(0, (bottom - top) / scale);
-      const width = grid.clientWidth;
-      let roomy = window.innerWidth >= 900 && width >= 640 && available >= 320;
-      const columns = Math.min(count, roomy ? 2 : window.innerWidth >= 900 ? Math.max(1, Math.floor((width + 16) / 296)) : width >= 600 ? 2 : 1);
-      const gap = window.innerWidth >= 900 ? 16 : 10;
-      const totalRows = Math.ceil(count / columns);
-      const fitRows = (preferred: number, minimum: number) => {
-        if (totalRows * preferred + (totalRows - 1) * gap <= available) return preferred;
-        let rows = Math.max(1, Math.ceil((available + gap) / (preferred + gap)));
-        let height = (available - (rows - 1) * gap) / rows;
-        if (height < minimum) {
-          rows = Math.max(1, Math.floor((available + gap) / (minimum + gap)));
-          height = (available - (rows - 1) * gap) / rows;
-        }
-        return Math.max(minimum, height);
-      };
-      if (roomy && fitRows(208, 160) > 240) roomy = false;
-      const rowHeight = roomy ? fitRows(208, 160) : fitRows(84, 64);
+      const layout = feedGridLayout(count, grid.clientWidth, Math.max(0, (bottom - top) / scale), window.innerWidth >= 900);
       grid.dataset.layout = 'list';
-      grid.dataset.size = roomy ? 'large' : 'compact';
-      grid.style.setProperty('--feed-columns', String(columns));
-      grid.style.setProperty('--feed-row-height', `${rowHeight}px`);
-      grid.style.setProperty('--feed-grid-gap', `${gap}px`);
-      grid.style.setProperty('--feed-art-size', `${roomy ? Math.min(112, rowHeight - 86) : Math.min(64, rowHeight - 18)}px`);
+      grid.dataset.size = layout.roomy ? 'large' : 'compact';
+      grid.style.setProperty('--feed-columns', String(layout.columns));
+      grid.style.setProperty('--feed-row-height', layout.rowHeight + 'px');
+      grid.style.setProperty('--feed-grid-gap', layout.gap + 'px');
+      grid.style.setProperty('--feed-art-size', (layout.roomy ? Math.min(112, layout.rowHeight - 86) : Math.min(64, layout.rowHeight - 18)) + 'px');
     };
     measure();
+    let active = true;
+    const frame = requestAnimationFrame(measure);
+    void document.fonts?.ready.then(() => { if (active) measure(); });
     const observer = new ResizeObserver(measure);
     observer.observe(grid);
     const main = grid.closest('main');
     if (main) observer.observe(main);
+    const navigation = document.querySelector('.bottom-navigation');
+    if (navigation) observer.observe(navigation);
+    const viewport = grid.closest('.screen-page-viewport');
+    if (viewport) observer.observe(viewport);
     window.addEventListener('resize', measure);
-    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => { active = false; cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', measure); window.visualViewport?.removeEventListener('resize', measure); };
   }, [count]);
-  return <div className={`adaptive-feed-grid ${className}`} ref={ref}>{children}</div>;
+  return <div className={'adaptive-feed-grid ' + className} ref={ref}>{children}</div>;
 }

@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import { readFileSync,writeFileSync } from "node:fs";
 import { Miniflare } from "miniflare";
 import { describe,expect,it } from "vitest";
@@ -22,11 +23,11 @@ describe("authenticated X workflow lifecycle",()=>{
       const db=await mf.getD1Database("DB");
       for(const name of ["0011_agent_runtime.sql","0013_web_operator_workflow_lifecycle.sql","0026_source_acquisition_state.sql","0028_browser_use_discovery_runs.sql","0031_bounded_decision_events.sql","0032_openrouter_decision_metadata.sql"]){
         const sql=readFileSync(new URL(`../migrations/${name}`,import.meta.url),"utf8").replace(/^PRAGMA foreign_keys = ON;\s*/m,"");
-        for(const statement of sql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
+        for(const statement of migrationStatements(sql))await db.prepare(statement).run();
       }
       await db.exec("CREATE TABLE upstream_resources(id TEXT PRIMARY KEY); INSERT INTO upstream_resources VALUES('resource-x');");
       const handoffSql=readFileSync(new URL("../migrations/0033_acquisition_item_handoff.sql",import.meta.url),"utf8");
-      for(const statement of handoffSql.split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(Boolean))await db.prepare(statement).run();
+      for(const statement of migrationStatements(handoffSql))await db.prepare(statement).run();
       const env={DB:db,DISTILLED_LIVE_OPENROUTER_MODEL:"openai/test",DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:"test-only"} as Env;
       const counts={discover:0};
       const input={tenantId:"owner",ownerId:"owner",resourceId:"resource-x",source:{sourceFamily:"x",canonicalSourceUrl:sourceUrl},window,limits,authentication:"AUTH_REQUIRED" as const,acquisitionAsOf:"2026-09-27T12:00:00Z"};

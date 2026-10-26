@@ -1,0 +1,683 @@
+{
+  "decision": "KEEP_BASELINE_NO_DEMONSTRATED_IMPROVEMENT",
+  "runtimeChanges": 0,
+  "deployments": 0,
+  "verifierCalls": 0,
+  "repairCalls": 0,
+  "readOnlyLiveData": true,
+  "summary": {
+    "newCalls": 10,
+    "settledCalls": 10,
+    "actualUsd": 0.058956,
+    "maximumReservationsUsd": 0.553114,
+    "outstandingUsd": 0,
+    "authorizationCeilingUsd": 0.56
+  },
+  "aggregate": {
+    "baseline": {
+      "costUsd": 0.029212,
+      "inputTokens": 11390,
+      "outputTokens": 804,
+      "providerMs": 8016
+    },
+    "candidate": {
+      "costUsd": 0.029744,
+      "inputTokens": 11632,
+      "outputTokens": 810,
+      "providerMs": 8289
+    }
+  },
+  "pairs": [
+    {
+      "caseId": "real-oil-repeat",
+      "experiment": "continuity",
+      "language": "en",
+      "labelStatus": "AI-assisted whole-text comparison, not independent human gold.",
+      "baselineRequestSha256": "77f2bd38b0dc58b4eb33f93c6a628de3f0bbfc6aa3cb3307f5812bede90d7708",
+      "candidateRequestSha256": "a9069d72249100974693732e1cc87b2f9a2c598e767277b0ac5c475813d3650c",
+      "exactUserInputSha256": "b80b34f68360e536d8a17fc30cce403c4e620f19d61ad25f54b59e8214e406d8",
+      "exactModelConfiguration": {
+        "model": "openai/gpt-4.1",
+        "temperature": 0.1,
+        "max_tokens": 4000,
+        "response_format": {
+          "type": "json_object"
+        },
+        "usage": {
+          "include": true
+        },
+        "provider": {
+          "max_price": {
+            "prompt": 2,
+            "completion": 8
+          },
+          "allow_fallbacks": false
+        }
+      },
+      "sameInputAndConfiguration": true,
+      "changedParagraphs": 1,
+      "baseline": {
+        "name": "real-oil-repeat-baseline",
+        "group": "editor",
+        "language": "en",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "77f2bd38b0dc58b4eb33f93c6a628de3f0bbfc6aa3cb3307f5812bede90d7708",
+        "output": {
+          "items": [],
+          "left_out": [
+            {
+              "sources": [
+                "S1"
+              ],
+              "why": "repeat of told item"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 1462,
+        "admissionMs": 2376,
+        "totalMs": 4234,
+        "requestAndSettlementMs": 1858,
+        "usage": {
+          "prompt_tokens": 2457,
+          "completion_tokens": 23,
+          "cost": 0.005098,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 0
+      },
+      "candidate": {
+        "name": "real-oil-repeat-candidate",
+        "group": "editor",
+        "language": "en",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "a9069d72249100974693732e1cc87b2f9a2c598e767277b0ac5c475813d3650c",
+        "output": {
+          "items": [],
+          "left_out": [
+            {
+              "sources": [
+                "S1"
+              ],
+              "why": "repeat of told item"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 961,
+        "admissionMs": 1641,
+        "totalMs": 3034,
+        "requestAndSettlementMs": 1393,
+        "usage": {
+          "prompt_tokens": 2513,
+          "completion_tokens": 38,
+          "cost": 0.00533,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 0
+      }
+    },
+    {
+      "caseId": "synthetic-occurrence-update-correction",
+      "experiment": "continuity",
+      "language": "en",
+      "labelStatus": "Explicit synthetic controls; not real-world quality evidence.",
+      "baselineRequestSha256": "a9468f37354bafb7749e61e1ede0d3aa95151476f12b0256478a8ad660c561a1",
+      "candidateRequestSha256": "40868da2e57e6c721f840243f4f44e831b4387e49738518273c3c13aa904dfd7",
+      "exactUserInputSha256": "8a7f2b851ff658addcabf3a9b0e9e5a300f0d982968f9a10f4a181db0c6a3e8a",
+      "exactModelConfiguration": {
+        "model": "openai/gpt-4.1",
+        "temperature": 0.1,
+        "max_tokens": 4000,
+        "response_format": {
+          "type": "json_object"
+        },
+        "usage": {
+          "include": true
+        },
+        "provider": {
+          "max_price": {
+            "prompt": 2,
+            "completion": 8
+          },
+          "allow_fallbacks": false
+        }
+      },
+      "sameInputAndConfiguration": true,
+      "changedParagraphs": 1,
+      "baseline": {
+        "name": "synthetic-occurrence-update-correction-baseline",
+        "group": "editor",
+        "language": "en",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "a9468f37354bafb7749e61e1ede0d3aa95151476f12b0256478a8ad660c561a1",
+        "output": {
+          "items": [
+            {
+              "headline": "Second explosion at North Market injures three",
+              "body": "Police report a separate explosion at North Market at 10:00 on October 23, injuring three people. This incident is distinct from the October 22 explosion at the same location.",
+              "sources": [
+                "S1"
+              ],
+              "relation": "new",
+              "updates": null,
+              "importance": 1
+            },
+            {
+              "headline": "Harbor rail service resumes after repairs",
+              "body": "The transit authority says Harbor rail service resumed at 10:00 on October 23 after engineers repaired the signalling fault that had suspended service earlier that morning.",
+              "sources": [
+                "S3"
+              ],
+              "relation": "update",
+              "updates": "prior-service",
+              "importance": 2
+            },
+            {
+              "headline": "East Bank evacuation figure corrected to fifty residents",
+              "body": "The fire service has corrected its earlier East Bank evacuation figure from five residents to fifty, citing a reporting error. This is not fifty additional evacuations.",
+              "sources": [
+                "S4"
+              ],
+              "relation": "correction",
+              "updates": "prior-evacuation",
+              "importance": 2
+            }
+          ],
+          "left_out": [
+            {
+              "sources": [
+                "S2"
+              ],
+              "why": "repeat of told item"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 1780,
+        "admissionMs": 1700,
+        "totalMs": 4186,
+        "requestAndSettlementMs": 2486,
+        "usage": {
+          "prompt_tokens": 1845,
+          "completion_tokens": 299,
+          "cost": 0.006082,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 102
+      },
+      "candidate": {
+        "name": "synthetic-occurrence-update-correction-candidate",
+        "group": "editor",
+        "language": "en",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "40868da2e57e6c721f840243f4f44e831b4387e49738518273c3c13aa904dfd7",
+        "output": {
+          "items": [
+            {
+              "headline": "Three injured in second North Market explosion",
+              "body": "Police report a separate explosion at North Market at 10:00 on October 23, injuring three people. This incident is distinct from the October 22 explosion at the same location.",
+              "sources": [
+                "S1"
+              ],
+              "relation": "new",
+              "updates": null,
+              "importance": 1
+            },
+            {
+              "headline": "Harbor rail service resumes after repairs",
+              "body": "The transit authority says Harbor rail service resumed at 10:00 on October 23 after engineers repaired the signalling fault.",
+              "sources": [
+                "S3"
+              ],
+              "relation": "update",
+              "updates": "prior-service",
+              "importance": 2
+            },
+            {
+              "headline": "East Bank evacuation figure corrected to fifty residents",
+              "body": "The fire service has corrected its earlier East Bank evacuation figure from five to fifty residents, citing a reporting error.",
+              "sources": [
+                "S4"
+              ],
+              "relation": "correction",
+              "updates": "prior-evacuation",
+              "importance": 2
+            }
+          ],
+          "left_out": [
+            {
+              "sources": [
+                "S2"
+              ],
+              "why": "repeat of told item"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 2299,
+        "admissionMs": 2106,
+        "totalMs": 4955,
+        "requestAndSettlementMs": 2849,
+        "usage": {
+          "prompt_tokens": 1901,
+          "completion_tokens": 283,
+          "cost": 0.006066,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 89
+      }
+    },
+    {
+      "caseId": "real-lebanon-ambiguous-repeat",
+      "experiment": "continuity",
+      "language": "ar",
+      "labelStatus": "Diagnostic only: occurrence identity not established by the retained post.",
+      "baselineRequestSha256": "b7ce850da221c313e3b3a722b71ffb946a52faa9a04f103c20b8e034e118e1a8",
+      "candidateRequestSha256": "d8df246a5862fa74fde24fd0d0c8cf319a8566d96f4810646f869c475215ffa8",
+      "exactUserInputSha256": "19aa17c6c4bc6c3187a458bc5f960857d28578e6c9ef0bc864aab0a3ec06e68f",
+      "exactModelConfiguration": {
+        "model": "openai/gpt-4.1",
+        "temperature": 0.1,
+        "max_tokens": 4000,
+        "response_format": {
+          "type": "json_object"
+        },
+        "usage": {
+          "include": true
+        },
+        "provider": {
+          "max_price": {
+            "prompt": 2,
+            "completion": 8
+          },
+          "allow_fallbacks": false
+        }
+      },
+      "sameInputAndConfiguration": true,
+      "changedParagraphs": 1,
+      "baseline": {
+        "name": "real-lebanon-ambiguous-repeat-baseline",
+        "group": "editor",
+        "language": "ar",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "b7ce850da221c313e3b3a722b71ffb946a52faa9a04f103c20b8e034e118e1a8",
+        "output": {
+          "items": [],
+          "left_out": [
+            {
+              "sources": [
+                "S1"
+              ],
+              "why": "تكرار لما أُبلغ به القارئ سابقاً"
+            },
+            {
+              "sources": [
+                "S2"
+              ],
+              "why": "خارج الموضوع (لا يتعلق بتطورات لبنان)"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 1143,
+        "admissionMs": 2363,
+        "totalMs": 3962,
+        "requestAndSettlementMs": 1599,
+        "usage": {
+          "prompt_tokens": 2932,
+          "completion_tokens": 75,
+          "cost": 0.006464,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 0
+      },
+      "candidate": {
+        "name": "real-lebanon-ambiguous-repeat-candidate",
+        "group": "editor",
+        "language": "ar",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "d8df246a5862fa74fde24fd0d0c8cf319a8566d96f4810646f869c475215ffa8",
+        "output": {
+          "items": [],
+          "left_out": [
+            {
+              "sources": [
+                "S1"
+              ],
+              "why": "تكرار لما أُبلغ به القارئ سابقاً"
+            },
+            {
+              "sources": [
+                "S2"
+              ],
+              "why": "خارج الموضوع"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 1275,
+        "admissionMs": 1976,
+        "totalMs": 3663,
+        "requestAndSettlementMs": 1687,
+        "usage": {
+          "prompt_tokens": 2988,
+          "completion_tokens": 68,
+          "cost": 0.00652,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 0
+      }
+    },
+    {
+      "caseId": "real-lebanon-relevance-en",
+      "experiment": "relevance",
+      "language": "en",
+      "labelStatus": "Frozen engineering rubric; optional regional judgments are not treated as mandatory.",
+      "baselineRequestSha256": "a99bd0bc6e06d2f573979dafbd3d9c49eb09b55772019606d6bbc413bf0908e1",
+      "candidateRequestSha256": "9f4afd2f91473642593f024c39250298344cea6293c9b5f1c9a4f2e2af1afc7e",
+      "exactUserInputSha256": "f1fa00cf463f39f1a836f77e3c99a9636e37a8dcbbb0bac3673ad75bd11a67ef",
+      "exactModelConfiguration": {
+        "model": "openai/gpt-4.1",
+        "temperature": 0.1,
+        "max_tokens": 4000,
+        "response_format": {
+          "type": "json_object"
+        },
+        "usage": {
+          "include": true
+        },
+        "provider": {
+          "max_price": {
+            "prompt": 2,
+            "completion": 8
+          },
+          "allow_fallbacks": false
+        }
+      },
+      "sameInputAndConfiguration": true,
+      "changedParagraphs": 1,
+      "baseline": {
+        "name": "real-lebanon-relevance-en-baseline",
+        "group": "editor",
+        "language": "en",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "a99bd0bc6e06d2f573979dafbd3d9c49eb09b55772019606d6bbc413bf0908e1",
+        "output": {
+          "items": [
+            {
+              "headline": "Low-flying drone reported over Haret Saida",
+              "body": "A drone was reported flying at very low altitude over Haret Saida. No further details were provided.",
+              "sources": [
+                "S4"
+              ],
+              "relation": "new",
+              "updates": null,
+              "importance": 1
+            }
+          ],
+          "left_out": [
+            {
+              "sources": [
+                "S1"
+              ],
+              "why": "off-topic: Israeli political commentary, no direct Lebanon development"
+            },
+            {
+              "sources": [
+                "S2"
+              ],
+              "why": "off-topic: Iran-U.S. drone incident, no Lebanon connection"
+            },
+            {
+              "sources": [
+                "S3"
+              ],
+              "why": "off-topic: Strait of Hormuz and ceasefire statements, no Lebanon-specific development"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 1885,
+        "admissionMs": 1584,
+        "totalMs": 3930,
+        "requestAndSettlementMs": 2346,
+        "usage": {
+          "prompt_tokens": 2078,
+          "completion_tokens": 186,
+          "cost": 0.005644,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 23
+      },
+      "candidate": {
+        "name": "real-lebanon-relevance-en-candidate",
+        "group": "editor",
+        "language": "en",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "9f4afd2f91473642593f024c39250298344cea6293c9b5f1c9a4f2e2af1afc7e",
+        "output": {
+          "items": [
+            {
+              "headline": "Low-flying drone reported over Haret Saida",
+              "body": "A drone was reported flying at very low altitude over Haret Saida, according to local sources on October 25, 2026.",
+              "sources": [
+                "S4"
+              ],
+              "relation": "new",
+              "updates": null,
+              "importance": 1
+            }
+          ],
+          "left_out": [
+            {
+              "sources": [
+                "S1"
+              ],
+              "why": "off-topic: Israeli political developments without direct Lebanon impact"
+            },
+            {
+              "sources": [
+                "S2"
+              ],
+              "why": "off-topic: Iranian report of US drone downing over Bandar Abbas, no Lebanon link"
+            },
+            {
+              "sources": [
+                "S3"
+              ],
+              "why": "off-topic: statements on Strait of Hormuz and ceasefire, no Lebanon-specific development"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 1677,
+        "admissionMs": 1692,
+        "totalMs": 3822,
+        "requestAndSettlementMs": 2130,
+        "usage": {
+          "prompt_tokens": 2115,
+          "completion_tokens": 197,
+          "cost": 0.005806,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 26
+      }
+    },
+    {
+      "caseId": "real-lebanon-relevance-ar",
+      "experiment": "relevance",
+      "language": "ar",
+      "labelStatus": "Frozen engineering rubric; optional regional judgments are not treated as mandatory.",
+      "baselineRequestSha256": "340c18ffc67b818459779c312124fe48fa7b70fc05b7611584f055978b2da57d",
+      "candidateRequestSha256": "7974fba5bcc5b4ed62fb6f13ac9cc93332c81df12f8a474a6274593c06cc1b0b",
+      "exactUserInputSha256": "32707a15db6ae323840e1faf4a68d23721e1161982a6be8d69eaeb4818333e40",
+      "exactModelConfiguration": {
+        "model": "openai/gpt-4.1",
+        "temperature": 0.1,
+        "max_tokens": 4000,
+        "response_format": {
+          "type": "json_object"
+        },
+        "usage": {
+          "include": true
+        },
+        "provider": {
+          "max_price": {
+            "prompt": 2,
+            "completion": 8
+          },
+          "allow_fallbacks": false
+        }
+      },
+      "sameInputAndConfiguration": true,
+      "changedParagraphs": 1,
+      "baseline": {
+        "name": "real-lebanon-relevance-ar-baseline",
+        "group": "editor",
+        "language": "ar",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "340c18ffc67b818459779c312124fe48fa7b70fc05b7611584f055978b2da57d",
+        "output": {
+          "items": [
+            {
+              "headline": "تحليق طائرة مسيّرة على علو منخفض فوق حارة صيدا",
+              "body": "أفادت تقارير بتحليق طائرة مسيّرة على علو منخفض جداً فوق منطقة حارة صيدا في لبنان، دون ذكر تفاصيل إضافية عن الجهة أو الأضرار.",
+              "sources": [
+                "S4"
+              ],
+              "relation": "new",
+              "updates": null,
+              "importance": 1
+            }
+          ],
+          "left_out": [
+            {
+              "sources": [
+                "S1"
+              ],
+              "why": "تطور سياسي إسرائيلي داخلي، لا أثر مباشر على لبنان"
+            },
+            {
+              "sources": [
+                "S2"
+              ],
+              "why": "حادث عسكري بين إيران والولايات المتحدة، لا صلة مباشرة بلبنان"
+            },
+            {
+              "sources": [
+                "S3"
+              ],
+              "why": "تصريحات حول مضيق هرمز ووقف إطلاق النار، لا صلة مباشرة بلبنان"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 1746,
+        "admissionMs": 1619,
+        "totalMs": 3786,
+        "requestAndSettlementMs": 2167,
+        "usage": {
+          "prompt_tokens": 2078,
+          "completion_tokens": 221,
+          "cost": 0.005924,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 32
+      },
+      "candidate": {
+        "name": "real-lebanon-relevance-ar-candidate",
+        "group": "editor",
+        "language": "ar",
+        "model": "openai/gpt-4.1",
+        "requestSha256": "7974fba5bcc5b4ed62fb6f13ac9cc93332c81df12f8a474a6274593c06cc1b0b",
+        "output": {
+          "items": [
+            {
+              "headline": "تحليق طائرة مسيّرة على علو منخفض فوق حارة صيدا",
+              "body": "أفادت تقارير بتحليق طائرة مسيّرة على علو منخفض جداً فوق منطقة حارة صيدا في لبنان، دون ذكر تفاصيل إضافية عن الجهة أو الأهداف.",
+              "sources": [
+                "S4"
+              ],
+              "relation": "new",
+              "updates": null,
+              "importance": 1
+            }
+          ],
+          "left_out": [
+            {
+              "sources": [
+                "S1"
+              ],
+              "why": "تطور سياسي إسرائيلي داخلي، لا أثر مباشر على لبنان"
+            },
+            {
+              "sources": [
+                "S2"
+              ],
+              "why": "حادث إسقاط طائرة مسيّرة فوق إيران، لا صلة مباشرة بلبنان"
+            },
+            {
+              "sources": [
+                "S3"
+              ],
+              "why": "تصريحات حول مضيق هرمز ووقف إطلاق النار، لا تطور مباشر يخص لبنان"
+            }
+          ]
+        },
+        "strictJson": true,
+        "applicationContractValid": true,
+        "providerMs": 2077,
+        "admissionMs": 1662,
+        "totalMs": 4195,
+        "requestAndSettlementMs": 2533,
+        "usage": {
+          "prompt_tokens": 2115,
+          "completion_tokens": 224,
+          "cost": 0.006022,
+          "cached_tokens": 0
+        },
+        "finishReason": "stop",
+        "provider": "OpenAI",
+        "words": 32
+      }
+    }
+  ],
+  "limitations": [
+    "Five frozen cases, one response per condition; no statistical reliability or latency estimate.",
+    "Only explicit fixture relationships have unambiguous new-occurrence/update/correction labels; they are synthetic, not real news evidence.",
+    "The actual Lebanon repeat case is ambiguous and remains unscored for forced publication/omission.",
+    "Relevance composite uses an explicit cold start and four posts; it does not reproduce the single-article production window with long reader history.",
+    "Optional regional choices are not automatically errors.",
+    "Source review is AI-assisted engineering assessment, not independent human gold or external confirmation.",
+    "No verifier calls, repairs or persisted edition in this scope.",
+    "Private recovered full source text and exact request pairs remain local; safe hashes and outputs are committed."
+  ]
+}

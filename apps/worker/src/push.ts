@@ -51,7 +51,7 @@ export async function sendBriefingNotifications(env: Env) {
       try {body = await readBriefingPushPreview(env.DB,row);}
       catch {console.warn("Push preview unavailable; using generic notification");}
       phase = "payload";
-      const payload = await buildPushPayload({ data: JSON.stringify({ title: "Distilled.news", body, url: "/", tag: "new-briefings" }), options: { ttl: 3600 } }, subscription,
+      const payload = await buildPushPayload({ data: JSON.stringify({ title: "Distilled.News", body, url: "/", tag: "new-briefings" }), options: { ttl: 3600 } }, subscription,
         { publicKey: env.VAPID_PUBLIC_KEY!, privateKey: env.VAPID_PRIVATE_KEY!, subject: env.VAPID_SUBJECT! });
       phase = "send";
       const response = await fetch(subscription.endpoint, { ...payload, redirect: "manual", signal: AbortSignal.timeout(10_000) });

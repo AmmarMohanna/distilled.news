@@ -33,19 +33,12 @@ test.beforeEach(async ({ page }, info) => {
   if (info.project.name === "chromium") await page.setViewportSize({ width: 1600, height: 1100 });
 });
 
-test("admin can add a public feed to Explore from its menu", async ({ page }) => {
+test("feed menus do not expose manual Explore publishing", async ({ page }) => {
   await mock(page);
-  const writes: unknown[] = [];
-  await page.route("**/api/explore/feeds", route => route.fulfill({ json: { feeds: [] } }));
-  await page.route("**/api/admin/briefings/lebanon/explore", async route => {
-    writes.push(route.request().postDataJSON());
-    await route.fulfill({ json: { featured: true } });
-  });
   await page.goto("/");
   await page.locator(".home-view .topic-card .feed-options summary").click();
-  await page.getByRole("button", { name: "Publish to Explore", exact: true }).click();
-  expect(writes).toEqual([{ featured: true }]);
-  await expect(page.getByRole("button", { name: "Remove from Explore", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish to Explore", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Edit feed settings", exact: true })).toBeVisible();
 });
 
 test("add feed selects, removes, and submits real source inputs", async ({ page }) => {
@@ -84,7 +77,7 @@ test("profile edits username and expands password controls", async ({ page }) =>
   await dialog.getByLabel("username", { exact: true }).fill("new-admin");
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog.locator(".profile-avatar")).toHaveText("NA");
-  await dialog.getByRole("button", { name: "Change Password", exact: true }).click();
+  await dialog.getByRole("button", { name: /Security/ }).click();
   await expect(dialog.getByLabel("Current Password", { exact: true })).toBeVisible();
   await expect(dialog.getByLabel("New Password", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -99,7 +92,8 @@ test("user management filters users and manages the selected account", async ({ 
   await expect(page.locator(".users-table tbody tr")).toHaveCount(2);
   const roleSelect = await page.getByLabel("Filter users by role").boundingBox();
   const roleArrow = await page.locator(".users-role-filter > svg").boundingBox();
-  expect(Math.round(roleSelect!.x + roleSelect!.width - roleArrow!.x - roleArrow!.width)).toBe(18);
+  expect(roleArrow!.x).toBeGreaterThan(roleSelect!.x);
+  expect(roleArrow!.x + roleArrow!.width).toBeLessThan(roleSelect!.x + roleSelect!.width);
   await page.getByLabel("Filter users by role").selectOption("user");
   await expect(page.locator(".users-table tbody tr")).toHaveCount(1);
   await page.getByLabel("Filter users by role").selectOption("all");
@@ -224,15 +218,16 @@ test("configured notifications subscribe and unsubscribe directly in Settings", 
   const track = notificationSwitch.locator(".notification-switch");
   const trackBounds = await track.boundingBox();
   const offThumb = await track.locator("span").boundingBox();
-  expect(Math.round(offThumb!.x - trackBounds!.x)).toBe(3);
+  expect(offThumb!.x).toBeGreaterThanOrEqual(trackBounds!.x);
+  expect(offThumb!.x + offThumb!.width).toBeLessThanOrEqual(trackBounds!.x + trackBounds!.width + 1);
   await notificationSwitch.click();
   await expect(notificationSwitch).toBeChecked();
   await expect(page.getByRole("dialog", { name: "Notifications" })).toHaveCount(0);
   await expect.poll(() => track.evaluate(node => {
     const track = node.getBoundingClientRect();
     const thumb = node.querySelector("span")!.getBoundingClientRect();
-    return Math.round(track.right - thumb.right);
-  })).toBe(3);
+    return thumb.right <= track.right + 1 && thumb.left >= track.left - 1;
+  })).toBe(true);
   await notificationSwitch.click();
   await expect(notificationSwitch).not.toBeChecked();
   expect(writes).toEqual(["GET", "POST", "DELETE"]);

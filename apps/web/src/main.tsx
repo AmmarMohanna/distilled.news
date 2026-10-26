@@ -1,3 +1,5 @@
+import { sourceEvidenceLabels } from "./source-evidence-labels";
+import { SourceLogo } from "./SourceLogo";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
 import React, { useEffect, useId, useRef, useState } from "react";
@@ -27,6 +29,7 @@ import {
   Compass,
   Copy,
   ExternalLink,
+  Link2,
   Gauge,
   Globe,
   Github,
@@ -186,6 +189,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const briefingsRef = useRef<BriefingConfig[]>([]);
   const autosaveTimerRef = useRef<number | null>(null);
   const autosaveRunRef = useRef(0);
+  const briefingsLoadingRef = useRef(false);
 
   const account = session?.account ?? null;
   const briefing = briefings.find((item) => item.id === selectedBriefingId) ?? null;
@@ -223,6 +227,36 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   }, []);
 
   useEffect(() => {
+    if (!account || creationOpen || feedSettingsOpen || accountDialogOpen || busyAction || autosaveState === "saving" || autosaveState === "error") return;
+    let active = true;
+    const update = async () => {
+      if (document.visibilityState !== "visible" || briefingsLoadingRef.current) return;
+      briefingsLoadingRef.current = true;
+      try {
+        const next = await getBriefings();
+        if (!active) return;
+        setBriefings(next);
+        setSelectedBriefingId(current => current && next.some(feed => feed.id === current) ? current : next[0]?.id ?? null);
+      } catch {
+        // A background failure must not clear the working list or interrupt a draft.
+      } finally {
+        briefingsLoadingRef.current = false;
+      }
+    };
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
+    window.addEventListener("online", update);
+    window.addEventListener("pageshow", update);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
+      window.removeEventListener("online", update);
+      window.removeEventListener("pageshow", update);
+    };
+  }, [account?.id, creationOpen, feedSettingsOpen, accountDialogOpen, busyAction, autosaveState]);
+
+  useEffect(() => {
     if (!selectedBriefingId || !session?.authenticated) return;
     setScopedDataReady(false);
     loadScopedData(selectedBriefingId).catch((cause) =>
@@ -237,13 +271,18 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   }
 
   async function loadBriefings(preferredId?: string) {
-    const nextBriefings = await getBriefings();
-    setBriefings(nextBriefings);
-    const activeId =
-      preferredId && nextBriefings.some((item) => item.id === preferredId)
-        ? preferredId
-        : nextBriefings[0]?.id ?? null;
-    setSelectedBriefingId(activeId);
+    briefingsLoadingRef.current = true;
+    try {
+      const nextBriefings = await getBriefings();
+      setBriefings(nextBriefings);
+      const activeId =
+        preferredId && nextBriefings.some((item) => item.id === preferredId)
+          ? preferredId
+          : nextBriefings[0]?.id ?? null;
+      setSelectedBriefingId(activeId);
+    } finally {
+      briefingsLoadingRef.current = false;
+    }
   }
 
   async function loadScopedData(briefingId: string) {
@@ -458,6 +497,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     <>
       <AppExperience key="account" account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
         onAccount={() => setAccountDialogOpen(true)}
+        onResumeFeed={async feed => { await persistBriefing({...feed,paused:false}, "resumed", null); window.dispatchEvent(new Event("dn-explore-changed")); }}
         onCreate={() => setCreationOpen(true)} onHelp={() => setHelpOpen(true)} error={error}>
 {account.role === "admin" ? <AdminAccountsSection accounts={accounts} currentAccountId={account.id} onAccountsChanged={setAccounts}/> : null}
       </AppExperience>
@@ -1434,7 +1474,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [readFilter, setReadFilter] = useState<"all" | "unread" | "read">("all");
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1536,7 +1575,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const currentEditions = payload ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
   const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
-  const filteredEditions = currentEditions.filter(edition => readFilter === "all" || (readFilter === "read" ? readIds.has(edition.id) : !readIds.has(edition.id)));
+  const filteredEditions = currentEditions;
   const visibleUnreadEditions = filteredEditions.slice(0, visibleUnreadCount);
   const hiddenUnreadCount = Math.max(0, filteredEditions.length - visibleUnreadEditions.length);
   const language = uiLanguage;
@@ -1625,19 +1664,13 @@ function FeedPage(props: { username: string; slug: string }) {
         <span className="action-count">{payload?.briefing.stars ?? 0}</span>
       </button>
       <button type="button" title={t("Share")} aria-label={t("Share")} disabled={!payload?.briefing.publicFeedEnabled} onClick={() => void shareFeed()}><Share size={20} aria-hidden /></button>
-      {ownedFeed ? <FeedMoreMenu label={t("More options")}>
-        {close => <>
-          {ownedFeed ? <button type="button" onClick={() => { close(); setEditorOpen(true); }}><Settings size={16} aria-hidden />{t("Edit feed settings")}</button> : null}
-
-        </>}
-      </FeedMoreMenu> : null}
+      {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={20} aria-hidden /></button> : null}
     </div>
   );
 
   return (
     <Shell
-      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} contextual/>}
-      headingAction={feedActions}
+      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       description={feedStatusMessage || undefined}
@@ -1659,7 +1692,6 @@ function FeedPage(props: { username: string; slug: string }) {
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
       <div className={`feed-tools${payload?.editions.length ? "" : " is-empty-feed"}`} dir={pageDir}>
-        <div className="feed-filter" role="group" aria-label={t("Briefings")}>{(["all", "unread", "read"] as const).map(filter => <button type="button" key={filter} aria-pressed={readFilter === filter} onClick={() => { setReadFilter(filter); setVisibleUnreadCount(FEED_BATCH_SIZE); }}>{t(filter === "all" ? "All" : filter === "unread" ? "Unread" : "Read")}</button>)}</div>
         <div className="feed-side-actions">
           <form
             className="search"
@@ -1730,6 +1762,7 @@ function FeedPage(props: { username: string; slug: string }) {
           <div className="load-more-row">
             <button type="button" title={loadMoreLabel(language)} onClick={() => setVisibleUnreadCount((count) => count + FEED_BATCH_SIZE)}>
               {loadMoreLabel(language)}
+              <ChevronDown size={18} aria-hidden="true"/>
             </button>
             <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
           </div>
@@ -1925,11 +1958,26 @@ function SourcesSheet(props: {
 }) {
   const { edition, language } = props;
   const textDir = textDirection(language);
-  const selected = useRef<HTMLLIElement | null>(null);
+  const [storyIndex, setStoryIndex] = useState(props.selectedIndex);
+  const sourcesListId = useId();
+  const moduleRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    // Land on the story that was tapped; content above it stays one scroll away.
-    if (props.selectedIndex > 0) selected.current?.scrollIntoView({ block: "start" });
-  }, [props.selectedIndex]);
+    const module = moduleRef.current;
+    if (!module) return;
+    const paragraphs = module.querySelectorAll<HTMLElement>(".sources-story-summary, .sources-post-text");
+    const fit = () => paragraphs.forEach(node => {
+      const lineHeight = parseFloat(getComputedStyle(node).lineHeight);
+      const lines = Math.max(1, Math.floor(node.parentElement!.clientHeight / lineHeight));
+      node.style.setProperty("--source-lines", String(lines));
+      node.style.maxHeight = (lines * lineHeight) + "px";
+    });
+    const observer = new ResizeObserver(fit);
+    paragraphs.forEach(node => observer.observe(node.parentElement!));
+    fit();
+    return () => observer.disconnect();
+  }, [storyIndex, edition]);
+  const { t } = useLanguage();
+  useEffect(() => { setStoryIndex(props.selectedIndex); }, [props.selectedIndex]);
   return (
     <Sheet
       title={sourcesLabel(language)}
@@ -1938,62 +1986,89 @@ function SourcesSheet(props: {
       onClose={props.onClose}
       wide
     >
-      <div className="sources-module" lang={language} dir={textDir}>
+      <div ref={moduleRef} className="sources-module" lang={language} dir={textDir}>
         <p className="sources-edition">
           <strong>{formatDayHeading(edition.publishedAt, language)}</strong>
           <span>{formatClock(edition.publishedAt, language)}</span>
         </p>
         <ol className="sources-stories">
-          {edition.sections.map((section, index) => (
+          {edition.sections.map((section, index) => {
+            const text = section.summary.replace(/\r\n/g, "\n");
+            const boundary = text.indexOf("\n");
+            const title = section.title.trim() || (boundary > 0 ? text.slice(0, boundary).trim() : "");
+            const body = !section.title.trim() && boundary > 0 ? text.slice(boundary + 1).trim() : title && text.startsWith(title) ? text.slice(title.length).trimStart() : text;
+            return index === storyIndex ? (
             <li
               key={`${section.title}:${index}`}
               id={`${edition.id}-source-${index + 1}`}
-              ref={index === props.selectedIndex ? selected : undefined}
               className={`sources-story${index === props.selectedIndex ? " is-selected" : ""}`}
             >
+              <div className="sources-story-brief">
               <div className="sources-story-head">
                 <span className="sources-story-number" aria-hidden>{index + 1}</span>
-                <h3><bdi>{section.title}</bdi></h3>
+                {title ? <h3><bdi>{title}</bdi></h3> : null}
               </div>
-              <p className="sources-story-summary"><bdi dir={textDir}>{section.summary}</bdi></p>
+              <div className="sources-summary-slot"><p className="sources-story-summary"><bdi dir={textDir}>{body}</bdi></p></div>
+              </div>
               {section.evidence.length === 0
                 ? <p className="muted">{noReferencesLabel(language)}</p>
-                : <ul className="sources-posts">
-                    {section.evidence.map((entry, postIndex) => (
-                      <SourcePost key={`${entry.messageId}:${entry.postedAt}:${postIndex}`} entry={entry} language={language} />
+                : <ul className="sources-posts" id={sourcesListId}>
+                    {section.evidence.slice(0, 1).map((entry, sourceIndex) => (
+                      <SourcePost key={`${entry.messageId}:${entry.postedAt}:${sourceIndex}`} entry={entry} language={language} />
                     ))}
                   </ul>}
             </li>
-          ))}
+          ) : null; })}
         </ol>
+        {(edition.sections.length > 1 || (edition.sections[storyIndex]?.evidence.length ?? 0) > 1) && <div className="sources-pagination">
+          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); }}><ChevronLeft size={18}/></button><span>{storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); }}><ChevronRight size={18}/></button></div>}
+        </div>}
       </div>
     </Sheet>
   );
 }
 
+function sourceDisplayText(value: string): string {
+  const decoder = document.createElement("textarea");
+  for (let pass = 0; pass < 3; pass++) {
+    const next = value.replace(/&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]+);/gi, entity => { decoder.innerHTML = entity; return decoder.value; });
+    if (next === value) break;
+    value = next;
+  }
+  return value;
+}
+
 function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "fr" }) {
   const { entry, language } = props;
   const textDir = textDirection(language);
-  const [open, setOpen] = useState(false);
   const textId = useId();
-  const hasText = entry.text.trim().length > 0;
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const labels = sourceEvidenceLabels(entry);
+  const headline = sourceDisplayText(labels.headline);
+  const publisher = sourceDisplayText(labels.publisher);
+  const sourceText = sourceDisplayText(entry.text);
+  const hasText = sourceText.trim().length > 0;
+  const copyLabel = language === "ar" ? "\u0646\u0633\u062e \u0627\u0644\u0631\u0627\u0628\u0637" : language === "fr" ? "Copier le lien" : "Copy link";
+  const copiedLabel = language === "ar" ? "\u062a\u0645 \u0627\u0644\u0646\u0633\u062e" : language === "fr" ? "Copi\u00e9" : "Copied";
+  const failedLabel = language === "ar" ? "\u062a\u0639\u0630\u0631 \u0627\u0644\u0646\u0633\u062e" : language === "fr" ? "\u00c9chec de copie" : "Could not copy";
+  const websiteLinks = [...entry.links];
+  if (!websiteLinks.length && entry.sourceUrl) {
+    try { websiteLinks.push(new URL(entry.sourceUrl).origin); } catch { /* Keep malformed legacy URLs out of the website action. */ }
+  }
   return (
     <li className="sources-post">
+      {headline ? <h4 className="sources-post-title"><bdi>{headline}</bdi></h4> : null}
       <div className="sources-post-head" dir="ltr">
-        <strong className="sources-post-source"><bdi>{entry.sourceTitle}</bdi></strong>
+        <span className="sources-publisher-logo" aria-hidden><SourceLogo source={entry.sourceUrl || entry.links[0] || entry.sourceTitle}/></span>
+        <strong className="sources-post-source"><bdi>{publisher}</bdi></strong>
         <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
       </div>
       {hasText ? (
-        <p id={textId} className={`sources-post-text${open ? " is-open" : ""}`} dir={textDir}><bdi dir={textDir}>{entry.text}</bdi></p>
+        <div className="sources-body-slot"><p id={textId} className="sources-post-text is-open" dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p></div>
       ) : null}
       <div className="sources-post-actions">
-        {hasText && entry.text.trim().length > 160 ? (
-          <button type="button" className="sources-more" aria-expanded={open} aria-controls={textId} onClick={() => setOpen(value => !value)}>
-            {open ? showLessLabel(language) : showMoreLabel(language)}
-          </button>
-        ) : null}
-        {entry.sourceUrl ? <a href={entry.sourceUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={16} aria-hidden />{openPostLabel(language)}</a> : null}
-        {entry.links.map((link) => <a key={link} href={link} target="_blank" rel="noreferrer"><ArrowUpRight size={16} aria-hidden />{linkHostLabel(link, language)}</a>)}
+        {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Copy size={16} aria-hidden /><span className="source-action-label" aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
+        {websiteLinks.map((link) => <a key={link} href={link} title={linkHostLabel(link, language)} target="_blank" rel="noreferrer"><Link2 size={16} aria-hidden /><span className="source-action-label">{linkHostLabel(link, language)}</span></a>)}
         {entry.media.map((media, index) =>
           media.url ? (
             <a key={`${media.url}-${index}`} href={media.url} target="_blank" rel="noreferrer">
@@ -2030,7 +2105,7 @@ function FeedBackLink({ language }: { language: "en" | "ar" | "fr" }) {
   return <a className="feed-nav-back" href="/" onClick={event => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
-  }}>{language === "ar" ? <ChevronRight size={24} aria-hidden /> : <ChevronLeft size={24} aria-hidden />}<span>{label}</span></a>;
+  }}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
 }
 
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {

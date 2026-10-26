@@ -5,7 +5,7 @@ import {createStrongSemanticModel} from './semantic-model';
 import {inspectProviderSchema} from '../provider-schema';
 import {STAGING_GROUPING_CAPABILITIES_JSON} from '../staging-grouping-run-policy';
 import type {Env} from '../types';
-const env={OPENROUTER_API_KEY:'offline-fixture',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini',V1_MODEL_CAPABILITIES_JSON:STAGING_GROUPING_CAPABILITIES_JSON} as Env;
+const env={DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'offline-fixture',V1_SEMANTIC_STRONG_MODEL:'openai/gpt-4.1-mini',V1_MODEL_CAPABILITIES_JSON:STAGING_GROUPING_CAPABILITIES_JSON} as Env;
 async function fixture(candidate:boolean){
  const revision:any={id:'revision',feedId:'feed',body:'The council announced a fund committing 5% of its shares.',acceptedAt:'2026-10-19T12:00:00Z',contentHash:'h'}, {mentions}=await extractClaimMentions(revision);
  const input:any={revision,role:'REPORTED_DEVELOPMENT',candidates:candidate?[{id:'fund-event',version:{id:'version',state:revision.body},evidenceRevisionIds:['old-revision'],newestAt:revision.acceptedAt}]:[],storylineIds:candidate?['fund-story']:[]};

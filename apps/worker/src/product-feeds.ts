@@ -1,4 +1,5 @@
-import {detectSourceInput,TESTED_ACTORS,HttpSourceExecution,SourceProviderError} from '@distilled/connectors';
+import {detectSourceInput,TESTED_ACTORS,SourceProviderError} from '@distilled/connectors';
+import {telegramExecution} from './telegram-execution';
 import type {Env,Repository} from './types';
 import type {BriefingConfig,BriefingEdition} from '@distilled/core';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
@@ -70,8 +71,8 @@ export class ProductSourceApprovalError extends Error {
 async function verifyTelegramApproval(env:Env,username:string){
  if(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_URL||!env.SOURCE_EXECUTION_TOKEN)throw new ProductSourceApprovalError('Telegram collection requires the private source execution service.',400);
  let raw:unknown;
- try{const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(value,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init),true);raw=await execution.execute('telegram_resolve',{username});}
- catch(error){throw new ProductSourceApprovalError(error instanceof SourceProviderError&&error.code==='BACKPRESSURE'?'Telegram is busy. Try again shortly.':'Telegram is temporarily unavailable. Try again shortly.');}
+ try{raw=await telegramExecution(env).execute('telegram_resolve',{username});}
+ catch(error){throw new ProductSourceApprovalError(error instanceof Error&&error.message==='TELEGRAM_RATE_LIMIT'?'Telegram is rate limiting channel verification. Wait before trying again.':error instanceof SourceProviderError&&error.code==='BACKPRESSURE'?'Telegram is busy. Try again shortly.':'Telegram is temporarily unavailable. Try again shortly.');}
  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new ProductSourceApprovalError('Could not verify this Telegram channel.');
  const result=raw as Record<string,unknown>;
  if(result.error)throw new ProductSourceApprovalError(result.error==='AUTH_REQUIRED'?'Telegram account authorization is unavailable.':result.error==='RATE_LIMIT'?'Telegram is rate limiting channel verification. Try again shortly.':'Could not verify this Telegram channel.');

@@ -1,3 +1,4 @@
+import {migrationStatements} from './test-migrations';
 import {readFileSync,readdirSync} from 'node:fs';
 import {Miniflare} from 'miniflare';
 import {expect,it,vi} from 'vitest';
@@ -16,7 +17,7 @@ it('retains documents, incrementally clusters specific developments, grounds cla
     const db=await mf.getD1Database('DB');
     const directory=new URL('../migrations/',import.meta.url);
     for(const name of readdirSync(directory).filter(name=>/^\d+.*\.sql$/.test(name)).sort()){
-      const sql=readFileSync(new URL(name,directory),'utf8').split(/;\s*(?:\r?\n|$)/).map(value=>value.trim()).filter(value=>value.replace(/--[^\r\n]*/g,'').trim());
+      const sql=migrationStatements(readFileSync(new URL(name,directory),'utf8'));
       if(sql.length)await db.batch(sql.map(value=>db.prepare(value)));
     }
     const repo=new D1Repository(db),now=new Date(),later=new Date(now.getTime()+1000);
