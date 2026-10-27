@@ -211,3 +211,11 @@ it('loads observation timing only for current evidence identities',async()=>{
  const timing=queries.filter(sql=>sql.includes('observedAt FROM v1_revisions'));
  expect(timing).toHaveLength(1);expect(timing[0]).toContain('r.id IN (');
 },30000);
+
+it('quiet preparation avoids carry and revision-history reads without changing its snapshot',async()=>{
+ const baseline=await prepareV3Window(store,'feed-1',window,window.end);
+ const identities=vi.spyOn(store,'revisionEvidenceIds');const lists=vi.spyOn(store,'list');
+ const actual=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(actual).toEqual(baseline);expect(actual.input.articles).toEqual([]);expect(identities).not.toHaveBeenCalled();
+ expect(lists.mock.calls.some(c=>c[1]==='v3_window_results')).toBe(false);
+},30000);

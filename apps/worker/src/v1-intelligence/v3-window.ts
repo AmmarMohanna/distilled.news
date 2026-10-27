@@ -31,14 +31,14 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const editions=(await store.list<BriefingEditionRecord>(feedId,'editions')).filter(e=>statuses.get(e.id)==='PUBLISHED'&&Date.parse(e.windowEnd)<=Date.parse(window.start));
  const prior=editions.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id)).flatMap(e=>e.stories.map(s=>({id:`${e.id}:${s.candidateId}`,at:e.createdAt,headline:s.claims[0]?.text??'',body:s.claims.map(c=>c.text).join('\n')})));
  const previouslyUsed=new Set(editions.flatMap(e=>e.evidenceRevisionIds));
- const previousEvidenceIds=new Set((await store.revisionEvidenceIds(feedId,[...previouslyUsed])).values());
- const previousResults=await store.list<V3WindowResult>(feedId,'v3_window_results');
+ const evidence=await store.currentEvidence(feedId);
+ const previousEvidenceIds=evidence.length?new Set((await store.revisionEvidenceIds(feedId,[...previouslyUsed])).values()):new Set<string>();
+ const previousResults=evidence.length?await store.list<V3WindowResult>(feedId,'v3_window_results'):[];
  const retryIds=new Set<string>();
  for(const previous of previousResults.sort((a,b)=>a.windowEnd.localeCompare(b.windowEnd))){
   for(const id of [...previous.result.items.flatMap(i=>i.sourceIds),...previous.result.skipped.map(s=>s.id),...previous.result.omitted.flatMap(o=>o.sourceIds),...previous.result.dropped.flatMap(d=>d.sourceIds)])retryIds.delete(id);
   for(const dropped of previous.result.dropped.filter(d=>d.carry))for(const id of dropped.sourceIds)retryIds.add(id);
  }
- const evidence=await store.currentEvidence(feedId);
  const observedAt=new Map<string,string|null>();
  const ids=[...new Set(evidence.map(e=>e.revision.id))];
  for(let offset=0;offset<ids.length;offset+=90){
