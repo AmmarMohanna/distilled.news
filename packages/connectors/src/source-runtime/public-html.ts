@@ -1,5 +1,5 @@
 import {parse} from 'parse5';
-import {primaryTextContainer} from './primary-text';
+import {primaryTextContainer,primaryDescendants} from './primary-text';
 import {discoverWebsiteArticles} from './website-discovery';
 type Node={tagName?:string;nodeName?:string;value?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node};
 const attr=(n:Node,name:string)=>n.attrs?.find(a=>a.name===name)?.value??'';
@@ -81,10 +81,10 @@ export function extractPublicHtml(html:string,url:string){
   if(details.length===1){articleBodies.push(details[0]);articleMetadata=true;}
  }
  const primary=primaryTextContainer(all);
- const content=articleBodies.length===1?articleBodies[0]:primary;
+ const content=primary??(articleBodies.length===1?articleBodies[0]:undefined);
  const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n)));
  const accessRestricted=restrictedMetadata&&(explicitPreview||!structuredBody&&!content&&!article&&all.some(n=>/(?:^|[\s_-])paywall(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))));
- let body=structuredBody??(content||article||main?text(content??article??main!):'');
+ let body=structuredBody??(primary?primaryDescendants(primary).filter(n=>n.nodeName==='#text').map(n=>n.value??'').join(' ').replace(/\s+/g,' ').trim():content||article||main?text(content??article??main!):'');
  let contentKind:'PRODUCT_DETAIL'|'CATALOGUE'|undefined;
  const within=(n:Node,parent:Node)=>{for(let p:Node|undefined=n;p;p=p.parentNode)if(p===parent)return true;return false};
  // A primary Product scope owns its visible name/description. Related product
