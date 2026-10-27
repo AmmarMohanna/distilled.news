@@ -886,7 +886,7 @@ function VerifyEmailPage(props: { token: string }) {
     <main className="email-verification-page">
       <section className="email-verification-panel" aria-labelledby="email-verification-title">
         <div className="email-verification-brand" aria-hidden="true"><img src="/favicon.svg" alt="" /></div>
-        <h1 id="email-verification-title" aria-live="polite">{verified ? "Email verified" : "Verify Email"}</h1>
+        <h1 id="email-verification-title" aria-live="polite">{verified ? "Email Verified" : "Verify Email"}</h1>
         {!verified && <>
         <p className="email-verification-description">Confirm this email address</p>
         <div className="email-verification-actions">
