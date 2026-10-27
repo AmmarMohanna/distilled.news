@@ -2562,3 +2562,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Keep identity and timestamp together when artwork stretches both grid rows. */
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .topic-name { align-self: end; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card { row-gap: 6px; }
+
+/* Expanded desktop navigation scales with the viewport; the compact rail stays stable. */
+@media (min-width: 900px) {
+  :root.apple-ui.apple-ui { --expanded-sidebar-width: clamp(240px, 18vw, 304px); --sidebar-inset: clamp(14px, 1.2vw, 22px); }
+  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) { width: var(--expanded-sidebar-width); padding-inline: var(--sidebar-inset); padding-top: clamp(104px, 13vh, 132px); }
+  :root.apple-ui.apple-ui :is(.experience.product-refresh, .shell:not(.feed-shell)):has(> .collapsible-navigation:not(.is-collapsed)) { width: calc(100% - var(--expanded-sidebar-width)); margin-left: var(--expanded-sidebar-width); }
+  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .sidebar-top { inset-inline: var(--sidebar-inset); }
+  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .sidebar-brand .distilled-logo-wordmark { font-size: clamp(22px, 1.55vw, 26px); }
+  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .navigation-item { min-height: clamp(50px, 5.8vh, 60px); padding-inline: clamp(12px, 1vw, 18px); column-gap: clamp(14px, 1.2vw, 22px); }
+  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .navigation-item > span { font-size: clamp(16px, 1.1vw, 18px); text-align: start; }
+}
