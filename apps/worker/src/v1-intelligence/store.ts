@@ -67,6 +67,11 @@ export class V1FeedStore {
   }
   return values;
  }
+ /** Only unresolved reporting windows are needed for carry eligibility, not terminal request payloads. */
+ async unresolvedPublicationWindows(feedId:string):Promise<{window:import('./scoring').PublicationWindow}[]> {
+  const rows=await this.db.prepare("SELECT json_extract(json,'$.window') AS window_json FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') ORDER BY id").bind(feedId).all<{window_json:string}>();
+  return rows.results.map(r=>({window:JSON.parse(r.window_json)}));
+ }
  async snapshot(id:string):Promise<Snapshot> {
   const guard=intelligenceTurnGuard(this.db,id),lease=this.semanticLease;
   if(lease&&lease.feedId!==id)throw new SemanticLeaseError();
