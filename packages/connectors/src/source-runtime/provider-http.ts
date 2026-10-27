@@ -21,6 +21,19 @@ export interface DailyCollectorBudget {limitUsd:number;timeZone:string;now?:()=>
 // A confirmed completion with a lost body stays charged conservatively and may
 // never be dispatched again. It is distinct from an unknown provider outcome.
 export const unresolvedProviderOperationSql="payload_ref IS NULL AND COALESCE(status=200 AND json_extract(headers,'$.reconciliation.kind')='COMPLETED_RESPONSE_LOST' AND json_extract(headers,'$.reconciliation.requestId') IS NOT NULL,0)=0";
+/** Only the narrow anonymous HTTP extraction shape is independent per target.
+ * Sessions, browser actions and unknown historical request shapes stay fenced. */
+export function statelessZyteTarget(providerId:string,url:string,init:RequestInit):string|undefined {
+ if(providerId!=='zyte'||url!=='https://api.zyte.com/v1/extract'||init.method!=='POST'||typeof init.body!=='string')return;
+ try{
+  const body=JSON.parse(init.body);
+  if(!body||Object.keys(body).some(k=>!['url','httpResponseBody','httpResponseHeaders'].includes(k))||body.httpResponseBody!==true||body.httpResponseHeaders!==true||typeof body.url!=='string')return;
+  const target=new URL(body.url);
+  if(target.protocol!=='https:'||target.username||target.password||target.port||target.hash)return;
+  target.pathname=target.pathname.replace(/\/$/,'')||'/';
+  return target.href;
+ }catch{return}
+}
 function pendingProviderError(headers:string|null|undefined,otherOperation=false):SourceProviderError {
  try{
   const claim=JSON.parse(headers??'{}'),until=Date.parse(claim.claimExpiresAt),now=Date.now();
@@ -79,6 +92,12 @@ export class DurableProviderHttp implements ProviderHttpPort {
     const scoped=await sha256(JSON.stringify([scope,operationId]));
     // Authentication stays outside stored request hashes and logs. Endpoint/body remain immutable.
     const hash=await sha256(JSON.stringify([url,init.method??'GET',init.body??null]));
+    const statelessTarget=statelessZyteTarget(providerId,url,init),now=new Date().toISOString();
+    // A lost stateless response fences its target across new operation IDs, not
+    // every unrelated article in the source. Active requests still serialize.
+    // Missing provenance, legacy rows and other providers remain conservative.
+    const independentGuard=statelessTarget===undefined?'':` AND NOT COALESCE((provider_id='zyte' AND COALESCE(json_extract(headers,'$.statelessTarget'),'')<>'' AND json_extract(headers,'$.statelessTarget')<>? AND (json_extract(headers,'$.failure.phase') IS NOT NULL OR json_extract(headers,'$.claimExpiresAt')<=?)),0)`;
+    const independentParams=statelessTarget===undefined?[]:[statelessTarget,now];
     const load=()=>this.db.prepare('SELECT request_hash,payload_ref,status,headers FROM connector_provider_operations WHERE provider_id=? AND operation_id=?')
       .bind(providerId,scoped).first<{request_hash:string;payload_ref:string|null;status:number|null;headers:string|null}>();
     const previous=await load();
@@ -97,7 +116,7 @@ export class DurableProviderHttp implements ProviderHttpPort {
     // unattributed uncertain legacy charge must be reconciled, never ignored.
     const legacyPending=await this.db.prepare(`SELECT headers FROM connector_provider_operations WHERE provider_id=? AND ${unresolvedProviderOperationSql} AND feed_source_id IS NULL LIMIT 1`).bind(providerId).first<{headers:string|null}>();
     if(legacyPending)throw pendingProviderError(legacyPending.headers,true);
-    const sourcePending=await this.db.prepare(`SELECT headers FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND ${unresolvedProviderOperationSql} LIMIT 1`).bind(scope.feedId,scope.feedSourceId).first<{headers:string|null}>();
+    const sourcePending=await this.db.prepare(`SELECT headers FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND ${unresolvedProviderOperationSql}${independentGuard} LIMIT 1`).bind(scope.feedId,scope.feedSourceId,...independentParams).first<{headers:string|null}>();
     if(sourcePending)throw pendingProviderError(sourcePending.headers,true);
     const prefix='source-payloads/'+await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId]))+'/';
     const sourceBudget=this.sourceProviderLimitUsd===undefined?[]:[this.db.prepare(`INSERT INTO connector_source_provider_budgets(feed_id,feed_source_id,provider_id,reserved_usd)
@@ -108,17 +127,17 @@ export class DurableProviderHttp implements ProviderHttpPort {
     const day=this.dailyBudget?collectorBudgetDay(this.dailyBudget.now?.()??new Date(),this.dailyBudget.timeZone):undefined;
     const dailyGuard=this.enforceBudgetLimits&&this.dailyBudget?' AND EXISTS(SELECT 1 FROM connector_daily_provider_budgets WHERE day=? AND reserved_usd+?<=limit_usd)':'';
     // A later polling window or funded fallback cannot bypass an unresolved
-    // submission for this FeedSource, even with no configured source cap.
+    // submission. Only proven independent stateless Zyte targets are exempt.
     // Include both scoped and unattributed legacy fences in the reservation
     // transaction so two different run IDs cannot race past the read above.
-    const unresolvedGuard=` AND NOT EXISTS(SELECT 1 FROM connector_provider_operations WHERE ${unresolvedProviderOperationSql} AND ((feed_id=? AND feed_source_id=?) OR (provider_id=? AND feed_source_id IS NULL)))`;
-    const token=crypto.randomUUID(),claimHeaders=JSON.stringify({claimToken:token,claimExpiresAt:new Date(Date.now()+(this.providerDeadlines[providerId]??this.deadlineMs)+60_000).toISOString()});
+    const unresolvedGuard=` AND NOT EXISTS(SELECT 1 FROM connector_provider_operations WHERE ${unresolvedProviderOperationSql} AND ((feed_id=? AND feed_source_id=?${independentGuard}) OR (provider_id=? AND feed_source_id IS NULL)))`;
+    const token=crypto.randomUUID(),claimHeaders=JSON.stringify({claimToken:token,claimExpiresAt:new Date(Date.now()+(this.providerDeadlines[providerId]??this.deadlineMs)+60_000).toISOString(),...(statelessTarget?{statelessTarget}:{})});
     await this.db.batch([
       ...(this.dailyBudget?[this.db.prepare('INSERT INTO connector_daily_provider_budgets(day,limit_usd,reserved_usd) VALUES(?,?,0) ON CONFLICT(day) DO UPDATE SET limit_usd=excluded.limit_usd').bind(day,this.dailyBudget.limitUsd)]:[]),
       ...sourceBudget,
       this.db.prepare(`INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,feed_id,feed_source_id,headers)
         SELECT ?,?,?,?,?,?,? FROM connector_provider_budgets WHERE provider_id=? AND ${this.enforceBudgetLimits?(this.dailyBudget?'?':'reserved_usd+?')+'<=limit_usd':'1=1'}${sourceGuard}${deploymentGuard}${dailyGuard}${unresolvedGuard} ON CONFLICT DO NOTHING`)
-        .bind(providerId,scoped,hash,ceilingUsd,scope.feedId,scope.feedSourceId,claimHeaders,providerId,...(this.enforceBudgetLimits?[ceilingUsd]:[]),...(!sourceCapped?[]:[scope.feedId,scope.feedSourceId,providerId,ceilingUsd,this.sourceProviderLimitUsd]),...(deploymentLimit===undefined?[]:[ceilingUsd,deploymentLimit]),...(this.enforceBudgetLimits&&this.dailyBudget?[day,ceilingUsd]:[]),scope.feedId,scope.feedSourceId,providerId),
+        .bind(providerId,scoped,hash,ceilingUsd,scope.feedId,scope.feedSourceId,claimHeaders,providerId,...(this.enforceBudgetLimits?[ceilingUsd]:[]),...(!sourceCapped?[]:[scope.feedId,scope.feedSourceId,providerId,ceilingUsd,this.sourceProviderLimitUsd]),...(deploymentLimit===undefined?[]:[ceilingUsd,deploymentLimit]),...(this.enforceBudgetLimits&&this.dailyBudget?[day,ceilingUsd]:[]),scope.feedId,scope.feedSourceId,...independentParams,providerId),
       ...(this.dailyBudget?[this.db.prepare(`UPDATE connector_daily_provider_budgets SET reserved_usd=reserved_usd+? WHERE day=? AND EXISTS(SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`).bind(ceilingUsd,day,providerId,scoped)]:[]),
       this.db.prepare(`UPDATE connector_provider_budgets SET reserved_usd=reserved_usd+? WHERE provider_id=? AND EXISTS
         (SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id=? AND status IS NULL AND payload_ref IS NULL)`)
@@ -129,7 +148,7 @@ export class DurableProviderHttp implements ProviderHttpPort {
     ]);
     const claimed=await load();
     if(!claimed){
-      const pending=await this.db.prepare(`SELECT headers FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND ${unresolvedProviderOperationSql} LIMIT 1`).bind(scope.feedId,scope.feedSourceId).first<{headers:string|null}>();
+      const pending=await this.db.prepare(`SELECT headers FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND ${unresolvedProviderOperationSql}${independentGuard} LIMIT 1`).bind(scope.feedId,scope.feedSourceId,...independentParams).first<{headers:string|null}>();
       if(pending)throw pendingProviderError(pending.headers,true);
       throw new SourceProviderError('BUDGET_EXCEEDED');
     }
@@ -145,7 +164,7 @@ export class DurableProviderHttp implements ProviderHttpPort {
     const uncertain=async(phase:string,reason:string,response?:Response)=>{
       // Diagnostic metadata never settles an operation or releases its fence.
       const requestId=response?.headers.get('zyte-request-id');
-      const diagnostic={claimToken:token,failure:{phase,reason,at:new Date().toISOString(),...(response?{httpStatus:response.status}:{}),...(requestId&&/^[\w-]{1,200}$/.test(requestId)?{requestId}:{})}};
+      const diagnostic={claimToken:token,...(statelessTarget?{statelessTarget}:{}),failure:{phase,reason,at:new Date().toISOString(),...(response?{httpStatus:response.status}:{}),...(requestId&&/^[\w-]{1,200}$/.test(requestId)?{requestId}:{})}};
       await this.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE provider_id=? AND operation_id=? AND payload_ref IS NULL AND headers=?')
         .bind(JSON.stringify(diagnostic),providerId,scoped,claimHeaders).run();
       throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');

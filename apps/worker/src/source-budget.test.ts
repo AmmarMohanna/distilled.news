@@ -156,3 +156,43 @@ it('operator-confirmed completion keeps its charge and never reissues its lost r
  const original=await ctx.db.prepare('SELECT status,payload_ref FROM connector_provider_operations WHERE operation_id=?').bind(op.operation_id).first<any>();expect(original).toEqual({status:200,payload_ref:null});
  await http.request(scope,'different','zyte',0.05,api,{method:'POST',body:JSON.stringify({url:'https://publisher.example/another',httpResponseBody:true,httpResponseHeaders:true})});expect(dispatch).toHaveBeenCalledTimes(2);expect(await reserved(scope,'zyte')).toBe(0.1);
 });
+
+const zyteApi='https://api.zyte.com/v1/extract';
+const zyteInit=(target:string,extra:Record<string,unknown>={})=>({method:'POST',body:JSON.stringify({url:target,httpResponseBody:true,httpResponseHeaders:true,...extra})});
+it('isolates a lost stateless Zyte article while fencing the same URL across operation IDs',async()=>{
+ await http.configureLimit('zyte',15);dispatch.mockRejectedValueOnce(Error('lost response'));
+ const target='https://openai.com/index/lost';
+ await expect(http.request(scope,'lost','zyte',.05,zyteApi,zyteInit(target))).rejects.toHaveProperty('code','UNCERTAIN_PAID_SUBMISSION');
+ const original=await ctx.db.prepare("SELECT operation_id,status,headers,payload_ref FROM connector_provider_operations WHERE provider_id='zyte'").first<any>();
+ expect(JSON.parse(original.headers).statelessTarget).toBe(target);
+ await expect(http.request(scope,'lost','zyte',.05,zyteApi,zyteInit(target))).rejects.toHaveProperty('code','UNCERTAIN_PAID_SUBMISSION');
+ await expect(http.request(scope,'new-window','zyte',.05,zyteApi,zyteInit(target+'/'))).rejects.toHaveProperty('code','BACKPRESSURE');
+ await http.request(scope,'independent','zyte',.05,zyteApi,zyteInit('https://openai.com/index/other'));
+ expect(dispatch).toHaveBeenCalledTimes(2);expect(await reserved(scope,'zyte')).toBe(.1);
+ expect(await ctx.db.prepare('SELECT operation_id,status,headers,payload_ref FROM connector_provider_operations WHERE operation_id=?').bind(original.operation_id).first()).toEqual(original);
+});
+it('keeps active stateless Zyte requests serialized and unrelated reservations bounded',async()=>{
+ await http.configureLimit('zyte',15);let finish!:(r:Response)=>void;
+ dispatch.mockImplementationOnce(()=>new Promise<Response>(resolve=>{finish=resolve}));
+ const first=http.request(scope,'first','zyte',.05,zyteApi,zyteInit('https://openai.com/index/first'));
+ await vi.waitFor(()=>expect(dispatch).toHaveBeenCalledTimes(1));
+ try{await expect(http.request(scope,'second','zyte',.05,zyteApi,zyteInit('https://openai.com/index/second'))).rejects.toHaveProperty('code','BACKPRESSURE');expect(await reserved(scope,'zyte')).toBe(.05)}
+ finally{finish(Response.json({ok:true}));await first}
+});
+it.each(['historical','session','other-provider','legacy'])('does not narrow %s unknown-payment fences',async kind=>{
+ await http.configureLimit('zyte',15);dispatch.mockRejectedValueOnce(Error('lost response'));
+ await expect(http.request(scope,'lost','zyte',.05,zyteApi,zyteInit('https://openai.com/index/lost',kind==='session'?{sessionContext:[{name:'test',value:'session'}]}:{}))).rejects.toHaveProperty('code','UNCERTAIN_PAID_SUBMISSION');
+ if(kind==='historical')await ctx.db.prepare("UPDATE connector_provider_operations SET headers=json_remove(headers,'$.statelessTarget')").run();
+ if(kind==='legacy')await ctx.db.prepare('UPDATE connector_provider_operations SET feed_id=NULL,feed_source_id=NULL').run();
+ if(kind==='other-provider')await expect(send(scope,'fallback',.05,'fallback')).rejects.toHaveProperty('code','BACKPRESSURE');
+ else await expect(http.request(scope,'other','zyte',.05,zyteApi,zyteInit('https://openai.com/index/other'))).rejects.toHaveProperty('code','BACKPRESSURE');
+ expect(dispatch).toHaveBeenCalledTimes(1);expect(await reserved(scope,'zyte')).toBe(.05);
+});
+it('atomically retains the lost charge when independent Zyte targets compete for remaining allowance',async()=>{
+ http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch,4_000_000,20_000,.1);await http.configureLimit('zyte',15);
+ dispatch.mockRejectedValueOnce(Error('lost response'));
+ await expect(http.request(scope,'lost','zyte',.05,zyteApi,zyteInit('https://openai.com/index/lost'))).rejects.toHaveProperty('code','UNCERTAIN_PAID_SUBMISSION');
+ const results=await Promise.allSettled(['one','two'].map(id=>http.request(scope,id,'zyte',.05,zyteApi,zyteInit('https://openai.com/index/'+id))));
+ expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);expect(dispatch).toHaveBeenCalledTimes(2);expect(await reserved(scope,'zyte')).toBe(.1);
+ expect((await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_operations WHERE provider_id='zyte' AND payload_ref IS NULL").first<any>()).n).toBe(1);
+});
