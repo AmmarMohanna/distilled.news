@@ -274,6 +274,10 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
     console.error(error);
+    if(error instanceof Error&&/D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message)){
+      c.header('Retry-After','5');c.header('Cache-Control','no-store');
+      return c.json({error:'The service is temporarily busy. Please try again shortly.',code:'DATABASE_UNAVAILABLE'},503);
+    }
     if (error instanceof ModelGatewayError) {
       const retryable=["deadline_exceeded","provider_http_failure","malformed_response","transport_failure"].includes(error.failureClass);
       return c.json({error:"model_gateway_failure",failureClass:error.failureClass},retryable?503:502);

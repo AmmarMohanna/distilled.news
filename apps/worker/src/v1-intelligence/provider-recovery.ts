@@ -39,6 +39,18 @@ export async function recoverProviderGeneration(db:D1Database,reservationId:stri
 /** Bounded fair metadata polling; absent legacy handles are never guessed.
  * Backoff is observable and indefinite, not a semantic attempt or paid call. */
 export async function pendingProviderGenerationCandidates(db:D1Database,now:Date){
+ // Older self-hosted databases keep the existing query until migration 0071.
+ // Unary + removes column affinity (it does not convert the stored string),
+ // allowing SQLite to seek expression-indexed reservation IDs instead of rescanning a kind.
+ const indexed=await db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type='index' AND name IN ('v1_provider_recovery_history','v1_provider_recovery_receipts')").first<{n:number}>();
+ if(indexed?.n===2)return db.prepare(`SELECT r.id,r.feed_id,
+ (SELECT MAX(json_extract(a.json,'$.createdAt')) FROM v1_feed_documents a INDEXED BY v1_provider_recovery_history WHERE a.kind='model_provider_recovery_attempts' AND json_extract(a.json,'$.reservationId')=+r.id) AS last_attempt
+ FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id
+ WHERE COALESCE(s.reported,0)=0 AND r.lease_until<=?
+ AND EXISTS(SELECT 1 FROM v1_feed_documents d INDEXED BY v1_provider_recovery_receipts WHERE d.kind='model_provider_receipts' AND d.feed_id=r.feed_id AND json_extract(d.json,'$.reservationId')=+r.id AND json_extract(d.json,'$.provider')='OPENROUTER' AND json_extract(d.json,'$.generationId') IS NOT NULL)
+ AND NOT EXISTS(SELECT 1 FROM v1_feed_documents a INDEXED BY v1_provider_recovery_history WHERE a.kind='model_provider_recovery_attempts' AND json_extract(a.json,'$.reservationId')=+r.id AND json_extract(a.json,'$.nextAttemptAt')>?)
+ ORDER BY last_attempt,r.created_at LIMIT 3`).bind(now.getTime(),now.toISOString()).all<{id:string;feed_id:string;last_attempt:string|null}>();
+
  // The correlated history scans consumed the D1 CPU limit before recovery could
  // start. Materialize each metadata set once, retaining the complete global
  // reservation-identity backoff and the same oldest-attempt admission order.
