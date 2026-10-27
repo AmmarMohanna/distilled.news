@@ -37,7 +37,7 @@ export function phaseTask(phase:string):LlmTask {
 
 export function configuredProviderLimits(env:Partial<Env>,provider:LlmRoute['provider']):import('./provider-limits').ProviderLimits{
  const maxConcurrent=Number(env.V1_PROVIDER_MAX_CONCURRENCY??3),requestsPerMinute=Number(env.V1_PROVIDER_REQUESTS_PER_MINUTE??20);
- if(!Number.isSafeInteger(maxConcurrent)||maxConcurrent<1||maxConcurrent>3||!Number.isSafeInteger(requestsPerMinute)||requestsPerMinute<1)throw Error('INVALID_PROVIDER_LIMITS');
+ if(!Number.isSafeInteger(maxConcurrent)||maxConcurrent<1||maxConcurrent>6||!Number.isSafeInteger(requestsPerMinute)||requestsPerMinute<1)throw Error('INVALID_PROVIDER_LIMITS');
  return {provider,maxConcurrent,requestsPerMinute};
 }
 /** Provider credentials never cross routes. Historical OpenRouter options stay byte-compatible. */

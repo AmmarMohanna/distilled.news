@@ -1,6 +1,6 @@
 import {createStoredEvidenceModel} from './model';
 import {it,expect} from 'vitest';
-import {llmRoute,routeAdmission,TASKS} from './provider-routing';
+import {llmRoute,routeAdmission,TASKS,configuredProviderLimits} from './provider-routing';
 import {workersAiCompletion} from '../workers-ai';
 it('defaults every generative task to qualified-gated Cloudflare with distinct durable identities',()=>{
  for(const task of TASKS){const route=llmRoute({} as any,task);expect(route.provider).toBe('cloudflare');expect(route.identity).toMatch(/^cloudflare:openai\//);expect(routeAdmission({} as any,route,{},{}).fits).toBe(false);}
@@ -34,3 +34,9 @@ it('accepts native JSON-mode object responses without inventing billed dollars',
 import {boundedCompletion} from '../ai';
 import {withProviderReceiptSink} from '../provider-receipt';
 it('retains reported Neurons without converting gross usage into confirmed dollar settlement',async()=>{const receipts:any[]=[];let usage:any;await withProviderReceiptSink(async r=>{receipts.push(r)},()=>boundedCompletion({accountId:'',gatewayId:'',apiKey:'',provider:'WORKERS_AI',model:'workers_ai:@cf/qwen/qwen3-30b-a3b-fp8',env:{AI:{run:async()=>({id:'chatcmpl-native',response:'{"ok":true}',usage:{prompt_tokens:1094,completion_tokens:555,neurons:21.972789764404297}})}},usageRecorder:async u=>{usage=u}},'isolated','event_review','TEST','evidence',{}, {maxOutputTokens:32,signal:new AbortController().signal}));expect(receipts.find(r=>r.stage==='USAGE')?.reportedBillingUnits).toEqual({unit:'NEURON',quantity:21.972789764404297});expect(usage.reportedCostUsd).toBeUndefined();expect(usage.reportedBillingUnits?.unit).toBe('NEURON');expect(usage.estimatedCostUsd).toBeCloseTo(.0002417006874,12)});
+
+it('allows explicitly configured six-call capacity while retaining the conservative default',()=>{
+ expect(configuredProviderLimits({},'openrouter').maxConcurrent).toBe(3);
+ expect(configuredProviderLimits({V1_PROVIDER_MAX_CONCURRENCY:'6'},'openrouter').maxConcurrent).toBe(6);
+ for(const value of ['0','7','1.5'])expect(()=>configuredProviderLimits({V1_PROVIDER_MAX_CONCURRENCY:value},'openrouter')).toThrow('INVALID_PROVIDER_LIMITS');
+});
