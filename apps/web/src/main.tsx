@@ -879,14 +879,15 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
 }
 
 function VerifyEmailPage(props: { token: string }) {
-  const [message, setMessage] = useState("");
+  const [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   return (
     <main className="email-verification-page">
       <section className="email-verification-panel" aria-labelledby="email-verification-title">
         <div className="email-verification-brand" aria-hidden="true"><img src="/favicon.svg" alt="" /></div>
-        <h1 id="email-verification-title">Verify Email</h1>
+        <h1 id="email-verification-title" aria-live="polite">{verified ? "Email verified" : "Verify Email"}</h1>
+        {!verified && <>
         <p className="email-verification-description">Confirm this email address</p>
         <div className="email-verification-actions">
           <button
@@ -896,11 +897,10 @@ function VerifyEmailPage(props: { token: string }) {
             disabled={busy || !props.token}
             onClick={async () => {
               setBusy(true);
-              setMessage("");
               setError("");
               try {
                 await verifyEmail(props.token);
-                setMessage("Email verified");
+                setVerified(true);
               } catch (cause) {
                 setError(cause instanceof Error ? cause.message : String(cause));
               } finally {
@@ -910,9 +910,10 @@ function VerifyEmailPage(props: { token: string }) {
           >
             {busy ? "Verifying…" : "Verify Email"}
           </button>
-          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{error.charAt(0).toUpperCase() + error.slice(1)}</p> : message ? <p className="auth-message">{message}</p> : null}</div>
+          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{error.charAt(0).toUpperCase() + error.slice(1)}</p> : null}</div>
           <a className="email-verification-create" href="/" title="Create">Create</a>
         </div>
+        </>}
       </section>
     </main>
   );
