@@ -2,6 +2,7 @@ import {extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,readArticleDateMetadata,
 import {AcquisitionFailure,type AcquisitionClaim} from './acquisition';
 import type {Env} from '../types';
 import {createSourceBackend} from '../source-backend';
+import {sameArticleUrl} from './article-url-identity';
 
 export function runtimeArticleFallback(env:Env,execution:SourceExecutionPort|undefined,authorize:(url:string)=>Promise<void>,dispatch:typeof fetch){
  const budgets=JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'),ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}');
@@ -21,12 +22,8 @@ export function createArticleFallback(options:{
 }) {
  return async(claim:AcquisitionClaim):Promise<unknown>=>{
   const o=claim.input.observation,url=o.canonicalUrl!;
-  // Permit only a publisher's trailing-slash normalization, never a sibling,
-  // different origin, query, credentials or scheme.
-  const sameUrl=(value:unknown)=>{
-   if(typeof value!=='string')return false;
-   try{const a=new URL(value),b=new URL(url);return !a.username&&!a.password&&a.origin===b.origin&&a.search===b.search&&a.hash===b.hash&&a.pathname.replace(/\/$/,'')===b.pathname.replace(/\/$/,'')}catch{return false}
-  };
+  // Ignore only known attribution parameters and trailing-slash aliases.
+  const sameUrl=(value:unknown)=>sameArticleUrl(value,url);
   const article=(html:string,provider:string,resolved?:unknown)=>{
    if(resolved!==undefined&&!sameUrl(resolved))throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_URL_MISMATCH'});
    if(new TextEncoder().encode(html).length>PUBLIC_ARTICLE_HTML_MAX_BYTES)throw new AcquisitionFailure('BODY_BUDGET_EXCEEDED',false);

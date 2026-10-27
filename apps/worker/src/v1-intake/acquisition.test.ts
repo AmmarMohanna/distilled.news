@@ -420,3 +420,11 @@ it.each(['independent','same-target','unproven','different-provider'])('operator
  }else await expect(authorizeAcquisitionRecovery(store,jobId,'target-isolation',now)).rejects.toThrow('RECOVERY_PAID_OUTCOME_UNRESOLVED');
  expect(await ctx.db.prepare('SELECT * FROM connector_provider_operations').first()).toEqual(before);
 },30000);
+it('requires exact safe canonical-alias evidence to recover an identity rejection',async()=>{
+ await terminalRecoveryFixture('INVALID_RESULT',1);const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'FALLBACK_CANONICAL_MISMATCH'}}]);
+ const input=(await store.read<any>('inputs','observation-1'))!.value,canonical=input.observation.canonicalUrl,from=canonical,to=canonical+'?traffic_source=rss';
+ for(const to of ['https://other.example/report',canonical+'?id=other'])await expect(authorizeAcquisitionRecovery(store,jobId,'alias-fix',now,undefined,{from,to})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await authorizeAcquisitionRecovery(store,jobId,'alias-fix',now,undefined,{from,to});
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{maxAttempts:2,priorFailureCode:'INVALID_RESULT',canonicalEvidence:{from,to}}]});
+},30000);

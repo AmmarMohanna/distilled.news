@@ -84,3 +84,12 @@ it('a Zyte origin authentication challenge is never promoted as public article e
  const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url,httpResponseBody:btoa(html),httpResponseHeaders:[{name:'WWW-Authenticate',value:'Basic'}]}});
  await expect(f.fallback(claim)).rejects.toHaveProperty('code','AUTH_REQUIRED');
 });
+it('accepts an RSS tracking alias while preserving the original candidate and paid identity',async()=>{
+ const tracked=url+'?traffic_source=rss',f=fixture({status:200,url,html:'<link rel="canonical" href="'+url+'">'+html});
+ const result=await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:tracked}}} as AcquisitionClaim);
+ expect(result).toMatchObject({provider:'website_playwright',canonicalUrl:tracked,url:tracked});expect(f.request).not.toHaveBeenCalled();
+});
+it('still rejects a meaningful canonical query change',async()=>{
+ const f=fixture({status:200,url,html:'<link rel="canonical" href="'+url+'?article=other">'+html});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'INVALID_RESULT',diagnostic:{detail:'FALLBACK_CANONICAL_MISMATCH'}});expect(f.request).not.toHaveBeenCalled();
+});

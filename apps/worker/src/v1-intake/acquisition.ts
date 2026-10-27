@@ -6,6 +6,7 @@ import { transact } from './transaction';
 import { canonicalJson } from './canonical';
 import { acceptAcquiredContent, acquiredSchema } from './evidence';
 import { requireAcquisitionLease } from './acquisition-lease';
+import {sameArticleUrl} from './article-url-identity';
 import type { AcceptedAcquiredContent, AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy } from './types';
 
 const MAX_ATTEMPTS=5, LEASE_MS=90_000;
@@ -15,7 +16,7 @@ function attemptLimit(job:DownstreamJob):number {
 }
 /** Operator-only: no public API or automatic grant. Cumulative attempt counts,
  * source identity, paid identities and terminal failure history survive. */
-export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string,approvalId:string,rawNow:string,redirectEvidence?:{from:string;to:string}):Promise<void>{
+export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string,approvalId:string,rawNow:string,redirectEvidence?:{from:string;to:string},canonicalEvidence?:{from:string;to:string}):Promise<void>{
  const now=timestampSchema.parse(rawNow);
  if(!/^[a-zA-Z0-9_-]{1,100}$/.test(approvalId))throw Error('INVALID_RECOVERY_APPROVAL');
  const row=await store.read<DownstreamJob>('jobs',id);if(!row)throw Error('RECOVERY_JOB_MISSING');
@@ -23,6 +24,14 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
   const job=await tx.read<DownstreamJob>('jobs',id);if(!job||job.kind!=='ACQUIRE')return 'RECOVERY_JOB_MISSING';
   if(job.recoveryAuthorizations?.some(a=>a.id===approvalId))return;
   const fenced=job.failureCode==='UNCERTAIN_PAID_SUBMISSION'&&job.failureDetail==='ARTICLE_PROVIDER_OUTCOME_UNCERTAIN';
+  let canonicalAlias=false;
+  if(canonicalEvidence&&job.failureCode==='INVALID_RESULT'&&job.failureDetail==='FALLBACK_CANONICAL_MISMATCH'){
+   const input=await tx.read<AcceptedInput>('inputs',job.observationId);
+   try{
+    new WorkerPublicSourceFetch(canonicalEvidence.from);new WorkerPublicSourceFetch(canonicalEvidence.to);
+    canonicalAlias=input?.observation.canonicalUrl===canonicalEvidence.from&&canonicalEvidence.from!==canonicalEvidence.to&&sameArticleUrl(canonicalEvidence.from,canonicalEvidence.to);
+   }catch{/* Unsafe or unproven canonical aliases never authorize recovery. */}
+  }
   let publicRedirect=false;
   if(redirectEvidence&&job.failureCode==='POLICY_DENIED'&&!job.httpStatus&&!job.failureDetail){
    const input=await tx.read<AcceptedInput>('inputs',job.observationId);
@@ -31,7 +40,7 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
     publicRedirect=input?.observation.canonicalUrl===redirectEvidence.from&&new URL(redirectEvidence.from).origin!==new URL(redirectEvidence.to).origin;
    }catch{/* Unsafe redirects never grant recovery. */}
   }
-  if(job.state!=='FAILED'||!job.exhausted||!['NETWORK','EXTRACTION_FAILED','RECOVERY_EXHAUSTED','CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'].includes(job.failureCode??'')&&!(job.failureCode==='UNSUPPORTED'&&job.failureDetail==='LISTING_PAGE')&&!fenced&&!publicRedirect)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';
+  if(job.state!=='FAILED'||!job.exhausted||!['NETWORK','EXTRACTION_FAILED','RECOVERY_EXHAUSTED','CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'].includes(job.failureCode??'')&&!(job.failureCode==='UNSUPPORTED'&&job.failureDetail==='LISTING_PAGE')&&!fenced&&!publicRedirect&&!canonicalAlias)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';
   if(job.attempts>=10||!tx.snapshot.scope.enabled||await tx.read('acquisition_results',id))return 'RECOVERY_NOT_ELIGIBLE';
   const paid=await store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='connector_provider_operations'").first();
   if(paid){
@@ -54,7 +63,7 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
    const completed=await store.db.prepare("SELECT 1 FROM connector_provider_operations WHERE feed_source_id=? AND status=200 AND (payload_ref IS NOT NULL OR json_extract(headers,'$.reconciliation.kind')='COMPLETED_RESPONSE_LOST') LIMIT 1").bind(row.feedSourceId).first();
    if(!completed)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';
   }
-  const history=[...(job.recoveryAuthorizations??[]),{id:approvalId,authorizedAt:now,priorAttempts:job.attempts,priorFailureCode:job.failureCode!,priorFailureDetail:job.failureDetail,maxAttempts:job.attempts+1,...(publicRedirect?{redirectEvidence}:{} )}];
+  const history=[...(job.recoveryAuthorizations??[]),{id:approvalId,authorizedAt:now,priorAttempts:job.attempts,priorFailureCode:job.failureCode!,priorFailureDetail:job.failureDetail,maxAttempts:job.attempts+1,...(publicRedirect?{redirectEvidence}:{} ),...(canonicalAlias?{canonicalEvidence}:{})}];
   tx.write('jobs',id,{...job,state:'PENDING',exhausted:false,nextAttemptAt:now,leaseToken:undefined,leaseUntil:undefined,recoveryAuthorizations:history});
  });
  if(refusal)throw Error(refusal);
