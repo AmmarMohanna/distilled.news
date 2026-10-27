@@ -8,7 +8,7 @@ import { acquiredSchema } from './evidence';
 import type { AcceptedAcquiredContent } from './types';
 import type {LanguageResolution} from '../v1-intelligence/language';
 import {resolvePublicationDate,helperArticleDates,type PublicationDate} from './publication-date';
-import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
+import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,SourceProviderError,readArticleDateMetadata,unreadableArticleReason,sameArticleUrl} from '@distilled/connectors';
 
 export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
 export interface CandidateAcquisitionOptions {
@@ -71,7 +71,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(r.status!==200||r.url!==o.canonicalUrl||r.pageKind!=='article'||typeof r.body!=='string'||r.body.length<200||new TextEncoder().encode(r.body).length>500_000)return undefined;
    // A different canonical identity needs a newly observed candidate; it cannot
    // silently replace this exact item's evidence during fallback acquisition.
-   if(r.canonicalUrl&&r.canonicalUrl!==o.canonicalUrl)return undefined;
+   if(r.canonicalUrl&&(typeof r.canonicalUrl!=='string'||!sameArticleUrl(r.canonicalUrl,o.canonicalUrl!)))return undefined;
    requireReadableArticle(r.body);
    const date=resolvePublicationDate(undefined,o.publishedAtHint,helperArticleDates(r.dateMetadata),r.extractedDate??r.publishedAt);
    return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism,publicationDate:date,contentCompleteness:'UNKNOWN'}};

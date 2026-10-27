@@ -1,4 +1,4 @@
-import {extractPublicHtml,readArticleDateMetadata,unreadableArticleReason,requireProviderSuccess,SourceProviderError,type SourceExecutionPort,type ProviderHttpPort} from '@distilled/connectors';
+import {extractPublicHtml,readArticleDateMetadata,unreadableArticleReason,requireProviderSuccess,SourceProviderError,sameArticleUrl,type SourceExecutionPort,type ProviderHttpPort} from '@distilled/connectors';
 import {AcquisitionFailure,type AcquisitionClaim} from './acquisition';
 import type {Env} from '../types';
 import {createSourceBackend} from '../source-backend';
@@ -25,9 +25,9 @@ export function createArticleFallback(options:{
    if(new TextEncoder().encode(html).length>2_000_000)throw new AcquisitionFailure('BODY_BUDGET_EXCEEDED',false);
    if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new AcquisitionFailure('CHALLENGE_REQUIRED',false);
    const result=extractPublicHtml(html,url);
-   if(result.canonicalUrl!==url)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_CANONICAL_MISMATCH'});
+   if(!sameArticleUrl(result.canonicalUrl,url))throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_CANONICAL_MISMATCH'});
    if(result.pageKind!=='article'||result.body.length<200||unreadableArticleReason(result.body))return undefined;
-   return {...result,status:200,url,dateMetadata:readArticleDateMetadata(html,url),provider};
+   return {...result,canonicalUrl:url,status:200,url,dateMetadata:readArticleDateMetadata(html,url),provider};
   };
   const status=(value:Record<string,unknown>)=>{
    if(value.status===401||value.authenticationRequired===true||value.error==='AUTH_REQUIRED')throw new AcquisitionFailure('AUTH_REQUIRED',false);
