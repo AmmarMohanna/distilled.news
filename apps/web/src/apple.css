@@ -2422,9 +2422,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Paused feeds live in a separate owner-only archive. */
 :root.apple-ui.apple-ui .experience.product-refresh .home-view .home-controls { grid-template-columns: minmax(0, 1fr) 48px 9rem !important; }
-.home-archive-button { position: relative; display: grid; place-items: center; min-width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); cursor: pointer; }
-.home-archive-button:hover { background: var(--surface-hover); }
-.archive-count { position: absolute; inset-block-start: -5px; inset-inline-end: -5px; min-width: 19px; padding: 2px 4px; border-radius: 12px; background: var(--accent-fill); color: white; font-size: 11px; line-height: 15px; }
+:root.apple-ui.apple-ui .home-archive-button { position: relative; display: grid; place-items: center; min-width: 44px; min-height: 44px; border: 0; border-radius: 14px; background: transparent; box-shadow: none; color: #6657ed; cursor: pointer; }
+:root.apple-ui.apple-ui .home-archive-button:hover { background: transparent; color: #7b5af5; }
+:root.apple-ui.apple-ui .home-archive-button > svg { width: 27px; height: 27px; }
+.archive-count { position: absolute; inset-block-start: -5px; inset-inline-end: -5px; min-width: 19px; padding: 2px 4px; border-radius: 12px; background: #6657ed; color: white; font-size: 11px; line-height: 15px; }
 .feed-archive-dialog { width: min(600px, calc(100vw - 32px)); }
 :root.apple-ui.apple-ui .feed-archive-dialog .feed-archive-content { padding: 24px; gap: 16px; }
 :root.apple-ui.apple-ui .feed-archive-dialog h2 { padding-inline: 0; }
