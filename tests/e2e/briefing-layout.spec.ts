@@ -23,6 +23,16 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   for(const node of [page.locator('.page-heading h1'),page.locator('.page-heading > p')]) {const box=await node.boundingBox();expect(Math.abs(box!.x+box!.width/2-headingBounds!.x-headingBounds!.width/2)).toBeLessThan(2);}
   await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
   await expect(page.locator(".feed-check-status")).toContainText("feed paused");
+  const artwork=page.locator('.feed-hero-art .topic-art');
+  const enlarged=await artwork.boundingBox();
+  const titleBefore=await page.locator('.page-heading h1').boundingBox();
+  await artwork.evaluate(node=>(node as HTMLElement).style.transform='none');
+  const original=await artwork.boundingBox();
+  const titleAfter=await page.locator('.page-heading h1').boundingBox();
+  expect(enlarged!.width/original!.width).toBeCloseTo(1.5,1);
+  expect(Math.abs(enlarged!.y+enlarged!.height-original!.y-original!.height)).toBeLessThan(1);
+  expect(titleAfter!.y).toBe(titleBefore!.y);
+  await artwork.evaluate(node=>(node as HTMLElement).style.removeProperty('transform'));
   const artBounds=await page.locator('.feed-hero-art').boundingBox();
   const titleBounds=await page.locator('.page-heading h1').boundingBox();
   const authorBounds=await page.locator('.page-heading > p').boundingBox();

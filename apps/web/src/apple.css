@@ -2619,3 +2619,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui[dir="rtl"] .feed-shell .news-head { direction: rtl; }
 :root.apple-ui.apple-ui[dir="ltr"] .feed-shell .news-head { direction: ltr; }
 :root.apple-ui.apple-ui[dir="rtl"] .accounts-summary > svg:nth-of-type(2) { transform: rotate(180deg); }
+
+/* Grow the feed illustration upward without changing header flow or text positions. */
+:root.apple-ui.apple-ui .shell.feed-shell .feed-hero-art .topic-art { transform: scale(1.5); transform-origin: center bottom; }
