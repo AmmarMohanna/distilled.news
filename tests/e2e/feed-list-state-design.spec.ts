@@ -14,9 +14,15 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`branded l
   const surface=page.locator('.home-view .feed-list-state');await expect(surface).toBeVisible();await expect(surface).toHaveAttribute('role','status');await expect(surface.locator('button')).toHaveCount(0);await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);
   await page.screenshot({path:`.local-reports/feed-loading-design/${info.project.name}-${width}-${dark?'dark':'light'}-loading.png`,animations:'disabled'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  const logo=surface.locator('.feed-state-logo'),ring=surface.locator('.feed-state-ring');
-  await expect(ring).toHaveCSS('animation-name','none');await expect(logo).toHaveCSS('animation-name','none');
-  await page.emulateMedia({reducedMotion:'no-preference'});await expect(ring).toHaveCSS('animation-name','feed-logo-orbit');await expect(logo).toHaveCSS('animation-name','none');await page.emulateMedia({reducedMotion:'reduce'});
+  const logo=surface.locator('.feed-state-logo'),art=surface.locator('.feed-state-art');
+  await expect(surface.locator('.feed-state-ring')).toHaveCount(0);await expect(logo).toHaveCSS('animation-name','none');
+  const [listBox,artBox,logoBox]=await Promise.all([page.locator('.home-view .your-feeds').boundingBox(),art.boundingBox(),logo.boundingBox()]);
+  const cx=(box:{x:number;width:number})=>box.x+box.width/2,cy=(box:{y:number;height:number})=>box.y+box.height/2;
+  expect(Math.abs(cx(artBox!)-cx(listBox!))).toBeLessThan(1);
+  expect(Math.abs(cx(logoBox!)-cx(artBox!))).toBeLessThan(1);
+  expect(Math.abs(cy(logoBox!)-cy(artBox!))).toBeLessThan(1);
+  await page.emulateMedia({reducedMotion:'no-preference'});await expect(logo).toHaveCSS('animation-name','feed-logo-spin');
+  await page.emulateMedia({reducedMotion:'reduce'});await expect(logo).toHaveCSS('animation-name','none');
   state.release();await expect(surface).toHaveAttribute('role','alert');await expect(surface.locator('.feed-state-ring')).toHaveCount(0);const retry=surface.getByRole('button',{name:'Try Again',exact:true});await expect(retry).toBeVisible();
   await page.screenshot({path:`.local-reports/feed-loading-design/${info.project.name}-${width}-${dark?'dark':'light'}-error.png`,animations:'disabled'});
   const bounds=await retry.boundingBox();expect(bounds!.height).toBeGreaterThanOrEqual(44);expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);

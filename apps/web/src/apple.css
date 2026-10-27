@@ -2499,7 +2499,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 .feed-state-retry:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
 .feed-state-art::before { content: ''; position: absolute; inset: -18px; z-index: -1; background: radial-gradient(ellipse,color-mix(in srgb,var(--accent) 12%,transparent),transparent 68%); }
 :root.apple-ui.apple-ui .feed-state-logo { width: 100px; max-width: 100%; background: var(--accent-ink); }
-.feed-state-ring { position: absolute; width: 156px; height: 156px; color: var(--accent-ink); animation: feed-logo-orbit 1.6s linear infinite; }
-.feed-state-ring-track { stroke: color-mix(in srgb,currentColor 14%,transparent); }
-@keyframes feed-logo-orbit { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .feed-state-ring { animation: none; } .feed-state-retry:active { transform: none; } }
+.feed-state-logo.is-loading { animation: feed-logo-spin 1.8s linear infinite; transform-origin: center; }
+@keyframes feed-logo-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .feed-state-logo.is-loading { animation: none; } .feed-state-retry:active { transform: none; } }
