@@ -31,8 +31,7 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const editions=(await store.list<BriefingEditionRecord>(feedId,'editions')).filter(e=>statuses.get(e.id)==='PUBLISHED'&&Date.parse(e.windowEnd)<=Date.parse(window.start));
  const prior=editions.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id)).flatMap(e=>e.stories.map(s=>({id:`${e.id}:${s.candidateId}`,at:e.createdAt,headline:s.claims[0]?.text??'',body:s.claims.map(c=>c.text).join('\n')})));
  const previouslyUsed=new Set(editions.flatMap(e=>e.evidenceRevisionIds));
- const previousEvidenceIds=new Set<string>();
- for(const id of previouslyUsed){const r=await store.revision(feedId,id);if(r)previousEvidenceIds.add(r.evidenceId)}
+ const previousEvidenceIds=new Set((await store.revisionEvidenceIds(feedId,[...previouslyUsed])).values());
  const previousResults=await store.list<V3WindowResult>(feedId,'v3_window_results');
  const retryIds=new Set<string>();
  for(const previous of previousResults.sort((a,b)=>a.windowEnd.localeCompare(b.windowEnd))){

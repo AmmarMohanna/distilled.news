@@ -196,3 +196,12 @@ it('persists a verified complete headline without padding its body',async()=>{
  const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,provider as typeof fetch);
  expect(edition?.stories).toHaveLength(1);expect(seen).toHaveLength(2);const published=await publicV1Edition(ctx.db,edition!.id);expect(published?.stories[0].claims[0].text.trim()).toBe('Parliament approves banking reform; presidential approval still required');
 },30000);
+
+it('batches old publication identities without changing the prepared snapshot',async()=>{
+ await article();const baseline=await prepareV3Window(store,'feed-1',window,window.end);
+ const old={id:'old',windowEnd:window.start,createdAt:window.start,stories:[],evidenceRevisionIds:Array.from({length:181},(_,i)=>'missing-'+i)};
+ const list=store.list.bind(store);vi.spyOn(store,'list').mockImplementation(async(feed,kind)=>kind==='editions'?[old]:kind==='publication_status'?[{id:'old',status:'PUBLISHED'}]:list(feed,kind));
+ const revision=vi.spyOn(store,'revision');const batched=vi.spyOn(store,'revisionEvidenceIds');
+ const actual=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(actual).toEqual(baseline);expect(revision).not.toHaveBeenCalled();expect(batched).toHaveBeenCalledOnce();expect(batched.mock.calls[0][1]).toHaveLength(181);
+},30000);
