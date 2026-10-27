@@ -23,6 +23,13 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   for(const node of [page.locator('.page-heading h1'),page.locator('.page-heading > p')]) {const box=await node.boundingBox();expect(Math.abs(box!.x+box!.width/2-headingBounds!.x-headingBounds!.width/2)).toBeLessThan(2);}
   await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
   await expect(page.locator(".feed-check-status")).toContainText("feed paused");
+  const artBounds=await page.locator('.feed-hero-art').boundingBox();
+  const titleBounds=await page.locator('.page-heading h1').boundingBox();
+  const authorBounds=await page.locator('.page-heading > p').boundingBox();
+  const toolsBounds=await page.locator('.feed-tools').boundingBox();
+  expect(titleBounds!.y-artBounds!.y-artBounds!.height).toBeLessThanOrEqual(8);
+  expect(authorBounds!.y-titleBounds!.y-titleBounds!.height).toBeLessThanOrEqual(8);
+  expect(toolsBounds!.y-authorBounds!.y-authorBounds!.height).toBeLessThanOrEqual(28);
   const actions = page.locator(".feed-header-actions");
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
   await expect(actions.getByRole("button", { name: /Star/ })).toBeVisible();

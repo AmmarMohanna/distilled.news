@@ -2576,8 +2576,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 
 /* A centered feed identity and one compact, responsive reader toolbar. */
-:root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; min-height: 0; padding-block: 20px 24px; }
-:root.apple-ui.apple-ui .feed-shell .feed-hero-art { position: static; width: clamp(80px, 7vw, 112px); height: clamp(80px, 7vw, 112px); opacity: 1; margin: 0; background: transparent; border: 0; overflow: visible; }
+:root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; min-height: 0; padding-block: 4px 8px; }
+:root.apple-ui.apple-ui .feed-shell .feed-hero-art { position: static; width: clamp(64px, 5vw, 80px); height: clamp(64px, 5vw, 80px); opacity: 1; margin: 0; background: transparent; border: 0; overflow: visible; }
 :root.apple-ui.apple-ui .feed-shell .feed-hero-art .topic-art { width: 100%; height: 100%; background: transparent !important; border-radius: 0; }
 :root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) .page-title-row { justify-content: center; }
 :root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) .page-title-row h1 { margin: 0; }
@@ -2595,13 +2595,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
  :root.apple-ui.apple-ui .feed-shell .feed-tools:not(:has(.feed-check-status)):has(.unread-summary) { grid-template-columns: minmax(0,1fr); }
  :root.apple-ui.apple-ui .feed-shell .feed-tools .feed-side-actions { width: 100%; min-width: 0; }
  .feed-check-status, :root.apple-ui.apple-ui .unread-summary-button { justify-self: start; max-width: 100%; }
- :root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) { padding-block: 12px 20px; }
+ :root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) { padding-block: 4px 8px; }
 }
 
 /* Override the older two-column hero positioning as one centered stack. */
-:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) { display: flex !important; }
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) { display: flex !important; gap: 4px; padding-block: 4px 8px; }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > :is(.feed-hero-art,.page-title-row,p) { align-self: center; text-align: center; width: auto; max-width: 100%; margin-inline: 0; }
-:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-art { width: clamp(80px,7vw,112px); }
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-art { width: clamp(64px,5vw,80px); }
 
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) .page-title-row { display: flex; }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) .page-title-row h1 { align-self: center; }
