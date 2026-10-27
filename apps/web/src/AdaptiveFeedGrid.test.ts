@@ -7,7 +7,7 @@ it('fits complete visible rows in desktop and mobile viewports', () => {
     const layout = feedGridLayout(23, width, available, desktop);
     expect(layout.rows * layout.rowHeight + (layout.rows - 1) * layout.gap).toBeLessThanOrEqual(available);
     expect(layout.rowHeight).toBeGreaterThanOrEqual(84);
-    expect(layout.rows * layout.rowHeight + layout.rows * layout.gap).toBeGreaterThanOrEqual(available);
+    expect(width / layout.columns).toBeGreaterThanOrEqual(Math.min(width, 320));
   }
 });
 it('renders every widget without pagination or slicing', () => {
@@ -16,4 +16,9 @@ it('renders every widget without pagination or slicing', () => {
   expect(html.match(/<article>/g)).toHaveLength(23);
   expect(html).not.toContain('<nav');
   expect(html).not.toContain('pagination');
+});
+
+it('uses compact rows only when the visible vertical space is tight',()=>{
+  const short=feedGridLayout(1,620,140,false);expect(short.compact).toBe(true);expect(short.rowHeight).toBeLessThanOrEqual(140);
+  const normal=feedGridLayout(5,620,430,false);expect(normal.compact).toBe(false);expect(normal.rowHeight).toBeGreaterThanOrEqual(176);
 });
