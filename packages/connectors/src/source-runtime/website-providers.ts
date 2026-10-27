@@ -53,7 +53,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       // Do not report a readable but unrecognized section layout as success.
       if(!discovery.articles.length)throw new SourceProviderError('MALFORMED');
       const selected=input.recheckItemKeys?discovery.articles.filter(a=>input.recheckItemKeys!.includes(`url:${a.url}`)):discovery.articles;
-      return {items:selected.map(a=>({sourceItemKey:`url:${a.url}`,upstreamId:a.url,url:a.url,publisherId:new URL(a.url).hostname,title:a.title,
+      return {items:selected.map(a=>({sourceItemKey:`url:${a.url}`,upstreamId:a.url,url:a.url,publisherId:new URL(a.url).hostname,title:a.title,...(a.publishedAt?{publishedAt:a.publishedAt}:{}),
         representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),
         raw:new TextEncoder().encode(html),complete:!discovery.nextPage&&!discovery.paginationUnresolved,continuationToken:discovery.nextPage,
         requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};

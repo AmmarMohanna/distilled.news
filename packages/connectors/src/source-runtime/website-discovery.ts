@@ -1,8 +1,9 @@
 import {parse} from 'parse5';
+import {discoverPromedReports} from './promed-discovery';
 import {articleUrl} from './provider-normalize';
 
 interface Node {tagName?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node;value?:string}
-export interface WebsiteDiscovery {articles:{url:string;title?:string}[];nextPage?:string;paginationUnresolved?:true}
+export interface WebsiteDiscovery {articles:{url:string;title?:string;publishedAt?:string}[];nextPage?:string;paginationUnresolved?:true}
 /** Section locators are discovery surfaces, never a single full article. */
 export function isWebsiteListingUrl(value:string):boolean {
  return /^\/(?:tags?|category|categories|topics?|sections?)(?:\/[^/?#]+)*\/?$/i.test(new URL(value).pathname)||/^\/(?:(?:news|newsroom)\/(?:all-news|latest|all|recently-published)|all-news|latest-news|archives?)\/?$/i.test(new URL(value).pathname);
@@ -14,6 +15,7 @@ const text=(n:Node)=>nodes(n).filter(n=>!n.tagName&&n.value).map(n=>n.value).joi
  * Every captured identity survives; the collector's durable snapshot slices work. */
 export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteDiscovery|undefined {
  const origin=new URL(approvedUrl).origin,all=nodes(parse(html) as unknown as Node),articles=new Map<string,{url:string;title?:string}>();
+ const promed=discoverPromedReports(all.filter(n=>n.tagName==='script').map(n=>nodes(n).map(child=>child.value??'').join('')),all.filter(n=>n.tagName==='tr').map(text),approvedUrl);if(promed)return promed;
  const scoped=(href:string)=>{try{const url=articleUrl(new URL(href,approvedUrl).href);return url&&new URL(url).origin===origin&&url!==articleUrl(approvedUrl)?url:undefined}catch{return undefined}};
  const add=(href:string,title?:string)=>{const url=scoped(href);if(url&&!articles.has(url))articles.set(url,{url,...(title?{title}:{})})};
  let isArticle=false,structuredListing=false,boundSection=false,unboundSection=false,nextPage:string|undefined,paginationUnresolved=false;

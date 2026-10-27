@@ -24,6 +24,7 @@ export async function readPublicArticle(http:FeedHttpPort,initial:string){
    // A distinct diagnostic may admit an exact-article provider to resolve a
    // public publisher redirect, without weakening private-network guards.
    if(next.origin!==origin)throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'ARTICLE_CROSS_ORIGIN_REDIRECT'});
+   if(/^\/(?:auth\/)?(?:login|sign-?in)\/?$/i.test(next.pathname))throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_LOGIN_REDIRECT',httpStatus:r.status});
    url=next.href;continue;
   }
   return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status,...(Object.keys(r.headers).some(k=>k.toLowerCase()==='www-authenticate')?{authenticationRequired:true}:{}),...(r.headers['retry-after']?{retryAfter:r.headers['retry-after']}:{})};

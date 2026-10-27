@@ -28,3 +28,9 @@ it('bounds loops and never turns a 401 into successful article collection',async
  const get=vi.fn().mockResolvedValue(reply(302,{location:'/story'}));await expect(readPublicArticle({get},'https://publisher.example/story')).rejects.toMatchObject({code:'POLICY_DENIED'});expect(get).toHaveBeenCalledTimes(1);
  expect(await readPublicArticle({get:async()=>reply(401,{'www-authenticate':'Basic'})},'https://publisher.example/story')).toMatchObject({status:401,authenticationRequired:true});
 });
+
+it('reports explicit publisher login redirects as authentication requirements without fetching the login page',async()=>{
+ const get=vi.fn().mockResolvedValue(reply(307,{location:'/auth/login?returnTo=/alert/8735910'}));
+ await expect(readPublicArticle({get},'https://www.promedmail.org/alert/8735910')).rejects.toMatchObject({code:'AUTH_REQUIRED',diagnostic:{detail:'ARTICLE_LOGIN_REDIRECT',httpStatus:307}});
+ expect(get).toHaveBeenCalledTimes(1);
+});

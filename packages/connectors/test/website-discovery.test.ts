@@ -64,3 +64,21 @@ it('typed NewsArticle entries inside an ItemList remain discovery, not a current
  const html='<script type="application/ld+json">'+JSON.stringify({'@type':'ItemList',itemListElement:[{'@type':'ListItem',item:{'@type':'NewsArticle',url:'/one',headline:'One'}},{'@type':'ListItem',item:{'@type':'NewsArticle',url:'/two',headline:'Two'}}]})+'</script>';
  expect(discoverWebsiteArticles(html,url)?.articles).toEqual([{url:'https://publisher.example/one',title:'One'},{url:'https://publisher.example/two',title:'Two'}]);
 });
+
+function promedPage(alerts:unknown[],title='Outbreak report'){
+ const row='29:T4,text25:'+JSON.stringify(['$','$L28',null,{alerts}])+'\n',mid=Math.floor(row.length/2);
+ return '<table><tr><td>'+title+'</td></tr></table>'+[row.slice(0,mid),row.slice(mid)].map(part=>'<script>self.__next_f.push('+JSON.stringify([1,part])+')</script>').join('');
+}
+it('discovers ProMED public alert identities and original issue dates from split data frames',()=>{
+ const alert={alert_id:8735910,post_title:'Outbreak report',issue_date:'$D2026-10-27T05:04:00.000Z',date_created:'$D2026-10-26T16:48:24.000Z'};
+ expect(discoverWebsiteArticles(promedPage([alert,alert]),'https://www.promedmail.org/')).toEqual({articles:[{url:'https://www.promedmail.org/alert/8735910',title:'Outbreak report',publishedAt:'2026-10-27T05:04:00.000Z'}],paginationUnresolved:true});
+});
+it('does not fabricate ProMED identities or borrow dates from unrelated fields',()=>{
+ const html=promedPage([{alert_id:12,post_title:'Outbreak report',date_created:'$D2026-10-26T16:48:24.000Z'},{alert_id:-1,post_title:'Outbreak report'},{alert_id:'13',post_title:'Outbreak report'},{alert_id:14,post_title:'Hidden report'}]);
+ expect(discoverWebsiteArticles(html,'https://www.promedmail.org/')?.articles).toEqual([{url:'https://www.promedmail.org/alert/12',title:'Outbreak report'}]);
+ expect(discoverWebsiteArticles(html,'https://publisher.example/')).toBeUndefined();
+ expect(discoverWebsiteArticles(html,'https://www.promedmail.org/alert/12')).toBeUndefined();
+});
+it('ignores executable and malformed ProMED data without evaluating it',()=>{
+ expect(discoverWebsiteArticles('<script>self.__next_f.push([1,evil()])</script><table><tr><td>Outbreak report</td></tr></table>','https://www.promedmail.org/')).toBeUndefined();
+});
