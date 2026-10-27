@@ -12,3 +12,8 @@ A regression first failed against the old implementation because it issued indiv
 
 ## Remaining work
 Attribute shared document-list queries to callers before ranking total load. Separate eligible reader prose from all-time published-evidence membership and unresolved work. Preserve the existing relevance algorithm, old corrections, withdrawal semantics and ordered carry resolution. Benchmark young/aged feeds with equal new content, quiet maintenance and sustained read traffic; record database rows/bytes/duration and session/feed p50/p95. No deployment or paid inference is part of this change.
+
+## Current-evidence observation lookup
+Preparation previously selected timing metadata for every revision in the feed, including superseded history. It now loads the same current evidence set first and queries observation timing only for its distinct revision IDs, in batches of 90. No current IDs means no observation query. Source-observation ownership joins and missing-observation fallback to acceptedAt remain unchanged. This reduces returned historical metadata; it does not claim the database performs constant work without a measured plan.
+
+The regression first failed against the old unfiltered query. Full V3 integration tests exercise observation cutoffs, meaningful late discoveries, initial backlog exclusion, pending-window recovery, frozen-operation replay and persistence. The broad publication-memory and ordered carry-result reads remain unchanged; they require a separate exact-equivalence benchmark before refactoring. No live p50/p95 or CPU-reset improvement is claimed.

@@ -38,10 +38,15 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
   for(const id of [...previous.result.items.flatMap(i=>i.sourceIds),...previous.result.skipped.map(s=>s.id),...previous.result.omitted.flatMap(o=>o.sourceIds),...previous.result.dropped.flatMap(d=>d.sourceIds)])retryIds.delete(id);
   for(const dropped of previous.result.dropped.filter(d=>d.carry))for(const id of dropped.sourceIds)retryIds.add(id);
  }
- const observations=await store.db.prepare("SELECT r.id,json_extract(i.json,'$.observation.observedAt') observedAt FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=?").bind(feedId).all<{id:string;observedAt:string|null}>();
- const observedAt=new Map(observations.results.map(r=>[r.id,r.observedAt]));
- const beforeClose=(r:EvidenceRevision)=>Date.parse(observedAt.get(r.id)??r.acceptedAt)<Date.parse(window.end);
  const evidence=await store.currentEvidence(feedId);
+ const observedAt=new Map<string,string|null>();
+ const ids=[...new Set(evidence.map(e=>e.revision.id))];
+ for(let offset=0;offset<ids.length;offset+=90){
+  const page=ids.slice(offset,offset+90);
+  const observations=await store.db.prepare(`SELECT r.id,json_extract(i.json,'$.observation.observedAt') observedAt FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page).all<{id:string;observedAt:string|null}>();
+  for(const row of observations.results)observedAt.set(row.id,row.observedAt);
+ }
+ const beforeClose=(r:EvidenceRevision)=>Date.parse(observedAt.get(r.id)??r.acceptedAt)<Date.parse(window.end);
  const active=evidence.filter(({revision:r})=>{
   if(!beforeClose(r))return false;
   if(previouslyUsed.has(r.id)&&!retryIds.has(r.id))return false;
