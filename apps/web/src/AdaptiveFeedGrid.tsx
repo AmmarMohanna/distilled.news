@@ -12,11 +12,12 @@ export function feedGridLayout(count: number, width: number, available: number, 
   const roomy = width / columns >= 400 && available >= 380;
   const compact = available < 190;
   const minimum = 112;
-  const rows = Math.max(1, Math.min(Math.ceil(count / columns), Math.floor((space + gap) / (minimum + gap))));
+  const rows = Math.max(1, Math.min(Math.ceil(count / columns), Math.floor((space + gap) / (144 + gap))));
   const fittedHeight = Math.floor((space - (rows - 1) * gap) / rows);
   // Use some of the available space without stretching a small collection to fill it.
   const preferredHeight = Math.max(120, Math.min(176, Math.floor(space * 0.72 / rows)));
-  const rowHeight = Math.max(minimum, Math.min(preferredHeight, fittedHeight));
+  const overflowing = Math.ceil(count / columns) > rows;
+  const rowHeight = Math.max(minimum, Math.min(overflowing ? 192 : preferredHeight, fittedHeight));
   return { columns, gap, roomy, compact, rows, rowHeight };
 }
 
@@ -27,6 +28,7 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
     const grid = ref.current;
     if (!grid || !count) return;
     const measure = () => {
+      if (!grid.clientWidth) return;
       const rect = grid.getBoundingClientRect();
       const scale = grid.offsetWidth ? rect.width / grid.offsetWidth : 1;
       const viewport = grid.closest<HTMLElement>('.screen-page-viewport');
@@ -43,7 +45,15 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       grid.style.setProperty('--feed-columns', String(layout.columns));
       grid.style.setProperty('--feed-row-height', layout.rowHeight + 'px');
       grid.style.setProperty('--feed-grid-gap', layout.gap + 'px');
-      grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? Math.min(128, layout.rowHeight - 16) : 56) + 'px');
+      grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? Math.min(128, layout.rowHeight - 16) : grid.clientWidth < 300 ? 48 : 56) + 'px');
+      const available = Math.max(0, (bottom - top) / scale);
+      const cards = [...grid.children].filter(node => node.classList.contains('topic-card')) as HTMLElement[];
+      const cardHeight = Math.max(layout.rowHeight, ...cards.map(card => card.getBoundingClientRect().height / scale));
+      grid.style.setProperty('--feed-row-height', cardHeight + 'px');
+      const visibleRows = Math.min(Math.ceil(count / layout.columns), Math.floor((available + layout.gap) / (cardHeight + layout.gap)));
+      grid.dataset.completeRows = visibleRows > 0 ? 'true' : 'false';
+      grid.style.maxHeight = visibleRows > 0 ? (visibleRows * cardHeight + (visibleRows - 1) * layout.gap) + 'px' : '';
+
     };
     measure();
     let active = true;
@@ -51,6 +61,7 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
     void document.fonts?.ready.then(() => { if (active) measure(); });
     const observer = new ResizeObserver(measure);
     observer.observe(grid);
+    for (const card of grid.children) observer.observe(card);
     const main = grid.closest('main');
     if (main) observer.observe(main);
     const navigation = document.querySelector('.bottom-navigation');

@@ -44,8 +44,8 @@ for (const size of [
 test("landing feeds scroll only when they no longer fit", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await openLanding(page, 40);
-  const viewport = page.locator(".app-pages > .screen-page-viewport");
-  expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  const grid = page.locator(".curated-feed-grid");
+  expect(await grid.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
 });
 
 for (const width of [320, 749, 900, 1280]) {
