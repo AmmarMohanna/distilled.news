@@ -2622,3 +2622,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Grow the feed illustration upward without changing header flow or text positions. */
 :root.apple-ui.apple-ui .shell.feed-shell .feed-hero-art .topic-art { transform: scale(1.5); transform-origin: center bottom; }
+
+/* One rhythm across language, appearance and feed actions instead of nested gaps. */
+:root.apple-ui.apple-ui .feed-shell .experience-header.experience-header .experience-header-actions { gap: 8px; }
+:root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions .feed-header-actions { display: contents; }
+:root.apple-ui.apple-ui .feed-shell .experience-header-actions .feed-header-actions > button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; margin: 0; padding: 0; }
+:root.apple-ui.apple-ui .feed-shell .experience-header-actions .feed-header-actions > .star-vote { flex-basis: 56px; width: 56px; min-width: 56px; gap: 4px; }
+@media (max-width: 899px) {
+ :root.apple-ui.apple-ui .feed-shell .experience-header.experience-header .experience-header-actions { gap: 4px; }
+}
+
+:root.apple-ui.apple-ui .feed-shell .experience-header.has-account .experience-header-actions > .theme-toggle { margin: 0; }

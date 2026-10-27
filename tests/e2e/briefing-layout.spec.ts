@@ -40,6 +40,11 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   expect(titleBounds!.y-artBounds!.y-artBounds!.height).toBeLessThanOrEqual(8);
   expect(authorBounds!.y-titleBounds!.y-titleBounds!.height).toBeLessThanOrEqual(8);
   expect(toolsBounds!.y-authorBounds!.y-authorBounds!.height).toBeLessThanOrEqual(28);
+  const headerButtons=page.locator('.experience-header-actions > .language-cycle:visible, .experience-header-actions > .theme-toggle:visible, .experience-header-actions .feed-header-actions > button:visible');
+  const controlBounds=await headerButtons.evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));
+  const sameRow=controlBounds.every(box=>Math.abs(box.y-controlBounds[0].y)<2);
+  if(sameRow) { const gaps=controlBounds.slice(1).map((box,index)=>box.x-controlBounds[index].x-controlBounds[index].width);expect(Math.max(...gaps)-Math.min(...gaps)).toBeLessThan(2); }
+  for(const box of controlBounds)expect(box.height).toBeGreaterThanOrEqual(44);
   const actions = page.locator(".feed-header-actions");
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
   await expect(actions.getByRole("button", { name: /Star/ })).toBeVisible();
