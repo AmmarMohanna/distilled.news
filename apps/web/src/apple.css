@@ -2644,3 +2644,55 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @container (max-width: 180px) {
  :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand .distilled-logo-wordmark { display: none; }
 }
+
+/* Session-load failure: a centered error panel rather than the login form. */
+:root.apple-ui.apple-ui .auth-unavailable-dialog {
+  width: min(760px, calc(100vw - 32px));
+  border-radius: 34px;
+  box-shadow: 0 28px 90px rgb(0 0 0 / 24%);
+}
+:root.apple-ui.apple-ui .auth-unavailable-dialog .auth-modal-content { background: transparent; }
+:root.apple-ui.apple-ui .auth-unavailable {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 44px 44px 48px; gap: 20px; text-align: center;
+}
+:root.apple-ui.apple-ui .auth-unavailable-icon {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 78px; height: 78px; margin-bottom: 2px; border-radius: 50%;
+  color: #fff; background: #a66578;
+  box-shadow: 0 0 44px rgb(186 82 116 / 22%);
+}
+:root.apple-ui.apple-ui .auth-unavailable h2 {
+  margin: 0; padding: 0; font-size: 28px; font-weight: 700;
+  line-height: 1.25; letter-spacing: -.025em; text-align: center; direction: ltr;
+}
+:root.apple-ui.apple-ui .auth-unavailable p {
+  margin: 0; color: var(--muted); font-size: 20px;
+  line-height: 1.5; text-align: center; direction: ltr;
+}
+:root.apple-ui.apple-ui .auth-unavailable-dialog .dialog-close,
+:root.apple-ui.apple-ui[dir="rtl"] .auth-unavailable-dialog .dialog-close {
+  position: absolute; top: 22px; right: 22px; left: auto;
+  inset-inline-start: auto; inset-inline-end: auto;
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted);
+  box-shadow: none;
+}
+:root.apple-ui.apple-ui .auth-unavailable-dialog .dialog-close:hover { color: var(--text); background: var(--surface-quiet); }
+:root.apple-ui.apple-ui .auth-unavailable-dialog .dialog-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+:root.apple-ui.apple-ui[data-theme="dark"] .auth-unavailable-dialog {
+  background: linear-gradient(135deg, #191923, #20202e);
+  border-color: #45445c;
+}
+:root.apple-ui.apple-ui[data-theme="dark"] .auth-unavailable-icon { background: #795063; }
+:root.apple-ui.apple-ui[data-theme="dark"] .auth-unavailable h2 { color: #f4f3fc; }
+:root.apple-ui.apple-ui[data-theme="dark"] .auth-unavailable p { color: #b9bbd2; }
+:root.apple-ui.apple-ui .auth-unavailable-dialog::backdrop {
+  background: rgb(6 6 16 / 58%); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+}
+@media (max-width: 600px) {
+  :root.apple-ui.apple-ui .auth-unavailable-dialog { border-radius: 26px; }
+  :root.apple-ui.apple-ui .auth-unavailable { padding: 48px 24px 32px; gap: 16px; }
+  :root.apple-ui.apple-ui .auth-unavailable-icon { width: 64px; height: 64px; }
+  :root.apple-ui.apple-ui .auth-unavailable h2 { font-size: 24px; }
+  :root.apple-ui.apple-ui .auth-unavailable p { font-size: 16px; }
+}

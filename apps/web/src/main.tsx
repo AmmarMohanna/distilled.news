@@ -3,7 +3,7 @@ import { SourceLogo } from "./SourceLogo";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
 import React, { useEffect, useId, useRef, useState } from "react";
-import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./FeedNotice";
+import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { FeedArt } from "./FeedArt";
 import { UnreadSummary } from './UnreadSummary';
@@ -470,7 +470,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
           onAccount={() => setAuthOpen(true)} onHelp={() => {}}
           onCreate={() => { setCreateAfterLogin(true); setAuthOpen(true); }}
           error={error ? "We couldn’t load your session. Please refresh and try again." : undefined}/>
-        {authOpen && (session || error) && <Dialog label="Login or sign up" className="auth-dialog" onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
+        {authOpen && (session || error) && <Dialog label={!session && error ? "Sign-in Unavailable" : "Login or sign up"} className={`auth-dialog${!session && error ? ' auth-unavailable-dialog' : ''}`} onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
           <div className="auth-experience auth-modal-content">
             <button type="button" className="dialog-close quiet-icon" aria-label="Close dialog" onClick={() => { setAuthOpen(false); setCreateAfterLogin(false); }}><X size={20}/></button>
             {session ? <AuthPanel
@@ -487,7 +487,11 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
                   setSession(next);
                 }
               }}
-            /> : error ? <p className="auth-pending" role="alert">Sign-in is unavailable right now. Please refresh and try again.</p> : null}
+            /> : error ? <section className="auth-unavailable" role="alert" aria-labelledby="auth-unavailable-title" dir="ltr">
+              <span className="auth-unavailable-icon" aria-hidden="true"><X size={36} strokeWidth={2}/></span>
+              <h2 id="auth-unavailable-title">Sign-in Unavailable</h2>
+              <p>Sign-in is unavailable right now. Please refresh and try again.</p>
+            </section> : null}
           </div>
         </Dialog>}
       </>
@@ -1747,7 +1751,6 @@ function FeedPage(props: { username: string; slug: string }) {
       }).join(' ')} /> : null}
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
-      {payload?.publicationState === 'checking' ? <FeedProcessingProgress progress={payload.publicationProgress} language={language}/> : null}
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>
