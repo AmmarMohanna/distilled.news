@@ -20,7 +20,7 @@ it('renders every widget without pagination or slicing', () => {
 
 it('uses compact rows only when the visible vertical space is tight',()=>{
   const short=feedGridLayout(1,620,140,false);expect(short.compact).toBe(true);expect(short.rowHeight).toBeLessThanOrEqual(140);
-  const normal=feedGridLayout(5,620,430,false);expect(normal.compact).toBe(false);expect(normal.rowHeight).toBeGreaterThanOrEqual(112);expect(normal.rowHeight).toBeLessThanOrEqual(192);
+  const normal=feedGridLayout(5,620,430,false);expect(normal.compact).toBe(false);expect(normal.rowHeight).toBeGreaterThanOrEqual(112);expect(normal.rowHeight).toBeLessThanOrEqual(176);
 });
 
 it('balances sparse collections and increases density when space is needed', () => {
@@ -31,11 +31,4 @@ it('balances sparse collections and increases density when space is needed', () 
   expect(sparse.rowHeight).toBeGreaterThan(120);
   expect(feedGridLayout(5, 320, 650, false).columns).toBe(1);
   expect(feedGridLayout(0, 1116, 650, true).columns).toBe(1);
-});
-
-it('uses larger bounded rows for overflowing collections without dropping cards',()=>{
- const layout=feedGridLayout(30,390,500,false);
- expect(layout.rowHeight).toBeGreaterThanOrEqual(144);
- expect(layout.rowHeight).toBeLessThanOrEqual(192);
- expect(layout.rows*layout.rowHeight+(layout.rows-1)*layout.gap).toBeLessThanOrEqual(500);
 });

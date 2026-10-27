@@ -30,7 +30,7 @@ async function mock(page: Page, role: "user" | "admin" | null) {
 
 const CHECK = (): string[] => {
   const desc = (e: Element | null) => e ? `${e.tagName.toLowerCase()}${e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/)[0] : ""}[${(e.getAttribute("aria-label") || e.textContent || "").trim().replace(/\s+/g, " ").slice(0, 22)}]` : "none";
-  const shown = (e: Element) => { if (e.closest("details:not([open])") && !e.matches("summary")) return false; const r = e.getBoundingClientRect(), s = getComputedStyle(e); const scroller=e.closest('[data-complete-rows="true"]'); if(scroller){const clip=scroller.getBoundingClientRect();if(r.bottom<=clip.top||r.top>=clip.bottom||r.right<=clip.left||r.left>=clip.right)return false;} return r.width > 1 && r.height > 1 && s.visibility !== "hidden" && s.display !== "none" && parseFloat(s.opacity) > 0.05 && !e.closest("[inert],[aria-hidden='true']"); };
+  const shown = (e: Element) => { if (e.closest("details:not([open])") && !e.matches("summary")) return false; const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== "hidden" && s.display !== "none" && parseFloat(s.opacity) > 0.05 && !e.closest("[inert],[aria-hidden='true']"); };
   const modal = document.querySelector("dialog[open]");
   const scope = modal || document;
   const controls = [...scope.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary, [role=switch], [role=button]")].filter(shown).filter(e => !e.closest(".sr-only") && !e.matches(".skip-link"));

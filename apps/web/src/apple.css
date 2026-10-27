@@ -2557,7 +2557,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-updated-at { grid-column: 2; align-self: start; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"][data-size="large"] > .topic-card { padding-block: 8px !important; }
 @media (max-width: 400px) {
-  :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card { grid-template-columns: var(--feed-art-size,56px) minmax(0,1fr) 44px !important; grid-template-areas: "art name vote" "art updated options" !important; column-gap: 10px; }
+  :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card { grid-template-columns: 56px minmax(0,1fr) 44px !important; grid-template-areas: "art name vote" "art updated options" !important; column-gap: 10px; }
 }
 
 /* Keep identity and timestamp together when artwork stretches both grid rows. */
@@ -2644,8 +2644,3 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @container (max-width: 180px) {
  :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand .distilled-logo-wordmark { display: none; }
 }
-
-/* Reveal complete rows at rest; retain every card in a keyboard-scrollable list. */
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"][data-complete-rows="true"] { overflow-y: auto; overflow-x: clip; scroll-snap-type: y mandatory; scrollbar-gutter: stable both-edges; }
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-complete-rows="true"] > .topic-card { scroll-snap-align: start; scroll-margin-block: 0; }
-@media (prefers-reduced-motion: reduce) { :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-complete-rows="true"] { scroll-behavior: auto; } }
