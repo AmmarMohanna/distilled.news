@@ -19,13 +19,13 @@ await writeFile(new URL("favicon.svg", publicDir), svg);
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 512, height: 512 }, deviceScaleFactor: 1 });
-  await page.goto(`data:image/svg+xml,${encodeURIComponent(svg)}`);
+  await page.goto(`data:image/svg+xml,${encodeURIComponent(svg.replace('<defs>', '<rect width="512" height="512" fill="#ffffff"/><defs>'))}`);
   for (const [name, size] of [["icon-192.png", 192], ["icon-512.png", 512], ["apple-touch-icon.png", 180]]) {
     await page.locator("svg").evaluate((element, iconSize) => {
       element.setAttribute("width", String(iconSize));
       element.setAttribute("height", String(iconSize));
     }, size);
-    await page.locator("svg").screenshot({ path: fileURLToPath(new URL(name, publicDir)), omitBackground: true });
+    await page.locator("svg").screenshot({ path: fileURLToPath(new URL(name, publicDir)), omitBackground: false });
   }
 } finally {
   await browser.close();
