@@ -72,7 +72,7 @@ it('recovers a durably recorded response without another model call',async()=>{
 
 it('accepts summaries through 120 words without raising the 40-80 word writing target',()=>{
   for(const count of [106,120]){const summary=Array(count).fill('news').join(' ');expect(parseUnreadSummary(JSON.stringify({summary}))).toBe(summary);}
-  expect(()=>parseUnreadSummary(JSON.stringify({summary:Array(121).fill('news').join(' ')}))).toThrow('not concise enough');
+  expect(()=>parseUnreadSummary(JSON.stringify({summary:Array(121).fill('news').join(' ')}))).toThrow('too long to show');
 });
 
 it('reports provider capacity as pending without retaining a failed cache claim or spending',async()=>{
@@ -81,4 +81,14 @@ it('reports provider capacity as pending without retaining a failed cache claim 
   expect(await db.prepare('SELECT id FROM unread_summary_cache').first()).toBeNull();
   expect(await db.prepare('SELECT id FROM v3_model_spend').first()).toBeNull();
   const available=port();expect(await run(available)).toMatchObject({status:'ready'});expect(available.complete).toHaveBeenCalledOnce();
+});
+
+it('explains retained overlong output on repeated reads without sending another paid request',async()=>{
+ const p={complete:vi.fn(async()=>({...response,text:JSON.stringify({summary:Array(178).fill('news').join(' ')})}))};
+ for(let i=0;i<2;i++)await expect(run(p)).rejects.toMatchObject({code:'SUMMARY_TOO_LONG'});
+ expect(p.complete).toHaveBeenCalledOnce();
+ expect(await db.prepare('SELECT state FROM v3_model_spend').first()).toMatchObject({state:'settled'});
+});
+it('distinguishes unconfirmed outcomes from malformed known output',()=>{
+ for(const text of ['null','not JSON','{}'])expect(()=>parseUnreadSummary(text)).toThrow('summary was incomplete');
 });

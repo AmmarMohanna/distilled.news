@@ -4,7 +4,7 @@ import {InMemoryRepository} from './repository';
 import {createSession} from './auth';
 import type {Env} from './types';
 import type {BriefingConfig,BriefingEdition} from '@distilled/core';
-import {generateUnreadSummary} from './unread-summary';
+import {generateUnreadSummary,UnreadSummaryError} from './unread-summary';
 vi.mock('./unread-summary',async original=>({...await original<typeof import('./unread-summary')>(),generateUnreadSummary:vi.fn(async()=>({status:'ready',summary:'A short summary.'}))}));
 let repo:InMemoryRepository,app:ReturnType<typeof createApp>,config:Env,cookie:string,feed:BriefingConfig;
 beforeEach(async()=>{vi.mocked(generateUnreadSummary).mockClear();repo=new InMemoryRepository();const owner=await repo.createAccount({email:'owner@example.invalid',username:'owner',role:'user',passwordHash:'test',emailVerifiedAt:new Date().toISOString()});feed={...await repo.ensureDefaultBriefing(owner),publicFeedEnabled:true};await repo.upsertBriefing(feed);cookie='dn_session='+await createSession('test-secret',owner);app=createApp({repository:repo});config={ADMIN_SESSION_SECRET:'test-secret',BRIEFING_ENGINE:'v3',UNREAD_SUMMARY_ENABLED:'true',OPENROUTER_API_KEY:'test',DB:{}} as Env;});
@@ -26,4 +26,8 @@ it('does not allow an unverified account to incur summary costs',async()=>{const
 
 it('returns a retryable pending response for pre-inference provider capacity waits',async()=>{
  vi.mocked(generateUnreadSummary).mockResolvedValueOnce({status:'pending'});const response=await post();expect(response.status).toBe(202);expect(await response.json()).toEqual({status:'pending'});
+});
+
+it.each([['SUMMARY_TOO_LONG',422],['SUMMARY_INVALID_OUTPUT',422],['SUMMARY_OUTCOME_UNKNOWN',503]] as const)('returns a specific safe error for %s',async(code,status)=>{
+ vi.mocked(generateUnreadSummary).mockRejectedValueOnce(new UnreadSummaryError(code));const response=await post();expect(response.status).toBe(status);const body=await response.json() as {code:string;error:string};expect(body.code).toBe(code);expect(body.error).not.toContain('Try again shortly');
 });

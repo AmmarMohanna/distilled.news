@@ -4,7 +4,7 @@ import type {Env} from './types';
 import {modelSpendingAccount,ModelSpendingWait,reserveModelSpending,settleModelSpending} from './v1-intelligence/model-spending';
 import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {modelCapability} from './v1-intelligence/model-capacity';
-import {summaryTokenUpperBound,UnreadSummaryResourceWait} from './unread-summary';
+import {summaryTokenUpperBound,UnreadSummaryResourceWait,UnreadSummaryError} from './unread-summary';
 
 /** Same provider account ledger and rate/concurrency admission as live V3.
  * Receipts survive a client disconnect; an uncertain call is never resubmitted. */
@@ -20,7 +20,7 @@ export function unreadSummaryPort(env:Env,feedId:string,readerId:string,fetcher:
       await settleModelSpending(db,id,receipt.token,{costUsd:receipt.response.costUsd!,reported:true});
       return receipt.response;
     }
-    if(await db.prepare('SELECT id FROM v1_model_spending_reservations WHERE id=?').bind(id).first())throw Error('The previous summary request could not be confirmed.');
+    if(await db.prepare('SELECT id FROM v1_model_spending_reservations WHERE id=?').bind(id).first())throw new UnreadSummaryError('SUMMARY_OUTCOME_UNKNOWN');
     const capability=modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON);
     if(!capability)throw new BriefingBudgetError('Summary model is not configured.');
     const token=crypto.randomUUID(),at=new Date().toISOString();
