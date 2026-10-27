@@ -1582,7 +1582,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (min-width: 900px) {
   :root.apple-ui.apple-ui .experience-header.has-account .experience-header-actions > .theme-toggle { margin-inline-end: 12px; }
 }
-:root.apple-ui.apple-ui .experience.product-refresh .settings-view .experience-title { text-align: left; }
+:root.apple-ui.apple-ui .experience.product-refresh .settings-view .experience-title { text-align: start; }
 :root.apple-ui.apple-ui .explore-feed-description p { margin: 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.6; }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .setting-row.setting-language { flex-wrap: nowrap; column-gap: 10px; }
