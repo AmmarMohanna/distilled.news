@@ -60,7 +60,7 @@ it('holds uncertain submissions against the daily limit and never rebills them a
  await expect(http.request(scope,'unknown','x_apify',3,'https://api.apify.com/v2/test',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
  now=new Date('2026-10-22T12:00:00Z');
  await expect(http.request(scope,'unknown','x_apify',3,'https://api.apify.com/v2/test',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
- await expect(http.request(scope,'different-run','x_apify',1,'https://api.apify.com/v2/test',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+ await expect(http.request(scope,'different-run','x_apify',1,'https://api.apify.com/v2/test',{})).rejects.toThrow('BACKPRESSURE');
  expect(dispatch).toHaveBeenCalledTimes(1);
 });
 function setup(providers:SourceProvider[]){
@@ -217,7 +217,7 @@ describe('fallback policy and durable handoff',()=>{
     await expect(next.request(scope,'exhausted','x_twitterapi_io',1,'https://api.twitterapi.io/test',{})).rejects.toThrow('BUDGET_EXCEEDED');
     expect(calls).toBe(2);
     s.db.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status) VALUES('x_twitterapi_io','legacy-uncertain','hash',1,-1)").run();
-    await expect(next.request({...scope,feedSourceId:'other'},'unknown','x_twitterapi_io',1,'https://api.twitterapi.io/test',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+    await expect(next.request({...scope,feedSourceId:'other'},'unknown','x_twitterapi_io',1,'https://api.twitterapi.io/test',{})).rejects.toThrow('BACKPRESSURE');
     expect(calls).toBe(2);
   });
   it('helper backpressure resumes the original paid operation without charging again or invoking fallback',async()=>{
@@ -749,8 +749,8 @@ describe('durable paid HTTP',()=>{
     const s=setup([]),dispatch=vi.fn(async():Promise<Response>=>{throw new Error('connection lost')}),http=new DurableProviderHttp(s.db,s.payloads,dispatch,1000,1000,15);
     await http.configureLimits({primary:100,fallback:100});
     await expect(http.request(scope,'old-window','primary',1,'https://api.twitterapi.io/twitter/tweets',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
-    await expect(http.request(scope,'new-window','primary',1,'https://api.twitterapi.io/twitter/tweets',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
-    await expect(http.request(scope,'new-window','fallback',1,'https://api.apify.com/v2/actors/a~b/runs',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+    await expect(http.request(scope,'new-window','primary',1,'https://api.twitterapi.io/twitter/tweets',{})).rejects.toThrow('BACKPRESSURE');
+    await expect(http.request(scope,'new-window','fallback',1,'https://api.apify.com/v2/actors/a~b/runs',{})).rejects.toThrow('BACKPRESSURE');
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(await s.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='primary'").first()).toEqual({reserved_usd:1});
     expect(await s.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='fallback'").first()).toEqual({reserved_usd:0});

@@ -16,6 +16,7 @@ export async function readPublicArticle(http:FeedHttpPort,initial:string){
    if(error instanceof Error&&error.message==='FEED_TOO_LARGE')throw new AcquisitionFailure('BODY_BUDGET_EXCEEDED',false,{detail:'ARTICLE_HTML_TOO_LARGE'});
    throw error;
   });
+  if(r.status===402)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_PAYMENT_REQUIRED',httpStatus:402});
   if(r.status===0)throw new AcquisitionFailure('NETWORK',true);
   if(r.status>=300&&r.status<400){
    if(hop===3||!r.headers.location)throw new AcquisitionFailure('POLICY_DENIED',false);

@@ -234,7 +234,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(error instanceof AcquisitionFailure) throw error;
    if(error instanceof SourceProviderError){
     if(error.code==='RESULT_LOST')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'PAID_ARTICLE_RESPONSE_LOST'});
-    if(error.code==='BACKPRESSURE')throw new AcquisitionFailure('BACKPRESSURE',true,{detail:error.diagnostic?.detail==='PROVIDER_REQUEST_IN_FLIGHT'?'ARTICLE_PROVIDER_IN_FLIGHT':'HELPER_CAPACITY_WAIT',retryNotBefore:error.retryNotBefore});
+    if(error.code==='BACKPRESSURE')throw new AcquisitionFailure('BACKPRESSURE',true,{detail:error.diagnostic?.detail==='PROVIDER_REQUEST_IN_FLIGHT'?'ARTICLE_PROVIDER_IN_FLIGHT':error.diagnostic?.detail==='PROVIDER_OUTCOME_RECONCILIATION_REQUIRED'?'ARTICLE_PROVIDER_RECONCILIATION_WAIT':'HELPER_CAPACITY_WAIT',retryNotBefore:error.retryNotBefore});
     if(error.code==='RATE_LIMIT')throw new AcquisitionFailure('RATE_LIMIT',true,{detail:'HELPER_RATE_LIMIT',retryNotBefore:error.retryNotBefore});
     if(error.code==='BUDGET_EXCEEDED')throw new AcquisitionFailure('BUDGET_EXHAUSTED',true,{detail:'ARTICLE_PROVIDER_BUDGET'});
     if(error.code==='UNCERTAIN_PAID_SUBMISSION')throw new AcquisitionFailure('UNCERTAIN_PAID_SUBMISSION',false,{detail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'});

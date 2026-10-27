@@ -21,12 +21,13 @@ export interface DailyCollectorBudget {limitUsd:number;timeZone:string;now?:()=>
 // A confirmed completion with a lost body stays charged conservatively and may
 // never be dispatched again. It is distinct from an unknown provider outcome.
 export const unresolvedProviderOperationSql="payload_ref IS NULL AND COALESCE(status=200 AND json_extract(headers,'$.reconciliation.kind')='COMPLETED_RESPONSE_LOST' AND json_extract(headers,'$.reconciliation.requestId') IS NOT NULL,0)=0";
-function pendingProviderError(headers:string|null|undefined):SourceProviderError {
+function pendingProviderError(headers:string|null|undefined,otherOperation=false):SourceProviderError {
  try{
   const claim=JSON.parse(headers??'{}'),until=Date.parse(claim.claimExpiresAt),now=Date.now();
   if(!claim.failure&&typeof claim.claimToken==='string'&&until>now&&until<=now+180_000)
    return new SourceProviderError('BACKPRESSURE',new Date(Math.min(until,now+5000)).toISOString(),{detail:'PROVIDER_REQUEST_IN_FLIGHT'});
  }catch{/* Legacy or malformed claims remain uncertain, never redispatched. */}
+ if(otherOperation)return new SourceProviderError('BACKPRESSURE',new Date(Date.now()+300000).toISOString(),{detail:'PROVIDER_OUTCOME_RECONCILIATION_REQUIRED'});
  return new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
 }
 export async function reconcileCompletedZyteResponse(db:SqlDatabase,scope:SourceScope,operationId:string,evidence:{targetUrl:string;requestId:string;providerTimestamp:string;latencyMs:number;evidenceUrl:string;confirmedBy:string;confirmedAt:string}){
@@ -95,9 +96,9 @@ export class DurableProviderHttp implements ProviderHttpPort {
     // Legacy completed payload paths encode the immutable source scope. An
     // unattributed uncertain legacy charge must be reconciled, never ignored.
     const legacyPending=await this.db.prepare(`SELECT headers FROM connector_provider_operations WHERE provider_id=? AND ${unresolvedProviderOperationSql} AND feed_source_id IS NULL LIMIT 1`).bind(providerId).first<{headers:string|null}>();
-    if(legacyPending)throw pendingProviderError(legacyPending.headers);
+    if(legacyPending)throw pendingProviderError(legacyPending.headers,true);
     const sourcePending=await this.db.prepare(`SELECT headers FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND ${unresolvedProviderOperationSql} LIMIT 1`).bind(scope.feedId,scope.feedSourceId).first<{headers:string|null}>();
-    if(sourcePending)throw pendingProviderError(sourcePending.headers);
+    if(sourcePending)throw pendingProviderError(sourcePending.headers,true);
     const prefix='source-payloads/'+await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId]))+'/';
     const sourceBudget=this.sourceProviderLimitUsd===undefined?[]:[this.db.prepare(`INSERT INTO connector_source_provider_budgets(feed_id,feed_source_id,provider_id,reserved_usd)
       SELECT ?,?,?,COALESCE(SUM(ceiling_usd),0) FROM connector_provider_operations WHERE provider_id=? AND payload_ref>=? AND payload_ref<? ON CONFLICT DO NOTHING`).bind(scope.feedId,scope.feedSourceId,providerId,providerId,prefix,prefix+'\uffff')];
@@ -129,7 +130,7 @@ export class DurableProviderHttp implements ProviderHttpPort {
     const claimed=await load();
     if(!claimed){
       const pending=await this.db.prepare(`SELECT headers FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND ${unresolvedProviderOperationSql} LIMIT 1`).bind(scope.feedId,scope.feedSourceId).first<{headers:string|null}>();
-      if(pending)throw pendingProviderError(pending.headers);
+      if(pending)throw pendingProviderError(pending.headers,true);
       throw new SourceProviderError('BUDGET_EXCEEDED');
     }
     if(claimed.request_hash!==hash)throw new Error('IDEMPOTENCY_CONFLICT');

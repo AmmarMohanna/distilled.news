@@ -224,3 +224,12 @@ for (const promptVersion of [undefined,2,3] as const) it(`preserves frozen promp
  expect(seen).toHaveLength(2);
  expect((await store.read<{promptVersion?:number}>('feed-1','v3_window_inputs',id))?.promptVersion).toBe(promptVersion);
 },30000);
+
+it('publishes verified available evidence while retaining a recoverable foreign-payment dependency',async()=>{
+ await article();const id='payment-dependent-job';
+ await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(id,'feed-source-1',null,JSON.stringify({id,feedId:'feed-1',feedSourceId:'feed-source-1',observationId:'observation-1',kind:'ACQUIRE',state:'PENDING',attempts:0,exhausted:false,failureCode:'BACKPRESSURE',failureDetail:'ARTICLE_PROVIDER_RECONCILIATION_WAIT'})).run();
+ const seen:string[]=[],edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);
+ const request=await store.read<any>('feed-1','briefing_requests',await windowIdentity('feed-1',window));expect(request.coverage).toMatchObject({state:'INCOMPLETE',pendingJobs:0,blockedJobs:1});
+ const retained=await new V1IntakeStore(ctx.db).read<any>('jobs',id);expect(retained?.value.state).toBe('PENDING');
+},30000);

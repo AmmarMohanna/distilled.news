@@ -34,3 +34,7 @@ it('reports explicit publisher login redirects as authentication requirements wi
  await expect(readPublicArticle({get},'https://www.promedmail.org/alert/8735910')).rejects.toMatchObject({code:'AUTH_REQUIRED',diagnostic:{detail:'ARTICLE_LOGIN_REDIRECT',httpStatus:307}});
  expect(get).toHaveBeenCalledTimes(1);
 });
+
+it('reports publisher HTTP 402 as a payment access requirement rather than unsupported format',async()=>{
+ await expect(readPublicArticle({get:async()=>reply(402)},'https://publisher.example/article')).rejects.toMatchObject({code:'AUTH_REQUIRED',diagnostic:{detail:'ARTICLE_PAYMENT_REQUIRED',httpStatus:402}});
+});

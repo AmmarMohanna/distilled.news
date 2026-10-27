@@ -29,7 +29,7 @@ it('unlimited collection still fences genuinely unknown paid outcomes',async()=>
  http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch,4_000_000,20_000,1,{primary:1},undefined,{},false);
  await http.configureLimit('primary',1);dispatch.mockRejectedValueOnce(new Error('response lost'));
  await expect(send(scope,'unlimited-lost',2)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
- await expect(send(scope,'unlimited-later',2)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await expect(send(scope,'unlimited-later',2)).rejects.toMatchObject({code:'BACKPRESSURE',diagnostic:{detail:'PROVIDER_OUTCOME_RECONCILIATION_REQUIRED'}});
  expect(dispatch).toHaveBeenCalledTimes(1);expect(await reserved(scope)).toBe(2);
 });
 it('waits for an active paid request without marking competing jobs uncertain or reserving twice',async()=>{
@@ -47,7 +47,7 @@ it('an expired active claim remains uncertain and is never resubmitted',async()=
  const running=send(scope,'expired-owner',1);await vi.waitFor(()=>expect(dispatch).toHaveBeenCalledTimes(1));
  const row=await ctx.db.prepare('SELECT operation_id,headers FROM connector_provider_operations LIMIT 1').first<{operation_id:string;headers:string}>(),headers=JSON.parse(row!.headers);
  await ctx.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE operation_id=?').bind(JSON.stringify({...headers,claimExpiresAt:'2000-01-01T00:00:00Z'}),row!.operation_id).run();
- try{await expect(send(scope,'different-job',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});expect(dispatch).toHaveBeenCalledTimes(1);}
+ try{await expect(send(scope,'expired-owner',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});await expect(send(scope,'different-job',1)).rejects.toMatchObject({code:'BACKPRESSURE',diagnostic:{detail:'PROVIDER_OUTCOME_RECONCILIATION_REQUIRED'}});expect(dispatch).toHaveBeenCalledTimes(1);}
  finally{await ctx.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE operation_id=?').bind(row!.headers,row!.operation_id).run();finish(new Response('{"ok":true}'));await running;}
 });
 async function reserved(s:SourceScope,provider='primary'){return (await ctx.db.prepare('SELECT reserved_usd FROM connector_source_provider_budgets WHERE feed_id=? AND feed_source_id=? AND provider_id=?').bind(s.feedId,s.feedSourceId,provider).first<{reserved_usd:number}>())?.reserved_usd??0}
@@ -93,7 +93,7 @@ it('blocks new operations behind unattributed legacy uncertainty without inventi
  dispatch.mockRejectedValueOnce(new Error('lost legacy connection'));
  await expect(legacy.request(scope,'legacy-unknown','primary',10,url,{})).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
  await ctx.db.prepare('UPDATE connector_provider_operations SET feed_id=NULL,feed_source_id=NULL WHERE payload_ref IS NULL').run();
- await expect(send(other,'over',6)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await expect(send(other,'over',6)).rejects.toMatchObject({code:'BACKPRESSURE',diagnostic:{detail:'PROVIDER_OUTCOME_RECONCILIATION_REQUIRED'}});
  expect((await ctx.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='primary'").first())?.reserved_usd).toBe(10);
  expect(dispatch).toHaveBeenCalledTimes(1);
 });
@@ -102,8 +102,8 @@ it('an absent per-provider cap cannot bypass an unknown source submission throug
  http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch);
  dispatch.mockRejectedValueOnce(new Error('lost response'));
  await expect(send(scope,'uncapped-unknown',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
- await expect(send(scope,'later-window',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
- await expect(send(scope,'other-provider',1,'fallback')).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await expect(send(scope,'later-window',1)).rejects.toMatchObject({code:'BACKPRESSURE',diagnostic:{detail:'PROVIDER_OUTCOME_RECONCILIATION_REQUIRED'}});
+ await expect(send(scope,'other-provider',1,'fallback')).rejects.toMatchObject({code:'BACKPRESSURE',diagnostic:{detail:'PROVIDER_OUTCOME_RECONCILIATION_REQUIRED'}});
  await send(other,'independent-uncapped',1);
  expect(dispatch).toHaveBeenCalledTimes(2);
 });
@@ -123,7 +123,7 @@ it('an absent per-provider cap still fences unattributed legacy uncertainty for 
  dispatch.mockRejectedValueOnce(new Error('lost old response'));
  await expect(send(scope,'uncapped-legacy-unknown',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
  await ctx.db.prepare('UPDATE connector_provider_operations SET feed_id=NULL,feed_source_id=NULL WHERE payload_ref IS NULL').run();
- await expect(send(other,'unattributed-later',1)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+ await expect(send(other,'unattributed-later',1)).rejects.toMatchObject({code:'BACKPRESSURE',diagnostic:{detail:'PROVIDER_OUTCOME_RECONCILIATION_REQUIRED'}});
  expect(dispatch).toHaveBeenCalledTimes(1);
 });
 it('records bounded transport diagnostics without releasing an uncertain paid fence',async()=>{
