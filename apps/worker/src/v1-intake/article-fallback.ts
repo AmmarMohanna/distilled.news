@@ -35,7 +35,7 @@ export function createArticleFallback(options:{
    if(result.accessRestricted)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
    const naturePdf=new URL(url).hostname==='www.nature.com'&&/^\/articles\/[\w-]+$/.test(new URL(url).pathname)&&result.canonicalUrl===url+'.pdf';
    if(!sameUrl(result.canonicalUrl)&&!naturePdf)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_CANONICAL_MISMATCH'});
-   if(result.pageKind==='listing')throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
+   if(result.pageKind==='listing')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_PRIMARY_ARTICLE_TEXT'});
    if(!['article','catalogue'].includes(result.pageKind)||result.body.length<200||unreadableArticleReason(result.body))return undefined;
    return {...result,canonicalUrl:url,status:200,url,dateMetadata:readArticleDateMetadata(html,url),provider};
   };

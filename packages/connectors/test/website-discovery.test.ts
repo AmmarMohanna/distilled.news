@@ -82,3 +82,9 @@ it('does not fabricate ProMED identities or borrow dates from unrelated fields',
 it('ignores executable and malformed ProMED data without evaluating it',()=>{
  expect(discoverWebsiteArticles('<script>self.__next_f.push([1,evil()])</script><table><tr><td>Outbreak report</td></tr></table>','https://www.promedmail.org/')).toBeUndefined();
 });
+
+it('keeps metadata-free prose articles with related links out of listing discovery',()=>{
+ const prose='Officials published a detailed investigation describing the affected systems, the evidence collected and the conditions under which the incident occurred. ';
+ const html='<main><h1>Incident investigation</h1><div class="article-body"><p>'+prose.repeat(3)+'</p><p>'+prose.repeat(2)+'</p></div><h2><a href="/related-one">Related one</a></h2><h2><a href="/related-two">Related two</a></h2></main>';
+ expect(discoverWebsiteArticles(html,'https://publisher.example/topic/resource/2026/report/')).toBeUndefined();
+});

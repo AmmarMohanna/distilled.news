@@ -1,4 +1,5 @@
 import {parse} from 'parse5';
+import {primaryTextContainer} from './primary-text';
 import {discoverWebsiteArticles} from './website-discovery';
 type Node={tagName?:string;nodeName?:string;value?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node};
 const attr=(n:Node,name:string)=>n.attrs?.find(a=>a.name===name)?.value??'';
@@ -79,7 +80,8 @@ export function extractPublicHtml(html:string,url:string){
   const details=all.filter(n=>n.tagName==='div'&&attr(n,'class').split(/\s+/).includes('product-details')&&attr(n,'class').split(/\s+/).includes('articleBody'));
   if(details.length===1){articleBodies.push(details[0]);articleMetadata=true;}
  }
- const content=articleBodies.length===1?articleBodies[0]:undefined;
+ const primary=primaryTextContainer(all);
+ const content=articleBodies.length===1?articleBodies[0]:primary;
  const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n)));
  const accessRestricted=restrictedMetadata&&(explicitPreview||!structuredBody&&!content&&!article&&all.some(n=>/(?:^|[\s_-])paywall(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))));
  let body=structuredBody??(content||article||main?text(content??article??main!):'');
@@ -98,5 +100,5 @@ export function extractPublicHtml(html:string,url:string){
  let canonicalUrl=url;try{const candidate=new URL(canonical?attr(canonical,'href'):url,url);if(candidate.origin===new URL(url).origin&&candidate.pathname!=='/')canonicalUrl=candidate.href}catch{}
  return {title,body,...(contentKind?{contentKind}:{}),...(accessRestricted?{accessRestricted:true}:{}),publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,canonicalUrl,
   language:attr(all.find(n=>n.tagName==='html')??{},'lang')||undefined,
-  pageKind:contentKind?'catalogue':listing?'listing':articleMetadata||article?'article':'unknown',articleLinks:listing?.articles.map(a=>a.url)??[]};
+  pageKind:contentKind?'catalogue':primary?'article':listing?'listing':articleMetadata||article?'article':'unknown',articleLinks:listing?.articles.map(a=>a.url)??[]};
 }

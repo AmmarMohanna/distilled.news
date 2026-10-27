@@ -52,7 +52,7 @@ it('does not treat listing HTML as acquired article evidence',async()=>{
 it('reports a fetched catalogue as a listing instead of retaining the old publisher challenge',async()=>{
  const f=fixture({error:'UNAVAILABLE'}),listing='<main><h2><a href="/one">One</a></h2><h2><a href="/two">Two</a></h2></main>';
  f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url,httpResponseBody:btoa(listing)}});
- await expect(f.fallback(claim)).rejects.toMatchObject({code:'UNSUPPORTED',diagnostic:{detail:'LISTING_PAGE'}});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'NO_PRIMARY_ARTICLE_TEXT'}});
 });
 it('does not spend on Zyte after an explicit browser paywall without article content',async()=>{
  const f=fixture({status:200,url,html:'<script type="application/ld+json">{"@type":"WebPage","isAccessibleForFree":false}</script><h1>Story</h1><main>Teaser only<div id="paywall-prompt"></div></main>'});

@@ -8,7 +8,7 @@ import { acquiredSchema } from './evidence';
 import type { AcceptedAcquiredContent } from './types';
 import type {LanguageResolution} from '../v1-intelligence/language';
 import {resolvePublicationDate,helperArticleDates,type PublicationDate} from './publication-date';
-import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
+import {discoverWebsiteArticles,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
 
 export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
 export interface CandidateAcquisitionOptions {
@@ -64,7 +64,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    }
   }
   if(!o.canonicalUrl) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'MISSING_CANONICAL_URL'});
-  if(isWebsiteListingUrl(o.canonicalUrl))throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
+
   let fetchPort:WorkerPublicSourceFetch;
   try {fetchPort=new WorkerPublicSourceFetch(o.canonicalUrl,options.fetcher,{maxBytes:PUBLIC_ARTICLE_HTML_MAX_BYTES})} catch {throw new AcquisitionFailure('POLICY_DENIED',false)}
   const request:SourceAcquisitionRequest={source:{canonicalSourceUrl:o.canonicalUrl,resourceLocator:o.canonicalUrl},window:{startTime:'1970-01-01T00:00:00Z',endTime:options.now()},authentication:'PUBLIC',limits:{maxItems:1,maxPages:1,maxScrolls:0,maxPhysicalAttempts:2,maxExecutionMs:60_000}};
@@ -131,6 +131,25 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
     throw new AcquisitionFailure('NETWORK',true,{detail:document.status>=500?'UPSTREAM_SERVER_ERROR':'UPSTREAM_TEMPORARY_FAILURE',httpStatus:document.status});
    }
    if(document.status>=400) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:document.status===404||document.status===410?'HTTP_NOT_FOUND':'UPSTREAM_HTTP_ERROR',httpStatus:document.status});
+   const media=document.contentType.split(';')[0].trim().toLowerCase();
+   const htmlLike=/^\s*<(?:!doctype|html|head|meta|article|main|div|p|script)\b/i.test(document.body);
+   if(['text/plain','text/markdown','text/x-markdown'].includes(media)&&!htmlLike||media==='application/json'||media.endsWith('+json')){
+    let body=document.body,title:string|undefined,publishedAt:unknown;
+    if(media==='application/json'||media.endsWith('+json')){
+     let value:unknown;try{value=JSON.parse(body)}catch{throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'INVALID_DOCUMENT_JSON'})}
+     const record=value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:undefined;
+     if(!record)throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_DOCUMENT_TEXT'});
+     if(typeof record.url==='string'&&new URL(record.url,document.url).href!==document.url)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'DOCUMENT_IDENTITY_MISMATCH'});
+     const raw=record.articleBody??record.body??record.text??record.content;
+     if(typeof raw!=='string')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_DOCUMENT_TEXT'});
+     body=/<(?:p|div|article|main)\b/i.test(raw)?extractPublicHtml('<article>'+raw+'</article>',document.url).body:raw;
+     title=typeof record.title==='string'?record.title:typeof record.headline==='string'?record.headline:undefined;publishedAt=record.datePublished??record.publishedAt;
+    }
+    if(body.trim().length<200)throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'INSUFFICIENT_DOCUMENT_TEXT'});
+    requireReadableArticle(body);
+    const date=resolvePublicationDate(typeof publishedAt==='string'?publishedAt:undefined,o.publishedAtHint);
+    return fallbackSuccess({sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:document.url,text:body,title,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism:'readable_document_http',publicationDate:date,contentCompleteness:'UNKNOWN'}});
+   }
    if(document.body.includes('isAccessibleForFree')&&/paywall/i.test(document.body)&&new TextEncoder().encode(document.body).length<=PUBLIC_ARTICLE_HTML_MAX_BYTES&&extractPublicHtml(document.body,document.url).accessRestricted)
     throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
    if(/schema\.org\/Product\b|CollectionPage|[\"']Product[\"']/i.test(document.body)){
@@ -141,7 +160,13 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
      throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'CATALOGUE_TEXT_UNAVAILABLE'});
     }
    }
-   if(discoverWebsiteArticles(document.body,document.url))throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
+   const readablePage=extractPublicHtml(document.body,document.url);
+   if(readablePage.accessRestricted)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
+   if(readablePage.pageKind==='listing')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_PRIMARY_ARTICLE_TEXT'});
+   if(readablePage.pageKind==='article'&&readablePage.body.length>=200){
+    const item=helperArticle({...readablePage,status:200,url:o.canonicalUrl,dateMetadata:readArticleDateMetadata(document.body,document.url)},'readable_http');
+    if(item)return fallbackSuccess(item);
+   }
    // Existing extractor requires an article body and publication metadata, rather than treating 200 as extraction success.
    const metadata=readArticleDateMetadata(document.body,document.url);
    // A regex ending at the first </article> can select a related-story card

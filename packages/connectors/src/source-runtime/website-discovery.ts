@@ -1,4 +1,5 @@
 import {parse} from 'parse5';
+import {primaryTextContainer} from './primary-text';
 import {discoverPromedReports} from './promed-discovery';
 import {articleUrl} from './provider-normalize';
 
@@ -40,6 +41,7 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
    }
   }catch{/* Invalid metadata is not authority to manufacture an article. */}
  }
+ if(primaryTextContainer(all))return undefined;
  const bodies=all.filter(n=>n.tagName==='article');
  const directBody=bodies.length===1&&nodes(bodies[0]).some(n=>n.tagName==='h1'&&!nodes(n).some(child=>child.tagName==='a'))&&nodes(bodies[0]).some(n=>n.tagName==='p'&&text(n));
  // Article pages can embed a CollectionPage for their parent section or
