@@ -2558,3 +2558,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (max-width: 400px) {
   :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card { grid-template-columns: 56px minmax(0,1fr) 44px !important; grid-template-areas: "art name vote" "art updated options" !important; column-gap: 10px; }
 }
+
+/* Keep identity and timestamp together when artwork stretches both grid rows. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .topic-name { align-self: end; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card { row-gap: 6px; }
