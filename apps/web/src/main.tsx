@@ -885,7 +885,7 @@ function VerifyEmailPage(props: { token: string }) {
   return (
     <main className="email-verification-page">
       <section className="email-verification-panel" aria-labelledby="email-verification-title">
-        <div className="email-verification-brand" aria-hidden="true"><img src="/icon-192.png?v=brand-4" alt="" /></div>
+        <div className="email-verification-brand" aria-hidden="true"><img src="/favicon.svg" alt="" /></div>
         <h1 id="email-verification-title">Verify Email</h1>
         <p className="email-verification-description">Confirm this email address</p>
         <div className="email-verification-actions">
