@@ -10,6 +10,7 @@ const translations: Record<string, [string, string]> = {
   "Try Again": ["Réessayer", "حاول مجددًا"],
   "Summarize unread": ["Résumer les non lus", "لخّص ما لم أقرأه"],
   "Summarizing…": ["Résumé en cours…", "جارٍ التلخيص…"],
+  "Summary": ["Résumé", "ملخص"],
   "Unread summary": ["Résumé des non lus", "ملخص ما لم أقرأه"],
   "Close summary": ["Fermer le résumé", "إغلاق الملخص"],
   "No recent unread briefings to summarize.": ["Aucun bulletin récent non lu à résumer.", "لا توجد نشرات حديثة غير مقروءة لتلخيصها."],

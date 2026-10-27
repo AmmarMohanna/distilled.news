@@ -19,8 +19,10 @@ async function openBriefing(page: import("@playwright/test").Page) {
 test("restored briefing layout preserves controls and theme", async ({ page }) => {
   await openBriefing(page);
   await expect(page.locator(".page-heading")).toContainText("by admin");
+  const headingBounds=await page.locator('.page-heading').boundingBox();
+  for(const node of [page.locator('.page-heading h1'),page.locator('.page-heading > p')]) {const box=await node.boundingBox();expect(Math.abs(box!.x+box!.width/2-headingBounds!.x-headingBounds!.width/2)).toBeLessThan(2);}
   await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
-  await expect(page.locator(".feed-page-description")).toContainText("feed paused");
+  await expect(page.locator(".feed-check-status")).toContainText("feed paused");
   const actions = page.locator(".feed-header-actions");
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
   await expect(actions.getByRole("button", { name: /Star/ })).toBeVisible();

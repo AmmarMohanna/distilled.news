@@ -1683,7 +1683,6 @@ function FeedPage(props: { username: string; slug: string }) {
       header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
-      description={feedStatusMessage || undefined}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
@@ -1719,10 +1718,14 @@ function FeedPage(props: { username: string; slug: string }) {
             />
           </form>
         </div>
-        {account&&payload?.unreadSummaryAvailable&&payload.editions.some(edition=>!readIds.has(edition.id)&&Date.parse(edition.publishedAt)>Date.now()-86_400_000&&Date.parse(edition.publishedAt)<=Date.now())&&<UnreadSummary
+        {feedStatusMessage&&<span className="feed-check-status"><Clock3 size={18} aria-hidden/>{feedStatusMessage}</span>}
+        {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
+          key={JSON.stringify([account.id,props.username,props.slug])}
+          readerId={account.id}
+          hasUnread={payload.editions.some(edition=>!readIds.has(edition.id)&&Date.parse(edition.publishedAt)>Date.now()-86_400_000&&Date.parse(edition.publishedAt)<=Date.now())}
           username={props.username} slug={props.slug}
           readIds={payload.editions.filter(edition=>readIds.has(edition.id)).map(edition=>edition.id)}
-          contentKey={JSON.stringify(payload.editions.map(edition=>[edition.id,edition.summary,readIds.has(edition.id)]))}
+          contentKey={JSON.stringify([payload.briefing.language,...payload.editions.filter(edition=>Date.parse(edition.publishedAt)>Date.now()-86_400_000).map(edition=>[edition.id,edition.summary])])}
         />}
       </div>
       {reportEdition && selectedReport ? (

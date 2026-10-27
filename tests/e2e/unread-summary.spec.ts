@@ -21,6 +21,9 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
   await expect(card).toContainText(summary);
   await expect(card.locator('p')).toHaveCount(1);
   expect(calls).toBe(1);
+  await page.reload();
+  await expect(card).toContainText(summary);
+  expect(calls).toBe(1);
   const resultBounds = await card.boundingBox();
   const toolbarBounds = await page.locator('.feed-tools').boundingBox();
   expect(Math.abs(resultBounds!.width - toolbarBounds!.width)).toBeLessThan(2);
@@ -42,9 +45,9 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
   else expect(action!.y).toBeGreaterThanOrEqual(search!.y+search!.height);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:`.local-reports/unread-summary/${info.project.name}-${width}-${dark?'dark':'light'}.png`,animations:'disabled'});
-  await page.getByRole('button',{name:'Close summary'}).click();await button.click();expect(calls).toBe(1);
+  await page.getByRole('button',{name:'Close summary'}).click();await button.click();await expect(card).toContainText(summary);expect(calls).toBe(2);
   await page.getByRole('button',{name:'Close summary'}).click();
-  await page.locator('.read-button').click();await expect(button).toHaveCount(0);
+  await page.locator('.read-button').click();await expect(button).toBeDisabled();
 });
 
 test('Arabic catch-up fits a narrow reader with enlarged text',async({page},info)=>{
