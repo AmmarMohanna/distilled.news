@@ -2,15 +2,21 @@ import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 export function feedGridLayout(count: number, width: number, available: number, desktop: boolean) {
   const gap = desktop ? 16 : 10;
-  // Add columns only when each card has enough room for readable identity text.
-  const columns = Math.max(1, Math.min(count, 3, Math.floor((width + gap) / (320 + gap))));
+  // Prefer comfortable cards; add density only when the collection needs scrolling.
+  const space = Math.max(0, available);
+  const capacity = (cardWidth: number) => Math.max(1, Math.min(count || 1, 3, Math.floor((width + gap) / (cardWidth + gap))));
+  const comfortableColumns = capacity(440);
+  const comfortableRows = Math.ceil(count / comfortableColumns);
+  const columns = comfortableRows * 144 + Math.max(0, comfortableRows - 1) * gap <= space
+    ? comfortableColumns : capacity(320);
   const roomy = width / columns >= 400 && available >= 380;
   const compact = available < 190;
   const minimum = 112;
-  const space = Math.max(0, available);
   const rows = Math.max(1, Math.min(Math.ceil(count / columns), Math.floor((space + gap) / (minimum + gap))));
   const fittedHeight = Math.floor((space - (rows - 1) * gap) / rows);
-  const rowHeight = Math.max(minimum, Math.min(roomy ? 136 : 120, fittedHeight));
+  // Use some of the available space without stretching a small collection to fill it.
+  const preferredHeight = Math.max(120, Math.min(176, Math.floor(space * 0.72 / rows)));
+  const rowHeight = Math.max(minimum, Math.min(preferredHeight, fittedHeight));
   return { columns, gap, roomy, compact, rows, rowHeight };
 }
 
@@ -37,7 +43,7 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       grid.style.setProperty('--feed-columns', String(layout.columns));
       grid.style.setProperty('--feed-row-height', layout.rowHeight + 'px');
       grid.style.setProperty('--feed-grid-gap', layout.gap + 'px');
-      grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? 64 : 48) + 'px');
+      grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? Math.min(128, layout.rowHeight - 16) : 56) + 'px');
     };
     measure();
     let active = true;

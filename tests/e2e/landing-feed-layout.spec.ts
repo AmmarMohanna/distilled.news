@@ -67,6 +67,8 @@ for (const width of [320, 749, 900, 1280]) {
       expect(card.artSquare).toBe(true);
       expect(card.x + card.width).toBeLessThanOrEqual(width);
     }
+    await expect(cards.first().locator('.feed-card-status.live')).toHaveCount(0);
+    expect(await cards.first().locator('.topic-art').evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     const grid = await page.locator('.curated-feed-grid').boundingBox();
     await page.screenshot({path:`.local-reports/staging-feed-card-layout/${info.project.name}-${width}-cards.png`,animations:"disabled"});
     const lastY = measurements.at(-1)!.y;

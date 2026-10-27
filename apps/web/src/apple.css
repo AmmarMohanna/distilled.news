@@ -2471,14 +2471,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui[data-theme="dark"] :is(.feed-editor .voice-field,.source-search-field,.auth-dialog .auth-input) { border-color: var(--line-strong); }
 
 /* One quiet catch-up action alongside search; the prose stays in the reader. */
-:root.apple-ui.apple-ui .feed-shell .feed-tools:has(.unread-summary) { display: grid; grid-template-columns: minmax(0,440px) auto; justify-content: start; align-items: center; gap: 12px; }
+:root.apple-ui.apple-ui .feed-shell .feed-tools:has(.unread-summary) { display: grid; grid-template-columns: minmax(0,1fr) auto; justify-content: start; align-items: center; gap: 12px; }
 :root.apple-ui.apple-ui .feed-shell .feed-tools:has(.unread-summary) .feed-side-actions { width: 100%; margin: 0; min-width: 0; }
 .unread-summary { display: contents; }
 :root.apple-ui.apple-ui .unread-summary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid color-mix(in srgb,var(--accent) 25%,var(--surface)); border-radius: 999px; background: color-mix(in srgb,var(--accent) 9%,var(--surface)); color: var(--accent-ink); font: inherit; font-size: .875rem; font-weight: 600; white-space: normal; max-width: 100%; cursor: pointer; }
 :root.apple-ui.apple-ui .unread-summary-button:hover:not(:disabled) { background: color-mix(in srgb,var(--accent) 16%,var(--surface)); }
 :root.apple-ui.apple-ui .unread-summary-button:disabled { cursor: progress; opacity: 1; }
 .unread-summary-button > svg { flex-shrink: 0; }
-:root.apple-ui.apple-ui .unread-summary-card { grid-column: 1 / -1; position: relative; max-width: 760px; padding: 20px 60px 20px 20px; border: 1px solid color-mix(in srgb,var(--accent) 25%,var(--line)); border-radius: 18px; background: color-mix(in srgb,var(--accent) 5%,var(--surface)); }
+:root.apple-ui.apple-ui .unread-summary-card { grid-column: 1 / -1; position: relative; width: 100%; min-width: 0; max-width: none; box-sizing: border-box; padding: 20px 60px 20px 20px; border: 1px solid color-mix(in srgb,var(--accent) 25%,var(--line)); border-radius: 18px; background: color-mix(in srgb,var(--accent) 5%,var(--surface)); }
 :root.apple-ui.apple-ui[dir="rtl"] .unread-summary-card { padding: 20px 20px 20px 60px; }
 .unread-summary-card p { margin: 0; font-size: 1rem; line-height: 1.55; color: var(--text); }
 :root.apple-ui.apple-ui .unread-summary-close { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
@@ -2511,8 +2511,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   flex: 0 1 calc((100% - (var(--feed-columns, 1) - 1) * var(--feed-grid-gap, 16px)) / var(--feed-columns, 1));
   max-width: 560px; min-width: 0; height: auto; min-height: var(--feed-row-height, 112px);
   display: grid; grid-template-columns: var(--feed-art-size, 64px) minmax(0, 1fr) 44px 44px !important;
-  grid-template-areas: "art name vote options" "art status vote options" "art updated updated updated" !important;
-  grid-template-rows: auto auto auto !important; align-content: center;
+  grid-template-areas: "art name vote options" "art updated vote options" !important;
+  grid-template-rows: auto auto !important; align-content: center;
   padding: 12px !important; column-gap: 6px; row-gap: 2px;
 }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card .topic-art {
@@ -2538,4 +2538,23 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Preserve title space beside accessible controls on narrow phones. */
 @media (max-width: 360px) {
   :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card { column-gap: 3px; }
+}
+
+/* Roomy cards scale their identity together, without enlarging compact views. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"][data-size="large"] > .topic-card .feed-card-identity strong { font-size: 1.25rem; line-height: 1.3; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"][data-size="large"] > .topic-card .feed-card-identity small { font-size: .9375rem; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"][data-size="large"] > .topic-card .feed-card-status { font-size: .875rem; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"][data-size="large"] > .topic-card .feed-updated-at { font-size: .8125rem; }
+
+/* Give enlarged identities breathing room without squeezing narrow cards. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"][data-size="large"] > .topic-card { column-gap: 12px; row-gap: 8px; padding: 16px !important; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"][data-size="large"] > .topic-card .feed-card-identity { gap: 5px; }
+
+/* Artwork-led feed identities; the illustration has no enclosing tile. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card .topic-art { background: transparent !important; border: 0; border-radius: 0; box-shadow: none; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .topic-art > img { object-fit: contain; padding: 0; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-updated-at { grid-column: 2; align-self: start; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"][data-size="large"] > .topic-card { padding-block: 8px !important; }
+@media (max-width: 400px) {
+  :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card { grid-template-columns: 56px minmax(0,1fr) 44px !important; grid-template-areas: "art name vote" "art updated options" !important; column-gap: 10px; }
 }
