@@ -18,17 +18,20 @@ it('renders every widget without pagination or slicing', () => {
   expect(html).not.toContain('pagination');
 });
 
-it('uses compact rows only when the visible vertical space is tight',()=>{
-  const short=feedGridLayout(1,620,140,false);expect(short.compact).toBe(true);expect(short.rowHeight).toBeLessThanOrEqual(140);
-  const normal=feedGridLayout(5,620,430,false);expect(normal.compact).toBe(false);expect(normal.rowHeight).toBeGreaterThanOrEqual(112);expect(normal.rowHeight).toBeLessThanOrEqual(176);
+it('keeps identical widget dimensions despite route position and collection length',()=>{
+  const dimensions=(count:number,available:number)=>{
+    const {rows,...layout}=feedGridLayout(count,1116,available,true);return layout;
+  };
+  expect(dimensions(1,140)).toEqual(dimensions(30,650));
+  expect(dimensions(5,430)).toEqual(dimensions(30,140));
 });
 
-it('balances sparse collections and increases density when space is needed', () => {
+it('adapts columns to width while keeping sparse and busy collections consistent', () => {
   const sparse = feedGridLayout(5, 1116, 650, true);
   const busy = feedGridLayout(30, 1116, 650, true);
-  expect(sparse.columns).toBe(2);
+  expect(sparse.columns).toBe(3);
   expect(busy.columns).toBe(3);
-  expect(sparse.rowHeight).toBeGreaterThan(120);
+  expect(sparse.rowHeight).toBe(busy.rowHeight);
   expect(feedGridLayout(5, 320, 650, false).columns).toBe(1);
   expect(feedGridLayout(0, 1116, 650, true).columns).toBe(1);
 });

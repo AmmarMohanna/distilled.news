@@ -7,7 +7,7 @@ async function mock(page: Page, authenticated = true) {
     return route.fulfill({json:path === '/api/auth/session'
       ? {authenticated, setupRequired:false, account:authenticated ? {id:'owner',username:'joud-mail-check-long-name',email:'a.long.email.address.for.layout.checks@example.com',role:'user'} : undefined}
       : path === '/api/me/briefings' ? {briefings:[feed]}
-      : path === '/api/explore/feeds' ? {feeds:[]}
+      : path === '/api/explore/feeds' ? {feeds:Array.from({length:9},(_,i)=>({...feed,id:'community-'+i,ownerAccountId:'community',ownerUsername:'owner'}))}
       : path === '/api/me/sources' ? {sources:[]}
       : path.endsWith('/sketch') ? {} : {}});
   });
@@ -64,4 +64,20 @@ test('brand size stays stable when the viewport grows and login uses the transpa
   expect(Math.abs(second!.height-first!.height)).toBeLessThan(1);
   await page.goto('/login');
   await expect(page.locator('.auth-brand-mark img')).toHaveAttribute('src','/favicon.svg');
+});
+
+for(const width of [390,667,1280,1920])test(`Home and Explore keep matching widget sizes at ${width}px`,async({page})=>{
+ await mock(page);await page.setViewportSize({width,height:800});await page.goto('/');
+ const home=page.locator('.personal-feed-grid .topic-card').first();await expect(home).toBeVisible();
+ const size=async(selector:string)=>page.locator(selector).first().evaluate(node=>{
+  const r=node.getBoundingClientRect(),art=node.querySelector('.topic-art')!.getBoundingClientRect();
+  const style=getComputedStyle(node);
+  return {width:r.width,height:r.height,art:art.width,font:getComputedStyle(node.querySelector('strong')!).fontSize,padding:style.padding,rows:style.gridTemplateRows,gap:style.rowGap};
+ });
+ const initial=await size('.personal-feed-grid .topic-card');
+ await page.goto('/explore');await expect(page.locator('.curated-feed-grid .topic-card')).toHaveCount(9);
+ const explore=await size('.curated-feed-grid .topic-card');
+ expect(Math.abs(initial.width-explore.width)).toBeLessThan(2);
+ expect(Math.abs(initial.height-explore.height),JSON.stringify({initial,explore})).toBeLessThan(2);
+ expect(initial.art).toBe(explore.art);expect(initial.font).toBe(explore.font);
 });
