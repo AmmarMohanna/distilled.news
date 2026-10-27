@@ -14,8 +14,10 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`branded l
   const surface=page.locator('.home-view .feed-list-state');await expect(surface).toBeVisible();await expect(surface).toHaveAttribute('role','status');await expect(surface.locator('button')).toHaveCount(0);await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);
   await page.screenshot({path:`.local-reports/feed-loading-design/${info.project.name}-${width}-${dark?'dark':'light'}-loading.png`,animations:'disabled'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  expect(await surface.locator('.feed-state-logo.is-loading').evaluate(node=>getComputedStyle(node).animationName)).toBe('none');
-  state.release();await expect(surface).toHaveAttribute('role','alert');const retry=surface.getByRole('button',{name:'Try Again',exact:true});await expect(retry).toBeVisible();
+  const logo=surface.locator('.feed-state-logo'),ring=surface.locator('.feed-state-ring');
+  await expect(ring).toHaveCSS('animation-name','none');await expect(logo).toHaveCSS('animation-name','none');
+  await page.emulateMedia({reducedMotion:'no-preference'});await expect(ring).toHaveCSS('animation-name','feed-logo-orbit');await expect(logo).toHaveCSS('animation-name','none');await page.emulateMedia({reducedMotion:'reduce'});
+  state.release();await expect(surface).toHaveAttribute('role','alert');await expect(surface.locator('.feed-state-ring')).toHaveCount(0);const retry=surface.getByRole('button',{name:'Try Again',exact:true});await expect(retry).toBeVisible();
   await page.screenshot({path:`.local-reports/feed-loading-design/${info.project.name}-${width}-${dark?'dark':'light'}-error.png`,animations:'disabled'});
   const bounds=await retry.boundingBox();expect(bounds!.height).toBeGreaterThanOrEqual(44);expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);
   await retry.focus();await expect(retry).toBeFocused();await page.keyboard.press('Enter');await expect(page.locator('.personal-feed-grid')).toContainText('Lebanon news');await expect(surface).toHaveCount(0);expect(state.reads()).toBe(2);
