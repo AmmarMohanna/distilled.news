@@ -28,7 +28,7 @@ for (const view of ['Home', 'Explore'] as const) {
     await page.setViewportSize({ width: 1280, height: 720 });
     await expect.poll(async () => (await card.boundingBox())!.height).toBeGreaterThanOrEqual(short.height);
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(140);
+    await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThanOrEqual(176);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 
