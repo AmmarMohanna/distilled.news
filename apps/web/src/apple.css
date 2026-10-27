@@ -1587,7 +1587,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .setting-row.setting-language { flex-wrap: nowrap; column-gap: 10px; }
   :root.apple-ui.apple-ui .setting-language .language-segments { flex: 0 0 auto; width: auto; flex-wrap: nowrap; margin-inline-start: auto; }
-  :root.apple-ui.apple-ui .setting-language .language-segments button { flex: 0 0 auto; min-width: 34px; padding-inline: 6px; }
+  :root.apple-ui.apple-ui .setting-language .language-segments button { flex: 0 0 auto; min-width: 44px; padding-inline: 6px; }
   :root.apple-ui.apple-ui .language-segments .language-name { display: none; }
   :root.apple-ui.apple-ui .language-segments .language-code { display: inline; }
 }
@@ -2074,7 +2074,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .feed-shell .feed-side-actions { flex-basis: 100%; }
   :root.apple-ui.apple-ui .feed-shell .news-day-cards { padding-inline-start: 58px; }
   :root.apple-ui.apple-ui .feed-shell .news-head { inset-inline-start: -58px; width: 54px; gap: 6px; }
-  :root.apple-ui.apple-ui .feed-shell .news-head time { font-size: 11px; margin-inline-start: 15px; }
+  :root.apple-ui.apple-ui .feed-shell .news-head time { font-size: 12px; margin-inline-start: 15px; }
   :root.apple-ui.apple-ui .feed-shell .news-item { padding: 12px 12px 0; }
 }
 
@@ -2614,3 +2614,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
  :root.apple-ui.apple-ui .feed-shell .feed-tools:has(.feed-check-status) .unread-summary-button { grid-column: 2; grid-row: 2; }
  :root.apple-ui.apple-ui .feed-shell .feed-tools :is(.feed-check-status,.unread-summary-button) { min-width: 0; width: 100%; padding-inline: 10px; height: 100%; overflow-wrap: anywhere; }
 }
+
+/* Timeline chrome follows the interface, independently of article language. */
+:root.apple-ui.apple-ui[dir="rtl"] .feed-shell .news-head { direction: rtl; }
+:root.apple-ui.apple-ui[dir="ltr"] .feed-shell .news-head { direction: ltr; }
+:root.apple-ui.apple-ui[dir="rtl"] .accounts-summary > svg:nth-of-type(2) { transform: rotate(180deg); }
