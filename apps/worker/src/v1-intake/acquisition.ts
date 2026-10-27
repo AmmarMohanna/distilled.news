@@ -1,5 +1,5 @@
 import { HandoffError, timestampSchema, sha256, type IntakeReceipt } from '@distilled/contracts';
-import {unresolvedProviderOperationSql} from '@distilled/connectors';
+import {unresolvedProviderOperationSql,statelessZyteTarget} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from '../public-source-fetch';
 import { V1IntakeStore } from './store';
 import { transact } from './transaction';
@@ -35,9 +35,15 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
   if(job.attempts>=10||!tx.snapshot.scope.enabled||await tx.read('acquisition_results',id))return 'RECOVERY_NOT_ELIGIBLE';
   const paid=await store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='connector_provider_operations'").first();
   if(paid){
-   const pending=await store.db.prepare(`SELECT headers FROM connector_provider_operations WHERE feed_source_id=? AND ${unresolvedProviderOperationSql}`).bind(row.feedSourceId).all<{headers:string|null}>();
+   const pending=await store.db.prepare(`SELECT provider_id,headers FROM connector_provider_operations WHERE feed_source_id=? AND ${unresolvedProviderOperationSql}`).bind(row.feedSourceId).all<{provider_id:string;headers:string|null}>();
    const active=(headers:string|null)=>{try{const claim=JSON.parse(headers??'{}'),until=Date.parse(claim.claimExpiresAt),at=Date.parse(now);return !claim.failure&&typeof claim.claimToken==='string'&&until>at&&until<=at+180_000}catch{return false}};
-   if(pending.results.some(p=>!active(p.headers)))return 'RECOVERY_PAID_OUTCOME_UNRESOLVED';
+   const input=await tx.read<AcceptedInput>('inputs',job.observationId);
+   const normalize=(url:unknown)=>statelessZyteTarget('zyte','https://api.zyte.com/v1/extract',{method:'POST',body:JSON.stringify({url,httpResponseBody:true,httpResponseHeaders:true})});
+   const target=normalize(input?.observation.canonicalUrl);
+   const independent=(p:{provider_id:string;headers:string|null})=>{
+    try{const h=JSON.parse(p.headers??'{}'),prior=normalize(h.statelessTarget);return p.provider_id==='zyte'&&target!==undefined&&prior!==undefined&&prior!==target&&(h.failure?.phase!==undefined||Date.parse(h.claimExpiresAt)<=Date.parse(now))}catch{return false}
+   };
+   if(pending.results.some(p=>!active(p.headers)&&!independent(p)))return 'RECOVERY_PAID_OUTCOME_UNRESOLVED';
   }
   if(fenced){
    if(!paid)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';

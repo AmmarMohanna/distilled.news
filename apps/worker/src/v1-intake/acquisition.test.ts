@@ -48,8 +48,8 @@ it('operator recovery after an early extraction failure grants exactly one attem
 it('recovers a competing job after the original paid request has completed and its response is retained',async()=>{
  await terminalRecoveryFixture('UNCERTAIN_PAID_SUBMISSION');const row=(await store.read<DownstreamJob>('jobs',jobId))!;
  await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'}}]);
- await ctx.db.exec('CREATE TABLE connector_provider_operations(feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,operation_id TEXT)');
- await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,200,?,NULL,?)').bind(row.feedSourceId,'retained-response','other-job').run();
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,operation_id TEXT)');
+ await ctx.db.prepare('INSERT INTO connector_provider_operations(feed_source_id,status,payload_ref,headers,operation_id) VALUES(?,200,?,NULL,?)').bind(row.feedSourceId,'retained-response','other-job').run();
  await authorizeAcquisitionRecovery(store,jobId,'active-owner-finished',now);
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:5,recoveryAuthorizations:[{priorFailureCode:'UNCERTAIN_PAID_SUBMISSION',maxAttempts:6}]});
 });
@@ -71,15 +71,15 @@ it.each(['AUTH_REQUIRED','POLICY_DENIED','UNCERTAIN_PAID_SUBMISSION','INVALID_RE
 });
 it('operator recovery refuses unresolved paid work and leaves the terminal job untouched',async()=>{
  await terminalRecoveryFixture();
- await ctx.db.exec('CREATE TABLE connector_provider_operations(feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
- await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,NULL,NULL,NULL)').bind('feed-source-1').run();
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
+ await ctx.db.prepare('INSERT INTO connector_provider_operations(feed_source_id,status,payload_ref,headers) VALUES(?,NULL,NULL,NULL)').bind('feed-source-1').run();
  await expect(authorizeAcquisitionRecovery(store,jobId,'qa-fix-1',now)).rejects.toThrow('RECOVERY_PAID_OUTCOME_UNRESOLVED');
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'FAILED',attempts:5});
 });
 it('can authorize a waiting job while another request owns a finite active claim',async()=>{
  await terminalRecoveryFixture('CHALLENGE_REQUIRED',1);
- await ctx.db.exec('CREATE TABLE connector_provider_operations(feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
- await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,-1,NULL,?)').bind('feed-source-1',JSON.stringify({claimToken:'active-owner',claimExpiresAt:'2026-10-03T12:01:00.000Z'})).run();
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
+ await ctx.db.prepare('INSERT INTO connector_provider_operations(feed_source_id,status,payload_ref,headers) VALUES(?,-1,NULL,?)').bind('feed-source-1',JSON.stringify({claimToken:'active-owner',claimExpiresAt:'2026-10-03T12:01:00.000Z'})).run();
  await authorizeAcquisitionRecovery(store,jobId,'route-fix',now);expect((await store.read<DownstreamJob>('jobs',jobId))!.value.state).toBe('PENDING');
 });
 it('reports a restricted teaser as access-required and avoids paid recovery',async()=>{
@@ -402,8 +402,21 @@ it.each([false,true])('operator recovery distinguishes a reconciled other-job ho
  await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'}}]);
  const input=(await store.read<any>('inputs',row.value.observationId))!.value,o=input.observation;
  const operationId=own?await sha256(JSON.stringify([{feedId:o.feedId,feedSourceId:o.feedSourceId,sourceId:o.sourceId},JSON.stringify(['article-fallback-v1',jobId,o.canonicalUrl])])):'different-job';
- await ctx.db.exec('CREATE TABLE connector_provider_operations(feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,operation_id TEXT)');
- await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,200,NULL,?,?)').bind(o.feedSourceId,JSON.stringify({reconciliation:{kind:'COMPLETED_RESPONSE_LOST',requestId:'verified-provider-receipt'}}),operationId).run();
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,operation_id TEXT)');
+ await ctx.db.prepare('INSERT INTO connector_provider_operations(feed_source_id,status,payload_ref,headers,operation_id) VALUES(?,200,NULL,?,?)').bind(o.feedSourceId,JSON.stringify({reconciliation:{kind:'COMPLETED_RESPONSE_LOST',requestId:'verified-provider-receipt'}}),operationId).run();
  if(own){await expect(authorizeAcquisitionRecovery(store,jobId,'qa-receipt',now)).rejects.toThrow('RECOVERY_PAID_RESULT_LOST');expect((await store.read<DownstreamJob>('jobs',jobId))!.value.state).toBe('FAILED')}
  else{await authorizeAcquisitionRecovery(store,jobId,'qa-receipt',now);expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:5,recoveryAuthorizations:[{priorFailureCode:'UNCERTAIN_PAID_SUBMISSION'}]})}
+},30000);
+it.each(['independent','same-target','unproven','different-provider'])('operator recovery respects target-isolated Zyte uncertainty: %s',async kind=>{
+ await terminalRecoveryFixture('RECOVERY_EXHAUSTED');
+ const input=(await store.read<any>('inputs','observation-1'))!.value,target=input.observation.canonicalUrl;
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
+ const metadata={claimToken:'lost-owner',claimExpiresAt:'2026-10-03T11:00:00.000Z',...(kind==='unproven'?{}:{statelessTarget:kind==='same-target'?target:'https://publisher.example/unrelated'})};
+ await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,?,-1,NULL,?)').bind(kind==='different-provider'?'apify':'zyte','feed-source-1',JSON.stringify(metadata)).run();
+ const before=await ctx.db.prepare('SELECT * FROM connector_provider_operations').first();
+ if(kind==='independent'){
+  await authorizeAcquisitionRecovery(store,jobId,'target-isolation',now);
+  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:5,recoveryAuthorizations:[{maxAttempts:6,priorFailureCode:'RECOVERY_EXHAUSTED'}]});
+ }else await expect(authorizeAcquisitionRecovery(store,jobId,'target-isolation',now)).rejects.toThrow('RECOVERY_PAID_OUTCOME_UNRESOLVED');
+ expect(await ctx.db.prepare('SELECT * FROM connector_provider_operations').first()).toEqual(before);
 },30000);
