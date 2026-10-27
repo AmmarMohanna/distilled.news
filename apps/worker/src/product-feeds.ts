@@ -18,7 +18,7 @@ export async function productPublicationState(env:Env,feedId:string):Promise<'wa
  if(!request)return 'waiting';
  if(request.state==='PENDING'&&/^ACCOUNT_(?:AUTHORIZATION|RECOVERY_SCOPE|RESOURCE)/.test(request.reason??''))return 'service_blocked';
  if(request.state==='FAILED')return 'failed';
- if(request.state!=='DONE')return request.coverage==='INCOMPLETE'?'failed':'checking';
+ if(request.state!=='DONE')return 'checking';
  const edition=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='editions' AND id=?").bind(feedId,request.id).first();
  return edition?'published':request.coverage==='INCOMPLETE'?'failed':request.result==='QUIET'?'quiet':'checking';
 }

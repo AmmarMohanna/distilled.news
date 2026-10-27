@@ -125,11 +125,16 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
 export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<number> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
  const ids=enabledSources(env);
- let sent=0;
- for(const id of ids) {
+ let sent=0;const groups:{id:string}[][]=[];
+ // Share bounded transport slots across sources. Rotate the first source so
+ // repeated relays with one free slot cannot always favor the same backlog.
+ const offset=ids.length?Math.floor(now.getTime()/5000)%ids.length:0;
+ for(const id of [...ids.slice(offset),...ids.slice(0,offset)]) {
   try {await synchronizeV1ProductSource(env.DB,id,now.toISOString())} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
-  const rows=await pendingV1Jobs(env,id,'ACQUIRE',now);
-  for(const row of rows) if(await enqueueV1(env,'v1_acquisition',row.id,{type:'v1_acquisition',jobId:row.id},now))sent++
+  groups.push(await pendingV1Jobs(env,id,'ACQUIRE',now));
+ }
+ for(let round=0;round<Math.max(0,...groups.map(rows=>rows.length));round++)for(const rows of groups){
+  const row=rows[round];if(row&&await enqueueV1(env,'v1_acquisition',row.id,{type:'v1_acquisition',jobId:row.id},now))sent++;
  }
  return sent;
 }
