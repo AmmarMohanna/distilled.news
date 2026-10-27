@@ -221,7 +221,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
       .then(async (nextSession) => {
         setSession(nextSession);
         if (nextSession.authenticated) {
-          await loadBriefings();
+          try { await loadBriefings(); } catch { return; } // The feed state owns its retry UI.
           if (nextSession.account?.role === "admin") setAccounts(await listAccounts());
         }
       })
@@ -506,6 +506,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     <>
       <AppExperience key="account" account={account} briefings={orderedBriefings} briefingsState={briefingsState} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
         onAccount={() => setAccountDialogOpen(true)}
+        onRetryBriefings={async () => { if (!briefingsLoadingRef.current) await loadBriefings(selectedBriefingIdRef.current ?? undefined); }}
         onResumeFeed={async feed => { await persistBriefing({...feed,paused:false}, "resumed", null); window.dispatchEvent(new Event("dn-explore-changed")); }}
         onCreate={() => setCreationOpen(true)} onHelp={() => setHelpOpen(true)} error={error}>
 {account.role === "admin" ? <AdminAccountsSection accounts={accounts} currentAccountId={account.id} onAccountsChanged={setAccounts}/> : null}

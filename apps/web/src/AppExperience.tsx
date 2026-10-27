@@ -10,6 +10,7 @@ import { installApp, notificationsEnabled, setNotificationsEnabled } from "./pwa
 import { InstallDialog, type InstallStatus } from "./SettingsDialogs";
 import { Dialog } from "./Dialog";
 import { FeedArt } from "./FeedArt";
+import { FeedListState } from './FeedListState';
 import { AdaptiveFeedGrid } from "./AdaptiveFeedGrid";
 import { formatFeedUpdated } from "./helpers";
 import { EXPLORE_CHANGED_EVENT } from "./ExplorePublishingControl";
@@ -31,6 +32,7 @@ export function AppHeader({ account, onAccount, leading, actions, contextual }: 
 
 export function AppExperience(props: {
   account: AccountRecord | null; briefings: BriefingConfig[]; briefingsState?: 'loading' | 'ready' | 'error'; briefing?: BriefingConfig; health?: HealthStatus | null;
+  onRetryBriefings?: () => Promise<void>;
   onAccount: () => void; onFeedSettings?: () => void; onCreate?: () => void;
   onHelp: () => void; onResumeFeed?: (feed: BriefingConfig) => Promise<void>; error?: string; children?: React.ReactNode; initialTab?: "home" | "explore" | "settings";
 }) {
@@ -112,7 +114,7 @@ export function AppExperience(props: {
     {props.account && <div className="home-view" style={tab !== "home" ? { display: "none" } : undefined}>
       <section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
       <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button type="button" className="home-archive-button" aria-label={t("Archived feeds")} title={t("Archived feeds")} aria-haspopup="dialog" onClick={() => { setArchiveError(""); setArchiveStatus(""); setArchiveOpen(true); }}><Archive size={20} aria-hidden/>{archivedFeeds.length > 0 && <span className="archive-count" aria-hidden="true">{archivedFeeds.length}</span>}</button><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button></div>
-      <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>{props.briefingsState === "loading" && !props.briefings.length && <p className="empty-copy" role="status">{t("Loading feeds…")}</p>}<AdaptiveFeedGrid count={ownFeeds.length} className="personal-feed-grid">{ownFeeds.map(feed => <article className="topic-card" key={feed.id}><a href={feedUrl(feed)}><FeedArt feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a><FeedCardActions feed={feed} owner onError={setError}/></article>)}</AdaptiveFeedGrid>{ownListReady && ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(query.trim() ? "No feeds match your search." : archivedFeeds.length ? "Your feeds are paused. Find them in the archive." : "You haven’t created any feeds yet.")}</p> : null}{ownListReady && !props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
+      <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>{!ownListReady && !props.briefings.length && <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/> }<AdaptiveFeedGrid count={ownFeeds.length} className="personal-feed-grid">{ownFeeds.map(feed => <article className="topic-card" key={feed.id}><a href={feedUrl(feed)}><FeedArt feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span><span className={`feed-card-status ${feed.paused ? "paused" : "live"}`}>{t(feed.paused ? "Paused" : "Live")}</span></a><FeedCardActions feed={feed} owner onError={setError}/></article>)}</AdaptiveFeedGrid>{ownListReady && ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(query.trim() ? "No feeds match your search." : archivedFeeds.length ? "Your feeds are paused. Find them in the archive." : "You haven’t created any feeds yet.")}</p> : null}{ownListReady && !props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
     </div>}
     <section className="explore-view" style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
@@ -150,7 +152,7 @@ export function AppExperience(props: {
             catch (cause) { setArchiveError(cause instanceof Error ? cause.message : t("Could not resume feed. Try again.")); }
             finally { setResumingFeed(null); }
           }}><Play size={16} aria-hidden/>{t(resumingFeed === feed.id ? "Resuming…" : "Resume")}</button>
-        </li>)}</ul> : ownListReady ? <div className="archive-empty"><Archive size={36} aria-hidden/><h3>{t("No archived feeds")}</h3><p>{t("Feeds you pause will appear here.")}</p></div> : props.briefingsState === "loading" ? <p className="empty-copy" role="status">{t("Loading feeds…")}</p> : null}
+        </li>)}</ul> : ownListReady ? <div className="archive-empty"><Archive size={36} aria-hidden/><h3>{t("No archived feeds")}</h3><p>{t("Feeds you pause will appear here.")}</p></div> : <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/> }
       </section>
     </Dialog>}
     {settingsDialog === "install" && <InstallDialog status={installStatus} error={installError} onInstalled={() => setInstallStatus("installed")} onClose={() => setSettingsDialog(null)}/>}

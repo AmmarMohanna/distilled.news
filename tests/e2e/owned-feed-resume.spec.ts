@@ -121,5 +121,6 @@ test('a genuinely empty owned list appears only after a successful response',asy
  await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toBeVisible();await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);release();await expect(page.getByText(/created any feeds yet/)).toBeVisible();
 });
 test('an initial owned-feed API failure is not presented as having no feeds',async({page})=>{
- const state=await mock(page);state.failNext=true;await page.goto('/');await expect(page.getByRole('alert')).toContainText('temporarily unavailable');await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toHaveCount(0);
+ const state=await mock(page);state.failNext=true;await page.goto('/');await expect(page.locator('.feed-list-state[role=alert]')).toContainText("Couldn't load your feeds");await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toHaveCount(0);
+ await page.getByRole('button',{name:'Try Again',exact:true}).click();await expect(cards(page).getByText(existing.title,{exact:true})).toBeVisible();await expect(page.getByRole('alert')).toHaveCount(0);expect(state.reads).toBe(2);expect(state.writes).toBe(0);
 });

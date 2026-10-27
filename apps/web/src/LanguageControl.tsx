@@ -6,6 +6,8 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Couldn't load your feeds": ["Impossible de charger vos fils", "تعذر تحميل خلاصاتك"],
+  "Try Again": ["Réessayer", "حاول مجددًا"],
   "Summarize unread": ["Résumer les non lus", "لخّص ما لم أقرأه"],
   "Summarizing…": ["Résumé en cours…", "جارٍ التلخيص…"],
   "Unread summary": ["Résumé des non lus", "ملخص ما لم أقرأه"],
