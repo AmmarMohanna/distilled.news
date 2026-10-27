@@ -5,6 +5,10 @@ const first='Officials described a newly identified outbreak and the surveillanc
 const last='Transmission between people has not been confirmed. The investigation remains ongoing and the finding provisional.';
 const prose=`<p>${first}</p><p>${last}</p>`;
 const card='<article><h2><a href="/unrelated">Unrelated story</a></h2><p>RELATED CARD MUST NOT BECOME EVIDENCE.</p></article>';
+it('reaches the story body through its headline header without selecting an earlier card',()=>{
+ const r=extractPublicHtml(`<main>${card}<article><header><h1>Report</h1></header>${prose}${card}</article></main>`,url);
+ expect(r.pageKind).toBe('article');expect(r.body).toContain(last);expect(r.body).not.toContain('RELATED CARD');
+});
 it('handles duplicate headings and nested cards while preserving the primary story qualification',()=>{
  const html=`<main>${card}<article><header><h1>Report</h1></header><h1>Report</h1>${prose}${card}${card}</article></main>`;
  const r=extractPublicHtml(html,url);expect(r.pageKind).toBe('article');expect(r.body).toContain(last);expect(r.body).not.toContain('RELATED CARD');expect(discoverWebsiteArticles(html,url)).toBeUndefined();

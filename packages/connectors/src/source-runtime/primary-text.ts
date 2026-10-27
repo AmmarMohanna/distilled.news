@@ -26,6 +26,7 @@ export function primaryTextContainer(all:TextNode[]):TextNode|undefined {
  if(outer.length===1)return outer[0];
  for(const heading of headings.slice(0,20)){
   for(let n:TextNode|undefined=heading.parentNode;n;n=n.parentNode){
+   if(n.tagName==='header')continue;
    if(skip.has(n.tagName??'')||n.tagName==='body')break;
    if(usable(n,n.tagName==='article')&&(!outer.length||outer.every(p=>contains(n,p))))return n;
   }
