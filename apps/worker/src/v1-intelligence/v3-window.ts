@@ -27,8 +27,7 @@ export const productV3Models=(env:Env):BriefingModels=>({editor:env.BRIEFING_EDI
 export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'}):Promise<V3WindowInput>{
  const feed=await store.getFeed(feedId);if(!feed||feed.paused||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
  if(!['en','ar','fr'].includes(feed.outputLanguage))throw Error('V3_UNSUPPORTED_LANGUAGE');
- const statuses=new Map((await store.list<{id:string;status:string}>(feedId,'publication_status')).map(s=>[s.id,s.status]));
- const editions=(await store.list<BriefingEditionRecord>(feedId,'editions')).filter(e=>statuses.get(e.id)==='PUBLISHED'&&Date.parse(e.windowEnd)<=Date.parse(window.start));
+ const editions=(await store.publishedEditionHistory(feedId)).filter(e=>Date.parse(e.windowEnd)<=Date.parse(window.start));
  const prior=editions.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id)).flatMap(e=>e.stories.map(s=>({id:`${e.id}:${s.candidateId}`,at:e.createdAt,headline:s.claims[0]?.text??'',body:s.claims.map(c=>c.text).join('\n')})));
  const previouslyUsed=new Set(editions.flatMap(e=>e.evidenceRevisionIds));
  const evidence=await store.currentEvidence(feedId);

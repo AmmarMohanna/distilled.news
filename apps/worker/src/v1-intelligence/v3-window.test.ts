@@ -200,7 +200,7 @@ it('persists a verified complete headline without padding its body',async()=>{
 it('batches old publication identities without changing the prepared snapshot',async()=>{
  await article();const baseline=await prepareV3Window(store,'feed-1',window,window.end);
  const old={id:'old',windowEnd:window.start,createdAt:window.start,stories:[],evidenceRevisionIds:Array.from({length:181},(_,i)=>'missing-'+i)};
- const list=store.list.bind(store);vi.spyOn(store,'list').mockImplementation(async(feed,kind)=>kind==='editions'?[old]:kind==='publication_status'?[{id:'old',status:'PUBLISHED'}]:list(feed,kind));
+ vi.spyOn(store,'publishedEditionHistory').mockResolvedValue([old as any]);
  const revision=vi.spyOn(store,'revision');const batched=vi.spyOn(store,'revisionEvidenceIds');
  const actual=await prepareV3Window(store,'feed-1',window,window.end);
  expect(actual).toEqual(baseline);expect(revision).not.toHaveBeenCalled();expect(batched).toHaveBeenCalledOnce();expect(batched.mock.calls[0][1]).toHaveLength(181);

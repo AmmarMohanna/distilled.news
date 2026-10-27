@@ -72,6 +72,11 @@ export class V1FeedStore {
   const rows=await this.db.prepare("SELECT json_extract(json,'$.window') AS window_json FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') ORDER BY id").bind(feedId).all<{window_json:string}>();
   return rows.results.map(r=>({window:JSON.parse(r.window_json)}));
  }
+ /** Filter mutable publication visibility before returning immutable edition bodies. */
+ async publishedEditionHistory(feedId:string):Promise<BriefingEditionRecord[]> {
+  const rows=await this.db.prepare("SELECT e.json FROM v1_feed_documents e JOIN v1_feed_documents p ON p.kind='publication_status' AND p.id=e.id AND p.feed_id=e.feed_id WHERE e.feed_id=? AND e.kind='editions' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY e.id").bind(feedId).all<{json:string}>();
+  return rows.results.map(r=>JSON.parse(r.json));
+ }
  async snapshot(id:string):Promise<Snapshot> {
   const guard=intelligenceTurnGuard(this.db,id),lease=this.semanticLease;
   if(lease&&lease.feedId!==id)throw new SemanticLeaseError();
