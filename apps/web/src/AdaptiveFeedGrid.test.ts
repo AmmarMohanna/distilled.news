@@ -20,5 +20,5 @@ it('renders every widget without pagination or slicing', () => {
 
 it('uses compact rows only when the visible vertical space is tight',()=>{
   const short=feedGridLayout(1,620,140,false);expect(short.compact).toBe(true);expect(short.rowHeight).toBeLessThanOrEqual(140);
-  const normal=feedGridLayout(5,620,430,false);expect(normal.compact).toBe(false);expect(normal.rowHeight).toBeGreaterThanOrEqual(176);
+  const normal=feedGridLayout(5,620,430,false);expect(normal.compact).toBe(false);expect(normal.rowHeight).toBeGreaterThanOrEqual(112);expect(normal.rowHeight).toBeLessThanOrEqual(136);
 });

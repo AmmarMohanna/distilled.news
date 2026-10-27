@@ -2503,17 +2503,17 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @keyframes feed-logo-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .feed-state-logo.is-loading { animation: none; } .feed-state-retry:active { transform: none; } }
 
-/* Content gets a full row before status and controls; partial rows stay centered. */
+/* Compact identity and trailing controls; partial rows stay centered. */
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] {
   display: flex; flex-wrap: wrap; justify-content: center; align-items: stretch;
 }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card {
   flex: 0 1 calc((100% - (var(--feed-columns, 1) - 1) * var(--feed-grid-gap, 16px)) / var(--feed-columns, 1));
-  max-width: 560px; min-width: 0; height: auto; min-height: var(--feed-row-height, 160px);
+  max-width: 560px; min-width: 0; height: auto; min-height: var(--feed-row-height, 112px);
   display: grid; grid-template-columns: var(--feed-art-size, 64px) minmax(0, 1fr) 44px 44px !important;
-  grid-template-areas: "art name name name" "updated updated updated updated" "status status vote options" !important;
-  grid-template-rows: auto auto 44px !important; align-content: center;
-  padding: 16px !important; column-gap: 8px; row-gap: 8px;
+  grid-template-areas: "art name vote options" "art status vote options" "art updated updated updated" !important;
+  grid-template-rows: auto auto auto !important; align-content: center;
+  padding: 12px !important; column-gap: 6px; row-gap: 2px;
 }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card .topic-art {
   width: var(--feed-art-size, 64px) !important; height: var(--feed-art-size, 64px) !important; min-height: 0 !important; max-height: none !important; aspect-ratio: 1; align-self: center;
@@ -2534,3 +2534,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Public browsing has no fixed bottom navigation to reserve space for. */
 :root.apple-ui.apple-ui .experience.product-refresh.guest-landing { padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important; }
+
+/* Preserve title space beside accessible controls on narrow phones. */
+@media (max-width: 360px) {
+  :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card { column-gap: 3px; }
+}

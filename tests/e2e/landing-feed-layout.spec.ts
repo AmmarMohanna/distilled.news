@@ -62,7 +62,7 @@ for (const width of [320, 749, 900, 1280]) {
       return { x: card.x, y: card.y, width: card.width, titleWidth: identity.width, artSquare:Math.abs(art.width-art.height)<1, clipped: title.scrollWidth > title.clientWidth + 1 };
     }));
     for (const card of measurements) {
-      expect(card.titleWidth).toBeGreaterThan(140);
+      expect(card.titleWidth).toBeGreaterThan(100);
       expect(card.clipped).toBe(false);
       expect(card.artSquare).toBe(true);
       expect(card.x + card.width).toBeLessThanOrEqual(width);
