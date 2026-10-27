@@ -101,6 +101,8 @@ export async function login(email: string, password: string, turnstileToken?: st
 }
 
 export async function logout(): Promise<void> {
+  const {stopNotificationsOnLogout}=await import("./pwa");
+  await stopNotificationsOnLogout();
   await requestJson("/api/auth/logout", {
     method: "POST"
   });

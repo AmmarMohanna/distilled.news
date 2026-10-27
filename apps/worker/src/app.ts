@@ -720,6 +720,13 @@ export function createApp(options: AppOptions = {}) {
 
   app.get("/api/me/push", (c) => c.json({ publicKey: pushConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY : null }));
 
+  app.post('/api/me/push/status', async (c) => {
+    const input=z.object({endpoint:z.string().max(2048).refine(validPushEndpoint)}).parse(await c.req.json());
+    const row=await c.env.DB.prepare('SELECT endpoint FROM push_subscriptions WHERE endpoint = ? AND account_id = ?')
+      .bind(input.endpoint,c.get('account')!.id).first();
+    return c.json({subscribed:Boolean(row)});
+  });
+
   app.post("/api/me/push", async (c) => {
     if (!pushConfigured(c.env)) return c.json({ error: "Notifications need server setup" }, 503);
     const account = c.get("account")!;

@@ -2005,6 +2005,17 @@ describe("worker app accounts", () => {
     expect((await repo.listExploreBriefings(10)).map(item => item.id)).toContain(feed.id);
   });
 
+  it('checks push ownership for the signed-in account only', async()=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo});
+    const owner=await createVerifiedUser(app,repo,'push-status@test.com','Push Status');
+    const bindings:unknown[][]=[];let found=true;
+    const statusEnv={...env(),DB:{prepare:()=>({bind:(...args:unknown[])=>{bindings.push(args);return {first:async()=>found?{endpoint:args[0]}:null};}})}} as unknown as Env;
+    const request=()=>app.request('/api/me/push/status',{method:'POST',headers:{'content-type':'application/json',cookie:owner.cookie},body:JSON.stringify({endpoint:'https://fcm.googleapis.com/fcm/send/status'})},statusEnv);
+    expect(await(await request()).json()).toEqual({subscribed:true});found=false;expect(await(await request()).json()).toEqual({subscribed:false});
+    expect(bindings[0]).toHaveLength(2);expect(bindings[0][1]).toBe((await repo.getAccountByEmail('push-status@test.com'))!.id);expect(bindings[0][1]).toBe(bindings[1][1]);
+    expect((await app.request('/api/me/push/status',{method:'POST'},statusEnv)).status).toBe(401);
+  });
+
   it("stores and removes an authenticated browser push subscription", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
