@@ -1,0 +1,24 @@
+# QA feed recovery and provider dependency waits — October 27, 2026
+
+Branch: `aya-ghada-integration`. Code commits: `ea16724` (provider waits/coverage/402 diagnostics), `644f50e` (source fairness and pending-publication state). Both were deployed to sources-QA, retaining all current bindings, credentials, image settings, frontend assets, source permissions and payment records. Staging/production were unchanged.
+
+## Actual findings and repairs
+
+- Cyberwar's 59 article acquisitions/reviews completed with no acquisition failures. Model generation was blocked because the explicitly authorized QA model grant expired. Its account had $2.2367076 settled and no held exposure. A new finite grant uses only the remaining $7.7632924 of the user's already authorized $10 total, on the same account and GPT-4.1/GPT-4.1-mini routing, with one concurrent operation. Prior charges and grant records remain. No extra $10 or unlimited model spending was authorized.
+- Pandemic had acquired usable articles but the same model-authorization blocker. Publication resumed after the grant repair. ProMED/login-protected publisher reports remain unavailable anonymously; empty/unusable source responses are not converted into successful evidence.
+- OpenAI had one genuine unresolved Zyte operation for `https://openai.com/index/devday-2026-recap`, admitted around 2026-10-27 11:55 UTC. Its response was not attached to the operation. Source-scoped R2 metadata inspection and hash-verified inspection of the two large candidate artifacts found RSS/snapshot data, not a recoverable Zyte response. The operation and its conservative $0.05 reservation remain unchanged. Provider request-history evidence was requested from the user.
+- The provider fence previously reported every later source job as having its own uncertain paid submission. The corrected path returns a distinct BACKPRESSURE reconciliation wait for a *different* operation; replay of the original unknown operation still returns UNCERTAIN_PAID_SUBMISSION. No new reservation or provider call can bypass the hold.
+- Historical QA repair reclassified 552 jobs after checking exact job/input ownership, HTTPS OpenAI URLs, absence of any paid operation for each computed job identity, presence of the original unresolved hold, active source scope and unchanged job JSON. Prior failures/attempts are retained in recovery history; the true operation owner was skipped. No source payment record was cleared or reset.
+- Explicit pending reconciliation dependencies remain PENDING/recoverable but do not indefinitely withhold a briefing based on completed evidence. Coverage records optional `blockedJobs` and remains INCOMPLETE. Ordinary pending/running jobs still hold their window. Fixed reporting windows, retained evidence, verification and settlement remain intact.
+- Per-feed acquisition dispatch could allocate all four slots to the first source. It now interleaves source backlogs and rotates first-source priority, retaining each source's job order, canonical identities and transport caps. This addresses healthy-source starvation without increasing concurrency.
+- Pending publication with incomplete source coverage now reports checking, rather than prematurely failed. Terminal failures and completed-without-publication incomplete coverage remain failed; source warnings remain visible.
+- Publisher HTTP 402 is classified as AUTH_REQUIRED / ARTICLE_PAYMENT_REQUIRED, not unsupported format. Two historical diagnostics were corrected without retries, with their original JSON retained in operator audit settings.
+- Both old OWASP cache-related failures were recovered and completed.
+
+## Verification and current limits
+
+106 connector regressions passed. Worker validation: 49 financial/acquisition tests, 15 coverage/redirect/publication/fairness tests, and a targeted V3 publication integration test passed (65 unique Worker tests). The V3 test verified actual publication while a dependency job remains PENDING and coverage INCOMPLETE. Affected TypeScript checks and QA dry-run builds passed. Deployed frontend/reader HTTP checks passed, and prior bindings/secrets were retained.
+
+Latest verified reader snapshot: Cyberwar has one briefing and no source warnings; Pandemic has two briefings and two source warnings; AI incident feed has no edition yet and is still processing. After the fairness deployment, arXiv completed acquisitions advanced from 66 to 81 while pending/running work fell from 65 to 50. This is progress, not completed processing. OpenAI's unresolved paid request still requires provider evidence; authenticated publisher access is not implemented. Publication/persistence and successful tests do not prove factual accuracy of generated text.
+
+Private operational evidence, source artifacts and logs remain in `.local-reports/aya-ghada-qa-deploy/`, outside Git. No account credentials or retained article bodies are included here.
