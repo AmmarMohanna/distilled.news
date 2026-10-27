@@ -2635,8 +2635,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 :root.apple-ui.apple-ui .feed-shell .experience-header.has-account .experience-header-actions > .theme-toggle { margin: 0; }
 
-/* A single bounded brand scale; compact branding depends on its actual space. */
-:root.apple-ui.apple-ui { --brand-type-size: clamp(18px, calc(16px + .4vw), 24px); }
+/* Keep the brand stable; compact branding depends on space, not viewport scaling. */
+:root.apple-ui.apple-ui { --brand-type-size: 1.375rem; }
 :root.apple-ui.apple-ui .experience-header.experience-header > .experience-brand { container-type: inline-size; position: static; transform: none; padding: 0; align-self: center; }
 :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand > .distilled-logo { font-size: var(--brand-type-size); gap: .22em; line-height: 1; overflow: visible; flex-shrink: 0; }
 :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand .distilled-logo-wordmark { font-size: var(--brand-type-size); letter-spacing: -.035em; }
@@ -2697,3 +2697,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .auth-unavailable h2 { font-size: 24px; }
   :root.apple-ui.apple-ui .auth-unavailable p { font-size: 16px; }
 }
+
+/* Widgets grow around content; only their surrounding layout adapts.
+   Preserve icon/touch sizes and use the existing page/dialog scroll containers. */
+:root.apple-ui.apple-ui :is(.profile-dialog-content, .settings-group, .feed-archive-content) > * { min-width: 0; }
+:root.apple-ui.apple-ui :is(.profile-card-heading, .profile-security-copy, .setting-row > span) { min-width: 0; }
+:root.apple-ui.apple-ui :is(.profile-card-heading p, .profile-security-copy, .profile-email, .auth-unavailable p, .archive-description) { overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .setting-row { height: auto; min-height: 44px; white-space: normal; }
+:root.apple-ui.apple-ui .setting-row > :is(span, small) { overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .setting-row > svg { flex-shrink: 0; }
+:root.apple-ui.apple-ui .profile-dialog :is(.profile-card-icon, .profile-avatar, .profile-edit-button) { flex-shrink: 0; }

@@ -684,7 +684,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         }
       }}
     >
-      {authStep === "email" ? <div className="auth-brand-mark" aria-hidden="true"><img src="/icon-192.png?v=brand-4" alt="" /></div> : null}
+      {authStep === "email" ? <div className="auth-brand-mark" aria-hidden="true"><img src="/favicon.svg" alt="" /></div> : null}
       <div className="auth-copy">
         <h2>{t(copy.title)}</h2>
         <p>{t(copy.description)}</p>
