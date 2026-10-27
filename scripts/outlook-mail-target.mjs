@@ -24,11 +24,14 @@ export function planMailSetup({tableExists,rowCount,secrets}) {
   if(secrets.some(name=>['OUTLOOK_CLIENT_ID','OUTLOOK_REFRESH_TOKEN','OUTLOOK_TOKEN_ENCRYPTION_KEY'].includes(name)))throw new Error('EXISTING_SECRETS_PRESERVED: initialization refused; no key or token replacement permitted');
   return 'INITIALIZE_EMPTY_STORE';
 }
-export function installMailSecrets({run,config,env,clientId,refreshToken,encryptionKey}) {
+export function installMailSecrets({run,config,env,clientId,refreshToken,encryptionKey,activate=false}) {
   if(!clientId||!refreshToken||!encryptionKey)throw new Error('INCOMPLETE_CREDENTIALS');
   const secrets={OUTLOOK_CLIENT_ID:clientId,OUTLOOK_REFRESH_TOKEN:refreshToken,OUTLOOK_TOKEN_ENCRYPTION_KEY:encryptionKey};
   // One complete binding update; no plaintext file, argv credentials or Wrangler logs.
-  const result=run(['versions','secret','bulk','--tag','outlook-mail-initialization','--config',config,...(env?['--env',env]:[])],{input:JSON.stringify(secrets),stdio:['pipe','pipe','pipe'],env:{...process.env,WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false',WRANGLER_LOG:'log'},windowsHide:true});
+  // Direct activation uses Wrangler's small atomic secrets-bulk request. The
+  // version-only default copies the Worker bundle and leaves activation separate.
+  const command=activate?['secret','bulk']:['versions','secret','bulk','--tag','outlook-mail-initialization'];
+  const result=run([...command,'--config',config,...(env?['--env',env]:[])],{input:JSON.stringify(secrets),stdio:['pipe','pipe','pipe'],env:{...process.env,WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false',WRANGLER_LOG:'log'},windowsHide:true});
   if(result.error||result.status!==0){
     let diagnostic=String(result.error?.code??result.stderr??'unknown CLI failure');
     for(const value of Object.values(secrets))diagnostic=diagnostic.replaceAll(value,'[REDACTED]').replaceAll(encodeURIComponent(value),'[REDACTED]');
@@ -36,6 +39,7 @@ export function installMailSecrets({run,config,env,clientId,refreshToken,encrypt
     const block=diagnostic.replace(/\x1b\[[0-9;]*m/g,'').match(/\[ERROR\]\s+([^\n]+(?:\n\s*\n\s*[^\n]+)?)/)?.[1];
     throw new Error(`SECRET_INSTALL_FAILED: ${block??result.error?.code??'Cloudflare rejected the binding update'}; stop and inspect secret presence before recovery; do not reset token rows`);
   }
+  if(activate)return null;
   const id=String(result.stdout??'').match(/Created version ([0-9a-f-]{36})/i)?.[1];
   if(!id)throw new Error('SECRET_VERSION_RECEIPT_MISSING: inspect uploaded versions; never rerun initialization blindly');
   return id;
