@@ -1,5 +1,6 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {DatabaseSync} from 'node:sqlite';
+import {PUBLIC_ARTICLE_HTML_MAX_BYTES} from '@distilled/connectors';
 import {sharedPublicHttp,expireSharedPublicFetches} from './connector-public-cache';
 
 const databases:DatabaseSync[]=[];
@@ -93,4 +94,18 @@ it.each([{attempts:0},{attempts:6},{timeoutMs:0},{timeoutMs:60001}])('cached res
  const s=setup(),http=sharedPublicHttp(s.db,s.bucket,{get:async()=>response()},async()=>{},()=>1000);
  await http.get('https://example.com/limits',{});
  await expect(http.get('https://example.com/limits',{},bounds)).rejects.toThrow('INVALID_HTTP_LIMITS');
+});
+
+it('accepts the article runtime limit and reuses large public HTML through the cache',async()=>{
+ const s=setup(),bytes=new TextEncoder().encode('<article>'+ 'x'.repeat(8_000_000)+'</article>');let calls=0;
+ const upstream={get:async()=>{calls++;return {...response(),bytes}}};
+ const http=sharedPublicHttp(s.db,s.bucket,upstream,async()=>{},()=>1000,PUBLIC_ARTICLE_HTML_MAX_BYTES);
+ expect((await http.get('https://example.com/article',{})).bytes.byteLength).toBe(bytes.byteLength);
+ expect((await http.get('https://example.com/article',{})).bytes.byteLength).toBe(bytes.byteLength);
+ expect(calls).toBe(1);
+});
+it('keeps general requests bounded at two MB and rejects configured limits above the article maximum',async()=>{
+ const s=setup(),upstream={get:async()=>({...response(),bytes:new Uint8Array(2_000_001)})};
+ await expect(sharedPublicHttp(s.db,s.bucket,upstream,async()=>{}).get('https://example.com/article',{})).rejects.toThrow('FEED_TOO_LARGE');
+ await expect(sharedPublicHttp(s.db,s.bucket,upstream,async()=>{},Date.now,PUBLIC_ARTICLE_HTML_MAX_BYTES+1).get('https://example.com/article',{})).rejects.toThrow('INVALID_HTTP_LIMITS');
 });

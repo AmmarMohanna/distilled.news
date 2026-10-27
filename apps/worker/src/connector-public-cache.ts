@@ -1,5 +1,5 @@
 import {sha256,HandoffError} from '@distilled/contracts';
-import type {FeedHttpPort} from '@distilled/connectors';
+import {PUBLIC_ARTICLE_HTML_MAX_BYTES,type FeedHttpPort} from '@distilled/connectors';
 // Notification only: each waiter reloads durable bytes and checks its own
 // authorization. The D1 lease remains the cross-isolate fetch authority.
 const publicFetches=new WeakMap<D1Database,Map<string,Promise<void>>>();
@@ -12,7 +12,7 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
  authorize:(url:string)=>Promise<void>,now=Date.now,maxBytes=PUBLIC_SOURCE_MAX_BYTES):FeedHttpPort {
  return {get:async(url,headers,bounds)=>{
   const attempts=bounds?.attempts??3,timeoutMs=bounds?.timeoutMs??15_000;
-  if(!Number.isInteger(attempts)||attempts<1||attempts>5||!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>60_000||!Number.isInteger(maxBytes)||maxBytes<1||maxBytes>10_000_000)throw Error('INVALID_HTTP_LIMITS');
+  if(!Number.isInteger(attempts)||attempts<1||attempts>5||!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>60_000||!Number.isInteger(maxBytes)||maxBytes<1||maxBytes>PUBLIC_ARTICLE_HTML_MAX_BYTES)throw Error('INVALID_HTTP_LIMITS');
   await authorize(url);
   // Anonymous validators are part of the key: a 304 may only be reused by
   // another consumer presenting precisely the same validator, never a newcomer.
