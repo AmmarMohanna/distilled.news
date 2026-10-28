@@ -8,6 +8,12 @@ interface Node {tagName?:string;attrs?:{name:string;value:string}[];childNodes?:
 export interface WebsiteDiscovery {articles:{url:string;title?:string;publishedAt?:string}[];nextPage?:string;paginationUnresolved?:true}
 /** Section locators are discovery surfaces, never a single full article. */
 export function isWebsiteListingUrl(value:string):boolean {
+ const url=new URL(value),host=url.hostname.toLowerCase().replace(/^www\./,''),path=url.pathname.replace(/\/$/,'');
+ // Observed publisher sections: keep this exact and host-scoped so short
+ // article URLs on other publishers are not discarded by a generic heuristic.
+ if(host==='jpost.com'&&['/mdaheroes','/podcast','/american-politics','/diaspora','/judaism','/christianworld','/food-recipes','/archaeology','/science','/israel-news/culture','/history','/omg','/travel'].includes(path))return true;
+ if(host==='thenationalnews.com'&&(['/business','/arts-culture','/magazine'].includes(path)||/^\/podcasts\/(?:beyond-the-headlines|culture-bites|business-extra|tarab)$/.test(path)))return true;
+ if(host==='lbcgroup.tv'&&(/^\/(?:news-highlights|latest-news)\/(?:ar|en)$/.test(path)||/^\/news-bulletin(?:\/[^/]+)*\/(?:ar|en)$/.test(path)))return true;
  return /^\/(?:tags?|category|categories|topics?|sections?)(?:\/[^/?#]+)*\/?$/i.test(new URL(value).pathname)||/^\/(?:(?:news|newsroom)\/(?:all-news|latest|all|recently-published)|all-news|latest-news|latest-articles|opinions?|live|archives?)\/?$/i.test(new URL(value).pathname)||/^\/(?:home\/writer|authors?)\/[^/]+\/?$/i.test(new URL(value).pathname);
 }
 const attr=(n:Node,key:string)=>n.attrs?.find(a=>a.name===key)?.value??'';
@@ -65,7 +71,10 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
   const heading=lineage.some(headlineElement)||nodes(anchor).some(headlineElement);
   const entry=lineage.some(n=>n.tagName==='article'||/(?:^|[\s_-])(?:story|post|entry|item|article)(?:$|[\s_-])/i.test(attr(n,'class')));
   const title=/(?:^|[\s_-])(?:title|headline|heading)(?:$|[\s_-])/i.test(attr(anchor,'class'));
-  if(heading||rel.includes('bookmark')||(entry&&title))add(href,text(anchor)||undefined);
+  // A whole-card link can also contain a category, deck, duration or badge.
+  // Retain the actual headline rather than turning that chrome into identity.
+  const childHeadline=nodes(anchor).find(headlineElement);
+  if(heading||rel.includes('bookmark')||(entry&&title))add(href,text(childHeadline??anchor)||undefined);
  }
  return section||structuredListing&&articles.size||articles.size>=2?{articles:[...articles.values()],nextPage,...(paginationUnresolved?{paginationUnresolved:true as const}:{})}:undefined;
 }

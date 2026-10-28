@@ -1,7 +1,17 @@
 import {describe,it,expect} from 'vitest';
-import {discoverWebsiteArticles} from '../src/source-runtime/website-discovery';
+import {discoverWebsiteArticles,isWebsiteListingUrl} from '../src/source-runtime/website-discovery';
 const url='https://publisher.example/news';
 describe('source-scoped article discovery',()=>{
+ it('filters observed publisher section links while retaining their article children',()=>{
+  for(const url of ['https://www.jpost.com/science','https://www.jpost.com/israel-news/culture/','https://www.thenationalnews.com/business/','https://www.thenationalnews.com/podcasts/tarab','https://www.lbcgroup.tv/news-highlights/ar'])expect(isWebsiteListingUrl(url)).toBe(true);
+  for(const url of ['https://other.example/science','https://www.jpost.com/science/article-123456','https://www.thenationalnews.com/business/2026/10/28/story/','https://www.thenationalnews.com/podcasts/tarab/episode-one','https://www.lbcgroup.tv/news/lebanon/123456/story/ar'])expect(isWebsiteListingUrl(url)).toBe(false);
+  const html='<main><a href="/business"><h2>Business</h2></a><a href="/business/2026/10/28/story"><h2>Actual reported development</h2></a></main>';
+  expect(discoverWebsiteArticles(html,'https://www.thenationalnews.com/magazine/')?.articles).toEqual([{url:'https://www.thenationalnews.com/business/2026/10/28/story',title:'Actual reported development'}]);
+ });
+ it('retains only the headline from whole-card links containing labels and summaries',()=>{
+  const html='<main><a href="/story"><span>Investigation</span><h3>Exact article headline</h3><p>Summary and extra context</p><span>Play 02:29</span></a><a href="/second"><h3>Second headline</h3></a></main>';
+  expect(discoverWebsiteArticles(html,url)?.articles[0]).toEqual({url:'https://publisher.example/story',title:'Exact article headline'});
+ });
  it('does not classify an article as its embedded parent CollectionPage',()=>{
   for(const collection of [{'@type':'CollectionPage',url:'/soccer/'},{'@type':'CollectionPage'},{'@type':'SearchResultsPage',url:'/search/'}]){
    const html='<meta property="og:type" content="article"><article><h1>Player update</h1><p>Reported development.</p></article><script type="application/ld+json">'+JSON.stringify({'@type':'NewsArticle',url, isPartOf:collection})+'</script>';

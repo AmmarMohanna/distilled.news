@@ -126,6 +126,22 @@ export function extractPublicHtml(html:string,url:string){
   body=text(main,true,true);contentKind=productMetadata?'PRODUCT_DETAIL':'CATALOGUE';
  }
  let canonicalUrl=url;try{const candidate=new URL(canonical?attr(canonical,'href'):url,url);if(candidate.origin===new URL(url).origin&&candidate.pathname!=='/')canonicalUrl=candidate.href}catch{}
+ // MTV's article prose is a raw-text div; its login modal contains the first
+ // H1. Bind the explicit body to the publisher's numeric article identity.
+ const pageUrl=new URL(url),mtvId=/^\/News\/[^/]+\/(\d+)\/[^/]+\/?$/.exec(pageUrl.pathname)?.[1];
+ if(pageUrl.protocol==='https:'&&pageUrl.hostname==='www.mtv.com.lb'&&mtvId&&articleMetadata){
+  const owners=all.filter(n=>attr(n,'id')==='articleParams'&&attr(n,'articleid')===mtvId);
+  const owner=owners.length===1?owners[0]:undefined;
+  const inside=(n:Node)=>{for(let p:Node|undefined=n;p;p=p.parentNode)if(p===owner)return true;return false};
+  const reports=owner?all.filter(n=>inside(n)&&attr(n,'class').split(/\s+/).includes('articles-report')):[];
+  const expectedCanonical=new URL('/news/'+mtvId,pageUrl.origin).href;
+  if(owner&&reports.length===1&&canonicalUrl===expectedCanonical&&metadata('og:url')===expectedCanonical&&attr(owner,'articletitle').trim()&&attr(owner,'articletitle')===metadata('og:title')){
+   const parts:string[]=[],pending=[reports[0]];
+   while(pending.length){const n=pending.pop()!;if(excluded.has(n.tagName??'')||attr(n,'class').split(/\s+/).includes('article-ad'))continue;if(n.nodeName==='#text')parts.push(n.value??'');else pending.push(...[...(n.childNodes??[])].reverse());}
+   const prose=parts.join(' ').replace(/\s+/g,' ').trim();
+   if(prose.length>=200){body=prose;title=attr(owner,'articletitle');canonicalUrl=url;}
+  }
+ }
  const partialSummary=!!primary&&/\/liveblog\//i.test(new URL(url).pathname)&&primaryDescendants(primary).some(n=>n.tagName==='li')&&!primaryDescendants(primary).some(n=>n.tagName==='p');
  const shortArticle=articleMetadata&&body.length>=80&&body.length<200&&(structuredBody!==undefined||articleBodies.length===1);
  return {title,body,...(partialSummary||shortArticle?{contentCompleteness:'PARTIAL' as const}:{}),...(contentKind?{contentKind}:{}),...(accessRestricted?{accessRestricted:true}:{}),publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,canonicalUrl,

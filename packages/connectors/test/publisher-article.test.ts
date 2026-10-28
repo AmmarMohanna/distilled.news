@@ -12,6 +12,14 @@ const body='The council approved a public proposal after discussing its implicat
 const metadata=(identity:Record<string,unknown>={})=>`<link rel="canonical" href="${url}"><h1>${headline}</h1><script type="application/ld+json">${JSON.stringify({'@type':'OpinionNewsArticle','@id':'123',headline,datePublished:'2025-09-03T12:15:45+0100',...identity})}</script>`;
 const related='<aside><h2><a href="/related/one">One</a></h2><h2><a href="/related/two">Two</a></h2></aside>';
 
+it('extracts MTV raw article prose with a bound numeric identity instead of login chrome',()=>{
+ const original='https://www.mtv.com.lb/News/local/1752795/story',canonical='https://www.mtv.com.lb/news/1752795';
+ const html=`<h1>Welcome back</h1><meta property="og:type" content="article"><meta property="og:title" content="${headline}"><meta property="og:url" content="${canonical}"><link rel="canonical" href="${canonical}"><div id="articleParams" articleId="1752795" articleTitle="${headline}"><div class="articles-report">${body}<br><div class="article-ad">Advertisement content must be excluded</div></div></div>`;
+ expect(extractPublicHtml(html,original)).toMatchObject({title:headline,body,canonicalUrl:original,pageKind:'article'});
+ for(const invalid of [html.replace('articleId="1752795"','articleId="999"'),html.replace(`articleTitle="${headline}"`,'articleTitle="Other headline"'),html.replace('/news/1752795','/news/999')])expect(extractPublicHtml(invalid,original).body).not.toBe(body);
+ expect(extractPublicHtml(html,'https://other.example/News/local/1752795/story').body).not.toBe(body);
+});
+
 it('recognizes an opinion article with an opaque CMS ID using its canonical and headline',()=>{
  const html=metadata()+`<div class="field--name-body"><p>${body}</p></div>`+related;
  expect(discoverWebsiteArticles(html,url)).toBeUndefined();
