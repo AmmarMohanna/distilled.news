@@ -153,14 +153,17 @@ export interface MemoryOptions {
  * Chooses which previously published items the editor must see: the ones most similar to the
  * incoming articles plus the most recent few. Keeps tokens bounded however long the feed history is.
  */
+export const DEFAULT_MEMORY_DAYS = 21;
+export const priorMemoryCutoff = (now:Date,maxAgeDays=DEFAULT_MEMORY_DAYS)=>now.getTime()-maxAgeDays*86_400_000;
+
 export function selectPrior(
   prior: PriorItem[],
   articles: PreparedArticle[],
   now: Date,
   options: Partial<MemoryOptions> = {}
 ): PriorItem[] {
-  const opts: MemoryOptions = { maxItems: 16, recentItems: 4, maxAgeDays: 21, ...options };
-  const cutoff = now.getTime() - opts.maxAgeDays * 86_400_000;
+  const opts: MemoryOptions = { maxItems: 16, recentItems: 4, maxAgeDays: DEFAULT_MEMORY_DAYS, ...options };
+  const cutoff = priorMemoryCutoff(now,opts.maxAgeDays);
   const live = prior.filter((item) => {
     const at = Date.parse(item.at);
     return !Number.isFinite(at) || at >= cutoff;

@@ -77,6 +77,17 @@ export class V1FeedStore {
   const rows=await this.db.prepare("SELECT e.json FROM v1_feed_documents e JOIN v1_feed_documents p ON p.kind='publication_status' AND p.id=e.id AND p.feed_id=e.feed_id WHERE e.feed_id=? AND e.kind='editions' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY e.id").bind(feedId).all<{json:string}>();
   return rows.results.map(r=>JSON.parse(r.json));
  }
+ /** Preserve all-time membership metadata, transferring reader prose only if memory-eligible. */
+ async publicationPreparationHistory(feedId:string,cutoff:number):Promise<Pick<BriefingEditionRecord,'id'|'createdAt'|'windowEnd'|'evidenceRevisionIds'|'stories'>[]> {
+  const rows=await this.db.prepare("SELECT e.id,json_extract(e.json,'$.createdAt') AS created_at,json_extract(e.json,'$.windowEnd') AS window_end,json_extract(e.json,'$.evidenceRevisionIds') AS evidence_ids FROM v1_feed_documents e JOIN v1_feed_documents p ON p.kind='publication_status' AND p.id=e.id AND p.feed_id=e.feed_id WHERE e.feed_id=? AND e.kind='editions' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY e.id").bind(feedId).all<{id:string;created_at:string;window_end:string;evidence_ids:string}>();
+  const result=rows.results.map(r=>({id:r.id,createdAt:r.created_at,windowEnd:r.window_end,evidenceRevisionIds:JSON.parse(r.evidence_ids) as string[],stories:[] as BriefingEditionRecord['stories']}));
+  const eligible=result.filter(r=>{const at=Date.parse(r.createdAt);return !Number.isFinite(at)||!Number.isFinite(cutoff)||at>=cutoff});
+  for(let offset=0;offset<eligible.length;offset+=90){
+   const page=eligible.slice(offset,offset+90),prose=await this.db.prepare(`SELECT id,json_extract(json,'$.stories') AS stories FROM v1_feed_documents WHERE feed_id=? AND kind='editions' AND id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page.map(r=>r.id)).all<{id:string;stories:string}>();
+   const byId=new Map(prose.results.map(r=>[r.id,JSON.parse(r.stories)]));for(const row of page)row.stories=byId.get(row.id)??[];
+  }
+  return result;
+ }
  async snapshot(id:string):Promise<Snapshot> {
   const guard=intelligenceTurnGuard(this.db,id),lease=this.semanticLease;
   if(lease&&lease.feedId!==id)throw new SemanticLeaseError();
