@@ -10,3 +10,13 @@ it('retains only a video resource description, without claiming its transcript o
  expect(extractPublicHtml(h,'https://publisher.example/video/surveillance')).toMatchObject({pageKind:'catalogue',contentKind:'CATALOGUE',body:description.trim()});
  expect(extractPublicHtml(h,'https://publisher.example/news/index').pageKind).not.toBe('catalogue');
 });
+it('retains a bound short video description and excludes unrelated video cards',()=>{
+ const video='https://publisher.example/video/report',description='Health experts list five emerging infections and explain which symptoms should prompt medical assessment.';
+ const h='<meta property="og:title" content="Health report"><h1></h1><script type="application/ld+json">'+JSON.stringify({'@type':'VideoObject',mainEntityOfPage:{'@id':video},name:'Health report',description})+'</script><main><p>'+('Unrelated video card. '.repeat(20))+'</p></main>';
+ expect(extractPublicHtml(h,video)).toMatchObject({title:'Health report',pageKind:'catalogue',body:description});
+ expect(extractPublicHtml(h,'https://publisher.example/video/another').body).not.toBe(description);
+});
+it('recognizes a subscription preview even when an article element is present',()=>{
+ const h='<script type="application/ld+json">'+JSON.stringify({'@type':'NewsArticle',url,isAccessibleForFree:false})+'</script><article><h1>Report</h1><div class="paywall-content">Preview this article<p>A short public preview.</p></div></article>';
+ expect(extractPublicHtml(h,url)).toMatchObject({accessRestricted:true});
+});

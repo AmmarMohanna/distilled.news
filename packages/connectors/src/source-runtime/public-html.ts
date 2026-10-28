@@ -25,8 +25,8 @@ export function extractPublicHtml(html:string,url:string){
  const meta=(key:string)=>all.find(n=>n.tagName==='meta'&&(attr(n,'property').toLowerCase()===key||attr(n,'name').toLowerCase()===key));
  const metadata=(key:string)=>{const n=meta(key);return n?attr(n,'content'):undefined};
  let publishedAt=metadata('article:published_time')??metadata('datepublished');
- let title=all.find(n=>n.tagName==='h1')?text(all.find(n=>n.tagName==='h1')!):metadata('og:title')??text(all.find(n=>n.tagName==='title')??{});
- let structuredBody:string|undefined,collectionDescription:string|undefined,articleMetadata=metadata('og:type')==='article',restrictedMetadata=false,softwareMetadata=false,catalogueMetadata=false,productMetadata=false;
+ let title=text(all.find(n=>n.tagName==='h1')??{})||metadata('og:title')||text(all.find(n=>n.tagName==='title')??{});
+ let structuredBody:string|undefined,collectionDescription:string|undefined,videoDescription:string|undefined,articleMetadata=metadata('og:type')==='article',restrictedMetadata=false,softwareMetadata=false,catalogueMetadata=false,productMetadata=false;
  const samePage=(identity:unknown)=>{if(typeof identity!=='string')return false;try{const a=new URL(identity,url),b=new URL(url);return !a.username&&!a.password&&a.origin===b.origin&&a.pathname.replace(/\/$/,'')===b.pathname.replace(/\/$/,'')&&a.search===b.search}catch{return false}};
  for(const script of all.filter(n=>n.tagName==='script'&&attr(n,'type')==='application/ld+json').slice(0,10)){
   const raw=text(script,false);if(raw.length>128000)continue;
@@ -34,6 +34,10 @@ export function extractPublicHtml(html:string,url:string){
    const pending:unknown[]=[JSON.parse(raw)];let seen=0;
    while(pending.length&&seen++<2000){const item=pending.pop();if(Array.isArray(item)){pending.push(...item);continue}if(!item||typeof item!=='object')continue;
     const value=item as Record<string,unknown>,types=[value['@type']].flat();
+    if(types.includes('VideoObject')){
+     const entity=value.mainEntityOfPage,identity=value.url??value['@id']??(typeof entity==='string'?entity:entity&&typeof entity==='object'?(entity as Record<string,unknown>)['@id']:undefined);
+     if(samePage(identity)&&typeof value.description==='string'&&value.description.trim().length>=80){videoDescription=value.description;if(!title&&typeof value.name==='string')title=value.name;}
+    }
     if(types.includes('Collection')){
      const identity=value.url??value['@id'];
      let bound=samePage(identity);
@@ -89,7 +93,7 @@ export function extractPublicHtml(html:string,url:string){
  }
  const primary=primaryTextContainer(all);
  const content=primary??(articleBodies.length===1?articleBodies[0]:undefined);
- const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n)));
+ const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n))||attr(n,'class').split(/\s+/).includes('paywall-content')&&/^preview this article\b/i.test(text(n)));
  const accessRestricted=restrictedMetadata&&(explicitPreview||!structuredBody&&!content&&!article&&all.some(n=>/(?:^|[\s_-])paywall(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))));
  let body=structuredBody??(primary?primaryDescendants(primary).filter(n=>n.nodeName==='#text').map(n=>n.value??'').join(' ').replace(/\s+/g,' ').trim():content||article||main?text(content??article??main!):'');
  let contentKind:'PRODUCT_DETAIL'|'CATALOGUE'|undefined;
@@ -97,7 +101,8 @@ export function extractPublicHtml(html:string,url:string){
  // Retain a resource's own description, not an invented article/transcript or
  // the text of the unrelated cards displayed underneath it.
  const videoDescriptions=main&&all.filter(n=>n.tagName==='h1').length===1&&/\/(?:videos?|watch)\//i.test(new URL(url).pathname)?all.filter(n=>within(n,main)&&attr(n,'class').split(/\s+/).includes('video-description')&&text(n).length>=200):[];
- if(collectionDescription){body=collectionDescription;contentKind='CATALOGUE';}
+ if(videoDescription){body=videoDescription;contentKind='CATALOGUE';}
+ else if(collectionDescription){body=collectionDescription;contentKind='CATALOGUE';}
  else if(videoDescriptions.length===1){body=text(videoDescriptions[0]);contentKind='CATALOGUE';}
  // A primary Product scope owns its visible name/description. Related product
  // cards and a bare navigation index cannot become the current page's evidence.

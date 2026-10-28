@@ -34,7 +34,7 @@ export function createArticleFallback(options:{
    const naturePdf=new URL(url).hostname==='www.nature.com'&&/^\/articles\/[\w-]+$/.test(new URL(url).pathname)&&result.canonicalUrl===url+'.pdf';
    if(!sameUrl(result.canonicalUrl)&&!(partial&&sameArticleUrl(result.canonicalUrl,resolved))&&!naturePdf)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_CANONICAL_MISMATCH'});
    if(result.pageKind==='listing')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_PRIMARY_ARTICLE_TEXT'});
-   if(!['article','catalogue'].includes(result.pageKind)||result.body.length<200||unreadableArticleReason(result.body))return undefined;
+   if(!['article','catalogue'].includes(result.pageKind)||result.body.length<(result.pageKind==='catalogue'?80:200)||unreadableArticleReason(result.body))return undefined;
    return {...result,canonicalUrl:url,status:200,url,...(partial?{resolvedUrl:resolved,partial:true}:{}),dateMetadata:readArticleDateMetadata(html,partial?String(resolved):url),provider};
   };
   const status=(value:Record<string,unknown>)=>{

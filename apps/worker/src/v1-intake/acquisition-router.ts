@@ -91,7 +91,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(r.status===451)throw new AcquisitionFailure('POLICY_DENIED',false);
    if(r.status===401)throw new AcquisitionFailure('AUTH_REQUIRED',false);
    const contentKind=r.pageKind==='catalogue'&&(r.contentKind==='PRODUCT_DETAIL'||r.contentKind==='CATALOGUE')?r.contentKind:undefined;
-   if(r.status!==200||!sameArticleUrl(r.url,o.canonicalUrl)||(r.pageKind!=='article'&&!contentKind)||typeof r.body!=='string'||r.body.length<200||new TextEncoder().encode(r.body).length>500_000)return undefined;
+   if(r.status!==200||!sameArticleUrl(r.url,o.canonicalUrl)||(r.pageKind!=='article'&&!contentKind)||typeof r.body!=='string'||r.body.length<(contentKind?80:200)||new TextEncoder().encode(r.body).length>500_000)return undefined;
    // A different canonical identity needs a newly observed candidate; it cannot
    // silently replace this exact item's evidence during fallback acquisition.
    if(r.canonicalUrl&&!sameArticleUrl(r.canonicalUrl,o.canonicalUrl))return undefined;
@@ -165,7 +165,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    const readablePage=extractPublicHtml(document.body,document.url);
    if(readablePage.accessRestricted)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
    if(readablePage.pageKind==='listing')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_PRIMARY_ARTICLE_TEXT'});
-   if(['article','catalogue'].includes(readablePage.pageKind)&&readablePage.body.length>=200){
+   if(['article','catalogue'].includes(readablePage.pageKind)&&readablePage.body.length>=(readablePage.pageKind==='catalogue'?80:200)){
     const item=helperArticle({...readablePage,status:200,url:o.canonicalUrl,dateMetadata:readArticleDateMetadata(document.body,document.url)},'readable_http');
     if(item)return fallbackSuccess(item);
    }
