@@ -13,7 +13,7 @@ it('history reads do not scan other feeds to satisfy identity ordering',async()=
  for(let i=0;i<statements.length;i+=60)await ctx.db.batch(statements.slice(i,i+60));
  const measured:{sql:string;rows:number}[]=[];const wrap=(s:D1PreparedStatement,sql:string):D1PreparedStatement=>new Proxy(s,{get(t,k){if(k==='bind')return (...args:any[])=>wrap(t.bind(...args),sql);if(k==='all')return async()=>{const r=await t.all();measured.push({sql,rows:r.meta.rows_read});return r;};const v=Reflect.get(t,k);return typeof v==='function'?v.bind(t):v;}});
  const store=new V1FeedStore({prepare(sql:string){return wrap(ctx.db.prepare(sql),sql)}} as D1Database);
- expect(await store.list('feed-1','v3_window_results')).toEqual([]);expect(await store.publicationPreparationHistory('feed-1',Date.parse('2026-10-01T00:00:00Z'))).toEqual([]);
+ expect(await store.list('feed-1','v3_window_results')).toEqual([]);expect(await store.publicationPreparationHistory('feed-1',Date.parse('2026-10-01T00:00:00Z'))).toEqual([]);expect(await store.publishedEditionHistory('feed-1')).toEqual([]);
  expect(measured.reduce((n,m)=>n+m.rows,0),JSON.stringify(measured)).toBeLessThan(10);
  }finally{await ctx.dispose()}
 });

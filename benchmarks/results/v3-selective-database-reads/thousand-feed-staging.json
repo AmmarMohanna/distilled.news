@@ -1,0 +1,60 @@
+{
+  "at": "2026-10-28T13:36:10.157Z",
+  "runtimeCommit": "d8ff8b3",
+  "workerVersion": "d2fb43f8-c04c-4565-b167-22105baca518",
+  "indexInstalled": true,
+  "indexPlan": [
+    "SEARCH v1_feed_documents USING INDEX v1_feed_documents_scope_order (feed_id=? AND kind=?)"
+  ],
+  "emptyForeignHistoryLookup": {
+    "rowsRead": 0,
+    "durationMs": 0.457
+  },
+  "indexBuild": {
+    "durationMs": 6094.8586,
+    "rowsRead": 653698,
+    "rowsWritten": 316260,
+    "reportedAllocatedDatabaseBytes": 8254447616
+  },
+  "assetsAndConfigPreserved": true,
+  "smoke": [
+    {
+      "path": "/",
+      "requests": 5,
+      "failures": 0,
+      "p50": 242,
+      "p95": 334
+    },
+    {
+      "path": "/api/auth/session",
+      "requests": 5,
+      "failures": 0,
+      "p50": 116,
+      "p95": 117
+    },
+    {
+      "path": "/api/explore/feeds",
+      "requests": 5,
+      "failures": 0,
+      "p50": 237,
+      "p95": 284
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news",
+      "requests": 5,
+      "failures": 0,
+      "p50": 773,
+      "p95": 803
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news2",
+      "requests": 5,
+      "failures": 0,
+      "p50": 725,
+      "p95": 804
+    }
+  ],
+  "manualPaidInferenceCalls": 0,
+  "manualNotificationsSent": 0,
+  "notes": "Normal staging automation continues under existing controls. No 1,000-feed cloud load, production change, model switch, grant or hold modification."
+}
