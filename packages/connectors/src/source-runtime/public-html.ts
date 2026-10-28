@@ -26,7 +26,7 @@ export function extractPublicHtml(html:string,url:string){
  const metadata=(key:string)=>{const n=meta(key);return n?attr(n,'content'):undefined};
  let publishedAt=metadata('article:published_time')??metadata('datepublished');
  let title=all.find(n=>n.tagName==='h1')?text(all.find(n=>n.tagName==='h1')!):metadata('og:title')??text(all.find(n=>n.tagName==='title')??{});
- let structuredBody:string|undefined,articleMetadata=metadata('og:type')==='article',restrictedMetadata=false,softwareMetadata=false,catalogueMetadata=false,productMetadata=false;
+ let structuredBody:string|undefined,collectionDescription:string|undefined,articleMetadata=metadata('og:type')==='article',restrictedMetadata=false,softwareMetadata=false,catalogueMetadata=false,productMetadata=false;
  const samePage=(identity:unknown)=>{if(typeof identity!=='string')return false;try{const a=new URL(identity,url),b=new URL(url);return !a.username&&!a.password&&a.origin===b.origin&&a.pathname.replace(/\/$/,'')===b.pathname.replace(/\/$/,'')&&a.search===b.search}catch{return false}};
  for(const script of all.filter(n=>n.tagName==='script'&&attr(n,'type')==='application/ld+json').slice(0,10)){
   const raw=text(script,false);if(raw.length>128000)continue;
@@ -34,6 +34,13 @@ export function extractPublicHtml(html:string,url:string){
    const pending:unknown[]=[JSON.parse(raw)];let seen=0;
    while(pending.length&&seen++<2000){const item=pending.pop();if(Array.isArray(item)){pending.push(...item);continue}if(!item||typeof item!=='object')continue;
     const value=item as Record<string,unknown>,types=[value['@type']].flat();
+    if(types.includes('Collection')){
+     const identity=value.url??value['@id'];
+     let bound=samePage(identity);
+     try{const base=new URL(String(identity),url),page=new URL(url);bound ||= base.origin===page.origin&&!base.search&&page.pathname===base.pathname.replace(/\/$/,'')+'/magazine';}catch{/* Unknown identity cannot supply a collection description. */}
+     const description=value.about??value.description;
+     if(bound&&typeof description==='string'&&description.trim().length>=200){collectionDescription=description;if(!title&&typeof value.name==='string')title=value.name;}
+    }
     if(samePage(value.url??value['@id'])){
      const entity=value.mainEntity as {itemListElement?:unknown[]}|undefined;
      if(types.includes('CollectionPage')&&Array.isArray(entity?.itemListElement)&&entity.itemListElement.some(entry=>{
@@ -87,13 +94,18 @@ export function extractPublicHtml(html:string,url:string){
  let body=structuredBody??(primary?primaryDescendants(primary).filter(n=>n.nodeName==='#text').map(n=>n.value??'').join(' ').replace(/\s+/g,' ').trim():content||article||main?text(content??article??main!):'');
  let contentKind:'PRODUCT_DETAIL'|'CATALOGUE'|undefined;
  const within=(n:Node,parent:Node)=>{for(let p:Node|undefined=n;p;p=p.parentNode)if(p===parent)return true;return false};
+ // Retain a resource's own description, not an invented article/transcript or
+ // the text of the unrelated cards displayed underneath it.
+ const videoDescriptions=main&&all.filter(n=>n.tagName==='h1').length===1&&/\/(?:videos?|watch)\//i.test(new URL(url).pathname)?all.filter(n=>within(n,main)&&attr(n,'class').split(/\s+/).includes('video-description')&&text(n).length>=200):[];
+ if(collectionDescription){body=collectionDescription;contentKind='CATALOGUE';}
+ else if(videoDescriptions.length===1){body=text(videoDescriptions[0]);contentKind='CATALOGUE';}
  // A primary Product scope owns its visible name/description. Related product
  // cards and a bare navigation index cannot become the current page's evidence.
  const productScopes:Node[]=[];
  for(let n=all.find(n=>n.tagName==='h1');n;n=n.parentNode)if(n.attrs?.some(a=>a.name==='itemscope')&&attr(n,'itemtype').split(/\s+/).some(t=>/^https?:\/\/schema\.org\/Product$/.test(t))&&(!attr(n,'itemid')||samePage(attr(n,'itemid'))))productScopes.push(n);
  const primaryProducts=productScopes.length===1&&all.filter(n=>n.tagName==='h1').length===1?productScopes.filter(p=>all.filter(n=>attr(n,'itemprop').split(/\s+/).includes('description')).slice(0,20).some(n=>within(n,p)&&text(n).length>=100)):[];
- if(!articleMetadata&&!article&&primaryProducts.length===1){body=text(primaryProducts[0],true,true);contentKind='PRODUCT_DETAIL';}
- else if(!articleMetadata&&!article&&main&&all.some(n=>n.tagName==='h1'&&within(n,main))&&(productMetadata||catalogueMetadata&&listing&&listing.articles.length>0)){
+ if(!contentKind&&!articleMetadata&&!article&&primaryProducts.length===1){body=text(primaryProducts[0],true,true);contentKind='PRODUCT_DETAIL';}
+ else if(!contentKind&&!articleMetadata&&!article&&main&&all.some(n=>n.tagName==='h1'&&within(n,main))&&(productMetadata||catalogueMetadata&&listing&&listing.articles.length>0)){
   body=text(main,true,true);contentKind=productMetadata?'PRODUCT_DETAIL':'CATALOGUE';
  }
  const canonical=all.find(n=>n.tagName==='link'&&attr(n,'rel').split(/\s+/).includes('canonical'));

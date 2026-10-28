@@ -11,3 +11,12 @@ export function sameArticleUrl(left:unknown,right:unknown):boolean {
   return normalize(left)===normalize(right);
  }catch{return false}
 }
+/** A publisher's public abstract is the same PII article, but only partial evidence. */
+export function scholarlyAbstractAlias(requested:unknown,resolved:unknown):boolean {
+ if(typeof requested!=='string'||typeof resolved!=='string')return false;
+ try{
+  const u=new URL(requested);
+  if(!/^\/journals\/[^/]+\/article\/PII[A-Za-z0-9().-]+\/fulltext\/?$/.test(u.pathname))return false;
+  u.pathname=u.pathname.replace(/\/fulltext\/?$/,'/abstract');return sameArticleUrl(u.href,resolved);
+ }catch{return false}
+}

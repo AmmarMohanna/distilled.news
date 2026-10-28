@@ -6,7 +6,7 @@ import { transact } from './transaction';
 import { canonicalJson } from './canonical';
 import { acceptAcquiredContent, acquiredSchema } from './evidence';
 import { requireAcquisitionLease } from './acquisition-lease';
-import {sameArticleUrl} from './article-url-identity';
+import {sameArticleUrl,scholarlyAbstractAlias} from './article-url-identity';
 import type { AcceptedAcquiredContent, AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy } from './types';
 
 const MAX_ATTEMPTS=5, LEASE_MS=90_000;
@@ -25,11 +25,11 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
   if(job.recoveryAuthorizations?.some(a=>a.id===approvalId))return;
   const fenced=job.failureCode==='UNCERTAIN_PAID_SUBMISSION'&&job.failureDetail==='ARTICLE_PROVIDER_OUTCOME_UNCERTAIN';
   let canonicalAlias=false;
-  if(canonicalEvidence&&job.failureCode==='INVALID_RESULT'&&job.failureDetail==='FALLBACK_CANONICAL_MISMATCH'){
+  if(canonicalEvidence&&job.failureCode==='INVALID_RESULT'&&['FALLBACK_CANONICAL_MISMATCH','FALLBACK_URL_MISMATCH'].includes(job.failureDetail??'')){
    const input=await tx.read<AcceptedInput>('inputs',job.observationId);
    try{
     new WorkerPublicSourceFetch(canonicalEvidence.from);new WorkerPublicSourceFetch(canonicalEvidence.to);
-    canonicalAlias=input?.observation.canonicalUrl===canonicalEvidence.from&&canonicalEvidence.from!==canonicalEvidence.to&&sameArticleUrl(canonicalEvidence.from,canonicalEvidence.to);
+    canonicalAlias=input?.observation.canonicalUrl===canonicalEvidence.from&&canonicalEvidence.from!==canonicalEvidence.to&&(sameArticleUrl(canonicalEvidence.from,canonicalEvidence.to)||scholarlyAbstractAlias(canonicalEvidence.from,canonicalEvidence.to));
    }catch{/* Unsafe or unproven canonical aliases never authorize recovery. */}
   }
   let publicRedirect=false;

@@ -46,8 +46,8 @@ it('does not promote browser output from an old helper without final URL evidenc
  const f=fixture({status:200,html});expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte'});
 });
 it('does not treat listing HTML as acquired article evidence',async()=>{
- const f=fixture({status:200,url,html:'<html><nav>News</nav></html>'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url,httpResponseBody:btoa('<html>Listing</html>')}});
- await expect(f.fallback(claim)).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'ZYTE_ARTICLE_TEXT_UNAVAILABLE'}});
+ const f=fixture({status:200,url,html:'<html><nav>News</nav></html>'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url,httpResponseBody:btoa('<html>Listing</html>'),browserHtml:'<html>Listing</html>'}});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'ZYTE_RENDERED_TEXT_UNAVAILABLE'}});
 });
 it('reports a fetched catalogue as a listing instead of retaining the old publisher challenge',async()=>{
  const f=fixture({error:'UNAVAILABLE'}),listing='<main><h2><a href="/one">One</a></h2><h2><a href="/two">Two</a></h2></main>';
@@ -92,4 +92,26 @@ it('accepts an RSS tracking alias while preserving the original candidate and pa
 it('still rejects a meaningful canonical query change',async()=>{
  const f=fixture({status:200,url,html:'<link rel="canonical" href="'+url+'?article=other">'+html});
  await expect(f.fallback(claim)).rejects.toMatchObject({code:'INVALID_RESULT',diagnostic:{detail:'FALLBACK_CANONICAL_MISMATCH'}});expect(f.request).not.toHaveBeenCalled();
+});
+it('uses one durable browser representation after a confirmed HTTP 520 and reuses its identities',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockImplementation(async(_s,op)=>String(op).includes('article-browser-fallback-v1')?{status:200,headers:{},json:{statusCode:200,url,browserHtml:html}}:{status:520,headers:{},json:undefined});
+ for(let i=0;i<2;i++)expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte',browserRendered:true});
+ expect(f.request.mock.calls[0][1]).toBe(f.request.mock.calls[2][1]);expect(f.request.mock.calls[1][1]).toBe(f.request.mock.calls[3][1]);expect(f.request.mock.calls[0][1]).not.toBe(f.request.mock.calls[1][1]);
+ expect(JSON.parse(String(f.request.mock.calls[1][5].body))).toEqual({url,browserHtml:true});
+});
+it('renders a confirmed challenge instead of accepting its HTTP 200 as article text',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValueOnce({status:200,headers:{},json:{statusCode:200,url,httpResponseBody:btoa('<title>Verifying you are human.</title>')}}).mockResolvedValueOnce({status:200,headers:{},json:{statusCode:200,url,browserHtml:html}});
+ expect(await f.fallback(claim)).toMatchObject({browserRendered:true});expect(f.request).toHaveBeenCalledTimes(2);
+});
+it.each([401,403,429,451,521])('does not render around provider status %s',async status=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status,headers:{},json:{}});await expect(f.fallback(claim)).rejects.toBeDefined();expect(f.request).toHaveBeenCalledTimes(1);
+});
+it('does not manufacture another rendered operation after an uncertain rendered outcome',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValueOnce({status:520,headers:{}}).mockRejectedValueOnce(new SourceProviderError('UNCERTAIN_PAID_SUBMISSION'));
+ await expect(f.fallback(claim)).rejects.toHaveProperty('code','UNCERTAIN_PAID_SUBMISSION');expect(f.request).toHaveBeenCalledTimes(2);
+});
+it('retains a same-PII public abstract only as partial evidence',async()=>{
+ const original='https://publisher.example/journals/laninf/article/PIIS1473-3099(26)00373-7/fulltext',resolved=original.replace('/fulltext','/abstract'),f=fixture({error:'UNAVAILABLE'});
+ f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:resolved,httpResponseBody:btoa('<link rel="canonical" href="'+resolved+'">'+html)}});
+ expect(await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:original}}} as AcquisitionClaim)).toMatchObject({partial:true,resolvedUrl:resolved,canonicalUrl:original});
 });
