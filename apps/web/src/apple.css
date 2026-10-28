@@ -2738,3 +2738,16 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"][data-size="large"] {
   --widget-title-size: 1.0625rem; --widget-owner-size: .875rem;
 }
+
+/* The controls are centered; the generated catch-up belongs to the timeline. */
+:root.apple-ui.apple-ui .feed-shell .unread-summary-slot { grid-column: 1 / -1; width: 100%; min-width: 0; }
+:root.apple-ui.apple-ui .feed-shell .unread-summary-slot:empty { display: none; }
+:root.apple-ui.apple-ui .feed-shell .unread-summary-slot .unread-summary-section { width: 100%; max-width: none; text-align: start; }
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools { border: 0; box-shadow: none; background: transparent; }
+:root.apple-ui.apple-ui .feed-shell .feed-tools .search { border-radius: 999px; border-color: var(--line); }
+@media (min-width: 701px) {
+ :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:has(.feed-check-status):has(.unread-summary) { grid-template-columns: minmax(0,440px) max-content max-content; justify-content: center; gap: 16px; }
+}
+/* Reserve space for a scrollbar without moving or clipping a card column. */
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] { overflow-y: auto; overflow-x: clip; scrollbar-gutter: stable; overscroll-behavior-y: contain; scroll-snap-type: y proximity; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"] > .topic-card { scroll-snap-align: start; }

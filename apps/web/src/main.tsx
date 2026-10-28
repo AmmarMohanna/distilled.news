@@ -1451,6 +1451,7 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
 }
 
 function FeedPage(props: { username: string; slug: string }) {
+  const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
   const { language: uiLanguage, t } = useLanguage();
   const [account, setAccount] = useState<AccountRecord | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
@@ -1728,12 +1729,14 @@ function FeedPage(props: { username: string; slug: string }) {
         {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
           key={JSON.stringify([account.id,props.username,props.slug])}
           readerId={account.id}
+          summaryTarget={summaryTarget}
           hasUnread={payload.editions.some(edition=>!readIds.has(edition.id)&&Date.parse(edition.publishedAt)>Date.now()-86_400_000&&Date.parse(edition.publishedAt)<=Date.now())}
           username={props.username} slug={props.slug}
           readIds={payload.editions.filter(edition=>readIds.has(edition.id)).map(edition=>edition.id)}
           contentKey={JSON.stringify([payload.briefing.language,...payload.editions.filter(edition=>Date.parse(edition.publishedAt)>Date.now()-86_400_000).map(edition=>[edition.id,edition.summary])])}
         />}
       </div>
+      <div className="unread-summary-slot" ref={setSummaryTarget}/>
       {reportEdition && selectedReport ? (
         <SourcesSheet
           edition={reportEdition}
@@ -1744,7 +1747,7 @@ function FeedPage(props: { username: string; slug: string }) {
       ) : null}
       {error ? <FeedNotice message={error} language={language} /> : null}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
-      <SourceHealth sources={payload?.sourceAvailability} language={language} t={t}/>
+      <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
       {summaryMessage ? (

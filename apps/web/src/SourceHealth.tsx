@@ -15,17 +15,18 @@ function itemMessages(source:Source,t:(key:string)=>string){
 }
 /** Collection admission and retained item outcomes are separate facts. A failed
  * item never marks a working source unavailable; current blocks remain visible. */
-export function SourceHealth({sources,language,t}:{sources:FeedPayload['sourceAvailability'];language:'en'|'fr'|'ar';t:(key:string)=>string}){
+export function SourceHealth({sources,language,t,showDetails=true}:{sources:FeedPayload['sourceAvailability'];language:'en'|'fr'|'ar';t:(key:string)=>string;showDetails?:boolean}){
  const collection=(sources??[]).filter(source=>source.state==='UNAVAILABLE'||source.collectionError);
  const blocked=collection.filter(source=>source.state==='UNAVAILABLE'||!retrying.has(source.collectionError??''));
  const items=(sources??[]).filter(source=>(source.acquisition?.failed??0)>0||source.warning);
+ if(!showDetails&&!blocked.length)return null;
  if(!collection.length&&!items.length)return null;
  return <>
-  {blocked.length>0?<FeedNotice severity="warning" language={language} heading={t('Source collection needs attention')} message={t('Some sources cannot collect right now. See source details.')} />:null}
-  <details className="source-diagnostics">
+  {blocked.length>0?<FeedNotice severity="warning" language={language} heading={t('Source collection needs attention')} message={showDetails?t('Some sources cannot collect right now. See source details.'):blocked.map(source=>`${source.title}: ${collectionMessage(source,t)}`).join(' ')} />:null}
+  {showDetails&&<details className="source-diagnostics">
    <summary>{t('Source details')}</summary>
    {collection.length>0?<section><h3>{t('Collection status')}</h3><ul>{collection.map(source=><li key={source.sourceId}><bdi>{source.title}</bdi>: {collectionMessage(source,t)}</li>)}</ul></section>:null}
    {items.length>0?<section><h3>{t('Saved item diagnostics')}</h3><p>{t('These records include earlier failed attempts and skipped pages. They do not necessarily mean a source is unavailable now.')}</p><ul>{items.map(source=><li key={source.sourceId}><bdi>{source.title}</bdi>: {itemMessages(source,t)}</li>)}</ul></section>:null}
-  </details>
+  </details>}
  </>;
 }
