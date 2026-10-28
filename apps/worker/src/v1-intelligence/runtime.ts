@@ -301,7 +301,10 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   if(!productV3Enabled(env))await maintenance(id,'EXTRACTION_UPGRADE',async()=>{
    if(feed.briefingSchedule||feed.briefingFrequency!=='WEEKLY'){const upgradeWindow=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);if(await hasUnscheduledExtractionUpgrade(store,id,upgradeWindow))await feedTransact(store,id,tx=>scheduleExtractionUpgrades(tx,upgradeWindow,now.toISOString()))}
   });
-  await maintenance(id,'REMATCH_DISPATCH',async()=>{
+  // V3 does not consume the V2 graph. Preserve explicit unfinished V2 windows,
+  // but do not repeatedly replay retired graph history for V3-only feeds.
+  const legacyWindow=productV3Enabled(env)?await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') AND json_extract(json,'$.engine')='v2' LIMIT 1").bind(id).first():true;
+  if(legacyWindow)await maintenance(id,'REMATCH_DISPATCH',async()=>{
     const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts'),publishers=new Map((await store.currentEvidence(id)).map(e=>[e.revision.id,e.item.feedSourceId]));
     const protectedIds=await protectedRematchRevisionIds(store,id);
     if(now.getUTCMinutes()%15===0)console.info(JSON.stringify({type:'V1_SEMANTIC_BACKPRESSURE',feedId:id,...semanticBacklogMetrics(rematches,attempts,protectedIds,now.toISOString(),feed.briefingSchedule?.durationMinutes??(feed.briefingFrequency==='30M'?30:feed.briefingFrequency==='HOURLY'?60:1440))}));

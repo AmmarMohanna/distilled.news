@@ -219,3 +219,15 @@ it('quiet preparation avoids carry and revision-history reads without changing i
  expect(actual).toEqual(baseline);expect(actual.input.articles).toEqual([]);expect(identities).not.toHaveBeenCalled();
  expect(lists.mock.calls.some(c=>c[1]==='v3_window_results')).toBe(false);
 },30000);
+
+it('V3 dispatch does not rescan or enqueue the retired V2 rematch graph',async()=>{
+ await article();env={...env,PROCESSING_QUEUE:{send:async()=>{}}} as unknown as Env;const list=vi.spyOn(V1FeedStore.prototype,'list');
+ await dispatchV1Intelligence(env,new Date(window.end));
+ expect(list.mock.calls.some(c=>c[1]==='rematch_requests'||c[1]==='rematch_attempts')).toBe(false);
+},30000);
+
+it('V3 routing preserves rematch maintenance for explicitly pending V2 windows',async()=>{
+ await article();env={...env,PROCESSING_QUEUE:{send:async()=>{}}} as unknown as Env;const id=await windowIdentity('feed-1',window);await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,engine:'v2',createdAt:window.end}));
+ const list=vi.spyOn(V1FeedStore.prototype,'list');await dispatchV1Intelligence(env,new Date(window.end));
+ expect(list.mock.calls.some(c=>c[1]==='rematch_requests')).toBe(true);
+},30000);
