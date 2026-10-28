@@ -2168,7 +2168,7 @@ function Shell(props: {
   useEffect(() => {
     document.documentElement.lang = selectedLanguage;
     document.documentElement.dir = selectedLanguage === "ar" ? "rtl" : "ltr";
-    document.title = titleText === "Distilled.news" ? "Distilled.news" : `${titleText} · Distilled.news`;
+    document.title = titleText.toLowerCase() === "distilled.news" ? "Distilled.News" : `${titleText} · Distilled.News`;
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (manifest) {
       manifest.href = props.feed

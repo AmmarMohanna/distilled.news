@@ -239,6 +239,7 @@ function buildManifestPayload(input: {
   description: string;
   startUrl: string;
   id: string;
+  mobileIcons?: boolean;
 }) {
   return {
     id: input.id,
@@ -253,12 +254,12 @@ function buildManifestPayload(input: {
     theme_color: "#5e5ce6",
     icons: [
       {
-        src: "/icon-192.png?v=light-5",
+        src: input.mobileIcons ? "/icon-192.png?v=light-5" : "/desktop-icon-192.png?v=transparent-1",
         sizes: "192x192",
         type: "image/png"
       },
       {
-        src: "/icon-512.png?v=light-5",
+        src: input.mobileIcons ? "/icon-512.png?v=light-5" : "/desktop-icon-512.png?v=transparent-1",
         sizes: "512x512",
         type: "image/png"
       }
@@ -1262,10 +1263,12 @@ export function createApp(options: AppOptions = {}) {
     const repo = repoFor(c);
     const username = c.req.query("user")?.trim();
     const feedSlug = c.req.query("feed")?.trim();
+    const mobileIcons = c.req.header("sec-ch-ua-mobile") === "?1" || /Android|iPhone|iPad|iPod|Mobile/i.test(c.req.header("user-agent") ?? "");
 
     let manifest = buildManifestPayload({
       id: "/",
-      title: "Distilled.news",
+      title: "Distilled.News",
+      mobileIcons,
       description: "A quiet personal news briefing.",
       startUrl: "/"
     });
@@ -1277,6 +1280,7 @@ export function createApp(options: AppOptions = {}) {
         manifest = buildManifestPayload({
           id: `/${resolved.account.username}/${briefing.slug}/`,
           title: briefing.title,
+          mobileIcons,
           description: "Published briefing items only.",
           startUrl: `/${resolved.account.username}/${briefing.slug}/`
         });

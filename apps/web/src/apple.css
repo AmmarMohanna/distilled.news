@@ -2715,3 +2715,26 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] .feed-card-identity > small { font-size: var(--widget-owner-size) !important; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] .feed-card-identity > :is(strong,small) { padding: 0; line-height: 1.4; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] .feed-updated-at { padding: 0 !important; min-height: 1.5em; font-size: .75rem !important; line-height: 1.5 !important; }
+
+/* Center the reader controls without stretching search across wide displays. */
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools {
+  width: 100%; max-width: 1040px; margin-inline: auto; box-sizing: border-box;
+  justify-self: center; align-self: center;
+}
+:root.apple-ui.apple-ui .feed-shell .feed-tools .feed-side-actions { min-width: 0; }
+:root.apple-ui.apple-ui .feed-shell .feed-check-status {
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  line-height: 1.4; text-align: center;
+}
+:root.apple-ui.apple-ui .feed-shell .unread-summary-card {
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+/* Shared Home/Explore widgets keep readable text and bounded artwork. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card {
+  max-width: 440px; height: auto; overflow: visible; box-sizing: border-box;
+}
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"][data-size="large"] {
+  --widget-title-size: 1.0625rem; --widget-owner-size: .875rem;
+}

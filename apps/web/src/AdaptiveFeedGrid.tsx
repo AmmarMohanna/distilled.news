@@ -7,9 +7,9 @@ export function feedGridLayout(count: number, width: number, available: number, 
   const space = Math.max(0, available);
   const columns = count ? Math.max(1, Math.min(3, Math.floor((width + gap) / (320 + gap)))) : 1;
   const cardWidth = (width - (columns - 1) * gap) / columns;
-  const roomy = cardWidth >= 400;
+  const roomy = cardWidth >= 420;
   const compact = cardWidth < 360;
-  const rowHeight = compact ? 120 : roomy ? 160 : 144;
+  const rowHeight = compact ? 120 : roomy ? 144 : 132;
   const rows = Math.max(1, Math.min(Math.ceil(count / columns), Math.floor((space + gap) / (rowHeight + gap))));
   return { columns, gap, roomy, compact, rows, rowHeight };
 }
@@ -37,7 +37,7 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       grid.style.setProperty('--feed-columns', String(layout.columns));
       grid.style.setProperty('--feed-row-height', layout.rowHeight + 'px');
       grid.style.setProperty('--feed-grid-gap', layout.gap + 'px');
-      grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? Math.min(128, layout.rowHeight - 16) : 56) + 'px');
+      grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? 72 : 56) + 'px');
     };
     measure();
     let active = true;
