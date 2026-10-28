@@ -5,6 +5,7 @@ export interface IntakeScope { feedId: string; feedSourceId: string; sourceId: s
 export interface ValidationFacts { accountId?: string }
 export interface VerifiedSuppliedContent { representation: RepresentationKind; contentCompleteness: ContentCompleteness; contentHash: string }
 export interface IntakePolicy {
+  unpaidOnly?:true;
   expectedFeedRevision?: number;
   version: string;
   now(): string;
@@ -13,13 +14,14 @@ export interface IntakePolicy {
   verifySuppliedContent(observation: SourceObservation): Promise<VerifiedSuppliedContent | undefined>;
 }
 export interface DownstreamJob {
+  unpaidOnly?:true;
   id: string; feedId: string; feedSourceId: string; observationId: string;
   kind: 'ACQUIRE' | 'REASSESS' | 'AUTHORITATIVE_RECHECK'; state: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED'; attempts: number;
   nextAttemptAt?: string; exhausted?: boolean; conflictId?: string;
   leaseToken?: string; leaseUntil?: string; failureCode?: string;
   resumeAttempts?: number;
     /** Explicit operator recovery; cumulative attempts and prior failures survive. */
-    recoveryAuthorizations?: {id:string;authorizedAt:string;priorAttempts:number;priorFailureCode:string;priorFailureDetail?:string;maxAttempts:number;redirectEvidence?:{from:string;to:string};canonicalEvidence?:{from:string;to:string}}[];
+    recoveryAuthorizations?: {unpaidOnly?:true;id:string;authorizedAt:string;priorAttempts:number;priorFailureCode:string;priorFailureDetail?:string;maxAttempts:number;redirectEvidence?:{from:string;to:string};canonicalEvidence?:{from:string;to:string}}[];
   resourceWaits?: number;
   failureDetail?: string;
   httpStatus?: number;

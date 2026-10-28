@@ -1294,6 +1294,31 @@ export function createApp(options: AppOptions = {}) {
   app.all('/api/internal/collectors/:action',async c=>{
     if(!await internalMaintenanceAuthorized(c))return c.json({error:'unauthorized'},401);
     c.header('Cache-Control','private, no-store');
+    if(c.req.param('action')==='recover-poll-unpaid'&&c.req.method==='POST'){
+      const input=z.object({feedId:z.string().min(1).max(256),kind:z.enum(['rss','provider']),jobId:z.string().min(1).max(4096),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
+      const {recoverConnectorPoll}=await import('./connector-scheduling');
+      try{await recoverConnectorPoll(c.env,input.kind,input.jobId,{unpaidOnly:true,approvalId:input.approvalId,feedId:input.feedId});}
+      catch(error){const code=error instanceof Error?error.message:'';if(/^[A-Z_]+$/.test(code))return c.json({error:code},409);throw error;}
+      return c.json({state:'PENDING',unpaidOnly:true});
+    }
+    if(c.req.param('action')==='recover-article-unpaid'&&c.req.method==='POST'){
+      const input=z.object({feedId:z.string().min(1).max(256),jobId:z.string().min(1).max(4096),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
+      const {V1IntakeStore}=await import('./v1-intake/store');
+      const {authorizeAcquisitionRecovery}=await import('./v1-intake/acquisition');
+      const {processV1Acquisition}=await import('./v1-downstream-runtime');
+      const store=new V1IntakeStore(c.env.DB),job=await store.read<import('./v1-intake/types').DownstreamJob>('jobs',input.jobId);
+      if(!job||job.value.feedId!==input.feedId)return c.json({error:'job not found'},404);
+      try{
+        await authorizeAcquisitionRecovery(store,input.jobId,input.approvalId,new Date().toISOString(),undefined,undefined,{unpaidOnly:true});
+      }catch(error){
+        const code=error instanceof Error?error.message:'';
+        if(/^RECOVERY_[A-Z_]+$/.test(code))return c.json({error:code},409);
+        throw error;
+      }
+      const outcome=await processV1Acquisition(c.env,input.jobId,fetcher);
+      const result=(await store.read<import('./v1-intake/types').DownstreamJob>('jobs',input.jobId))?.value;
+      return c.json({outcome,state:result?.state,failureCode:result?.failureCode,failureDetail:result?.failureDetail,attempts:result?.attempts,unpaidOnly:true});
+    }
     if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json({budget:await collectorBudgetStatus(c.env)});
     if(c.req.param('action')==='topic-publishers'&&c.req.method==='POST'){
       const input=z.object({title:z.string().trim().min(1).max(120)}).strict().parse(await c.req.json());

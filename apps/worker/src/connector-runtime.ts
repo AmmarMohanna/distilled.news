@@ -23,10 +23,10 @@ export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Pro
  if(!admitted)return false;
  return env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&['x_profile','x_search'].includes(r.source.family)?approvedCollectionBounds(env.DB,r):Object.keys(r.requestedBounds).length===0;
 }
-export function createConnectorRuntime(env:Env,fetcher?:typeof fetch) {
+export function createConnectorRuntime(env:Env,fetcher?:typeof fetch,unpaidOnly?:true) {
  const authorize=(r:SourceFetchRequest)=>authorizeConnectorSource(env,r);
- const intake:CandidateIntakePort={acceptBatch:request=>acceptV1Handoff(env,request)};
- return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:100,intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision)})});
+ const intake:CandidateIntakePort={acceptBatch:request=>acceptV1Handoff(env,request,undefined,unpaidOnly)};
+ return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:100,intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision,unpaidOnly)})});
 }
 /** Aggregate D1 reservations are separate from per-operation ceilings. No setting means no paid dispatch. */
 const budgetInitializations=new WeakMap<D1Database,{key:string;ready:Promise<void>}>();

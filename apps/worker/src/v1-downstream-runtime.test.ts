@@ -75,3 +75,23 @@ it('dispatch reservations do not let the first five waiting jobs hide the rest o
  expect(await dispatchV1Acquisitions(env,now)).toBe(2);
  expect(new Set(sent.map(m=>(m as {jobId:string}).jobId)).size).toBe(12);
 });
+
+it('persists free-only acquisition authority through a collector handoff and skips configured remote execution',async()=>{
+ env={...env,SOURCE_FULL_ARTICLES_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'false',SOURCE_EXECUTION_URL:'https://helper.example',SOURCE_EXECUTION_TOKEN:'fixture',SOURCE_EXECUTION_SERVICE:{fetch:async()=>{throw Error('unpaid job invoked helper')},connect:()=>{throw Error('unpaid job invoked helper')}},ZYTE_API_KEY:'fixture'};
+ await acceptV1Handoff(env,batchFixture(),undefined,true);
+ const id=JSON.stringify(['ACQUIRE','observation-1','']);
+ expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!.value.unpaidOnly).toBe(true);
+ let calls=0;
+ const fetcher:typeof fetch=async(value)=>{calls++;expect(String(value)).toContain('publisher.example');return new Response('<html><head><meta property="article:published_time" content="2026-10-03T10:00:00Z"></head><body><article><h1>Public report</h1><p>Parliament approved new banking legislation following a lengthy debate. Officials said the decision followed consultations with consumer protection organizations and local banking representatives. Presidential approval is still required before the measure becomes law.</p></article></body></html>');};
+ expect(await processV1Acquisition(env,id,fetcher)).toBe('DONE');expect(calls).toBeGreaterThan(0);
+ expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!.value.unpaidOnly).toBe(true);
+});
+it('internal free recovery requires the maintenance secret and matching feed',async()=>{
+ const app=createApp({repository:new InMemoryRepository()});
+ const body=JSON.stringify({feedId:'wrong-feed',jobId:JSON.stringify(['ACQUIRE','observation-1','']),approvalId:'free-check'});
+ const request={method:'POST',headers:{'content-type':'application/json'},body};
+ expect((await app.request('/api/internal/collectors/recover-article-unpaid',request,env)).status).toBe(401);
+ await acceptV1Handoff(env,batchFixture());
+ expect((await app.request('/api/internal/collectors/recover-article-unpaid',{...request,headers:{...request.headers,'x-distilled-internal':'fixture-secret'}},{...env,INTERNAL_MAINTENANCE_SECRET:'fixture-secret'})).status).toBe(404);
+ expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',JSON.stringify(['ACQUIRE','observation-1',''])))!.value.state).toBe('PENDING');
+});

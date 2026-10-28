@@ -357,7 +357,7 @@ it('known monetary admission denial remains durable resource waiting without exh
  expect(job.nextAttemptAt).toBeDefined();expect(await claimAcquisition(store,jobId,now)).toBeUndefined();
 });
 
-it('admits a URL-only discovery recheck without replacing complete canonical article evidence',async()=>{
+it('retains complete canonical evidence when a URL-only recheck has unknown completeness',async()=>{
  await runAcquisitionJob(store,jobId,testPolicy,async claim=>({...content(claim.candidate.id),representation:'FULL_ARTICLE',body:'Retained complete article.'}));
  const prior=(await store.list<any>('revisions','feed-source-1'))[0];
  const request=batchFixture(2),o=request.observations[0],p=request.proposals[0];
@@ -370,7 +370,7 @@ it('admits a URL-only discovery recheck without replacing complete canonical art
  expect(await runAcquisitionJob(store,JSON.stringify(['ACQUIRE',o.id,'']),testPolicy,router)).toBe('DONE');
  const acquired=(await store.list<AcceptedAcquiredContent>('acquired','feed-source-1')).find(c=>c.sourceObservationId===o.id)!;
  expect(acquired).toMatchObject({representation:'FULL_ARTICLE',acquisitionMethod:'direct_http',body:expect.stringContaining('Parliament approved')});
- expect(await store.list('revisions','feed-source-1')).toHaveLength(2);
+ expect(await store.list('revisions','feed-source-1')).toEqual([prior]);
 });
 
 it('URL-only discovery never authorizes a weaker acquired representation to replace a full article',async()=>{
@@ -385,12 +385,12 @@ it('URL-only discovery never authorizes a weaker acquired representation to repl
  expect(receipts.find(r=>r.sourceObservationId===o.id)?.decision).toBe('QUARANTINED_REVISION_CONFLICT');
 });
 
-it('acquires a complete WordPress post without calling an unavailable helper and retains final qualifiers',async()=>{
+it('retains all extracted WordPress qualifiers without claiming proven completeness',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!,o=claim.input.observation;
  o.canonicalUrl='https://example.com/news/post/';
  const text='The company allocated 5 percent of shares. '.repeat(6),last='An additional contribution remains optional, not promised.';
  const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<link rel="canonical" href="${o.canonicalUrl}"><meta property="og:type" content="article"><meta property="article:published_time" content="2026-10-03T10:00:00Z"><h1>Fund announcement</h1><div class="entry-content wp-block-post-content"><p>${text}</p><div><p>${last}</p></div></div>`),extractHtml:async()=>{throw Error('UNAVAILABLE_HELPER_MUST_NOT_BE_CALLED')}});
- const acquired=await router(claim);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',canonicalUrl:o.canonicalUrl,acquisitionMethod:'direct_http'});expect(acquired.body).toContain(last);expect(acquired.body).toContain('5 percent');
+ const acquired=await router(claim);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',canonicalUrl:o.canonicalUrl,acquisitionMethod:'direct_http'});expect(acquired.body).toContain(last);expect(acquired.body).toContain('5 percent');
 });
 it('Google resolution preserves approval denial without scraping or paying',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!;claim.input.observation={...claim.input.observation,canonicalUrl:'https://news.google.com/rss/articles/encoded',representation:'LISTING_RESULT'};
@@ -428,3 +428,17 @@ it('requires exact safe canonical-alias evidence to recover an identity rejectio
  await authorizeAcquisitionRecovery(store,jobId,'alias-fix',now,undefined,{from,to});
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{maxAttempts:2,priorFailureCode:'INVALID_RESULT',canonicalEvidence:{from,to}}]});
 },30000);
+
+it('unpaid recovery persists its restriction and refuses approval mode changes',async()=>{
+ await terminalRecoveryFixture('EXTRACTION_FAILED',1);
+ await authorizeAcquisitionRecovery(store,jobId,'free-repair',now,undefined,undefined,{unpaidOnly:true});
+ await authorizeAcquisitionRecovery(store,jobId,'free-repair',now,undefined,undefined,{unpaidOnly:true});
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{unpaidOnly:true,maxAttempts:2,priorFailureCode:'EXTRACTION_FAILED'}]});
+});
+it('unpaid recovery refuses a reconciled paid failure and cannot relabel an older approval',async()=>{
+ await terminalRecoveryFixture('UNCERTAIN_PAID_SUBMISSION');
+ await expect(authorizeAcquisitionRecovery(store,jobId,'free-repair',now,undefined,undefined,{unpaidOnly:true})).rejects.toThrow('RECOVERY_PAID_OUTCOME_UNRESOLVED');
+ await terminalRecoveryFixture('EXTRACTION_FAILED',1);
+ await authorizeAcquisitionRecovery(store,jobId,'old-approval',now);
+ await expect(authorizeAcquisitionRecovery(store,jobId,'old-approval',now,undefined,undefined,{unpaidOnly:true})).rejects.toThrow('RECOVERY_APPROVAL_MODE_MISMATCH');
+});

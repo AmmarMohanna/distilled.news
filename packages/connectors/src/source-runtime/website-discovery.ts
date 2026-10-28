@@ -58,7 +58,7 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
   const rel=attr(anchor,'rel').toLowerCase().split(/\s+/);
   if(rel.includes('next')||/(?:^|\s)next(?:\s|$)/i.test(attr(anchor,'class'))&&attr(anchor,'data-page-number')){const next=scoped(href);nextPage??=next;if(!next)paginationUnresolved=true;continue}
   const lineage:Node[]=[];for(let n:Node|undefined=anchor;n;n=n.parentNode)lineage.push(n);
-  if(lineage.some(n=>['nav','header','footer','aside','script'].includes(n.tagName??'')||attr(n,'role')==='navigation'||/(?:^|[\s_-])(?:nav|navigation|menu|footer|header|sidebar|masthead)(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))))continue;
+  if(lineage.some(n=>['nav','header','footer','aside','script'].includes(n.tagName??'')||attr(n,'role')==='navigation'||/(?:^|[\s_-])(?:nav|navigation|menu|footer|header|sidebar|masthead)(?:$|[\s_-])/i.test(attr(n,'class').split(/\s+/).filter(token=>! /^(?:has|with|no)[_-]/i.test(token)).join(' ')+' '+attr(n,'id'))))continue;
   if(/(?:^|[\s_-])(?:comment|comments|print|share|reply)(?:$|[\s_-])/i.test(attr(anchor,'class'))||/#(?:comments?|reply)/i.test(href))continue;
   // Publishers commonly wrap the heading in its link (<a><h3>...), rather
   // than placing a link inside the heading. Both are observed headline links.

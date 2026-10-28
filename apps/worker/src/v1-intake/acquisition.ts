@@ -16,13 +16,15 @@ function attemptLimit(job:DownstreamJob):number {
 }
 /** Operator-only: no public API or automatic grant. Cumulative attempt counts,
  * source identity, paid identities and terminal failure history survive. */
-export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string,approvalId:string,rawNow:string,redirectEvidence?:{from:string;to:string},canonicalEvidence?:{from:string;to:string}):Promise<void>{
+export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string,approvalId:string,rawNow:string,redirectEvidence?:{from:string;to:string},canonicalEvidence?:{from:string;to:string},options?:{unpaidOnly:true}):Promise<void>{
  const now=timestampSchema.parse(rawNow);
  if(!/^[a-zA-Z0-9_-]{1,100}$/.test(approvalId))throw Error('INVALID_RECOVERY_APPROVAL');
  const row=await store.read<DownstreamJob>('jobs',id);if(!row)throw Error('RECOVERY_JOB_MISSING');
  const refusal=await transact(store,row.feedSourceId,async tx=>{
   const job=await tx.read<DownstreamJob>('jobs',id);if(!job||job.kind!=='ACQUIRE')return 'RECOVERY_JOB_MISSING';
-  if(job.recoveryAuthorizations?.some(a=>a.id===approvalId))return;
+  const prior=job.recoveryAuthorizations?.find(a=>a.id===approvalId);
+  if(prior){if(options?.unpaidOnly&&!prior.unpaidOnly)return 'RECOVERY_APPROVAL_MODE_MISMATCH';return;}
+  if(options?.unpaidOnly&&job.failureCode==='UNCERTAIN_PAID_SUBMISSION')return 'RECOVERY_PAID_OUTCOME_UNRESOLVED';
   const fenced=job.failureCode==='UNCERTAIN_PAID_SUBMISSION'&&job.failureDetail==='ARTICLE_PROVIDER_OUTCOME_UNCERTAIN';
   let canonicalAlias=false;
   if(canonicalEvidence&&job.failureCode==='INVALID_RESULT'&&['FALLBACK_CANONICAL_MISMATCH','FALLBACK_URL_MISMATCH'].includes(job.failureDetail??'')){
@@ -63,7 +65,7 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
    const completed=await store.db.prepare("SELECT 1 FROM connector_provider_operations WHERE feed_source_id=? AND status=200 AND (payload_ref IS NOT NULL OR json_extract(headers,'$.reconciliation.kind')='COMPLETED_RESPONSE_LOST') LIMIT 1").bind(row.feedSourceId).first();
    if(!completed)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';
   }
-  const history=[...(job.recoveryAuthorizations??[]),{id:approvalId,authorizedAt:now,priorAttempts:job.attempts,priorFailureCode:job.failureCode!,priorFailureDetail:job.failureDetail,maxAttempts:job.attempts+1,...(publicRedirect?{redirectEvidence}:{} ),...(canonicalAlias?{canonicalEvidence}:{})}];
+  const history=[...(job.recoveryAuthorizations??[]),{...(options?.unpaidOnly?{unpaidOnly:true as const}:{}),id:approvalId,authorizedAt:now,priorAttempts:job.attempts,priorFailureCode:job.failureCode!,priorFailureDetail:job.failureDetail,maxAttempts:job.attempts+1,...(publicRedirect?{redirectEvidence}:{} ),...(canonicalAlias?{canonicalEvidence}:{})}];
   tx.write('jobs',id,{...job,state:'PENDING',exhausted:false,nextAttemptAt:now,leaseToken:undefined,leaseUntil:undefined,recoveryAuthorizations:history});
  });
  if(refusal)throw Error(refusal);
