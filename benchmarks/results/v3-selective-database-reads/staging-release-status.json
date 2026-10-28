@@ -1,0 +1,47 @@
+{
+  "at": "2026-10-28T01:37:15.735Z",
+  "branch": "ghada/v3-selective-database-reads",
+  "codeRevision": "e9f952c",
+  "deployedVersion": "2d3d5b65-329a-48f4-80a8-323ae08c6f15",
+  "normalProcessingRestored": true,
+  "temporaryDiagnosticsRemoved": true,
+  "experimentalQueueLimitsRetained": false,
+  "indexesApplied": [
+    "0074",
+    "0075"
+  ],
+  "targetedWorkerTestsPassed": 46,
+  "briefingTestsPassed": 109,
+  "postFixV3TestsPassed": 25,
+  "legacyIdentityTestsPassed": 7,
+  "manualPaidCalls": 0,
+  "productionReady": false,
+  "finalProbesCompleted": 51,
+  "failures": [
+    {
+      "at": "2026-10-28T01:35:11.747Z",
+      "round": 3,
+      "path": "/api/auth/session",
+      "status": 503,
+      "ms": 30691,
+      "code": "DATABASE_UNAVAILABLE"
+    },
+    {
+      "at": "2026-10-28T01:35:54.986Z",
+      "round": 5,
+      "path": "/api/auth/session",
+      "status": 503,
+      "ms": 30253,
+      "code": "DATABASE_UNAVAILABLE"
+    },
+    {
+      "at": "2026-10-28T01:36:48.307Z",
+      "round": 8,
+      "path": "/api/auth/session",
+      "status": 503,
+      "ms": 33362,
+      "code": "DATABASE_UNAVAILABLE"
+    }
+  ],
+  "reason": "Recurring D1 CPU resets remain under normal background activity. Applied indexes and payload reductions do not establish complete cause or sustained reliability."
+}
