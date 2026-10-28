@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {sourceAvailability,feedSourceAvailability,collectionFailureReason} from './connector-availability';
+import {sourceAvailability,feedSourceAvailability,collectionFailureReason,acquisitionFailureIssues} from './connector-availability';
 import type {Env} from './types';
 it('unlimited collection does not surface historical app budget exhaustion as a current block',async()=>{
  const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM sources')?[{id:'x',title:'@test',provider:'twitterapi_io',kind:'x_profile',source_url:'https://x.com/test',input:JSON.stringify({username:'test'}),actor_id:null}]:[]}},async first(){return sql.includes('connector_provider_operations')?null:{state:'BLOCKED',last_error:'BUDGET_EXCEEDED',result:null}}})};
@@ -48,4 +48,14 @@ it('a newly pending poll does not erase the last blocked collection outcome',asy
  let query='';const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[]:[{id:'rss',title:'News',provider:'rss',kind:'rss_feed',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){query=sql;return {state:'BLOCKED',last_error:'RETRY_LIMIT:RATE_LIMIT',result:null}}})};
  expect((await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed'))[0]).toMatchObject({state:'UNAVAILABLE',reason:'COLLECTION_BLOCKED',collectionError:'RATE_LIMIT'});
  expect(query).toContain("state IN ('DONE','BLOCKED')");
+});
+
+it('reports distinct safe article failure categories without exposing diagnostic text',()=>{
+ const issues=acquisitionFailureIssues([{failure:'UNCERTAIN_PAID_SUBMISSION',detail:'private-provider-receipt',count:2},{failure:'INVALID_RESULT',detail:'https://private.example/article',count:3},{failure:'UNSUPPORTED',detail:'LISTING_PAGE',count:4},{failure:'EXTRACTION_FAILED',count:1},{failure:'UNRECOGNIZED_PRIVATE_ERROR',detail:'secret',count:1}]);
+ expect(issues).toEqual([{reason:'PAID_OUTCOME_UNKNOWN',count:2},{reason:'IDENTITY_MISMATCH',count:3},{reason:'LISTING_PAGE',count:4},{reason:'NO_READABLE_TEXT',count:1},{reason:'OTHER',count:1}]);
+ expect(JSON.stringify(issues)).not.toMatch(/private|secret|https/);
+});
+
+it('reports the provider parsing cause behind a collection repair blocker',()=>{
+ expect(collectionFailureReason({last_error:'PROVIDER_REPAIR_REQUIRED',result:JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'MALFORMED',private:'not-public'}]})})).toBe('MALFORMED');
 });

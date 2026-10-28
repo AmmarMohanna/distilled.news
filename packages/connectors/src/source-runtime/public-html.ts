@@ -126,7 +126,8 @@ export function extractPublicHtml(html:string,url:string){
   body=text(main,true,true);contentKind=productMetadata?'PRODUCT_DETAIL':'CATALOGUE';
  }
  let canonicalUrl=url;try{const candidate=new URL(canonical?attr(canonical,'href'):url,url);if(candidate.origin===new URL(url).origin&&candidate.pathname!=='/')canonicalUrl=candidate.href}catch{}
- return {title,body,...(contentKind?{contentKind}:{}),...(accessRestricted?{accessRestricted:true}:{}),publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,canonicalUrl,
+ const partialSummary=!!primary&&/\/liveblog\//i.test(new URL(url).pathname)&&primaryDescendants(primary).some(n=>n.tagName==='li')&&!primaryDescendants(primary).some(n=>n.tagName==='p');
+ return {title,body,...(partialSummary?{contentCompleteness:'PARTIAL' as const}:{}),...(contentKind?{contentKind}:{}),...(accessRestricted?{accessRestricted:true}:{}),publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,canonicalUrl,
   language:attr(all.find(n=>n.tagName==='html')??{},'lang')||undefined,
   pageKind:contentKind?'catalogue':primary?'article':listing?'listing':articleMetadata||article?'article':'unknown',articleLinks:listing?.articles.map(a=>a.url)??[]};
 }

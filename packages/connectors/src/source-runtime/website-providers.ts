@@ -85,7 +85,7 @@ export class WebsiteSourceProvider implements SourceProvider {
     // the homepage. Cross-origin identities remain excluded as before.
     const article=canonical&&new URL(canonical).origin===new URL(url).origin&&new URL(canonical).pathname!=='/'?canonical:url;
     return {items:[{sourceItemKey:`url:${article}`,upstreamId:article,url:article,publisherId:new URL(article).hostname,title:string(result.title),body:result.body,
-      publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,language:string(result.language),representation:result.pageKind==='catalogue'?'LISTING_RESULT':'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
+      publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,language:string(result.language),representation:result.pageKind==='catalogue'?'LISTING_RESULT':result.contentCompleteness==='PARTIAL'?'ARTICLE_EXCERPT':'FULL_ARTICLE',contentCompleteness:result.contentCompleteness==='PARTIAL'?'PARTIAL':'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
       raw:new TextEncoder().encode(html),complete:result.pageKind==='catalogue'?!inventory?.nextPage&&!inventory?.paginationUnresolved:Boolean(dates.publishedAt),...(result.pageKind==='catalogue'&&inventory?.nextPage?{continuationToken:inventory.nextPage}:{}),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
   }
 }

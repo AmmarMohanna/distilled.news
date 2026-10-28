@@ -1295,10 +1295,17 @@ export function createApp(options: AppOptions = {}) {
     if(!await internalMaintenanceAuthorized(c))return c.json({error:'unauthorized'},401);
     c.header('Cache-Control','private, no-store');
     if(c.req.param('action')==='recover-poll-unpaid'&&c.req.method==='POST'){
-      const input=z.object({feedId:z.string().min(1).max(256),kind:z.enum(['rss','provider']),jobId:z.string().min(1).max(4096),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
+      const input=z.object({feedId:z.string().min(1).max(256),kind:z.enum(['rss','provider']),runNow:z.boolean().optional(),jobId:z.string().min(1).max(4096),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
       const {recoverConnectorPoll}=await import('./connector-scheduling');
       try{await recoverConnectorPoll(c.env,input.kind,input.jobId,{unpaidOnly:true,approvalId:input.approvalId,feedId:input.feedId});}
       catch(error){const code=error instanceof Error?error.message:'';if(/^[A-Z_]+$/.test(code))return c.json({error:code},409);throw error;}
+      if(input.runNow){
+        const {unpaidSourceRecoveryEnv}=await import('./unpaid-source-recovery');
+        const {createConnectorRuntime}=await import('./connector-runtime');
+        const backend=createConnectorRuntime(unpaidSourceRecoveryEnv(c.env),fetcher,true);
+        const outcome=await (input.kind==='rss'?backend.rssScheduler:backend.scheduler).runOne(300_000,input.jobId);
+        return c.json({outcome,unpaidOnly:true});
+      }
       return c.json({state:'PENDING',unpaidOnly:true});
     }
     if(c.req.param('action')==='recover-article-unpaid'&&c.req.method==='POST'){
@@ -1318,7 +1325,11 @@ export function createApp(options: AppOptions = {}) {
       }
       let outcome:Awaited<ReturnType<typeof processV1Acquisition>>;
       try{outcome=await processV1Acquisition(c.env,input.jobId,fetcher);}
-      catch(error){if(error instanceof HandoffError){c.header('Retry-After','5');return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:403);}throw error;}
+      catch(error){
+        const {IntelligenceTurnBusy}=await import('./connector-intelligence-turn');
+        if(error instanceof IntelligenceTurnBusy){c.header('Retry-After','5');return c.json({outcome:'RETRY',state:'PENDING',reason:'FEED_BUSY',unpaidOnly:true},202);}
+        if(error instanceof HandoffError){c.header('Retry-After','5');return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:403);}throw error;
+      }
       const result=(await store.read<import('./v1-intake/types').DownstreamJob>('jobs',input.jobId))?.value;
       return c.json({outcome,state:result?.state,failureCode:result?.failureCode,failureDetail:result?.failureDetail,attempts:result?.attempts,unpaidOnly:true});
     }

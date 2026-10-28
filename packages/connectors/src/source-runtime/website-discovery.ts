@@ -1,5 +1,5 @@
 import {parse} from 'parse5';
-import {primaryTextContainer} from './primary-text';
+import {primaryTextContainer,headlineElement} from './primary-text';
 import {discoverPromedReports} from './promed-discovery';
 import {articleUrl} from './provider-normalize';
 import {isArticleSchemaType,matchesOpaqueArticlePage} from './article-schema';
@@ -62,7 +62,7 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
   if(/(?:^|[\s_-])(?:comment|comments|print|share|reply)(?:$|[\s_-])/i.test(attr(anchor,'class'))||/#(?:comments?|reply)/i.test(href))continue;
   // Publishers commonly wrap the heading in its link (<a><h3>...), rather
   // than placing a link inside the heading. Both are observed headline links.
-  const heading=lineage.some(n=>/^h[1-6]$/.test(n.tagName??''))||nodes(anchor).some(n=>/^h[1-6]$/.test(n.tagName??''));
+  const heading=lineage.some(headlineElement)||nodes(anchor).some(headlineElement);
   const entry=lineage.some(n=>n.tagName==='article'||/(?:^|[\s_-])(?:story|post|entry|item|article)(?:$|[\s_-])/i.test(attr(n,'class')));
   const title=/(?:^|[\s_-])(?:title|headline|heading)(?:$|[\s_-])/i.test(attr(anchor,'class'));
   if(heading||rel.includes('bookmark')||(entry&&title))add(href,text(anchor)||undefined);

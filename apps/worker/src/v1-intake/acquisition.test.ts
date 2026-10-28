@@ -454,3 +454,11 @@ it('permits an exact canonical reaffirmation only for bounded unpaid recovery',a
  await authorizeAcquisitionRecovery(store,jobId,'public-reaffirmed',now,undefined,evidence,{unpaidOnly:true});
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{unpaidOnly:true,canonicalEvidence:evidence,maxAttempts:2}]});
 });
+
+it('persists a visible liveblog bullet summary as a partial excerpt rather than a full article',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;claim.input.observation.canonicalUrl='https://publisher.example/news/liveblog/2026/10/28/election';
+ const a='Officials announced preliminary election results after counting ballots overnight. Coalition negotiations are continuing and no final agreement has been announced.';
+ const b='The opposition disputed the projections and requested further counting. Election officials said the result remains provisional pending verification of outstanding ballots.';
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<main><header><h1>Election live updates</h1><div class="wysiwyg"><ul><li>${a}</li><li>${b}</li></ul></div></header></main>`,{headers:{'content-type':'text/html'}})});
+ expect(await router(claim)).toMatchObject({representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL',quality:{extractionComplete:false}});
+});

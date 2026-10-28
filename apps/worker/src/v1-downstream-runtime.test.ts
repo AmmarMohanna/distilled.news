@@ -107,3 +107,13 @@ it('reports a recoverable maintenance storage wait without granting another reco
  expect(response.status).toBe(503);expect(response.headers.get('retry-after')).toBe('5');expect(await response.json()).toEqual({error:'TEMPORARY_UNAVAILABLE'});
  expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{id:'maintenance-wait',maxAttempts:2,unpaidOnly:true}]});
 });
+
+it('returns accepted pending work when a busy feed delays already authorized recovery',async()=>{
+ const app=createApp({repository:new InMemoryRepository()});await acceptV1Handoff(env,batchFixture());
+ const id=JSON.stringify(['ACQUIRE','observation-1','']),row=(await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id,value:{...row.value,state:'FAILED',exhausted:true,attempts:1,failureCode:'EXTRACTION_FAILED'}}]);
+ vi.spyOn(runtime,'processV1Acquisition').mockRejectedValue(new (await import('./connector-intelligence-turn')).IntelligenceTurnBusy());
+ const response=await app.request('/api/internal/collectors/recover-article-unpaid',{method:'POST',headers:{'content-type':'application/json','x-distilled-internal':'fixture-secret'},body:JSON.stringify({feedId:row.value.feedId,jobId:id,approvalId:'maintenance-wait'})},{...env,INTERNAL_MAINTENANCE_SECRET:'fixture-secret'});
+ expect(response.status).toBe(202);expect(response.headers.get('retry-after')).toBe('5');expect(await response.json()).toMatchObject({state:'PENDING',outcome:'RETRY',reason:'FEED_BUSY',unpaidOnly:true});
+ expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{id:'maintenance-wait',maxAttempts:2,unpaidOnly:true}]});
+});

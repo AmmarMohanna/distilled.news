@@ -15,7 +15,7 @@ let secret=match?.[1];if(secret?.startsWith('"'))secret=JSON.parse(secret);else 
 if(!secret)throw Error('MAINTENANCE_SECRET_MISSING');
 const results=[];
 for(const item of manifest.items){
- const body={feedId:manifest.feedId,jobId:item.jobId,approvalId:item.approvalId,...(item.kind?{kind:item.kind}:{}),...(item.canonicalEvidence?{canonicalEvidence:item.canonicalEvidence}:{})};
+ const body={feedId:manifest.feedId,jobId:item.jobId,approvalId:item.approvalId,...(item.kind?{kind:item.kind,...(item.runNow===true?{runNow:true}:{})}:{}),...(item.canonicalEvidence?{canonicalEvidence:item.canonicalEvidence}:{})};
  const endpoint=item.kind?'recover-poll-unpaid':'recover-article-unpaid';
  try{
   const response=await fetch(url.origin+'/api/internal/collectors/'+endpoint,{method:'POST',redirect:'error',headers:{'content-type':'application/json','x-distilled-internal':secret},body:JSON.stringify(body),signal:AbortSignal.timeout(200000)});
