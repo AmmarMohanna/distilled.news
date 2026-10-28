@@ -1,3 +1,4 @@
+import type {BriefingResult} from '@distilled/briefing';
 import {validateV3Edition} from './v3-window';
 import {assertIntelligenceTurn,intelligenceTurnGuard,withCanonicalCommitTurn} from '../connector-intelligence-turn';
 import {countLatency,measureLatency} from './latency';
@@ -45,6 +46,29 @@ export class V1FeedStore {
   const row=await this.db.prepare("SELECT 1 FROM v1_feed_documents d CROSS JOIN json_each(d.json,'$.input.evidenceRevisionIds') ref CROSS JOIN v1_revisions r ON r.id=ref.value WHERE d.feed_id=? AND d.kind='semantic_intents' AND json_extract(r.json,'$.sourceObservationId')=? LIMIT 1").bind(feedId,observationId).first();return Boolean(row);
  }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
+ /** Candidate-targeted carry replay. Each page reads its version and decisions in one SQL snapshot. */
+ async carryEvidenceIds(feedId:string,ids:string[]):Promise<Set<string>> {
+  const wanted=[...new Set(ids)];if(!wanted.length)return new Set();let indexed=true,generation:number|undefined;
+  const retry=new Set<string>(),decisions:{revision_id:string;window_end:string;carry:number}[]=[];
+  for(let offset=0;offset<wanted.length;offset+=90){
+   let rows:D1Result<{marker:number;revision_id:string|null;window_end:string|null;carry:number|null;ready:number|null;version:number|null}>;
+   try{rows=await this.db.prepare(`WITH carry_state AS MATERIALIZED (
+    SELECT COALESCE(s.ready,0) ready,COALESCE(s.version,0) version FROM (SELECT ? feed_id) f LEFT JOIN v3_carry_index_state s ON s.feed_id=f.feed_id
+   ), candidates AS MATERIALIZED (
+    SELECT requested.value revision_id FROM json_each(?) requested WHERE (SELECT ready FROM carry_state)=1 AND EXISTS(
+     SELECT 1 FROM v3_carry_decisions p WHERE p.feed_id=? AND p.revision_id=requested.value AND p.carry=1)
+   ) SELECT 1 marker,NULL revision_id,NULL window_end,NULL carry,NULL result_id,ready,version FROM carry_state
+   UNION ALL SELECT 0,d.revision_id,d.window_end,d.carry,d.result_id,NULL,NULL FROM candidates c CROSS JOIN v3_carry_decisions d ON d.feed_id=? AND d.revision_id=c.revision_id
+   ORDER BY marker DESC,result_id`).bind(feedId,JSON.stringify(wanted.slice(offset,offset+90)),feedId,feedId).all();}
+   catch(error){if(!/no such table.*v3_carry_(index_state|decisions)/.test(String(error)))throw error;indexed=false;break;}
+   const state=rows.results[0];if(!state||state.marker!==1)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   if(state.ready!==1){indexed=false;break;}if(generation!==undefined&&state.version!==generation)throw new HandoffError('TEMPORARY_UNAVAILABLE');generation=state.version!;
+   for(const row of rows.results.slice(1))decisions.push({revision_id:row.revision_id!,window_end:row.window_end!,carry:row.carry!});
+  }
+  if(!indexed){const results=await this.list<{windowEnd:string;result:Pick<BriefingResult,'items'|'skipped'|'omitted'|'dropped'>}>(feedId,'v3_window_results');for(const p of results.sort((a,b)=>a.windowEnd.localeCompare(b.windowEnd))){for(const id of [...p.result.items.flatMap(i=>i.sourceIds),...p.result.skipped.map(s=>s.id),...p.result.omitted.flatMap(o=>o.sourceIds),...p.result.dropped.flatMap(d=>d.sourceIds)])retry.delete(id);for(const d of p.result.dropped.filter(d=>d.carry))for(const id of d.sourceIds)retry.add(id)}return new Set(wanted.filter(id=>retry.has(id)));}
+  // One revision belongs to one page; stable sorting retains original binary result-ID tie order.
+  for(const d of decisions.sort((a,b)=>a.window_end.localeCompare(b.window_end))){if(d.carry)retry.add(d.revision_id);else retry.delete(d.revision_id);}return retry;
+ }
  /** Metadata-only eligibility pass; immutable article bodies are loaded only after selection. */
  async currentEvidenceHeaders(feedId:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
   let rows:D1Result<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>;

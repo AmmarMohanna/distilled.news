@@ -32,12 +32,7 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const previouslyUsed=new Set(editions.flatMap(e=>e.evidenceRevisionIds));
  const evidence=await store.currentEvidenceHeaders(feedId);
  const previousEvidenceIds=evidence.length?new Set((await store.revisionEvidenceIds(feedId,[...previouslyUsed])).values()):new Set<string>();
- const previousResults=evidence.length?await store.list<V3WindowResult>(feedId,'v3_window_results'):[];
- const retryIds=new Set<string>();
- for(const previous of previousResults.sort((a,b)=>a.windowEnd.localeCompare(b.windowEnd))){
-  for(const id of [...previous.result.items.flatMap(i=>i.sourceIds),...previous.result.skipped.map(s=>s.id),...previous.result.omitted.flatMap(o=>o.sourceIds),...previous.result.dropped.flatMap(d=>d.sourceIds)])retryIds.delete(id);
-  for(const dropped of previous.result.dropped.filter(d=>d.carry))for(const id of dropped.sourceIds)retryIds.add(id);
- }
+ const retryIds=await store.carryEvidenceIds(feedId,evidence.map(e=>e.revision.id));
  const observedAt=new Map(evidence.map(e=>[e.revision.id,e.observedAt]));
  const beforeClose=(r:Pick<EvidenceRevision,'id'|'acceptedAt'>)=>Date.parse(observedAt.get(r.id)??r.acceptedAt)<Date.parse(window.end);
  const active=evidence.filter(({revision:r})=>{
