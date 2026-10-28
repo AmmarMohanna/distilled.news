@@ -74,7 +74,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       return {items,raw:new TextEncoder().encode(html),complete:false,
         continuationToken:offset+input.limit<links.length?String(offset+input.limit):undefined,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
-    if(!string(result.body)||result.body.length<200)throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
+    if(!string(result.body)||result.body.length<(result.pageKind==='catalogue'||result.contentCompleteness==='PARTIAL'?80:200))throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
     const unreadable=unreadableArticleReason(result.body);
     if(unreadable)throw new SourceProviderError('MALFORMED',undefined,{detail:unreadable});
     const dates=readArticleDateMetadata(html,url);

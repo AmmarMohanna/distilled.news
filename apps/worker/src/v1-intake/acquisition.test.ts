@@ -462,3 +462,10 @@ it('persists a visible liveblog bullet summary as a partial excerpt rather than 
  const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<main><header><h1>Election live updates</h1><div class="wysiwyg"><ul><li>${a}</li><li>${b}</li></ul></div></header></main>`,{headers:{'content-type':'text/html'}})});
  expect(await router(claim)).toMatchObject({representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL',quality:{extractionComplete:false}});
 });
+
+it('accepts a short publisher-scoped breaking report as a partial excerpt without invoking fallback',async()=>{
+ const brief='Election officials released preliminary results and said outstanding ballots remain under review. No final coalition agreement has been announced.';
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<meta property="og:type" content="article"><h1>Election update</h1><div itemprop="articleBody">${brief}</div>`,{headers:{'content-type':'text/html'}}),articleFallback:async()=>{throw Error('must not pay for readable short article')}});
+ const claim=(await claimAcquisition(store,jobId,now))!,r=await router(claim);
+ expect(r).toMatchObject({representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL',body:brief,quality:{extractionComplete:false}});
+});

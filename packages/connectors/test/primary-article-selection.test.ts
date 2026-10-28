@@ -56,3 +56,11 @@ it('discovers styled paragraph headlines without promoting the surrounding news 
  expect(extractPublicHtml(html,'https://publisher.example/').pageKind).toBe('listing');
  expect(discoverWebsiteArticles(html,'https://publisher.example/')?.articles).toHaveLength(3);
 });
+
+it('retains short explicitly scoped article prose as partial while rejecting an equally short generic teaser',()=>{
+ const brief='Election officials released preliminary results and said outstanding ballots remain under review. No final coalition agreement has been announced.';
+ const r=extractPublicHtml(`<meta property="og:type" content="article"><h1>Election update</h1><div itemprop="articleBody">${brief}</div>`,url);
+ expect(r).toMatchObject({body:brief,pageKind:'article',contentCompleteness:'PARTIAL'});
+ const teaser=extractPublicHtml(`<meta property="og:type" content="article"><meta name="description" content="${brief}"><h1>Election update</h1>`,url);
+ expect(teaser.body.length).toBeLessThan(80);expect(teaser.contentCompleteness).toBeUndefined();
+});
