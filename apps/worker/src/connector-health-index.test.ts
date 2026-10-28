@@ -1,0 +1,14 @@
+import {it,expect} from 'vitest';
+import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
+import {createIntakeDatabase} from './v1-intake/test-utils';
+import {applyTestMigration} from './test-migrations';
+it('health indexes preserve latest-result ordering while bounding historical reads',async()=>{const ctx=await createIntakeDatabase();try{
+ for(const table of ['connector_rss_poll_jobs','connector_provider_poll_jobs'])await ctx.db.prepare(`CREATE TABLE ${table}(job_id TEXT PRIMARY KEY,request TEXT,state TEXT,last_error TEXT,result TEXT,scheduled_at TEXT,dispatch_token TEXT)`).run();
+ for(let start=0;start<500;start+=25){const statements=[];for(let i=start;i<start+25;i++)for(const table of ['connector_rss_poll_jobs','connector_provider_poll_jobs'])statements.push(ctx.db.prepare(`INSERT INTO ${table} VALUES(?,?,?,?,?,?,?)`).bind(String(i).padStart(4,'0'),JSON.stringify({scope:{feedSourceId:'source-'+i%10}}),i%3?'DONE':'PENDING',i%3?null:'BACKPRESSURE','x'.repeat(4096),String(i).padStart(4,'0'),'token-'+i));await ctx.db.batch(statements)}
+ const sql=(table:string)=>`SELECT state,last_error,result FROM ${table} WHERE json_extract(request,'$.scope.feedSourceId')=? AND (state IN ('DONE','BLOCKED') OR last_error IS NOT NULL) ORDER BY CASE WHEN state IN ('DONE','BLOCKED') OR last_error NOT IN ('INTAKE_BUSY','BACKPRESSURE') THEN 0 ELSE 1 END,scheduled_at DESC,job_id DESC LIMIT 1`;
+ const tables=['connector_rss_poll_jobs','connector_provider_poll_jobs'];const baseline=await Promise.all(tables.map(table=>ctx.db.prepare(sql(table)).bind('source-0').all()));
+ await applyTestMigration(ctx.db,readFileSync(new URL('../migrations/0076_connector_health_lookup_indexes.sql',import.meta.url),'utf8'));
+ const measurements=[];for(const [i,table] of tables.entries()){const revised=await ctx.db.prepare(sql(table)).bind('source-0').all();expect(revised.results).toEqual(baseline[i].results);expect(revised.meta.rows_read).toBeLessThan(baseline[i].meta.rows_read/10);const plan=await ctx.db.prepare('EXPLAIN QUERY PLAN '+sql(table)).bind('source-0').all<{detail:string}>();expect(plan.results.map(r=>r.detail).join(' ')).not.toContain('TEMP B-TREE');measurements.push({table,oldRowsRead:baseline[i].meta.rows_read,newRowsRead:revised.meta.rows_read})}
+ const dispatch=await ctx.db.prepare('EXPLAIN QUERY PLAN SELECT request FROM connector_provider_poll_jobs WHERE dispatch_token=? LIMIT 1').bind('token-1').all<{detail:string}>();expect(dispatch.results.map(r=>r.detail).join(' ')).toContain('connector_provider_dispatch_token_lookup');
+ const dir=new URL('../../../.local-reports/staging-selective-reads/',import.meta.url);mkdirSync(dir,{recursive:true});writeFileSync(new URL('connector-health-benchmark.json',dir),JSON.stringify({kind:'synthetic SQLite schema/query equivalence; 500 historical results per table',measurements},null,2));
+ }finally{await ctx.dispose()}},30000);

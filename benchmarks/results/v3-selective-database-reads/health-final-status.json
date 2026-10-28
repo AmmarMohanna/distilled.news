@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-28T09:19:27.823Z",
+  "requests": 100,
+  "failures": 0,
+  "databaseErrorsObserved": 0,
+  "workerVersion": "82c9bdd0-ba03-434e-9505-86b2c3ac4892",
+  "normalQueuesAndCronRestored": true,
+  "temporaryDiagnosticCodeRemoved": true,
+  "sourceHealthIndexesConfirmed": true,
+  "manualPaidCalls": 0,
+  "uncertainOperationsWithoutHandles": 6,
+  "productionReady": false,
+  "limitation": "Bounded 100-request observation; pending provider outcomes still block automated publication."
+}
