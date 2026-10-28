@@ -19,3 +19,7 @@ Initial local budget-database initialization failed before admission; read-only 
 ## Validation
 
 All 50 tests passed across intake.test.ts, evidence.test.ts and conflicts.test.ts. Worker TypeScript checking passed. The initial positive duplicate regression failed before the implementation change; changed, unverified and downgraded controls passed after correction. The first downgraded fixture also required matching proposal completeness to make its handoff structurally valid; this test-data correction did not change product validation.
+
+## Final audit marker
+
+The exception now adds optional replayDiagnostic: VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED to its durable intake receipt. Ordinary replay retains its existing receipt shape; old receipts remain valid. Contract validation permits this literal marker only on REPLAY decisions. The stored receipt and repeated-delivery identity are tested. No ordering pointer or downstream job is added by this diagnostic. Final verification: 50 Worker intake/evidence/conflict tests and 45 contract tests passed; Worker and contracts TypeScript checks passed. This follow-up remains local, unpushed and undeployed.

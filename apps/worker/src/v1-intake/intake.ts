@@ -35,6 +35,7 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
       // canonical ordering or reinterpret the original evidence/provenance.
       receipt.candidateItemId=id;
       set('REPLAY','REPLAY_IDENTICAL');
+      receipt.replayDiagnostic='VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED';
     }
     else if(order==='CONFLICT') set('QUARANTINED','QUARANTINE_REVISION_CONFLICT');
     else if(o.operation==='DELETE') {

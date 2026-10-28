@@ -12,6 +12,8 @@ it('acknowledges verified identical bytes with newly supplied revision metadata 
  const policy={...testPolicy,verifySuppliedContent:async()=>({representation:request.observations[0].representation,contentCompleteness:request.observations[0].contentCompleteness,contentHash:current.hash})};
  const result=await createCandidateIntakePort(store,policy).acceptBatch(request);
  expect(result.receipts[0]).toMatchObject({decision:'REPLAY',reasonCode:'REPLAY_IDENTICAL',checkpointResolution:'RESOLVED'});
+ expect(result.receipts[0]).toHaveProperty('replayDiagnostic','VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED');
+ expect((await store.read<IntakeReceipt>('intake_receipts','observation-12'))?.value).toEqual(result.receipts[0]);
  expect(await store.read('evidence',current.evidence.id)).toEqual(before);
  expect(await store.list('revisions','feed-source-1')).toHaveLength(1);
  expect(await store.listPendingJobs('feed-source-1')).toEqual([]);
