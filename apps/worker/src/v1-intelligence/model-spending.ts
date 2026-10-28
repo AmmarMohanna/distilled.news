@@ -43,7 +43,9 @@ export async function spendingExposure(db:D1Database,accountId:string,at:string)
 export async function modelSpendingStatements(db:D1Database,r:ModelSpendingReservation):Promise<D1PreparedStatement[]>{
  if(!r.id||!r.accountId||!r.token||!r.model||!r.feedId||!Number.isFinite(r.reservedCostUsd)||r.reservedCostUsd<0||!Number.isFinite(r.leaseUntil)||!Number.isFinite(Date.parse(r.createdAt)))throw Error('INVALID_MODEL_RESERVATION');
  if(await db.prepare("SELECT id FROM v1_feed_documents WHERE kind='model_execution_retirements' AND id=? AND feed_id=?").bind(r.feedId,r.feedId).first())throw new ModelSpendingWait('FEED_EXECUTION_RETIRED');
- const existing=await db.prepare('SELECT json FROM v1_model_spending_reservations WHERE id=?').bind(r.id).first<{json:string}>();if(existing){if(canonicalJson(JSON.parse(existing.json))!==canonicalJson(r))throw new ModelSpendingWait('RESERVATION_IDENTITY_CONFLICT');return []}
+ const quarantined=await db.prepare("SELECT id FROM v1_feed_documents WHERE kind='model_execution_quarantines' AND id=? AND feed_id=?").bind(r.id,r.feedId).first();
+ const existing=await db.prepare('SELECT json FROM v1_model_spending_reservations WHERE id=?').bind(r.id).first<{json:string}>();if(existing){if(canonicalJson(JSON.parse(existing.json))!==canonicalJson(r))throw new ModelSpendingWait('RESERVATION_IDENTITY_CONFLICT');if(quarantined)throw new ModelSpendingWait('OPERATION_EXECUTION_QUARANTINED');return []}
+ if(quarantined)throw new ModelSpendingWait('OPERATION_EXECUTION_QUARANTINED');
  const tracking=await trackingAccounts(db,r.model,r.accountId);
  if(tracking.length>1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');
  if(tracking.length===1){

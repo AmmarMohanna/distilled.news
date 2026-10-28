@@ -1,3 +1,5 @@
+import { startFrontendUpdates } from './frontend-updates';
+
 type InstallEvent = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> };
 const installedKey = "dn_pwa_installed_on_device";
 let installPrompt: InstallEvent | undefined;
@@ -5,13 +7,14 @@ let installed = matchMedia("(display-mode: standalone)").matches;
 window.addEventListener("beforeinstallprompt", event => { event.preventDefault(); installPrompt = event as InstallEvent; installed = false; localStorage.removeItem(installedKey); });
 window.addEventListener("appinstalled", () => { installPrompt = undefined; installed = true; localStorage.setItem(installedKey, "1"); });
 const registration = "serviceWorker" in navigator
-  ? navigator.serviceWorker.register("/sw.js").catch(() => null) : Promise.resolve(null);
+  ? navigator.serviceWorker.register("/sw.js", {updateViaCache:'none'}).catch(() => null) : Promise.resolve(null);
+startFrontendUpdates();
 
 export async function installApp() {
   const browser = navigator as Navigator & { standalone?: boolean; getInstalledRelatedApps?: () => Promise<Array<{ platform: string; url?: string; id?: string }>> };
   if (browser.standalone || matchMedia("(display-mode: standalone)").matches) return "already-installed" as const;
   if (!installPrompt) {
-    if (installed || localStorage.getItem(installedKey) === "1") return "already-installed" as const;
+    if (installed) return "already-installed" as const;
     try {
       const related = await browser.getInstalledRelatedApps?.();
       const manifest = new URL("/manifest.webmanifest", location.origin).href;
@@ -41,7 +44,11 @@ export function confirmInstalledApp(): void {
 export async function notificationsEnabled(): Promise<boolean> {
   if (!("Notification" in window) || Notification.permission !== "granted" || !("PushManager" in window)) return false;
   const worker = await registration;
-  return worker ? Boolean(await worker.pushManager.getSubscription()) : false;
+  const subscription = worker ? await worker.pushManager.getSubscription() : null;
+  if (!subscription) return false;
+  const response = await fetch('/api/me/push/status', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:subscription.endpoint})});
+  if (!response.ok) throw new Error('Could not check notification status');
+  return (await response.json()).subscribed === true;
 }
 
 export async function setNotificationsEnabled(enabled: boolean): Promise<void> {
@@ -66,4 +73,11 @@ export async function setNotificationsEnabled(enabled: boolean): Promise<void> {
   const subscription = existing ?? await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
   const response = await fetch("/api/me/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: subscription.toJSON(), language: localStorage.getItem("dn_language") || "en" }) });
   if (!response.ok) { if (!existing) await subscription.unsubscribe(); throw new Error("Could not save subscription"); }
+}
+
+/** Revoke this device before ending the authenticated session. */
+export async function stopNotificationsOnLogout(): Promise<void> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  const worker=await registration;
+  if (worker && await worker.pushManager.getSubscription()) await setNotificationsEnabled(false);
 }

@@ -2,6 +2,8 @@ import {afterEach,beforeEach,expect,it} from 'vitest';
 import {createIntakeDatabase} from '../v1-intake/test-utils';
 import {V1FeedStore} from './store';
 import {feedFixture} from './test-utils';
+import {readFileSync} from 'node:fs';
+import {applyTestMigration} from '../test-migrations';
 import {pendingProviderGenerationCandidates} from './provider-recovery';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
@@ -47,4 +49,16 @@ it('keeps missing history eligible and missing handles ineligible without mutati
  expect(after.results).toEqual(before.results);
  expect(after.results).toEqual([{id:'reservation-11',feed_id:'feed-1',last_attempt:null}]);
  expect(after.meta.rows_written).toBe(0);
+});
+
+it('indexes recovery metadata and preserves exact candidates without loading unrelated retained documents',async()=>{
+ await seed(180);
+ const before=await pendingProviderGenerationCandidates(ctx.db,now);
+ await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0071_provider_recovery_indexes.sql',import.meta.url),'utf8'));
+ const after=await pendingProviderGenerationCandidates(ctx.db,now);
+ expect(after.results).toEqual(before.results);
+ const plans=await ctx.db.prepare("EXPLAIN QUERY PLAN SELECT json_extract(json,'$.reservationId'),MAX(json_extract(json,'$.createdAt')) FROM v1_feed_documents WHERE kind='model_provider_recovery_attempts' GROUP BY json_extract(json,'$.reservationId')").all<{detail:string}>();
+ expect(plans.results.map(r=>r.detail).join(' ')).toContain('v1_provider_recovery_history');
+ expect(after.meta.rows_read).toBeLessThan(before.meta.rows_read);
+ console.info(JSON.stringify({type:'INDEXED_RECOVERY_BENCHMARK',beforeRows:before.meta.rows_read,afterRows:after.meta.rows_read,beforeMs:before.meta.duration,afterMs:after.meta.duration}));
 });

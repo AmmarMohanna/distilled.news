@@ -29,3 +29,16 @@ it('operator quarantine releases capacity but preserves accounting and retry fen
  await expect(reserveModelSpending(ctx.db,r('extra'))).rejects.toThrow('PROVIDER_RESOURCE_WAIT');
  }finally{await ctx.dispose()}
 },30000);
+
+it('admits six reservations atomically and blocks the seventh until confirmed settlement',async()=>{
+ const ctx=await createIntakeDatabase();try{
+ const now=new Date().toISOString(),r=(id:string)=>({id,accountId:'test-only-account',model:'openai/gpt-4.1',feedId:'f',token:id,reservedCostUsd:.01,leaseUntil:0,createdAt:now,providerLimits:{provider:'openrouter' as const,maxConcurrent:6,requestsPerMinute:20}});
+ const outcomes=await Promise.allSettled(Array.from({length:7},(_,i)=>reserveModelSpending(ctx.db,r('six-'+i))));
+ expect(outcomes.filter(o=>o.status==='fulfilled')).toHaveLength(6);
+ const rejected=outcomes.find(o=>o.status==='rejected') as PromiseRejectedResult;expect(String(rejected.reason)).toContain('PROVIDER_RESOURCE_WAIT');
+ const rows=await ctx.db.prepare('SELECT id FROM v1_model_spending_reservations').all<{id:string}>();expect(rows.results).toHaveLength(6);
+ await settleModelSpending(ctx.db,rows.results[0].id,rows.results[0].id,{costUsd:.001,reported:true});
+ await reserveModelSpending(ctx.db,r('after-settlement'));
+ await expect(reserveModelSpending(ctx.db,{...r('invalid-capacity'),providerLimits:{provider:'openrouter',maxConcurrent:7,requestsPerMinute:20}})).rejects.toThrow('INVALID_PROVIDER_LIMITS');
+ }finally{await ctx.dispose()}
+},30000);

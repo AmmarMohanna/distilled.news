@@ -175,6 +175,7 @@ export interface Env extends Cloudflare.Env {
   OPENROUTER_API_KEY?: string;
   /** "v3" switches scheduled editions to the V3 briefing engine; anything else keeps the legacy path. */
   BRIEFING_ENGINE?: string;
+  UNREAD_SUMMARY_ENABLED?: string;
   BRIEFING_EDITOR_MODEL?: string;
   BRIEFING_VERIFIER_MODEL?: string;
   /** Required for V3: rolling 24h dollar ceiling across all feeds. V3 does not run without it. */

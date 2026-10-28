@@ -55,3 +55,16 @@ it('operator pause and quarantine commit together, leaving unrelated feeds uncha
  expect((await ctx.db.prepare("SELECT paused FROM briefings WHERE id='old'").first<{paused:number}>())!.paused).toBe(1);
  expect((await ctx.db.prepare("SELECT paused FROM briefings WHERE id='unrelated'").first<{paused:number}>())!.paused).toBe(0);
 });
+
+it('explicit operation-only approval preserves active feeds and financial holds while fencing old operation IDs',async()=>{
+ await authorizeModelSpending(ctx.db,g);await ctx.db.prepare("UPDATE v1_feeds SET json=? WHERE id='old'").bind(JSON.stringify({revision:2,paused:false})).run();
+ await reserveModelSpending(ctx.db,r('held'));const before=await ctx.db.prepare("SELECT json FROM v1_model_spending_reservations WHERE id='held'").first();
+ await quarantineModelExecutions(ctx.db,{...a(['held']),keepFeedsActive:true});
+ expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feeds WHERE id='old'").first<{json:string}>())!.json)).toEqual({revision:2,paused:false});
+ expect(await ctx.db.prepare("SELECT id FROM v1_feed_documents WHERE kind='model_execution_retirements'").first()).toBeNull();
+ expect(await ctx.db.prepare("SELECT json FROM v1_model_spending_reservations WHERE id='held'").first()).toEqual(before);
+ expect(await spendingExposure(ctx.db,g.accountId,at)).toMatchObject({heldCostUsd:.02,quarantinedConcurrencySlots:1,activeConcurrencySlots:0});
+ await expect(reserveModelSpending(ctx.db,r('held'))).rejects.toMatchObject({reason:'OPERATION_EXECUTION_QUARANTINED'});
+ await reserveModelSpending(ctx.db,r('unrelated-new','old'));
+ expect(await spendingExposure(ctx.db,g.accountId,at)).toMatchObject({heldCostUsd:.04,activeConcurrencySlots:1});
+});

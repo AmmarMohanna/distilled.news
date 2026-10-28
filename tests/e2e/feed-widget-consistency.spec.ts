@@ -6,10 +6,10 @@ for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/sketch')) return route.fulfill({ status: 404 });
-    if (path === '/api/feed/owner/science') return route.fulfill({ json: { briefing: feed, editions: [{ updatedAt: feed.latestUpdatedAt }], viewerHasStarred: false } });
+    if (path.startsWith('/api/feed/')) return route.fulfill({ json: { briefing: feed, editions: [{ updatedAt: feed.latestUpdatedAt }], viewerHasStarred: false } });
     return route.fulfill({ json: path === '/api/auth/session' ? { authenticated: true, account: { id: 'owner', username: 'owner', role: 'user' } }
       : path === '/api/me/briefings' ? { briefings: [feed] }
-      : path === '/api/explore/feeds' ? { feeds: [feed] } : { sources: [] } });
+      : path === '/api/explore/feeds' ? { feeds: [{...feed,id:'community-science',ownerAccountId:'community',ownerUsername:'community'}] } : { sources: [] } });
   });
   await page.goto('/');
   const home = page.locator('.home-view .topic-card');

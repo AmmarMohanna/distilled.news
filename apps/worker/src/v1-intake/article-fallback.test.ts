@@ -63,6 +63,20 @@ it('never promotes a Zyte response for another URL',async()=>{
  const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url:url+'/other',httpResponseBody:btoa(html)}});
  await expect(f.fallback(claim)).rejects.toMatchObject({code:'INVALID_RESULT'});
 });
+
+it('accepts tracking-only canonical differences while preserving the admitted candidate identity',async()=>{
+ const tracked=url+'?traffic_source=rss';
+ const f=fixture({status:200,url:tracked,html:`<link rel="canonical" href="${url}">${html}`});
+ const result=await f.fallback({...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:tracked}}});
+ expect(result).toMatchObject({url:tracked,canonicalUrl:tracked,pageKind:'article'});
+ expect(f.request).not.toHaveBeenCalled();
+});
+
+it('still rejects a publisher canonical that changes content-bearing query parameters',async()=>{
+ const f=fixture({status:200,url,html:`<link rel="canonical" href="${url}?edition=other">${html}`});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'INVALID_RESULT',diagnostic:{detail:'FALLBACK_CANONICAL_MISMATCH'}});
+ expect(f.request).not.toHaveBeenCalled();
+});
 it('stops before paid dispatch on approval revocation',async()=>{
  const f=fixture({error:'UNAVAILABLE'});f.authorize.mockRejectedValue(new Error('revoked'));
  await expect(f.fallback(claim)).rejects.toThrow('revoked');expect(f.execute).not.toHaveBeenCalled();expect(f.request).not.toHaveBeenCalled();

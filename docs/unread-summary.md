@@ -1,0 +1,81 @@
+# Unread catch-up summary
+
+## Interface
+
+The feed reader has a compact **Summarize unread** action beside search on desktop and below it on phones. A short paragraph opens inline above the briefing timeline. It supports the existing light/dark themes, Arabic RTL, enlarged text, reduced motion, keyboard focus and screen-reader status updates. It does not mark briefings read, publish editions or send notifications. There are no coverage dates or briefing-count labels.
+
+## Behavior
+
+- Signed-in, verified readers only; existing private-feed ownership checks apply.
+- Server-owned, published briefing text only. The client supplies read identifiers, never evidence or a reporting cutoff.
+- Maximum 24-hour lookback, newest complete briefings within 24,000 UTF-8 input bytes, supplied chronologically. Stop at the first capacity gap so an older account cannot bypass a newer correction. If the newest briefing alone is too large, return an explanation without inference.
+- GPT-4.1 mini candidate, one call, 512 output-token limit, requested 40�80 words (shorter for quiet periods). No automatic model retries or repair calls.
+- Cache identity includes reader, feed, exact unread evidence, language, model and prompt. Concurrent clicks share one durable claim. Reopening the same result does not invoke inference again.
+- Production uses the existing account-spending reservations, provider admission, actual-cost settlement and immutable provider receipts. An uncertain operation is not resent. Historical financial records and holds are untouched.
+- The cache is separate from immutable publication evidence; migration `0070_unread_summary_cache.sql` is required.
+
+## Qualification and activation
+
+**Enabled on the user's staging environment by explicit request after the evaluation (see deployment record below).** Activation requires migration 0070, `BRIEFING_ENGINE=v3`, an OpenRouter key, and explicitly setting `UNREAD_SUMMARY_ENABLED=true`. Other deployments remain opt-in. The user accepted staging activation with the recorded model limitations; this is not a claim that the candidate passed factual qualification. Existing V3 editor/verifier prompts, scheduled publication, source collection and notifications are unchanged.
+
+## Evaluation, October 26, 2026
+
+Eight frozen cases were prepared under the user's explicit eight-call/$0.10 authorization: six saved published-news replays and two labelled correction/uncertainty controls, with development and held-out editions separated. The conservative combined maximum reservation was $0.0151288. These are summary-of-briefing tests, not original-article factual audits.
+
+The run stopped before any provider request. First, an attempted cache insert hit the existing feed foreign key; inspecting the real schema also showed publication-document immutability, so catch-up cache state was moved into its own small table. Subsequent checks of the existing evaluation ledger returned D1 CPU-limit/reset and internal errors, including reference `e_PVSMDp_b484321916694b4caba70d4a804f2d03`. No inference retries were made. The original attempt and error evidence are retained.
+
+**Initial remote-ledger attempt: 0 model calls, $0 inference cost; model quality and latency were unmeasured at that point.** See the completed model-only follow-up below for subsequent paid results. Mocked responses establish integration behavior, not model quality. Do not enable the feature based only on these tests. No old grants, reservations, settlements or holds were reset.
+
+Local evidence: `.local-reports/unread-summary/` contains the frozen plan/authorization, exact inputs, preserved attempt/errors, test logs and desktop/mobile screenshots. Nothing sensitive or large from that directory is committed.
+
+## Verification
+
+- Full frontend unit suite: 73 passed.
+- Full browser suite: 479 passed, one existing skip (before the final added Arabic accessibility cases).
+- Focused browser coverage: 14 passed, including 320px Arabic with enlarged text.
+- Focused worker tests: 30 passed across core summary preparation/cache (9), API access and evidence selection (7), real-schema provider accounting (3), and existing V3 spend regressions (11).
+- Worker/web/E2E TypeScript checks and the application build (Worker dry run) passed.
+
+Next: restore the evaluation ledger's availability, then run the already-frozen model qualification under a valid authorization. Independently assess important-news retention, faithful corrections/uncertainty, brevity and actual model time/cost before activation. No further prompt search is proposed.
+
+## Completed bounded model-only follow-up
+
+After the remote evaluation database failed even `SELECT 1`, the frozen cases were run using the existing durable local `V3SpendGuard`, under the same eight-call/$0.10 authorization and original expiry. No account guard was removed or historical remote record changed. The Windows persistence path was shortened after SQLite could not open the initial deeply nested path; this happened before inference. No model retries or prompt changes were made.
+
+All eight calls settled: **$0.0031724**, 4,767 input tokens and 791 output tokens. Seven summaries were persisted and read back from the local cache; one was rejected for length. Output word counts were **106, 55, 65, 23, 79, 84, 60, 41**. Six met the requested maximum of 80 words; seven met the application ceiling of 100. For seven retained timings, model latency ranged from **1.089 to 1.731 seconds**, median **1.589 seconds**. The first rejected call's exact latency was not retained. These are saved-briefing replay timings, not live delivery measurements.
+
+**Decision: keep disabled.** Independent AI-assisted input/output review found unsupported distinct-drone identity in Arabic; definite Starshield restoration where evidence only said it appeared normal and testing continued; and loss of preliminary/report attribution in another Arabic case. The political-bias summary omitted important forced-choice/API-only limits. The correction control correctly retained the corrected proposed 10% increase and pending approval in 23 words. The other control retained developing robots and attributed allegations, but its amid wording risks an unsupported connection. Cheap, fast JSON and successful cache persistence do not establish factual reliability.
+
+Exact inputs, outputs, provider usage and item-by-item findings are in `.local-reports/unread-summary/model-results.json`, `model-review.json` and the corresponding provider/input artifacts. Local financial history persists at the repository root in `.local-reports/unread-eval-20261026`. No further paid experiments are authorized by this exhausted eight-call scope. A small, separately authorized instruction comparison could test selective compression and preservation of epistemic qualifiers; do not broaden prompts or enable this candidate based on these results. Live Cloudflare integration remains blocked separately.
+
+A separate process reopened the persisted local database after the run and confirmed **8 settled operations totaling $0.0031724**, **7 ready summaries** and **1 failed summary**, with no outstanding hold in this new evaluation ledger (`independent-readback.json`).
+
+## Length tolerance adjustment
+
+At the user's request, the application now accepts summaries of up to **120 words** while retaining **40?80 words** as the writing target. The recorded 106-word output therefore passes the current length check. Historical evaluation records above retain the original 100-word policy and its actual rejection; no paid operation is retried or retrospectively rewritten. This change does not resolve the independently identified factual failures or enable deployment. Boundary regressions cover 106, 120 and 121 words. No further inference was needed.
+
+## Staging activation, October 26, 2026
+
+Explicitly authorized by the user. Deployed application revision `eb0ef91` to `https://distilled-news-staging.distillednews-platform.workers.dev/`, version `82020822-099f-46a3-9fa9-4b9c901b1d41`, 100% staging traffic. `UNREAD_SUMMARY_ENABLED=true`; the acceptance ceiling is 120 words. Production was not changed.
+
+The direct D1 query path and migration-list checks continued reporting CPU-limit/reset errors even for small reads. Wrangler's remote file-import path successfully applied **only** the idempotent cache table/index and migration marker (7 rows written; no news or financial records altered). No broad pending-migration batch, database reset or financial amendment was performed. This is a deployment-path workaround, not proof that the failing administrative query path has been repaired.
+
+Post-deployment checks confirmed exact HTML, JavaScript, CSS and service-worker build hashes; the new flag; preservation of all other live bindings, secrets, compatibility and queue consumers; and 401 rejection of signed-out summary requests. Lebanon news2 returned 200 with 36 editions and `unreadSummaryAvailable=true`. The English `lebanon-news` read endpoint still returned 500, consistent with its pre-feature failure; that feed-read issue remains unresolved. The summary feature cannot help a feed whose ordinary read fails.
+
+No extra paid model test, notification or publication was triggered during deployment. A signed-in live summary generation was not tested after the paid test scope expired. Earlier local paid quality findings remain applicable and unresolved. Deployment evidence is in `.local-reports/staging-unread-summary/`.
+
+## First live-request capacity failure and approved recovery
+
+The user received the generic summary error. Live read-back found no summary cache or summary reservation, and exactly three historical, unsettled OpenRouter calls occupied the configured three provider slots. They were the October 24 GLM comparison and two October 26 GPT-4.1 semantic operations. The account remained in its existing all-model TRACK_ONLY mode; no new money authorization was required. Exact result records were DEFERRED with unreported usage, and no generation receipts were retained. Their completion could not be inferred from age or lease expiry.
+
+The user explicitly authorized operation-only quarantine of those exact three calls, accepting unproven remote overlap. Runtime revision `5ab837d`, staging version `391d1dcc-0a61-4f7a-9db0-20b08b68b5f7`, now permanently fences quarantined operation IDs and converts pre-inference provider-capacity rejection to HTTP 202/pending. The client's existing bounded polling can wait for admission rather than immediately displaying a model-failure message. Other admission failures remain failures; uncertain paid operations are not retried.
+
+After deployment, a guarded D1 import appended the exact approval and quarantine records using the existing audit/guard primitives. D1 full-record exports continued to fail intermittently, so the batch validated exact identities and ownership server-side. The old standalone evaluation had no v1 feed parent; a paused, non-product accounting anchor was created solely for its quarantine audit. No public/product feed was created. Existing active feeds, reservations, settlements, grants, ceilings and old financial JSON were not updated. Read-back confirmed all three original calls remain financially unreported with their original **$0.162228** in holds, both affected live feeds remain unpaused, and **zero of those three calls still count against provider capacity**. This is explicit resource-risk quarantine, not a claim of termination or settlement. No automatic future quarantine was added.
+
+Focused regressions: **43 passed**, covering summary pending/cache retry, account/provider admission, quarantine defaults, operation-only approval, unchanged financial holds, active feeds and exact old-ID retry fencing. Worker TypeScript and deployment dry run passed. All other staging bindings and queue settings were preserved. No manual paid inference or notification was triggered while diagnosing or fixing this request. A fresh authenticated summary generation still needs to be observed; clearing the confirmed capacity blocker is not itself proof of a generated summary. Local evidence: `.local-reports/unread-summary-live-fix/`.
+
+### Final live verification and static-asset fix
+
+A live GET trace exposed a second issue: the username-alias redirect helper treated `/assets/index-*.js` as a username/feed route and queried D1 before serving it. An intermittent D1 reset therefore returned HTTP 500 for JavaScript despite correct uploaded assets. The helper now bypasses alias lookup only for bundled JS/CSS/source-map file paths. Four regressions verify delivery during a simulated D1 outage and preserve ordinary username-alias redirects; the eight summary API tests also passed. Worker TypeScript passed. No UI, model prompt, feed schedule or source behavior changed.
+
+Final application revision `75fa639`, staging version `d1db962d-8cda-4bcb-9813-b99b650ad182`, was verified at 21:40:47 UTC: HTML, JS, CSS and service-worker bytes match the build (all HTTP 200), both Lebanon feed APIs return 200 with `unreadSummaryAvailable=true` (37 English/36 Arabic editions), and signed-out summary requests return 401. All other bindings, secrets and queue settings match their pre-deployment state. The earlier English feed-read error did not recur in this final check; no claim is made that every intermittent D1 issue has been eliminated. Exact quarantine checks still show the three monetary holds retained and excluded only from active resource occupancy. No new paid model test was initiated. The user can now retry the previously blocked action; successful authenticated generation has not yet been observed by this run.

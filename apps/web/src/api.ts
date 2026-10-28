@@ -29,6 +29,10 @@ export interface FeedStarResult {
   viewerHasStarred: boolean;
 }
 
+export async function summarizeUnread(username:string,slug:string,readIds:string[]):Promise<{status:'ready';summary:string}|{status:'pending'|'empty'}>{
+  return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/unread-summary`,{method:'POST',body:JSON.stringify({readIds})});
+}
+
 
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -97,6 +101,8 @@ export async function login(email: string, password: string, turnstileToken?: st
 }
 
 export async function logout(): Promise<void> {
+  const {stopNotificationsOnLogout}=await import("./pwa");
+  await stopNotificationsOnLogout();
   await requestJson("/api/auth/logout", {
     method: "POST"
   });

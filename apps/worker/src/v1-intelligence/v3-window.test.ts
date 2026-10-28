@@ -206,9 +206,9 @@ it('large V3 batches serialize feed commits and can replay paid chunks without l
  expect(edition?.engine).toBe('v3');expect(seen.length).toBeGreaterThan(2);expect(maxActive).toBe(1);
 },60000);
 
-for (const promptVersion of [undefined,2,3] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
+for (const promptVersion of [undefined,2,3,4] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
  await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end);
- expect(prepared.promptVersion).toBe(3);
+ expect(prepared.promptVersion).toBe(4);
  const id=await windowIdentity('feed-1',window),full='Earlier notice\nOfficials say approval is still required.';
  const frozen={...prepared,id,input:{...prepared.input,prior:[{id:'previous-reader-item',at:'2026-10-03T11:30:00Z',headline:full,body:full}]}};
  if(promptVersion===undefined)delete frozen.promptVersion;
@@ -232,4 +232,11 @@ it('publishes verified available evidence while retaining a recoverable foreign-
  expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);
  const request=await store.read<any>('feed-1','briefing_requests',await windowIdentity('feed-1',window));expect(request.coverage).toMatchObject({state:'INCOMPLETE',pendingJobs:0,blockedJobs:1});
  const retained=await new V1IntakeStore(ctx.db).read<any>('jobs',id);expect(retained?.value.state).toBe('PENDING');
+},30000);
+
+it('persists a verified complete headline without padding its body',async()=>{
+ await article();const seen:string[]=[];
+ const provider=async(_url:unknown,init?:RequestInit)=>{const request=JSON.parse(String(init?.body));seen.push(request.messages[0].content);const verify=request.messages[0].content.includes('meticulous fact-checker');return Response.json({id:'gen-headline-'+seen.length,choices:[{message:{content:JSON.stringify(verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Parliament approves banking reform; presidential approval still required',body:'',sources:['S1'],relation:'new',importance:1}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});};
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,provider as typeof fetch);
+ expect(edition?.stories).toHaveLength(1);expect(seen).toHaveLength(2);const published=await publicV1Edition(ctx.db,edition!.id);expect(published?.stories[0].claims[0].text.trim()).toBe('Parliament approves banking reform; presidential approval still required');
 },30000);

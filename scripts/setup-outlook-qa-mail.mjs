@@ -10,7 +10,8 @@ import { requestMicrosoft } from './outlook-qa-request.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workerDir = resolve(root, 'apps/worker');
-const {values}=parseArgs({options:{config:{type:'string'},env:{type:'string'},account:{type:'string'},worker:{type:'string'},database:{type:'string'},origin:{type:'string'},'client-id':{type:'string'},authorize:{type:'boolean',default:false}},allowPositionals:false});
+const {values}=parseArgs({options:{config:{type:'string'},env:{type:'string'},account:{type:'string'},worker:{type:'string'},database:{type:'string'},origin:{type:'string'},'client-id':{type:'string'},authorize:{type:'boolean',default:false},'activate-secrets':{type:'boolean',default:false}},allowPositionals:false});
+if(values['activate-secrets']&&!values.authorize)throw new Error('ACTIVATION_REQUIRES_AUTHORIZATION');
 if(!values.config)throw new Error('EXPLICIT_CONFIG_REQUIRED');
 const config=resolve(root,values.config),wrangler=resolve(workerDir,'node_modules/wrangler/bin/wrangler.js');
 const require=createRequire(import.meta.url),{unstable_readConfig,experimental_readRawConfig}=require(resolve(workerDir,'node_modules/wrangler'));
@@ -94,7 +95,14 @@ if (![profile.mail, profile.userPrincipalName].some(value => value?.toLowerCase(
 
 // Recheck immediately before writes: another setup must not have installed a key or token.
 if(JSON.stringify(inspectTarget())!==JSON.stringify(beforeVersion))throw new Error('DEPLOYMENT_CHANGED: stop without installing credentials');
-const secretVersion=installMailSecrets({run,config,env:values.env,clientId,refreshToken:tokens.refresh_token,encryptionKey:randomBytes(48).toString('base64url')});
+const secretVersion=installMailSecrets({run,config,env:values.env,clientId,refreshToken:tokens.refresh_token,encryptionKey:randomBytes(48).toString('base64url'),activate:values['activate-secrets']});
 tokens=undefined;
-console.log(JSON.stringify({outlookSecretVersion:secretVersion,target:target.worker,status:'UPLOADED_NOT_DEPLOYED'}));
-console.log('Secret bindings uploaded without deployment or token-row changes. Explicitly deploy this verified version before the merged Worker, then check actual inbox delivery.');
+if(values['activate-secrets']){
+ const names=new Set(jsonCommand(['secret','list']).map(s=>s.name));
+ if(!['OUTLOOK_CLIENT_ID','OUTLOOK_REFRESH_TOKEN','OUTLOOK_TOKEN_ENCRYPTION_KEY'].every(name=>names.has(name)))throw new Error('SECRET_ACTIVATION_UNCONFIRMED: inspect before any retry');
+ console.log(JSON.stringify({target:target.worker,status:'ACTIVATED',tokenRows:'not modified by setup'}));
+ console.log('Outlook secrets activated on the existing Worker. Actual inbox delivery still needs testing.');
+}else{
+ console.log(JSON.stringify({outlookSecretVersion:secretVersion,target:target.worker,status:'UPLOADED_NOT_DEPLOYED'}));
+ console.log('Secret bindings uploaded without deployment or token-row changes. Explicitly deploy this verified version before the merged Worker, then check actual inbox delivery.');
+}

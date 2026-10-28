@@ -67,11 +67,12 @@ export class V3SpendGuard {
   }
 }
 
-export function estimateCallUsd(request: ModelRequest, prices: PriceTable): number {
+export function estimateCallUsd(request: ModelRequest, prices: PriceTable, inputTokenUpperBound?: number): number {
   const price = prices[request.model];
   if (!price) throw new BriefingBudgetError(`no price configured for model ${request.model}; add it to BRIEFING_PRICES_JSON`);
   // Deliberately pessimistic: 3 characters per token in, the full output allowance out.
-  const inputTokens = (request.system.length + request.user.length) / 3;
+  const inputTokens = inputTokenUpperBound ?? (request.system.length + request.user.length) / 3;
+  if (!Number.isFinite(inputTokens) || inputTokens < 0) throw new BriefingBudgetError('invalid input token estimate');
   return (inputTokens * price.input + request.maxTokens * price.output) / 1_000_000;
 }
 
@@ -90,6 +91,7 @@ export function guardedModelPort(
     maxAttempts?: number;
     /** Hard cap on provider attempts for the run, independent of cost. */
     maxCalls?: number;
+    inputTokenUpperBound?: (request: ModelRequest) => number;
     sleep?: (ms: number) => Promise<void>;
   }
 ): ModelPort {
@@ -99,7 +101,7 @@ export function guardedModelPort(
   let attempts = 0;
   return {
     async complete(request): Promise<ModelResponse> {
-      const estimate = estimateCallUsd(request, options.prices);
+      const estimate = estimateCallUsd(request, options.prices, options.inputTokenUpperBound?.(request));
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         if (attempts >= maxCalls) throw new BriefingBudgetError(`call limit of ${maxCalls} reached for this run`);
         const hold = await options.guard.reserve({ runId: options.runId, feedId: options.feedId, model: request.model, estimateUsd: estimate });

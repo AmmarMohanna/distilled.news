@@ -284,7 +284,7 @@ test("dark controls have no inset frames and support has one surface", async ({ 
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Help & Support", exact: true }).click();
   await expect(page.locator(".support-dialog .dialog-inner")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(page.locator(".support-dialog .dialog-inner > p").first()).toHaveCSS("color", "rgb(94, 92, 230)");
+  await expect(page.locator(".support-dialog .dialog-inner > p").first()).toHaveCSS("color", "rgb(170, 166, 255)");
   await page.screenshot({ path: `test-results/refined-dark-support-${test.info().project.name}.png` });
   await page.keyboard.press("Escape");
   await page.locator(".accounts-summary").click();

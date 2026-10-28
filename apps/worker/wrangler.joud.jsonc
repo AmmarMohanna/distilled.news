@@ -3,7 +3,7 @@
   "name": "distilled-news-joud",
   "account_id": "e32b564514d4f9b9e383b7dd30dbb026",
   "main": "src/index.ts",
-  "compatibility_date": "2026-06-16",
+  "compatibility_date": "2026-10-05",
   "compatibility_flags": [
     "nodejs_compat",
     "global_fetch_strictly_public"
@@ -18,6 +18,8 @@
   },
   "vars": {
     "BRIEFING_ENGINE": "v3",
+    "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
+    "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
     "BRIEFING_EDITOR_MODEL": "openai/gpt-4.1",
     "BRIEFING_VERIFIER_MODEL": "openai/gpt-4.1-mini",
     "BRIEFING_V3_DAILY_BUDGET_USD": "1",
@@ -57,8 +59,8 @@
     "V1_BROWSER_ACQUISITION_ENABLED": "false",
     "DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE": "false",
     "DISTILLED_NEWS_PIPELINE_EVALUATION": "false",
-    "SOURCE_OPERATION_CEILINGS_JSON": "{\"twitterApiIo\":0.01,\"apify\":0.05,\"zyte\":0}",
-    "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":15,\"x_apify\":0,\"google_apify\":10,\"linkedin_apify\":20,\"zyte\":0}",
+    "SOURCE_OPERATION_CEILINGS_JSON": "{\"twitterApiIo\":0.01,\"apify\":0.25,\"zyte\":0.05}",
+    "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":15,\"x_apify\":15,\"google_apify\":0,\"linkedin_apify\":15,\"zyte\":15}",
     "SOURCE_FULL_ARTICLES_ENABLED": "true",
     "SOURCE_QUEUE_SCHEDULING_ENABLED": "true",
     "SOURCE_SHARED_PUBLIC_FETCH_ENABLED": "true",
@@ -66,7 +68,13 @@
     "SOURCE_POLL_MAX_JOBS_PER_TICK": "4",
     "SOURCE_POLL_TICK_BUDGET_MS": "90000",
     "V1_PUBLICATION_PREPARATION_ISOLATED": "true",
-    "V1_REVIEW_PREPARATION_ISOLATED": "true"
+    "V1_REVIEW_PREPARATION_ISOLATED": "true",
+    "SOURCE_COLLECTION_BUDGET_MODE": "unlimited",
+    "SOURCE_PER_PROVIDER_BUDGET_USD": "15",
+    "UNREAD_SUMMARY_ENABLED": "true",
+    "V1_PROVIDER_MAX_CONCURRENCY": "6",
+    "V1_PUBLICATION_VALIDATION_CONTRACT": "EVIDENCE_GROUNDED_V2",
+    "V1_SALIENCE_POLICY": "DETERMINISTIC"
   },
   "d1_databases": [
     {

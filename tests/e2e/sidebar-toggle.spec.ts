@@ -44,3 +44,21 @@ test("desktop sidebar collapses, expands, and remembers its state", async ({ pag
   await expect(sidebar.locator(".sidebar-top")).toBeHidden();
   await expect(sidebar.getByRole("button", { name: "Home", exact: true }).locator("span")).toBeVisible();
 });
+
+test('expanded sidebar scales with the screen and keeps content aligned', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('dn-sidebar-collapsed','false'));
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({json:path === '/api/auth/session' ? {authenticated:true,account:{id:'owner',username:'owner',role:'user'}} : path === '/api/me/briefings' ? {briefings:[]} : path === '/api/explore/feeds' ? {feeds:[]} : {}});
+  });
+  let previousWidth=0;
+  for(const width of [900,1440,1920,2560]) {
+    await page.setViewportSize({width,height:1000});await page.goto('/');
+    const nav=page.locator('.collapsible-navigation');await expect(nav).not.toHaveClass(/is-collapsed/);
+    const bounds=await nav.boundingBox();expect(bounds!.width).toBeGreaterThanOrEqual(240);expect(bounds!.width).toBeLessThanOrEqual(304);
+    expect(bounds!.width).toBeGreaterThanOrEqual(previousWidth);previousWidth=bounds!.width;
+    const content=await page.locator('.experience.product-refresh').boundingBox();expect(Math.abs(content!.x-bounds!.width)).toBeLessThan(2);
+    for(const element of [nav.locator('.sidebar-brand'), nav.getByRole('button',{name:'Home',exact:true})]) { const box=await element.boundingBox();expect(box!.x+box!.width).toBeLessThanOrEqual(bounds!.width+1); }
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  }
+});

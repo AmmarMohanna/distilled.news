@@ -3,9 +3,10 @@ import { SourceLogo } from "./SourceLogo";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
 import React, { useEffect, useId, useRef, useState } from "react";
-import { FeedNotice, FeedPublicationNotice, FeedProcessingProgress } from "./FeedNotice";
+import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { FeedArt } from "./FeedArt";
+import { UnreadSummary } from './UnreadSummary';
 import { createRoot } from "react-dom/client";
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import {
@@ -169,6 +170,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const [creationOpen, setCreationOpen] = useState(false);
   const [createAfterLogin, setCreateAfterLogin] = useState(false);
   const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
+  const [briefingsState, setBriefingsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceRecord[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -219,7 +221,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
       .then(async (nextSession) => {
         setSession(nextSession);
         if (nextSession.authenticated) {
-          await loadBriefings();
+          try { await loadBriefings(); } catch { return; } // The feed state owns its retry UI.
           if (nextSession.account?.role === "admin") setAccounts(await listAccounts());
         }
       })
@@ -236,6 +238,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
         const next = await getBriefings();
         if (!active) return;
         setBriefings(next);
+        setBriefingsState('ready');
         setSelectedBriefingId(current => current && next.some(feed => feed.id === current) ? current : next[0]?.id ?? null);
       } catch {
         // A background failure must not clear the working list or interrupt a draft.
@@ -272,14 +275,19 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
 
   async function loadBriefings(preferredId?: string) {
     briefingsLoadingRef.current = true;
+    if (!briefingsRef.current.length) setBriefingsState('loading');
     try {
       const nextBriefings = await getBriefings();
       setBriefings(nextBriefings);
+      setBriefingsState('ready');
       const activeId =
         preferredId && nextBriefings.some((item) => item.id === preferredId)
           ? preferredId
           : nextBriefings[0]?.id ?? null;
       setSelectedBriefingId(activeId);
+    } catch (cause) {
+      setBriefingsState('error');
+      throw cause;
     } finally {
       briefingsLoadingRef.current = false;
     }
@@ -359,6 +367,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     await logout();
     setSession({ authenticated: false, setupRequired: false });
     setBriefings([]);
+    setBriefingsState('loading');
     setSelectedBriefingId(null);
     setSources([]);
     setHealth(null);
@@ -461,7 +470,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
           onAccount={() => setAuthOpen(true)} onHelp={() => {}}
           onCreate={() => { setCreateAfterLogin(true); setAuthOpen(true); }}
           error={error ? "We couldn’t load your session. Please refresh and try again." : undefined}/>
-        {authOpen && (session || error) && <Dialog label="Login or sign up" className="auth-dialog" onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
+        {authOpen && (session || error) && <Dialog label={!session && error ? "Sign-in Unavailable" : "Login or sign up"} className={`auth-dialog${!session && error ? ' auth-unavailable-dialog' : ''}`} onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
           <div className="auth-experience auth-modal-content">
             <button type="button" className="dialog-close quiet-icon" aria-label="Close dialog" onClick={() => { setAuthOpen(false); setCreateAfterLogin(false); }}><X size={20}/></button>
             {session ? <AuthPanel
@@ -478,7 +487,11 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
                   setSession(next);
                 }
               }}
-            /> : error ? <p className="auth-pending" role="alert">Sign-in is unavailable right now. Please refresh and try again.</p> : null}
+            /> : error ? <section className="auth-unavailable" role="alert" aria-labelledby="auth-unavailable-title" dir="ltr">
+              <span className="auth-unavailable-icon" aria-hidden="true"><X size={36} strokeWidth={2}/></span>
+              <h2 id="auth-unavailable-title">Sign-in Unavailable</h2>
+              <p>Sign-in is unavailable right now. Please refresh and try again.</p>
+            </section> : null}
           </div>
         </Dialog>}
       </>
@@ -495,8 +508,9 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
 
   return (
     <>
-      <AppExperience key="account" account={account} briefings={orderedBriefings} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
+      <AppExperience key="account" account={account} briefings={orderedBriefings} briefingsState={briefingsState} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
         onAccount={() => setAccountDialogOpen(true)}
+        onRetryBriefings={async () => { if (!briefingsLoadingRef.current) await loadBriefings(selectedBriefingIdRef.current ?? undefined); }}
         onResumeFeed={async feed => { await persistBriefing({...feed,paused:false}, "resumed", null); window.dispatchEvent(new Event("dn-explore-changed")); }}
         onCreate={() => setCreationOpen(true)} onHelp={() => setHelpOpen(true)} error={error}>
 {account.role === "admin" ? <AdminAccountsSection accounts={accounts} currentAccountId={account.id} onAccountsChanged={setAccounts}/> : null}
@@ -670,7 +684,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         }
       }}
     >
-      {authStep === "email" ? <div className="auth-brand-mark" aria-hidden="true"><img src="/icon-192.png?v=brand-4" alt="" /></div> : null}
+      {authStep === "email" ? <div className="auth-brand-mark" aria-hidden="true"><img src="/favicon.svg" alt="" /></div> : null}
       <div className="auth-copy">
         <h2>{t(copy.title)}</h2>
         <p>{t(copy.description)}</p>
@@ -865,14 +879,15 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
 }
 
 function VerifyEmailPage(props: { token: string }) {
-  const [message, setMessage] = useState("");
+  const [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   return (
     <main className="email-verification-page">
       <section className="email-verification-panel" aria-labelledby="email-verification-title">
-        <div className="email-verification-brand" aria-hidden="true"><img src="/icon-192.png?v=brand-4" alt="" /></div>
-        <h1 id="email-verification-title">Verify Email</h1>
+        <div className="email-verification-brand" aria-hidden="true"><img src="/favicon.svg" alt="" /></div>
+        <h1 id="email-verification-title" aria-live="polite">{verified ? "Email Verified" : "Verify Email"}</h1>
+        {!verified && <>
         <p className="email-verification-description">Confirm this email address</p>
         <div className="email-verification-actions">
           <button
@@ -882,11 +897,10 @@ function VerifyEmailPage(props: { token: string }) {
             disabled={busy || !props.token}
             onClick={async () => {
               setBusy(true);
-              setMessage("");
               setError("");
               try {
                 await verifyEmail(props.token);
-                setMessage("Email verified");
+                setVerified(true);
               } catch (cause) {
                 setError(cause instanceof Error ? cause.message : String(cause));
               } finally {
@@ -896,9 +910,10 @@ function VerifyEmailPage(props: { token: string }) {
           >
             {busy ? "Verifying…" : "Verify Email"}
           </button>
-          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{error.charAt(0).toUpperCase() + error.slice(1)}</p> : message ? <p className="auth-message">{message}</p> : null}</div>
+          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{error.charAt(0).toUpperCase() + error.slice(1)}</p> : null}</div>
           <a className="email-verification-create" href="/" title="Create">Create</a>
         </div>
+        </>}
       </section>
     </main>
   );
@@ -1673,7 +1688,6 @@ function FeedPage(props: { username: string; slug: string }) {
       header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
-      description={feedStatusMessage || undefined}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
@@ -1709,6 +1723,15 @@ function FeedPage(props: { username: string; slug: string }) {
             />
           </form>
         </div>
+        {feedStatusMessage&&<span className="feed-check-status"><Clock3 size={18} aria-hidden/>{feedStatusMessage}</span>}
+        {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
+          key={JSON.stringify([account.id,props.username,props.slug])}
+          readerId={account.id}
+          hasUnread={payload.editions.some(edition=>!readIds.has(edition.id)&&Date.parse(edition.publishedAt)>Date.now()-86_400_000&&Date.parse(edition.publishedAt)<=Date.now())}
+          username={props.username} slug={props.slug}
+          readIds={payload.editions.filter(edition=>readIds.has(edition.id)).map(edition=>edition.id)}
+          contentKey={JSON.stringify([payload.briefing.language,...payload.editions.filter(edition=>Date.parse(edition.publishedAt)>Date.now()-86_400_000).map(edition=>[edition.id,edition.summary])])}
+        />}
       </div>
       {reportEdition && selectedReport ? (
         <SourcesSheet
@@ -1729,7 +1752,6 @@ function FeedPage(props: { username: string; slug: string }) {
       }).join(' ')} /> : null}
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
-      {payload?.publicationState === 'checking' ? <FeedProcessingProgress progress={payload.publicationProgress} language={language}/> : null}
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>

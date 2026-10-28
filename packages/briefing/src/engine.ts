@@ -3,6 +3,7 @@ import { chunkArticles, prepareArticles, selectPrior, type PrepareOptions, type 
 import {
   CONSOLIDATE_SYSTEM,
   EDITOR_SYSTEM,
+  EDITOR_SYSTEM_V4,
   REPAIR_SYSTEM,
   VERIFY_SYSTEM,
   LEGACY_VERIFY_SYSTEM,
@@ -17,7 +18,7 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 
 export interface EngineOptions {
   /** Legacy frozen windows retain their original paid-request bytes. */
-  promptVersion: 1 | 2 | 3;
+  promptVersion: 1 | 2 | 3 | 4;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
   maxEditorChars: number;
   /** Source text budget for one verification call; larger briefings verify in parallel batches. */
@@ -31,7 +32,7 @@ export interface EngineOptions {
 }
 
 export const DEFAULT_ENGINE: EngineOptions = {
-  promptVersion: 3,
+  promptVersion: 4,
   maxEditorChars: 90_000,
   maxVerifyChars: 80_000,
   maxItems: 30,
@@ -61,7 +62,7 @@ function importanceOf(value: unknown): 1 | 2 | 3 {
   return n <= 1 ? 1 : n >= 3 ? 3 : 2;
 }
 
-function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>): Draft[] {
+function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>, headlineOnly = false): Draft[] {
   const list = (raw as { items?: unknown })?.items;
   if (!Array.isArray(list)) throw new Error('missing "items" array');
   const drafts: Draft[] = [];
@@ -71,7 +72,7 @@ function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>): D
     const body = text(item?.body);
     const sources = Array.isArray(item?.sources) ? item.sources : [];
     const refs = [...new Set(sources.map((s) => text(s).toUpperCase()).filter((ref) => known.has(ref)))];
-    if (!headline || !body || !refs.length) continue; // uncited or empty drafts cannot be published
+    if (!headline || (!body && !headlineOnly) || (headlineOnly && typeof item?.body !== "string") || !refs.length) continue; // uncited or empty drafts cannot be published
     const relation = RELATIONS.has(text(item.relation)) ? (text(item.relation) as ItemRelation) : "new";
     const updates = text(item.updates);
     drafts.push({
@@ -128,7 +129,7 @@ async function edit(
   articles: PreparedArticle[],
   prior: PriorItem[],
   partial = false,
-  promptVersion: 1 | 2 | 3 = 2
+  promptVersion: 1 | 2 | 3 | 4 = 2
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -138,12 +139,12 @@ async function edit(
     meter,
     {
       model: models.editor,
-      system: EDITOR_SYSTEM,
+      system: promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion }),
       maxTokens: 4000
     },
     (raw) => ({
-      drafts: parseDrafts(raw, known, priorIds),
+      drafts: parseDrafts(raw, known, priorIds, promptVersion >= 4),
       omitted: parseLeftOut(raw, known, idsOf)
     })
   );
@@ -157,7 +158,7 @@ async function consolidate(
   drafts: Draft[],
   prior: PriorItem[],
   idsOfRefs: (refs: string[]) => string[],
-  promptVersion: 1 | 2 | 3
+  promptVersion: 1 | 2 | 3 | 4
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -184,7 +185,7 @@ async function consolidate(
         const from = (Array.isArray(item?.from) ? item.from : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < drafts.length);
         const headline = text(item?.headline);
         const body = text(item?.body);
-        if (!from.length || !headline || !body) continue;
+        if (!from.length || !headline || (!body && promptVersion < 4) || (promptVersion >= 4 && typeof item?.body !== "string")) continue;
         // Sources are the union of the merged drafts: the model cannot invent a citation here.
         const refs = [...new Set(from.flatMap((n: number) => drafts[n].refs))];
         const updates = text(item.updates);
@@ -260,7 +261,7 @@ async function verify(
   prior: PriorItem[],
   maxChars: number,
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
-  promptVersion: 1 | 2 | 3
+  promptVersion: 1 | 2 | 3 | 4
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -330,7 +331,8 @@ async function repair(
   input: BriefingInput,
   drafts: Draft[],
   flagged: Map<number, string[]>,
-  byRef: Map<string, PreparedArticle>
+  byRef: Map<string, PreparedArticle>,
+  headlineOnly = false
 ): Promise<Map<number, { headline: string; body: string } | null>> {
   // Model-facing numbers are local to this subset; translate back mechanically.
   const indices = [...flagged.keys()];
@@ -341,7 +343,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: REPAIR_SYSTEM,
+      system: headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM,
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,
@@ -366,7 +368,7 @@ async function repair(
         if (!Number.isInteger(i) || i < 0 || i >= indices.length) continue;
         const headline = text(row.headline);
         const body = text(row.body);
-        out.set(indices[i], row.drop === true || !headline || !body ? null : { headline, body });
+        out.set(indices[i], row.drop === true || !headline || (!body && !headlineOnly) || (headlineOnly && typeof row.body !== "string") ? null : { headline, body });
       }
       return out;
     }
@@ -467,7 +469,7 @@ export async function generateBriefing(
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
     if (flagged.size && round < options.maxRepairs) {
-      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef));
+      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4));
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {

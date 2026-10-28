@@ -1,4 +1,6 @@
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
+import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryError} from './unread-summary';
+import {unreadSummaryPort} from './unread-summary-provider';
 import {readTopicPublishers} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
 import {collectorBudgetStatus} from './collector-budget';
@@ -251,12 +253,12 @@ function buildManifestPayload(input: {
     theme_color: "#5e5ce6",
     icons: [
       {
-        src: "/icon-192.png?v=brand-4",
+        src: "/icon-192.png?v=light-5",
         sizes: "192x192",
         type: "image/png"
       },
       {
-        src: "/icon-512.png?v=brand-4",
+        src: "/icon-512.png?v=light-5",
         sizes: "512x512",
         type: "image/png"
       }
@@ -272,6 +274,10 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
     console.error(error);
+    if(error instanceof Error&&/D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message)){
+      c.header('Retry-After','5');c.header('Cache-Control','no-store');
+      return c.json({error:'The service is temporarily busy. Please try again shortly.',code:'DATABASE_UNAVAILABLE'},503);
+    }
     if (error instanceof ModelGatewayError) {
       const retryable=["deadline_exceeded","provider_http_failure","malformed_response","transport_failure"].includes(error.failureClass);
       return c.json({error:"model_gateway_failure",failureClass:error.failureClass},retryable?503:502);
@@ -718,6 +724,13 @@ export function createApp(options: AppOptions = {}) {
 
   app.get("/api/me/push", (c) => c.json({ publicKey: pushConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY : null }));
 
+  app.post('/api/me/push/status', async (c) => {
+    const input=z.object({endpoint:z.string().max(2048).refine(validPushEndpoint)}).parse(await c.req.json());
+    const row=await c.env.DB.prepare('SELECT endpoint FROM push_subscriptions WHERE endpoint = ? AND account_id = ?')
+      .bind(input.endpoint,c.get('account')!.id).first();
+    return c.json({subscribed:Boolean(row)});
+  });
+
   app.post("/api/me/push", async (c) => {
     if (!pushConfigured(c.env)) return c.json({ error: "Notifications need server setup" }, 503);
     const account = c.get("account")!;
@@ -1159,6 +1172,7 @@ export function createApp(options: AppOptions = {}) {
     const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     return c.json({
+      unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
       sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
@@ -1206,7 +1220,24 @@ export function createApp(options: AppOptions = {}) {
     });
   });
 
-  // Retired in modern and legacy deployments; no collection/publication side effects.
+  app.post('/api/feed/:username/:briefingSlug/unread-summary',async(c)=>{
+    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
+    const claims=await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET??'');
+    const reader=claims?await resolved.repo.getAccountById(claims.sub):null;
+    if(!reader||reader.disabledAt||!reader.emailVerifiedAt)return c.json({error:'Sign in to summarize unread briefings.'},401);
+    const origin=c.req.header('origin');if(origin&&origin!==new URL(c.req.url).origin)return c.json({error:'Invalid request origin.'},403);
+    if(c.env.UNREAD_SUMMARY_ENABLED!=='true'||!c.env.DB||!c.env.OPENROUTER_API_KEY||c.env.BRIEFING_ENGINE!=='v3')return c.json({error:'Summaries are not configured on this deployment.'},503);
+    const {readIds}=z.object({readIds:z.array(z.string().min(1).max(300)).max(1000)}).strict().parse(await c.req.json());
+    const editions=c.env.PRODUCT_FEEDS_ENABLED==='true'?await publishedProductEditions(c.env,resolved.briefing):(await resolved.repo.listBriefingEditions(resolved.briefing.id,true)).filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
+    let input;try{input=prepareUnreadSummary(editions,readIds,resolved.briefing.language);}catch{return c.json({error:'These briefings are too long to summarize together.'},422);}
+    const task=generateUnreadSummary({db:c.env.DB,accountId:reader.id,feedId:resolved.briefing.id,input,port:unreadSummaryPort(c.env,resolved.briefing.id,reader.id),recordUsage:usage=>resolved.repo.recordLlmUsage({briefingId:resolved.briefing.id,purpose:'summary',phase:'unread_summary',outcome:'SUCCESS',model:usage.model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,estimatedCostUsd:usage.costUsd??0,reportedCostUsd:usage.costUsd,latencyMs:usage.latencyMs})});
+    try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
+    c.header('Cache-Control','private, no-store');
+    try{const result=await task;return c.json(result,result.status==='pending'?202:200);}
+    catch(error){if(error instanceof UnreadSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'?503:422);console.warn('unread-summary-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
+  });
+
+  // Retired: summaries above never collect articles or publish editions.
   app.post("/api/feed/:username/:briefingSlug/request-summary", (c) =>
     c.json({error:"Manual briefing generation is retired. Briefings publish automatically on the feed schedule."},410));
 
@@ -1926,6 +1957,8 @@ async function maybeRedirectUsernameRoute(
 ): Promise<Response | null> {
   if (c.req.method !== "GET") return null;
   const path = new URL(c.req.url).pathname;
+  // Bundled files are assets, never username/feed aliases. Keep app loading independent of D1.
+  if (/^\/assets\/[^/]+\.(?:js|css|map)$/.test(path)) return null;
   const match = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
   if (!match) return null;
   const [, username, slug] = match;

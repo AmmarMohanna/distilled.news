@@ -2,12 +2,13 @@ import {parse} from 'parse5';
 import {primaryTextContainer} from './primary-text';
 import {discoverPromedReports} from './promed-discovery';
 import {articleUrl} from './provider-normalize';
+import {isArticleSchemaType,matchesOpaqueArticlePage} from './article-schema';
 
 interface Node {tagName?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node;value?:string}
 export interface WebsiteDiscovery {articles:{url:string;title?:string;publishedAt?:string}[];nextPage?:string;paginationUnresolved?:true}
 /** Section locators are discovery surfaces, never a single full article. */
 export function isWebsiteListingUrl(value:string):boolean {
- return /^\/(?:tags?|category|categories|topics?|sections?)(?:\/[^/?#]+)*\/?$/i.test(new URL(value).pathname)||/^\/(?:(?:news|newsroom)\/(?:all-news|latest|all|recently-published)|all-news|latest-news|archives?)\/?$/i.test(new URL(value).pathname);
+ return /^\/(?:tags?|category|categories|topics?|sections?)(?:\/[^/?#]+)*\/?$/i.test(new URL(value).pathname)||/^\/(?:(?:news|newsroom)\/(?:all-news|latest|all|recently-published)|all-news|latest-news|latest-articles|opinions?|live|archives?)\/?$/i.test(new URL(value).pathname)||/^\/(?:home\/writer|authors?)\/[^/]+\/?$/i.test(new URL(value).pathname);
 }
 const attr=(n:Node,key:string)=>n.attrs?.find(a=>a.name===key)?.value??'';
 function nodes(root:Node):Node[]{const result:Node[]=[],stack=[root];while(stack.length){const n=stack.pop()!;result.push(n);stack.push(...[...(n.childNodes??[])].reverse())}return result}
@@ -18,7 +19,9 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
  const origin=new URL(approvedUrl).origin,all=nodes(parse(html) as unknown as Node),articles=new Map<string,{url:string;title?:string}>();
  const promed=discoverPromedReports(all.filter(n=>n.tagName==='script').map(n=>nodes(n).map(child=>child.value??'').join('')),all.filter(n=>n.tagName==='tr').map(text),approvedUrl);if(promed)return promed;
  const scoped=(href:string)=>{try{const url=articleUrl(new URL(href,approvedUrl).href);return url&&new URL(url).origin===origin&&url!==articleUrl(approvedUrl)?url:undefined}catch{return undefined}};
- const add=(href:string,title?:string)=>{const url=scoped(href);if(url&&!articles.has(url))articles.set(url,{url,...(title?{title}:{})})};
+ const add=(href:string,title?:string)=>{const url=scoped(href);if(url&&!isWebsiteListingUrl(url)&&!articles.has(url))articles.set(url,{url,...(title?{title}:{})})};
+ const canonical=all.find(n=>n.tagName==='link'&&attr(n,'rel').split(/\s+/).includes('canonical'));
+ const headline=all.find(n=>n.tagName==='h1');
  let isArticle=false,structuredListing=false,boundSection=false,unboundSection=false,nextPage:string|undefined,paginationUnresolved=false;
  for(const node of all){
   if(node.tagName==='meta'&&attr(node,'property').toLowerCase()==='og:type'&&attr(node,'content').toLowerCase()==='article')isArticle=true;
@@ -32,9 +35,10 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
      if(typeof identity!=='string')unboundSection=true;
      else try{if(articleUrl(new URL(identity,approvedUrl).href)===articleUrl(approvedUrl))boundSection=true}catch{/* unrelated collection metadata is not this page */}
     }
-    if(types.some(t=>['NewsArticle','Article','BlogPosting'].includes(t))){
+    if(types.some(isArticleSchemaType)){
      const identity=item.url??item.mainEntityOfPage?.['@id']??item.mainEntityOfPage??item['@id'];
      try{if(typeof identity==='string'&&articleUrl(new URL(identity,approvedUrl).href)===articleUrl(approvedUrl))isArticle=true}catch{/* An unrelated embedded article is not the fetched page. */}
+     if(matchesOpaqueArticlePage(item,approvedUrl,canonical?attr(canonical,'href'):undefined,headline?text(headline):undefined))isArticle=true;
     }
     if(types.includes('ItemList')){structuredListing=true;for(const raw of item.itemListElement??[]){const article=raw.item??raw;if(typeof article==='string')add(article);else if(typeof article?.url==='string')add(article.url,article.headline??article.name)}}
     stack.push(...Object.values(item));

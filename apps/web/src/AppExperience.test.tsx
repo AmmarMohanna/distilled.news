@@ -69,3 +69,25 @@ it('keeps paused feeds in the archive and resumes them only after a successful s
     expect(save).toHaveBeenCalledTimes(2);
   }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
+it('distinguishes loading, a confirmed empty list and an initial failure',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});vi.stubGlobal('matchMedia',()=>({matches:false,addEventListener(){},removeEventListener(){}}));vi.stubGlobal('scrollTo',vi.fn());
+ const host=document.createElement('div'),root=createRoot(host),account={id:'reader',username:'reader'} as Parameters<typeof AppExperience>[0]['account'];
+ try{
+  await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="loading" onAccount={()=>{}} onHelp={()=>{}}/>));
+  expect(host.querySelector('.your-feeds')?.getAttribute('aria-busy')).toBe('true');expect(host.textContent).toContain('Loading feeds');expect(host.textContent).not.toContain('created any feeds yet');expect(host.textContent).not.toContain('Create your first feed');
+  await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="error" error="Temporarily unavailable" onAccount={()=>{}} onHelp={()=>{}}/>));
+  expect(host.querySelector('[role="alert"]')?.textContent).toBe('Temporarily unavailable');expect(host.textContent).not.toContain('created any feeds yet');expect(host.textContent).not.toContain('Loading feeds');
+  await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="ready" onAccount={()=>{}} onHelp={()=>{}}/>));
+  expect(host.textContent).toContain('created any feeds yet');expect(host.textContent).not.toContain('Loading feeds');
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
+it('retains cards during refresh and waits for archive data before claiming it is empty',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});vi.stubGlobal('matchMedia',()=>({matches:false,addEventListener(){},removeEventListener(){}}));vi.stubGlobal('scrollTo',vi.fn());
+ const host=document.createElement('div'),root=createRoot(host),account={id:'reader',username:'reader'} as Parameters<typeof AppExperience>[0]['account'],feed={...personalNewsBriefing,id:'existing',title:'Existing feed',paused:false};
+ try{
+  await act(async()=>root.render(<AppExperience account={account} briefings={[feed]} briefingsState="ready" onAccount={()=>{}} onHelp={()=>{}}/>));const card=host.querySelector('.personal-feed-grid .topic-card');
+  await act(async()=>root.render(<AppExperience account={account} briefings={[feed]} briefingsState="loading" onAccount={()=>{}} onHelp={()=>{}}/>));expect(host.querySelector('.personal-feed-grid .topic-card')).toBe(card);expect(host.textContent).not.toContain('Loading feeds');
+  await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="loading" onAccount={()=>{}} onHelp={()=>{}}/>));await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Archived feeds"]')!.click());expect(host.querySelector('.archive-empty')).toBeNull();expect(host.querySelector('[role="dialog"]')?.textContent).toContain('Loading feeds');
+  await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="ready" onAccount={()=>{}} onHelp={()=>{}}/>));expect(host.querySelector('.archive-empty')?.textContent).toContain('No archived feeds');
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});

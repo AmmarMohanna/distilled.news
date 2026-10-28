@@ -1,0 +1,784 @@
+{
+  "labelAuthority": "AI-assisted source comparison, not human gold labels. One causal control is ambiguous and excluded from accuracy metrics.",
+  "sourceCorpus": "Local exact sources/requests retained in .local-reports/v3-quality-improvement and .local-reports/v3-quality-audit",
+  "cases": [
+    {
+      "name": "bitcoin-causal-error",
+      "label": "fix",
+      "labelReason": "source says ETF outflows were earlier signs; Saturday fall does not cause them",
+      "articleId": "a6f536a3-136a-46a0-a8bd-a8520ebc0fa5",
+      "sourceSha256": "da7e126f2e29169c7c10cf555b428d50cf3168c8f20c632a08b91777d8aac1cb"
+    },
+    {
+      "name": "php-unconfirmed-outages",
+      "label": "fix",
+      "labelReason": "source explicitly says BBC/Edinburgh link unconfirmed",
+      "articleId": "4d731fd3-3e04-40bf-9107-e08381f698b5",
+      "sourceUrl": "https://www.bbc.co.uk/news/articles/cmly0lg3w5x2o?at_medium=RSS&at_campaign=rss",
+      "sourceSha256": "00f7594e8db46f81e08846b1b0e4344ce2dd1303a6a8761859ce583f88a260a5"
+    },
+    {
+      "name": "arabic-valid-paraphrase",
+      "label": "ok",
+      "labelReason": "concise equivalent wording; condition and attribution preserved",
+      "articleId": "04b6a152-8dab-4cad-97a9-74e310a16107",
+      "sourceUrl": "https://t.me/lebanonnews2/107753",
+      "sourceSha256": "7e206b32ae711d13bfd794240a16ed5721dad12f1f04ce5e42727393bf9ca6a6"
+    },
+    {
+      "name": "bitcoin-correct-control",
+      "label": "review",
+      "labelReason": "preserves chronology and separates causation",
+      "articleId": "a6f536a3-136a-46a0-a8bd-a8520ebc0fa5",
+      "sourceSha256": "da7e126f2e29169c7c10cf555b428d50cf3168c8f20c632a08b91777d8aac1cb"
+    },
+    {
+      "name": "sec-causal-heldout",
+      "label": "fix",
+      "labelReason": "priorities last week; no causal basis for weekend-gap link",
+      "articleId": "73c8c0fd-3098-4f15-8eca-768c4681ce3a",
+      "sourceSha256": "84159f767600e9f8f8fa83a43b6e73b916dbbc28aaa2f2a98cfed4feecd5fd5d"
+    },
+    {
+      "name": "php-correct-heldout",
+      "label": "ok",
+      "labelReason": "preserves uncertain attribution",
+      "articleId": "4d731fd3-3e04-40bf-9107-e08381f698b5",
+      "sourceUrl": "https://www.bbc.co.uk/news/articles/cmly0lg3w5x2o?at_medium=RSS&at_campaign=rss",
+      "sourceSha256": "00f7594e8db46f81e08846b1b0e4344ce2dd1303a6a8761859ce583f88a260a5"
+    },
+    {
+      "name": "arabic-negation-heldout",
+      "label": "fix",
+      "labelReason": "reverses occupation continuation and unspecified withdrawal date",
+      "articleId": "04b6a152-8dab-4cad-97a9-74e310a16107",
+      "sourceUrl": "https://t.me/lebanonnews2/107753",
+      "sourceSha256": "7e206b32ae711d13bfd794240a16ed5721dad12f1f04ce5e42727393bf9ca6a6"
+    },
+    {
+      "name": "bitcoin-attribution-heldout",
+      "label": "ok",
+      "labelReason": "retains attribution and alternatives to self-custody",
+      "articleId": "4e644198-b149-45ce-a5f2-44369a71dc1c",
+      "sourceUrl": "https://www.coindesk.com/markets/2026/10/26/over-11-million-btc-can-t-be-linked-to-any-known-owner-even-after-wall-street-buying",
+      "sourceSha256": "6b6e1a1439bb03d36ffa29f1ab7e745f0776f56f49c1768838c85ab65a1a19f2"
+    }
+  ],
+  "records": [
+    {
+      "name": "isolated-dev-errors-gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "b5732f063bd5db5080e4792b9fe195f1f1f5a11a9150654abf2322460aebc946",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "bitcoin-causal-error"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "php-unconfirmed-outages"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "ok",
+            "issues": []
+          }
+        ]
+      },
+      "actualCostUsd": 0.0005328,
+      "latencyMs": 1730
+    },
+    {
+      "name": "isolated-dev-errors-gpt-4.1",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "f7da1a2f0e006ebb27be0422d08ce33578bb802288282b1111d4c4f531c5171c",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "bitcoin-causal-error"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "php-unconfirmed-outages"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "AI developed by OpenAI -> The vulnerabilities were discovered by cyber-security researchers at the firms Calif and Wiz, who used state-of-the-art AI made by OpenAI, but the AI itself did not directly discover the vulnerabilities; it enabled the process.",
+              "leading to global website outages -> The vulnerabilities led to some websites being taken offline as a precaution, but not all outages are confirmed to be directly caused by the vulnerabilities.",
+              "Wiz estimates up to 70% of the internet could be affected -> Wiz estimated 'roughly 70%' of the internet is affected, but the BBC is unable to verify that figure."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.006536,
+      "latencyMs": 2270
+    },
+    {
+      "name": "isolated-dev-errors-gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "requestSha256": "21be73e3d8b7acb4d9199e03341576b86af429151194af72cd74291d9b9029c0",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "bitcoin-causal-error"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "php-unconfirmed-outages"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "“AI discovers” -> the source says Calif and Wiz researchers discovered the vulnerabilities using AI made by OpenAI; the headline attributes discovery to AI itself.",
+              "“affecting global websites” / “leading to global website outages” -> the source says Wiz estimated roughly 70% of the internet is affected, while noting the BBC could not verify that figure. It reports some sites deliberately taken offline because of the flaws, but says the link to the inaccessible BBC and Edinburgh sites was unconfirmed.",
+              "“Wiz estimates up to 70%” -> Wiz estimated “roughly 70%”; the source does not say “up to.”",
+              "“the BBC and others, have taken sites offline” -> Finland temporarily shut down government public web services and the Netherlands’ cyber-security agency took its website offline; BBC and Edinburgh pages became inaccessible, but a link to the PHP flaws was not confirmed.",
+              "“Early attacks are emerging” -> this is attributed in the source to Cloudflare CTO Dane Knecht, who said he was seeing early attacks; retain that attribution."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.0009458,
+      "latencyMs": 12620
+    },
+    {
+      "name": "isolated-dev-valid-gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "e81dd94b8f7d603ebd437ee8c9b8fbafc7fa1a98572ab26d9eb60c0418da2e13",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "arabic-valid-paraphrase"
+        },
+        {
+          "i": 1,
+          "verdict": "review",
+          "name": "bitcoin-correct-control"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "Bitcoin fell below $80,000 on Saturday -> Bitcoin dropped about 3% on Saturday, pushing Bitcoin below $80,000 for the first time since October 15",
+              "triggering $838 million in liquidations over 24 hours -> $838 million was the total liquidation amount over 24 hours, not necessarily all triggered by the fall below $80,000"
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.0008156,
+      "latencyMs": 2782
+    },
+    {
+      "name": "isolated-dev-valid-gpt-4.1",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "b8931703160a30f217cfa4c33e702621a425e0da5dfcf7ab7299914cc519bdc7",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "arabic-valid-paraphrase"
+        },
+        {
+          "i": 1,
+          "verdict": "review",
+          "name": "bitcoin-correct-control"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "ok",
+            "issues": []
+          }
+        ]
+      },
+      "actualCostUsd": 0.003486,
+      "latencyMs": 1108
+    },
+    {
+      "name": "isolated-dev-valid-gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "requestSha256": "9374d3802c9174082629f09cbc19a410a249a081217c289271bb54114475455e",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "arabic-valid-paraphrase"
+        },
+        {
+          "i": 1,
+          "verdict": "review",
+          "name": "bitcoin-correct-control"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "“$838 million in liquidations” -> the source says the 24-hour total “had passed $838 million,” not that it was exactly $838 million.",
+              "“had already seen” -> the source reports $773.5 million in ETF outflows over two days but does not establish that they preceded Saturday’s Bitcoin fall."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.000593675,
+      "latencyMs": 8104
+    },
+    {
+      "name": "isolated-heldout-errors-gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "9a0ea8fdbb15081fe1892ce532e66618295fee9cb2b00bec0a19cfa217866700",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "sec-causal-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "arabic-negation-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "'following attention to risks after Bitcoin fell below $80,000 on a Saturday and spot Bitcoin ETF holders could not trade until Monday' -> The source states Bitcoin fell below $80,000 on a Saturday and ETF holders had no way to react until Monday's open, but does not explicitly link this event as the reason for the SEC adding tokenization to its 2027 priorities; the SEC added tokenization to its fiscal 2027 examination priorities last week, listing it among risks examiners will review at clearing agencies, without a stated causal link to the Bitcoin event."
+            ]
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "'انسحاب القوات الإسرائيلي في لبنان' -> The source says نتنياهو وآيزنكوت اتفقا على استمرار الاحتلال الإسرائيلي في لبنان بشروط أمنية ومن دون موعد محدد للانسحاب (agreement on continuing the Israeli occupation in Lebanon under security conditions without a withdrawal date), not on withdrawal of Israeli forces."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.0009624,
+      "latencyMs": 2472
+    },
+    {
+      "name": "isolated-heldout-errors-gpt-4.1",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "d64762280dbea1e445b7920d4a56d55f90355a775cf595d7902c85c8c81ffe1d",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "sec-causal-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "arabic-negation-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "after ETF trading gap highlighted -> S1 does not state that the SEC's addition of tokenization to its 2027 priorities was a direct response to the ETF trading gap; S1 only says the SEC added tokenization to its priorities last week and separately describes the ETF trading gap as an example of why round-the-clock trading matters. The causal link is not supported."
+            ]
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "اتفقا على انسحاب القوات الإسرائيلي في لبنان -> S2 says اتفقا على استمرار الاحتلال الإسرائيلي في لبنان (agreed on the continuation of the Israeli occupation in Lebanon), not on withdrawal. The item reverses the meaning."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.004348,
+      "latencyMs": 1942
+    },
+    {
+      "name": "isolated-heldout-errors-gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "requestSha256": "1b7c4254dda5357113eb10b19ba422f7c4a3732cbc98d8323cf6051ff25ecb7d",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "sec-causal-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "arabic-negation-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "“SEC adds tokenization to 2027 examination priorities after ETF trading gap highlighted” and “following attention to risks after Bitcoin fell below $80,000” -> S1 says the SEC added tokenization to its fiscal 2027 examination priorities last week and separately describes the weekend ETF trading gap; it does not connect the SEC action to that gap.",
+              "“demand for round-the-clock trading grows” -> S1 reports that Robinhood stock-token trading occurred outside regular US market hours, but does not say demand is growing over time."
+            ]
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "“اتفقا على انسحاب القوات الإسرائيلي في لبنان” -> S2 says they agreed to استمرار الاحتلال الإسرائيلي في لبنان (the continuation of the Israeli occupation in Lebanon), not to the withdrawal of Israeli forces."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.00054805,
+      "latencyMs": 8058
+    },
+    {
+      "name": "isolated-heldout-valid-gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "c0abf112a790a0401452801a701517ee35cde310de049c73a677e6c99048e758",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "php-correct-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "ok",
+          "name": "bitcoin-attribution-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "ok",
+            "issues": []
+          }
+        ]
+      },
+      "actualCostUsd": 0.0015324,
+      "latencyMs": 1684
+    },
+    {
+      "name": "isolated-heldout-valid-gpt-4.1",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "8c5683f603f393a19d1704d182b18d1e24bbc7912e01e984664810c8e7ce0c18",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "php-correct-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "ok",
+          "name": "bitcoin-attribution-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "ok",
+            "issues": []
+          }
+        ]
+      },
+      "actualCostUsd": 0.007662,
+      "latencyMs": 1908
+    },
+    {
+      "name": "isolated-heldout-valid-gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "requestSha256": "aa58befbdb91cf41bf08527b34b35144812b82100de07c2da681de969b9343c0",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "php-correct-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "ok",
+          "name": "bitcoin-attribution-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "“took websites offline” -> Finland had temporarily shut down its public web services, while the Dutch cyber-security agency said it was taking its own website offline; the source does not confirm that the Dutch agency had completed the takedown."
+            ]
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "“The firm states” -> the source attributes this interpretation to Galaxy Research’s head of research, Alex Thorn, who sees the figure as evidence self-custody remains widespread."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.000907675,
+      "latencyMs": 9225
+    },
+    {
+      "name": "prefix-isolated-dev-errors-gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "48005976f2db81a2b443181228b5dc333c9556583fdf5d2ae75fff3201ab7a97",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "bitcoin-causal-error"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "php-unconfirmed-outages"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "ok",
+            "issues": []
+          }
+        ]
+      },
+      "actualCostUsd": 0.0011276,
+      "latencyMs": 1623
+    },
+    {
+      "name": "prefix-isolated-dev-valid-gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "47dea509539ee05e7899a81688b26f979302e42c49913f83cd5ec0d616ef38e5",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "arabic-valid-paraphrase"
+        },
+        {
+          "i": 1,
+          "verdict": "review",
+          "name": "bitcoin-correct-control"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "Bitcoin fell below $80,000 on Saturday -> Bitcoin dropped about 3% on Saturday, pushing Bitcoin below $80,000 for the first time since October 15",
+              "triggering $838 million in liquidations over 24 hours -> $838 million was the total 24-hour liquidation amount by the end of the day, not necessarily all triggered by the fall below $80,000",
+              "Spot Bitcoin ETFs had already seen $773.5 million in outflows over two days -> Spot Bitcoin ETFs saw $773.5 million walk out the door over two days"
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.0008984,
+      "latencyMs": 1902
+    },
+    {
+      "name": "prefix-isolated-heldout-errors-gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "8bac17aee4f9f315504d2976d536b83f73ff20eac033f7b1ccd39d141e13658f",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "sec-causal-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "arabic-negation-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "'following attention to risks after Bitcoin fell below $80,000 on a Saturday and spot Bitcoin ETF holders could not trade until Monday' -> The source states the SEC added tokenization to its fiscal 2027 priorities last week, listing it among risks examiners will review, but does not explicitly link this action as following the Bitcoin price drop or ETF trading gap. The item implies a causal sequence not supported by the source."
+            ]
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "'اتفقا على انسحاب القوات الإسرائيلي في لبنان' -> The source says نتنياهو and آيزنكوت agreed on استمرار الاحتلال الإسرائيلي في لبنان (continuing the Israeli occupation in Lebanon) with security conditions and no set withdrawal date, not on withdrawal."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.0009156,
+      "latencyMs": 2145
+    },
+    {
+      "name": "prefix-isolated-heldout-valid-gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "2a7cf032462af438783e219954e63e2f8ea782add0460ca9eec68f6cbb44477f",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "php-correct-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "ok",
+          "name": "bitcoin-attribution-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "ok",
+            "issues": []
+          }
+        ]
+      },
+      "actualCostUsd": 0.0015512,
+      "latencyMs": 1463
+    },
+    {
+      "name": "nonreasoning-isolated-dev-errors-gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "requestSha256": "c3857de3a6f3257065c1e2617a26145bb440462b80dd03a78f537f2024635907",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "bitcoin-causal-error"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "php-unconfirmed-outages"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "\"triggering $838M in liquidations\" -> S1 says the 24-hour liquidation total passed $838 million; it does not establish that the Bitcoin drop triggered the entire 24-hour total. It separately reports $291 million liquidated in one hour after the drop.",
+              "\"causing $838 million in liquidations within 24 hours\" -> S1 reports that the 24-hour total passed $838 million, but does not attribute the full total to the price fall."
+            ]
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "\"AI developed by OpenAI helped cybersecurity researchers at Calif and Wiz discover\" -> S2 says the researchers used state-of-the-art AI made by OpenAI, but does not explicitly say OpenAI developed that AI; preserve the source's wording rather than asserting its developer.",
+              "\"leading to global website outages\" -> S2 reports that sites were taken offline or became inaccessible, but says Edinburgh council and BBC programme sites had not confirmed a link to PHP; the wording also implies the vulnerabilities caused all the outages.",
+              "\"up to 70%\" -> Wiz estimated \"roughly 70%\" of the internet is affected, and the BBC could not verify the figure; \"up to\" changes the estimate's meaning.",
+              "\"Early attacks are emerging\" -> this is attributed in S2 to Cloudflare CTO Dane Knecht, who said he was seeing early attacks; retain that attribution."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.0004868,
+      "latencyMs": 3875
+    },
+    {
+      "name": "nonreasoning-isolated-dev-valid-gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "requestSha256": "6c9cf7eb102edaddfbda1bc6fa8240d188df19b4ca71269fe103e9cbc8f79920",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "arabic-valid-paraphrase"
+        },
+        {
+          "i": 1,
+          "verdict": "review",
+          "name": "bitcoin-correct-control"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "“triggering $838 million in liquidations over 24 hours” -> the source says the 24-hour total of liquidations passed $838 million by the end of the day; it does not say Bitcoin’s fall triggered the entire 24-hour total."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.000247175,
+      "latencyMs": 2085
+    },
+    {
+      "name": "nonreasoning-isolated-heldout-errors-gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "requestSha256": "292bcdcb45fd0c2346824d8f85efb9ca79c146f2b7ebf91ce8eed95dc991715c",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "fix",
+          "name": "sec-causal-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "fix",
+          "name": "arabic-negation-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "\"following attention to risks after Bitcoin fell below $80,000 on a Saturday and spot Bitcoin ETF holders could not trade until Monday\" -> S1 says the SEC listed tokenization among risks examiners will review and separately notes the weekend Bitcoin drop and ETF trading gap; it does not say the SEC's move followed or was prompted by those events."
+            ]
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "\"على انسحاب القوات الإسرائيلي في لبنان\" -> S2 says they agreed to استمرار الاحتلال الإسرائيلي في لبنان (continuation of the Israeli occupation in Lebanon) under security conditions, with no set withdrawal date; it does not say they agreed to a withdrawal."
+            ]
+          }
+        ]
+      },
+      "actualCostUsd": 0.00027455,
+      "latencyMs": 2481
+    },
+    {
+      "name": "nonreasoning-isolated-heldout-valid-gpt-6-luna",
+      "model": "openai/gpt-6-luna",
+      "requestSha256": "cbd8c0d6246e6351e12f6f2ea09a4e41ab0661471eace669672bbc87592b35f4",
+      "expected": [
+        {
+          "i": 0,
+          "verdict": "ok",
+          "name": "php-correct-heldout"
+        },
+        {
+          "i": 1,
+          "verdict": "ok",
+          "name": "bitcoin-attribution-heldout"
+        }
+      ],
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "ok",
+            "issues": []
+          }
+        ]
+      },
+      "actualCostUsd": 0.000481675,
+      "latencyMs": 1657
+    }
+  ]
+}

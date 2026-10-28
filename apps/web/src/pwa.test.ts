@@ -1,0 +1,11 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+vi.mock('./frontend-updates',()=>({startFrontendUpdates:vi.fn()}));
+let sub:any;
+beforeEach(()=>{vi.resetModules();localStorage.clear();sub={endpoint:'https://push.example/device',unsubscribe:vi.fn().mockResolvedValue(true)};vi.stubGlobal('matchMedia',vi.fn(()=>({matches:false})));vi.stubGlobal('Notification',{permission:'granted',requestPermission:vi.fn()});vi.stubGlobal('PushManager',function(){});Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{register:vi.fn().mockResolvedValue({pushManager:{getSubscription:async()=>sub}}),ready:Promise.resolve({pushManager:{getSubscription:async()=>sub}})}});});
+afterEach(()=>vi.unstubAllGlobals());
+it('does not trust an installation hint after uninstall',async()=>{localStorage.setItem('dn_pwa_installed_on_device','1');const pwa=await import('./pwa');expect(await pwa.installApp()).not.toBe('already-installed');});
+it('does not show enabled for a subscription missing from the current account',async()=>{vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:async()=>({subscribed:false})}));const pwa=await import('./pwa');expect(await pwa.notificationsEnabled()).toBe(false);});
+it('confirms current-account subscription state with the server',async()=>{const fetch=vi.fn().mockResolvedValue({ok:true,json:async()=>({subscribed:true})});vi.stubGlobal('fetch',fetch);const pwa=await import('./pwa');expect(await pwa.notificationsEnabled()).toBe(true);expect(fetch).toHaveBeenCalledWith('/api/me/push/status',expect.objectContaining({method:'POST',body:JSON.stringify({endpoint:sub.endpoint})}));});
+
+it('removes the server record before unsubscribing during logout',async()=>{const fetch=vi.fn().mockResolvedValue({ok:true});vi.stubGlobal('fetch',fetch);const pwa=await import('./pwa');await pwa.stopNotificationsOnLogout();expect(fetch).toHaveBeenCalledWith('/api/me/push',expect.objectContaining({method:'DELETE'}));expect(sub.unsubscribe).toHaveBeenCalledOnce();});
+it('does not silently proceed when server revocation fails',async()=>{vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:false}));const pwa=await import('./pwa');await expect(pwa.stopNotificationsOnLogout()).rejects.toThrow();expect(sub.unsubscribe).not.toHaveBeenCalled();});

@@ -5,7 +5,7 @@ export function sameArticleUrl(left:unknown,right:unknown):boolean {
   const normalize=(value:string)=>{
    const u=new URL(value);
    if(u.protocol!=='https:'||u.username||u.password)throw Error('INVALID_ARTICLE_URL');
-   for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid|traffic_source)$/i.test(key))u.searchParams.delete(key);
+   for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid|mc_cid|mc_eid|igshid|traffic_source)$/i.test(key))u.searchParams.delete(key);
    // NEJM adds this attribution URL during anonymous browser navigation.
    if(u.hostname==='www.nejm.org'&&u.searchParams.get('referrer')==='https://www.google.com/')u.searchParams.delete('referrer');
    u.pathname=u.pathname.replace(/\/$/,'')||'/';u.hash='';return u.href;

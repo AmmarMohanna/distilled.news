@@ -32,6 +32,22 @@ test('installation stops on a failed write without printing credentials or retry
  let count=0;assert.throws(()=>installMailSecrets({run:()=>{count++;return {status:1,stderr:'secret-value'};},config:'/target',clientId:'client',refreshToken:'refresh',encryptionKey:'key'}),/SECRET_INSTALL_FAILED/);assert.equal(count,1);
 });
 
+test('explicit activation uses one small direct secret update with stdin and no code upload',()=>{
+ const commands=[];
+ const result=installMailSecrets({run:(args,options)=>{commands.push({args,options});return {status:0,stdout:'3 secrets successfully created'};},config:'/target/wrangler.jsonc',clientId:'client',refreshToken:'refresh-sensitive',encryptionKey:'key-sensitive',activate:true});
+ assert.equal(result,null);assert.equal(commands.length,1);
+ assert.deepEqual(commands[0].args,['secret','bulk','--config','/target/wrangler.jsonc']);
+ assert.equal(commands[0].options.env.WRANGLER_WRITE_LOGS,'false');
+ assert.equal(JSON.parse(commands[0].options.input).OUTLOOK_REFRESH_TOKEN,'refresh-sensitive');
+ assert.ok(!JSON.stringify(commands[0].args).includes('sensitive'));
+});
+
+test('direct activation does not retry an unknown write outcome',()=>{
+ let count=0;
+ assert.throws(()=>installMailSecrets({run:()=>{count++;return {status:1,stderr:'terminated'};},config:'/target',clientId:'client',refreshToken:'refresh',encryptionKey:'key',activate:true}),/SECRET_INSTALL_FAILED/);
+ assert.equal(count,1);
+});
+
 test('version-safe secret upload refuses a different undeployed code or binding set',()=>{
  const resources={script:{etag:'same-code'},bindings:[{name:'DB',type:'d1',id:'database-1'}]};verifySecretBase({resources},{resources:structuredClone(resources)});
  assert.throws(()=>verifySecretBase({resources},{resources:{...resources,script:{etag:'different-code'}}}),/UNDEPLOYED_VERSION_DIFFERS/);

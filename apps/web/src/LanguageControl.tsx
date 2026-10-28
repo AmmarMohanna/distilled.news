@@ -6,6 +6,16 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "Couldn't load your feeds": ["Impossible de charger vos fils", "تعذر تحميل خلاصاتك"],
+  "Try Again": ["Réessayer", "حاول مجددًا"],
+  "Summarize unread": ["Résumer les non lus", "لخّص ما لم أقرأه"],
+  "Summarizing…": ["Résumé en cours…", "جارٍ التلخيص…"],
+  "Summary": ["Résumé", "ملخص"],
+  "Unread summary": ["Résumé des non lus", "ملخص ما لم أقرأه"],
+  "Close summary": ["Fermer le résumé", "إغلاق الملخص"],
+  "No recent unread briefings to summarize.": ["Aucun bulletin récent non lu à résumer.", "لا توجد نشرات حديثة غير مقروءة لتلخيصها."],
+  "Still preparing. Try again shortly.": ["Préparation en cours. Réessayez bientôt.", "لا يزال قيد الإعداد. حاول بعد قليل."],
+  "Could not summarize. Try again.": ["Impossible de résumer. Réessayez.", "تعذر التلخيص. حاول مجددًا."],
   "Archived feeds": ["Fils archivés", "الخلاصات المؤرشفة"],
   "Resume": ["Reprendre", "استئناف"],
   "Resuming…": ["Reprise…", "جارٍ الاستئناف…"],

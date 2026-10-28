@@ -1,6 +1,7 @@
 import {parse} from 'parse5';
 import {primaryTextContainer,primaryDescendants} from './primary-text';
 import {discoverWebsiteArticles} from './website-discovery';
+import {isArticleSchemaType,matchesOpaqueArticlePage,sameArticleUrl} from './article-schema';
 type Node={tagName?:string;nodeName?:string;value?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node};
 const attr=(n:Node,name:string)=>n.attrs?.find(a=>a.name===name)?.value??'';
 const excluded=new Set(['script','style','noscript','nav','header','footer','aside','form','button','svg']);
@@ -24,9 +25,10 @@ export function extractPublicHtml(html:string,url:string){
  if(stack.length)throw Error('SOURCE_TOO_COMPLEX');
  const meta=(key:string)=>all.find(n=>n.tagName==='meta'&&(attr(n,'property').toLowerCase()===key||attr(n,'name').toLowerCase()===key));
  const metadata=(key:string)=>{const n=meta(key);return n?attr(n,'content'):undefined};
+ const canonical=all.find(n=>n.tagName==='link'&&attr(n,'rel').split(/\s+/).includes('canonical'));
  let publishedAt=metadata('article:published_time')??metadata('datepublished');
  let title=text(all.find(n=>n.tagName==='h1')??{})||metadata('og:title')||text(all.find(n=>n.tagName==='title')??{});
- let structuredBody:string|undefined,collectionDescription:string|undefined,videoDescription:string|undefined,articleMetadata=metadata('og:type')==='article',restrictedMetadata=false,softwareMetadata=false,catalogueMetadata=false,productMetadata=false;
+ let structuredBody:string|undefined,collectionDescription:string|undefined,videoDescription:string|undefined,articleMetadata=metadata('og:type')==='article',foreignArticleMetadata=false,restrictedMetadata=false,softwareMetadata=false,catalogueMetadata=false,productMetadata=false;
  const samePage=(identity:unknown)=>{if(typeof identity!=='string')return false;try{const a=new URL(identity,url),b=new URL(url);return !a.username&&!a.password&&a.origin===b.origin&&a.pathname.replace(/\/$/,'')===b.pathname.replace(/\/$/,'')&&a.search===b.search}catch{return false}};
  for(const script of all.filter(n=>n.tagName==='script'&&attr(n,'type')==='application/ld+json').slice(0,10)){
   const raw=text(script,false);if(raw.length>128000)continue;
@@ -56,10 +58,11 @@ export function extractPublicHtml(html:string,url:string){
      if(types.some(t=>['CollectionPage','Product'].includes(String(t)))&&value.isAccessibleForFree===false)restrictedMetadata=true;
     }
     if(types.includes('SoftwareApplication'))softwareMetadata=true;
-    if(types.some(t=>['WebPage','Article','NewsArticle','BlogPosting','ScholarlyArticle','MedicalScholarlyArticle'].includes(String(t)))&&(value.isAccessibleForFree===false||value.isAccessibleForFree==='False'||value.isAccessibleForFree==='false'))restrictedMetadata=true;
-    if(types.some(t=>['Article','NewsArticle','BlogPosting','ScholarlyArticle','MedicalScholarlyArticle'].includes(String(t)))){
-     const entity=value.mainEntityOfPage,identity=typeof value.url==='string'?value.url:typeof entity==='string'?entity:entity&&typeof entity==='object'?(entity as Record<string,unknown>)['@id']:undefined;
-     if(typeof identity==='string'&&new URL(identity,url).href!==new URL(url).href)continue;
+    if(types.some(t=>t==='WebPage'||isArticleSchemaType(t))&&(value.isAccessibleForFree===false||value.isAccessibleForFree==='False'||value.isAccessibleForFree==='false'))restrictedMetadata=true;
+    if(types.some(isArticleSchemaType)){
+     const entity=value.mainEntityOfPage,identity=typeof value.url==='string'?value.url:typeof entity==='string'?entity:entity&&typeof entity==='object'?(entity as Record<string,unknown>)['@id']:typeof value['@id']==='string'&&!/^\d+$/.test(value['@id'])?value['@id']:undefined;
+     if(typeof identity==='string'&&!sameArticleUrl(new URL(identity,url).href,url)&&!matchesOpaqueArticlePage(value,url,canonical?attr(canonical,'href'):undefined,title)){foreignArticleMetadata=true;continue;}
+     if(!identity&&value['@id']&&!matchesOpaqueArticlePage(value,url,canonical?attr(canonical,'href'):undefined,title)){foreignArticleMetadata=true;continue;}
      articleMetadata=true;
      if(!publishedAt&&typeof value.datePublished==='string')publishedAt=value.datePublished;
      if(!title&&typeof value.headline==='string')title=value.headline;
@@ -74,12 +77,20 @@ export function extractPublicHtml(html:string,url:string){
  // Some publishers use an explicit article-body div instead of <article>.
  // Require article metadata and one unambiguous content container; never read
  // the entire page or mistake a listing's generic content div for reporting.
- const articleBodies=articleMetadata?all.filter(n=>attr(n,'itemprop').split(/\s+/).includes('articleBody')||n.tagName==='div'&&(attr(n,'class').split(/\s+/).includes('entry-content')||attr(n,'id')==='article-start'&&attr(n,'class').split(/\s+/).includes('content-box'))):[];
+ const bodyCandidates=articleMetadata?all.filter(n=>attr(n,'itemprop').split(/\s+/).includes('articleBody')||n.tagName==='div'&&(attr(n,'class').split(/\s+/).some(c=>['entry-content','article-body','field--name-body'].includes(c))||attr(n,'id')==='article-start'&&attr(n,'class').split(/\s+/).includes('content-box'))):[];
+ // Nested CMS wrappers describe one body; sibling bodies remain ambiguous.
+ const bodySet=new Set(bodyCandidates);
+ const articleBodies=bodyCandidates.filter(n=>{for(let p=n.parentNode;p;p=p.parentNode)if(bodySet.has(p))return false;return true;});
  // Some Article microdata publishers (including Naharnet) put the reporting
  // in itemprop=description. Admit only a multi-paragraph description owned by
  // an Article container; a generic description/meta teaser is not a body.
+ // A direct schema Article description also supports publishers with one
+ // substantive paragraph, while remote ancestors require multiple paragraphs.
  const descriptions=articleMetadata&&!articleBodies.length?all.filter(n=>{
-  if(!attr(n,'itemprop').split(/\s+/).includes('description')||(n.childNodes??[]).filter(c=>c.tagName==='p'&&text(c)).length<2)return false;
+  if(!attr(n,'itemprop').split(/\s+/).includes('description'))return false;
+  const directArticle=attr(n.parentNode??{},'itemtype').split(/\s+/).some(t=>/^https?:\/\/schema\.org\/Article$/.test(t));
+  if(directArticle&&text(n).length>=200)return true;
+  if((n.childNodes??[]).filter(c=>c.tagName==='p'&&text(c)).length<2)return false;
   for(let parent=n.parentNode;parent;parent=parent.parentNode)if(attr(parent,'itemtype').split(/\s+/).some(t=>/^https?:\/\/schema\.org\/(?:Article|NewsArticle|BlogPosting)$/.test(t)))return true;
   return false;
  }):[];
@@ -91,11 +102,12 @@ export function extractPublicHtml(html:string,url:string){
   const details=all.filter(n=>n.tagName==='div'&&attr(n,'class').split(/\s+/).includes('product-details')&&attr(n,'class').split(/\s+/).includes('articleBody'));
   if(details.length===1){articleBodies.push(details[0]);articleMetadata=true;}
  }
- const primary=primaryTextContainer(all);
- const content=primary??(articleBodies.length===1?articleBodies[0]:undefined);
+ const unboundDescription=!articleBodies.length&&all.some(n=>attr(n,'itemprop').split(/\s+/).includes('description'));
+ const primary=(!articleMetadata&&foreignArticleMetadata)||unboundDescription?undefined:primaryTextContainer(all);
+ const content=articleBodies.length===1?articleBodies[0]:primary;
  const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n))||attr(n,'class').split(/\s+/).includes('paywall-content')&&/^preview this article\b/i.test(text(n)));
  const accessRestricted=restrictedMetadata&&(explicitPreview||!structuredBody&&!content&&!article&&all.some(n=>/(?:^|[\s_-])paywall(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))));
- let body=structuredBody??(primary?primaryDescendants(primary).filter(n=>n.nodeName==='#text').map(n=>n.value??'').join(' ').replace(/\s+/g,' ').trim():content||article||main?text(content??article??main!):'');
+ let body=structuredBody??(articleBodies.length>1?'':primary&&content===primary?primaryDescendants(primary).filter(n=>n.nodeName==='#text').map(n=>n.value??'').join(' ').replace(/\s+/g,' ').trim():content||article||main?text(content??article??main!):'');
  let contentKind:'PRODUCT_DETAIL'|'CATALOGUE'|undefined;
  const within=(n:Node,parent:Node)=>{for(let p:Node|undefined=n;p;p=p.parentNode)if(p===parent)return true;return false};
  // Retain a resource's own description, not an invented article/transcript or
@@ -113,7 +125,6 @@ export function extractPublicHtml(html:string,url:string){
  else if(!contentKind&&!articleMetadata&&!article&&main&&all.some(n=>n.tagName==='h1'&&within(n,main))&&(productMetadata||catalogueMetadata&&listing&&listing.articles.length>0)){
   body=text(main,true,true);contentKind=productMetadata?'PRODUCT_DETAIL':'CATALOGUE';
  }
- const canonical=all.find(n=>n.tagName==='link'&&attr(n,'rel').split(/\s+/).includes('canonical'));
  let canonicalUrl=url;try{const candidate=new URL(canonical?attr(canonical,'href'):url,url);if(candidate.origin===new URL(url).origin&&candidate.pathname!=='/')canonicalUrl=candidate.href}catch{}
  return {title,body,...(contentKind?{contentKind}:{}),...(accessRestricted?{accessRestricted:true}:{}),publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,canonicalUrl,
   language:attr(all.find(n=>n.tagName==='html')??{},'lang')||undefined,

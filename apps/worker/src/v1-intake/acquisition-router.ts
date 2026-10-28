@@ -9,7 +9,7 @@ import type { AcceptedAcquiredContent } from './types';
 import type {LanguageResolution} from '../v1-intelligence/language';
 import {resolvePublicationDate,helperArticleDates,type PublicationDate} from './publication-date';
 import {sameArticleUrl,scholarlyAbstractAlias} from './article-url-identity';
-import {discoverWebsiteArticles,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
+import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
 
 export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
 export interface CandidateAcquisitionOptions {

@@ -1,4 +1,5 @@
 import {parse} from 'parse5';
+import {isArticleSchemaType,matchesOpaqueArticlePage} from './article-schema';
 
 interface Node {tagName?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];value?:string}
 export interface ArticleDateCandidate {value:string;source:string}
@@ -31,13 +32,17 @@ export function readArticleDateMetadata(html:string,url:string):ArticleDateMetad
     if(Array.isArray(value)){value.forEach(json);return;}
     if(!value||typeof value!=='object')return;
     const r=value as Record<string,unknown>,types=Array.isArray(r['@type'])?r['@type']:[r['@type']];
-    if(types.some(t=>typeof t==='string'&&/^(?:https?:\/\/schema.org\/)?(?:Article|NewsArticle|BlogPosting|ReportageNewsArticle)$/.test(t)))articles.push(r);
+    if(types.some(isArticleSchemaType))articles.push(r);
     if(r['@graph'])json(r['@graph']);
     if(r.mainEntity)json(r.mainEntity);
   };
-  const stack=[parse(html) as unknown as Node];
+  const stack=[parse(html) as unknown as Node];let canonical:string|undefined,title:string|undefined;
   while(stack.length){
     const n=stack.pop()!;
+    if(n.tagName==='link'&&attr(n,'rel').split(/\s+/).includes('canonical'))canonical=attr(n,'href');
+    if(n.tagName==='h1'){
+      const parts:string[]=[],pending=[n];while(pending.length){const p=pending.pop()!;if(p.value)parts.push(p.value);pending.push(...[...(p.childNodes??[])].reverse());}title=parts.join('');
+    }
     if(n.tagName==='meta'||n.tagName==='time'){
       const name=(attr(n,'property')||attr(n,'name')||attr(n,'itemprop')).toLowerCase(),value=attr(n,n.tagName==='time'?'datetime':'content');
       if(['article:published_time','datepublished','pubdate','publishdate','parsely-pub-date'].includes(name))add(value,`html:${name}`);
@@ -48,7 +53,7 @@ export function readArticleDateMetadata(html:string,url:string):ArticleDateMetad
     }
     if(!['script','style','template'].includes(n.tagName??''))stack.push(...(n.childNodes??[]));
   }
-  const scoped=articles.filter(r=>[r.url,r.mainEntityOfPage,r['@id']].some(samePage));
+  const scoped=articles.filter(r=>[r.url,r.mainEntityOfPage,r['@id']].some(samePage)||matchesOpaqueArticlePage(r,url,canonical,title));
   // A single unscoped Article is usable; related/foreign articles never donate dates.
   const relevant=scoped.length?scoped:articles.length===1&&!articles[0].url&&!articles[0].mainEntityOfPage&&!articles[0]['@id']?articles:[];
   for(const r of relevant){add(r.datePublished,'jsonld:datePublished');add(r.dateModified,'jsonld:dateModified',true);}
