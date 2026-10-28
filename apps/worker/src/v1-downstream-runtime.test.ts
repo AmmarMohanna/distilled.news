@@ -97,6 +97,27 @@ it('internal free recovery requires the maintenance secret and matching feed',as
  expect((await app.request('/api/internal/collectors/recover-article-unpaid',{...request,headers:{...request.headers,'x-distilled-internal':'fixture-secret'}},{...env,INTERNAL_MAINTENANCE_SECRET:'fixture-secret'})).status).toBe(404);
  expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',JSON.stringify(['ACQUIRE','observation-1',''])))!.value.state).toBe('PENDING');
 });
+it('reviewed unpaid recovery uses only the anonymous browser and preserves source identity',async()=>{
+ await acceptV1Handoff(env,batchFixture());
+ const originalDb=env.DB;
+ env={...env,DB:new Proxy(originalDb,{get(target,key){if(key==='prepare')return (sql:string)=>target.prepare(sql==='SELECT source_url,provider,kind,input,actor_id FROM sources WHERE id=?'?"SELECT 'https://publisher.example/feed' source_url,'rss' provider,'rss_feed' kind,NULL input,NULL actor_id WHERE ? IS NOT NULL":sql);const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}})};
+ await env.DB.exec('CREATE TABLE IF NOT EXISTS source_execution_slots(slot INTEGER PRIMARY KEY,token TEXT,lease_until INTEGER)');
+ const id=JSON.stringify(['ACQUIRE','observation-1','']),row=(await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!;
+ const input=(await store.read<import('./v1-intake/types').AcceptedInput>('inputs','observation-1'))!.value;
+ const from=input.observation.canonicalUrl!,to=new URL('/projects/verified-report',from).href,headline='Council approves the public proposal after debate';
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id,value:{...row.value,state:'FAILED',exhausted:true,attempts:1,failureCode:'INVALID_RESULT',failureDetail:'FALLBACK_URL_MISMATCH'}}]);
+ const {authorizeAcquisitionRecovery}=await import('./v1-intake/acquisition');
+ await authorizeAcquisitionRecovery(store,id,'reviewed-browser',new Date().toISOString(),undefined,undefined,{unpaidOnly:true,reviewedRedirect:{from,to,headline}});
+ const shell=`<meta property="og:type" content="article"><link rel="canonical" href="${to}"><h1>${headline}</h1>`;
+ const helper=vi.fn(async(_value:unknown,init?:RequestInit)=>{const body=JSON.parse(String(init?.body));expect(body.kind).toBe('playwright');expect(body.input).toEqual({url:to,exactCandidateOnly:true,waitForArticleText:true});return Response.json({status:200,url:to,html:shell+`<div itemprop="articleBody">${'Officials confirmed the proposal after a public debate and retained the original conditions. '.repeat(5)}</div>`});});
+ env={...env,SOURCE_FULL_ARTICLES_ENABLED:'true',SOURCE_EXECUTION_URL:'https://helper.example',SOURCE_EXECUTION_TOKEN:'x'.repeat(32),SOURCE_EXECUTION_SERVICE:{fetch:helper,connect:()=>{throw Error('unexpected connect')}},ZYTE_API_KEY:'must-not-be-used'};
+ expect(await env.DB.prepare('SELECT source_url,provider,kind,input,actor_id FROM sources WHERE id=?').bind('feed-source-1').first()).toMatchObject({provider:'rss'});
+ const fetcher:typeof fetch=async value=>String(value)===from?new Response(null,{status:301,headers:{location:to}}):new Response(shell);
+ const outcome=await processV1Acquisition(env,id,fetcher);
+ expect(helper).toHaveBeenCalledTimes(1);
+ expect(outcome,JSON.stringify((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!.value)).toBe('DONE');expect(helper).toHaveBeenCalledTimes(1);
+ expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!.value).toMatchObject({state:'DONE',attempts:2});
+});
 
 it('reports a recoverable maintenance storage wait without granting another recovery attempt',async()=>{
  const app=createApp({repository:new InMemoryRepository()});await acceptV1Handoff(env,batchFixture());

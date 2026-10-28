@@ -29,6 +29,15 @@ async function terminalRecoveryFixture(failureCode='NETWORK',attempts=5){
  const row=(await store.read<DownstreamJob>('jobs',jobId))!;
  await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,state:'FAILED',exhausted:true,attempts,failureCode,failureDetail:'HELPER_TRANSPORT_FAILURE'}}]);
 }
+ it.each(['INVALID_RESULT','NETWORK'])('binds reviewed %s recovery to the stored public publisher and grants only one unpaid attempt',async failure=>{
+  await terminalRecoveryFixture(failure,1);
+  const input=(await store.read<import('./types').AcceptedInput>('inputs','observation-1'))!.value;
+  const from=input.observation.canonicalUrl!,reviewedRedirect={from,to:new URL('/projects/report',from).href,headline:'Council approves the public proposal after debate'};
+  for(const invalid of [{...reviewedRedirect,from:'https://different.example/old'},{...reviewedRedirect,to:'https://different.example/report'},{...reviewedRedirect,to:'http://127.0.0.1/report'},{...reviewedRedirect,headline:'Short'}])await expect(authorizeAcquisitionRecovery(store,jobId,'invalid-review',now,undefined,undefined,{unpaidOnly:true,reviewedRedirect:invalid})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+  await authorizeAcquisitionRecovery(store,jobId,'reviewed-public',now,undefined,undefined,{unpaidOnly:true,reviewedRedirect});
+  await authorizeAcquisitionRecovery(store,jobId,'reviewed-public',now,undefined,undefined,{unpaidOnly:true,reviewedRedirect});
+  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{unpaidOnly:true,reviewedRedirect,maxAttempts:2}]});
+ });
 it('operator recovery grants one attempt and retains cumulative attempts and failure history',async()=>{
  await terminalRecoveryFixture();
  const before=(await store.snapshot('feed-source-1')).epoch;

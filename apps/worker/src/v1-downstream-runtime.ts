@@ -18,7 +18,8 @@ import {verifyConnectorAuthority} from './connector-authority';
 import {sharedPublicHttp} from './connector-public-cache';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
 import {readPublicArticle,PUBLIC_ARTICLE_MAX_BYTES} from './v1-intake/public-article-http';
-import {runtimeArticleFallback} from './v1-intake/article-fallback';
+import {runtimeArticleFallback,createArticleFallback} from './v1-intake/article-fallback';
+import {reviewedRedirectFor} from './v1-intake/reviewed-redirect';
 import {productConnectorSource} from './connector-source';
 
 function enabledSources(env:Env):string[] {
@@ -80,12 +81,17 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const store=new V1IntakeStore(env.DB),job=await store.read<DownstreamJob>('jobs',id);
  if(!job || env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,job.feedSourceId)) return 'SKIPPED' as const;
  const unpaidOnly=job.value.unpaidOnly===true||job.value.recoveryAuthorizations?.at(-1)?.unpaidOnly===true;
+ const reviewed=unpaidOnly&&job.value.recoveryAuthorizations?.at(-1)?.reviewedRedirect;
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
  const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
  const authorizeArticle=async(url:string)=>{new WorkerPublicSourceFetch(url,fetcher);if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);};
  const articleMaxBytes=PUBLIC_ARTICLE_MAX_BYTES;
  const articleHttp=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,new BoundedFeedHttp(async(url,init)=>{await authorizeArticle(url);return fetcher(url,{...init,redirect:'manual'})},{maxBytes:articleMaxBytes}),authorizeArticle,Date.now,articleMaxBytes):undefined;
  const helper=!unpaidOnly&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
+  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):undefined;
+ // Explicit reviewed recovery permits only the existing anonymous browser
+ // helper. It never enables public helpers, Google, models or paid providers.
+ const reviewedBrowser=reviewed&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
   new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):undefined;
  const execution=composeSourceExecution(unpaidOnly||env.SOURCE_NATIVE_EXECUTION_ENABLED==='true',helper,async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)});
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
@@ -96,10 +102,11 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  }:undefined,
  publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
  publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:25000});await authorizeArticle(url);return result;}:undefined,
- articleFallback:!unpaidOnly&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{
+ articleFallback:(!unpaidOnly||reviewedBrowser)&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{
   const source=await env.DB.prepare('SELECT source_url,provider,kind,input,actor_id FROM sources WHERE id=?').bind(job.feedSourceId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
   const approved=source&&productConnectorSource(source);
   if(!approved||!['rss','google_news','website'].includes(approved.source.family))return undefined;
+  if(unpaidOnly){if(!reviewedRedirectFor(claim.job,claim.input.observation.canonicalUrl!))return undefined;return createArticleFallback({execution:reviewedBrowser,authorize:authorizeArticle})(claim);}
   return runtimeArticleFallback(env,execution,authorizeArticle,fetcher)(claim);
  }:undefined,
  extractHtml:execution?async(url,html)=>{

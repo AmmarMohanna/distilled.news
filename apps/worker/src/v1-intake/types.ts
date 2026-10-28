@@ -21,7 +21,7 @@ export interface DownstreamJob {
   leaseToken?: string; leaseUntil?: string; failureCode?: string;
   resumeAttempts?: number;
     /** Explicit operator recovery; cumulative attempts and prior failures survive. */
-    recoveryAuthorizations?: {unpaidOnly?:true;id:string;authorizedAt:string;priorAttempts:number;priorFailureCode:string;priorFailureDetail?:string;maxAttempts:number;redirectEvidence?:{from:string;to:string};canonicalEvidence?:{from:string;to:string}}[];
+    recoveryAuthorizations?: {unpaidOnly?:true;id:string;authorizedAt:string;priorAttempts:number;priorFailureCode:string;priorFailureDetail?:string;maxAttempts:number;reviewedRedirect?:{from:string;to:string;headline:string};redirectEvidence?:{from:string;to:string};canonicalEvidence?:{from:string;to:string}}[];
   resourceWaits?: number;
   failureDetail?: string;
   httpStatus?: number;

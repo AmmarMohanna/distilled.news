@@ -657,6 +657,16 @@ async def browser(data):
         try:
             page = await context.new_page()
             response = await page.goto(data['url'], wait_until='domcontentloaded', timeout=20000)
+            if data.get('waitForArticleText') is True:
+                # Exact reviewed articles can hydrate after DOMContentLoaded.
+                # This is a bounded readiness wait, not scrolling or navigation.
+                try:
+                    await page.wait_for_function(
+                        "() => [...document.querySelectorAll('article,[itemprop=articleBody],main')].some(n => (n.innerText || '').trim().length >= 400)",
+                        timeout=3500)
+                except Exception as error:
+                    if type(error).__name__ != 'TimeoutError':
+                        raise
             html = await page.content()
             if len(html.encode()) > 4000000:
                 raise ValueError('HTML_TOO_LARGE')

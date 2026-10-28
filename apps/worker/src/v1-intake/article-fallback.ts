@@ -3,6 +3,7 @@ import {AcquisitionFailure,type AcquisitionClaim} from './acquisition';
 import type {Env} from '../types';
 import {createSourceBackend} from '../source-backend';
 import {sameArticleUrl,scholarlyAbstractAlias} from './article-url-identity';
+import {reviewedRedirectFor,matchesReviewedRedirect} from './reviewed-redirect';
 
 export function runtimeArticleFallback(env:Env,execution:SourceExecutionPort|undefined,authorize:(url:string)=>Promise<void>,dispatch:typeof fetch){
  const budgets=JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'),ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}');
@@ -22,20 +23,23 @@ export function createArticleFallback(options:{
 }) {
  return async(claim:AcquisitionClaim):Promise<unknown>=>{
   const o=claim.input.observation,url=o.canonicalUrl!;
+  const reviewed=reviewedRedirectFor(claim.job,url);
   // Ignore only known attribution parameters and trailing-slash aliases.
   const sameUrl=(value:unknown)=>sameArticleUrl(value,url);
   const article=(html:string,provider:string,resolved?:unknown)=>{
    const partial=scholarlyAbstractAlias(url,resolved);
-   if(resolved!==undefined&&!sameUrl(resolved)&&!partial)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_URL_MISMATCH'});
+   const relocated=!!reviewed&&resolved===reviewed.to;
+   if(resolved!==undefined&&!sameUrl(resolved)&&!partial&&!relocated)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_URL_MISMATCH'});
    if(new TextEncoder().encode(html).length>PUBLIC_ARTICLE_HTML_MAX_BYTES)throw new AcquisitionFailure('BODY_BUDGET_EXCEEDED',false);
    if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha|verifying you are human)/i.test(html))throw new AcquisitionFailure('CHALLENGE_REQUIRED',false);
-   const result=extractPublicHtml(html,partial?String(resolved):url);
+   const result=extractPublicHtml(html,partial||relocated?String(resolved):url);
+   if(relocated&&(!matchesReviewedRedirect(reviewed,resolved,result.title)||!sameArticleUrl(result.canonicalUrl,resolved)||result.pageKind!=='article'))throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'REVIEWED_REDIRECT_IDENTITY_MISMATCH'});
    if(result.accessRestricted)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
    const naturePdf=new URL(url).hostname==='www.nature.com'&&/^\/articles\/[\w-]+$/.test(new URL(url).pathname)&&result.canonicalUrl===url+'.pdf';
-   if(!sameUrl(result.canonicalUrl)&&!(partial&&sameArticleUrl(result.canonicalUrl,resolved))&&!naturePdf)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_CANONICAL_MISMATCH'});
+   if(!sameUrl(result.canonicalUrl)&&!relocated&&!(partial&&sameArticleUrl(result.canonicalUrl,resolved))&&!naturePdf)throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'FALLBACK_CANONICAL_MISMATCH'});
    if(result.pageKind==='listing')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_PRIMARY_ARTICLE_TEXT'});
    if(!['article','catalogue'].includes(result.pageKind)||result.body.length<(result.pageKind==='catalogue'||result.contentCompleteness==='PARTIAL'?80:200)||unreadableArticleReason(result.body))return undefined;
-   return {...result,canonicalUrl:url,status:200,url,...(partial?{resolvedUrl:resolved,partial:true}:{}),dateMetadata:readArticleDateMetadata(html,partial?String(resolved):url),provider};
+   return {...result,canonicalUrl:url,status:200,url,...(partial?{resolvedUrl:resolved,partial:true}:{}),...(relocated?{resolvedUrl:resolved,publisherRelocation:true}:{}),dateMetadata:readArticleDateMetadata(html,partial||relocated?String(resolved):url),provider};
   };
   const status=(value:Record<string,unknown>)=>{
    if(value.status===401||value.authenticationRequired===true||value.error==='AUTH_REQUIRED')throw new AcquisitionFailure('AUTH_REQUIRED',false);
@@ -45,18 +49,21 @@ export function createArticleFallback(options:{
   };
   if(options.execution){
    await options.authorize(url);
+   const browserUrl=reviewed?.to??url;
+   await options.authorize(browserUrl);
    let value:unknown;
-   try {value=await options.execution.execute('playwright',{url,exactCandidateOnly:true},{timeoutMs:25000});}
+   try {value=await options.execution.execute('playwright',{url:browserUrl,exactCandidateOnly:true,...(reviewed?{waitForArticleText:true}:{})},{timeoutMs:25000});}
    catch(error){
     if(error instanceof SourceProviderError&&error.code!=='TRANSIENT'&&error.code!=='UNAVAILABLE')throw error;
     if(!(error instanceof SourceProviderError)&&!(error instanceof Error&&(['SOURCE_EXECUTION_TIMEOUT','SOURCE_EXECUTION_UNAVAILABLE'].includes(error.message)||error instanceof TypeError||['AbortError','TimeoutError'].includes(error.name))))throw error;
    }
    await options.authorize(url);
+   await options.authorize(browserUrl);
    if(value&&typeof value==='object'&&!Array.isArray(value)){
     const r=value as Record<string,unknown>;status(r);
     // Older helpers cannot attest final URL; don't promote their browser output.
-    if(r.status===200&&sameUrl(r.url)&&typeof r.html==='string'){
-     try{const result=article(r.html,'website_playwright',r.url);if(result)return result;}
+    if(r.status===200&&(sameUrl(r.url)||!!reviewed&&reviewed.to===r.url)&&typeof r.html==='string'){
+     try{const result=article(r.html,'website_playwright',r.url);if(result)return {...result,browserRendered:true};}
      catch(error){if(!(error instanceof AcquisitionFailure)||!['CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'].includes(error.code))throw error;}
     }
    }

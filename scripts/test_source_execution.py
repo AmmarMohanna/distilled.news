@@ -32,6 +32,7 @@ class RuntimeTests(unittest.TestCase):
             return types.SimpleNamespace(status=200, headers={})
         page.goto = goto
         page.content = AsyncMock(return_value='<article>Original article</article>')
+        page.wait_for_function = AsyncMock()
         async def route(_pattern, handler): routes.append(handler)
         context = types.SimpleNamespace(route=route, new_page=AsyncMock(return_value=page), close=AsyncMock())
         browser = types.SimpleNamespace(new_context=AsyncMock(return_value=context), close=AsyncMock())
@@ -40,9 +41,11 @@ class RuntimeTests(unittest.TestCase):
         manager.__aenter__.return_value = engine
         module = types.SimpleNamespace(async_playwright=lambda: manager)
         with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.dict('sys.modules', {'playwright.async_api':module}):
-            result = asyncio.run(runtime.browser({'url':url, 'exactCandidateOnly':True}))
+            result = asyncio.run(runtime.browser({'url':url, 'exactCandidateOnly':True, 'waitForArticleText':True}))
         self.assertEqual(result['url'], url)
         self.assertFalse(result['authenticationRequired'])
+        page.wait_for_function.assert_awaited_once()
+        self.assertEqual(page.wait_for_function.call_args.kwargs['timeout'], 3500)
         context.close.assert_awaited_once()
         browser.close.assert_awaited_once()
 
