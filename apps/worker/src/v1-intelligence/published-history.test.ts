@@ -22,3 +22,8 @@ it('keeps old evidence identities but loads prose only within reader memory',asy
  expect(rows.map(r=>r.evidenceRevisionIds)).toEqual([['e0'],['e1'],['e2']]);expect(rows[0].stories).toEqual([]);expect(rows[1].stories[0].claims[0].text).toContain('1');expect(rows[2].stories[0].claims[0].text).toContain('2');
  }finally{await ctx.dispose()}
 });
+
+it('fails closed if retained prose disappears between metadata and story reads',async()=>{
+ let calls=0;const db={prepare(){return {bind(){return this},async all(){return {results:++calls===1?[{id:'edition',created_at:'2026-10-01T00:00:00Z',window_end:'2026-10-01T00:00:00Z',evidence_ids:'[]'}]:[]}}}}} as unknown as D1Database;
+ await expect(new V1FeedStore(db).publicationPreparationHistory('feed',0)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+});

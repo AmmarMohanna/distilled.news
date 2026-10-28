@@ -84,7 +84,7 @@ export class V1FeedStore {
   const eligible=result.filter(r=>{const at=Date.parse(r.createdAt);return !Number.isFinite(at)||!Number.isFinite(cutoff)||at>=cutoff});
   for(let offset=0;offset<eligible.length;offset+=90){
    const page=eligible.slice(offset,offset+90),prose=await this.db.prepare(`SELECT id,json_extract(json,'$.stories') AS stories FROM v1_feed_documents WHERE feed_id=? AND kind='editions' AND id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page.map(r=>r.id)).all<{id:string;stories:string}>();
-   const byId=new Map(prose.results.map(r=>[r.id,JSON.parse(r.stories)]));for(const row of page)row.stories=byId.get(row.id)??[];
+   const byId=new Map(prose.results.map(r=>[r.id,JSON.parse(r.stories)]));for(const row of page){if(!byId.has(row.id)||!Array.isArray(byId.get(row.id)))throw new HandoffError('TEMPORARY_UNAVAILABLE');row.stories=byId.get(row.id);}
   }
   return result;
  }
