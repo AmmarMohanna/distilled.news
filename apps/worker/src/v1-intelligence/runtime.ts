@@ -84,7 +84,7 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  // Newly acquired V3 evidence needs no semantic preprocessor. Leave previously
  // started V2 operations and rematches on their original recovery path.
  if(productV3Enabled(env)){
-  const started=await env.DB.prepare("SELECT 1 FROM v1_feed_documents d JOIN v1_revisions r ON json_extract(r.json,'$.sourceObservationId')=? WHERE d.feed_id=? AND d.kind='semantic_intents' AND EXISTS(SELECT 1 FROM json_each(d.json,'$.input.evidenceRevisionIds') WHERE value=r.id) LIMIT 1").bind(row.value.observationId,scope.scope.feedId).first();
+  const started=await new V1FeedStore(env.DB).hasSemanticIntentForObservation(scope.scope.feedId,row.value.observationId);
   if(!started)return withFeedWriteTurn(env,scope.scope.feedId,()=>feedTransact(new V1FeedStore(env.DB),scope.scope.feedId,async tx=>{const job=await intake.read<DownstreamJob>('jobs',id);if(!job||job.feedSourceId!==row.feedSourceId)throw new HandoffError('SCOPE_DENIED');tx.completeJob(job.value);return 'DONE';}),`review:${id}`);
  }
  if(editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT)==='EVIDENCE_GROUNDED_V2'&&await withFeedWriteTurn(env,scope.scope.feedId,()=>retainBacklogReview(new V1FeedStore(env.DB),id,now),`admission:${id}`))return 'BACKLOG_RETAINED';

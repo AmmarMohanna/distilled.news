@@ -40,6 +40,10 @@ export class V1FeedStore {
   }
   return values;
  }
+ /** Follow the feed's explicit intent references; never scan retained revision bodies globally. */
+ async hasSemanticIntentForObservation(feedId:string,observationId:string):Promise<boolean> {
+  const row=await this.db.prepare("SELECT 1 FROM v1_feed_documents d CROSS JOIN json_each(d.json,'$.input.evidenceRevisionIds') ref CROSS JOIN v1_revisions r ON r.id=ref.value WHERE d.feed_id=? AND d.kind='semantic_intents' AND json_extract(r.json,'$.sourceObservationId')=? LIMIT 1").bind(feedId,observationId).first();return Boolean(row);
+ }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
  /** Metadata-only eligibility pass; immutable article bodies are loaded only after selection. */
  async currentEvidenceHeaders(feedId:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
