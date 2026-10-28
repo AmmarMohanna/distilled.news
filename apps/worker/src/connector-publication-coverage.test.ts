@@ -1,6 +1,7 @@
 import {beforeAll,afterAll,beforeEach,it,expect} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {pendingWindowCollections} from './connector-publication-coverage';
+import {readFileSync} from 'node:fs';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 const end='2026-10-28T22:32:09.437Z';
 beforeAll(async()=>{
@@ -19,6 +20,13 @@ it('releases V3 after a durably resolved later Telegram page while retaining inc
  expect(await pendingWindowCollections(ctx.db,'feed',end,true)).toMatchObject({pending:0,sources:[],continuing:1,continuingSources:['Telegram']});
  expect(await pendingWindowCollections(ctx.db,'feed',end)).toMatchObject({pending:1,sources:['Telegram']});
  expect(await ctx.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='poll'").first()).toEqual({state:'PENDING'});
+});
+it('releases the retained later-page handoff projection without changing the original V2 gate',async()=>{
+ const retained=JSON.parse(readFileSync(new URL('../../../benchmarks/results/v3-selective-database-reads/collection-readiness-retained-page.json',import.meta.url),'utf8'));
+ await poll(retained.result,{scheduledAt:retained.scheduledAt});
+ expect(retained.cutoff).toBe(end);
+ expect(await pendingWindowCollections(ctx.db,'feed',end,true)).toMatchObject({pending:0,continuing:1});
+ expect(await pendingWindowCollections(ctx.db,'feed',end,false)).toMatchObject({pending:1,continuing:0});
 });
 it.each(['before','unresolved','missing-receipt','unknown-observation','earlier-observation','no-durable-receipt','blocked','missing-result'] as const)('retains the gate for %s data',async mode=>{
  const result:any=laterPage();
