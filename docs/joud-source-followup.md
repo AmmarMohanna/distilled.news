@@ -40,12 +40,23 @@ Thus `ACCOUNT_AUTHORIZATION_REQUIRED` is expected admission behavior, not a
 request to switch models. There were no unmapped model intents or unsettled model
 liabilities in the inspected ledger.
 
-A new 24-hour grant capped at $1 total, for the same two models and one concurrent
-operation, was proposed to the owner. **It has not been applied.** Existing grants
-are explicitly nonrenewing; an unanswered request does not renew them. End-to-end
-publication remains unvalidated until permission is resolved and coverage/review
-waits complete. No default grant, tracking-only bypass or unlimited model mode
-was introduced.
+The owner subsequently explicitly approved a new 24-hour grant capped at $1
+for the same two models and one concurrent operation. It was installed through
+`authorizeModelSpending`, preserving overlap checks, legacy-liability checks and
+immutable old grants. Both model-to-account admission checks passed.
+
+- Grant: `joud-owner-approved-1usd-24h-2026-10-28T12-10-01-931Z`
+- Valid from: 28 October 2026, 12:10:01.931 UTC (14:10 Beirut).
+- Expires: 29 October 2026, 12:10:01.931 UTC (14:10 Beirut).
+- Maximum exposure: $1; one concurrent operation; no automatic renewal.
+- Models: `openai/gpt-4.1` and `openai/gpt-4.1-mini` only.
+- Old grants were verified unchanged. Initial exposure and unsettled model
+  liabilities were zero. Paid source-provider settings were not modified.
+
+No tracking-only bypass or unlimited model mode was introduced. The permission
+is active, but end-to-end publication is not yet confirmed: retained coverage
+and reassessment waits remain, and old blocked request labels are updated by
+the scheduler. The grant alone does not assert a successfully published briefing.
 
 ## Remaining boundaries
 
