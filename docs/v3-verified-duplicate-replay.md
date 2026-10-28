@@ -23,3 +23,11 @@ All 50 tests passed across intake.test.ts, evidence.test.ts and conflicts.test.t
 ## Final audit marker
 
 The exception now adds optional replayDiagnostic: VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED to its durable intake receipt. Ordinary replay retains its existing receipt shape; old receipts remain valid. Contract validation permits this literal marker only on REPLAY decisions. The stored receipt and repeated-delivery identity are tested. No ordering pointer or downstream job is added by this diagnostic. Final verification: 50 Worker intake/evidence/conflict tests and 45 contract tests passed; Worker and contracts TypeScript checks passed. This follow-up remains local, unpushed and undeployed.
+
+## Authorized staging live test
+
+On October 29 Beirut time, the user authorized live testing. Commits a6edc43 and 82a9e7b were pushed and deployed to distilled-news-staging as f9626179-9bfa-4ea1-b448-73b07c9bfa13. No schema migration or frontend change was required. Exact existing asset hashes, queues, model configuration and secrets were preserved; feed/session reads passed and signed-out summary invocation returned 401 without inference.
+
+Read-only observation confirmed the exact original article and all canonical ordering fields remained byte-for-byte unchanged. No new observation of the targeted duplicate arrived during the bounded observation period, so no replay diagnostic was written. Existing cached quarantined receipts correctly retain their original terminal decisions. This is a successful deployment/smoke check, NOT proof that the exception executed live or that the old collection backlog recovered. No live quarantine was manually resolved, no financial record was changed, and no paid evaluation request was made. Protected financial snapshots compare equal. A fresh independent handoff or separately authorized existing quarantine re-evaluation is still required to exercise the exception on this retained item.
+
+Live evidence is in .local-reports/v3-replay-live/; sanitized outcome is benchmarks/results/v3-selective-database-reads/verified-replay-live.json.
