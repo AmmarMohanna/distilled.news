@@ -41,6 +41,19 @@ export class V1FeedStore {
   return values;
  }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
+ /** Metadata-only eligibility pass; immutable article bodies are loaded only after selection. */
+ async currentEvidenceHeaders(feedId:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
+  const rows=await this.db.prepare(`SELECT r.id,json_extract(r.json,'$.evidenceId') AS evidence_id,json_extract(r.json,'$.publishedAt') AS published_at,json_extract(r.json,'$.acceptedAt') AS accepted_at,json_extract(i.json,'$.observation.observedAt') AS observed_at FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>();
+  return rows.results.map(r=>({revision:{id:r.id,evidenceId:r.evidence_id,publishedAt:r.published_at??undefined,acceptedAt:r.accepted_at},observedAt:r.observed_at}));
+ }
+ async currentEvidenceByIds(feedId:string,ids:string[]):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
+  const unique=[...new Set(ids)],result:{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]=[];
+  for(let offset=0;offset<unique.length;offset+=90){const page=unique.slice(offset,offset+90);
+   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND r.id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page).all<{item:string;revision:string}>();
+   result.push(...rows.results.map(r=>({item:JSON.parse(r.item),revision:JSON.parse(r.revision)})));
+  }
+  if(result.length!==unique.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');return result;
+ }
  async currentEvidence(feedId:string):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{item:string;revision:string}>();
   return rows.results.map(r=>({item:JSON.parse(r.item),revision:JSON.parse(r.revision)}));

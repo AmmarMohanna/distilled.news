@@ -30,7 +30,7 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const editions=(await store.publicationPreparationHistory(feedId,priorMemoryCutoff(new Date(window.end)))).filter(e=>Date.parse(e.windowEnd)<=Date.parse(window.start));
  const prior=editions.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id)).flatMap(e=>e.stories.map(s=>({id:`${e.id}:${s.candidateId}`,at:e.createdAt,headline:s.claims[0]?.text??'',body:s.claims.map(c=>c.text).join('\n')})));
  const previouslyUsed=new Set(editions.flatMap(e=>e.evidenceRevisionIds));
- const evidence=await store.currentEvidence(feedId);
+ const evidence=await store.currentEvidenceHeaders(feedId);
  const previousEvidenceIds=evidence.length?new Set((await store.revisionEvidenceIds(feedId,[...previouslyUsed])).values()):new Set<string>();
  const previousResults=evidence.length?await store.list<V3WindowResult>(feedId,'v3_window_results'):[];
  const retryIds=new Set<string>();
@@ -38,14 +38,8 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
   for(const id of [...previous.result.items.flatMap(i=>i.sourceIds),...previous.result.skipped.map(s=>s.id),...previous.result.omitted.flatMap(o=>o.sourceIds),...previous.result.dropped.flatMap(d=>d.sourceIds)])retryIds.delete(id);
   for(const dropped of previous.result.dropped.filter(d=>d.carry))for(const id of dropped.sourceIds)retryIds.add(id);
  }
- const observedAt=new Map<string,string|null>();
- const ids=[...new Set(evidence.map(e=>e.revision.id))];
- for(let offset=0;offset<ids.length;offset+=90){
-  const page=ids.slice(offset,offset+90);
-  const observations=await store.db.prepare(`SELECT r.id,json_extract(i.json,'$.observation.observedAt') observedAt FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page).all<{id:string;observedAt:string|null}>();
-  for(const row of observations.results)observedAt.set(row.id,row.observedAt);
- }
- const beforeClose=(r:EvidenceRevision)=>Date.parse(observedAt.get(r.id)??r.acceptedAt)<Date.parse(window.end);
+ const observedAt=new Map(evidence.map(e=>[e.revision.id,e.observedAt]));
+ const beforeClose=(r:Pick<EvidenceRevision,'id'|'acceptedAt'>)=>Date.parse(observedAt.get(r.id)??r.acceptedAt)<Date.parse(window.end);
  const active=evidence.filter(({revision:r})=>{
   if(!beforeClose(r))return false;
   if(previouslyUsed.has(r.id)&&!retryIds.has(r.id))return false;
@@ -56,7 +50,9 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const pending=(await store.unresolvedPublicationWindows(feedId)).filter(r=>Date.parse(r.window.end)<=Date.parse(window.start)&&Date.parse(r.window.start)>=Date.parse(feed.createdAt));
  const carried=evidence.filter(({revision:r})=>!active.some(a=>a.revision.id===r.id)&&!previouslyUsed.has(r.id)&&beforeClose(r)&&pending.some(p=>newsWindowEligibility([r],p.window,feed.createdAt)==='IN_WINDOW'));
  active.push(...carried);active.sort((a,b)=>a.revision.id.localeCompare(b.revision.id));
- const input:BriefingInput={feed:{interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:active.map(({item,revision:r})=>({id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
+ const hydrated=new Map((await store.currentEvidenceByIds(feedId,active.map(e=>e.revision.id))).map(e=>[e.revision.id,e]));
+ const selected=active.map(e=>{const full=hydrated.get(e.revision.id);if(!full)throw new HandoffError('TEMPORARY_UNAVAILABLE');return full});
+ const input:BriefingInput={feed:{interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:selected.map(({item,revision:r})=>({id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
  const value={promptVersion:4 as const,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }

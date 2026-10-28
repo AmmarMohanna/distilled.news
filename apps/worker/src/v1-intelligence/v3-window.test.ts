@@ -208,8 +208,8 @@ it('batches old publication identities without changing the prepared snapshot',a
 
 it('loads observation timing only for current evidence identities',async()=>{
  await article();const queries:string[]=[];const tracked=new V1FeedStore({prepare(sql:string){queries.push(sql);return ctx.db.prepare(sql)}} as D1Database);await prepareV3Window(tracked,'feed-1',window,window.end);
- const timing=queries.filter(sql=>sql.includes('observedAt FROM v1_revisions'));
- expect(timing).toHaveLength(1);expect(timing[0]).toContain('r.id IN (');
+ const timing=queries.filter(sql=>sql.includes('AS observed_at'));
+ expect(timing).toHaveLength(1);expect(timing[0]).toContain("r.id=json_extract(e.json,'$.currentRevisionId')");
 },30000);
 
 it('quiet preparation avoids carry and revision-history reads without changing its snapshot',async()=>{
@@ -230,4 +230,11 @@ it('V3 routing preserves rematch maintenance for explicitly pending V2 windows',
  await article();env={...env,PROCESSING_QUEUE:{send:async()=>{}}} as unknown as Env;const id=await windowIdentity('feed-1',window);await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,engine:'v2',createdAt:window.end}));
  const list=vi.spyOn(V1FeedStore.prototype,'list');await dispatchV1Intelligence(env,new Date(window.end));
  expect(list.mock.calls.some(c=>c[1]==='rematch_requests')).toBe(true);
+},30000);
+
+it('does not load old article bodies to prepare an unchanged current window',async()=>{
+ await article();const baseline=await prepareV3Window(store,'feed-1',window,window.end);
+ for(let i=2;i<7;i++)await acceptEvidence(store,i,'Old background '+i+' '+ 'x'.repeat(10000),'publisher-1','2026-10-03T12:10:00Z','en','2026-10-01T12:00:00Z');
+ const full=vi.spyOn(store,'currentEvidence');const selected=vi.spyOn(store,'currentEvidenceByIds');const actual=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(actual).toEqual(baseline);expect(full).not.toHaveBeenCalled();expect(selected).toHaveBeenCalledWith('feed-1',baseline.evidenceRevisionIds);
 },30000);
