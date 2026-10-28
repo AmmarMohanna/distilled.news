@@ -1,0 +1,31 @@
+{
+  "scope": "One explicitly authorized exhausted Telegram poll resumed through recoverConnectorPoll; normal staging scheduler completed it.",
+  "at": "2026-10-28T22:40:42.268Z",
+  "originalJobPreserved": true,
+  "state": "DONE",
+  "lastError": null,
+  "checkpoint": "UNCHANGED",
+  "cursorBefore": [
+    {
+      "provider_id": "telegram_telethon",
+      "version": 51,
+      "sequence": 1355,
+      "cursor": "107741"
+    }
+  ],
+  "cursorAfter": [
+    {
+      "provider_id": "telegram_telethon",
+      "version": 51,
+      "sequence": 1355,
+      "cursor": "107741"
+    }
+  ],
+  "resolvedReceipt": {
+    "decision": "REPLAY",
+    "reason": "REPLAY_IDENTICAL",
+    "checkpointResolution": "RESOLVED",
+    "replayDiagnostic": "VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED"
+  },
+  "manualProviderRequests": 0
+}
