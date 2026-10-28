@@ -39,7 +39,7 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
    const input=await tx.read<AcceptedInput>('inputs',job.observationId);
    try{
     new WorkerPublicSourceFetch(redirectEvidence.from);new WorkerPublicSourceFetch(redirectEvidence.to);
-    publicRedirect=input?.observation.canonicalUrl===redirectEvidence.from&&new URL(redirectEvidence.from).origin!==new URL(redirectEvidence.to).origin;
+    publicRedirect=input?.observation.canonicalUrl===redirectEvidence.from&&redirectEvidence.from!==redirectEvidence.to&&(new URL(redirectEvidence.from).origin!==new URL(redirectEvidence.to).origin||options?.unpaidOnly===true);
    }catch{/* Unsafe redirects never grant recovery. */}
   }
   if(job.state!=='FAILED'||!job.exhausted||!['NETWORK','EXTRACTION_FAILED','RECOVERY_EXHAUSTED','CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'].includes(job.failureCode??'')&&!(job.failureCode==='UNSUPPORTED'&&job.failureDetail==='LISTING_PAGE')&&!fenced&&!publicRedirect&&!canonicalAlias)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';

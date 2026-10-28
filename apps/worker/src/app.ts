@@ -1309,14 +1309,14 @@ export function createApp(options: AppOptions = {}) {
       return c.json({state:'PENDING',unpaidOnly:true});
     }
     if(c.req.param('action')==='recover-article-unpaid'&&c.req.method==='POST'){
-      const input=z.object({feedId:z.string().min(1).max(256),jobId:z.string().min(1).max(4096),canonicalEvidence:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192)}).strict().optional(),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
+      const input=z.object({feedId:z.string().min(1).max(256),jobId:z.string().min(1).max(4096),redirectEvidence:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192)}).strict().optional(),canonicalEvidence:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192)}).strict().optional(),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
       const {V1IntakeStore}=await import('./v1-intake/store');
       const {authorizeAcquisitionRecovery}=await import('./v1-intake/acquisition');
       const {processV1Acquisition}=await import('./v1-downstream-runtime');
       const store=new V1IntakeStore(c.env.DB),job=await store.read<import('./v1-intake/types').DownstreamJob>('jobs',input.jobId);
       if(!job||job.value.feedId!==input.feedId)return c.json({error:'job not found'},404);
       try{
-        await authorizeAcquisitionRecovery(store,input.jobId,input.approvalId,new Date().toISOString(),undefined,input.canonicalEvidence,{unpaidOnly:true});
+        await authorizeAcquisitionRecovery(store,input.jobId,input.approvalId,new Date().toISOString(),input.redirectEvidence,input.canonicalEvidence,{unpaidOnly:true});
       }catch(error){
         const code=error instanceof Error?error.message:'';
         if(/^RECOVERY_[A-Z_]+$/.test(code))return c.json({error:code},409);

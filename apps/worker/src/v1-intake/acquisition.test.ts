@@ -469,3 +469,21 @@ it('accepts a short publisher-scoped breaking report as a partial excerpt withou
  const claim=(await claimAcquisition(store,jobId,now))!,r=await router(claim);
  expect(r).toMatchObject({representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL',body:brief,quality:{extractionComplete:false}});
 });
+
+it('accepts a same-publisher public relocation only with an exact source headline, preserving input identity',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,from=claim.input.observation.canonicalUrl!,to='https://publisher.example/economy/relocated-report',headline='Global stock markets rise as investors continue to bet on AI';claim.input.observation.titleHint=headline;
+ const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async value=>String(value)===from?new Response(null,{status:301,headers:{location:to}}):new Response(`<meta property="og:type" content="article"><link rel="canonical" href="${to}"><meta property="article:published_time" content="2026-10-03T10:00:00Z"><h1>${headline}</h1><div itemprop="articleBody">${'Officials described the preliminary results and warned that further verification remains necessary. '.repeat(4)}</div>`)});
+ const r=await router(claim);expect(r).toMatchObject({sourceObservationId:claim.input.observation.id,canonicalUrl:from,resolvedUrl:to,acquisitionMethod:'direct_http'});expect(claim.input.observation.canonicalUrl).toBe(from);
+});
+it.each(['Different story about another event',''])('rejects same-publisher redirects without matching retained headline: %s',async headline=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,from=claim.input.observation.canonicalUrl!,to='https://publisher.example/news/other';claim.input.observation.titleHint='Original report about an important event';
+ const router=createCandidateAcquisitionRouter({now:()=>now,publicGet:async()=>({url:to,status:200,contentType:'text/html',body:`<link rel="canonical" href="${to}"><h1>${headline}</h1><div itemprop="articleBody">${'Readable article text must not replace another story. '.repeat(6)}</div>`})});
+ await expect(router(claim)).rejects.toMatchObject({code:'INVALID_RESULT',diagnostic:{detail:'ARTICLE_REDIRECT_IDENTITY_MISMATCH'}});
+});
+it('same-origin redirect recovery is free-only and preserves the one-attempt limit',async()=>{
+ await terminalRecoveryFixture('POLICY_DENIED',1);const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:undefined}}]);
+ const input=(await store.read<import('./types').AcceptedInput>('inputs','observation-1'))!.value,evidence={from:input.observation.canonicalUrl!,to:'https://publisher.example/economy/relocated-report'};
+ await expect(authorizeAcquisitionRecovery(store,jobId,'paid-relocation',now,evidence)).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await authorizeAcquisitionRecovery(store,jobId,'free-relocation',now,evidence,undefined,{unpaidOnly:true});expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{unpaidOnly:true,maxAttempts:2,redirectEvidence:evidence}]});
+});

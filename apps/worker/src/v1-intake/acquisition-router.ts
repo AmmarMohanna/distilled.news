@@ -67,7 +67,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
   if(!o.canonicalUrl) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'MISSING_CANONICAL_URL'});
 
   let fetchPort:WorkerPublicSourceFetch;
-  try {fetchPort=new WorkerPublicSourceFetch(o.canonicalUrl,options.fetcher,{maxBytes:PUBLIC_ARTICLE_HTML_MAX_BYTES})} catch {throw new AcquisitionFailure('POLICY_DENIED',false)}
+  try {fetchPort=new WorkerPublicSourceFetch(o.canonicalUrl,options.fetcher,{maxBytes:PUBLIC_ARTICLE_HTML_MAX_BYTES,followSameOriginRedirects:true})} catch {throw new AcquisitionFailure('POLICY_DENIED',false)}
   const request:SourceAcquisitionRequest={source:{canonicalSourceUrl:o.canonicalUrl,resourceLocator:o.canonicalUrl},window:{startTime:'1970-01-01T00:00:00Z',endTime:options.now()},authentication:'PUBLIC',limits:{maxItems:1,maxPages:1,maxScrolls:0,maxPhysicalAttempts:2,maxExecutionMs:60_000}};
   const privateArticle=async()=>{
    if(!options.publicArticle)return undefined;
@@ -100,6 +100,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    return {sourceResource:o.canonicalUrl!,canonicalItemUrl:o.canonicalUrl!,originalSourceReference:r.partial===true&&typeof r.resolvedUrl==='string'?r.resolvedUrl:o.canonicalUrl!,text:r.body,title:typeof r.title==='string'?r.title:undefined,publishedAt:date.publishedAt,acquisitionEvidence:{mechanism,publicationDate:date,contentCompleteness:r.partial===true||r.contentCompleteness==='PARTIAL'?'PARTIAL':'UNKNOWN',...(r.browserRendered===true?{browserRendered:true}:{}),...(contentKind?{contentKind}:{})}};
   };
   const fallbackSuccess=(item:NonNullable<Awaited<ReturnType<typeof privateArticle>>>):AcquisitionStageOutcome=>({stage:'HTTP',status:'SUCCESS',result:{items:[item],requestedWindow:request.window,effectiveWindow:request.window,acquisitionAsOf:options.now(),coverage:{rangeCovered:false,truncated:false,stopReason:'SOURCE_EXHAUSTED'},provenance:{mechanism:item.acquisitionEvidence.mechanism}}});
+  let redirectFailure:AcquisitionFailure|undefined;
   const http=async():Promise<AcquisitionStageOutcome>=>{
    let document;
    try {document=options.publicGet?await options.publicGet(o.canonicalUrl!):await fetchPort.get(o.canonicalUrl!);}
@@ -135,6 +136,20 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(document.status>=400) throw new AcquisitionFailure('UNSUPPORTED',false,{detail:document.status===404||document.status===410?'HTTP_NOT_FOUND':'UPSTREAM_HTTP_ERROR',httpStatus:document.status});
    const media=document.contentType.split(';')[0].trim().toLowerCase();
    const htmlLike=/^\s*<(?:!doctype|html|head|meta|article|main|div|p|script)\b/i.test(document.body);
+   if(!sameArticleUrl(document.url,o.canonicalUrl)){
+    if(!htmlLike&&!['text/html','application/xhtml+xml'].includes(media)&&!/^\s*<(?:link|body|section|h[1-6])\b/i.test(document.body)){redirectFailure=new AcquisitionFailure('INVALID_RESULT',false,{detail:'ARTICLE_REDIRECT_IDENTITY_MISMATCH'});return {stage:'HTTP',status:'POLICY_DENIED'};}
+    const redirected=extractPublicHtml(document.body,document.url);
+    const titleKey=(value:unknown)=>typeof value==='string'?value.normalize('NFKC').replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/\s+/g,' ').trim().toLowerCase():'';
+    const expected=titleKey(o.titleHint),actual=titleKey(redirected.title);
+    if(new URL(document.url).origin!==new URL(o.canonicalUrl!).origin||expected.length<20||expected!==actual||redirected.pageKind!=='article'||!sameArticleUrl(redirected.canonicalUrl,document.url)){redirectFailure=new AcquisitionFailure('INVALID_RESULT',false,{detail:'ARTICLE_REDIRECT_IDENTITY_MISMATCH'});return {stage:'HTTP',status:'POLICY_DENIED'};}
+    if(redirected.accessRestricted)return {stage:'HTTP',status:'AUTH_REQUIRED'};
+    // The publisher relocation is transport evidence, not a replacement input.
+    // Keep original observation/citation/payment identities; retain its final URL.
+    const item=helperArticle({...redirected,url:o.canonicalUrl,canonicalUrl:o.canonicalUrl,status:200,dateMetadata:readArticleDateMetadata(document.body,document.url)},'publisher_redirect_http');
+    if(!item){redirectFailure=new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'ARTICLE_REDIRECT_TEXT_UNAVAILABLE'});return {stage:'HTTP',status:'POLICY_DENIED'};}
+    return fallbackSuccess({...item,originalSourceReference:document.url});
+   }
+
    if(['text/plain','text/markdown','text/x-markdown'].includes(media)&&!htmlLike||media==='application/json'||media.endsWith('+json')){
     let body=document.body,title:string|undefined,publishedAt:unknown;
     if(media==='application/json'||media.endsWith('+json')){
@@ -214,6 +229,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
   };
   try {
    const outcome=await new SourceAcquisitionOrchestrator({...options.stages,...options.stagesForClaim?.(claim),http:httpWithFallback}).acquire(request);
+   if(redirectFailure)throw redirectFailure;
    const items=outcome.result?.items;
    if(outcome.status!=='SUCCESS' || !items?.length) {
     const reason=outcome.stopReason;
