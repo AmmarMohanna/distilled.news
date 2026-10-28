@@ -1,4 +1,6 @@
-import {afterEach,beforeEach,expect,it} from 'vitest';
+import * as runtime from './v1-downstream-runtime';
+import {HandoffError} from '@distilled/contracts';
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,batchFixture} from './v1-intake/test-utils';
 import {V1IntakeStore} from './v1-intake/store';
 import {acceptV1Handoff,dispatchV1Acquisitions,processV1Acquisition,createV1RuntimePolicy} from './v1-downstream-runtime';
@@ -7,7 +9,7 @@ import {InMemoryRepository} from './repository';
 import type {Env,DistilledQueueMessage} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1IntakeStore,env:Env,sent:DistilledQueueMessage[];
 beforeEach(async()=>{ctx=await createIntakeDatabase({product:true});store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',WEB_OPERATOR_RUNTIME_TOKEN:'test-runtime',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env});
-afterEach(async()=>ctx.dispose());
+afterEach(async()=>{vi.restoreAllMocks();await ctx.dispose();});
 it('runtime-authenticated handoff persists before queue send; disabled and unapproved scopes fail closed',async()=>{
  const app=createApp({repository:new InMemoryRepository()});
  const request={method:'POST',body:JSON.stringify(batchFixture()),headers:{'content-type':'application/json'}};
@@ -94,4 +96,14 @@ it('internal free recovery requires the maintenance secret and matching feed',as
  await acceptV1Handoff(env,batchFixture());
  expect((await app.request('/api/internal/collectors/recover-article-unpaid',{...request,headers:{...request.headers,'x-distilled-internal':'fixture-secret'}},{...env,INTERNAL_MAINTENANCE_SECRET:'fixture-secret'})).status).toBe(404);
  expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',JSON.stringify(['ACQUIRE','observation-1',''])))!.value.state).toBe('PENDING');
+});
+
+it('reports a recoverable maintenance storage wait without granting another recovery attempt',async()=>{
+ const app=createApp({repository:new InMemoryRepository()});await acceptV1Handoff(env,batchFixture());
+ const id=JSON.stringify(['ACQUIRE','observation-1','']),row=(await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id,value:{...row.value,state:'FAILED',exhausted:true,attempts:1,failureCode:'EXTRACTION_FAILED'}}]);
+ vi.spyOn(runtime,'processV1Acquisition').mockRejectedValue(new HandoffError('TEMPORARY_UNAVAILABLE'));
+ const response=await app.request('/api/internal/collectors/recover-article-unpaid',{method:'POST',headers:{'content-type':'application/json','x-distilled-internal':'fixture-secret'},body:JSON.stringify({feedId:row.value.feedId,jobId:id,approvalId:'maintenance-wait'})},{...env,INTERNAL_MAINTENANCE_SECRET:'fixture-secret'});
+ expect(response.status).toBe(503);expect(response.headers.get('retry-after')).toBe('5');expect(await response.json()).toEqual({error:'TEMPORARY_UNAVAILABLE'});
+ expect((await store.read<import('./v1-intake/types').DownstreamJob>('jobs',id))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{id:'maintenance-wait',maxAttempts:2,unpaidOnly:true}]});
 });

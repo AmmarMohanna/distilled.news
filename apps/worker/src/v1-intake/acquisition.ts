@@ -31,7 +31,7 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
    const input=await tx.read<AcceptedInput>('inputs',job.observationId);
    try{
     new WorkerPublicSourceFetch(canonicalEvidence.from);new WorkerPublicSourceFetch(canonicalEvidence.to);
-    canonicalAlias=input?.observation.canonicalUrl===canonicalEvidence.from&&canonicalEvidence.from!==canonicalEvidence.to&&(sameArticleUrl(canonicalEvidence.from,canonicalEvidence.to)||scholarlyAbstractAlias(canonicalEvidence.from,canonicalEvidence.to));
+    canonicalAlias=input?.observation.canonicalUrl===canonicalEvidence.from&&(canonicalEvidence.from!==canonicalEvidence.to||options?.unpaidOnly===true)&&(sameArticleUrl(canonicalEvidence.from,canonicalEvidence.to)||scholarlyAbstractAlias(canonicalEvidence.from,canonicalEvidence.to));
    }catch{/* Unsafe or unproven canonical aliases never authorize recovery. */}
   }
   let publicRedirect=false;

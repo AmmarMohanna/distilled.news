@@ -442,3 +442,15 @@ it('unpaid recovery refuses a reconciled paid failure and cannot relabel an olde
  await authorizeAcquisitionRecovery(store,jobId,'old-approval',now);
  await expect(authorizeAcquisitionRecovery(store,jobId,'old-approval',now,undefined,undefined,{unpaidOnly:true})).rejects.toThrow('RECOVERY_APPROVAL_MODE_MISMATCH');
 });
+
+it('permits an exact canonical reaffirmation only for bounded unpaid recovery',async()=>{
+ await terminalRecoveryFixture('INVALID_RESULT',1);
+ const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'FALLBACK_URL_MISMATCH'}}]);
+ const input=(await store.read<import('./types').AcceptedInput>('inputs','observation-1'))!.value;
+ const evidence={from:input.observation.canonicalUrl!,to:input.observation.canonicalUrl!};
+ await expect(authorizeAcquisitionRecovery(store,jobId,'paid-proof',now,undefined,evidence)).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await expect(authorizeAcquisitionRecovery(store,jobId,'wrong-page',now,undefined,{...evidence,to:evidence.to+'/other'},{unpaidOnly:true})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await authorizeAcquisitionRecovery(store,jobId,'public-reaffirmed',now,undefined,evidence,{unpaidOnly:true});
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{unpaidOnly:true,canonicalEvidence:evidence,maxAttempts:2}]});
+});
