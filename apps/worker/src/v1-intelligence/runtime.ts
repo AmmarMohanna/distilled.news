@@ -156,7 +156,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  }
  const request=await feedTransact(store,feedId,async tx=>{
   const prior=await tx.read<BriefingRequest>('briefing_requests',id);if(prior?.engine)return prior;
-  const hasV2=Boolean(await tx.store.db.prepare("SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.budgetKey')=? LIMIT 1").bind(feedId,`editorial:${window.start}:${window.end}`).first())||Boolean(await tx.read('synthesis_jobs',id))||(await tx.list<import('./editorial-plan').EditorialPlanRecord>('editorial_plans')).some(p=>p.window.start===window.start&&p.window.end===window.end);
+  const hasV2=Boolean(await tx.store.db.prepare("SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.budgetKey')=? LIMIT 1").bind(feedId,`editorial:${window.start}:${window.end}`).first())||Boolean(await tx.read('synthesis_jobs',id))||Boolean(await tx.store.db.prepare("SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='editorial_plans' AND json_extract(json,'$.window.start')=? AND json_extract(json,'$.window.end')=? LIMIT 1").bind(feedId,window.start,window.end).first());
   const value:BriefingRequest={...(prior??{id,feedId,window,state:'PENDING' as const,attempts:0,createdAt:now()}),engine:productV3Enabled(env)&&!hasV2?'v3':'v2'};await tx.write('briefing_requests',id,value);return value;
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
