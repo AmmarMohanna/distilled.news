@@ -163,7 +163,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  if(request.state==='DONE') return undefined;
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
- for(const older of orderedPendingWindows(await store.list<BriefingRequest>(feedId,'briefing_requests'),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
+ for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
   if(await jobsHoldingWindow(env.DB,feedId,older.window.end)||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
@@ -368,7 +368,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   const coverage=await windowIntakeCoverage(env.DB,id,window.end),waiting=Boolean(pending?.n),current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
   const coverageReason=waiting?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
   if(current?.state==='PENDING'&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;await tx.write('briefing_requests',editionId,{...request,coverage,...(coverageReason?{reason:coverageReason}:request.reason==='AWAITING_INTAKE_REASSESSMENT'?{reason:undefined}:{})})});
-  const requests=await store.list<BriefingRequest>(id,'briefing_requests');
+  const requests=await store.pendingBriefingRequests(id);
   for(const request of orderedPendingWindows(requests,now.toISOString()).filter(r=>isAutomaticReportingWindow(r.window))) {
    if(await editorialWindowAwaitingRecovery(env.DB,id,request.window,request.reason))continue;
    if(request.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){

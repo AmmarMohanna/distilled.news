@@ -113,10 +113,24 @@ export class V1FeedStore {
   }
   return values;
  }
+ /** Ordering and dispatch consume pending requests, never completed payloads.
+  * Keep the existing unresolved-index predicate explicit for SQLite admission. */
+ async pendingBriefingRequests(feedId:string):Promise<import('./runtime').BriefingRequest[]> {
+  const rows=await this.unresolvedRequestRows(feedId,'json',true);
+  return rows.results.map(r=>JSON.parse(r.json));
+ }
  /** Only unresolved reporting windows are needed for carry eligibility, not terminal request payloads. */
  async unresolvedPublicationWindows(feedId:string):Promise<{window:import('./scoring').PublicationWindow}[]> {
-  const rows=await this.db.prepare("SELECT json_extract(json,'$.window') AS window_json FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') ORDER BY id").bind(feedId).all<{window_json:string}>();
+  const rows=await this.unresolvedRequestRows(feedId,"json_extract(json,'$.window') AS window_json",false);
   return rows.results.map(r=>({window:JSON.parse(r.window_json)}));
+ }
+ private async unresolvedRequestRows(feedId:string,projection:'json'|"json_extract(json,'$.window') AS window_json",pendingOnly:boolean):Promise<D1Result<{json:string;window_json:string}>> {
+  const tail=" WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED')"+(pendingOnly?" AND json_extract(json,'$.state')='PENDING'":"")+" ORDER BY id";
+  // The broader scope/order index can otherwise win even with this exact partial predicate.
+  try{return await this.db.prepare(`SELECT ${projection} FROM v1_feed_documents INDEXED BY v1_unresolved_publication_windows${tail}`).bind(feedId).all();}
+  catch(error){if(!String(error).includes('no such index: v1_unresolved_publication_windows'))throw error;}
+  // Preserve correctness for older self-hosted databases awaiting migration 0074.
+  return this.db.prepare(`SELECT ${projection} FROM v1_feed_documents${tail}`).bind(feedId).all();
  }
  /** Filter mutable publication visibility before returning immutable edition bodies. */
  async publishedEditionHistory(feedId:string):Promise<BriefingEditionRecord[]> {

@@ -58,6 +58,22 @@ it('does not call a model for an empty fixed window',async()=>{
  let calls=0;await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,(async()=>{calls++;throw Error('unexpected')}) as typeof fetch);
  expect(calls).toBe(0);expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'DONE',result:'QUIET'});
 },30000);
+it('does not retrieve completed request payloads while ordering a new quiet window',async()=>{
+ for(let offset=0;offset<1000;offset+=50)await ctx.db.batch(Array.from({length:50},(_,i)=>{
+  const id=`terminal-history-${offset+i}`;
+  return ctx.db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind('briefing_requests',id,'feed-1',JSON.stringify({id,state:'DONE',result:'QUIET',window,padding:'x'.repeat(4096)}));
+ }));
+ let returnedTerminalRequests=0,calls=0;
+ const instrument=(statement:D1PreparedStatement):D1PreparedStatement=>new Proxy(statement,{get(target,key){
+  if(key==='bind')return (...values:unknown[])=>instrument(target.bind(...values));
+  if(key==='all')return async()=>{const result=await target.all<{json?:string}>();for(const row of result.results)if(row.json&&JSON.parse(row.json).id?.startsWith('terminal-history-'))returnedTerminalRequests++;return result;};
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+ const db=new Proxy(ctx.db,{get(target,key){if(key==='prepare')return (sql:string)=>instrument(target.prepare(sql));const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}});
+ await processV1Briefing({...env,DB:db},{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,(async()=>{calls++;throw Error('unexpected inference')}) as typeof fetch);
+ expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'DONE',result:'QUIET'});
+ expect(calls).toBe(0);expect(returnedTerminalRequests).toBe(0);
+},30000);
 it('does not let a newer direct queue delivery overtake an older runnable request',async()=>{
  await article();const id=await windowIdentity('feed-1',window);await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'}));
  let calls=0;expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:window.end,end:'2026-10-03T13:00:00Z',kind:'30M'}},()=> '2026-10-03T13:01:00Z',undefined,(async()=>{calls++;throw Error('unexpected')}) as typeof fetch)).toBeUndefined();expect(calls).toBe(0);
