@@ -1,0 +1,657 @@
+{
+  "scope": "Authorized six-call frozen verifier comparison. AI-assisted labels; small single run, not broad qualification.",
+  "decision": "REJECT_CANDIDATE_KEEP_LIVE_PROMPTS",
+  "summary": {
+    "at": "2026-10-28T20:59:58.380Z",
+    "manifest": "ea20468c6aabde4152d4cd1c837d569a88b2ec0a741e0284b8410a41b79198e8",
+    "paidCalls": 6,
+    "costUsd": 0.0044108,
+    "allReported": true,
+    "variants": [
+      {
+        "variant": "baseline",
+        "calls": 3,
+        "costUsd": 0.0021936,
+        "elapsedMs": 5854,
+        "falseApprovals": 0,
+        "falseRejections": 1,
+        "invalidOutputs": 0
+      },
+      {
+        "variant": "candidate",
+        "calls": 3,
+        "costUsd": 0.0022172,
+        "elapsedMs": 5589,
+        "falseApprovals": 0,
+        "falseRejections": 1,
+        "invalidOutputs": 0
+      }
+    ]
+  },
+  "plan": {
+    "createdAt": "2026-10-28T20:47:40.302Z",
+    "manifestSha256": "ea20468c6aabde4152d4cd1c837d569a88b2ec0a741e0284b8410a41b79198e8",
+    "candidateAddition": "A complete headline may have an empty body. Verify the headline’s factual meaning and necessary attribution, uncertainty and conditions; an empty body is not itself a factual error.",
+    "maxCalls": 6,
+    "maxExposureUsd": 0.06,
+    "pricing": {
+      "source": "https://openrouter.ai/api/v1/models/openai/gpt-4.1-mini/endpoints",
+      "checkedAt": "2026-10-28",
+      "maxInputUsdPerToken": 4.4e-7,
+      "maxOutputUsdPerToken": 0.00000176,
+      "worstCaseSixCallsUsd": 0.0528
+    },
+    "jobs": [
+      {
+        "name": "retained-development",
+        "split": "development",
+        "variant": "baseline",
+        "sha256": "0df919bb083435d784164a6f421f227e9a4c437649a53de160232b3a92ccf85e",
+        "promptBytes": 6374,
+        "expected": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "reason": "Source supports the reported aerial attacks and places; empty body and equivalent wording are not material errors."
+          }
+        ],
+        "reservationUsd": 0.01
+      },
+      {
+        "name": "retained-development",
+        "split": "development",
+        "variant": "candidate",
+        "sha256": "d8099a2c797a8bc8b4a5647f59c9481c1d7a6d2f0e6cb131d5c9a8badbb80a53",
+        "promptBytes": 6559,
+        "expected": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "reason": "Source supports the reported aerial attacks and places; empty body and equivalent wording are not material errors."
+          }
+        ],
+        "reservationUsd": 0.01
+      },
+      {
+        "name": "conditional-warning",
+        "split": "held-out-from-this-change",
+        "variant": "baseline",
+        "sha256": "158e2f03af1ada9baf51950d26b31d2c8703133ef9b0b9e65a9178f230af4e91",
+        "promptBytes": 5135,
+        "expected": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "reason": "Preserves attribution and the conditional response."
+          },
+          {
+            "i": 1,
+            "verdict": "not-ok",
+            "reason": "Turns a conditional warning into completed events."
+          },
+          {
+            "i": 2,
+            "verdict": "not-ok",
+            "reason": "Invents a pledge that the source does not report."
+          }
+        ],
+        "reservationUsd": 0.01
+      },
+      {
+        "name": "conditional-warning",
+        "split": "held-out-from-this-change",
+        "variant": "candidate",
+        "sha256": "109cefa4b076d783ac2877f9946e3ee04bf3382d525b0cb00cf32def3fe09c37",
+        "promptBytes": 5320,
+        "expected": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "reason": "Preserves attribution and the conditional response."
+          },
+          {
+            "i": 1,
+            "verdict": "not-ok",
+            "reason": "Turns a conditional warning into completed events."
+          },
+          {
+            "i": 2,
+            "verdict": "not-ok",
+            "reason": "Invents a pledge that the source does not report."
+          }
+        ],
+        "reservationUsd": 0.01
+      },
+      {
+        "name": "arabic-attributed-reconnaissance",
+        "split": "held-out-from-this-change",
+        "variant": "baseline",
+        "sha256": "90ec4d45afd7468da521e4e46fefa56bdccad9fc79dd6fabd243a7a67d8d8083",
+        "promptBytes": 5758,
+        "expected": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "reason": "Retains reported status, aircraft count, actor, reconnaissance and locations."
+          },
+          {
+            "i": 1,
+            "verdict": "not-ok",
+            "reason": "Changes reconnaissance into destruction of targets."
+          },
+          {
+            "i": 2,
+            "verdict": "not-ok",
+            "reason": "Changes the aircraft actor from Israeli to Hezbollah."
+          }
+        ],
+        "reservationUsd": 0.01
+      },
+      {
+        "name": "arabic-attributed-reconnaissance",
+        "split": "held-out-from-this-change",
+        "variant": "candidate",
+        "sha256": "16dc072babf0151174b7a1f3fe80ef4921d6445dc7f30c2a005d8569c690c2aa",
+        "promptBytes": 5943,
+        "expected": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "reason": "Retains reported status, aircraft count, actor, reconnaissance and locations."
+          },
+          {
+            "i": 1,
+            "verdict": "not-ok",
+            "reason": "Changes reconnaissance into destruction of targets."
+          },
+          {
+            "i": 2,
+            "verdict": "not-ok",
+            "reason": "Changes the aircraft actor from Israeli to Hezbollah."
+          }
+        ],
+        "reservationUsd": 0.01
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 0,
+      "name": "retained-development",
+      "split": "development",
+      "variant": "baseline",
+      "requestHash": "0df919bb083435d784164a6f421f227e9a4c437649a53de160232b3a92ccf85e",
+      "status": 200,
+      "elapsedMs": 2403,
+      "costUsd": 0.0009028,
+      "usage": {
+        "prompt_tokens": 1593,
+        "completion_tokens": 166,
+        "total_tokens": 1759,
+        "cost": 0.0009028,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0009028,
+          "upstream_inference_prompt_cost": 0.0006372,
+          "upstream_inference_completions_cost": 0.0002656
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "generationId": "gen-1793221170-5wYnlFJHDauuqdI3xTw6",
+      "finishReason": "stop",
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "Israeli airstrikes reported on Braachit, Wadi al-Hujayr, and Kfar Tibnit in southern Lebanon -> The source states 'غارات حربية اســـــرائيلية استهدفت برعشيت ووادي الحجير و كفرتبنيت جنوب لبنان' which translates to 'Israeli air raids targeted Braachit, Wadi al-Hujayr, and Kfar Tibnit in southern Lebanon', but the source does not specify 'airstrikes' as a formal military operation; it uses 'air raids' which could be reworded for precision. Also, the source is a Telegram post without further detail, so the report should be attributed or qualified accordingly."
+            ]
+          }
+        ]
+      },
+      "verdicts": {
+        "falseApprovals": 0,
+        "falseRejections": 1,
+        "cases": [
+          {
+            "i": 0,
+            "expected": "ok",
+            "verdict": "fix",
+            "correct": false,
+            "issues": [
+              "Israeli airstrikes reported on Braachit, Wadi al-Hujayr, and Kfar Tibnit in southern Lebanon -> The source states 'غارات حربية اســـــرائيلية استهدفت برعشيت ووادي الحجير و كفرتبنيت جنوب لبنان' which translates to 'Israeli air raids targeted Braachit, Wadi al-Hujayr, and Kfar Tibnit in southern Lebanon', but the source does not specify 'airstrikes' as a formal military operation; it uses 'air raids' which could be reworded for precision. Also, the source is a Telegram post without further detail, so the report should be attributed or qualified accordingly."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "index": 1,
+      "name": "retained-development",
+      "split": "development",
+      "variant": "candidate",
+      "requestHash": "d8099a2c797a8bc8b4a5647f59c9481c1d7a6d2f0e6cb131d5c9a8badbb80a53",
+      "status": 200,
+      "elapsedMs": 2021,
+      "costUsd": 0.000876,
+      "usage": {
+        "prompt_tokens": 1626,
+        "completion_tokens": 141,
+        "total_tokens": 1767,
+        "cost": 0.000876,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.000876,
+          "upstream_inference_prompt_cost": 0.0006504,
+          "upstream_inference_completions_cost": 0.0002256
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "generationId": "gen-1793221175-WyHSdhoq4rkxRwFaa8Aw",
+      "finishReason": "stop",
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "fix",
+            "issues": [
+              "Braachit, Wadi al-Hujayr, and Kfar Tibnit -> Braachit, Wadi al-Hujayr, and Kfar Tibnit were targeted by Israeli airstrikes according to the source, but the source does not explicitly say 'reported on' or confirm the strikes as fact; it uses the phrase 'استهدفت' which means 'targeted' or 'hit' in a breaking news context, so 'reported on' is acceptable but could be clearer. The headline should clarify that these are reported Israeli airstrikes to avoid implying confirmed strikes without attribution."
+            ]
+          }
+        ]
+      },
+      "verdicts": {
+        "falseApprovals": 0,
+        "falseRejections": 1,
+        "cases": [
+          {
+            "i": 0,
+            "expected": "ok",
+            "verdict": "fix",
+            "correct": false,
+            "issues": [
+              "Braachit, Wadi al-Hujayr, and Kfar Tibnit -> Braachit, Wadi al-Hujayr, and Kfar Tibnit were targeted by Israeli airstrikes according to the source, but the source does not explicitly say 'reported on' or confirm the strikes as fact; it uses the phrase 'استهدفت' which means 'targeted' or 'hit' in a breaking news context, so 'reported on' is acceptable but could be clearer. The headline should clarify that these are reported Israeli airstrikes to avoid implying confirmed strikes without attribution."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "index": 2,
+      "name": "conditional-warning",
+      "split": "held-out-from-this-change",
+      "variant": "baseline",
+      "requestHash": "158e2f03af1ada9baf51950d26b31d2c8703133ef9b0b9e65a9178f230af4e91",
+      "status": 200,
+      "elapsedMs": 1770,
+      "costUsd": 0.0006312,
+      "usage": {
+        "prompt_tokens": 1094,
+        "completion_tokens": 121,
+        "total_tokens": 1215,
+        "cost": 0.0006312,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0006312,
+          "upstream_inference_prompt_cost": 0.0004376,
+          "upstream_inference_completions_cost": 0.0001936
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "generationId": "gen-1793221180-O8qqe7iwMJgrehh6QGRR",
+      "finishReason": "stop",
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "drop",
+            "issues": [
+              "Israel launched a severe military attack on Lebanon after Hezbollah entered the war -> The source only states Lebanon received serious warnings of a severe Israeli response if Hezbollah enters the war; it does not say Israel launched any attack or that Hezbollah entered the war"
+            ]
+          },
+          {
+            "i": 2,
+            "verdict": "drop",
+            "issues": [
+              "Diplomatic sources say Hezbollah promised to stay out of the war -> The source does not mention any promise or statement by Hezbollah about staying out of the war"
+            ]
+          }
+        ]
+      },
+      "verdicts": {
+        "falseApprovals": 0,
+        "falseRejections": 0,
+        "cases": [
+          {
+            "i": 0,
+            "expected": "ok",
+            "verdict": "ok",
+            "correct": true,
+            "issues": []
+          },
+          {
+            "i": 1,
+            "expected": "not-ok",
+            "verdict": "drop",
+            "correct": true,
+            "issues": [
+              "Israel launched a severe military attack on Lebanon after Hezbollah entered the war -> The source only states Lebanon received serious warnings of a severe Israeli response if Hezbollah enters the war; it does not say Israel launched any attack or that Hezbollah entered the war"
+            ]
+          },
+          {
+            "i": 2,
+            "expected": "not-ok",
+            "verdict": "drop",
+            "correct": true,
+            "issues": [
+              "Diplomatic sources say Hezbollah promised to stay out of the war -> The source does not mention any promise or statement by Hezbollah about staying out of the war"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "index": 3,
+      "name": "conditional-warning",
+      "split": "held-out-from-this-change",
+      "variant": "candidate",
+      "requestHash": "109cefa4b076d783ac2877f9946e3ee04bf3382d525b0cb00cf32def3fe09c37",
+      "status": 200,
+      "elapsedMs": 1846,
+      "costUsd": 0.0006684,
+      "usage": {
+        "prompt_tokens": 1127,
+        "completion_tokens": 136,
+        "total_tokens": 1263,
+        "cost": 0.0006684,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0006684,
+          "upstream_inference_prompt_cost": 0.0004508,
+          "upstream_inference_completions_cost": 0.0002176
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "generationId": "gen-1793221186-fPd7EqFM3x258kqil1rT",
+      "finishReason": "stop",
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "Israel launched a severe military attack on Lebanon after Hezbollah entered the war -> The source says Lebanon received serious warnings of a severe Israeli response if Hezbollah enters the war; it does not say that Israel has launched any attack or that Hezbollah has entered the war"
+            ]
+          },
+          {
+            "i": 2,
+            "verdict": "fix",
+            "issues": [
+              "Diplomatic sources say Hezbollah promised to stay out of the war -> The source does not say Hezbollah promised to stay out of the war; it only says Lebanon received warnings about a severe Israeli response if Hezbollah enters the war"
+            ]
+          }
+        ]
+      },
+      "verdicts": {
+        "falseApprovals": 0,
+        "falseRejections": 0,
+        "cases": [
+          {
+            "i": 0,
+            "expected": "ok",
+            "verdict": "ok",
+            "correct": true,
+            "issues": []
+          },
+          {
+            "i": 1,
+            "expected": "not-ok",
+            "verdict": "fix",
+            "correct": true,
+            "issues": [
+              "Israel launched a severe military attack on Lebanon after Hezbollah entered the war -> The source says Lebanon received serious warnings of a severe Israeli response if Hezbollah enters the war; it does not say that Israel has launched any attack or that Hezbollah has entered the war"
+            ]
+          },
+          {
+            "i": 2,
+            "expected": "not-ok",
+            "verdict": "fix",
+            "correct": true,
+            "issues": [
+              "Diplomatic sources say Hezbollah promised to stay out of the war -> The source does not say Hezbollah promised to stay out of the war; it only says Lebanon received warnings about a severe Israeli response if Hezbollah enters the war"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "index": 4,
+      "name": "arabic-attributed-reconnaissance",
+      "split": "held-out-from-this-change",
+      "variant": "baseline",
+      "requestHash": "90ec4d45afd7468da521e4e46fefa56bdccad9fc79dd6fabd243a7a67d8d8083",
+      "status": 200,
+      "elapsedMs": 1681,
+      "costUsd": 0.0006596,
+      "usage": {
+        "prompt_tokens": 1241,
+        "completion_tokens": 102,
+        "total_tokens": 1343,
+        "cost": 0.0006596,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0006596,
+          "upstream_inference_prompt_cost": 0.0004964,
+          "upstream_inference_completions_cost": 0.0001632
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "generationId": "gen-1793221191-DPMTSgPvNh5s9rkSfAbN",
+      "finishReason": "stop",
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "دمرت أهدافًا -> المصدر لا يذكر تدمير أهداف، بل عمليات استطلاع وتحديث بنك الأهداف واعتراض الاتصالات والتشويش والتنصت"
+            ]
+          },
+          {
+            "i": 2,
+            "verdict": "fix",
+            "issues": [
+              "تابعة لحزب الله -> المصدر يذكر أن الطائرات أواكس إسرائيلية، وليس تابعة لحزب الله"
+            ]
+          }
+        ]
+      },
+      "verdicts": {
+        "falseApprovals": 0,
+        "falseRejections": 0,
+        "cases": [
+          {
+            "i": 0,
+            "expected": "ok",
+            "verdict": "ok",
+            "correct": true,
+            "issues": []
+          },
+          {
+            "i": 1,
+            "expected": "not-ok",
+            "verdict": "fix",
+            "correct": true,
+            "issues": [
+              "دمرت أهدافًا -> المصدر لا يذكر تدمير أهداف، بل عمليات استطلاع وتحديث بنك الأهداف واعتراض الاتصالات والتشويش والتنصت"
+            ]
+          },
+          {
+            "i": 2,
+            "expected": "not-ok",
+            "verdict": "fix",
+            "correct": true,
+            "issues": [
+              "تابعة لحزب الله -> المصدر يذكر أن الطائرات أواكس إسرائيلية، وليس تابعة لحزب الله"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "index": 5,
+      "name": "arabic-attributed-reconnaissance",
+      "split": "held-out-from-this-change",
+      "variant": "candidate",
+      "requestHash": "16dc072babf0151174b7a1f3fe80ef4921d6445dc7f30c2a005d8569c690c2aa",
+      "status": 200,
+      "elapsedMs": 1722,
+      "costUsd": 0.0006728,
+      "usage": {
+        "prompt_tokens": 1274,
+        "completion_tokens": 102,
+        "total_tokens": 1376,
+        "cost": 0.0006728,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0006728,
+          "upstream_inference_prompt_cost": 0.0005096,
+          "upstream_inference_completions_cost": 0.0001632
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "generationId": "gen-1793221196-WbrvygJ8H8G5i2DdXge6",
+      "finishReason": "stop",
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          },
+          {
+            "i": 1,
+            "verdict": "fix",
+            "issues": [
+              "دمرت أهدافًا -> المصدر لا يذكر تدمير أهداف، بل عمليات استطلاع وتحديث بنك الأهداف واعتراض الاتصالات والتشويش والتنصت"
+            ]
+          },
+          {
+            "i": 2,
+            "verdict": "fix",
+            "issues": [
+              "تابعة لحزب الله -> المصدر يذكر أن الطائرات أواكس إسرائيلية، وليس تابعة لحزب الله"
+            ]
+          }
+        ]
+      },
+      "verdicts": {
+        "falseApprovals": 0,
+        "falseRejections": 0,
+        "cases": [
+          {
+            "i": 0,
+            "expected": "ok",
+            "verdict": "ok",
+            "correct": true,
+            "issues": []
+          },
+          {
+            "i": 1,
+            "expected": "not-ok",
+            "verdict": "fix",
+            "correct": true,
+            "issues": [
+              "دمرت أهدافًا -> المصدر لا يذكر تدمير أهداف، بل عمليات استطلاع وتحديث بنك الأهداف واعتراض الاتصالات والتشويش والتنصت"
+            ]
+          },
+          {
+            "i": 2,
+            "expected": "not-ok",
+            "verdict": "fix",
+            "correct": true,
+            "issues": [
+              "تابعة لحزب الله -> المصدر يذكر أن الطائرات أواكس إسرائيلية، وليس تابعة لحزب الله"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
