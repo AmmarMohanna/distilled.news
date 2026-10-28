@@ -20,6 +20,8 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,intak
 beforeEach(async()=>{
  ctx=await createIntakeDatabase({product:true});intake=new V1IntakeStore(ctx.db);store=new V1FeedStore(ctx.db);
  await ctx.db.exec("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('owner-1','integration@example.invalid','integration@example.invalid','integration-owner','user','hash','2026-10-03','2026-10-03','2026-10-03'); INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,created_at,updated_at) VALUES('feed-1','owner-1','integration','Integration','banking reform',1,'2026-10-03','2026-10-03');");
+
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('feed-source-1','feed-1','Telegram','channel','telegram','telegram_channel','https://t.me/example',1,'connector',?,?,?)").bind(window.start,window.start,window.start).run();
  await seedIntakeScope(intake);await store.registerFeed({...feedFixture,createdAt:'2026-10-03T11:00:00Z',briefingFrequency:'30M'});
  const batch=batchFixture();batch.observations[0].publishedAtHint='2026-10-03T12:20:00Z';batch.proposals[0].publishedAtHint='2026-10-03T12:20:00Z';
  batch.coverage.createdAt=batch.observations[0].observedAt=batch.proposals[0].discoveredAt='2026-10-03T12:24:00Z';
@@ -31,9 +33,30 @@ async function acquire(publishedAt:string,body=text){
  const router=createCandidateAcquisitionRouter({now:()=>acquiredAt,preferFullArticle:true,fetcher:async()=>new Response(`<meta property="article:published_time" content="${publishedAt}"><meta property="article:modified_time" content="2026-10-03T12:20:00Z"><h1>Banking reform</h1><article>${body}</article>`)});
  return runAcquisitionJob(intake,jobId,{...testPolicy,now:()=>acquiredAt},router);
 }
-it('publishes full acquired evidence through isolated V3 commits with source-owned citations and account receipts',async()=>{
+async function continuingTelegram(){
+ const result={state:'HANDED_OFF',checkpoint:'UNCHANGED',request:{coverage:{createdAt:window.end},observations:[{id:'later',observedAt:window.end}]},response:{durable:true,receipts:[{observationId:'later',checkpointResolution:'RESOLVED'}]}};
+ await ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at,result) VALUES(?,?,?,?,?,?,?)').bind('later-poll',JSON.stringify({scope:{feedId:'feed-1',feedSourceId:'feed-source-1'},source:{family:'telegram'},requestedBounds:{}}),'fixture','[]',window.end,window.start,JSON.stringify(result)).run();
+}
+it('completes an empty window as deferred rather than quiet when collection has moved past cutoff',async()=>{
+ expect(await acquire('2026-08-31T10:00:00Z')).toBe('DONE');
+ await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),acquiredAt);
+ await continuingTelegram();let calls=0;
+ await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'feed-1',window},()=>processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,(async()=>{calls++;throw Error('unexpected inference')}) as typeof fetch));
+ const request=(await store.list<any>('feed-1','briefing_requests'))[0];
+ expect(request).toMatchObject({state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_CONTINUING_AFTER_CUTOFF',count:1}]}});
+ expect(calls).toBe(0);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect(await ctx.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='later-poll'").first()).toEqual({state:'PENDING'});
+},30000);
+it('still waits for unfinished pre-cutoff acquisition when a later collection page is releasable',async()=>{
+ await continuingTelegram();let calls=0;
+ await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'feed-1',window},()=>processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,(async()=>{calls++;throw Error('unexpected inference')}) as typeof fetch));
+ expect(calls).toBe(0);expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'});
+ expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(0);
+},30000);
+it.each([false,true])('publishes full acquired evidence with source-owned citations and receipts (continuing collection: %s)',async continuing=>{
  expect(await acquire('2026-10-03T12:05:00Z')).toBe('DONE');
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),acquiredAt);
+ if(continuing)await continuingTelegram();
  expect(await store.list('feed-1','events')).toHaveLength(0);expect(await store.list('feed-1','claim_mentions')).toHaveLength(0);
  const prepared=await prepareV3Window(store,'feed-1',window,window.end);
  expect(prepared.input.articles[0].text).toBe(text);expect(text.length).toBeGreaterThan(6000);
@@ -55,6 +78,7 @@ it('publishes full acquired evidence through isolated V3 commits with source-own
  expect(await store.list('feed-1','semantic_intents')).toHaveLength(2);expect(await store.list('feed-1','events')).toHaveLength(0);
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v3_model_spend').first<{n:number}>())?.n).toBe(0);
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<{n:number}>())?.n).toBe(2);
+ if(continuing)expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_CONTINUING_AFTER_CUTOFF',count:1}]}});
  expect(await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=> '2026-10-03T12:35:00Z',undefined,fetcher))).toEqual(edition);
  expect(calls).toHaveLength(2);
 },30000);

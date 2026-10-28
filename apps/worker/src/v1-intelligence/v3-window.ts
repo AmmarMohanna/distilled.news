@@ -10,6 +10,7 @@ import {admitModelOperation,modelCapability} from './model-capacity';
 import {configuredProviderLimits} from './provider-routing';
 import {newsWindowEligibility} from './window-delivery';
 import {windowIntakeCoverage} from './window-coverage';
+import {pendingWindowCollections} from '../connector-publication-coverage';
 import {ModelSpendingWait} from './model-spending';
 import type {PublicationWindow} from './scoring';
 import type {BriefingEditionRecord} from './publication';
@@ -112,6 +113,11 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    const prior=await tx.read<BriefingEditionRecord>('editions',id);if(prior)return prior;
    const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
    const coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(coverage.pendingJobs)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+    const collection=await pendingWindowCollections(env.DB,feedId,window.end,true);
+    if(collection.pending)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+    if(collection.continuing){coverage.state='INCOMPLETE';coverage.failures.push({kind:'COLLECTION',code:'COLLECTION_CONTINUING_AFTER_CUTOFF',count:collection.continuing});}
+   }
    const active=await store.activeEvidenceRevisionIds(feedId);if(frozen.evidenceRevisionIds.some(r=>!active.has(r)))throw new HandoffError('SCOPE_DENIED');
    const result=completed.result;
    if(result.status!=='published'){
