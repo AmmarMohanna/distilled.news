@@ -86,3 +86,12 @@ The guarded `scripts/update-joud-cbs-resource-policy.sh` patches only the expect
 browser function in Joud's dedicated helper, backs it up and syntax-checks it.
 VPS installation and real CBS recovery verification are still pending at the
 time of this note; the local speed measurement is not a production success claim.
+
+The first installer refused the VPS function without changing it. The operator's
+read-only output proved that its older version lacked exactCandidateOnly
+navigation enforcement and returned neither final URL nor authentication flags.
+The updated installer accepts precisely that reviewed legacy version or the
+known repository version and upgrades either to the same tested function.
+Synthetic replacement checks verified both paths and Python syntax. The installer
+now has an explicit LF Git attribute to prevent Windows shell line-ending errors.
+Final production installation and CBS recovery still require verification.

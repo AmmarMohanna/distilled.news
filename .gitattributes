@@ -1,1 +1,2 @@
 apps/worker/migrations/*.sql text eol=lf
+scripts/update-joud-cbs-resource-policy.sh text eol=lf
