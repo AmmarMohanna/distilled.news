@@ -16,6 +16,36 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_cbs_exact_browser_blocks_third_party_resources_and_bounds_requests(self):
+        url = 'https://www.cbsnews.com/projects/2026/verified-report/'
+        routes, frame = [], object()
+        page = types.SimpleNamespace(url=url, main_frame=frame)
+        async def goto(*args, **kwargs):
+            targets = ['https://third-party.example/script.js'] + [url + 'app.js'] * 81
+            for index, target in enumerate(targets):
+                request = types.SimpleNamespace(request=types.SimpleNamespace(
+                    resource_type='script', is_navigation_request=lambda: False,
+                    frame=frame, url=target), abort=AsyncMock(), continue_=AsyncMock())
+                await routes[0](request)
+                self.assertEqual(request.abort.await_count, int(index == 0 or index == 81))
+            return types.SimpleNamespace(status=200, headers={})
+        page.goto = goto
+        page.content = AsyncMock(return_value='<article>Verified reporting</article>')
+        async def route(_pattern, handler): routes.append(handler)
+        context = types.SimpleNamespace(route=route, new_page=AsyncMock(return_value=page), close=AsyncMock())
+        browser = types.SimpleNamespace(new_context=AsyncMock(return_value=context), close=AsyncMock())
+        engine = types.SimpleNamespace(chromium=types.SimpleNamespace(launch=AsyncMock(return_value=browser)))
+        manager = AsyncMock()
+        manager.__aenter__.return_value = engine
+        module = types.SimpleNamespace(async_playwright=lambda: manager)
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url') as validate, patch.dict('sys.modules', {'playwright.async_api':module}):
+            result = asyncio.run(runtime.browser({'url':url, 'exactCandidateOnly':True}))
+        validate.assert_called_once_with(url)
+        self.assertEqual(result['requests'], 81)
+        self.assertEqual(result['url'], url)
+        context.close.assert_awaited_once()
+        browser.close.assert_awaited_once()
+
     def test_exact_article_browser_blocks_other_navigation_and_reports_final_url(self):
         url = 'https://publisher.example/news/one'
         routes = []

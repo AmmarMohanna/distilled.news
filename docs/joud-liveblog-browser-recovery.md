@@ -65,3 +65,24 @@ increases or clearing of uncertain outcomes occurred in this repair.
 
 Frontend assets, resource bindings, models and migrations are unchanged. Private
 HTML, manifests and result snapshots remain ignored under .local-reports.
+
+## CBS runtime diagnosis and prepared resource policy
+
+The user's VPS diagnostics found ample free memory, a responsive helper listener
+(unauthenticated HTTP 401), and a successful offline parser in 0.29 seconds.
+An example.com browser request succeeded in 1.46 seconds. CBS alone still timed
+out after 67.57 seconds; this is not evidence of a general browser startup failure.
+
+A local isolated test restricted both reviewed CBS project pages to their own
+HTTPS origin, blocked images/media/fonts and bounded requests. It retained the
+complete extracted bodies (19,298 and 3,189 characters) in 1.521 and 2.404 seconds.
+The prepared helper policy applies only to exactCandidateOnly CBS project pages:
+third-party resources are blocked and at most 80 own-origin resources continue.
+The initial public-origin check, required private-IP egress firewall, navigation
+restriction and browser sandbox remain. Other publishers retain existing checks.
+Thirty-two Python tests passed, including resource filtering and budget coverage.
+
+The guarded `scripts/update-joud-cbs-resource-policy.sh` patches only the expected
+browser function in Joud's dedicated helper, backs it up and syntax-checks it.
+VPS installation and real CBS recovery verification are still pending at the
+time of this note; the local speed measurement is not a production success claim.

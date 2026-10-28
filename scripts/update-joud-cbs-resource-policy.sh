@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Operator-run, narrowly scoped patch. No credential changes or service restart.
+set -eu
+python3 - <<'PY'
+import ast
+import datetime
+import json
+import os
+from pathlib import Path
+import shutil
+import tempfile
+
+folder = Path('/home/distilled-bench/distilled-source-runtime-joud').resolve(strict=True)
+target = (folder / 'source-execution.py').resolve(strict=True)
+if target.parent != folder:
+    raise SystemExit('Unexpected source path; nothing changed')
+before = target.read_text()
+old = 'async def browser(data):\n    from playwright.async_api import async_playwright\n    if os.environ.get(\'SOURCE_BROWSER_EGRESS_CONFIRMED\') != \'true\':\n        return {\'error\': \'UNAVAILABLE\'}\n    public_url(data[\'url\'])\n    async with async_playwright() as engine:\n        browser = await engine.chromium.launch(headless=True)  # Do not add --no-sandbox.\n        context = await browser.new_context(service_workers=\'block\', accept_downloads=False)\n        requests = 0\n        async def route(request):\n            nonlocal requests\n            if data.get(\'exactCandidateOnly\') and request.request.is_navigation_request() and request.request.frame == page.main_frame and request.request.url != data[\'url\']:\n                return await request.abort()\n            if request.request.resource_type in (\'image\', \'media\', \'font\'):\n                return await request.abort()\n            try:\n                await asyncio.to_thread(public_url, request.request.url)\n            except Exception:\n                return await request.abort()\n            requests += 1\n            return await request.continue_()\n        await context.route(\'**/*\', route)\n        try:\n            page = await context.new_page()\n            response = await page.goto(data[\'url\'], wait_until=\'domcontentloaded\', timeout=20000)\n            if data.get(\'waitForArticleText\') is True:\n                # Exact reviewed articles can hydrate after DOMContentLoaded.\n                # This is a bounded readiness wait, not scrolling or navigation.\n                try:\n                    await page.wait_for_function(\n                        "() => [...document.querySelectorAll(\'article,[itemprop=articleBody],main\')].some(n => (n.innerText || \'\').trim().length >= 400)",\n                        timeout=3500)\n                except Exception as error:\n                    if type(error).__name__ != \'TimeoutError\':\n                        raise\n            html = await page.content()\n            if len(html.encode()) > 4000000:\n                raise ValueError(\'HTML_TOO_LARGE\')\n            return {\'status\': response.status if response else 0, \'html\': html, \'requests\': requests,\n                    \'url\': page.url,\n                    \'authenticationRequired\': bool(response and response.headers.get(\'www-authenticate\'))}\n        finally:\n            await context.close()\n            await browser.close()\n'
+new = 'async def browser(data):\n    from playwright.async_api import async_playwright\n    if os.environ.get(\'SOURCE_BROWSER_EGRESS_CONFIRMED\') != \'true\':\n        return {\'error\': \'UNAVAILABLE\'}\n    public_url(data[\'url\'])\n    async with async_playwright() as engine:\n        browser = await engine.chromium.launch(headless=True)  # Do not add --no-sandbox.\n        context = await browser.new_context(service_workers=\'block\', accept_downloads=False)\n        requests = 0\n        source = urlsplit(data[\'url\'])\n        cbs_article = (data.get(\'exactCandidateOnly\') is True and source.scheme == \'https\'\n                       and source.hostname == \'www.cbsnews.com\' and source.port in (None, 443)\n                       and source.path.startswith(\'/projects/\'))\n        async def route(request):\n            nonlocal requests\n            if data.get(\'exactCandidateOnly\') and request.request.is_navigation_request() and request.request.frame == page.main_frame and request.request.url != data[\'url\']:\n                return await request.abort()\n            if request.request.resource_type in (\'image\', \'media\', \'font\'):\n                return await request.abort()\n            if cbs_article:\n                resource = urlsplit(request.request.url)\n                if (resource.scheme != \'https\' or resource.hostname != source.hostname\n                        or resource.port not in (None, 443) or resource.username or resource.password):\n                    return await request.abort()\n                requests += 1\n                if requests > 80:\n                    return await request.abort()\n                # This exact HTTPS origin was checked before browser launch.\n                # The required host firewall still enforces private-IP denial;\n                # avoid repeated DNS work for its own scripts and stylesheets.\n                return await request.continue_()\n            try:\n                await asyncio.to_thread(public_url, request.request.url)\n            except Exception:\n                return await request.abort()\n            requests += 1\n            return await request.continue_()\n        await context.route(\'**/*\', route)\n        try:\n            page = await context.new_page()\n            response = await page.goto(data[\'url\'], wait_until=\'domcontentloaded\', timeout=20000)\n            if data.get(\'waitForArticleText\') is True:\n                # Exact reviewed articles can hydrate after DOMContentLoaded.\n                # This is a bounded readiness wait, not scrolling or navigation.\n                try:\n                    await page.wait_for_function(\n                        "() => [...document.querySelectorAll(\'article,[itemprop=articleBody],main\')].some(n => (n.innerText || \'\').trim().length >= 400)",\n                        timeout=3500)\n                except Exception as error:\n                    if type(error).__name__ != \'TimeoutError\':\n                        raise\n            html = await page.content()\n            if len(html.encode()) > 4000000:\n                raise ValueError(\'HTML_TOO_LARGE\')\n            return {\'status\': response.status if response else 0, \'html\': html, \'requests\': requests,\n                    \'url\': page.url,\n                    \'authenticationRequired\': bool(response and response.headers.get(\'www-authenticate\'))}\n        finally:\n            await context.close()\n            await browser.close()\n'
+if new in before:
+    print(json.dumps({'alreadyInstalled': True}))
+else:
+    if before.count(old) != 1:
+        raise SystemExit('Runtime differs from expected code; nothing changed')
+    after = before.replace(old, new)
+    ast.parse(after)
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    backup = folder / ('source-execution.py.before-cbs-resource-policy-' + stamp)
+    shutil.copy2(target, backup)
+    metadata = target.stat()
+    with tempfile.NamedTemporaryFile(mode='w', dir=folder, prefix='cbs-resource-policy-', delete=False) as temporary:
+        temporary.write(after)
+        replacement = Path(temporary.name)
+    os.chmod(replacement, metadata.st_mode)
+    os.chown(replacement, metadata.st_uid, metadata.st_gid)
+    os.replace(replacement, target)
+    print(json.dumps({'updated': True, 'backup': str(backup)}))
+# The service starts a fresh Python process per request.
+PY
