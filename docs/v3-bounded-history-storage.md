@@ -39,3 +39,5 @@ Protected financial snapshots compare equal: all account authorizations and the 
 - No production deployment, 1,000-feed shared-staging load, or new real inference-quality evaluation was performed.
 
 Safe numerical artifacts are in benchmarks/results/v3-selective-database-reads/bounded-history-staging.json and carry-targeted-scaling.json. Exact diagnostic evidence, financial snapshots, deployment logs, source response audits and probe records remain local under .local-reports/v3-working-set/. Unrelated favicon edits remain untouched.
+
+Further pending-request reads, the settled V3 delivery blocker, sustained archival checkpoints and live recovery evidence are recorded in [the capacity and delivery follow-up](v3-capacity-delivery-followup.md).

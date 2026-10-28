@@ -1,0 +1,168 @@
+{
+  "at": "2026-10-28T20:08:13.572Z",
+  "scope": "Read-only staging observations; normal automation under existing controls. No manual paid evaluation or new financial authorization.",
+  "liveQueryAudit": {
+    "at": "2026-10-28T19:52:32.627Z",
+    "allocatedDatabaseBytes": 8283705344,
+    "checks": [
+      {
+        "stableEpoch": true,
+        "equal": true,
+        "baseline": {
+          "rowsRead": 255,
+          "bytes": 185108,
+          "returned": 254,
+          "sqlMs": 1.7476
+        },
+        "pending": {
+          "rowsRead": 25,
+          "bytes": 8769,
+          "returned": 12,
+          "sqlMs": 0.5649
+        },
+        "plan": [
+          "SEARCH v1_feed_documents USING INDEX v1_unresolved_publication_windows (feed_id=?)"
+        ]
+      },
+      {
+        "stableEpoch": true,
+        "equal": true,
+        "baseline": {
+          "rowsRead": 255,
+          "bytes": 182697,
+          "returned": 254,
+          "sqlMs": 2.3042
+        },
+        "pending": {
+          "rowsRead": 49,
+          "bytes": 18042,
+          "returned": 29,
+          "sqlMs": 1.176
+        },
+        "plan": [
+          "SEARCH v1_feed_documents USING INDEX v1_unresolved_publication_windows (feed_id=?)"
+        ]
+      },
+      {
+        "stableEpoch": true,
+        "equal": true,
+        "baseline": {
+          "rowsRead": 199,
+          "bytes": 146426,
+          "returned": 198,
+          "sqlMs": 2.1924
+        },
+        "pending": {
+          "rowsRead": 16,
+          "bytes": 755,
+          "returned": 1,
+          "sqlMs": 0.5022
+        },
+        "plan": [
+          "SEARCH v1_feed_documents USING INDEX v1_unresolved_publication_windows (feed_id=?)"
+        ]
+      }
+    ]
+  },
+  "probes": [
+    {
+      "path": "/",
+      "requests": 18,
+      "failures": 0,
+      "p50": 66,
+      "p95": 929
+    },
+    {
+      "path": "/api/auth/session",
+      "requests": 18,
+      "failures": 0,
+      "p50": 79,
+      "p95": 424
+    },
+    {
+      "path": "/api/explore/feeds",
+      "requests": 18,
+      "failures": 0,
+      "p50": 266,
+      "p95": 578
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news",
+      "requests": 18,
+      "failures": 0,
+      "p50": 603,
+      "p95": 1252
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news2",
+      "requests": 18,
+      "failures": 0,
+      "p50": 529,
+      "p95": 1376
+    }
+  ],
+  "automaticPublications": [
+    {
+      "windowStart": "2026-10-28T18:44:53.352Z",
+      "deadline": "2026-10-28T19:14:53.352Z",
+      "requestCreatedAt": "2026-10-28T19:15:24.421Z",
+      "publishedAt": "2026-10-28T19:17:31.498Z",
+      "deadlineToPublicationMs": 158146,
+      "inputArticles": 7,
+      "outcome": "PUBLISHED",
+      "usage": {
+        "calls": 2,
+        "inputTokens": 4780,
+        "outputTokens": 232,
+        "costUsd": 0.008641600000000001
+      },
+      "timings": {
+        "totalMs": 15588,
+        "stages": {
+          "edit": 9219,
+          "verify": 6369
+        }
+      }
+    },
+    {
+      "windowStart": "2026-10-28T19:14:53.352Z",
+      "deadline": "2026-10-28T19:44:53.352Z",
+      "requestCreatedAt": "2026-10-28T19:46:03.275Z",
+      "publishedAt": "2026-10-28T19:46:33.185Z",
+      "deadlineToPublicationMs": 99833,
+      "inputArticles": 7,
+      "outcome": "PUBLISHED",
+      "usage": {
+        "calls": 2,
+        "inputTokens": 5082,
+        "outputTokens": 332,
+        "costUsd": 0.009588
+      },
+      "timings": {
+        "totalMs": 12901,
+        "stages": {
+          "edit": 7780,
+          "verify": 5121
+        }
+      }
+    }
+  ],
+  "sourceTiming": [
+    {
+      "publishedAt": "2026-10-28T19:12:48.000Z",
+      "acceptedAt": "2026-10-28T19:19:01.261Z",
+      "observedAt": "2026-10-28T19:18:25.273Z"
+    },
+    {
+      "publishedAt": "2026-10-28T18:43:11.000Z",
+      "acceptedAt": "2026-10-28T18:48:11.862Z",
+      "observedAt": "2026-10-28T18:47:41.009Z"
+    },
+    {
+      "publishedAt": "2026-10-28T19:11:59.000Z",
+      "acceptedAt": "2026-10-28T19:17:36.719Z",
+      "observedAt": "2026-10-28T19:16:30.717Z"
+    }
+  ],
+  "articleTimingQualification": "Normal newly scheduled windows with newly acquired late discoveries: cited articles were published just before their respective window starts and observed/acquired inside them. This is not historical window recovery or a strict in-window-publication benchmark."
+}
