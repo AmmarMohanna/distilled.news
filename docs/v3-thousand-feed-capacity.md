@@ -8,7 +8,7 @@ The current deployment is not qualified for 1,000 continuously active half-hour 
 
 `configuredProviderLimits()` defaults to 20 requests/minute globally; staging overrides concurrency to six but does not override RPM. A nonempty successful V3 edition normally needs at least an editor and verifier call. Thus the rate ceiling is at most 300 nonempty editions per 30 minutes before repairs or competing tasks. An 80%-nonempty cohort of 1,000 feeds needs 1,600 calls/window (53.34 calls/minute), taking at least 80 minutes at the existing ceiling. All 1,000 nonempty need 2,000 calls and at least 100 minutes. These are necessary-capacity calculations, not latency forecasts or model-quality claims.
 
-`dispatchConnectorFeeds()` enrolls at most 100 feeds per invocation. One wholly due cohort of 1,000 needs ten batches; on a once-per-minute dispatcher, the final batch can start nine minutes after the first. Normal consumer completion, other due feeds and arrival phases affect actual cadence. Increasing a batch size or model quota has not been tested and is not a retained fix.
+`dispatchConnectorFeeds()` enrolls at most 100 feeds per invocation, and `runScheduledMaintenance()` already calls it up to ten times in one Cron tick. A wholly due cohort of 1,000 can therefore be queued in one tick, subject to actual database/queue latency. The earlier nine-minute estimate assumed only one batch per tick and was incorrect; no scheduler change is needed. Model quotas remain unchanged.
 
 ## Reproduce
 
