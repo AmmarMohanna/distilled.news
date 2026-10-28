@@ -1,4 +1,4 @@
-import {productV3Enabled,productV3Ready,productV3Models,prepareV3Window,publishProductV3Window} from './v3-window';
+import {productV3Enabled,productV3Ready,productV3Models,prepareV3Window,publishProductV3Window,SettledV3CallFailure} from './v3-window';
 import {retainBacklogReview,backlogRevisionIds} from './review-admission';
 import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
@@ -254,6 +254,13 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   // the frozen work and let transport rotate without consuming its retries.
   if(error instanceof IntelligenceTurnBusy||error instanceof SemanticLeaseError||error instanceof SemanticContentionError)throw error;
   if(error instanceof QuietPublication){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(current)await tx.write('briefing_requests',id,{...current,coverage,...(coverage.state!=='COMPLETE'||current.semanticCoverage?.unresolvedTargets.length?{state:'DONE',result:'DEFERRED',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP',completedAt:now()}: {})})});return undefined;}
+  if(error instanceof SettledV3CallFailure){
+   // The frozen call can only replay the same failed result. Keep its receipt
+   // and unresolved evidence; let subsequent windows proceed without resending it.
+   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING')await tx.write('briefing_requests',id,{...current,state:'FAILED',failure:error.message,reason:error.message});});
+   console.warn(JSON.stringify({type:'V3_SETTLED_CALL_FAILED',feedId,requestId:id,operationId:error.operationId}));
+   return undefined;
+  }
   const waitingJob=await store.read<{state:string;failure?:string}>(feedId,'synthesis_jobs',id);
   if(error instanceof ModelSpendingWait||waitingJob?.state==='PENDING'&&waitingJob.failure&&/ACCOUNT_|PROVIDER_RESOURCE|PROVIDER_LIMIT|AUTHORIZATION|EXECUTION_YIELD|MODEL_UNQUALIFIED|MODEL_BINDING|MODEL_CONTEXT|PAID_RESULT_AWAITING/.test(waitingJob.failure)){const reason=error instanceof ModelSpendingWait?error.reason:waitingJob!.failure!;await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!==reason)await tx.write('briefing_requests',id,{...current,reason,nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()})});return undefined;}
   console.error(JSON.stringify({type:'V1_BRIEFING_ATTEMPT_FAILED',feedId,requestId:id,stage:failureStage,error:error instanceof Error?error.message.slice(0,300):'UNKNOWN'}));

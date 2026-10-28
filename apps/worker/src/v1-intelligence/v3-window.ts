@@ -16,6 +16,10 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 
 const POLICY='v3-fixed-window-editor-verifier-v1';
+/** A sent, conclusively settled unusable response is immutable, not an admission wait. */
+export class SettledV3CallFailure extends Error {
+ constructor(readonly operationId:string){super('SEMANTIC_PROVIDER_FAILURE');}
+}
 export interface V3WindowInput {promptVersion?:1|2|3|4;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[]}
 interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
 export const productV3Enabled=(env:Pick<Env,'BRIEFING_ENGINE'>)=>env.BRIEFING_ENGINE==='v3';
@@ -76,6 +80,7 @@ function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,windowId
     const value=await transport.complete(request);if(!usage.reported)throw Error('SEMANTIC_OUTCOME_UNKNOWN');return {value,usage};
    },now(),()=>usage,{operationAdmission:admission});
    operations.add(result.id);
+   if(result.status==='DEFERRED'&&result.failure==='SEMANTIC_PROVIDER_FAILURE'&&result.usage.calls===1&&result.usage.reported)throw new SettledV3CallFailure(result.id);
    if(result.status!=='SUCCEEDED'||!result.value)throw new ModelSpendingWait(!result.usage.reported?'SEMANTIC_OUTCOME_UNKNOWN':result.failure??'SEMANTIC_PROVIDER_FAILURE');
    return result.value;
   }finally{active--;waiting.shift()?.()}

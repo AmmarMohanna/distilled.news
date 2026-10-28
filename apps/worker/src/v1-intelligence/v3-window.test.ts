@@ -78,6 +78,23 @@ it('does not let a newer direct queue delivery overtake an older runnable reques
  await article();const id=await windowIdentity('feed-1',window);await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'}));
  let calls=0;expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:window.end,end:'2026-10-03T13:00:00Z',kind:'30M'}},()=> '2026-10-03T13:01:00Z',undefined,(async()=>{calls++;throw Error('unexpected')}) as typeof fetch)).toBeUndefined();expect(calls).toBe(0);
 },30000);
+it('keeps a settled failed V3 call from indefinitely blocking subsequent windows',async()=>{
+ await article();let calls=0;
+ const failed=(async()=>{calls++;return Response.json({id:'gen-empty-settled',choices:[{message:{content:''},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:1,cost:.001}})}) as typeof fetch;
+ expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,failed)).toBeUndefined();
+ const retained=await store.list('feed-1','semantic_results');
+ expect(retained).toMatchObject([{status:'DEFERRED',failure:'SEMANTIC_PROVIDER_FAILURE',usage:{calls:1,reported:true,costUsd:.001}}]);
+ await article(2,'2026-10-03T12:35:00Z','2026-10-03T12:40:00Z');
+ const next={start:window.end,end:'2026-10-03T13:00:00Z',kind:'30M' as const},seen:string[]=[];
+ const prepared=await prepareV3Window(store,'feed-1',next,next.end);
+ expect(prepared.evidenceRevisionIds).toContain((retained[0] as {input:{evidenceRevisionIds:string[]}}).input.evidenceRevisionIds[0]);
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:next},()=>next.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(calls).toBe(1);expect(seen).toHaveLength(2);
+ expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'FAILED',failure:'SEMANTIC_PROVIDER_FAILURE'});
+ expect((await store.list('feed-1','semantic_results')).filter((r:any)=>r.failure==='SEMANTIC_PROVIDER_FAILURE')).toEqual(retained);
+ await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>next.end,undefined,failed)).rejects.toThrow('INVALID_REQUEST');
+ expect(calls).toBe(1);
+},30000);
 
 it('reuses settled editor and verifier calls after a crash before result persistence',async()=>{
  await article();const seen:string[]=[],original=FeedTransaction.prototype.write;let crash=true;
