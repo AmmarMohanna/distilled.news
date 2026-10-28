@@ -29,7 +29,7 @@ async function terminalRecoveryFixture(failureCode='NETWORK',attempts=5){
  const row=(await store.read<DownstreamJob>('jobs',jobId))!;
  await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,state:'FAILED',exhausted:true,attempts,failureCode,failureDetail:'HELPER_TRANSPORT_FAILURE'}}]);
 }
- it.each(['INVALID_RESULT','NETWORK'])('binds reviewed %s recovery to the stored public publisher and grants only one unpaid attempt',async failure=>{
+ it.each(['INVALID_RESULT','NETWORK','RECOVERY_EXHAUSTED'])('binds reviewed %s recovery to the stored public publisher and grants only one unpaid attempt',async failure=>{
   await terminalRecoveryFixture(failure,1);
   const input=(await store.read<import('./types').AcceptedInput>('inputs','observation-1'))!.value;
   const from=input.observation.canonicalUrl!,reviewedRedirect={from,to:new URL('/projects/report',from).href,headline:'Council approves the public proposal after debate'};

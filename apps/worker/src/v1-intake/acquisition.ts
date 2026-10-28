@@ -38,7 +38,7 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
   if(options?.reviewedRedirect){
    const r=options.reviewedRedirect,input=await tx.read<AcceptedInput>('inputs',job.observationId);
    try{new WorkerPublicSourceFetch(r.from);new WorkerPublicSourceFetch(r.to);
-    reviewedRedirect=options.unpaidOnly===true&&input?.observation.canonicalUrl===r.from&&r.from!==r.to&&new URL(r.from).origin===new URL(r.to).origin&&r.headline.trim().length>=20&&r.headline.length<=1000&&['INVALID_RESULT','EXTRACTION_FAILED','NETWORK'].includes(job.failureCode??'');
+    reviewedRedirect=options.unpaidOnly===true&&input?.observation.canonicalUrl===r.from&&r.from!==r.to&&new URL(r.from).origin===new URL(r.to).origin&&r.headline.trim().length>=20&&r.headline.length<=1000&&['INVALID_RESULT','EXTRACTION_FAILED','NETWORK','RECOVERY_EXHAUSTED'].includes(job.failureCode??'');
    }catch{/* Reviewed redirects must still be public and source-bound. */}
    if(!reviewedRedirect)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';
   }

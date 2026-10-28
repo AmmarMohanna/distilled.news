@@ -95,3 +95,25 @@ known repository version and upgrades either to the same tested function.
 Synthetic replacement checks verified both paths and Python syntax. The installer
 now has an explicit LF Git attribute to prevent Windows shell line-ending errors.
 Final production installation and CBS recovery still require verification.
+
+## Verified after the legacy helper upgrade
+
+The operator installed the corrected helper and reported backup
+`source-execution.py.before-cbs-resource-policy-20261028T211116Z`.
+Three saved CBS jobs for the pardon investigation are now DONE at attempt 4;
+each retained the 19,298-character article body. Evidence preserves the original
+news URL and separately records the project destination. These are three saved
+jobs for one investigation, not three different articles. The cumulative
+confirmed recovery count is 118.
+
+The exhausted duplicate required a reviewed recovery authorization for
+RECOVERY_EXHAUSTED, which already supports ordinary operator recovery. This
+narrow extension passed identity, network and exhausted-allowance regression
+cases plus Worker typecheck. Deployed Worker version is
+`f527ca80-0927-4d87-8b31-0209ce636131`.
+
+Two Cornell jobs still returned ARTICLE_REDIRECT_TEXT_UNAVAILABLE after the
+upgraded helper. A capacity-waiting attempt was resumed with the same approval
+and subsequently failed; it was not granted another fetch. These are not
+declared recovered. A direct, redacted Cornell browser diagnostic on the VPS is
+needed before any further recovery approval. No paid fallback was enabled.
