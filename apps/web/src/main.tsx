@@ -930,8 +930,8 @@ function ResetPasswordPage(props: { token: string }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   return (
-    <main className="reset-password-page" lang={language} dir={language === 'ar' ? 'rtl' : 'ltr'}>
-      <AppHeader account={null} onAccount={() => {}} leading={<a className="reset-password-brand" href="/" aria-label="Distilled.News"><img src="/email-logo.png" alt=""/><span>Distilled<span className="reset-brand-dot">.</span>News</span></a>} />
+    <main className="experience product-refresh guest-browse guest-landing landing-no-menu reset-password-page" lang={language} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+      <AppHeader account={null} onAccount={() => {}} />
       <section className="reset-password-content" aria-labelledby="reset-password-title">
       <div className="reset-password-heading"><h1 id="reset-password-title">{t('Reset Password')}</h1><p>{t('Account recovery.')}</p></div>
       <form className="reset-password-form" onSubmit={async (event) => {

@@ -10,3 +10,9 @@ Validation:
 - Home and Explore retained a user title literally named `Home` across French/Arabic/English changes on mobile and desktop. Titles were not translated even though they match a UI dictionary key.
 - Existing Home/Explore/reader layout checks passed at four screen sizes, retaining page scrolling and normal widget gaps.
 - Static JSX and literal translation-call audit found no missing display keys in the checked source components; technical failure-code constants in conditional expressions are not display keys. This is not proof that every arbitrary backend error or future UI state has a translation.
+
+## Normal sizing and shared landing header correction
+
+Removed the custom header mark and all reset-specific header sizing overrides. The reset page now uses AppHeader and the same guest landing wrapper classes as the landing page. The form is bounded at 640px with 16px labels, a 48px field and a 32px desktop / 26px mobile heading. Recovery content uses the regular page scroll viewport with vertical scrolling enabled.
+
+Browser validation compared reset and landing header/brand bounds at four widths in English, French and Arabic: matched within one pixel in all twelve cases. Wheel scrolling worked after reducing each viewport to 260px high. All twelve mocked reset submissions, visibility toggles and language-preserved input checks passed. Frontend typecheck and production build passed. No real account changes or emails were made.
