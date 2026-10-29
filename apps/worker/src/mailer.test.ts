@@ -55,6 +55,10 @@ describe("Outlook QA mail", () => {
       "https://graph.microsoft.com/v1.0/me/sendMail"
     ]);
     const body = JSON.parse(String(requests[2].init?.body));
+    expect(body.message.subject).toBe('Verify your email for Distilled.News');
+    expect(body.message.body.content).toContain('src="https://qa.example.com/notification-icon.png"');
+    expect(body.message.body.content).toContain('bgcolor="#5e5ce6"');
+    expect(body.message.body.content).toContain('color:#ffffff');
     expect(body.message.toRecipients[0].emailAddress.address).toBe("reader@example.com");
     expect(body.message.body.content).toContain("https://qa.example.com/verify-email?token=verify-secret");
     expect(JSON.stringify(getStored())).not.toContain("rotated-refresh-token");
@@ -74,7 +78,7 @@ describe("Outlook QA mail", () => {
       submitted=JSON.parse(String(init?.body));return new Response(null,{status:202});
     }));
     await sendPasswordResetEmail(env,account,"test-reset-token");
-    expect(submitted.message.subject).toBe("Reset your Distilled.news password");
+    expect(submitted.message.subject).toBe("Reset your Distilled.News password");
     expect(submitted.message.body.content).toContain("https://distilled-news-staging.distillednews-platform.workers.dev/reset-password?token=test-reset-token");
     expect(submitted.message.body.content).toContain("expires in 30 minutes");
   });

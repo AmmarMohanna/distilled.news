@@ -38,22 +38,7 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       grid.style.setProperty('--feed-row-height', layout.rowHeight + 'px');
       grid.style.setProperty('--feed-grid-gap', layout.gap + 'px');
       grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? 72 : 56) + 'px');
-      // Fit whole natural rows, including wrapped titles. The remaining cards
-      // scroll within this shared Home/Explore list rather than peeking below
-      // the viewport or shrinking the artwork and text to fit.
-      const rows: {top:number;bottom:number}[]=[];
-      for(const card of Array.from(grid.children)){
-        const bounds=card.getBoundingClientRect();if(!bounds.height)continue;
-        const rowTop=(bounds.top-rect.top)/scale+grid.scrollTop;
-        const rowBottom=(bounds.bottom-rect.top)/scale+grid.scrollTop;
-        const row=rows.find(r=>Math.abs(r.top-rowTop)<2);
-        if(row)row.bottom=Math.max(row.bottom,rowBottom);else rows.push({top:rowTop,bottom:rowBottom});
-      }
-      rows.sort((a,b)=>a.top-b.top);
-      const available=Math.max(0,(bottom-top)/scale-8);
-      const fitting=rows.filter(row=>row.bottom<=available);
-      if(fitting.length&&fitting.length<rows.length)grid.style.maxHeight=fitting.at(-1)!.bottom+'px';
-      else grid.style.removeProperty('max-height');
+
     };
     measure();
     let active = true;
@@ -67,7 +52,6 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
     if (navigation) observer.observe(navigation);
     const viewport = grid.closest('.screen-page-viewport');
     if (viewport) observer.observe(viewport);
-    for(const card of Array.from(grid.children))observer.observe(card);
     window.addEventListener('resize', measure);
     window.visualViewport?.addEventListener('resize', measure);
     return () => { active = false; cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', measure); window.visualViewport?.removeEventListener('resize', measure); };

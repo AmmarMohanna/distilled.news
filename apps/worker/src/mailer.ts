@@ -5,10 +5,10 @@ type EmailAddressInput = string | { email: string; name: string };
 export async function sendVerificationEmail(env: Env, account: AccountRecord, token: string): Promise<void> {
   await sendAuthEmail(env, {
     to: account.email,
-    subject: "Verify your email for Distilled.news",
+    subject: "Verify your email for Distilled.News",
     path: `/verify-email?token=${encodeURIComponent(token)}`,
     action: "Verify email",
-    text: "Verify your email to finish setting up your Distilled.news account.",
+    text: "Verify your email to finish setting up your Distilled.News account.",
     expires: "This verification link expires in 24 hours."
   });
 }
@@ -16,10 +16,10 @@ export async function sendVerificationEmail(env: Env, account: AccountRecord, to
 export async function sendPasswordResetEmail(env: Env, account: AccountRecord, token: string): Promise<void> {
   await sendAuthEmail(env, {
     to: account.email,
-    subject: "Reset your Distilled.news password",
+    subject: "Reset your Distilled.News password",
     path: `/reset-password?token=${encodeURIComponent(token)}`,
     action: "Reset password",
-    text: "Use this link to choose a new Distilled.news password.",
+    text: "Use this link to choose a new Distilled.News password.",
     expires: "This reset link expires in 30 minutes."
   });
 }
@@ -38,13 +38,14 @@ async function sendAuthEmail(
   if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is not configured");
 
   const url = new URL(input.path, env.PUBLIC_WEB_BASE_URL || "https://distilled.news").toString();
+  const logoUrl = new URL('/notification-icon.png', url).toString();
   const footer = "If you did not request this email, you can ignore it.";
   const message = {
     to: input.to,
     from: parseEmailAddress(env.EMAIL_FROM),
     subject: input.subject,
     text: [
-      "Distilled.news",
+      "Distilled.News",
       "",
       input.text,
       "",
@@ -54,10 +55,10 @@ async function sendAuthEmail(
       footer
     ].join("\n"),
     html: [
-      "<div style=\"font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.5; color: #111;\">",
-      "<h1 style=\"font-size: 18px; margin: 0 0 16px;\">Distilled.news</h1>",
+      "<div style=\"font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #202124; font-size: 16px;\">",
+      `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:24px;"><tr><td><img src="${escapeHtml(logoUrl)}" alt="" width="52" height="52" style="display:block;border:0;" /></td><td style="padding-left:12px;font-size:24px;font-weight:700;">Distilled.News</td></tr></table>`,
       `<p>${escapeHtml(input.text)}</p>`,
-      `<p><a href="${escapeHtml(url)}" style="display: inline-block; padding: 10px 14px; border: 1px solid #111; border-radius: 6px; color: #111; text-decoration: none;">${escapeHtml(input.action)}</a></p>`,
+      `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td bgcolor="#5e5ce6" style="border-radius:999px;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 24px;border:1px solid #5e5ce6;border-radius:999px;background-color:#5e5ce6;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;text-decoration:none;">${escapeHtml(input.action)}</a></td></tr></table>`,
       `<p style="word-break: break-all;"><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`,
       `<p>${escapeHtml(input.expires)}</p>`,
       `<p>${escapeHtml(footer)}</p>`,

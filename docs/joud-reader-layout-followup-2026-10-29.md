@@ -27,3 +27,27 @@ and equal Summary/Today heading alignment. No live AI calls were made.
 
 Local screenshots, browser scripts and measurements remain ignored under
 .local-reports/live-check.
+
+## Follow-up: full-page scrolling and authentication email styling
+
+The user clarified that scrolling must belong to the whole page. The grid's
+viewport-height cap and internal overflow/snap behavior have therefore been
+removed. Home/Explore still use the same bounded artwork and card sizing, while
+every card stays in ordinary page flow. Summary alignment, the centered toolbar
+and Source details removal remain intact. The previous complete-row/internal-list
+description above is superseded by this clarification.
+
+Verification and password-reset emails now display Distilled.News, include the
+existing transparent brand PNG hosted on the deployment's frontend, and use a
+blue-magenta (#5e5ce6) button with white text. The shared HTML uses an email-safe
+presentation table and bgcolor fallback. Verification/reset URLs, plain-text
+fallback links, expiry text and mail credentials/transport behavior are preserved.
+Existing delivered email cannot be restyled; the template applies to new mail.
+
+Validation: four grid tests and all three mailer tests passed; frontend/Worker
+typechecks and frontend build passed. Six mocked phone/desktop browser cases
+confirmed page scrolling increases while feed-grid scrollTop stays zero, with
+overflow visible and no grid max-height. Reader alignment stayed intact. Local
+HTML email previews at widths 390 and 760 confirmed the logo loads, the button
+uses the exact accent color and no horizontal overflow occurs. No real emails
+were sent during validation.
