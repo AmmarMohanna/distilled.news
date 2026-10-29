@@ -59,3 +59,7 @@ Home and Explore now measure available width, the initial viewport bottom (inclu
 Replaced the offline crossed-out Wi-Fi with an inline lavender cloud/card illustration, requiring no network image. Authentication emails use a dedicated transparent full-mark PNG derived from the existing vector logo; installed and notification icons are unchanged. Existing delivered email is unchanged.
 
 Validation: 98 frontend tests and three mailer tests passed; frontend and Worker typechecks and frontend build passed. Edge checks covered Home, Explore and reader at 320x740, 390x844, 1280x640 with expanded sidebar, and 1920x1006: no horizontal overflow or initial partial card rows, matching Home/Explore card sizes, and page scrolling where needed. Email previews at 390 and 760 pixels loaded the full mark and violet button without overflow. Offline preview had no external image dependency. Browser content was synthetic; no emails or paid model calls were sent.
+
+### Correction: continuous widget spacing
+
+Removed the fold-dependent margin that created a large blank gap between rows after scrolling. Available-space row sizing remains, but rows always use the normal 10px mobile / 16px desktop grid gap. A row may naturally cross the browser edge during page scrolling; content is not clipped inside cards. Browser checks at four sizes passed with no injected margins, horizontal overflow, or nested grid scrolling; Arabic layout was checked separately.

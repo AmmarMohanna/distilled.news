@@ -55,19 +55,12 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       grid.style.setProperty('--feed-grid-gap', layout.gap + 'px');
       grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? 72 : 56) + 'px');
       const cards = Array.from(grid.children).filter((node): node is HTMLElement => node instanceof HTMLElement);
-      for (const card of cards) card.style.removeProperty('margin-block-start');
       grid.style.setProperty('--feed-row-height', '0px');
       const natural = Math.max(0, ...cards.map(card => card.getBoundingClientRect().height / scale));
       const fold = Math.max(0, (bottom - top) / scale);
       const height = fitFeedRowHeight(Math.max(0, fold - 8), layout.gap, natural, layout.rowHeight);
       grid.style.setProperty('--feed-row-height', height + 'px');
-      // Keep page scrolling. If a row cannot fit without shrinking its content,
-      // begin that whole row below the fold instead of showing half of it.
-      const bounds = cards.map(card => ({ card, top: (card.getBoundingClientRect().top - rect.top) / scale, bottom: (card.getBoundingClientRect().bottom - rect.top) / scale }));
-      const partial = bounds.find(row => row.top > 1 && row.top < fold - 1 && row.bottom > fold + 1);
-      if (partial) for (const row of bounds) {
-        if (Math.abs(row.top - partial.top) < 2) row.card.style.marginBlockStart = Math.ceil(fold - partial.top + layout.gap) + 'px';
-      }
+      // Keep a continuous page: row spacing never depends on the screen fold.
     };
     measure();
     let active = true;
