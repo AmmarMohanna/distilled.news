@@ -1,5 +1,5 @@
 import {useEffect, useId, useRef, useState, type ReactNode} from 'react';
-import {ChevronDown} from 'lucide-react';
+import {ChevronDown, Globe} from 'lucide-react';
 import {useLanguage} from './LanguageControl';
 
 type Language = 'en' | 'fr' | 'ar';
@@ -14,10 +14,10 @@ function Flag({language}: {language: Language}) {
 
 export function FeedLanguageSelect({value, onChange, labelId}: {value: Language; onChange: (language: Language) => void; labelId: string}) {
   const {t} = useLanguage();
-  return <FeedSettingsSelect value={value} onChange={onChange} labelId={labelId} kind="language" options={languages.map(language => ({value: language, label: t(names[language]), icon: <Flag language={language}/>}))}/>;
+  return <FeedSettingsSelect value={value} onChange={onChange} labelId={labelId} kind="language" triggerIcon={<span className="feed-language-badge"><Globe size={20} aria-hidden/></span>} options={languages.map(language => ({value: language, label: t(names[language]), icon: <Flag language={language}/>}))}/>;
 }
 
-export function FeedSettingsSelect<T extends string>({value, onChange, labelId, kind, options}: {value: T; onChange: (value: T) => void; labelId: string; kind: 'language' | 'rhythm'; options: {value: T; label: string; icon?: ReactNode}[]}) {
+export function FeedSettingsSelect<T extends string>({value, onChange, labelId, kind, options, triggerIcon}: {value: T; onChange: (value: T) => void; labelId: string; kind: 'language' | 'rhythm'; options: {value: T; label: string; icon?: ReactNode}[]; triggerIcon?: ReactNode}) {
   const selected = options.find(option => option.value === value)!;
   const id = useId(), trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -27,12 +27,14 @@ export function FeedSettingsSelect<T extends string>({value, onChange, labelId, 
     const anchor = button.getBoundingClientRect(), viewport = window.visualViewport;
     const left = viewport?.offsetLeft ?? 0, top = viewport?.offsetTop ?? 0;
     const width = viewport?.width ?? innerWidth, height = viewport?.height ?? innerHeight;
+    panel.style.width = anchor.width + 'px';
     panel.style.maxWidth = Math.max(0, width - 24) + 'px';
-    panel.style.maxHeight = Math.max(0, height - 24) + 'px';
-    const bounds = panel.getBoundingClientRect();
-    panel.style.left = Math.max(left + 12, Math.min(anchor.right - bounds.width, left + width - bounds.width - 12)) + 'px';
-    const below = top + height - anchor.bottom - 12;
-    panel.style.top = Math.max(top + 12, Math.min(below >= bounds.height + 6 ? anchor.bottom + 6 : anchor.top - bounds.height - 6, top + height - bounds.height - 12)) + 'px';
+    const below = Math.max(0, top + height - anchor.bottom - 18);
+    const above = Math.max(0, anchor.top - top - 18);
+    const showBelow = panel.scrollHeight + 2 <= below || below >= above;
+    panel.style.maxHeight = (showBelow ? below : above) + 'px';
+    panel.style.left = Math.max(left + 12, Math.min(anchor.left, left + width - anchor.width - 12)) + 'px';
+    panel.style.top = (showBelow ? anchor.bottom + 6 : anchor.top - panel.getBoundingClientRect().height - 6) + 'px';
   };
   useEffect(() => {
     const panel = menu.current!;
@@ -49,7 +51,7 @@ export function FeedSettingsSelect<T extends string>({value, onChange, labelId, 
   };
   return <div className="feed-settings-select">
     <button ref={trigger} type="button" className={`feed-settings-trigger feed-${kind}-trigger`} aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-labelledby={`${labelId} ${id}-value`} onClick={() => open ? close() : show()} onKeyDown={event => {if(event.key === 'ArrowDown' || event.key === 'ArrowUp'){event.preventDefault(); show();}}}>
-      {selected.icon}<span id={`${id}-value`}>{selected.label}</span><ChevronDown size={16} aria-hidden/>
+      {triggerIcon ?? selected.icon}<span id={`${id}-value`}>{selected.label}</span><ChevronDown size={16} aria-hidden/>
     </button>
     <div ref={menu} id={id} popover="auto" role="listbox" aria-labelledby={labelId} className={`feed-settings-menu feed-${kind}-menu`} onBlur={event => {if(event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) menu.current?.hidePopover?.();}} onKeyDown={event => {
       if(event.key === 'Escape'){event.preventDefault(); close();}

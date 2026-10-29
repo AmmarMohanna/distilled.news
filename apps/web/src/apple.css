@@ -2803,3 +2803,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-settings-menu > button { display: flex; align-items: center; justify-content: start; gap: 18px; width: 100%; min-height: 50px; padding: 12px 14px; border: 0; border-radius: 12px; background: transparent; color: var(--text); box-shadow: none; font-size: 16px; font-weight: 400; text-align: start; }
 :root.apple-ui.apple-ui .feed-settings-menu > button[aria-selected="true"] { background: color-mix(in srgb,var(--accent) 7%,var(--surface)); }
 :root.apple-ui.apple-ui .feed-settings-menu > button:is(:hover,:focus-visible) { background: color-mix(in srgb,var(--accent) 11%,var(--surface)); outline: none; }
+/* Dropdown fields and their menus share the same edges and pale violet finish. */
+:root.apple-ui.apple-ui .feed-settings-trigger { border-color: color-mix(in srgb,var(--accent) 28%,var(--surface)); background: color-mix(in srgb,var(--accent) 3%,var(--surface)); color: var(--text); border-radius: 14px; }
+:root.apple-ui.apple-ui .feed-settings-trigger > svg:last-child { color: color-mix(in srgb,var(--accent) 60%,var(--muted)); }
+:root.apple-ui.apple-ui .feed-language-badge { display: grid; place-items: center; flex: 0 0 28px !important; width: 28px; height: 28px; border-radius: 50%; color: var(--accent); background: color-mix(in srgb,var(--accent) 8%,var(--surface)); }
+:root.apple-ui.apple-ui .feed-settings-menu { width: auto; border-radius: 14px; padding: 5px; }
+:root.apple-ui.apple-ui .feed-settings-menu > button { min-height: 44px; padding: 9px 8px; gap: 10px; font-size: 14px; overflow-wrap: anywhere; }
