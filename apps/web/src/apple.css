@@ -2844,3 +2844,5 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media(max-width:600px) { :root.apple-ui.apple-ui .users-role-filter { width: 140px; flex-basis: 140px; } }
 /* Role filtering uses a white surface rather than the feed preferences tint. */
 :root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { background: var(--surface); }
+:root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { border-color: var(--line); }
+:root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger > svg:last-child { color: var(--muted); }
