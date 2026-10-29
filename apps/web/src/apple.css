@@ -2835,3 +2835,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Arabic sentences keep terminal punctuation at their reading-direction end. */
 :root.apple-ui.apple-ui[dir="rtl"] .auth-unavailable :is(h2,p) { direction: rtl; unicode-bidi: plaintext; }
+/* Arabic account-management chevrons point toward the RTL navigation direction. */
+:root.apple-ui.apple-ui[dir="rtl"] :is(.managed-user-settings,.managed-user-feeds):not([open]) > summary > svg:last-child,
+:root.apple-ui.apple-ui[dir="rtl"] .managed-user-suspend > svg:last-child { transform: scaleX(-1); }
