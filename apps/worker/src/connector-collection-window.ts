@@ -6,6 +6,7 @@ import type {FeedRecord} from './v1-intelligence/types';
 export function initialCollectionStart(feed:FeedRecord,sourceCreatedAt:string):string {
  const created=new Date(Math.max(Date.parse(feed.createdAt),Date.parse(sourceCreatedAt)));
  if(!Number.isFinite(created.getTime()))throw new HandoffError('INVALID_REQUEST');
+ if(feed.briefingSchedule?.clockStartAt)return created.toISOString();
  if(feed.briefingSchedule)return livePublicationWindow(feed.briefingSchedule,created).end;
  if(feed.briefingFrequency==='WEEKLY'){
   const day=Date.UTC(created.getUTCFullYear(),created.getUTCMonth(),created.getUTCDate());

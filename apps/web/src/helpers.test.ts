@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BriefingConfig } from "@distilled/core";
-import { deriveBriefingSlug, formatClock, formatDayHeading, formatFeedUpdated, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
+import { deriveBriefingSlug, editionDisplayTime, formatClock, formatDayHeading, formatFeedUpdated, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
 
 const baseBriefing: BriefingConfig = {
   id: "briefing_default",
@@ -22,6 +22,13 @@ const baseBriefing: BriefingConfig = {
 };
 
 describe("web helpers", () => {
+  it('labels a delayed edition by scheduled delivery while keeping its actual publication timestamp', () => {
+    const edition = {scheduledFor:'2026-10-29T00:00:00Z', publishedAt:'2026-10-29T00:02:00Z'};
+    expect(editionDisplayTime(edition)).toBe(edition.scheduledFor);
+    expect(edition.publishedAt).toBe('2026-10-29T00:02:00Z');
+    expect(editionDisplayTime({publishedAt:edition.publishedAt})).toBe(edition.publishedAt);
+    expect(editionDisplayTime({scheduledFor:'2026-10-28T23:30:00Z',publishedAt:edition.publishedAt})).toBe('2026-10-28T23:30:00Z');
+  });
   it("formats feed freshness across time boundaries and languages", () => {
     const now = Date.parse("2026-10-02T14:00:00Z");
     expect(formatFeedUpdated("2026-10-02T12:00:00Z", "en", now)).toBe("Updated 2 hours ago");

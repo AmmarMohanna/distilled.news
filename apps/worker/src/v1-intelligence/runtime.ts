@@ -43,7 +43,7 @@ import {prepareEditorialPlan} from './editorial-plan';
 import {createStrongSemanticModel} from './semantic-model';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
-import {publicationWindowSchema,livePublicationWindow,preparingLiveWindow} from './schedule';
+import {publicationWindowSchema,livePublicationWindow,preparingLiveWindow,nextLiveBriefingAt,DELIVERY_LEAD_MS} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
@@ -161,6 +161,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
+ if(request.reason==='AWAITING_SCHEDULED_DELIVERY'&&request.nextAttemptAt&&Date.parse(request.nextAttemptAt)>Date.parse(now()))return undefined;
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
  for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
@@ -186,6 +187,9 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  let failureStage='SHORTLIST';
  try {
   if(request.engine==='v3')return await publishProductV3Window(env,feedId,window,id,now,fetcher);
+  if(window.scheduledFor&&Date.parse(now())<Date.parse(window.scheduledFor)){
+   await feedTransact(store,feedId,tx=>tx.write('briefing_requests',id,{...request,reason:'AWAITING_SCHEDULED_DELIVERY',nextAttemptAt:window.scheduledFor}));return undefined;
+  }
   // A configured writer model only ever sees the approved facts of an EditorialPlan, so model-backed synthesis implies the plan path;
   // the deterministic fallback plan is used when no strong planning model is available. The writer never fixes upstream selection.
   const writer=createStoredEvidenceModel(env,fetcher);
@@ -329,7 +333,17 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
   let window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);
-  if(feed.briefingSchedule?.originAt&&feed.briefingSchedule.durationMinutes<1440){
+  if(feed.briefingSchedule?.clockStartAt){
+   const schedule=feed.briefingSchedule,clockStartAt=schedule.clockStartAt!;
+   const last=await env.DB.prepare(`SELECT json_extract(json,'$.window.end') AS end FROM v1_feed_documents
+    WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.clockStartAt')=?
+    AND json_extract(json,'$.window.durationMinutes')=? ORDER BY json_extract(json,'$.window.end') DESC LIMIT 1`)
+    .bind(id,clockStartAt,schedule.durationMinutes).first<{end:string}>();
+   const nextDelivery=last?nextLiveBriefingAt(schedule,new Date(Date.parse(last.end)+DELIVERY_LEAD_MS)):undefined;
+   const next=livePublicationWindow(schedule,new Date(nextDelivery?Date.parse(nextDelivery)-DELIVERY_LEAD_MS:clockStartAt));
+   if(Date.parse(next.end)<=Date.parse(window.end))window=next;
+  }
+  else if(feed.briefingSchedule?.originAt&&feed.briefingSchedule.durationMinutes<1440){
    // Materialize one consecutive close per tick, including after an outage or
    // a shorter interval edit. Retained requests keep their original windows.
    const schedule=feed.briefingSchedule,requests=await store.list<BriefingRequest>(id,'briefing_requests');
@@ -337,6 +351,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    const next=through+schedule.durationMinutes*60000;
    if(next<=Date.parse(window.end))window=livePublicationWindow(schedule,new Date(next));
   }
+  if(Date.parse(window.end)>now.getTime())continue;
   const editionId=await windowIdentity(id,window),pending={n:await jobsHoldingWindow(env.DB,id,window.end)};
   // Preparation is a read-through mechanical shortlist, not an early edition
   // or a frozen paid editorial decision. Final arrivals are reloaded at close.

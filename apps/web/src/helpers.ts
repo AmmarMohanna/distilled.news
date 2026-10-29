@@ -1,4 +1,8 @@
-import type { BriefingConfig } from "@distilled/core";
+import type { BriefingConfig, BriefingEdition } from "@distilled/core";
+
+export function editionDisplayTime(edition: Pick<BriefingEdition, 'scheduledFor' | 'publishedAt'>): string {
+  return edition.scheduledFor ?? edition.publishedAt;
+}
 
 const ENGLISH_MONTHS = [
   "January",

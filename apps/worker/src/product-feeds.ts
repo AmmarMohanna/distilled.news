@@ -116,7 +116,7 @@ export async function publishedProductEditions(env:Env,feed:BriefingConfig,editi
  const editions:BriefingEdition[]=[];
  for(const published of publishedEditions) {
   const sections=published.stories.map(story=>({title:'',summary:story.claims.map(c=>c.text).join(' '),evidence:published.citations.filter(c=>story.claims.some(claim=>claim.support.some(ref=>ref.evidenceRevisionId===c.evidenceRevisionId))).map(c=>({messageId:c.evidenceRevisionId,sourceId:c.publisherId,sourceTitle:c.title||'Source',sourceType:'channel' as const,sourceUrl:c.url,postedAt:c.publishedAt??published.createdAt,text:story.claims.flatMap(claim=>claim.support.filter(ref=>ref.evidenceRevisionId===c.evidenceRevisionId).map(ref=>ref.quote)).join('\n'),links:c.url?[c.url]:[],media:[]}))}));
-  editions.push({id:published.id,briefingId:feed.id,cadence:feed.briefingCadence,windowStart:published.windowStart,windowEnd:published.windowEnd,title:published.title,summary:sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,status:'published',publishedAt:published.publishedAt,createdAt:published.createdAt,updatedAt:published.createdAt});
+  editions.push({id:published.id,briefingId:feed.id,cadence:feed.briefingCadence,windowStart:published.windowStart,windowEnd:published.windowEnd,...(published.scheduledFor?{scheduledFor:published.scheduledFor}:{}),title:published.title,summary:sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,status:'published',publishedAt:published.publishedAt,createdAt:published.createdAt,updatedAt:published.createdAt});
  }
  return editions;
 }

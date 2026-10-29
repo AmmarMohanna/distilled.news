@@ -8,6 +8,8 @@ import {V1FeedStore,feedTransact,FeedTransaction} from './store';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,windowIdentity} from './runtime';
 import {publicV1Edition} from './public-read';
 import {prepareV3Window} from './v3-window';
+import {livePublicationWindow} from './schedule';
+import {readScheduleAudit} from './schedule-audit';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import type {Env} from '../types';
 
@@ -34,6 +36,32 @@ const fetcher=(seen:string[])=>async(_url:unknown,init?:RequestInit)=>{
  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
  return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
 };
+it('prepares at the early cutoff, publishes at scheduled time, and reuses verified calls on delayed delivery',async()=>{
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'};
+ const first=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z')),message={type:'v1_briefing' as const,feedId:'feed-1',window:first};
+ await store.registerFeed({...feedFixture,revision:2,createdAt:schedule.clockStartAt,briefingFrequency:'30M',briefingSchedule:schedule});
+ const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;await intake.registerScope({...scope,feedRevision:2});
+ expect(await readScheduleAudit(ctx.db,'feed-1',new Date('2026-10-03T12:20:00Z'))).toMatchObject({state:'NOT_DUE'});
+ await article(1,'2026-10-03T12:10:00Z','2026-10-03T12:15:00Z');
+ const seen:string[]=[],provider=fetcher(seen) as typeof fetch,id=await windowIdentity('feed-1',first);
+ expect(await processV1Briefing(env,message,()=> '2026-10-03T12:25:01Z',undefined,provider)).toBeUndefined();
+ expect(seen).toHaveLength(2);expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',reason:'AWAITING_SCHEDULED_DELIVERY',nextAttemptAt:'2026-10-03T12:30:00.000Z'});
+ expect(await processV1Briefing(env,message,()=> '2026-10-03T12:26:00Z',undefined,provider)).toBeUndefined();expect(seen).toHaveLength(2);
+ const sent:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>sent.push(body)}} as unknown as Env;
+ await dispatchV1Intelligence(env,new Date('2026-10-03T12:26:00Z'));expect(sent.filter(m=>m.type==='v1_briefing')).toHaveLength(0);
+ await dispatchV1Intelligence(env,new Date('2026-10-03T12:30:00Z'));expect(sent.filter(m=>m.type==='v1_briefing')).toHaveLength(1);
+ await article(2,'2026-10-03T12:26:00Z','2026-10-03T12:26:00Z');
+ const edition=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,provider);
+ expect(edition).toMatchObject({windowStart:schedule.clockStartAt,windowEnd:first.end,scheduledFor:'2026-10-03T12:30:00.000Z',createdAt:'2026-10-03T12:32:00Z'});
+ expect(await publicV1Edition(ctx.db,id)).toMatchObject({scheduledFor:'2026-10-03T12:30:00.000Z',publishedAt:'2026-10-03T12:32:00Z'});
+ expect(await readScheduleAudit(ctx.db,'feed-1',new Date('2026-10-03T12:32:00Z'))).toMatchObject({state:'PUBLISHED',requestId:id});
+ expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);expect(seen).toHaveLength(2);
+ expect((await store.read<any>('feed-1','v3_window_inputs',id)).input.articles).toHaveLength(1);
+ const second=livePublicationWindow(schedule,new Date('2026-10-03T12:55:00Z'));
+ expect(second.start).toBe(first.end);expect((await prepareV3Window(store,'feed-1',second,second.end)).input.articles).toHaveLength(1);
+ expect(await processV1Briefing(env,message,()=> '2026-10-03T12:33:00Z',undefined,provider)).toEqual(edition);expect(seen).toHaveLength(2);
+},30000);
 it('V3 acknowledges acquired evidence without constructing a V2 event graph',async()=>{
  await article();expect(await store.list('feed-1','events')).toHaveLength(0);
  const row=await new V1IntakeStore(ctx.db).read<any>('jobs',JSON.stringify(['REASSESS','observation-1','']));expect(row?.value.state).toBe('DONE');
@@ -148,6 +176,19 @@ async function relativeFeed(originAt='2026-10-03T12:05:40.123Z'){
  const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;
  await intake.registerScope({...scope,feedRevision:2});
 }
+it('automatically records clock windows at their cutoffs and recovers consecutive missed windows without inference',async()=>{
+ const clockStartAt='2026-10-03T12:08:40.123Z';
+ await store.registerFeed({...feedFixture,revision:2,createdAt:clockStartAt,briefingFrequency:'30M',briefingSchedule:{durationMinutes:30,timezone:'UTC',clockStartAt}});
+ env={...env,OPENROUTER_API_KEY:undefined};
+ await dispatchV1Intelligence(env,new Date('2026-10-03T12:24:59.999Z'));
+ expect(await store.list('feed-1','briefing_requests')).toHaveLength(0);
+ for(let i=0;i<4;i++)await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));
+ const requests=(await store.list<any>('feed-1','briefing_requests')).sort((a,b)=>a.window.end.localeCompare(b.window.end));
+ expect(requests.map(r=>r.window.end)).toEqual(['2026-10-03T12:25:00.000Z','2026-10-03T12:55:00.000Z','2026-10-03T13:25:00.000Z']);
+ expect(requests.map(r=>r.window.scheduledFor)).toEqual(['2026-10-03T12:30:00.000Z','2026-10-03T13:00:00.000Z','2026-10-03T13:30:00.000Z']);
+ expect(requests[0].window.start).toBe(clockStartAt);for(let i=1;i<requests.length;i++)expect(requests[i].window.start).toBe(requests[i-1].window.end);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},60000);
 it('automatically dispatches the precise first relative close and persists it with settled-call crash recovery',async()=>{
  await relativeFeed();await article(1,'2026-10-03T12:06:00Z');
  const sent:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{sent.push(body)}}} as unknown as Env;
