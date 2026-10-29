@@ -54,7 +54,7 @@ export function AppExperience(props: {
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
   const { theme, setTheme } = useTheme();
-  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.News` : "Distilled.News — A calmer perspective on a complex world."; }, [tab, language, props.account]);
+  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."; }, [tab, language, props.account]);
   useEffect(() => {
     let active = true;
     let version = 0;
