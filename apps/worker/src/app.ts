@@ -112,6 +112,7 @@ export interface AppOptions {
 }
 
 const authInputSchema = z.object({
+  language: z.enum(['en', 'fr', 'ar']).default('en'),
   email: z.string().email(),
   password: z.string().min(8),
   username: z.string().min(1).optional(),
@@ -130,6 +131,7 @@ const tokenInputSchema = z.object({
 });
 
 const passwordResetRequestSchema = z.object({
+  language: z.enum(['en', 'fr', 'ar']).default('en'),
   email: z.string().email(),
   turnstileToken: z.string().optional()
 });
@@ -611,7 +613,7 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: error instanceof Error ? error.message : "could not create account" }, 409);
     }
     try {
-      await sendVerificationToken(repo, c.env, account);
+      await sendVerificationToken(repo, c.env, account, input.language);
     } catch (error) {
       logAuthEmailFailure("verification", account, c.env, error);
       await repo.deleteAccount(account.id);
@@ -664,7 +666,7 @@ export function createApp(options: AppOptions = {}) {
     const account = await repo.getAccountByEmail(email);
     if (account && account.emailVerifiedAt && !account.disabledAt) {
       try {
-        await sendPasswordResetToken(repo, c.env, account);
+        await sendPasswordResetToken(repo, c.env, account, input.language);
       } catch (error) {
         logAuthEmailFailure("password reset", account, c.env, error);
       }
@@ -1489,7 +1491,7 @@ async function createAccountOrError(
   });
 }
 
-async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord): Promise<void> {
+async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await repo.createAuthToken({
@@ -1498,10 +1500,10 @@ async function sendVerificationToken(repo: Repository, env: Env, account: Accoun
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendVerificationEmail(env, account, token);
+  await sendVerificationEmail(env, account, token, language);
 }
 
-async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord): Promise<void> {
+async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
   await repo.createAuthToken({
@@ -1510,7 +1512,7 @@ async function sendPasswordResetToken(repo: Repository, env: Env, account: Accou
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendPasswordResetEmail(env, account, token);
+  await sendPasswordResetEmail(env, account, token, language);
 }
 
 async function consumeToken(

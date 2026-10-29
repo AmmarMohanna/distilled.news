@@ -1,5 +1,15 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {saveFeed,recommendSources,recommendSourceCandidates} from './api';
+import {saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword} from './api';
+
+it.each(['en','fr','ar'])('sends the currently chosen %s language when requesting either auth email',async language=>{
+ localStorage.setItem('dn_language',language);
+ const fetcher=vi.fn(async()=>Response.json({ok:true}));vi.stubGlobal('fetch',fetcher);
+ try {
+  await register({email:'fixture@example.invalid',username:'Home',password:'local-only-fixture'});
+  await forgotPassword('fixture@example.invalid');
+  for(const [,init]of fetcher.mock.calls as unknown as [string,RequestInit][]){expect(JSON.parse(String(init.body))).toMatchObject({language,email:'fixture@example.invalid'});}
+ } finally {localStorage.removeItem('dn_language');}
+});
 
 afterEach(()=>vi.unstubAllGlobals());
 it('delivers verified suggestions before a slower check finishes and handles split stream chunks',async()=>{

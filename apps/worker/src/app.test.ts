@@ -2366,8 +2366,21 @@ async function createVerifiedUser(
   return { account, cookie: login.headers.get("set-cookie")?.split(";")[0] ?? "" };
 }
 
+it('uses each request language for signup and reset mail independently', async () => {
+  const repo = new InMemoryRepository(), app = createApp({repository: repo}), mail = new FakeEmail(), config = env(mail);
+  const post = (path: string, body: unknown) => app.request(path, {method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify(body)}, config);
+  expect((await post('/api/auth/register', {email:'language@example.com',username:'Home',password:'local-fixture-123',language:'ar'})).status).toBe(200);
+  expect(mail.messages[0].subject).toContain('تأكيد');
+  expect(mail.messages[0].html).toContain('lang="ar" dir="rtl"');
+  expect((await post('/api/auth/verify-email', {token:tokenFromMessage(mail.messages[0].text)})).status).toBe(200);
+  expect((await post('/api/auth/password/forgot', {email:'language@example.com',language:'fr'})).status).toBe(200);
+  expect(mail.messages[1].subject).toContain('Réinitialisez');
+  expect(mail.messages[1].text).toContain('&lang=fr');
+  expect((await post('/api/auth/password/reset', {token:tokenFromMessage(mail.messages[1].text),password:'another-local-fixture'})).status).toBe(200);
+});
+
 function tokenFromMessage(text: string | undefined): string {
-  const token = text?.match(/token=([^\s]+)/)?.[1];
+  const token = text?.match(/token=([^&\s]+)/)?.[1];
   if (!token) throw new Error("token not found in email");
   return decodeURIComponent(token);
 }

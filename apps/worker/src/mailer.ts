@@ -1,26 +1,54 @@
 import type { AccountRecord, Env } from "./types";
 
 type EmailAddressInput = string | { email: string; name: string };
+type MailLanguage = 'en' | 'fr' | 'ar';
+const mailCopy = {
+  en: {
+    verifySubject: 'Verify your email for Distilled.News', verifyAction: 'Verify email',
+    verifyText: 'Verify your email to finish setting up your Distilled.News account.', verifyExpires: 'This verification link expires in 24 hours.',
+    resetSubject: 'Reset your Distilled.News password', resetAction: 'Reset password',
+    resetText: 'Use this link to choose a new Distilled.News password.', resetExpires: 'This reset link expires in 30 minutes.',
+    footer: 'If you did not request this email, you can ignore it.'
+  },
+  fr: {
+    verifySubject: 'Vérifiez votre adresse e-mail pour Distilled.News', verifyAction: 'Vérifier mon adresse e-mail',
+    verifyText: 'Vérifiez votre adresse e-mail pour terminer la création de votre compte Distilled.News.', verifyExpires: 'Ce lien de vérification expire dans 24 heures.',
+    resetSubject: 'Réinitialisez votre mot de passe Distilled.News', resetAction: 'Réinitialiser le mot de passe',
+    resetText: 'Utilisez ce lien pour choisir un nouveau mot de passe Distilled.News.', resetExpires: 'Ce lien de réinitialisation expire dans 30 minutes.',
+    footer: 'Si vous n’avez pas demandé cet e-mail, vous pouvez l’ignorer.'
+  },
+  ar: {
+    verifySubject: 'تأكيد بريدك الإلكتروني لحساب Distilled.News', verifyAction: 'تأكيد البريد الإلكتروني',
+    verifyText: 'أكّد بريدك الإلكتروني لإكمال إنشاء حسابك في Distilled.News.', verifyExpires: 'تنتهي صلاحية رابط التأكيد خلال ٢٤ ساعة.',
+    resetSubject: 'إعادة تعيين كلمة مرور حسابك في Distilled.News', resetAction: 'إعادة تعيين كلمة المرور',
+    resetText: 'استخدم هذا الرابط لاختيار كلمة مرور جديدة لحسابك في Distilled.News.', resetExpires: 'تنتهي صلاحية رابط إعادة التعيين خلال ٣٠ دقيقة.',
+    footer: 'إذا لم تطلب هذه الرسالة، يمكنك تجاهلها.'
+  }
+};
 
-export async function sendVerificationEmail(env: Env, account: AccountRecord, token: string): Promise<void> {
+export async function sendVerificationEmail(env: Env, account: AccountRecord, token: string, language: MailLanguage = 'en'): Promise<void> {
+  const copy = mailCopy[language];
   await sendAuthEmail(env, {
     to: account.email,
-    subject: "Verify your email for Distilled.News",
-    path: `/verify-email?token=${encodeURIComponent(token)}`,
-    action: "Verify email",
-    text: "Verify your email to finish setting up your Distilled.News account.",
-    expires: "This verification link expires in 24 hours."
+    language,
+    subject: copy.verifySubject,
+    path: `/verify-email?token=${encodeURIComponent(token)}&lang=${language}`,
+    action: copy.verifyAction,
+    text: copy.verifyText,
+    expires: copy.verifyExpires
   });
 }
 
-export async function sendPasswordResetEmail(env: Env, account: AccountRecord, token: string): Promise<void> {
+export async function sendPasswordResetEmail(env: Env, account: AccountRecord, token: string, language: MailLanguage = 'en'): Promise<void> {
+  const copy = mailCopy[language];
   await sendAuthEmail(env, {
     to: account.email,
-    subject: "Reset your Distilled.News password",
-    path: `/reset-password?token=${encodeURIComponent(token)}`,
-    action: "Reset password",
-    text: "Use this link to choose a new Distilled.News password.",
-    expires: "This reset link expires in 30 minutes."
+    language,
+    subject: copy.resetSubject,
+    path: `/reset-password?token=${encodeURIComponent(token)}&lang=${language}`,
+    action: copy.resetAction,
+    text: copy.resetText,
+    expires: copy.resetExpires
   });
 }
 
@@ -33,13 +61,14 @@ async function sendAuthEmail(
     action: string;
     text: string;
     expires: string;
+    language: MailLanguage;
   }
 ): Promise<void> {
   if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is not configured");
 
   const url = new URL(input.path, env.PUBLIC_WEB_BASE_URL || "https://distilled.news").toString();
   const logoUrl = new URL('/email-logo.png', url).toString();
-  const footer = "If you did not request this email, you can ignore it.";
+  const footer = mailCopy[input.language].footer;
   const message = {
     to: input.to,
     from: parseEmailAddress(env.EMAIL_FROM),
@@ -55,11 +84,11 @@ async function sendAuthEmail(
       footer
     ].join("\n"),
     html: [
-      "<div style=\"font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #202124; font-size: 16px;\">",
+      `<div lang="${input.language}" dir="${input.language === 'ar' ? 'rtl' : 'ltr'}" style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #202124; font-size: 16px;">`,
       `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:24px;"><tr><td><img src="${escapeHtml(logoUrl)}" alt="" width="80" height="40" style="display:block;border:0;" /></td><td style="padding-left:12px;font-size:24px;font-weight:700;">Distilled.News</td></tr></table>`,
       `<p>${escapeHtml(input.text)}</p>`,
       `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td bgcolor="#5e5ce6" style="border-radius:999px;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 24px;border:1px solid #5e5ce6;border-radius:999px;background-color:#5e5ce6;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;text-decoration:none;">${escapeHtml(input.action)}</a></td></tr></table>`,
-      `<p style="word-break: break-all;"><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`,
+      `<p dir="ltr" style="word-break: break-all;"><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`,
       `<p>${escapeHtml(input.expires)}</p>`,
       `<p>${escapeHtml(footer)}</p>`,
       "</div>"

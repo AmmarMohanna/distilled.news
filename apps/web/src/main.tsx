@@ -113,6 +113,12 @@ import "./product.css";
 import "./apple.css";
 
 document.documentElement.classList.add("apple-ui");
+// Email links carry the language chosen when the message was requested,
+// including when opened on a different browser or device.
+if (['/reset-password', '/verify-email'].includes(window.location.pathname)) {
+  const linkLanguage = new URLSearchParams(window.location.search).get('lang');
+  if (linkLanguage === 'en' || linkLanguage === 'fr' || linkLanguage === 'ar') setWebsiteLanguage(linkLanguage);
+}
 
 const FEED_BATCH_SIZE = 20;
 

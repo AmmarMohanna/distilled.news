@@ -4,6 +4,24 @@ import { expect, it, vi } from 'vitest';
 import { FeedEditor } from './FeedEditor';
 import { getSources, recommendSourceCandidates, assessSourceInput } from './api';
 import { personalNewsBriefing } from '@distilled/core';
+import {setWebsiteLanguage} from './LanguageControl';
+
+it('translates every schedule option when language changes and preserves the selected interval',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const host=document.createElement('div'),root=createRoot(host);
+ try {
+  await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Home',updateIntervalMinutes:120}} onClose={()=>{}} onSave={async()=>{}}/>));
+  const select=host.querySelector<HTMLSelectElement>('select')!;
+  for(const language of ['fr','ar','en'] as const){
+   await act(async()=>setWebsiteLanguage(language));
+   const labels=[...select.options].map(option=>option.textContent);
+   expect(labels).toHaveLength(6);
+   expect(select.value).toBe('120');
+   if(language!=='en')expect(labels.join(' ')).not.toMatch(/Every|Daily/);
+   if(language==='ar')expect(labels.join(' ')).toContain('كل ساعتين');
+  }
+ }finally{await act(async()=>root.unmount());localStorage.removeItem('dn_language');vi.unstubAllGlobals();}
+});
 
 vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNode;className:string})=><div className={className}>{children}</div>}));
 

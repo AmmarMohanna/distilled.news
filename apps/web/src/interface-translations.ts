@@ -1,6 +1,12 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'Every 30 min': ['Toutes les 30 minutes', 'كل ٣٠ دقيقة'],
+  'Every hour': ['Toutes les heures', 'كل ساعة'],
+  'Every 2 hours': ['Toutes les 2 heures', 'كل ساعتين'],
+  'Every 6 hours': ['Toutes les 6 heures', 'كل ٦ ساعات'],
+  'Every 12 hours': ['Toutes les 12 heures', 'كل ١٢ ساعة'],
+  'at {time}': ['à {time}', 'الساعة {time}'],
   'Delete "{name}" and all of its sources and published items?': ['Supprimer « {name} », toutes ses sources et ses publications ?', 'هل تريد حذف «{name}» وجميع مصادرها وعناصرها المنشورة؟'],
   'Delete "{name}" and its published content?': ['Supprimer « {name} » et ses publications ?', 'هل تريد حذف «{name}» ومحتواها المنشور؟'],
   'View {name}': ['Voir {name}', 'عرض {name}'],

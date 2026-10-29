@@ -1,4 +1,5 @@
 import type { BriefingConfig, BriefingEdition } from "@distilled/core";
+import { preferredLanguage } from './LanguageControl';
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 
 export interface SourceIngestResult {
@@ -80,7 +81,7 @@ export async function register(input: {
 }): Promise<void> {
   await requestJson("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify(input)
+    body: JSON.stringify({ ...input, language: preferredLanguage() })
   });
 }
 
@@ -111,7 +112,7 @@ export async function logout(): Promise<void> {
 export async function forgotPassword(email: string, turnstileToken?: string): Promise<void> {
   await requestJson("/api/auth/password/forgot", {
     method: "POST",
-    body: JSON.stringify({ email, turnstileToken })
+    body: JSON.stringify({ email, turnstileToken, language: preferredLanguage() })
   });
 }
 

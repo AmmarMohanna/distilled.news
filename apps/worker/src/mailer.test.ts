@@ -36,6 +36,21 @@ function outlookEnv(sender = "distilled.news@outlook.com") {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it.each(['en', 'fr', 'ar'] as const)('localizes both authentication emails in %s, including links and direction', async language => {
+  const messages: any[] = [];
+  const env = { EMAIL_FROM: 'Distilled.News <noreply@example.com>', PUBLIC_WEB_BASE_URL: 'https://joud.example', EMAIL: {send: async (message: unknown) => {messages.push(message);}} } as unknown as Env;
+  await sendVerificationEmail(env, account, 'verification-fixture', language);
+  await sendPasswordResetEmail(env, account, 'reset-fixture', language);
+  const copy = language === 'ar' ? ['تأكيد البريد الإلكتروني', 'إعادة تعيين كلمة المرور'] : language === 'fr' ? ['Vérifier mon adresse e-mail', 'Réinitialiser le mot de passe'] : ['Verify email', 'Reset password'];
+  for (const [index, message] of messages.entries()) {
+    expect(message.html).toContain(`lang="${language}" dir="${language === 'ar' ? 'rtl' : 'ltr'}"`);
+    expect(message.html).toContain(copy[index]);
+    expect(message.text).toContain(`&lang=${language}`);
+    expect(message.html).toContain('https://joud.example/');
+    expect(message.subject).not.toBe(language === 'en' ? '' : index === 0 ? 'Verify your email for Distilled.News' : 'Reset your Distilled.News password');
+  }
+});
+
 describe("Outlook QA mail", () => {
   it("rotates the refresh token into encrypted durable storage and submits the verification email", async () => {
     const { env, getStored } = outlookEnv();
