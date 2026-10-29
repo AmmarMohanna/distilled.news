@@ -64,3 +64,17 @@ Because local cleanup could not run immediately, three later QA windows were mat
 The run proves a source-grounded nonempty automatic publication close to schedule for three short posts. It does not establish repeated-window reliability, saturated-feed latency, long-article behavior, repair recovery, independent confirmation of Telegram claims, or notification delivery. No further paid trial was initiated.
 
 Local raw evidence: `.local-reports/clock-timing-trial-2/` contains the approval, source snapshots, frozen inputs, exact provider requests/responses, reservations/settlements, progress log, edition/read-back, source review, all-window audit and briefings. Sensitive session material remains local and uncommitted. Sanitized metrics: `benchmarks/results/v3-selective-database-reads/clock-aligned-nonempty-trial.json`.
+
+## Read-only staging follow-up, 17:57–17:59 Beirut
+
+No model calls, deployments, feed edits or financial changes were initiated. The homepage returned 200 (one observed request, 1.825 seconds). Three existing public feed APIs returned 200 and reported `published`:
+
+| Feed | Latest reporting cutoff (UTC) | Actual publication (UTC) | Delay from cutoff |
+|---|---|---|---:|
+| AI NEWS | 15:15:45.676 | 15:16:22.102 | 36.426 s |
+| Lebanon news | 15:44:53.352 | 15:45:33.850 | 40.498 s |
+| Lebanon news2 | 15:44:53.352 | 15:45:41.184 | 47.832 s |
+
+These feeds retain their legacy schedules; the delays above are measured from their reporting cutoff, not new-policy intended delivery. None of the nine active feeds has the new clock-policy marker, as expected from new-feed-only enrollment and paused QA fixtures. Reader API responses contained 57, 92 and 100 editions respectively, with no duplicate `(windowStart, windowEnd, cadence)` in those returned sets. This is not an all-history duplicate audit or p50/p95 latency benchmark.
+
+An indexed, scalar-only unresolved-request read found 48 pending records: 28 awaiting intake reassessment on the Bitcoin feed, and 20 with uncertain semantic outcomes across several feeds. Another 105 failed and 762 done/deferred records remain recoverable history, not 915 simultaneously executing jobs. The pending uncertainty records were not retried or financially altered. Their existence does not imply the currently publishing Lebanon/AI feeds are stalled. Intake reassessment on the Bitcoin feed is the clearest separate backlog to investigate next; it is not established as a new-clock regression. Evidence remains local in `.local-reports/staging-post-trial-health/`.
