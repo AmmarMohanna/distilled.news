@@ -35,3 +35,9 @@ After deployment, real desktop/mobile manifest responses selected the intended
 icons with the same app ID. Homepage/offline-worker branding checks passed, and
 all four live PNGs matched the local generated assets by SHA-256. Screenshots,
 fixture scripts and live-check metadata remain ignored in .local-reports.
+
+## Offline page follows saved website language
+
+The service-worker fallback now reads the existing dn_language preference inside its self-contained offline HTML and localizes title, heading, message, retry button and document direction. It needs no app bundle, translation request or network connection. The original browser-language fallback remains if storage is unavailable or has no supported choice. No authenticated responses or feed content are cached.
+
+Validation: both offline-branding tests and frontend build passed. A local browser/service-worker integration installed the actual sw.js, set the website preference, disabled networking and navigated to /login. English, French and Arabic passed at 390px and 1280px widths using an English browser locale; all text followed the saved website choice with correct RTL and no overflow. Existing clients need to receive the updated service worker while online before the new fallback is available.
