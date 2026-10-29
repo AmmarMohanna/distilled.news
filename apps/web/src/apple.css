@@ -2807,8 +2807,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-settings-trigger { border-color: color-mix(in srgb,var(--accent) 28%,var(--surface)); background: color-mix(in srgb,var(--accent) 3%,var(--surface)); color: var(--text); border-radius: 14px; }
 :root.apple-ui.apple-ui .feed-settings-trigger > svg:last-child { color: color-mix(in srgb,var(--accent) 60%,var(--muted)); }
 :root.apple-ui.apple-ui .feed-language-badge { display: grid; place-items: center; flex: 0 0 28px !important; width: 28px; height: 28px; border-radius: 50%; color: var(--accent); background: color-mix(in srgb,var(--accent) 8%,var(--surface)); }
-:root.apple-ui.apple-ui .feed-settings-menu { width: auto; border-radius: 14px; padding: 5px; }
-:root.apple-ui.apple-ui .feed-settings-menu > button { min-height: 44px; padding: 9px 8px; gap: 10px; font-size: 14px; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .feed-settings-menu { width: auto; border-radius: 20px; padding: 5px; }
+:root.apple-ui.apple-ui .feed-settings-menu > button { min-height: 44px; padding: 9px 8px; gap: 10px; border-radius: 14px; font-size: 14px; overflow-wrap: anywhere; }
 /* Preferences expands inside one continuous card. */
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); min-width: 0; overflow: visible; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-card > .feed-preferences-disclosure { margin: 0; width: 100%; border: 0; border-radius: 18px; background: transparent; box-shadow: none; }
