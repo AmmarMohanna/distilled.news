@@ -1359,7 +1359,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields:not([hidden]) { padding: 12px 18px; border-radius: 18px; overflow: visible; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > :is(label, .feed-preference-row) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 36%); align-items: center; gap: 16px; padding: 10px 0; min-height: 64px; margin: 0; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-preference-label { display: flex; align-items: center; gap: 12px; min-width: 0; line-height: 1.35; }
-:root.apple-ui.apple-ui .feed-editor .feed-preference-label > svg { flex: 0 0 auto; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 12px; background: var(--surface-quiet); color: var(--muted); }
+:root.apple-ui.apple-ui .feed-editor .feed-preference-label > svg { flex: 0 0 auto; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 12px; background: transparent; color: var(--accent); }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-preferences-group-label { margin: 12px 0 0; padding: 0 0 8px; border-top: 0; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-preferences-group-label:first-child { margin-top: 0; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-group-label + label,
