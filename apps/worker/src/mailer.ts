@@ -38,7 +38,7 @@ async function sendAuthEmail(
   if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is not configured");
 
   const url = new URL(input.path, env.PUBLIC_WEB_BASE_URL || "https://distilled.news").toString();
-  const logoUrl = new URL('/notification-icon.png', url).toString();
+  const logoUrl = new URL('/email-logo.png', url).toString();
   const footer = "If you did not request this email, you can ignore it.";
   const message = {
     to: input.to,
@@ -56,7 +56,7 @@ async function sendAuthEmail(
     ].join("\n"),
     html: [
       "<div style=\"font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #202124; font-size: 16px;\">",
-      `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:24px;"><tr><td><img src="${escapeHtml(logoUrl)}" alt="" width="52" height="52" style="display:block;border:0;" /></td><td style="padding-left:12px;font-size:24px;font-weight:700;">Distilled.News</td></tr></table>`,
+      `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:24px;"><tr><td><img src="${escapeHtml(logoUrl)}" alt="" width="80" height="40" style="display:block;border:0;" /></td><td style="padding-left:12px;font-size:24px;font-weight:700;">Distilled.News</td></tr></table>`,
       `<p>${escapeHtml(input.text)}</p>`,
       `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td bgcolor="#5e5ce6" style="border-radius:999px;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 24px;border:1px solid #5e5ce6;border-radius:999px;background-color:#5e5ce6;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;text-decoration:none;">${escapeHtml(input.action)}</a></td></tr></table>`,
       `<p style="word-break: break-all;"><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`,

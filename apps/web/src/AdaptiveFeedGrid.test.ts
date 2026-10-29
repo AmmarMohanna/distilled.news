@@ -1,7 +1,13 @@
 import {expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {createElement} from 'react';
-import {AdaptiveFeedGrid, feedGridLayout} from './AdaptiveFeedGrid';
+import {AdaptiveFeedGrid, feedGridLayout, fitFeedRowHeight} from './AdaptiveFeedGrid';
+it('fits available space without shrinking long content or enlarging short cards excessively', () => {
+  expect(fitFeedRowHeight(280,16,110,132)).toBe(132);
+  expect(fitFeedRowHeight(268,16,110,132)).toBe(126);
+  expect(fitFeedRowHeight(140,10,217,120)).toBe(217);
+  expect(fitFeedRowHeight(2000,16,110,132)).toBeLessThanOrEqual(144);
+});
 it('fits complete visible rows in desktop and mobile viewports', () => {
   for (const [width, available, desktop] of [[1100, 336, true], [1100, 580, true], [390, 500, false], [680, 430, false]] as const) {
     const layout = feedGridLayout(23, width, available, desktop);

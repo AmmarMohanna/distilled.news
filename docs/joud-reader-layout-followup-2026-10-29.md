@@ -51,3 +51,11 @@ overflow visible and no grid max-height. Reader alignment stayed intact. Local
 HTML email previews at widths 390 and 760 confirmed the logo loads, the button
 uses the exact accent color and no horizontal overflow occurs. No real emails
 were sent during validation.
+
+## Available-space fitting and complete email mark
+
+Home and Explore now measure available width, the initial viewport bottom (including mobile navigation), and natural card content height. Row height stays within readable content bounds; artwork remains bounded. Where another full row cannot fit, its start moves below the initial fold. Every card remains in the list and scrolling belongs to the page. Normal partial visibility while actively scrolling is expected.
+
+Replaced the offline crossed-out Wi-Fi with an inline lavender cloud/card illustration, requiring no network image. Authentication emails use a dedicated transparent full-mark PNG derived from the existing vector logo; installed and notification icons are unchanged. Existing delivered email is unchanged.
+
+Validation: 98 frontend tests and three mailer tests passed; frontend and Worker typechecks and frontend build passed. Edge checks covered Home, Explore and reader at 320x740, 390x844, 1280x640 with expanded sidebar, and 1920x1006: no horizontal overflow or initial partial card rows, matching Home/Explore card sizes, and page scrolling where needed. Email previews at 390 and 760 pixels loaded the full mark and violet button without overflow. Offline preview had no external image dependency. Browser content was synthetic; no emails or paid model calls were sent.

@@ -56,7 +56,7 @@ describe("Outlook QA mail", () => {
     ]);
     const body = JSON.parse(String(requests[2].init?.body));
     expect(body.message.subject).toBe('Verify your email for Distilled.News');
-    expect(body.message.body.content).toContain('src="https://qa.example.com/notification-icon.png"');
+    expect(body.message.body.content).toContain('src="https://qa.example.com/email-logo.png"');
     expect(body.message.body.content).toContain('bgcolor="#5e5ce6"');
     expect(body.message.body.content).toContain('color:#ffffff');
     expect(body.message.toRecipients[0].emailAddress.address).toBe("reader@example.com");
