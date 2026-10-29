@@ -1,0 +1,111 @@
+{
+  "at": "2026-10-29T09:47:57.194Z",
+  "runtimeCommit": "87cb674",
+  "worker": "distilled-news-staging",
+  "url": "https://distilled-news-staging.distillednews-platform.workers.dev",
+  "version": "9fafd946-697d-44f1-b9c2-624e00d386bd",
+  "traffic": 100,
+  "migration": "0081_clock_aligned_delivery.sql",
+  "olderMigrationsReplayed": false,
+  "originalFeedsChecked": 33,
+  "originalSchedulesUnchanged": true,
+  "bindingsAndSecretsUnchanged": true,
+  "queueConsumersUnchanged": true,
+  "preservedFavicon": true,
+  "liveApiIntervals": [
+    {
+      "durationMinutes": 30,
+      "createdAt": "2026-10-29T09:44:18.925Z",
+      "intendedDelivery": "2026-10-29T10:30:00.000Z",
+      "passed": true
+    },
+    {
+      "durationMinutes": 60,
+      "createdAt": "2026-10-29T09:44:18.925Z",
+      "intendedDelivery": "2026-10-29T11:00:00.000Z",
+      "passed": true
+    },
+    {
+      "durationMinutes": 120,
+      "createdAt": "2026-10-29T09:44:18.925Z",
+      "intendedDelivery": "2026-10-29T12:00:00.000Z",
+      "passed": true
+    },
+    {
+      "durationMinutes": 360,
+      "createdAt": "2026-10-29T09:44:18.925Z",
+      "intendedDelivery": "2026-10-29T18:00:00.000Z",
+      "passed": true
+    },
+    {
+      "durationMinutes": 720,
+      "createdAt": "2026-10-29T09:44:18.925Z",
+      "intendedDelivery": "2026-10-30T00:00:00.000Z",
+      "passed": true
+    },
+    {
+      "durationMinutes": 1440,
+      "createdAt": "2026-10-29T09:44:18.925Z",
+      "intendedDelivery": "2026-10-30T12:30:00.000Z",
+      "passed": true
+    }
+  ],
+  "privateQaRemoved": true,
+  "inferenceCalls": 0,
+  "inferenceCostUsd": 0,
+  "checks": [
+    {
+      "path": "/",
+      "status": 200,
+      "exactAssetMatch": true,
+      "latencyMs": 383
+    },
+    {
+      "path": "/assets/index-ORNl9FxJ.js",
+      "status": 200,
+      "exactAssetMatch": true,
+      "latencyMs": 400
+    },
+    {
+      "path": "/assets/index-YWCHjz8v.css",
+      "status": 200,
+      "exactAssetMatch": true,
+      "latencyMs": 41
+    },
+    {
+      "path": "/sw.js",
+      "status": 200,
+      "exactAssetMatch": true,
+      "latencyMs": 30
+    },
+    {
+      "path": "/logo.svg",
+      "status": 200,
+      "exactAssetMatch": true,
+      "latencyMs": 30
+    },
+    {
+      "path": "/favicon.svg",
+      "status": 200,
+      "exactAssetMatch": true,
+      "latencyMs": 27
+    },
+    {
+      "feed": "lebanon-news",
+      "status": 200
+    },
+    {
+      "feed": "lebanon-news2",
+      "status": 200
+    },
+    {
+      "feed": "lebanon-news-clean-test",
+      "status": 404
+    }
+  ],
+  "limits": [
+    "Live API save/read-back was tested with a private source-free QA feed; no live new-policy briefing generation or deadline-to-publication timing was measured.",
+    "Runtime timed-publication, verification/replay and cutoff behavior are covered by local integration tests.",
+    "No real-reader notification was invoked."
+  ]
+}

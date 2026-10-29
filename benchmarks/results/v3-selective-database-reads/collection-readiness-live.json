@@ -1,0 +1,69 @@
+{
+  "at": "2026-10-28T23:37:48.322Z",
+  "worker": "distilled-news-staging",
+  "runtimeCommit": "8aa4e5f",
+  "version": "47c25424-1b71-4ae0-86b2-4f25ec684591",
+  "window": {
+    "start": "2026-10-28T23:02:09.437Z",
+    "end": "2026-10-28T23:32:09.437Z"
+  },
+  "requestCreatedAt": "2026-10-28T23:33:55.525Z",
+  "publishedAt": "2026-10-28T23:34:25.599Z",
+  "deadlineToPublicationMs": 136162,
+  "requestToPublicationMs": 30074,
+  "articles": 4,
+  "items": 2,
+  "models": {
+    "editor": "openai/gpt-4.1",
+    "verifier": "openai/gpt-4.1-mini"
+  },
+  "usage": {
+    "calls": 2,
+    "inputTokens": 4657,
+    "outputTokens": 275,
+    "costUsd": 0.0082084
+  },
+  "timings": {
+    "totalMs": 14611,
+    "stages": {
+      "edit": 8412,
+      "verify": 6199
+    }
+  },
+  "coverage": {
+    "state": "COMPLETE",
+    "pendingJobs": 0,
+    "failedJobs": 0,
+    "failures": []
+  },
+  "automatic": true,
+  "manualPaidCalls": 0,
+  "operatorQueueSends": 0,
+  "reservations": [
+    {
+      "model": "openai/gpt-4.1",
+      "reservedUsd": 0.05648,
+      "settledUsd": 0.007382,
+      "reported": true
+    },
+    {
+      "model": "openai/gpt-4.1-mini",
+      "reservedUsd": 0.0083336,
+      "settledUsd": 0.0008264,
+      "reported": true
+    }
+  ],
+  "checks": {
+    "stableIndependentReadbacks": true,
+    "uniqueExpectedOperationIds": true,
+    "oneReportedSettlementPerExpectedOperation": true,
+    "citedTextMatchesOriginalInput": true,
+    "reportingBoundaryUnchanged": true
+  },
+  "continuationExceptionObservedLive": false,
+  "limits": [
+    "This fresh window had no continuing collection at commit; it establishes ordinary automatic publication, not a measured causal latency improvement from the exception.",
+    "The retained continuation is exercised by local replay; remote synthetic mutations were not used.",
+    "No notification delivery was tested."
+  ]
+}

@@ -97,7 +97,7 @@ import {
   type SourceIngestResult,
   type SourceRefreshResult
 } from "./api";
-import { deriveBriefingSlug, formatClock, formatDayHeading, formatTime, publicFeedUrl, slugify } from "./helpers";
+import { deriveBriefingSlug, editionDisplayTime, formatClock, formatDayHeading, formatTime, publicFeedUrl, slugify } from "./helpers";
 import { normalizeUsername } from "@distilled/core";
 import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
@@ -1871,7 +1871,7 @@ function FeedSignalPanel(props: {
 function groupEditionsByDay(editions: BriefingEdition[], language: "en" | "ar" | "fr", now: number) {
   const groups: { key: string; day: string; editions: BriefingEdition[] }[] = [];
   for (const edition of editions) {
-    const day = formatDayHeading(edition.publishedAt, language, now);
+    const day = formatDayHeading(editionDisplayTime(edition), language, now);
     const last = groups[groups.length - 1];
     if (last && last.day === day) last.editions.push(edition);
     else groups.push({ key: `${day}:${edition.id}`, day, editions: [edition] });
@@ -1897,12 +1897,12 @@ function FeedEditionRow(props: {
   const narrative = normalizeSummary(edition.summary);
   const summary = headline && narrative.startsWith(headline) ? narrative.slice(headline.length).trimStart() : narrative;
   const referenceCount = Math.max(props.detailEdition?.sections.length ?? 0, edition.sections.length, highestReferenceNumber(edition.summary));
-  const stamp = `${formatDayHeading(edition.publishedAt, language)}, ${formatClock(edition.publishedAt, language)}`;
+  const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
       <div className="news-head">
         {props.isRead ? null : <span className="news-unread" aria-hidden />}
-        <time dateTime={edition.publishedAt}>{formatClock(edition.publishedAt, language)}</time>
+        <time dateTime={editionDisplayTime(edition)}>{formatClock(editionDisplayTime(edition), language)}</time>
       </div>
       <BriefingText
         summary={edition.summary}
@@ -2029,8 +2029,8 @@ function SourcesSheet(props: {
     >
       <div ref={moduleRef} className="sources-module" lang={language} dir={textDir}>
         <p className="sources-edition">
-          <strong>{formatDayHeading(edition.publishedAt, language)}</strong>
-          <span>{formatClock(edition.publishedAt, language)}</span>
+          <strong>{formatDayHeading(editionDisplayTime(edition), language)}</strong>
+          <span>{formatClock(editionDisplayTime(edition), language)}</span>
         </p>
         <ol className="sources-stories">
           {edition.sections.map((section, index) => {

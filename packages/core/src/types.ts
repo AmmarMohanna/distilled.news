@@ -18,6 +18,8 @@ export type SourceKind =
 export interface BriefingConfig {
   /** Absent on legacy clock-aligned feeds; retained across edits. */
   briefingScheduleOriginAt?: string;
+  /** Coverage origin for opt-in clock schedules; preserved across ordinary edits. */
+  briefingScheduleClockStartAt?: string;
   updateIntervalMinutes?: 30 | 60 | 120 | 360 | 720 | 1440;
   id: string;
   ownerAccountId: string;
@@ -121,6 +123,8 @@ export interface BriefingEdition {
   sections: BriefingEditionSection[];
   status: "published" | "empty";
   publishedAt: string;
+  /** Intended delivery time; publication time remains the actual persisted time. */
+  scheduledFor?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -33,7 +33,7 @@ export async function productPublicationProgress(env:Env,feedId:string):Promise<
  const rows=await env.DB.prepare("SELECT json_extract(j.json,'$.kind') AS kind,json_extract(j.json,'$.state') AS state,COALESCE(json_extract(j.json,'$.exhausted'),0) AS exhausted,COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?)) GROUP BY 1,2,3").bind(feedId,end).all<{kind:string;state:string;exhausted:number;n:number}>();
  const acquisition={completed:0,total:0,failed:0},review={completed:0,total:0,failed:0};let pending=0;
  for(const row of rows.results){const counts=row.kind==='ACQUIRE'?acquisition:review;counts.total+=row.n;if(row.state==='DONE')counts.completed+=row.n;else if(row.state==='FAILED'||row.exhausted)counts.failed+=row.n;else if(row.state==='PENDING'||row.state==='RUNNING')pending+=row.n;}
- const collection=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?await pendingWindowCollections(env.DB,feedId,end):undefined;
+ const collection=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?await pendingWindowCollections(env.DB,feedId,end,env.BRIEFING_ENGINE==='v3'):undefined;
  return {stage:collection?.pending?'COLLECTING':pending?'PROCESSING':'PUBLISHING',...(collection?.pending?{collection}:{}),acquisition,review,pending};
 }
 
@@ -116,7 +116,7 @@ export async function publishedProductEditions(env:Env,feed:BriefingConfig,editi
  const editions:BriefingEdition[]=[];
  for(const published of publishedEditions) {
   const sections=published.stories.map(story=>({title:'',summary:story.claims.map(c=>c.text).join(' '),evidence:published.citations.filter(c=>story.claims.some(claim=>claim.support.some(ref=>ref.evidenceRevisionId===c.evidenceRevisionId))).map(c=>({messageId:c.evidenceRevisionId,sourceId:c.publisherId,sourceTitle:c.title||'Source',sourceType:'channel' as const,sourceUrl:c.url,postedAt:c.publishedAt??published.createdAt,text:story.claims.flatMap(claim=>claim.support.filter(ref=>ref.evidenceRevisionId===c.evidenceRevisionId).map(ref=>ref.quote)).join('\n'),links:c.url?[c.url]:[],media:[]}))}));
-  editions.push({id:published.id,briefingId:feed.id,cadence:feed.briefingCadence,windowStart:published.windowStart,windowEnd:published.windowEnd,title:published.title,summary:sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,status:'published',publishedAt:published.publishedAt,createdAt:published.createdAt,updatedAt:published.createdAt});
+  editions.push({id:published.id,briefingId:feed.id,cadence:feed.briefingCadence,windowStart:published.windowStart,windowEnd:published.windowEnd,...(published.scheduledFor?{scheduledFor:published.scheduledFor}:{}),title:published.title,summary:sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,status:'published',publishedAt:published.publishedAt,createdAt:published.createdAt,updatedAt:published.createdAt});
  }
  return editions;
 }

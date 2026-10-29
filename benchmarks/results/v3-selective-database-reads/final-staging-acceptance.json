@@ -1,0 +1,80 @@
+{
+  "at": "2026-10-28T11:34:00.998Z",
+  "codeCommit": "3bda799",
+  "workerVersion": "46728919-3f5c-4663-bc30-7fa232edc649",
+  "environment": "staging only",
+  "requests": 200,
+  "failures": 0,
+  "firstRequest": "2026-10-28T11:27:00.957Z",
+  "lastRequest": "2026-10-28T11:32:53.128Z",
+  "capturedCpuResetMentions": 0,
+  "paths": [
+    {
+      "path": "/",
+      "requests": 40,
+      "failures": 0,
+      "p50Ms": 47,
+      "p95Ms": 162
+    },
+    {
+      "path": "/api/auth/session",
+      "requests": 40,
+      "failures": 0,
+      "p50Ms": 68,
+      "p95Ms": 82
+    },
+    {
+      "path": "/api/explore/feeds",
+      "requests": 40,
+      "failures": 0,
+      "p50Ms": 107,
+      "p95Ms": 145
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news",
+      "requests": 40,
+      "failures": 0,
+      "p50Ms": 1050,
+      "p95Ms": 1397
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news2",
+      "requests": 40,
+      "failures": 0,
+      "p50Ms": 1070,
+      "p95Ms": 1437
+    }
+  ],
+  "tests": {
+    "workerFocused": 32,
+    "workerTypecheck": "passed"
+  },
+  "metadataCoverage": {
+    "missingActiveRevisionMetadata": 0,
+    "missingIndexedObservationMetadata": 0,
+    "index0077Installed": true
+  },
+  "publication": {
+    "id": "27216122a1c6ac4eefbd3cafa4d4915861eecd3ccba1eb4eb745ca9d994b87a1",
+    "createdAt": "2026-10-28T11:28:47.083Z",
+    "windowEnd": "2026-10-22T11:00:00.000Z",
+    "publicReadStatus": 200,
+    "stories": 2,
+    "citations": 2,
+    "freshWindowTimelinessProven": false
+  },
+  "manualPaidInferenceCalls": 0,
+  "automaticSpendingSample": {
+    "since": "2026-10-28T11:26:00.000Z",
+    "reservations": 14,
+    "reportedSettlements": 14,
+    "costUsd": 0.2349496,
+    "scope": "point-in-time automatic staging activity, not total task spend"
+  },
+  "limits": [
+    "Short staging acceptance, not a long-duration production load test.",
+    "Fresh windows remain subject to intake coverage; old uncertain operations retain their fences and holds.",
+    "Some publication identity/history queries still grow with retained history.",
+    "Negative semantic-intent lookup still reads 120024 rows in this feed (1390 ms), although global revision scan is eliminated."
+  ]
+}

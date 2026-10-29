@@ -8,6 +8,15 @@ import {
 } from "../src";
 import { handoffFixture, receiptFixture, orderingFixtures } from "../src/fixtures";
 
+it('accepts the optional preserved-ordering replay diagnostic only on replay receipts',()=>{
+ const marker='VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED';
+ const receipt=receiptFixture(handoffFixture().observations[0]);
+ expect(intakeReceiptSchema.safeParse({...receipt,decision:'REPLAY',reasonCode:'REPLAY_IDENTICAL',replayDiagnostic:marker}).success).toBe(true);
+ expect(intakeReceiptSchema.safeParse({...receipt,replayDiagnostic:marker}).success).toBe(false);
+ expect(intakeReceiptSchema.safeParse({...receipt,decision:'REPLAY',reasonCode:'REPLAY_IDENTICAL',replayDiagnostic:'unknown'}).success).toBe(false);
+ expect(intakeReceiptSchema.safeParse(receipt).success).toBe(true);
+});
+
 describe("ordering contract (pure decisions; persistence tested by each binding)", () => {
   const policy: OrderingPolicy = {
     authoritativeReplacementAllowed: false,

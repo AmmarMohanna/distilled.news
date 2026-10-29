@@ -6,6 +6,27 @@ import { createIntakeDatabase, seedIntakeScope, batchFixture, testPolicy, scopeF
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>, store:V1IntakeStore;
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store)});
 afterEach(async()=>ctx.dispose());
+it('acknowledges verified identical bytes with newly supplied revision metadata without changing canonical ordering',async()=>{
+ const current=await seedCurrentEvidence(store),before=await store.read('evidence',current.evidence.id),request=batchFixture(12);
+ Object.assign(request.observations[0],{contentHash:current.hash,sourceRevision:{scheme:'telegram_edit_timestamp',value:'2026-10-03T11:00:00Z',comparability:'COMPARABLE',authority:'ORIGIN'}});
+ const policy={...testPolicy,verifySuppliedContent:async()=>({representation:request.observations[0].representation,contentCompleteness:request.observations[0].contentCompleteness,contentHash:current.hash})};
+ const result=await createCandidateIntakePort(store,policy).acceptBatch(request);
+ expect(result.receipts[0]).toMatchObject({decision:'REPLAY',reasonCode:'REPLAY_IDENTICAL',checkpointResolution:'RESOLVED'});
+ expect(result.receipts[0]).toHaveProperty('replayDiagnostic','VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED');
+ expect((await store.read<IntakeReceipt>('intake_receipts','observation-12'))?.value).toEqual(result.receipts[0]);
+ expect(await store.read('evidence',current.evidence.id)).toEqual(before);
+ expect(await store.list('revisions','feed-source-1')).toHaveLength(1);
+ expect(await store.listPendingJobs('feed-source-1')).toEqual([]);
+ expect(await createCandidateIntakePort(store,policy).acceptBatch(request)).toEqual(result);
+});
+it.each(['unverified','changed','downgraded'] as const)('keeps mixed revision metadata protected for %s content',async mode=>{
+ const current=await seedCurrentEvidence(store),before=await store.read('evidence',current.evidence.id),request=batchFixture(12);
+ Object.assign(request.observations[0],{contentHash:mode==='changed'?'b'.repeat(64):current.hash,contentCompleteness:mode==='downgraded'?'PARTIAL':'COMPLETE',sourceRevision:{scheme:'telegram_edit_timestamp',value:'2026-10-03T11:00:00Z',comparability:'COMPARABLE',authority:'ORIGIN'}});
+ request.proposals[0].contentCompleteness=request.observations[0].contentCompleteness;
+ const o=request.observations[0],policy={...testPolicy,verifySuppliedContent:async()=>mode==='unverified'?undefined:({representation:o.representation,contentCompleteness:o.contentCompleteness,contentHash:o.contentHash!})};
+ expect((await createCandidateIntakePort(store,policy).acceptBatch(request)).receipts[0]).toMatchObject({decision:'QUARANTINED',checkpointResolution:'UNRESOLVED'});
+ expect(await store.read('evidence',current.evidence.id)).toEqual(before);
+});
 it('connector configuration revision is checked inside the durable acceptance transaction',async()=>{
  await expect(createCandidateIntakePort(store,{...testPolicy,expectedFeedRevision:2}).acceptBatch(batchFixture())).rejects.toMatchObject({code:'SCOPE_DENIED'});
  expect(await store.list('intake_receipts','feed-source-1')).toHaveLength(0);

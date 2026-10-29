@@ -78,7 +78,7 @@ export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueu
  * collection windows do not hold this boundary; blocked sources are reported
  * separately as unavailable and remain visible to operators/readers. */
 export async function collectionReadyForWindow(env:Env,feedId:string,end:string,id:string,now=Date.now()){
- const {pending}=await pendingWindowCollections(env.DB,feedId,end);
+ const {pending}=await pendingWindowCollections(env.DB,feedId,end,env.BRIEFING_ENGINE==='v3');
  if(pending)await env.DB.prepare('INSERT INTO connector_publication_waits(request_id,feed_id,window_end,pending_collections,checked_at) VALUES(?,?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET pending_collections=excluded.pending_collections,checked_at=excluded.checked_at WHERE pending_collections<>excluded.pending_collections').bind(id,feedId,end,pending,new Date(now).toISOString()).run();
  else await env.DB.prepare('DELETE FROM connector_publication_waits WHERE request_id=?').bind(id).run();
  return pending===0;

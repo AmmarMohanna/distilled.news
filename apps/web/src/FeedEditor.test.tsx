@@ -26,6 +26,14 @@ it('translates every schedule option when language changes and preserves the sel
 vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNode;className:string})=><div className={className}>{children}</div>}));
 
 vi.mock('./api', () => ({getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
+it.each([false,true])('uses half-hour daily choices only for clock-policy feeds (clock: %s)',async clock=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const host=document.createElement('div'),root=createRoot(host);
+ await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,updateIntervalMinutes:1440,briefingTimeOfDay:clock?'08:30':'08:15',...(clock?{briefingScheduleClockStartAt:'2026-10-29T03:08:00Z'}:{})}} onClose={()=>{}} onSave={async()=>{}}/>));
+ const input=host.querySelector<HTMLInputElement>('input[type="time"]')!;
+ expect(input.step).toBe(clock?'1800':'60');expect(input.value).toBe(clock?'08:30':'08:15');
+ await act(async()=>root.unmount());vi.unstubAllGlobals();
+});
 it('can save already checked choices while slower suggestions are still arriving',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
  const source='rss: https://ready.example/feed.xml',result={sources:[source],checks:[{input:source,status:'accepted' as const,reason:'Relevant',checkedAt:new Date().toISOString()}]};

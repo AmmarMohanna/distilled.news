@@ -29,6 +29,14 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
     if(verified && (verified.contentHash!==o.contentHash || verified.representation!==o.representation || verified.contentCompleteness!==o.contentCompleteness)) throw new HandoffError('INVALID_REQUEST');
     const order=observationOrdering(o,current,verified?.contentHash,{...orderingPolicy,authoritativeReplacementAllowed:authoritative});
     if(order==='STALE') set('IGNORED','IGNORED_STALE_OBSERVATION');
+    else if(order==='CONFLICT' && o.operation==='UPSERT' && input.proposal && verified && current?.item.state==='ACTIVE' && current.revision && verified.contentHash===current.revision.contentHash && verified.representation===current.revision.representation && !representationDowngrade(current.revision,verified)) {
+      // Verified duplicate bytes need no replacement decision. A newly supplied
+      // or incomparable revision label must not stall collection, nor advance
+      // canonical ordering or reinterpret the original evidence/provenance.
+      receipt.candidateItemId=id;
+      set('REPLAY','REPLAY_IDENTICAL');
+      receipt.replayDiagnostic='VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED';
+    }
     else if(order==='CONFLICT') set('QUARANTINED','QUARANTINE_REVISION_CONFLICT');
     else if(o.operation==='DELETE') {
       if(!authoritative) set('QUARANTINED','QUARANTINE_MISSING_VALIDATION_FIELDS');

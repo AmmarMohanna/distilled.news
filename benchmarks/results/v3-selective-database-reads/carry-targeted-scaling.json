@@ -1,0 +1,44 @@
+{
+  "scope": "Synthetic local Miniflare; exact whole prepared-input/fingerprint equivalence; all and first query metrics. Constant one old unresolved article; unrelated history grows. No inference.",
+  "reports": [
+    {
+      "history": 0,
+      "old": {
+        "ms": 220.3049000000001,
+        "rows": 10,
+        "bytes": 1843
+      },
+      "indexed": {
+        "ms": 195.71569999999974,
+        "rows": 18,
+        "bytes": 1870
+      }
+    },
+    {
+      "history": 1000,
+      "old": {
+        "ms": 943.4729000000007,
+        "rows": 1010,
+        "bytes": 8415733
+      },
+      "indexed": {
+        "ms": 291.5565999999999,
+        "rows": 19,
+        "bytes": 1873
+      }
+    },
+    {
+      "history": 5000,
+      "old": {
+        "ms": 1666.135199999997,
+        "rows": 5010,
+        "bytes": 42075733
+      },
+      "indexed": {
+        "ms": 163.73500000000058,
+        "rows": 19,
+        "bytes": 1873
+      }
+    }
+  ]
+}

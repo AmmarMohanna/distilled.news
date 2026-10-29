@@ -62,3 +62,13 @@ it('bounds each sweep and resumes at a durable cursor after a restart',async()=>
  const next=await run();expect(next.scanned).toBe(5);expect(next.total.archived).toBe(55);expect(next.total.cursor).toBe('');
  expect(await read('semantic_resource_waits','054')).toHaveProperty('archiveKey');
 },15000);
+it('scheduled maintenance can stop after one record and resume without skipping the rest of its page',async()=>{
+ await insert('semantic_resource_waits',wait('001'));await insert('semantic_resource_waits',wait('002'));await insert('semantic_resource_waits',wait('003'));
+ const first=await runStorageMaintenance({DB:ctx.db,RAW_ARCHIVE:bucket},now,{maxRecords:1,budgetMs:5000});expect(first.scanned).toBe(1);expect(await read('semantic_resource_waits','001')).toHaveProperty('archiveKey');expect(await read('semantic_resource_waits','002')).toHaveProperty('input.state');
+ const next=await runStorageMaintenance({DB:ctx.db,RAW_ARCHIVE:bucket},now,{maxRecords:1,budgetMs:5000});expect(next.scanned).toBe(1);expect(await read('semantic_resource_waits','002')).toHaveProperty('archiveKey');expect(await read('semantic_resource_waits','003')).toHaveProperty('input.state');
+});
+it('does not recreate a diagnostic deleted while its R2 archive is being verified',async()=>{
+ const original=wait();await insert('semantic_resource_waits',original);const normalGet=bucket.get.bind(bucket);
+ vi.mocked(bucket.get).mockImplementationOnce(async(key:any)=>{const stored=await normalGet(key);await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE kind='semantic_resource_waits' AND id=?").bind(original.id).run();return stored;});
+ const result=await run();expect(await read('semantic_resource_waits',original.id)).toBeUndefined();expect(result.archived).toBe(0);expect(objects.size).toBe(1);
+});

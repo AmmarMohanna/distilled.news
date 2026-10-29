@@ -1,0 +1,104 @@
+{
+  "scope": "Synthetic local Miniflare; all() reads only; first() excluded. Equal one new article; older-than-memory unrelated history; no inference. Raw snapshots intentionally differ in prior; effective reader memory is equal.",
+  "results": [
+    {
+      "history": 0,
+      "elapsedMs": 183.39089999999942,
+      "measuredAllRowsRead": 7,
+      "returnedBytes": 1172,
+      "queries": [
+        {
+          "sql": "SELECT e.json FROM v1_feed_documents e JOIN v1_feed_documents p ON p.kind='publication_status' AND p.id=e.id AND p.feed_id=e.feed_id WHERE e.feed_id=? AND e.kind='editions' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY e.id",
+          "rowsRead": 0,
+          "bytes": 2
+        },
+        {
+          "sql": "SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id",
+          "rowsRead": 4,
+          "bytes": 1083
+        },
+        {
+          "sql": "SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id",
+          "rowsRead": 0,
+          "bytes": 2
+        },
+        {
+          "sql": "SELECT r.id,json_extract(i.json,'$.observation.observedAt') observedAt FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (?)",
+          "rowsRead": 3,
+          "bytes": 83
+        },
+        {
+          "sql": "SELECT json_extract(json,'$.window') AS window_json FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') ORDER BY id",
+          "rowsRead": 0,
+          "bytes": 2
+        }
+      ]
+    },
+    {
+      "history": 100,
+      "elapsedMs": 210.78199999999924,
+      "measuredAllRowsRead": 208,
+      "returnedBytes": 128471,
+      "queries": [
+        {
+          "sql": "SELECT e.json FROM v1_feed_documents e JOIN v1_feed_documents p ON p.kind='publication_status' AND p.id=e.id AND p.feed_id=e.feed_id WHERE e.feed_id=? AND e.kind='editions' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY e.id",
+          "rowsRead": 201,
+          "bytes": 127301
+        },
+        {
+          "sql": "SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id",
+          "rowsRead": 4,
+          "bytes": 1083
+        },
+        {
+          "sql": "SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id",
+          "rowsRead": 0,
+          "bytes": 2
+        },
+        {
+          "sql": "SELECT r.id,json_extract(i.json,'$.observation.observedAt') observedAt FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (?)",
+          "rowsRead": 3,
+          "bytes": 83
+        },
+        {
+          "sql": "SELECT json_extract(json,'$.window') AS window_json FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') ORDER BY id",
+          "rowsRead": 0,
+          "bytes": 2
+        }
+      ]
+    },
+    {
+      "history": 500,
+      "elapsedMs": 252.97360000000117,
+      "measuredAllRowsRead": 1008,
+      "returnedBytes": 637671,
+      "queries": [
+        {
+          "sql": "SELECT e.json FROM v1_feed_documents e JOIN v1_feed_documents p ON p.kind='publication_status' AND p.id=e.id AND p.feed_id=e.feed_id WHERE e.feed_id=? AND e.kind='editions' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY e.id",
+          "rowsRead": 1001,
+          "bytes": 636501
+        },
+        {
+          "sql": "SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id",
+          "rowsRead": 4,
+          "bytes": 1083
+        },
+        {
+          "sql": "SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id",
+          "rowsRead": 0,
+          "bytes": 2
+        },
+        {
+          "sql": "SELECT r.id,json_extract(i.json,'$.observation.observedAt') observedAt FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (?)",
+          "rowsRead": 3,
+          "bytes": 83
+        },
+        {
+          "sql": "SELECT json_extract(json,'$.window') AS window_json FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') ORDER BY id",
+          "rowsRead": 0,
+          "bytes": 2
+        }
+      ]
+    }
+  ]
+}

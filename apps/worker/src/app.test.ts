@@ -2404,7 +2404,7 @@ function tokenFromMessage(text: string | undefined): string {
   return decodeURIComponent(token);
 }
 
-it('creates precise relative schedules and preserves their phase on title/timezone edits and interval changes',async()=>{
+it('creates clock-aligned schedules only for new feeds and preserves them on ordinary edits',async()=>{
  let at=new Date('2026-10-22T16:05:40.123Z');
  const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>at});
  const user=await createVerifiedUser(app,repo,'relative-owner@test.com','Relative Owner');
@@ -2414,13 +2414,18 @@ it('creates precise relative schedules and preserves their phase on title/timezo
   expect(r.status).toBe(200);return (await r.json() as {briefing:import('@distilled/core').BriefingConfig}).briefing;
  };
  const feed=await save({...original,id:'relative-feed',slug:'relative',updateIntervalMinutes:30});
- expect(feed.briefingScheduleOriginAt).toBe('2026-10-22T16:05:40.123Z');expect(feed.nextBriefingAt).toBe('2026-10-22T16:35:40.123Z');
+ expect(feed.briefingScheduleOriginAt).toBeUndefined();expect(feed.briefingScheduleClockStartAt).toBe('2026-10-22T16:05:40.123Z');expect(feed.nextBriefingAt).toBe('2026-10-22T16:30:00.000Z');
  at=new Date('2026-10-22T16:45:00Z');
  const title=await save({...feed,title:'Renamed'});expect(title.nextBriefingAt).toBe(feed.nextBriefingAt);expect(title.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);
- const zone=await save({...title,briefingTimezone:'America/New_York'});expect(zone.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(zone.nextBriefingAt).toBe('2026-10-22T17:05:40.123Z');
+ const zone=await save({...title,briefingTimezone:'America/New_York'});expect(zone.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(zone.nextBriefingAt).toBe('2026-10-22T17:00:00.000Z');
  const hourly=await save({...zone,updateIntervalMinutes:60});
- expect(hourly.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(hourly.nextBriefingAt).toBe('2026-10-22T17:05:40.123Z');
+ expect(hourly.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(hourly.nextBriefingAt).toBe('2026-10-22T17:00:00.000Z');
  const again=await save({...hourly,title:'Renamed again'});expect(again.briefingScheduleOriginAt).toBe(hourly.briefingScheduleOriginAt);expect(again.nextBriefingAt).toBe(hourly.nextBriefingAt);
+ expect(again.briefingScheduleClockStartAt).toBe(feed.briefingScheduleClockStartAt);
+ const invalid=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...feed,id:'clock-daily-invalid',slug:'clock-daily-invalid',updateIntervalMinutes:1440,briefingTimeOfDay:'08:15'})},env());
+ expect(invalid.status).toBe(400);
+ const daily=await save({...feed,id:'clock-daily',slug:'clock-daily',updateIntervalMinutes:1440,briefingTimeOfDay:'08:30'});
+ expect(daily.nextBriefingAt).toContain(':30:00.000Z');expect(daily.briefingScheduleClockStartAt).toBe(at.toISOString());
 });
 it('editing an existing clock-aligned feed does not opt it into relative scheduling',async()=>{
  const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>new Date('2026-10-22T16:05:40Z')});
@@ -2430,4 +2435,10 @@ it('editing an existing clock-aligned feed does not opt it into relative schedul
  const r=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...legacy,title:'Still legacy'})},env());
  expect(r.status).toBe(200);expect((await r.json() as any).briefing).toMatchObject({nextBriefingAt:legacy.nextBriefingAt});
  expect((await repo.getBriefingById(original.id))?.briefingScheduleOriginAt).toBeUndefined();
+ expect((await repo.getBriefingById(original.id))?.briefingScheduleClockStartAt).toBeUndefined();
+ const originAt='2026-10-22T16:05:40.123Z';
+ const relative=await repo.upsertBriefing({...legacy,briefingScheduleOriginAt:originAt,nextBriefingAt:'2026-10-22T16:35:40.123Z'});
+ const renamed=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...relative,title:'Still relative'})},env());
+ expect(renamed.status).toBe(200);expect((await renamed.json() as any).briefing).toMatchObject({briefingScheduleOriginAt:originAt,nextBriefingAt:relative.nextBriefingAt});
+ expect((await repo.getBriefingById(original.id))?.briefingScheduleClockStartAt).toBeUndefined();
 });

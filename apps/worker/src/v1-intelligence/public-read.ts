@@ -59,7 +59,7 @@ async function projectPublishedRows(db:D1Database,rows:EditionRow[]) {
   });
   // A persisted claim cannot gain support outside its edition's permitted set.
   if(edition.stories.some(story=>story.claims.some(claim=>claim.support.some(ref=>!byRevision.has(ref.evidenceRevisionId) || !edition.evidenceRevisionIds.includes(ref.evidenceRevisionId)))))throw new HandoffError('SCOPE_DENIED');
-  return {id:edition.id,feedId:edition.feedId,title,language:edition.language,windowStart:edition.windowStart,windowEnd:edition.windowEnd,createdAt:edition.createdAt,publishedAt:status.publishedAt,stories:edition.stories,citations};
+  return {id:edition.id,feedId:edition.feedId,title,language:edition.language,windowStart:edition.windowStart,windowEnd:edition.windowEnd,...(edition.scheduledFor?{scheduledFor:edition.scheduledFor}:{}),createdAt:edition.createdAt,publishedAt:status.publishedAt,stories:edition.stories,citations};
  });
  // Withdrawals can occur while immutable metadata is being read. Recheck the
  // mutable visibility records before returning, without caching publication state.

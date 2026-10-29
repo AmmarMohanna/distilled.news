@@ -1,3 +1,4 @@
+import type {BriefingResult} from '@distilled/briefing';
 import {validateV3Edition} from './v3-window';
 import {assertIntelligenceTurn,intelligenceTurnGuard,withCanonicalCommitTurn} from '../connector-intelligence-turn';
 import {countLatency,measureLatency} from './latency';
@@ -40,7 +41,52 @@ export class V1FeedStore {
   }
   return values;
  }
+ /** Follow the feed's explicit intent references; never scan retained revision bodies globally. */
+ async hasSemanticIntentForObservation(feedId:string,observationId:string):Promise<boolean> {
+  const row=await this.db.prepare("SELECT 1 FROM v1_feed_documents d CROSS JOIN json_each(d.json,'$.input.evidenceRevisionIds') ref CROSS JOIN v1_revisions r ON r.id=ref.value WHERE d.feed_id=? AND d.kind='semantic_intents' AND json_extract(r.json,'$.sourceObservationId')=? LIMIT 1").bind(feedId,observationId).first();return Boolean(row);
+ }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
+ /** Candidate-targeted carry replay. Each page reads its version and decisions in one SQL snapshot. */
+ async carryEvidenceIds(feedId:string,ids:string[]):Promise<Set<string>> {
+  const wanted=[...new Set(ids)];if(!wanted.length)return new Set();let indexed=true,generation:number|undefined;
+  const retry=new Set<string>(),decisions:{revision_id:string;window_end:string;carry:number}[]=[];
+  for(let offset=0;offset<wanted.length;offset+=90){
+   let rows:D1Result<{marker:number;revision_id:string|null;window_end:string|null;carry:number|null;ready:number|null;version:number|null}>;
+   try{rows=await this.db.prepare(`WITH carry_state AS MATERIALIZED (
+    SELECT COALESCE(s.ready,0) ready,COALESCE(s.version,0) version FROM (SELECT ? feed_id) f LEFT JOIN v3_carry_index_state s ON s.feed_id=f.feed_id
+   ), candidates AS MATERIALIZED (
+    SELECT requested.value revision_id FROM json_each(?) requested WHERE (SELECT ready FROM carry_state)=1 AND EXISTS(
+     SELECT 1 FROM v3_carry_decisions p WHERE p.feed_id=? AND p.revision_id=requested.value AND p.carry=1)
+   ) SELECT 1 marker,NULL revision_id,NULL window_end,NULL carry,NULL result_id,ready,version FROM carry_state
+   UNION ALL SELECT 0,d.revision_id,d.window_end,d.carry,d.result_id,NULL,NULL FROM candidates c CROSS JOIN v3_carry_decisions d ON d.feed_id=? AND d.revision_id=c.revision_id
+   ORDER BY marker DESC,result_id`).bind(feedId,JSON.stringify(wanted.slice(offset,offset+90)),feedId,feedId).all();}
+   catch(error){if(!/no such table.*v3_carry_(index_state|decisions)/.test(String(error)))throw error;indexed=false;break;}
+   const state=rows.results[0];if(!state||state.marker!==1)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   if(state.ready!==1){indexed=false;break;}if(generation!==undefined&&state.version!==generation)throw new HandoffError('TEMPORARY_UNAVAILABLE');generation=state.version!;
+   for(const row of rows.results.slice(1))decisions.push({revision_id:row.revision_id!,window_end:row.window_end!,carry:row.carry!});
+  }
+  if(!indexed){const results=await this.list<{windowEnd:string;result:Pick<BriefingResult,'items'|'skipped'|'omitted'|'dropped'>}>(feedId,'v3_window_results');for(const p of results.sort((a,b)=>a.windowEnd.localeCompare(b.windowEnd))){for(const id of [...p.result.items.flatMap(i=>i.sourceIds),...p.result.skipped.map(s=>s.id),...p.result.omitted.flatMap(o=>o.sourceIds),...p.result.dropped.flatMap(d=>d.sourceIds)])retry.delete(id);for(const d of p.result.dropped.filter(d=>d.carry))for(const id of d.sourceIds)retry.add(id)}return new Set(wanted.filter(id=>retry.has(id)));}
+  // One revision belongs to one page; stable sorting retains original binary result-ID tie order.
+  for(const d of decisions.sort((a,b)=>a.window_end.localeCompare(b.window_end))){if(d.carry)retry.add(d.revision_id);else retry.delete(d.revision_id);}return retry;
+ }
+ /** Metadata-only eligibility pass; immutable article bodies are loaded only after selection. */
+ async currentEvidenceHeaders(feedId:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
+  let rows:D1Result<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>;
+  try{
+  rows=await this.db.prepare(`SELECT r.id,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.evidenceId') ELSE m.evidence_id END AS evidence_id,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.publishedAt') ELSE m.published_at END AS published_at,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.acceptedAt') ELSE m.accepted_at END AS accepted_at,CASE WHEN t.id IS NULL THEN json_extract(i.json,'$.observation.observedAt') ELSE t.observed_at END AS observed_at FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') LEFT JOIN v1_revision_selection_index m ON m.id=r.id AND m.feed_source_id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.sourceObservationId') ELSE m.source_observation_id END AND i.feed_source_id=r.feed_source_id LEFT JOIN v1_observation_time_index t ON t.id=i.id AND t.feed_source_id=i.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY accepted_at,r.id`).bind(feedId).all<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>();
+  }catch(error){if(!/no such table.*v1_(revision_selection|observation_time)_index/.test(String(error)))throw error;
+  rows=await this.db.prepare(`SELECT r.id,json_extract(r.json,'$.evidenceId') AS evidence_id,json_extract(r.json,'$.publishedAt') AS published_at,json_extract(r.json,'$.acceptedAt') AS accepted_at,json_extract(i.json,'$.observation.observedAt') AS observed_at FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>();
+  }
+  return rows.results.map(r=>({revision:{id:r.id,evidenceId:r.evidence_id,publishedAt:r.published_at??undefined,acceptedAt:r.accepted_at},observedAt:r.observed_at}));
+ }
+ async currentEvidenceByIds(feedId:string,ids:string[]):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
+  const unique=[...new Set(ids)],result:{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]=[];
+  for(let offset=0;offset<unique.length;offset+=90){const page=unique.slice(offset,offset+90);
+   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND r.id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page).all<{item:string;revision:string}>();
+   result.push(...rows.results.map(r=>({item:JSON.parse(r.item),revision:JSON.parse(r.revision)})));
+  }
+  if(result.length!==unique.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');return result;
+ }
  async currentEvidence(feedId:string):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{item:string;revision:string}>();
   return rows.results.map(r=>({item:JSON.parse(r.item),revision:JSON.parse(r.revision)}));
@@ -66,6 +112,41 @@ export class V1FeedStore {
    for(const row of rows.results)values.set(row.id,row.evidence_id);
   }
   return values;
+ }
+ /** Ordering and dispatch consume pending requests, never completed payloads.
+  * Keep the existing unresolved-index predicate explicit for SQLite admission. */
+ async pendingBriefingRequests(feedId:string):Promise<import('./runtime').BriefingRequest[]> {
+  const rows=await this.unresolvedRequestRows(feedId,'json',true);
+  return rows.results.map(r=>JSON.parse(r.json));
+ }
+ /** Only unresolved reporting windows are needed for carry eligibility, not terminal request payloads. */
+ async unresolvedPublicationWindows(feedId:string):Promise<{window:import('./scoring').PublicationWindow}[]> {
+  const rows=await this.unresolvedRequestRows(feedId,"json_extract(json,'$.window') AS window_json",false);
+  return rows.results.map(r=>({window:JSON.parse(r.window_json)}));
+ }
+ private async unresolvedRequestRows(feedId:string,projection:'json'|"json_extract(json,'$.window') AS window_json",pendingOnly:boolean):Promise<D1Result<{json:string;window_json:string}>> {
+  const tail=" WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED')"+(pendingOnly?" AND json_extract(json,'$.state')='PENDING'":"")+" ORDER BY id";
+  // The broader scope/order index can otherwise win even with this exact partial predicate.
+  try{return await this.db.prepare(`SELECT ${projection} FROM v1_feed_documents INDEXED BY v1_unresolved_publication_windows${tail}`).bind(feedId).all();}
+  catch(error){if(!String(error).includes('no such index: v1_unresolved_publication_windows'))throw error;}
+  // Preserve correctness for older self-hosted databases awaiting migration 0074.
+  return this.db.prepare(`SELECT ${projection} FROM v1_feed_documents${tail}`).bind(feedId).all();
+ }
+ /** Filter mutable publication visibility before returning immutable edition bodies. */
+ async publishedEditionHistory(feedId:string):Promise<BriefingEditionRecord[]> {
+  const rows=await this.db.prepare("SELECT e.json FROM v1_feed_documents e CROSS JOIN v1_feed_documents p ON p.kind='publication_status' AND p.id=e.id AND p.feed_id=e.feed_id WHERE e.feed_id=? AND e.kind='editions' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY e.id").bind(feedId).all<{json:string}>();
+  return rows.results.map(r=>JSON.parse(r.json));
+ }
+ /** Preserve all-time membership metadata, transferring reader prose only if memory-eligible. */
+ async publicationPreparationHistory(feedId:string,cutoff:number):Promise<Pick<BriefingEditionRecord,'id'|'createdAt'|'windowEnd'|'evidenceRevisionIds'|'stories'>[]> {
+  const rows=await this.db.prepare("SELECT e.id,json_extract(e.json,'$.createdAt') AS created_at,json_extract(e.json,'$.windowEnd') AS window_end,json_extract(e.json,'$.evidenceRevisionIds') AS evidence_ids FROM v1_feed_documents e CROSS JOIN v1_feed_documents p ON p.kind='publication_status' AND p.id=e.id AND p.feed_id=e.feed_id WHERE e.feed_id=? AND e.kind='editions' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY e.id").bind(feedId).all<{id:string;created_at:string;window_end:string;evidence_ids:string}>();
+  const result=rows.results.map(r=>({id:r.id,createdAt:r.created_at,windowEnd:r.window_end,evidenceRevisionIds:JSON.parse(r.evidence_ids) as string[],stories:[] as BriefingEditionRecord['stories']}));
+  const eligible=result.filter(r=>{const at=Date.parse(r.createdAt);return !Number.isFinite(at)||!Number.isFinite(cutoff)||at>=cutoff});
+  for(let offset=0;offset<eligible.length;offset+=90){
+   const page=eligible.slice(offset,offset+90),prose=await this.db.prepare(`SELECT id,json_extract(json,'$.stories') AS stories FROM v1_feed_documents WHERE feed_id=? AND kind='editions' AND id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page.map(r=>r.id)).all<{id:string;stories:string}>();
+   const byId=new Map(prose.results.map(r=>[r.id,JSON.parse(r.stories)]));for(const row of page){if(!byId.has(row.id)||!Array.isArray(byId.get(row.id)))throw new HandoffError('TEMPORARY_UNAVAILABLE');row.stories=byId.get(row.id);}
+  }
+  return result;
  }
  async snapshot(id:string):Promise<Snapshot> {
   const guard=intelligenceTurnGuard(this.db,id),lease=this.semanticLease;

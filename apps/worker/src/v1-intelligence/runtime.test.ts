@@ -161,6 +161,18 @@ async function pendingJobObservedAt(observedAt:string,extra:Record<string,unknow
  await ctx.db.prepare("INSERT OR REPLACE INTO v1_jobs(id,feed_source_id,item_key,json) VALUES(?,?,?,?)").bind(id,'feed-source-1','late-item',JSON.stringify({id,feedId:'feed-1',feedSourceId:'feed-source-1',observationId,kind:'REASSESS',state:'PENDING',attempts:0,...extra})).run();
 }
 const briefingSends=()=>sent.filter(m=>m.type==='v1_briefing');
+it('automatically dispatches once with incomplete coverage while an old acquisition budget wait remains recoverable',async()=>{
+ const observationId='budget-source-observation',id=JSON.stringify(['ACQUIRE',observationId,'']);
+ const job=JSON.stringify({id,feedId:'feed-1',feedSourceId:'feed-source-1',observationId,kind:'ACQUIRE',state:'PENDING',attempts:1,resourceWaits:288,exhausted:false,failureCode:'BUDGET_EXHAUSTED',failureDetail:'ARTICLE_PROVIDER_BUDGET',nextAttemptAt:'2026-10-03T14:00:00Z'});
+ await ctx.db.prepare('INSERT INTO v1_inputs(id,feed_source_id,json) VALUES(?,?,?)').bind(observationId,'feed-source-1',JSON.stringify({observation:{observedAt:'2026-10-03T11:20:00Z'}})).run();
+ await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(id,'feed-source-1',job).run();
+ const now=new Date('2026-10-03T13:25:00Z');
+ await dispatchV1Intelligence(env,now);await dispatchV1Intelligence(env,now);
+ expect(briefingSends()).toHaveLength(1);
+ expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:'BUDGET_EXHAUSTED',count:1}]}}]);
+ expect((await ctx.db.prepare('SELECT json FROM v1_jobs WHERE id=?').bind(id).first<{json:string}>())?.json).toBe(job);
+ expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<{n:number}>())?.n).toBe(0);
+},30000);
 it('reobserving the same intake wait does not invalidate concurrent Feed work',async()=>{
  await pendingJobObservedAt('2026-10-03T12:30:00Z');
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
