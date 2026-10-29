@@ -162,7 +162,9 @@ export function AppExperience(props: {
 
 export function accountInitials(username: string) {
   const parts = username.trim().split(/[\s._-]+/u).filter(Boolean);
-  return Array.from((parts.slice(0, 2).map(part => Array.from(part)[0]).join("") || "?").toLocaleUpperCase()).slice(0, 2).join("");
+  const initials = Array.from((parts.slice(0, 2).map(part => Array.from(part)[0]).join("") || "?").toLocaleUpperCase()).slice(0, 2);
+  // Prevent Arabic initials from joining while retaining the two-letter limit.
+  return initials.join(initials.some(letter => /\p{Script=Arabic}/u.test(letter)) ? "\u200c" : "");
 }
 
 function FeedCardActions({ feed, owner, onError, hideStar = false, children, latestUpdatedAt }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled">; owner: boolean; onError: (message: string) => void; hideStar?: boolean; children?: React.ReactNode; latestUpdatedAt?: string }) {
