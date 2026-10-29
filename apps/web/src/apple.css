@@ -2846,3 +2846,5 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { background: var(--surface); }
 :root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { border-color: var(--line); }
 :root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger > svg:last-child { color: var(--muted); }
+/* Center recovery headings explicitly without changing RTL form text. */
+:root.apple-ui.apple-ui .reset-password-page .reset-password-heading > :is(h1,p) { text-align: center; }
