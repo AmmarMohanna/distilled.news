@@ -80,3 +80,25 @@ An independent clock calculation matched every response. The owned-feed list rea
 Sanitized results: `benchmarks/results/v3-selective-database-reads/clock-aligned-deployment.json`. Exact deployment/API traces and cleanup proofs: `.local-reports/clock-aligned-live/`.
 
 **Limit:** this verifies real deployed creation, edits, persistence, API privacy and frontend assets. It does not measure a newly clock-aligned feed generating and publishing a real nonempty briefing at its first deadline. Timed generation, held verified results, late labels and retry reuse are proven by local integration tests; actual new-policy deadline-to-publication latency still requires a natural feed window or a separately authorized paid trial. No unused earlier paid authorization was reused.
+
+## Authorized automatic timing trial — October 29, 2026
+
+One new private QA feed used the deployed runtime `87cb674`, the existing approved `https://t.me/lebanonnews2` source, and the normal automatic collector/scheduler. No operator triggered generation. Authorization allowed at most four GPT-4.1/mini calls and $0.20 conservative exposure for this single window, expiring at 16:15:52 Beirut. A feed-scoped atomic reservation trigger enforced the bound without changing shared accounting mode or historical grants. Fourteen synthetic admission checks passed before activation. Unknown charges would block further QA admission. An append-only close record now permanently closes this trial's new-call admission; the feed is paused and retained for audit.
+
+| Observation | Beirut time, October 29 |
+|---|---|
+| Feed created; reporting begins | 14:30:43.377 |
+| Fixed evidence cutoff | 14:55:00 |
+| Automatic request and saved empty result | 14:57:07.107 |
+| Intended delivery | 15:00:00 |
+| Automatic completion | 15:00:48.103 |
+
+The request reached `DONE / QUIET / NO_SELECTED_DEVELOPMENTS`, with complete collection coverage. Eighteen acquired records all predated creation; the newest publication was 14:21:11. A separate read-only public-channel check shortly after cutoff also found no newer post. The frozen V3 input contained zero articles, so the engine correctly made **zero model calls**, incurred **$0 inference cost / $0 outstanding model reservations**, and created **no edition or delivery job**. It saved the empty result and waited with `AWAITING_SCHEDULED_DELIVERY` before completing 48.103 seconds after the intended time. One request existed, with no duplicate downstream work.
+
+This is live evidence of automatic window creation, freshness exclusion, durable quiet results and scheduled completion. **It does not establish nonempty generation/publication latency, model quality, or a successful paid inference path under the trial guard.** No new news arrived, and the unused allowance was not used to replay old articles or start a second window. No publication timestamp or reader-text review exists for this quiet result.
+
+Observer recovery: Cloudflare database access briefly returned `7403`; refreshing the existing CLI session restored observation. The initial final reader check returned 404 because the directly seeded QA account lacked the username alias normally created at registration. Adding only that QA fixture alias restored owner read-back (200, empty editions); anonymous access remained 404. These were observer/fixture issues and required no product runtime change. The scope was already closed and the feed paused before the reader-check correction.
+
+The 38 historical grant records and shared tracking configuration byte-matched the pretrial snapshot. No historical financial records were changed, no holds released, and no account cap changed. The QA-only guard and append-only trial records remain for audit. No reader notifications were sent; production was untouched. Exact local authorization, input/result documents, collector observations, accounting snapshots and HTTP checks are retained in `.local-reports/clock-timing-trial/`. Sanitized result: `benchmarks/results/v3-selective-database-reads/clock-aligned-timing-trial.json`.
+
+Next useful validation is a fresh, naturally nonempty window under a separately applicable authorization; this trial did not authorize another window.
