@@ -6,7 +6,7 @@ import { V1IntakeStore } from './v1-intake/store';
 import { createCandidateIntakePort } from './v1-intake/intake';
 import { createCandidateAcquisitionRouter } from './v1-intake/acquisition-router';
 import { runAcquisitionJob, AcquisitionFailure } from './v1-intake/acquisition';
-import type { IntakePolicy } from './v1-intake/types';
+import type { DownstreamJob, IntakePolicy } from './v1-intake/types';
 import { WorkerPublicSourceFetch } from './public-source-fetch';
 import {synchronizeV1ProductSource} from './v1-intelligence/product';
 import {createV1BrowserStages} from './v1-intake/browser-stages';
@@ -18,7 +18,8 @@ import {verifyConnectorAuthority} from './connector-authority';
 import {sharedPublicHttp} from './connector-public-cache';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
 import {readPublicArticle,PUBLIC_ARTICLE_MAX_BYTES} from './v1-intake/public-article-http';
-import {runtimeArticleFallback} from './v1-intake/article-fallback';
+import {runtimeArticleFallback,createArticleFallback} from './v1-intake/article-fallback';
+import {reviewedRedirectFor} from './v1-intake/reviewed-redirect';
 import {productConnectorSource} from './connector-source';
 
 function enabledSources(env:Env):string[] {
@@ -59,7 +60,7 @@ export function createV1RuntimePolicy(fetcher:typeof fetch=fetch,bucket?:R2Bucke
   }};
  }};
 }
-export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:number) {
+export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:number,unpaidOnly?:true) {
  const parsed=connectorHandoffRequestSchema.safeParse(raw);
  if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
  if(env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
@@ -72,21 +73,27 @@ export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:
  for(let offset=0;offset<supplied.length;offset+=4)await Promise.all(supplied.slice(offset,offset+4).map(o=>policy.verifySuppliedContent(o)));
  try{return await withFeedWriteTurn(env,parsed.data.coverage.feedId,async()=>{
   await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
-  return createCandidateIntakePort(new V1IntakeStore(env.DB),{...policy,expectedFeedRevision}).acceptBatch(parsed.data);
+  return createCandidateIntakePort(new V1IntakeStore(env.DB),{...policy,expectedFeedRevision,unpaidOnly}).acceptBatch(parsed.data);
  },'handoff:'+parsed.data.handoffId);}catch(error){if(error instanceof IntelligenceTurnBusy)throw new SourceHandoffWait();throw error;}
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
 export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
- const store=new V1IntakeStore(env.DB),job=await store.read<{feedSourceId:string;feedId:string}>('jobs',id);
+ const store=new V1IntakeStore(env.DB),job=await store.read<DownstreamJob>('jobs',id);
  if(!job || env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,job.feedSourceId)) return 'SKIPPED' as const;
+ const unpaidOnly=job.value.unpaidOnly===true||job.value.recoveryAuthorizations?.at(-1)?.unpaidOnly===true;
+ const reviewed=unpaidOnly&&job.value.recoveryAuthorizations?.at(-1)?.reviewedRedirect;
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
  const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
  const authorizeArticle=async(url:string)=>{new WorkerPublicSourceFetch(url,fetcher);if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);};
  const articleMaxBytes=PUBLIC_ARTICLE_MAX_BYTES;
  const articleHttp=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,new BoundedFeedHttp(async(url,init)=>{await authorizeArticle(url);return fetcher(url,{...init,redirect:'manual'})},{maxBytes:articleMaxBytes}),authorizeArticle,Date.now,articleMaxBytes):undefined;
- const helper=env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
+ const helper=!unpaidOnly&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
   new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):undefined;
- const execution=composeSourceExecution(env.SOURCE_NATIVE_EXECUTION_ENABLED==='true',helper,async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)});
+ // Explicit reviewed recovery permits only the existing anonymous browser
+ // helper. It never enables public helpers, Google, models or paid providers.
+ const reviewedBrowser=reviewed&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
+  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):undefined;
+ const execution=composeSourceExecution(unpaidOnly||env.SOURCE_NATIVE_EXECUTION_ENABLED==='true',helper,async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)});
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
  resolveGoogleArticle:helper&&env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'?async url=>{
   await authorizeArticle(url);
@@ -95,15 +102,16 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  }:undefined,
  publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
  publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:60_000});await authorizeArticle(url);return result;}:undefined,
- articleFallback:env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{
+ articleFallback:(!unpaidOnly||reviewedBrowser)&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{
   const source=await env.DB.prepare('SELECT source_url,provider,kind,input,actor_id FROM sources WHERE id=?').bind(job.feedSourceId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
   const approved=source&&productConnectorSource(source);
   if(!approved||!['rss','google_news','website'].includes(approved.source.family))return undefined;
+  if(unpaidOnly){if(!reviewedRedirectFor(claim.job,claim.input.observation.canonicalUrl!))return undefined;return createArticleFallback({execution:reviewedBrowser,authorize:authorizeArticle})(claim);}
   return runtimeArticleFallback(env,execution,authorizeArticle,fetcher)(claim);
  }:undefined,
  extractHtml:execution?async(url,html)=>{
   await authorizeArticle(url);const result=await execution!.execute('extract',{url,html},{timeoutMs:60_000});await authorizeArticle(url);return result;
- }:undefined,stagesForClaim:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
+ }:undefined,stagesForClaim:unpaidOnly?undefined:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
   const ref=claim.input.observation.suppliedPayloadRef;
   const connectorPayload=await readConnectorPayload(env.RAW_ARCHIVE,claim.input.observation);
   if(connectorPayload)return connectorPayload;

@@ -641,12 +641,28 @@ async def browser(data):
         browser = await engine.chromium.launch(headless=True)  # Do not add --no-sandbox.
         context = await browser.new_context(service_workers='block', accept_downloads=False)
         requests = 0
+        source = urlsplit(data['url'])
+        cbs_article = (data.get('exactCandidateOnly') is True and source.scheme == 'https'
+                       and source.hostname == 'www.cbsnews.com' and source.port in (None, 443)
+                       and source.path.startswith('/projects/'))
         async def route(request):
             nonlocal requests
             if data.get('exactCandidateOnly') and request.request.is_navigation_request() and request.request.frame == page.main_frame and request.request.url != data['url']:
                 return await request.abort()
             if request.request.resource_type in ('image', 'media', 'font'):
                 return await request.abort()
+            if cbs_article:
+                resource = urlsplit(request.request.url)
+                if (resource.scheme != 'https' or resource.hostname != source.hostname
+                        or resource.port not in (None, 443) or resource.username or resource.password):
+                    return await request.abort()
+                requests += 1
+                if requests > 80:
+                    return await request.abort()
+                # This exact HTTPS origin was checked before browser launch.
+                # The required host firewall still enforces private-IP denial;
+                # avoid repeated DNS work for its own scripts and stylesheets.
+                return await request.continue_()
             try:
                 await asyncio.to_thread(public_url, request.request.url)
             except Exception:
@@ -657,6 +673,16 @@ async def browser(data):
         try:
             page = await context.new_page()
             response = await page.goto(data['url'], wait_until='domcontentloaded', timeout=20000)
+            if data.get('waitForArticleText') is True:
+                # Exact reviewed articles can hydrate after DOMContentLoaded.
+                # This is a bounded readiness wait, not scrolling or navigation.
+                try:
+                    await page.wait_for_function(
+                        "() => [...document.querySelectorAll('article,[itemprop=articleBody],main')].some(n => (n.innerText || '').trim().length >= 400)",
+                        timeout=3500)
+                except Exception as error:
+                    if type(error).__name__ != 'TimeoutError':
+                        raise
             html = await page.content()
             if len(html.encode()) > 4000000:
                 raise ValueError('HTML_TOO_LARGE')

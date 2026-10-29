@@ -10,6 +10,20 @@ it('retains a short primary webinar description as partial evidence while refusi
  const title='How OpenAI uses ChatGPT Atlas at work',short=`<article><h1>${title}</h1><p>Webinar ${title} Watch how OpenAI uses ChatGPT Atlas at work.</p></article>`;
  const f=fixture({status:200,url,html:short});expect(await f.fallback(claim)).toMatchObject({partial:true,shortTextEvidence:true,title});expect(f.request).not.toHaveBeenCalled();
 });
+it('accepts only the exact operator-reviewed browser destination/headline, preserving original identity',async()=>{
+ const to='https://publisher.example/projects/reported-decision',headline='Council approves the public proposal after debate';
+ const reviewedClaim={...claim,job:{...claim.job,recoveryAuthorizations:[{id:'review-1',unpaidOnly:true as const,authorizedAt:'2026-10-28T12:00:00Z',maxAttempts:2,priorAttempts:1,priorFailureCode:'INVALID_RESULT',reviewedRedirect:{from:url,to,headline}}]}};
+ const rendered=`<meta property="og:type" content="article"><link rel="canonical" href="${to}">${html.replace('<h1>Decision</h1>',`<h1>${headline}</h1>`)}`;
+ const execute=vi.fn().mockResolvedValue({status:200,url:to,html:rendered}),authorize=vi.fn();
+ const fallback=createArticleFallback({execution:{execute},authorize});
+ expect(await fallback(reviewedClaim)).toMatchObject({url,canonicalUrl:url,resolvedUrl:to,publisherRelocation:true,browserRendered:true});
+ expect(execute).toHaveBeenCalledTimes(1);expect(execute.mock.calls[0][0]).toBe('playwright');
+ execute.mockResolvedValue({status:200,url:to,html:rendered.replace(headline,'An unrelated report on another development')});
+ await expect(fallback(reviewedClaim)).rejects.toMatchObject({code:'INVALID_RESULT'});
+ execute.mockResolvedValue({status:200,url:to+'/other',html:rendered});expect(await fallback(reviewedClaim)).toBeUndefined();
+ const unreviewed={...reviewedClaim,job:{...reviewedClaim.job,recoveryAuthorizations:[]}};
+ execute.mockResolvedValue({status:200,url:to,html:rendered});expect(await fallback(unreviewed)).toBeUndefined();
+});
 it('retains readable article text in a publisher page larger than the previous six-megabyte limit',async()=>{
  const large=html+'<script>'+ 'x'.repeat(8_000_000)+'</script>';
  const f=fixture({status:200,url,html:large});

@@ -1,0 +1,45 @@
+{
+  "provenance": "Projection of retained durable Telegram batch and matching saved poll checkpoint; identifiers anonymized, article text omitted. Handoff state reconstructed from durable response, not a full historical poll snapshot.",
+  "cutoff": "2026-10-28T22:32:09.437Z",
+  "scheduledAt": "2026-10-28T22:32:02.550Z",
+  "result": {
+    "state": "HANDED_OFF",
+    "checkpoint": "UNCHANGED",
+    "request": {
+      "coverage": {
+        "createdAt": "2026-10-28T22:43:16.403Z"
+      },
+      "observations": [
+        {
+          "id": "observation-0",
+          "observedAt": "2026-10-28T22:43:16.403Z"
+        },
+        {
+          "id": "observation-1",
+          "observedAt": "2026-10-28T22:43:16.403Z"
+        },
+        {
+          "id": "observation-2",
+          "observedAt": "2026-10-28T22:43:16.403Z"
+        }
+      ]
+    },
+    "response": {
+      "durable": true,
+      "receipts": [
+        {
+          "observationId": "observation-0",
+          "checkpointResolution": "RESOLVED"
+        },
+        {
+          "observationId": "observation-1",
+          "checkpointResolution": "RESOLVED"
+        },
+        {
+          "observationId": "observation-2",
+          "checkpointResolution": "RESOLVED"
+        }
+      ]
+    }
+  }
+}

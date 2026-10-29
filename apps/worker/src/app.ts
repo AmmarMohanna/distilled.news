@@ -18,7 +18,7 @@ import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
 import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
-import {enrollV1Source,editedRelativeOrigin} from './v1-intelligence/product';
+import {enrollV1Source,editedRelativeOrigin,editedClockStart} from './v1-intelligence/product';
 import {liveScheduleSchema,publicationWindowSchema,nextLiveBriefingAt,firstFullLiveBriefingAt} from './v1-intelligence/schedule';
 import {processV1Briefing} from './v1-intelligence/runtime';
 import {publicV1Edition,publicV1Evidence,withdrawV1Edition} from './v1-intelligence/public-read';
@@ -112,6 +112,7 @@ export interface AppOptions {
 }
 
 const authInputSchema = z.object({
+  language: z.enum(['en', 'fr', 'ar']).default('en'),
   email: z.string().email(),
   password: z.string().min(8),
   username: z.string().min(1).optional(),
@@ -130,6 +131,7 @@ const tokenInputSchema = z.object({
 });
 
 const passwordResetRequestSchema = z.object({
+  language: z.enum(['en', 'fr', 'ar']).default('en'),
   email: z.string().email(),
   turnstileToken: z.string().optional()
 });
@@ -235,13 +237,18 @@ const feedStarInputSchema = z.object({
 });
 
 function buildManifestPayload(input: {
+  origin: string;
+  manifestUrl?: string;
   title: string;
   description: string;
   startUrl: string;
   id: string;
+  mobileIcons?: boolean;
 }) {
   return {
     id: input.id,
+    related_applications: [{platform: 'webapp', url: input.manifestUrl ?? '/manifest.webmanifest', id: new URL(input.id, input.origin).href}],
+    prefer_related_applications: false,
     name: input.title,
     short_name: input.title,
     description: input.description,
@@ -249,16 +256,16 @@ function buildManifestPayload(input: {
     orientation: "portrait",
     scope: "/",
     start_url: input.startUrl,
-    background_color: "#faf8f1",
+    background_color: "#ffffff",
     theme_color: "#5e5ce6",
     icons: [
       {
-        src: "/icon-192.png?v=light-5",
+        src: input.mobileIcons ? "/icon-192.png?v=light-5" : "/desktop-icon-192.png?v=transparent-1",
         sizes: "192x192",
         type: "image/png"
       },
       {
-        src: "/icon-512.png?v=light-5",
+        src: input.mobileIcons ? "/icon-512.png?v=light-5" : "/desktop-icon-512.png?v=transparent-1",
         sizes: "512x512",
         type: "image/png"
       }
@@ -610,7 +617,7 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: error instanceof Error ? error.message : "could not create account" }, 409);
     }
     try {
-      await sendVerificationToken(repo, c.env, account);
+      await sendVerificationToken(repo, c.env, account, input.language);
     } catch (error) {
       logAuthEmailFailure("verification", account, c.env, error);
       await repo.deleteAccount(account.id);
@@ -663,7 +670,7 @@ export function createApp(options: AppOptions = {}) {
     const account = await repo.getAccountByEmail(email);
     if (account && account.emailVerifiedAt && !account.disabledAt) {
       try {
-        await sendPasswordResetToken(repo, c.env, account);
+        await sendPasswordResetToken(repo, c.env, account, input.language);
       } catch (error) {
         logAuthEmailFailure("password reset", account, c.env, error);
       }
@@ -805,13 +812,18 @@ export function createApp(options: AppOptions = {}) {
       existing.briefingTimezone !== input.briefingTimezone;
     const savedAt=nowFor();
     let briefingScheduleOriginAt=existing?.briefingScheduleOriginAt;
-    if(!existing&&input.updateIntervalMinutes&&input.updateIntervalMinutes<1440)briefingScheduleOriginAt=savedAt.toISOString();
+    let briefingScheduleClockStartAt=existing?.briefingScheduleClockStartAt;
+    if(!existing&&input.updateIntervalMinutes)briefingScheduleClockStartAt=savedAt.toISOString();
+    else if(briefingScheduleClockStartAt&&scheduleChanged&&existing?.updateIntervalMinutes){
+      briefingScheduleClockStartAt=await editedClockStart(c.env.DB,input.id,briefingScheduleClockStartAt,{durationMinutes:existing.updateIntervalMinutes,timezone:existing.briefingTimezone,clockStartAt:briefingScheduleClockStartAt});
+    }
     else if(briefingScheduleOriginAt&&existing?.updateIntervalMinutes&&existing.updateIntervalMinutes!==input.updateIntervalMinutes){
       briefingScheduleOriginAt=await editedRelativeOrigin(c.env.DB,input.id,briefingScheduleOriginAt,{durationMinutes:existing.updateIntervalMinutes,timezone:existing.briefingTimezone,deliveryAnchor:existing.briefingTimeOfDay,...(existing.updateIntervalMinutes<1440?{originAt:briefingScheduleOriginAt}:{})},savedAt);
     }
-    const schedule=input.updateIntervalMinutes?{durationMinutes:input.updateIntervalMinutes,timezone:input.briefingTimezone,deliveryAnchor:briefingTimeOfDay,...(input.updateIntervalMinutes<1440&&briefingScheduleOriginAt?{originAt:briefingScheduleOriginAt}:{})}:undefined;
+    if(briefingScheduleClockStartAt&&input.updateIntervalMinutes===1440&&!['00','30'].includes(briefingTimeOfDay.slice(-2)))return c.json({error:'Choose a daily delivery time on the hour or half-hour.'},400);
+    const schedule=input.updateIntervalMinutes?{durationMinutes:input.updateIntervalMinutes,timezone:input.briefingTimezone,deliveryAnchor:briefingTimeOfDay,...(input.updateIntervalMinutes<1440&&briefingScheduleOriginAt?{originAt:briefingScheduleOriginAt}:{}),...(briefingScheduleClockStartAt?{clockStartAt:briefingScheduleClockStartAt}:{})}:undefined;
     const nextBriefingAt = scheduleChanged
-      ? schedule ? (schedule.originAt?nextLiveBriefingAt(schedule,savedAt):firstFullLiveBriefingAt(schedule,savedAt)) : defaultNextBriefingAt({
+      ? schedule ? (schedule.originAt||schedule.clockStartAt?nextLiveBriefingAt(schedule,savedAt):firstFullLiveBriefingAt(schedule,savedAt)) : defaultNextBriefingAt({
           cadence: briefingCadence,
           timeOfDay: briefingTimeOfDay,
           timezone: input.briefingTimezone
@@ -829,6 +841,7 @@ export function createApp(options: AppOptions = {}) {
       briefingTimeOfDay,
       nextBriefingAt,
       briefingScheduleOriginAt,
+      briefingScheduleClockStartAt,
       retentionDays: FIXED_RETENTION_DAYS
     },savedAt);
     try { await queueInitialFeedSketch(c.env, briefing); }
@@ -1262,10 +1275,13 @@ export function createApp(options: AppOptions = {}) {
     const repo = repoFor(c);
     const username = c.req.query("user")?.trim();
     const feedSlug = c.req.query("feed")?.trim();
+    const mobileIcons = c.req.header("sec-ch-ua-mobile") === "?1" || /Android|iPhone|iPad|iPod|Mobile/i.test(c.req.header("user-agent") ?? "");
 
     let manifest = buildManifestPayload({
+      origin: new URL(c.req.url).origin,
       id: "/",
-      title: "Distilled.news",
+      title: "Distilled.News",
+      mobileIcons,
       description: "A quiet personal news briefing.",
       startUrl: "/"
     });
@@ -1275,8 +1291,11 @@ export function createApp(options: AppOptions = {}) {
       const briefing = resolved ? await repo.getBriefingBySlug(resolved.account.id, feedSlug) : null;
       if (resolved && briefing?.publicFeedEnabled) {
         manifest = buildManifestPayload({
+          origin: new URL(c.req.url).origin,
+          manifestUrl: `/manifest.webmanifest?user=${encodeURIComponent(resolved.account.username)}&feed=${encodeURIComponent(briefing.slug)}`,
           id: `/${resolved.account.username}/${briefing.slug}/`,
           title: briefing.title,
+          mobileIcons,
           description: "Published briefing items only.",
           startUrl: `/${resolved.account.username}/${briefing.slug}/`
         });
@@ -1294,6 +1313,45 @@ export function createApp(options: AppOptions = {}) {
   app.all('/api/internal/collectors/:action',async c=>{
     if(!await internalMaintenanceAuthorized(c))return c.json({error:'unauthorized'},401);
     c.header('Cache-Control','private, no-store');
+    if(c.req.param('action')==='recover-poll-unpaid'&&c.req.method==='POST'){
+      const input=z.object({feedId:z.string().min(1).max(256),kind:z.enum(['rss','provider']),runNow:z.boolean().optional(),jobId:z.string().min(1).max(4096),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
+      const {recoverConnectorPoll}=await import('./connector-scheduling');
+      try{await recoverConnectorPoll(c.env,input.kind,input.jobId,{unpaidOnly:true,approvalId:input.approvalId,feedId:input.feedId});}
+      catch(error){const code=error instanceof Error?error.message:'';if(/^[A-Z_]+$/.test(code))return c.json({error:code},409);throw error;}
+      if(input.runNow){
+        const {unpaidSourceRecoveryEnv}=await import('./unpaid-source-recovery');
+        const {createConnectorRuntime}=await import('./connector-runtime');
+        const backend=createConnectorRuntime(unpaidSourceRecoveryEnv(c.env),fetcher,true);
+        const outcome=await (input.kind==='rss'?backend.rssScheduler:backend.scheduler).runOne(300_000,input.jobId);
+        return c.json({outcome,unpaidOnly:true});
+      }
+      return c.json({state:'PENDING',unpaidOnly:true});
+    }
+    if(c.req.param('action')==='recover-article-unpaid'&&c.req.method==='POST'){
+      const input=z.object({feedId:z.string().min(1).max(256),jobId:z.string().min(1).max(4096),reviewedRedirect:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192),headline:z.string().min(20).max(1000)}).strict().optional(),redirectEvidence:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192)}).strict().optional(),canonicalEvidence:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192)}).strict().optional(),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
+      const {V1IntakeStore}=await import('./v1-intake/store');
+      const {authorizeAcquisitionRecovery}=await import('./v1-intake/acquisition');
+      const {processV1Acquisition}=await import('./v1-downstream-runtime');
+      const store=new V1IntakeStore(c.env.DB),job=await store.read<import('./v1-intake/types').DownstreamJob>('jobs',input.jobId);
+      if(!job||job.value.feedId!==input.feedId)return c.json({error:'job not found'},404);
+      try{
+        await authorizeAcquisitionRecovery(store,input.jobId,input.approvalId,new Date().toISOString(),input.redirectEvidence,input.canonicalEvidence,{unpaidOnly:true,...(input.reviewedRedirect?{reviewedRedirect:input.reviewedRedirect}:{})});
+      }catch(error){
+        const code=error instanceof Error?error.message:'';
+        if(/^RECOVERY_[A-Z_]+$/.test(code))return c.json({error:code},409);
+        if(error instanceof HandoffError){c.header('Retry-After','5');return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:403);}
+        throw error;
+      }
+      let outcome:Awaited<ReturnType<typeof processV1Acquisition>>;
+      try{outcome=await processV1Acquisition(c.env,input.jobId,fetcher);}
+      catch(error){
+        const {IntelligenceTurnBusy}=await import('./connector-intelligence-turn');
+        if(error instanceof IntelligenceTurnBusy){c.header('Retry-After','5');return c.json({outcome:'RETRY',state:'PENDING',reason:'FEED_BUSY',unpaidOnly:true},202);}
+        if(error instanceof HandoffError){c.header('Retry-After','5');return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:403);}throw error;
+      }
+      const result=(await store.read<import('./v1-intake/types').DownstreamJob>('jobs',input.jobId))?.value;
+      return c.json({outcome,state:result?.state,failureCode:result?.failureCode,failureDetail:result?.failureDetail,attempts:result?.attempts,unpaidOnly:true});
+    }
     if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json({budget:await collectorBudgetStatus(c.env)});
     if(c.req.param('action')==='topic-publishers'&&c.req.method==='POST'){
       const input=z.object({title:z.string().trim().min(1).max(120)}).strict().parse(await c.req.json());
@@ -1407,7 +1465,9 @@ export function createApp(options: AppOptions = {}) {
     if (resolved.account.disabledAt) return c.json({ error: "feed not found" }, 404);
     if (!resolved.alias.isCurrent || username !== resolved.account.username) {
       const url = new URL(c.req.url);
-      url.pathname = url.pathname.replace(`/api/feed/${username}/`, `/api/feed/${resolved.account.username}/`);
+      const segments = url.pathname.split("/");
+      segments[3] = encodeURIComponent(resolved.account.username);
+      url.pathname = segments.join("/");
       return c.redirect(url.toString(), 301);
     }
     const briefing = await repo.getBriefingBySlug(resolved.account.id, briefingSlug);
@@ -1446,7 +1506,7 @@ async function createAccountOrError(
   });
 }
 
-async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord): Promise<void> {
+async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await repo.createAuthToken({
@@ -1455,10 +1515,10 @@ async function sendVerificationToken(repo: Repository, env: Env, account: Accoun
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendVerificationEmail(env, account, token);
+  await sendVerificationEmail(env, account, token, language);
 }
 
-async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord): Promise<void> {
+async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
   await repo.createAuthToken({
@@ -1467,7 +1527,7 @@ async function sendPasswordResetToken(repo: Repository, env: Env, account: Accou
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendPasswordResetEmail(env, account, token);
+  await sendPasswordResetEmail(env, account, token, language);
 }
 
 async function consumeToken(
@@ -1856,7 +1916,7 @@ function errorProperty(error: unknown, key: string): string | undefined {
 function readNextBriefingAt(feed:BriefingConfig):string|undefined {
   if(feed.paused)return undefined;
   if(!feed.updateIntervalMinutes)return feed.nextBriefingAt;
-  const schedule={durationMinutes:feed.updateIntervalMinutes,timezone:feed.briefingTimezone,deliveryAnchor:feed.updateIntervalMinutes===1440?feed.briefingTimeOfDay:'00:00',...(feed.updateIntervalMinutes<1440&&feed.briefingScheduleOriginAt?{originAt:feed.briefingScheduleOriginAt}:{})},next=nextLiveBriefingAt(schedule,new Date());
+  const schedule={durationMinutes:feed.updateIntervalMinutes,timezone:feed.briefingTimezone,deliveryAnchor:feed.updateIntervalMinutes===1440?feed.briefingTimeOfDay:'00:00',...(feed.updateIntervalMinutes<1440&&feed.briefingScheduleOriginAt?{originAt:feed.briefingScheduleOriginAt}:{}),...(feed.briefingScheduleClockStartAt?{clockStartAt:feed.briefingScheduleClockStartAt}:{})},next=nextLiveBriefingAt(schedule,new Date());
   return feed.nextBriefingAt&&Date.parse(feed.nextBriefingAt)>Date.parse(next)?feed.nextBriefingAt:next;
 }
 
@@ -1961,7 +2021,11 @@ async function maybeRedirectUsernameRoute(
   if (/^\/assets\/[^/]+\.(?:js|css|map)$/.test(path)) return null;
   const match = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
   if (!match) return null;
-  const [, username, slug] = match;
+  let username: string, slug: string;
+  try {
+    username = decodeURIComponent(match[1]);
+    slug = decodeURIComponent(match[2]);
+  } catch { return null; }
   const resolved = await repo.resolveUsernameAlias(username);
   if (!resolved || resolved.alias.isCurrent || resolved.account.username === username) return null;
   const briefing = await repo.getBriefingBySlug(resolved.account.id, slug);

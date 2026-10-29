@@ -1359,7 +1359,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields:not([hidden]) { padding: 12px 18px; border-radius: 18px; overflow: visible; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > :is(label, .feed-preference-row) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 36%); align-items: center; gap: 16px; padding: 10px 0; min-height: 64px; margin: 0; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-preference-label { display: flex; align-items: center; gap: 12px; min-width: 0; line-height: 1.35; }
-:root.apple-ui.apple-ui .feed-editor .feed-preference-label > svg { flex: 0 0 auto; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 12px; background: var(--surface-quiet); color: var(--muted); }
+:root.apple-ui.apple-ui .feed-editor .feed-preference-label > svg { flex: 0 0 auto; box-sizing: content-box; width: 20px; height: 20px; padding: 10px; border-radius: 12px; background: transparent; color: var(--accent); }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-preferences-group-label { margin: 12px 0 0; padding: 0 0 8px; border-top: 0; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-preferences-group-label:first-child { margin-top: 0; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-group-label + label,
@@ -1582,7 +1582,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (min-width: 900px) {
   :root.apple-ui.apple-ui .experience-header.has-account .experience-header-actions > .theme-toggle { margin-inline-end: 12px; }
 }
-:root.apple-ui.apple-ui .experience.product-refresh .settings-view .experience-title { text-align: start; }
+:root.apple-ui.apple-ui .experience.product-refresh .settings-view .experience-title { text-align: start; margin-block-start: 0; }
 :root.apple-ui.apple-ui .explore-feed-description p { margin: 0; color: var(--muted); font-size: 0.9375rem; line-height: 1.6; }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .setting-row.setting-language { flex-wrap: nowrap; column-gap: 10px; }
@@ -2293,6 +2293,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .sheet-dialog:has(.sources-module) > .dialog-pages > .screen-page-viewport,
 :root.apple-ui.apple-ui .sheet-dialog:has(.sources-module) > .dialog-pages > .screen-page-viewport > .screen-page-content { height: 100%; min-height: 0; max-height: 100%; padding: 0; overflow: hidden; }
 :root.apple-ui.apple-ui .sheet-dialog:has(.sources-module) .sheet-head { position: relative; flex-shrink: 0; background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; text-shadow: none; }
+:root.apple-ui.apple-ui[data-theme="dark"] .sheet-dialog:has(.sources-module) .sheet-head { background: transparent; }
 :root.apple-ui.apple-ui .sheet-dialog:has(.sources-module) .sheet-head h2 { animation: none; transition: none; text-shadow: none; }
 :root.apple-ui.apple-ui .sources-post-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 :root.apple-ui.apple-ui .sources-post-actions a { overflow-wrap: normal; word-break: normal; }
@@ -2341,11 +2342,18 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience-header .experience-header-actions > .button-link { width: 80px; min-width: 80px; flex-basis: 80px; padding-inline: 6px; }
 }
 
-/* Keep Back reachable when feed actions and guest preferences outgrow one row. */
-@media (max-width: 899px) {
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { height: auto; max-height: none; flex-wrap: wrap; row-gap: 4px; }
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header > .experience-leading { flex: 0 0 auto; }
-  :root.apple-ui.apple-ui .feed-shell .experience-header.experience-header .experience-header-actions { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+/* Feed navigation stays on one row; extreme text sizes can scroll the rail. */
+:root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions > .button-link { width: auto; flex: 0 0 auto; }
+:root.apple-ui.apple-ui .shell.feed-shell > .experience-header { flex-wrap: nowrap; overflow-x: auto; }
+:root.apple-ui.apple-ui .shell.feed-shell > .experience-header > .experience-leading { flex: 0 0 auto; }
+:root.apple-ui.apple-ui .feed-shell .experience-header.experience-header .experience-header-actions { max-width: none; flex-wrap: nowrap; }
+:root.apple-ui.apple-ui .feed-shell .feed-nav-back { white-space: nowrap; }
+@media (max-width: 480px) {
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { gap: 0; }
+  :root.apple-ui.apple-ui .feed-shell .feed-nav-back { margin-inline-start: 0; padding-inline: 0; font-size: .75rem; }
+  :root.apple-ui.apple-ui .shell.feed-shell .experience-header.experience-header .experience-header-actions { gap: 0; }
+  :root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions > .language-cycle { width: 44px; min-width: 44px; flex-basis: 44px; padding-inline: 0; }
+  :root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions > .button-link { width: auto; min-width: 44px; flex: 0 0 auto; padding-inline: 4px; font-size: .75rem; }
 }
 
 /* Source actions keep their slots even when a hostname is very long. */
@@ -2363,7 +2371,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience-header .experience-header-actions { flex: 0 0 auto; }
 
 /* Scroll the page, never a separate feed-widget viewport. */
-:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] { height: auto; max-height: none; overflow: visible; scrollbar-gutter: auto; scroll-snap-type: none; }
+:root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] { height: auto; max-height: none; grid-auto-rows: minmax(var(--feed-row-height, 0px), auto); overflow: visible; scrollbar-gutter: auto; scroll-snap-type: none; }
 :root.apple-ui.apple-ui .app-pages > .screen-page-viewport:has(.adaptive-feed-grid) { scroll-snap-type: none; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid[data-layout="list"] > .topic-card { scroll-margin-top: 76px; }
 /* Sources has fixed content slots; long copy ends with an ellipsis. */
@@ -2715,3 +2723,147 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] .feed-card-identity > small { font-size: var(--widget-owner-size) !important; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] .feed-card-identity > :is(strong,small) { padding: 0; line-height: 1.4; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] .feed-updated-at { padding: 0 !important; min-height: 1.5em; font-size: .75rem !important; line-height: 1.5 !important; }
+
+/* Center the reader controls without stretching search across wide displays. */
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools {
+  width: 100%; max-width: 1040px; margin-inline: auto; box-sizing: border-box;
+  justify-self: center; align-self: center;
+}
+:root.apple-ui.apple-ui .feed-shell .feed-tools .feed-side-actions { min-width: 0; }
+:root.apple-ui.apple-ui .feed-shell .feed-check-status {
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  line-height: 1.4; text-align: center;
+}
+:root.apple-ui.apple-ui .feed-shell .unread-summary-card {
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+/* Shared Home/Explore widgets keep readable text and bounded artwork. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"] > .topic-card {
+  max-width: 440px; height: auto; overflow: visible; box-sizing: border-box;
+}
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"][data-size="large"] {
+  --widget-title-size: 1.0625rem; --widget-owner-size: .875rem;
+}
+
+/* The controls are centered; the generated catch-up belongs to the timeline. */
+:root.apple-ui.apple-ui .feed-shell .unread-summary-slot { grid-column: 1 / -1; width: 100%; min-width: 0; }
+:root.apple-ui.apple-ui .feed-shell .unread-summary-slot:empty { display: none; }
+:root.apple-ui.apple-ui .feed-shell .unread-summary-slot .unread-summary-section { width: 100%; max-width: none; text-align: start; }
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools { border: 0; box-shadow: none; background: transparent; }
+:root.apple-ui.apple-ui .feed-shell .feed-tools .search { border-radius: 999px; border-color: var(--line); }
+@media (min-width: 701px) {
+ :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:has(.feed-check-status):has(.unread-summary) { grid-template-columns: minmax(0,440px) max-content max-content; justify-content: center; gap: 16px; }
+}
+/* Password recovery uses the landing header unchanged and normal form sizing. */
+:root.apple-ui.apple-ui .reset-password-content { width: min(100%,640px); margin: 48px auto 32px; }
+:root.apple-ui.apple-ui .reset-password-heading { text-align: center; margin-bottom: 28px; }
+:root.apple-ui.apple-ui .reset-password-heading h1 { font-size: 32px; line-height: 1.2; font-weight: 700; letter-spacing: -.035em; margin: 0 0 10px; }
+:root.apple-ui.apple-ui .reset-password-heading > p { font-size: 16px !important; color: var(--muted); margin: 0; }
+:root.apple-ui.apple-ui .reset-password-form { display: grid; width: 100%; gap: 20px; padding: 24px; border: 1px solid color-mix(in srgb,var(--accent) 20%,var(--surface)); border-radius: 18px; background: var(--surface); }
+:root.apple-ui.apple-ui .reset-password-form > label { display: grid; gap: 10px; font-size: 16px; color: var(--text); }
+:root.apple-ui.apple-ui .reset-password-input { display: flex; align-items: center; min-width: 0; border: 1px solid color-mix(in srgb,var(--accent) 20%,var(--surface)); border-radius: 12px; background: color-mix(in srgb,var(--accent) 4%,var(--surface)); }
+:root.apple-ui.apple-ui .reset-password-input:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+:root.apple-ui.apple-ui .reset-password-input input { width: 0; flex: 1; min-width: 0; min-height: 48px; padding: 12px 14px; font: inherit; color: var(--text); background: transparent; border: 0; outline: 0; box-shadow: none; }
+:root.apple-ui.apple-ui .reset-password-input > button { flex: 0 0 44px; min-width: 44px; min-height: 44px; margin-inline-end: 4px; padding: 8px; border: 0; background: transparent; color: var(--muted); box-shadow: none; }
+:root.apple-ui.apple-ui .reset-password-form > .reset-password-save { justify-self: center; font-size: 18px; font-weight: 500; border: 0; border-radius: 8px; padding: 8px 20px; min-height: 44px; background: transparent !important; color: var(--accent) !important; box-shadow: none; }
+:root.apple-ui.apple-ui .reset-password-form > [role] { margin: 0; text-align: center; }
+:root.apple-ui.apple-ui .app-pages > .screen-page-viewport:has(.reset-password-page) { overflow-y: auto; overflow-x: hidden; scroll-snap-type: none; }
+@media(max-width:600px) {
+ :root.apple-ui.apple-ui .reset-password-content { margin-top: 32px; }
+ :root.apple-ui.apple-ui .reset-password-heading h1 { font-size: 26px; }
+ :root.apple-ui.apple-ui .reset-password-form { padding: 20px; }
+}
+/* Shrink the card contents together when the available height calls for it. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"][data-fit="compact"] > .topic-card { padding: 6px 8px !important; column-gap: 6px; row-gap: 2px; border-radius: 20px; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-fit="compact"] { --widget-title-size: .9375rem; --widget-owner-size: .8125rem; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-fit="compact"] .feed-card-identity { gap: 1px !important; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-fit="compact"] .feed-updated-at { font-size: .6875rem !important; line-height: 1.4 !important; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-fit="compact"] > .topic-card { grid-template-columns: var(--feed-art-size) minmax(0,1fr) 44px 44px !important; }
+@media(max-width:400px) {
+ :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-fit="compact"] > .topic-card { grid-template-columns: var(--feed-art-size) minmax(0,1fr) 44px !important; }
+}
+/* Mirror the account layout and directional controls for Arabic. */
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog { direction: rtl; text-align: start; }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog-content { direction: rtl; padding-inline: 0 24px; }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog :is(.profile-card-heading,.password-disclosure,.profile-username-field,.account-actions > button) { direction: rtl; }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog .profile-username-field { padding-inline: 14px 8px; }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog .password-disclosure:not([aria-expanded="true"]) > svg { transform: scaleX(-1); }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog .account-actions > button > svg { transform: scaleX(-1); }
+:root.apple-ui.apple-ui .profile-dialog :is(.profile-email,.profile-avatar) { direction: ltr; }
+@media(max-width:600px) {
+ :root.apple-ui.apple-ui[dir="rtl"] .profile-dialog-content { padding-inline: 16px; }
+}
+/* Keep reader search bounded even when there is no unread-summary action. */
+@media(min-width:701px) {
+ :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools { grid-template-columns: minmax(0,440px) max-content; justify-content: center; gap: 16px; }
+ :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:not(:has(.feed-check-status)):not(:has(.unread-summary)) { grid-template-columns: minmax(0,440px); }
+ :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:has(.feed-check-status):has(.unread-summary) { grid-template-columns: minmax(0,440px) max-content max-content; }
+}
+/* Feed-language menu: flags, soft selection, and a viewport-safe top layer. */
+:root.apple-ui.apple-ui .feed-settings-select { min-width: 0; width: 100%; }
+:root.apple-ui.apple-ui .feed-settings-trigger { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: var(--surface-quiet); box-shadow: none; font-size: 14px; font-weight: 500; }
+:root.apple-ui.apple-ui .feed-settings-trigger > span { flex: 1; min-width: 0; text-align: start; }
+:root.apple-ui.apple-ui .feed-settings-trigger > svg:last-child { flex-shrink: 0; }
+:root.apple-ui.apple-ui .feed-language-flag { display: block; width: 28px; height: 19px; flex: 0 0 28px; overflow: hidden; border-radius: 3px; box-shadow: 0 0 0 1px rgb(0 0 0 / 5%); }
+:root.apple-ui.apple-ui .feed-settings-menu { position: fixed; inset: auto; margin: 0; width: 240px; box-sizing: border-box; padding: 8px; border: 1px solid color-mix(in srgb,var(--accent) 14%,var(--surface)); border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: 0 12px 36px color-mix(in srgb,var(--accent) 12%,transparent); overflow: auto; }
+:root.apple-ui.apple-ui .feed-settings-menu > button { display: flex; align-items: center; justify-content: start; gap: 18px; width: 100%; min-height: 50px; padding: 12px 14px; border: 0; border-radius: 12px; background: transparent; color: var(--text); box-shadow: none; font-size: 16px; font-weight: 400; text-align: start; }
+:root.apple-ui.apple-ui .feed-settings-menu > button[aria-selected="true"] { background: color-mix(in srgb,var(--accent) 7%,var(--surface)); }
+:root.apple-ui.apple-ui .feed-settings-menu > button:is(:hover,:focus-visible) { background: color-mix(in srgb,var(--accent) 11%,var(--surface)); outline: none; }
+/* Dropdown fields and their menus share the same edges and pale violet finish. */
+:root.apple-ui.apple-ui .feed-settings-trigger { border-color: color-mix(in srgb,var(--accent) 28%,var(--surface)); background: color-mix(in srgb,var(--accent) 3%,var(--surface)); color: var(--text); border-radius: 14px; }
+:root.apple-ui.apple-ui .feed-settings-trigger > svg:last-child { color: color-mix(in srgb,var(--accent) 60%,var(--muted)); }
+:root.apple-ui.apple-ui .feed-language-badge { display: grid; place-items: center; flex: 0 0 28px !important; width: 28px; height: 28px; border-radius: 50%; color: var(--accent); background: color-mix(in srgb,var(--accent) 8%,var(--surface)); }
+:root.apple-ui.apple-ui .feed-settings-menu { width: auto; border-radius: 20px; padding: 5px; }
+:root.apple-ui.apple-ui .feed-settings-menu > button { min-height: 44px; padding: 9px 8px; gap: 10px; border-radius: 14px; font-size: 14px; overflow-wrap: anywhere; }
+/* Preferences expands inside one continuous card. */
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); min-width: 0; overflow: visible; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-card > .feed-preferences-disclosure { margin: 0; width: 100%; border: 0; border-radius: 18px; background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-card > .feed-preferences-disclosure[aria-expanded="true"] { border-bottom: 1px solid var(--line); border-radius: 18px 18px 0 0; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-card > .feed-preferences-fields:not([hidden]) { margin: 0; border: 0; border-radius: 0 0 18px 18px; background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-editor .feed-time-field { display: flex; align-items: center; min-width: 0; width: 100%; min-height: 44px; border: 1px solid color-mix(in srgb,var(--accent) 28%,var(--surface)); border-radius: 14px; background: color-mix(in srgb,var(--accent) 3%,var(--surface)); }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-time-field input[type="time"] { flex: 1; width: 0; min-width: 0; min-height: 44px; border: 0; border-radius: 14px; padding: 8px 10px; background: transparent; color: var(--text); font-size: 14px; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-time-field input::-webkit-calendar-picker-indicator { display: none; }
+:root.apple-ui.apple-ui .feed-editor .feed-time-field > button { flex: 0 0 36px; display: grid; place-items: center; padding: 4px; min-width: 36px; min-height: 44px; border: 0; background: transparent; color: var(--accent); box-shadow: none; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-time-field input[type="time"],
+:root.apple-ui.apple-ui .feed-editor .feed-time-field > button { min-height: 42px; }
+/* One divider separates the Schedule and General groups; rows stay unruled. */
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > * { border-top: 0; border-bottom: 0; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > .feed-preferences-group-label { border: 0; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > .feed-preferences-group-label:not(:first-child) { margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+/* Guest feed actions precede the same fixed language/theme/login rail as landing. */
+:root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions { gap: 20px; }
+@media(max-width:899px) {
+ :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions { gap: 4px; }
+}
+/* Arabic feed actions put the primary action on the right. */
+:root.apple-ui.apple-ui[dir="rtl"] .feed-editor .dialog-inner > .experience-dialog-actions { direction: ltr; }
+:root.apple-ui.apple-ui[dir="rtl"] .feed-editor .dialog-inner > .experience-dialog-actions > button { direction: rtl; }
+
+/* Arabic sentences keep terminal punctuation at their reading-direction end. */
+:root.apple-ui.apple-ui[dir="rtl"] .auth-unavailable :is(h2,p) { direction: rtl; unicode-bidi: plaintext; }
+/* Arabic account-management chevrons point toward the RTL navigation direction. */
+:root.apple-ui.apple-ui[dir="rtl"] :is(.managed-user-settings,.managed-user-feeds):not([open]) > summary > svg:last-child,
+:root.apple-ui.apple-ui[dir="rtl"] .managed-user-suspend > svg:last-child { transform: scaleX(-1); }
+/* The account role filter uses the shared rounded, aligned dropdown. */
+:root.apple-ui.apple-ui .users-role-filter { width: 160px; min-width: 0; flex: 0 0 160px; }
+:root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { min-height: 46px; }
+@media(max-width:600px) { :root.apple-ui.apple-ui .users-role-filter { width: 140px; flex-basis: 140px; } }
+/* Role filtering uses a white surface rather than the feed preferences tint. */
+:root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { background: var(--surface); }
+:root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { border-color: var(--line); }
+:root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger > svg:last-child { color: var(--muted); }
+/* Center recovery headings explicitly without changing RTL form text. */
+:root.apple-ui.apple-ui .reset-password-page .reset-password-heading > :is(h1,p) { text-align: center; }
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui[dir="rtl"] .bottom-navigation { direction: rtl; }
+}
+
+@media (max-width: 480px) {
+  :root.apple-ui.apple-ui .feed-shell .experience-header-actions .feed-header-actions > .star-vote { flex-basis: 44px; width: 44px; min-width: 44px; gap: 2px; }
+}
+
+@media (max-width: 360px) {
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { width: calc(100% + 32px); margin-inline: -16px; }
+}

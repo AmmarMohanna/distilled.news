@@ -1,6 +1,6 @@
 import {expect,it} from 'vitest';
 import {Temporal} from '@js-temporal/polyfill';
-import {LIVE_INTERVALS,livePublicationWindow,liveScheduleSchema,publicationWindowSchema,nextLiveBriefingAt} from './schedule';
+import {LIVE_INTERVALS,livePublicationWindow,liveScheduleSchema,publicationWindowSchema,nextLiveBriefingAt,firstClockBriefingAt,DELIVERY_LEAD_MS} from './schedule';
 import {publicationWindow,isAutomaticReportingWindow} from './runtime';
 it('one-off evaluation windows remain callable but are not automatic reporting intervals',()=>{
  expect(isAutomaticReportingWindow({start:'2026-10-18T17:29:22.206Z',end:'2026-10-19T17:29:22.206Z',kind:'DAILY'})).toBe(false);
@@ -116,4 +116,49 @@ it('the existing collection-window helper starts the new feed scan at its precis
  const {feedFixture}=await import('./test-utils');
  const originAt='2026-10-22T16:05:40.123Z';
  expect(initialCollectionStart({...feedFixture,createdAt:originAt,briefingSchedule:{durationMinutes:30,timezone:'Asia/Beirut',originAt}},'2026-10-22T16:06:00Z')).toBe(originAt);
+});
+
+it.each([
+ [30,'2026-10-29T03:08:40.123Z','2026-10-29T03:30:00.000Z'],
+ [30,'2026-10-29T03:10:00Z','2026-10-29T03:30:00.000Z'],
+ [30,'2026-10-29T03:10:00.001Z','2026-10-29T04:00:00.000Z'],
+ [30,'2026-10-29T03:38:00Z','2026-10-29T04:00:00.000Z'],
+ [60,'2026-10-29T03:08:00Z','2026-10-29T04:00:00.000Z'],
+ [60,'2026-10-29T03:11:00Z','2026-10-29T05:00:00.000Z'],
+ [120,'2026-10-29T02:08:00Z','2026-10-29T04:00:00.000Z'],
+ [120,'2026-10-29T02:11:00Z','2026-10-29T06:00:00.000Z'],
+ [360,'2026-10-29T18:08:00Z','2026-10-30T00:00:00.000Z'],
+ [720,'2026-10-29T12:08:00Z','2026-10-30T00:00:00.000Z'],
+ [1440,'2026-10-29T08:08:00Z','2026-10-30T08:00:00.000Z'],
+] as const)('clock delivery %i created %s first closes for %s',(durationMinutes,clockStartAt,expected)=>{
+ const schedule={durationMinutes,clockStartAt,timezone:'UTC',deliveryAnchor:durationMinutes===1440?'08:00':'00:00'};
+ expect(firstClockBriefingAt(schedule)).toBe(expected);
+ expect(nextLiveBriefingAt(schedule,new Date(clockStartAt))).toBe(expected);
+ const first=livePublicationWindow(schedule,new Date(Date.parse(expected)-DELIVERY_LEAD_MS));
+ expect(first).toMatchObject({start:clockStartAt,end:new Date(Date.parse(expected)-DELIVERY_LEAD_MS).toISOString(),scheduledFor:expected,schedulePolicy:'clock-aligned-delivery-v1'});
+ expect(publicationWindowSchema.safeParse(first).success).toBe(true);expect(isAutomaticReportingWindow(first)).toBe(true);
+ expect(publicationWindowSchema.safeParse({...first,scheduledFor:new Date(Date.parse(expected)+60000).toISOString()}).success).toBe(false);
+ const secondDelivery=nextLiveBriefingAt(schedule,new Date(expected)),second=livePublicationWindow(schedule,new Date(Date.parse(secondDelivery)-DELIVERY_LEAD_MS));
+ expect(second.start).toBe(first.end);
+});
+it.each(['2026-03-08T06:08:00Z','2026-11-01T05:08:00Z','2026-10-29T23:38:00Z'])('clock windows retain contiguous cutoffs across midnight and DST from %s',clockStartAt=>{
+ const schedule={durationMinutes:30 as const,timezone:'America/New_York',clockStartAt};
+ let delivery=firstClockBriefingAt(schedule),end=clockStartAt;
+ for(let i=0;i<6;i++){
+  const window=livePublicationWindow(schedule,new Date(Date.parse(delivery)-DELIVERY_LEAD_MS));
+  expect(window.start).toBe(end);expect(Date.parse(window.end)).toBeGreaterThan(Date.parse(end));expect(publicationWindowSchema.safeParse(window).success).toBe(true);
+  expect([0,30]).toContain(Temporal.Instant.from(delivery).toZonedDateTimeISO(schedule.timezone).minute);
+  end=window.end;delivery=nextLiveBriefingAt(schedule,new Date(delivery));
+ }
+});
+it('starts collection at actual creation rather than the future early cutoff',async()=>{
+ const {initialCollectionStart}=await import('../connector-collection-window'),{feedFixture}=await import('./test-utils');
+ const clockStartAt='2026-10-29T03:08:40.123Z';
+ expect(initialCollectionStart({...feedFixture,createdAt:clockStartAt,briefingSchedule:{durationMinutes:30,timezone:'UTC',clockStartAt}},clockStartAt)).toBe(clockStartAt);
+});
+it('does not allow a new subdaily clock policy to shift deliveries to :15 or :45',()=>{
+ expect(()=>nextLiveBriefingAt({durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-29T03:08:00Z',deliveryAnchor:'00:15'},new Date('2026-10-29T03:08:00Z'))).toThrow();
+ expect(()=>nextLiveBriefingAt({durationMinutes:1440,timezone:'UTC',clockStartAt:'2026-10-29T03:08:00Z',deliveryAnchor:'08:15'},new Date('2026-10-29T03:08:00Z'))).toThrow();
+ expect(nextLiveBriefingAt({durationMinutes:1440,timezone:'UTC',clockStartAt:'2026-10-29T03:08:00Z',deliveryAnchor:'08:30'},new Date('2026-10-29T03:08:00Z'))).toContain('08:30:00');
+ expect(nextLiveBriefingAt({durationMinutes:1440,timezone:'UTC',deliveryAnchor:'08:15'},new Date('2026-10-29T03:08:00Z'))).toBe('2026-10-29T08:15:00.000Z');
 });

@@ -2035,6 +2035,25 @@ describe("worker app accounts", () => {
     expect(writes).toHaveLength(2);
   });
 
+  it.each(["جود-سنان", "élodie-françois"])("supports Unicode account creation, renaming and encoded feed aliases: %s", async (username) => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "unicode@test.com", username);
+    expect((await repo.resolveUsernameAlias(username))?.account.username).toBe(username);
+    const rename = await app.request("/api/me/account", {
+      method: "PATCH", headers: { "content-type": "application/json", cookie: user.cookie },
+      body: JSON.stringify({ username: `${username}-2` })
+    }, env());
+    expect(rename.status).toBe(200);
+    expect(await rename.json()).toMatchObject({ account: { username: `${username}-2` } });
+    const apiRedirect = await app.request(`/api/feed/${encodeURIComponent(username)}/personal`, {}, env());
+    expect(apiRedirect.status).toBe(301);
+    expect(decodeURI(apiRedirect.headers.get("location")!)).toContain(`/${username}-2/personal`);
+    const pageRedirect = await app.request(`/${encodeURIComponent(username)}/personal/`, {}, env());
+    expect(pageRedirect.status).toBe(301);
+    expect(decodeURI(pageRedirect.headers.get("location")!)).toContain(`/${username}-2/personal/`);
+  });
+
   it("redirects reserved old usernames after username changes", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -2366,13 +2385,26 @@ async function createVerifiedUser(
   return { account, cookie: login.headers.get("set-cookie")?.split(";")[0] ?? "" };
 }
 
+it('uses each request language for signup and reset mail independently', async () => {
+  const repo = new InMemoryRepository(), app = createApp({repository: repo}), mail = new FakeEmail(), config = env(mail);
+  const post = (path: string, body: unknown) => app.request(path, {method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify(body)}, config);
+  expect((await post('/api/auth/register', {email:'language@example.com',username:'Home',password:'local-fixture-123',language:'ar'})).status).toBe(200);
+  expect(mail.messages[0].subject).toContain('تأكيد');
+  expect(mail.messages[0].html).toContain('lang="ar" dir="rtl"');
+  expect((await post('/api/auth/verify-email', {token:tokenFromMessage(mail.messages[0].text)})).status).toBe(200);
+  expect((await post('/api/auth/password/forgot', {email:'language@example.com',language:'fr'})).status).toBe(200);
+  expect(mail.messages[1].subject).toContain('Réinitialisez');
+  expect(mail.messages[1].text).toContain('&lang=fr');
+  expect((await post('/api/auth/password/reset', {token:tokenFromMessage(mail.messages[1].text),password:'another-local-fixture'})).status).toBe(200);
+});
+
 function tokenFromMessage(text: string | undefined): string {
-  const token = text?.match(/token=([^\s]+)/)?.[1];
+  const token = text?.match(/token=([^&\s]+)/)?.[1];
   if (!token) throw new Error("token not found in email");
   return decodeURIComponent(token);
 }
 
-it('creates precise relative schedules and preserves their phase on title/timezone edits and interval changes',async()=>{
+it('creates clock-aligned schedules only for new feeds and preserves them on ordinary edits',async()=>{
  let at=new Date('2026-10-22T16:05:40.123Z');
  const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>at});
  const user=await createVerifiedUser(app,repo,'relative-owner@test.com','Relative Owner');
@@ -2382,13 +2414,18 @@ it('creates precise relative schedules and preserves their phase on title/timezo
   expect(r.status).toBe(200);return (await r.json() as {briefing:import('@distilled/core').BriefingConfig}).briefing;
  };
  const feed=await save({...original,id:'relative-feed',slug:'relative',updateIntervalMinutes:30});
- expect(feed.briefingScheduleOriginAt).toBe('2026-10-22T16:05:40.123Z');expect(feed.nextBriefingAt).toBe('2026-10-22T16:35:40.123Z');
+ expect(feed.briefingScheduleOriginAt).toBeUndefined();expect(feed.briefingScheduleClockStartAt).toBe('2026-10-22T16:05:40.123Z');expect(feed.nextBriefingAt).toBe('2026-10-22T16:30:00.000Z');
  at=new Date('2026-10-22T16:45:00Z');
  const title=await save({...feed,title:'Renamed'});expect(title.nextBriefingAt).toBe(feed.nextBriefingAt);expect(title.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);
- const zone=await save({...title,briefingTimezone:'America/New_York'});expect(zone.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(zone.nextBriefingAt).toBe('2026-10-22T17:05:40.123Z');
+ const zone=await save({...title,briefingTimezone:'America/New_York'});expect(zone.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(zone.nextBriefingAt).toBe('2026-10-22T17:00:00.000Z');
  const hourly=await save({...zone,updateIntervalMinutes:60});
- expect(hourly.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(hourly.nextBriefingAt).toBe('2026-10-22T17:05:40.123Z');
+ expect(hourly.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(hourly.nextBriefingAt).toBe('2026-10-22T17:00:00.000Z');
  const again=await save({...hourly,title:'Renamed again'});expect(again.briefingScheduleOriginAt).toBe(hourly.briefingScheduleOriginAt);expect(again.nextBriefingAt).toBe(hourly.nextBriefingAt);
+ expect(again.briefingScheduleClockStartAt).toBe(feed.briefingScheduleClockStartAt);
+ const invalid=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...feed,id:'clock-daily-invalid',slug:'clock-daily-invalid',updateIntervalMinutes:1440,briefingTimeOfDay:'08:15'})},env());
+ expect(invalid.status).toBe(400);
+ const daily=await save({...feed,id:'clock-daily',slug:'clock-daily',updateIntervalMinutes:1440,briefingTimeOfDay:'08:30'});
+ expect(daily.nextBriefingAt).toContain(':30:00.000Z');expect(daily.briefingScheduleClockStartAt).toBe(at.toISOString());
 });
 it('editing an existing clock-aligned feed does not opt it into relative scheduling',async()=>{
  const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>new Date('2026-10-22T16:05:40Z')});
@@ -2398,4 +2435,10 @@ it('editing an existing clock-aligned feed does not opt it into relative schedul
  const r=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...legacy,title:'Still legacy'})},env());
  expect(r.status).toBe(200);expect((await r.json() as any).briefing).toMatchObject({nextBriefingAt:legacy.nextBriefingAt});
  expect((await repo.getBriefingById(original.id))?.briefingScheduleOriginAt).toBeUndefined();
+ expect((await repo.getBriefingById(original.id))?.briefingScheduleClockStartAt).toBeUndefined();
+ const originAt='2026-10-22T16:05:40.123Z';
+ const relative=await repo.upsertBriefing({...legacy,briefingScheduleOriginAt:originAt,nextBriefingAt:'2026-10-22T16:35:40.123Z'});
+ const renamed=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...relative,title:'Still relative'})},env());
+ expect(renamed.status).toBe(200);expect((await renamed.json() as any).briefing).toMatchObject({briefingScheduleOriginAt:originAt,nextBriefingAt:relative.nextBriefingAt});
+ expect((await repo.getBriefingById(original.id))?.briefingScheduleClockStartAt).toBeUndefined();
 });

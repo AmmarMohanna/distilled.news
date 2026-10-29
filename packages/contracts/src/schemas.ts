@@ -44,10 +44,11 @@ const intakeReasons = ["ACCEPTED_NEW_ITEM", "ACCEPTED_NEW_OBSERVATION", "REPLAY_
 export const intakeReceiptSchema = z.object({
   id: idSchema, observationId: idSchema, ...scope, sourceItemKey: idSchema,
   decision: z.enum(["ACCEPTED", "REPLAY", "IGNORED", "DELETION_ACCEPTED", "REJECTED", "QUARANTINED"]), reasonCode: z.enum(intakeReasons),
-  checkpointResolution: z.enum(["RESOLVED", "UNRESOLVED"]), candidateItemId: idSchema.optional(), tombstoneId: idSchema.optional(), decidedAt: timestampSchema, intakePolicyVersion: idSchema
+  checkpointResolution: z.enum(["RESOLVED", "UNRESOLVED"]), replayDiagnostic: z.literal("VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED").optional(), candidateItemId: idSchema.optional(), tombstoneId: idSchema.optional(), decidedAt: timestampSchema, intakePolicyVersion: idSchema
 }).strict().superRefine((v, ctx) => {
   const allowed = { ACCEPTED: ["ACCEPTED_NEW_ITEM", "ACCEPTED_NEW_OBSERVATION"], REPLAY: ["REPLAY_IDENTICAL"], IGNORED: ["IGNORED_STALE_OBSERVATION"], DELETION_ACCEPTED: ["ACCEPTED_DELETION"], REJECTED: ["REJECT_QUERY_RESTRICTION", "REJECT_INVALID_IDENTITY", "REJECT_UNSUPPORTED"], QUARANTINED: ["QUARANTINE_MISSING_VALIDATION_FIELDS", "QUARANTINE_REVISION_CONFLICT"] };
   if (!allowed[v.decision].includes(v.reasonCode)) ctx.addIssue({ code: "custom", message: "Decision/reason mismatch" });
+  if (v.replayDiagnostic && v.decision !== "REPLAY") ctx.addIssue({ code: "custom", message: "Replay diagnostic requires replay decision" });
   if ((v.decision === "QUARANTINED") !== (v.checkpointResolution === "UNRESOLVED")) ctx.addIssue({ code: "custom", message: "Invalid checkpoint resolution" });
   if (["ACCEPTED", "REPLAY"].includes(v.decision) && !v.candidateItemId) ctx.addIssue({ code: "custom", message: "Candidate reference required" });
   if (v.decision === "DELETION_ACCEPTED" && (!v.tombstoneId || v.candidateItemId)) ctx.addIssue({ code: "custom", message: "Deletion requires tombstone and no candidate" });

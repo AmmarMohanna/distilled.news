@@ -308,7 +308,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export async function runScheduledMaintenance(env: Env): Promise<void> {
   // Reclaim transient storage before any scheduler tries to create more work.
-  if(env.STORAGE_MAINTENANCE_ENABLED==='true')try {await runStorageMaintenance(env)}
+  if(env.STORAGE_MAINTENANCE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
   catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   env = await productRuntimeEnv(env);
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}

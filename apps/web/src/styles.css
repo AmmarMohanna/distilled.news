@@ -2158,3 +2158,11 @@ html[dir="rtl"] .news-item {
     font-size: 16px;
   }
 }
+
+.source-diagnostics { margin-block: 1rem; min-width: 0; max-width: 100%; color: var(--muted); overflow-wrap: anywhere; }
+.source-diagnostics > summary { cursor: pointer; width: fit-content; max-width: 100%; }
+.source-diagnostics > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.source-diagnostics h3 { font-size: 1rem; margin-block: 1rem .5rem; }
+.source-diagnostics p { margin-block: .5rem; }
+.source-diagnostics ul { padding-inline-start: 1.5rem; }
+.source-diagnostics li { margin-block: .5rem; }

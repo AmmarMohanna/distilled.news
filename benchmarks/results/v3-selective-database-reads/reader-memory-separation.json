@@ -1,0 +1,43 @@
+{
+  "scope": "Separate local runs of identical synthetic fixture; not concurrent live A/B. all() metrics only; first() excluded. Raw prior differs but article input and model-selected prior match.",
+  "baseline": [
+    {
+      "history": 0,
+      "elapsedMs": 183.39089999999942,
+      "measuredAllRowsRead": 7,
+      "returnedBytes": 1172
+    },
+    {
+      "history": 100,
+      "elapsedMs": 210.78199999999924,
+      "measuredAllRowsRead": 208,
+      "returnedBytes": 128471
+    },
+    {
+      "history": 500,
+      "elapsedMs": 252.97360000000117,
+      "measuredAllRowsRead": 1008,
+      "returnedBytes": 637671
+    }
+  ],
+  "candidate": [
+    {
+      "history": 0,
+      "elapsedMs": 227.86589999999887,
+      "measuredAllRowsRead": 7,
+      "returnedBytes": 1172
+    },
+    {
+      "history": 100,
+      "elapsedMs": 178.52200000000084,
+      "measuredAllRowsRead": 208,
+      "returnedBytes": 12171
+    },
+    {
+      "history": 500,
+      "elapsedMs": 237.16330000000016,
+      "measuredAllRowsRead": 1008,
+      "returnedBytes": 56171
+    }
+  ]
+}

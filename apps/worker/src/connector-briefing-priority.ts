@@ -11,7 +11,9 @@ export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=n
  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return false;
  const row=await env.DB.prepare(`SELECT r.id,r.json FROM v1_feed_documents r JOIN briefings b ON b.id=r.feed_id JOIN accounts a ON a.id=b.owner_account_id
  WHERE r.feed_id=? AND r.kind='briefing_requests' AND b.paused=0 AND a.disabled_at IS NULL AND json_extract(r.json,'$.state')='PENDING'
- AND COALESCE(json_extract(r.json,'$.reason'),'')<>'MODEL_SETUP_REQUIRED'
+ -- Match the canonical relay: unknown paid outcomes need recovery, not another
+ -- priority delivery occupying this feed's single intelligence slot.
+ AND COALESCE(json_extract(r.json,'$.reason'),'') NOT IN ('MODEL_SETUP_REQUIRED','SEMANTIC_OUTCOME_UNKNOWN')
  AND julianday(json_extract(r.json,'$.window.end'))<=julianday(?) AND julianday(b.created_at)<julianday(json_extract(r.json,'$.window.end'))
  AND (json_extract(r.json,'$.nextAttemptAt') IS NULL OR julianday(json_extract(r.json,'$.nextAttemptAt'))<=julianday(?))
  AND NOT EXISTS(SELECT 1 FROM v1_feed_documents j WHERE j.feed_id=r.feed_id AND j.kind='synthesis_jobs' AND j.id=r.id)
@@ -21,6 +23,6 @@ export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=n
  const request=JSON.parse(row.json),window=publicationWindowSchema.safeParse(request.window);if(!window.success)return false;
  if(!isAutomaticReportingWindow(window.data))return false;
  if((request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!createStoredEvidenceModel(env))return false;
- if(await jobsHoldingWindow(env.DB,feedId,window.data.end)||(await pendingWindowCollections(env.DB,feedId,window.data.end)).pending)return false;
+ if(await jobsHoldingWindow(env.DB,feedId,window.data.end)||(await pendingWindowCollections(env.DB,feedId,window.data.end,request.engine==='v3'||!request.engine&&env.BRIEFING_ENGINE==='v3')).pending)return false;
  return enqueueV1(env,'v1_briefing',row.id,{type:'v1_briefing',feedId,window:window.data},now);
 }

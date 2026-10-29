@@ -1,4 +1,4 @@
-import {productV3Enabled,productV3Ready,productV3Models,prepareV3Window,publishProductV3Window} from './v3-window';
+import {productV3Enabled,productV3Ready,productV3Models,prepareV3Window,publishProductV3Window,SettledV3CallFailure} from './v3-window';
 import {retainBacklogReview,backlogRevisionIds} from './review-admission';
 import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
@@ -43,7 +43,7 @@ import {prepareEditorialPlan} from './editorial-plan';
 import {createStrongSemanticModel} from './semantic-model';
 import type {FeedRecord} from './types';
 import {synchronizeV1ProductSource} from './product';
-import {publicationWindowSchema,livePublicationWindow,preparingLiveWindow} from './schedule';
+import {publicationWindowSchema,livePublicationWindow,preparingLiveWindow,nextLiveBriefingAt,DELIVERY_LEAD_MS} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
@@ -84,7 +84,7 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  // Newly acquired V3 evidence needs no semantic preprocessor. Leave previously
  // started V2 operations and rematches on their original recovery path.
  if(productV3Enabled(env)){
-  const started=await env.DB.prepare("SELECT 1 FROM v1_feed_documents d JOIN v1_revisions r ON json_extract(r.json,'$.sourceObservationId')=? WHERE d.feed_id=? AND d.kind='semantic_intents' AND EXISTS(SELECT 1 FROM json_each(d.json,'$.input.evidenceRevisionIds') WHERE value=r.id) LIMIT 1").bind(row.value.observationId,scope.scope.feedId).first();
+  const started=await new V1FeedStore(env.DB).hasSemanticIntentForObservation(scope.scope.feedId,row.value.observationId);
   if(!started)return withFeedWriteTurn(env,scope.scope.feedId,()=>feedTransact(new V1FeedStore(env.DB),scope.scope.feedId,async tx=>{const job=await intake.read<DownstreamJob>('jobs',id);if(!job||job.feedSourceId!==row.feedSourceId)throw new HandoffError('SCOPE_DENIED');tx.completeJob(job.value);return 'DONE';}),`review:${id}`);
  }
  if(editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT)==='EVIDENCE_GROUNDED_V2'&&await withFeedWriteTurn(env,scope.scope.feedId,()=>retainBacklogReview(new V1FeedStore(env.DB),id,now),`admission:${id}`))return 'BACKLOG_RETAINED';
@@ -156,14 +156,15 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  }
  const request=await feedTransact(store,feedId,async tx=>{
   const prior=await tx.read<BriefingRequest>('briefing_requests',id);if(prior?.engine)return prior;
-  const hasV2=Boolean(await tx.store.db.prepare("SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.budgetKey')=? LIMIT 1").bind(feedId,`editorial:${window.start}:${window.end}`).first())||Boolean(await tx.read('synthesis_jobs',id))||(await tx.list<import('./editorial-plan').EditorialPlanRecord>('editorial_plans')).some(p=>p.window.start===window.start&&p.window.end===window.end);
+  const hasV2=Boolean(await tx.store.db.prepare("SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.budgetKey')=? LIMIT 1").bind(feedId,`editorial:${window.start}:${window.end}`).first())||Boolean(await tx.read('synthesis_jobs',id))||Boolean(await tx.store.db.prepare("SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='editorial_plans' AND json_extract(json,'$.window.start')=? AND json_extract(json,'$.window.end')=? LIMIT 1").bind(feedId,window.start,window.end).first());
   const value:BriefingRequest={...(prior??{id,feedId,window,state:'PENDING' as const,attempts:0,createdAt:now()}),engine:productV3Enabled(env)&&!hasV2?'v3':'v2'};await tx.write('briefing_requests',id,value);return value;
  });
  if(request.state==='FAILED') throw new HandoffError('INVALID_REQUEST');
  if(request.state==='DONE') return undefined;
+ if(request.reason==='AWAITING_SCHEDULED_DELIVERY'&&request.nextAttemptAt&&Date.parse(request.nextAttemptAt)>Date.parse(now()))return undefined;
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
- for(const older of orderedPendingWindows(await store.list<BriefingRequest>(feedId,'briefing_requests'),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
+ for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
   if(await jobsHoldingWindow(env.DB,feedId,older.window.end)||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
@@ -186,6 +187,9 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  let failureStage='SHORTLIST';
  try {
   if(request.engine==='v3')return await publishProductV3Window(env,feedId,window,id,now,fetcher);
+  if(window.scheduledFor&&Date.parse(now())<Date.parse(window.scheduledFor)){
+   await feedTransact(store,feedId,tx=>tx.write('briefing_requests',id,{...request,reason:'AWAITING_SCHEDULED_DELIVERY',nextAttemptAt:window.scheduledFor}));return undefined;
+  }
   // A configured writer model only ever sees the approved facts of an EditorialPlan, so model-backed synthesis implies the plan path;
   // the deterministic fallback plan is used when no strong planning model is available. The writer never fixes upstream selection.
   const writer=createStoredEvidenceModel(env,fetcher);
@@ -254,6 +258,13 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   // the frozen work and let transport rotate without consuming its retries.
   if(error instanceof IntelligenceTurnBusy||error instanceof SemanticLeaseError||error instanceof SemanticContentionError)throw error;
   if(error instanceof QuietPublication){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(current)await tx.write('briefing_requests',id,{...current,coverage,...(coverage.state!=='COMPLETE'||current.semanticCoverage?.unresolvedTargets.length?{state:'DONE',result:'DEFERRED',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP',completedAt:now()}: {})})});return undefined;}
+  if(error instanceof SettledV3CallFailure){
+   // The frozen call can only replay the same failed result. Keep its receipt
+   // and unresolved evidence; let subsequent windows proceed without resending it.
+   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING')await tx.write('briefing_requests',id,{...current,state:'FAILED',failure:error.message,reason:error.message});});
+   console.warn(JSON.stringify({type:'V3_SETTLED_CALL_FAILED',feedId,requestId:id,operationId:error.operationId}));
+   return undefined;
+  }
   const waitingJob=await store.read<{state:string;failure?:string}>(feedId,'synthesis_jobs',id);
   if(error instanceof ModelSpendingWait||waitingJob?.state==='PENDING'&&waitingJob.failure&&/ACCOUNT_|PROVIDER_RESOURCE|PROVIDER_LIMIT|AUTHORIZATION|EXECUTION_YIELD|MODEL_UNQUALIFIED|MODEL_BINDING|MODEL_CONTEXT|PAID_RESULT_AWAITING/.test(waitingJob.failure)){const reason=error instanceof ModelSpendingWait?error.reason:waitingJob!.failure!;await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!==reason)await tx.write('briefing_requests',id,{...current,reason,nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()})});return undefined;}
   console.error(JSON.stringify({type:'V1_BRIEFING_ATTEMPT_FAILED',feedId,requestId:id,stage:failureStage,error:error instanceof Error?error.message.slice(0,300):'UNKNOWN'}));
@@ -279,7 +290,10 @@ async function maintenance(feedId:string,step:string,run:()=>Promise<void>):Prom
  * arrived later belongs to a later window, so continuous arrivals cannot postpone an earlier boundary, and
  * nothing is lost: that job keeps running on the ordinary queue and its Event lands in the next window. */
 export async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:string):Promise<number> {
- const row=await db.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND NOT (json_extract(j.json,'$.state')='PENDING' AND (COALESCE(json_extract(j.json,'$.failureDetail'),'')='ARTICLE_PROVIDER_RECONCILIATION_WAIT' OR (json_extract(j.json,'$.kind')='ACQUIRE' AND COALESCE(json_extract(j.json,'$.failureCode'),'')='BUDGET_EXHAUSTED'))) AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))").bind(feedId,windowEnd).first<{n:number}>();
+ // Keep both explicit reconciliation dependencies and confirmed acquisition-budget
+ // waits recoverable without holding healthy-source publication. Other live work
+ // retains its existing readiness and paid-operation protections.
+ const row=await db.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND NOT (json_extract(j.json,'$.state')='PENDING' AND COALESCE(json_extract(j.json,'$.failureDetail'),'')='ARTICLE_PROVIDER_RECONCILIATION_WAIT') AND NOT (json_extract(j.json,'$.kind')='ACQUIRE' AND json_extract(j.json,'$.state')='PENDING' AND COALESCE(json_extract(j.json,'$.failureCode'),'')='BUDGET_EXHAUSTED') AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))").bind(feedId,windowEnd).first<{n:number}>();
  return row?.n??0;
 }
 /** Relay uses durable pending jobs and edition/window identities on the existing queue. */
@@ -301,7 +315,10 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   if(!productV3Enabled(env))await maintenance(id,'EXTRACTION_UPGRADE',async()=>{
    if(feed.briefingSchedule||feed.briefingFrequency!=='WEEKLY'){const upgradeWindow=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);if(await hasUnscheduledExtractionUpgrade(store,id,upgradeWindow))await feedTransact(store,id,tx=>scheduleExtractionUpgrades(tx,upgradeWindow,now.toISOString()))}
   });
-  await maintenance(id,'REMATCH_DISPATCH',async()=>{
+  // V3 does not consume the V2 graph. Preserve explicit unfinished V2 windows,
+  // but do not repeatedly replay retired graph history for V3-only feeds.
+  const legacyWindow=productV3Enabled(env)?await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') AND json_extract(json,'$.engine')='v2' LIMIT 1").bind(id).first():true;
+  if(legacyWindow)await maintenance(id,'REMATCH_DISPATCH',async()=>{
     const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts'),publishers=new Map((await store.currentEvidence(id)).map(e=>[e.revision.id,e.item.feedSourceId]));
     const protectedIds=await protectedRematchRevisionIds(store,id);
     if(now.getUTCMinutes()%15===0)console.info(JSON.stringify({type:'V1_SEMANTIC_BACKPRESSURE',feedId:id,...semanticBacklogMetrics(rematches,attempts,protectedIds,now.toISOString(),feed.briefingSchedule?.durationMinutes??(feed.briefingFrequency==='30M'?30:feed.briefingFrequency==='HOURLY'?60:1440))}));
@@ -319,7 +336,17 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
   let window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);
-  if(feed.briefingSchedule?.originAt&&feed.briefingSchedule.durationMinutes<1440){
+  if(feed.briefingSchedule?.clockStartAt){
+   const schedule=feed.briefingSchedule,clockStartAt=schedule.clockStartAt!;
+   const last=await env.DB.prepare(`SELECT json_extract(json,'$.window.end') AS end FROM v1_feed_documents
+    WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.clockStartAt')=?
+    AND json_extract(json,'$.window.durationMinutes')=? ORDER BY json_extract(json,'$.window.end') DESC LIMIT 1`)
+    .bind(id,clockStartAt,schedule.durationMinutes).first<{end:string}>();
+   const nextDelivery=last?nextLiveBriefingAt(schedule,new Date(Date.parse(last.end)+DELIVERY_LEAD_MS)):undefined;
+   const next=livePublicationWindow(schedule,new Date(nextDelivery?Date.parse(nextDelivery)-DELIVERY_LEAD_MS:clockStartAt));
+   if(Date.parse(next.end)<=Date.parse(window.end))window=next;
+  }
+  else if(feed.briefingSchedule?.originAt&&feed.briefingSchedule.durationMinutes<1440){
    // Materialize one consecutive close per tick, including after an outage or
    // a shorter interval edit. Retained requests keep their original windows.
    const schedule=feed.briefingSchedule,requests=await store.list<BriefingRequest>(id,'briefing_requests');
@@ -327,6 +354,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    const next=through+schedule.durationMinutes*60000;
    if(next<=Date.parse(window.end))window=livePublicationWindow(schedule,new Date(next));
   }
+  if(Date.parse(window.end)>now.getTime())continue;
   const editionId=await windowIdentity(id,window),pending={n:await jobsHoldingWindow(env.DB,id,window.end)};
   // Preparation is a read-through mechanical shortlist, not an early edition
   // or a frozen paid editorial decision. Final arrivals are reloaded at close.
@@ -365,7 +393,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   const coverage=await windowIntakeCoverage(env.DB,id,window.end),waiting=Boolean(pending?.n),current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
   const coverageReason=waiting?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
   if(current?.state==='PENDING'&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;await tx.write('briefing_requests',editionId,{...request,coverage,...(coverageReason?{reason:coverageReason}:request.reason==='AWAITING_INTAKE_REASSESSMENT'?{reason:undefined}:{})})});
-  const requests=await store.list<BriefingRequest>(id,'briefing_requests');
+  const requests=await store.pendingBriefingRequests(id);
   for(const request of orderedPendingWindows(requests,now.toISOString()).filter(r=>isAutomaticReportingWindow(r.window))) {
    if(await editorialWindowAwaitingRecovery(env.DB,id,request.window,request.reason))continue;
    if(request.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){

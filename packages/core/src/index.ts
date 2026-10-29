@@ -1,4 +1,5 @@
 export * from "./clustering";
+export * from "./username";
 export * from "./cadence";
 export * from "./editions";
 export * from "./events";

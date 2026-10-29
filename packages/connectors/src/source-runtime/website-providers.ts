@@ -74,7 +74,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       return {items,raw:new TextEncoder().encode(html),complete:false,
         continuationToken:offset+input.limit<links.length?String(offset+input.limit):undefined,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
-    if(!string(result.body)||result.body.length<200)throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
+    if(!string(result.body)||result.body.length<(result.pageKind==='catalogue'||result.contentCompleteness==='PARTIAL'?80:200))throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
     const unreadable=unreadableArticleReason(result.body);
     if(unreadable)throw new SourceProviderError('MALFORMED',undefined,{detail:unreadable});
     const dates=readArticleDateMetadata(html,url);
@@ -85,7 +85,7 @@ export class WebsiteSourceProvider implements SourceProvider {
     // the homepage. Cross-origin identities remain excluded as before.
     const article=canonical&&new URL(canonical).origin===new URL(url).origin&&new URL(canonical).pathname!=='/'?canonical:url;
     return {items:[{sourceItemKey:`url:${article}`,upstreamId:article,url:article,publisherId:new URL(article).hostname,title:string(result.title),body:result.body,
-      publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,language:string(result.language),representation:result.pageKind==='catalogue'?'LISTING_RESULT':'FULL_ARTICLE',contentCompleteness:'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
+      publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,language:string(result.language),representation:result.pageKind==='catalogue'?'LISTING_RESULT':result.contentCompleteness==='PARTIAL'?'ARTICLE_EXCERPT':'FULL_ARTICLE',contentCompleteness:result.contentCompleteness==='PARTIAL'?'PARTIAL':'UNKNOWN',identityValid:true,authoritativeCurrentState:false}],
       raw:new TextEncoder().encode(html),complete:result.pageKind==='catalogue'?!inventory?.nextPage&&!inventory?.paginationUnresolved:Boolean(dates.publishedAt),...(result.pageKind==='catalogue'&&inventory?.nextPage?{continuationToken:inventory.nextPage}:{}),requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
   }
 }

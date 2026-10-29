@@ -25,8 +25,10 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
   await expect(card).toContainText(summary);
   expect(calls).toBe(1);
   const resultBounds = await card.boundingBox();
-  const toolbarBounds = await page.locator('.feed-tools').boundingBox();
-  expect(Math.abs(resultBounds!.width - toolbarBounds!.width)).toBeLessThan(2);
+  // The summary belongs to the reader column; the controls intentionally stay narrower.
+  const readerBounds = await page.locator('.news-line').boundingBox();
+  expect(Math.abs(resultBounds!.width - readerBounds!.width)).toBeLessThan(2);
+  expect(Math.abs(resultBounds!.x - readerBounds!.x)).toBeLessThan(2);
   expect(resultBounds!.x).toBeGreaterThanOrEqual(0);
   expect(resultBounds!.x + resultBounds!.width).toBeLessThanOrEqual(width);
   const closeBounds = await card.getByRole('button', { name: 'Close summary' }).boundingBox();

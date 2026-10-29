@@ -36,6 +36,22 @@ function outlookEnv(sender = "distilled.news@outlook.com") {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it.each(['en', 'fr', 'ar'] as const)('localizes both authentication emails in %s, including links and direction', async language => {
+  const messages: any[] = [];
+  const env = { EMAIL_FROM: 'Distilled.News <noreply@example.com>', PUBLIC_WEB_BASE_URL: 'https://joud.example', EMAIL: {send: async (message: unknown) => {messages.push(message);}} } as unknown as Env;
+  await sendVerificationEmail(env, account, 'verification-fixture', language);
+  await sendPasswordResetEmail(env, account, 'reset-fixture', language);
+  const copy = language === 'ar' ? ['تأكيد البريد الإلكتروني', 'إعادة تعيين كلمة المرور'] : language === 'fr' ? ['Vérifier mon adresse e-mail', 'Réinitialiser le mot de passe'] : ['Verify email', 'Reset password'];
+  for (const [index, message] of messages.entries()) {
+    expect(message.html).toContain(`lang="${language}" dir="${language === 'ar' ? 'rtl' : 'ltr'}"`);
+    expect(message.html).toContain(copy[index]);
+    expect(message.html).toContain('role="presentation" dir="ltr"');
+    expect(message.text).toContain(`&lang=${language}`);
+    expect(message.html).toContain('https://joud.example/');
+    expect(message.subject).not.toBe(language === 'en' ? '' : index === 0 ? 'Verify your email for Distilled.News' : 'Reset your Distilled.News password');
+  }
+});
+
 describe("Outlook QA mail", () => {
   it("rotates the refresh token into encrypted durable storage and submits the verification email", async () => {
     const { env, getStored } = outlookEnv();
@@ -55,6 +71,10 @@ describe("Outlook QA mail", () => {
       "https://graph.microsoft.com/v1.0/me/sendMail"
     ]);
     const body = JSON.parse(String(requests[2].init?.body));
+    expect(body.message.subject).toBe('Verify your email for Distilled.News');
+    expect(body.message.body.content).toContain('src="https://qa.example.com/email-logo.png"');
+    expect(body.message.body.content).toContain('bgcolor="#5e5ce6"');
+    expect(body.message.body.content).toContain('color:#ffffff');
     expect(body.message.toRecipients[0].emailAddress.address).toBe("reader@example.com");
     expect(body.message.body.content).toContain("https://qa.example.com/verify-email?token=verify-secret");
     expect(JSON.stringify(getStored())).not.toContain("rotated-refresh-token");
@@ -74,7 +94,7 @@ describe("Outlook QA mail", () => {
       submitted=JSON.parse(String(init?.body));return new Response(null,{status:202});
     }));
     await sendPasswordResetEmail(env,account,"test-reset-token");
-    expect(submitted.message.subject).toBe("Reset your Distilled.news password");
+    expect(submitted.message.subject).toBe("Reset your Distilled.News password");
     expect(submitted.message.body.content).toContain("https://distilled-news-staging.distillednews-platform.workers.dev/reset-password?token=test-reset-token");
     expect(submitted.message.body.content).toContain("expires in 30 minutes");
   });

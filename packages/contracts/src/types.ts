@@ -150,6 +150,7 @@ export interface IntakeReceipt {
     | "QUARANTINE_MISSING_VALIDATION_FIELDS"
     | "QUARANTINE_REVISION_CONFLICT";
   checkpointResolution: CheckpointResolution;
+  replayDiagnostic?: "VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED";
   candidateItemId?: Id;
   tombstoneId?: Id;
   decidedAt: ISODateTime;

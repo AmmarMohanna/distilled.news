@@ -1,3 +1,5 @@
+import {createApp} from './app';
+import {InMemoryRepository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {sha256} from '@distilled/contracts';
 import {createIntakeDatabase} from './v1-intake/test-utils';
@@ -63,4 +65,32 @@ it('concurrent operator retries issue one read and cannot override an active pol
  release(response());await first;expect(fetcher).toHaveBeenCalledTimes(1);
  await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET lease_until=? WHERE job_id='read-job'").bind(new Date(Date.now()+60000).toISOString()).run();
  await expect(reconcileApifyRead(env,'read-job',fetcher)).rejects.toThrow('POLL_LEASE_ACTIVE');expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it('unpaid poll recovery refuses unknown payments even after unrelated holds move',async()=>{
+ await ctx.db.prepare("UPDATE connector_provider_operations SET feed_id='other-feed',feed_source_id='other-source'").run();
+ const request=JSON.parse((await ctx.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='read-job'").first<{request:string}>())!.request);request.source={family:'website',locator:'https://example.com'};
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET request=? WHERE job_id='read-job'").bind(JSON.stringify(request)).run();
+ await expect(recoverConnectorPoll(env,'provider','read-job',{unpaidOnly:true,approvalId:'free-check',feedId:scope.feedId})).rejects.toThrow('PAID_RECONCILIATION_REQUIRED');
+ expect(await ctx.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'BLOCKED'});
+});
+it('unpaid poll recovery persists a scoped capability fence before making the job pending',async()=>{
+ const request=JSON.parse((await ctx.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='read-job'").first<{request:string}>())!.request);request.source={family:'website',locator:'https://example.com'};
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET request=?,last_error='PROVIDER_REPAIR_REQUIRED' WHERE job_id='read-job'").bind(JSON.stringify(request)).run();
+ await expect(recoverConnectorPoll(env,'provider','read-job',{unpaidOnly:true,approvalId:'free-check',feedId:'wrong-feed'})).rejects.toThrow('INVALID_RECOVERY_APPROVAL');
+ await recoverConnectorPoll(env,'provider','read-job',{unpaidOnly:true,approvalId:'free-check',feedId:scope.feedId});
+ expect(await ctx.db.prepare("SELECT kind,feed_id,job_id,reason FROM connector_queue_recovery WHERE kind='UNPAID_POLL_RECOVERY'").first()).toEqual({kind:'UNPAID_POLL_RECOVERY',feed_id:scope.feedId,job_id:'read-job',reason:'free-check'});
+ expect(await ctx.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'PENDING'});
+});
+
+it('runs only one explicitly selected free recovery slice with paid capabilities removed',async()=>{
+ const request=JSON.parse((await ctx.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='read-job'").first<{request:string}>())!.request);request.source={family:'website',locator:'https://example.com'};
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET request=?,last_error='PROVIDER_REPAIR_REQUIRED' WHERE job_id='read-job'").bind(JSON.stringify(request)).run();
+ const backend=authorization.createConnectorRuntime(env),run=vi.spyOn(backend.scheduler,'runOne').mockResolvedValue('DONE');
+ vi.spyOn(authorization,'createConnectorRuntime').mockImplementation((scoped,_fetcher,unpaidOnly)=>{
+  expect(unpaidOnly).toBe(true);expect(scoped.APIFY_API_TOKEN).toBeUndefined();expect(scoped.ZYTE_API_KEY).toBeUndefined();expect(scoped.SOURCE_EXECUTION_SERVICE).toBeUndefined();expect(scoped.SOURCE_NATIVE_EXECUTION_ENABLED).toBe('true');return backend;
+ });
+ const app=createApp({repository:new InMemoryRepository()});
+ const response=await app.request('/api/internal/collectors/recover-poll-unpaid',{method:'POST',headers:{'content-type':'application/json','x-distilled-internal':'fixture-secret'},body:JSON.stringify({feedId:scope.feedId,kind:'provider',jobId:'read-job',approvalId:'bounded-public-slice',runNow:true})},{...env,INTERNAL_MAINTENANCE_SECRET:'fixture-secret'});
+ expect(response.status).toBe(200);expect(await response.json()).toEqual({outcome:'DONE',unpaidOnly:true});expect(run).toHaveBeenCalledExactlyOnceWith(300000,'read-job');
 });

@@ -29,6 +29,15 @@ async function terminalRecoveryFixture(failureCode='NETWORK',attempts=5){
  const row=(await store.read<DownstreamJob>('jobs',jobId))!;
  await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,state:'FAILED',exhausted:true,attempts,failureCode,failureDetail:'HELPER_TRANSPORT_FAILURE'}}]);
 }
+ it.each(['INVALID_RESULT','NETWORK','RECOVERY_EXHAUSTED'])('binds reviewed %s recovery to the stored public publisher and grants only one unpaid attempt',async failure=>{
+  await terminalRecoveryFixture(failure,1);
+  const input=(await store.read<import('./types').AcceptedInput>('inputs','observation-1'))!.value;
+  const from=input.observation.canonicalUrl!,reviewedRedirect={from,to:new URL('/projects/report',from).href,headline:'Council approves the public proposal after debate'};
+  for(const invalid of [{...reviewedRedirect,from:'https://different.example/old'},{...reviewedRedirect,to:'https://different.example/report'},{...reviewedRedirect,to:'http://127.0.0.1/report'},{...reviewedRedirect,headline:'Short'}])await expect(authorizeAcquisitionRecovery(store,jobId,'invalid-review',now,undefined,undefined,{unpaidOnly:true,reviewedRedirect:invalid})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+  await authorizeAcquisitionRecovery(store,jobId,'reviewed-public',now,undefined,undefined,{unpaidOnly:true,reviewedRedirect});
+  await authorizeAcquisitionRecovery(store,jobId,'reviewed-public',now,undefined,undefined,{unpaidOnly:true,reviewedRedirect});
+  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{unpaidOnly:true,reviewedRedirect,maxAttempts:2}]});
+ });
 it('operator recovery grants one attempt and retains cumulative attempts and failure history',async()=>{
  await terminalRecoveryFixture();
  const before=(await store.snapshot('feed-source-1')).epoch;
@@ -100,6 +109,17 @@ it('retains destination title, URL and redirect provenance without borrowing the
  const result=await router(claim);expect(result).toMatchObject({title:'Destination title',resolvedUrl:to,provenance:{redirectEvidence:proof}});expect(result.publishedAt).toBeUndefined();
  await persistAcquisitionResult(store,claim,result,now);
  expect((await store.read<any>('acquisition_results',jobId))!.value.provenance.redirectEvidence).toEqual(proof);
+});
+it('combines reviewed unpaid relocation with a short primary excerpt without inheriting the discovery date',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,from=claim.input.observation.canonicalUrl!,to='https://publisher.example/news/relocated';
+ const title='Officials release preliminary election results',body='Officials released preliminary results after overnight counting. Outstanding ballots remain under review and no final coalition agreement has been announced.';
+ claim.job.recoveryAuthorizations=[{id:'reviewed-short',authorizedAt:now,priorAttempts:0,priorFailureCode:'INVALID_RESULT',maxAttempts:2,unpaidOnly:true,reviewedRedirect:{from,to,headline:title}}];
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,publicGet:async()=>{throw Error('UNNECESSARY_HTTP_HELPER')},articleFallback:async()=>({status:200,url:from,canonicalUrl:from,resolvedUrl:to,publisherRelocation:true,pageKind:'article',title,body,partial:true,shortTextEvidence:true})});
+ const result=await router(claim);
+ expect(result).toMatchObject({canonicalUrl:from,resolvedUrl:to,representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL',quality:{extractionComplete:false}});
+ expect(result.publishedAt).toBeUndefined();
+ await persistAcquisitionResult(store,claim,result,now);
+ expect((await store.read<any>('acquisition_results',jobId))!.value.body).toBe(body);
 });
 it('requires exact public redirect evidence to recover a historical redirect policy failure',async()=>{
  await terminalRecoveryFixture('POLICY_DENIED',1);
@@ -411,7 +431,7 @@ it('known monetary admission denial remains durable resource waiting without exh
  expect(job.nextAttemptAt).toBeDefined();expect(await claimAcquisition(store,jobId,now)).toBeUndefined();
 });
 
-it('admits a URL-only discovery recheck without replacing complete canonical article evidence',async()=>{
+it('retains complete canonical evidence when a URL-only recheck has unknown completeness',async()=>{
  await runAcquisitionJob(store,jobId,testPolicy,async claim=>({...content(claim.candidate.id),representation:'FULL_ARTICLE',body:'Retained complete article.'}));
  const prior=(await store.list<any>('revisions','feed-source-1'))[0];
  const request=batchFixture(2),o=request.observations[0],p=request.proposals[0];
@@ -439,12 +459,12 @@ it('URL-only discovery never authorizes a weaker acquired representation to repl
  expect(receipts.find(r=>r.sourceObservationId===o.id)?.decision).toBe('QUARANTINED_REVISION_CONFLICT');
 });
 
-it('acquires a complete WordPress post without calling an unavailable helper and retains final qualifiers',async()=>{
+it('retains all extracted WordPress qualifiers without claiming proven completeness',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!,o=claim.input.observation;
  o.canonicalUrl='https://example.com/news/post/';
  const text='The company allocated 5 percent of shares. '.repeat(6),last='An additional contribution remains optional, not promised.';
  const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<link rel="canonical" href="${o.canonicalUrl}"><meta property="og:type" content="article"><meta property="article:published_time" content="2026-10-03T10:00:00Z"><h1>Fund announcement</h1><div class="entry-content wp-block-post-content"><p>${text}</p><div><p>${last}</p></div></div>`),extractHtml:async()=>{throw Error('UNAVAILABLE_HELPER_MUST_NOT_BE_CALLED')}});
- const acquired=await router(claim);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',canonicalUrl:o.canonicalUrl,acquisitionMethod:'direct_http'});expect(acquired.body).toContain(last);expect(acquired.body).toContain('5 percent');
+ const acquired=await router(claim);expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',canonicalUrl:o.canonicalUrl,acquisitionMethod:'direct_http'});expect(acquired.body).toContain(last);expect(acquired.body).toContain('5 percent');
 });
 it('Google resolution preserves approval denial without scraping or paying',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!;claim.input.observation={...claim.input.observation,canonicalUrl:'https://news.google.com/rss/articles/encoded',representation:'LISTING_RESULT'};

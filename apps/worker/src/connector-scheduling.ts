@@ -1,3 +1,4 @@
+import {unpaidSourceRecoveryEnv,unpaidPollRecoveryId} from './unpaid-source-recovery';
 import {sha256,HandoffError} from '@distilled/contracts';
 import type {Env,DistilledQueueMessage} from './types';
 import {createConnectorRuntime,runConnectorMaintenance} from './connector-runtime';
@@ -77,7 +78,7 @@ export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueu
  * collection windows do not hold this boundary; blocked sources are reported
  * separately as unavailable and remain visible to operators/readers. */
 export async function collectionReadyForWindow(env:Env,feedId:string,end:string,id:string,now=Date.now()){
- const {pending}=await pendingWindowCollections(env.DB,feedId,end);
+ const {pending}=await pendingWindowCollections(env.DB,feedId,end,env.BRIEFING_ENGINE==='v3');
  if(pending)await env.DB.prepare('INSERT INTO connector_publication_waits(request_id,feed_id,window_end,pending_collections,checked_at) VALUES(?,?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET pending_collections=excluded.pending_collections,checked_at=excluded.checked_at WHERE pending_collections<>excluded.pending_collections').bind(id,feedId,end,pending,new Date(now).toISOString()).run();
  else await env.DB.prepare('DELETE FROM connector_publication_waits WHERE request_id=?').bind(id).run();
  return pending===0;
@@ -194,9 +195,11 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
   const table=tables[body.table];
   const job=await env.DB.prepare(`SELECT job_id,${body.table==='provider'?"json_extract(request,'$.source.family')":"'rss'"} AS family FROM ${table} WHERE job_id=? AND dispatch_token=? AND json_extract(request,'$.scope.feedId')=?`).bind(body.jobId,body.token,body.feedId).first<{family:string}>();
   if(!job)return;
-  const scoped=await feedEnv(env,body.feedId);
+  let scoped=await feedEnv(env,body.feedId);
+  const unpaidOnly=!!scoped&&!!await env.DB.prepare("SELECT 1 FROM connector_queue_recovery WHERE id=? AND kind='UNPAID_POLL_RECOVERY' AND feed_id=?").bind(unpaidPollRecoveryId(body.table,body.jobId),body.feedId).first();
+  if(scoped&&unpaidOnly)scoped=unpaidSourceRecoveryEnv(scoped);
   if(!scoped){await env.DB.prepare(`UPDATE ${table} SET state='CANCELLED',dispatch_until=0,dispatch_token=NULL WHERE job_id=? AND dispatch_token=?`).bind(body.jobId,body.token).run();if(job.family==='telegram')await dispatchTelegramLane(env);return;}
-  const backend=createConnectorRuntime(scoped);
+  const backend=createConnectorRuntime(scoped,undefined,unpaidOnly?true:undefined);
   // Budget configuration is installed before scheduling, never by a source input.
   const state=await (body.table==='rss'?backend.rssScheduler:backend.scheduler).runOne(300_000,body.jobId);
   const release=env.DB.prepare(`UPDATE ${table} SET dispatch_until=0,dispatch_token=NULL WHERE job_id=? AND dispatch_token=?`).bind(body.jobId,body.token);
@@ -256,12 +259,12 @@ export async function completeConnectorDownstream(env:Env,body:DistilledQueueMes
 export async function expireConnectorDeliveries(env:Env,now=Date.now()){
  await env.DB.prepare('DELETE FROM connector_feed_turn_waiters WHERE (feed_id,work_id) IN (SELECT feed_id,work_id FROM connector_feed_turn_waiters WHERE expires_at<=? ORDER BY expires_at LIMIT 1000)').bind(now).run();
  await env.DB.prepare('DELETE FROM connector_queue_dispatch WHERE (kind,id) IN (SELECT kind,id FROM connector_queue_dispatch WHERE available_ms<? ORDER BY available_ms LIMIT 1000)').bind(now-86400_000).run();
- await env.DB.prepare('DELETE FROM connector_queue_recovery WHERE id IN (SELECT id FROM connector_queue_recovery WHERE observed_at<? ORDER BY observed_at LIMIT 1000)').bind(new Date(now-30*86400_000).toISOString()).run();
+ await env.DB.prepare("DELETE FROM connector_queue_recovery WHERE id IN (SELECT id FROM connector_queue_recovery WHERE observed_at<? AND kind<>'UNPAID_POLL_RECOVERY' ORDER BY observed_at LIMIT 1000)").bind(new Date(now-30*86400_000).toISOString()).run();
 }
 
 /** Operator recovery resumes the immutable job, never allocates a replacement
  * paid operation. Unknown submissions need provider reconciliation first. */
-export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:string){
+export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:string,options?:{unpaidOnly:true;approvalId:string;feedId:string}){
  const table=tables[kind];
  if(!table)throw Error('INVALID_POLL_KIND');
  const row=await env.DB.prepare(`SELECT request,state,last_error,lease_until${kind==='provider'?',provider_order':''} FROM ${table} WHERE job_id=?`).bind(jobId).first<{request:string;state:string;last_error:string|null;lease_until:string|null;provider_order?:string}>();
@@ -269,6 +272,12 @@ export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:s
  if(row.state==='DONE'||row.state==='CANCELLED')throw Error('POLL_ALREADY_TERMINAL');
  if(row.lease_until&&Date.parse(row.lease_until)>Date.now())throw Error('POLL_LEASE_ACTIVE');
  const request=JSON.parse(row.request);
+ if(options){
+  if(!['BLOCKED','PENDING'].includes(row.state))throw Error('POLL_NOT_RECOVERABLE');
+  if(!/^[a-zA-Z0-9_-]{1,100}$/.test(options.approvalId)||options.feedId!==request.scope.feedId)throw Error('INVALID_RECOVERY_APPROVAL');
+  if(!['rss','website'].includes(request.source?.family??(kind==='rss'?'rss':'')))throw Error('UNPAID_RECOVERY_UNSUPPORTED');
+  if(row.last_error==='UNCERTAIN_PAID_SUBMISSION')throw Error('PAID_RECONCILIATION_REQUIRED');
+ }
  let readRecovered=false;
  if(row.last_error==='UNCERTAIN_PAID_SUBMISSION'){
   const providerId=request.continuation?.providerId;
@@ -289,6 +298,7 @@ export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:s
  }
  const {authorizeConnectorSource}=await import('./connector-runtime');
  if(!await authorizeConnectorSource(env,request))throw Error('SOURCE_NOT_APPROVED');
+ if(options)await env.DB.prepare("INSERT INTO connector_queue_recovery(id,kind,feed_id,job_id,attempts,reason,observed_at) VALUES(?,'UNPAID_POLL_RECOVERY',?,?,0,?,?) ON CONFLICT(id) DO NOTHING").bind(unpaidPollRecoveryId(kind,jobId),request.scope.feedId,jobId,options.approvalId,new Date().toISOString()).run();
  const changed=await env.DB.prepare(`UPDATE ${table} SET state='PENDING',due_at=?,dispatch_until=0,dispatch_token=NULL,attempts=0,last_error=NULL WHERE job_id=? AND state IN ('PENDING','BLOCKED') AND (last_error IS NULL OR last_error<>'UNCERTAIN_PAID_SUBMISSION' OR ?=1) AND (lease_until IS NULL OR lease_until<=?) RETURNING job_id`).bind(new Date().toISOString(),jobId,readRecovered?1:0,new Date().toISOString()).first();
  if(!changed)throw Error('POLL_STATE_CHANGED');
  await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=0 WHERE feed_id=? AND token IS NULL').bind(request.scope.feedId).run();

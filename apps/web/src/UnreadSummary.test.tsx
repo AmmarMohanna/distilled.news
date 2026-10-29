@@ -33,3 +33,13 @@ it('does not expose a different reader’s saved summary',async()=>{
 it('keeps the visible summary when covered briefings are marked read',async()=>{
  vi.mocked(summarizeUnread).mockResolvedValue({status:'ready',summary:'Saved catch-up'});await render();await click('.unread-summary-button');await act(async()=>root.render(<UnreadSummary readerId="reader" username="owner" slug="news" readIds={['edition']} contentKey="one" hasUnread={false}/>));expect(host.textContent).toContain('Saved catch-up');expect(host.querySelector<HTMLButtonElement>('.unread-summary-button')?.disabled).toBe(true);expect(summarizeUnread).toHaveBeenCalledOnce();
 });
+it('keeps the button in its toolbar and renders the generated summary in the timeline target',async()=>{
+ const target=document.createElement('div');document.body.append(target);
+ try{
+  vi.mocked(summarizeUnread).mockResolvedValue({status:'ready',summary:'Timeline-aligned catch-up'});
+  await act(async()=>root.render(<UnreadSummary readerId="reader" username="owner" slug="news" readIds={[]} contentKey="one" summaryTarget={target}/>));
+  await click('.unread-summary-button');
+  expect(host.querySelector('.unread-summary-section')).toBeNull();expect(target.textContent).toContain('Timeline-aligned catch-up');
+  await act(async()=>target.querySelector<HTMLButtonElement>('.unread-summary-close')!.click());expect(target.children).toHaveLength(0);
+ }finally{target.remove();}
+});

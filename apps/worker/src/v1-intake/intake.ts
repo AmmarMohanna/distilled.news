@@ -9,9 +9,9 @@ import { IntakeTransaction, transact } from './transaction';
 import { currentEvidence, observationOrdering, representationDowngrade, validateQueryRestrictions } from './policy';
 import type { AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy } from './types';
 
-export function enqueue(tx:IntakeTransaction,input:AcceptedInput,kind:DownstreamJob['kind'],conflictId?:string) {
+export function enqueue(tx:IntakeTransaction,input:AcceptedInput,kind:DownstreamJob['kind'],conflictId?:string,unpaidOnly?:true) {
   const o=input.observation,id=JSON.stringify([kind,o.id,conflictId??'']);
-  const job:DownstreamJob={id,feedId:o.feedId,feedSourceId:o.feedSourceId,observationId:o.id,kind,state:'PENDING',attempts:0,...(conflictId?{conflictId}:{})};
+  const job:DownstreamJob={...(unpaidOnly?{unpaidOnly}:{}),id,feedId:o.feedId,feedSourceId:o.feedSourceId,observationId:o.id,kind,state:'PENDING',attempts:0,...(conflictId?{conflictId}:{})};
   tx.write('jobs',id,job,o.sourceItemKey,true);
 }
 async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:IntakePolicy,prior?:IntakeReceipt):Promise<IntakeReceipt> {
@@ -29,6 +29,14 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
     if(verified && (verified.contentHash!==o.contentHash || verified.representation!==o.representation || verified.contentCompleteness!==o.contentCompleteness)) throw new HandoffError('INVALID_REQUEST');
     const order=observationOrdering(o,current,verified?.contentHash,{...orderingPolicy,authoritativeReplacementAllowed:authoritative});
     if(order==='STALE') set('IGNORED','IGNORED_STALE_OBSERVATION');
+    else if(order==='CONFLICT' && o.operation==='UPSERT' && input.proposal && verified && current?.item.state==='ACTIVE' && current.revision && verified.contentHash===current.revision.contentHash && verified.representation===current.revision.representation && !representationDowngrade(current.revision,verified)) {
+      // Verified duplicate bytes need no replacement decision. A newly supplied
+      // or incomparable revision label must not stall collection, nor advance
+      // canonical ordering or reinterpret the original evidence/provenance.
+      receipt.candidateItemId=id;
+      set('REPLAY','REPLAY_IDENTICAL');
+      receipt.replayDiagnostic='VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED';
+    }
     else if(order==='CONFLICT') set('QUARANTINED','QUARANTINE_REVISION_CONFLICT');
     else if(o.operation==='DELETE') {
       if(!authoritative) set('QUARANTINED','QUARANTINE_MISSING_VALIDATION_FIELDS');
@@ -51,7 +59,7 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
       if(verified && current?.item.state==='ACTIVE' && verified.contentHash===current.revision?.contentHash) {
         set('REPLAY','REPLAY_IDENTICAL');
         if(order==='WIN') tx.write('evidence',id,{...current.item,currentObservationId:o.id,currentFetchStartSequence:o.fetchStartSequence,currentSourceRevision:o.sourceRevision,updatedAt:now},o.sourceItemKey);
-      } else enqueue(tx,input,'ACQUIRE');
+      } else enqueue(tx,input,'ACQUIRE',undefined,policy.unpaidOnly);
       // Pending acquisition does not establish accepted canonical evidence ordering.
       const latest=candidate?await tx.read<AcceptedInput>('inputs',candidate.latestObservationId):undefined;
       if(!candidate || !latest || o.fetchStartSequence>=latest.observation.fetchStartSequence) tx.write('candidates',id,{id,feedId:o.feedId,feedSourceId:o.feedSourceId,sourceId:o.sourceId,sourceItemKey:o.sourceItemKey,latestObservationId:o.id,discoveredAt:candidate?.discoveredAt??o.observedAt,intakePolicyVersion:policy.version} satisfies CandidateRecord,o.sourceItemKey);

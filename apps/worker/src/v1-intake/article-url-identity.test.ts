@@ -10,3 +10,10 @@ it('accepts the observed NEJM attribution without discarding arbitrary referrer 
  expect(sameArticleUrl(paper,paper+'?referrer=another-article')).toBe(false);
  expect(sameArticleUrl(url,url+'?referrer=https%3A%2F%2Fwww.google.com%2F')).toBe(false);
 });
+
+it('compares percent escape casing without decoding separators or folding path text',()=>{
+ expect(sameArticleUrl('https://publisher.example/%d9%85','https://publisher.example/%D9%85')).toBe(true);
+ expect(sameArticleUrl('https://publisher.example/a%2fb','https://publisher.example/a/b')).toBe(false);
+ expect(sameArticleUrl('https://publisher.example/Story','https://publisher.example/story')).toBe(false);
+ expect(sameArticleUrl('https://publisher.example/story?id=A','https://publisher.example/story?id=a')).toBe(false);
+});

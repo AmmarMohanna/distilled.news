@@ -8,7 +8,7 @@ export function sameArticleUrl(left:unknown,right:unknown):boolean {
    for(const key of [...u.searchParams.keys()])if(/^utm_/i.test(key)||/^(?:fbclid|gclid|mc_cid|mc_eid|igshid|traffic_source)$/i.test(key))u.searchParams.delete(key);
    // NEJM adds this attribution URL during anonymous browser navigation.
    if(u.hostname==='www.nejm.org'&&u.searchParams.get('referrer')==='https://www.google.com/')u.searchParams.delete('referrer');
-   u.pathname=u.pathname.replace(/\/$/,'')||'/';u.hash='';return u.href;
+   u.pathname=u.pathname.replace(/%[0-9a-f]{2}/gi,part=>part.toUpperCase()).replace(/\/$/,'')||'/';u.hash='';return u.href;
   };
   return normalize(left)===normalize(right);
  }catch{return false}

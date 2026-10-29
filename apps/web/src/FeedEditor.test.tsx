@@ -4,10 +4,36 @@ import { expect, it, vi } from 'vitest';
 import { FeedEditor } from './FeedEditor';
 import { getSources, recommendSourceCandidates, assessSourceInput } from './api';
 import { personalNewsBriefing } from '@distilled/core';
+import {setWebsiteLanguage} from './LanguageControl';
+
+it('translates every schedule option when language changes and preserves the selected interval',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const host=document.createElement('div'),root=createRoot(host);
+ try {
+  await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Home',updateIntervalMinutes:120}} onClose={()=>{}} onSave={async()=>{}}/>));
+  const select=host.querySelector('.feed-rhythm-menu')!;
+  for(const language of ['fr','ar','en'] as const){
+   await act(async()=>setWebsiteLanguage(language));
+   const labels=[...select.querySelectorAll('[role="option"]')].map(option=>option.textContent);
+   expect(labels).toHaveLength(6);
+   expect(select.querySelector('[aria-selected="true"]')?.getAttribute('data-value')).toBe('120');
+   if(language!=='en')expect(labels.join(' ')).not.toMatch(/Every|Daily/);
+   if(language==='ar')expect(labels.join(' ')).toContain('كل ساعتين');
+  }
+ }finally{await act(async()=>root.unmount());localStorage.removeItem('dn_language');vi.unstubAllGlobals();}
+});
 
 vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNode;className:string})=><div className={className}>{children}</div>}));
 
 vi.mock('./api', () => ({getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
+it.each([false,true])('uses half-hour daily choices only for clock-policy feeds (clock: %s)',async clock=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const host=document.createElement('div'),root=createRoot(host);
+ await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,updateIntervalMinutes:1440,briefingTimeOfDay:clock?'08:30':'08:15',...(clock?{briefingScheduleClockStartAt:'2026-10-29T03:08:00Z'}:{})}} onClose={()=>{}} onSave={async()=>{}}/>));
+ const input=host.querySelector<HTMLInputElement>('input[type="time"]')!;
+ expect(input.step).toBe(clock?'1800':'60');expect(input.value).toBe(clock?'08:30':'08:15');
+ await act(async()=>root.unmount());vi.unstubAllGlobals();
+});
 it('can save already checked choices while slower suggestions are still arriving',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
  const source='rss: https://ready.example/feed.xml',result={sources:[source],checks:[{input:source,status:'accepted' as const,reason:'Relevant',checkedAt:new Date().toISOString()}]};
@@ -69,11 +95,10 @@ it('offers the final preferences, conditional daily time and inferred timezone w
   const dialog = document.querySelector('.feed-editor')!;
   expect(dialog.textContent).not.toMatch(/Writing style|Weekly|Monthly|timezone/i);
   expect((dialog.querySelector('input[name="feed-visibility"]:checked') as HTMLInputElement).checked).toBe(true);
-  const selects = [...dialog.querySelectorAll('select')];
-  const rhythm = selects.find(select=>select.querySelector('option[value="1440"]'))!;
-  expect([...rhythm.options].map(option=>option.value)).toEqual(['30','60','120','360','720','1440']);
+  const rhythm = dialog.querySelector('.feed-rhythm-menu')!;
+  expect([...rhythm.querySelectorAll('[role="option"]')].map(option=>option.getAttribute('data-value'))).toEqual(['30','60','120','360','720','1440']);
   expect(dialog.querySelector('input[type="time"]')).not.toBeNull();
-  await act(async()=>{rhythm.value='120';rhythm.dispatchEvent(new Event('change',{bubbles:true}));});
+  await act(async()=>{rhythm.querySelector<HTMLButtonElement>('[data-value="120"]')!.click();});
   expect(dialog.querySelector('input[type="time"]')).toBeNull();
   await act(async()=>{dialog.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});
   expect(onSave).toHaveBeenCalledWith(expect.objectContaining({updateIntervalMinutes:120,publicFeedEnabled:false,briefingTimezone:'Asia/Beirut',sourceInputs:['https://example.com/feed.xml']}));

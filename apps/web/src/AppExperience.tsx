@@ -27,7 +27,7 @@ const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${en
 export function BrandMark() { return <span className="distilled-logo" aria-hidden="true"><span className="distilled-logo-symbol"/><span className="distilled-logo-wordmark">Distilled<span className="distilled-logo-dot">.</span>News</span></span>; }
 export function AppHeader({ account, onAccount, leading, actions, contextual }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode; contextual?: boolean }) {
   const { t } = useLanguage();
-  return <header className={`experience-header${account ? " has-account" : " is-guest"}${contextual && account ? " is-contextual" : ""}`}>{leading ? <div className="experience-leading">{leading}</div> : <div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div>}<div className="experience-header-actions">{!contextual && actions}<LanguageControl/><ThemeToggle/>{account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}{contextual && actions}</div></header>;
+  return <header className={`experience-header${account ? " has-account" : " is-guest"}${contextual && account ? " is-contextual" : ""}`}>{leading ? <div className="experience-leading">{leading}</div> : <div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div>}<div className="experience-header-actions">{(!contextual || !account) && actions}<LanguageControl/><ThemeToggle/>{account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}{contextual && account && actions}</div></header>;
 }
 
 export function AppExperience(props: {
@@ -54,7 +54,7 @@ export function AppExperience(props: {
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
   const { theme, setTheme } = useTheme();
-  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.news` : "distilled.news — A calmer perspective on a complex world."; }, [tab, language, props.account]);
+  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."; }, [tab, language, props.account]);
   useEffect(() => {
     let active = true;
     let version = 0;
@@ -130,7 +130,7 @@ export function AppExperience(props: {
         {loading ? null : visibleFeeds.length ? <AdaptiveFeedGrid count={visibleFeeds.length} className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card" key={feed.id}>
           <a href={feedUrl(feed)}><FeedArt feed={props.briefings.find(owned => owned.id === feed.id) ?? feed}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span>{feed.paused && <span className="feed-card-status paused">{t("Paused")}</span>}</a>
           <FeedCardActions feed={feed} owner={props.account?.username === feed.ownerUsername} onError={setError} hideStar latestUpdatedAt={feed.latestUpdatedAt}>
-            <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${feed.viewerHasStarred ? "Unstar" : "Star"} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setStarBusy(null); } }}><Star size={16}/><span className="feed-star-count">{feed.stars}</span></button>
+            <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${t(feed.viewerHasStarred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setStarBusy(null); } }}><Star size={16}/><span className="feed-star-count">{feed.stars}</span></button>
           </FeedCardActions>
         </article>)}</AdaptiveFeedGrid> : query.trim() ? <p className="empty-copy" role="status">{t("No feeds match your search.")}</p> : null}
       </section>
@@ -162,7 +162,9 @@ export function AppExperience(props: {
 
 export function accountInitials(username: string) {
   const parts = username.trim().split(/[\s._-]+/u).filter(Boolean);
-  return Array.from((parts.slice(0, 2).map(part => Array.from(part)[0]).join("") || "?").toLocaleUpperCase()).slice(0, 2).join("");
+  const initials = Array.from((parts.slice(0, 2).map(part => Array.from(part)[0]).join("") || "?").toLocaleUpperCase()).slice(0, 2);
+  // Prevent Arabic initials from joining while retaining the two-letter limit.
+  return initials.join(initials.some(letter => /\p{Script=Arabic}/u.test(letter)) ? "\u200c" : "");
 }
 
 function FeedCardActions({ feed, owner, onError, hideStar = false, children, latestUpdatedAt }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled">; owner: boolean; onError: (message: string) => void; hideStar?: boolean; children?: React.ReactNode; latestUpdatedAt?: string }) {

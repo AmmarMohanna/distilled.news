@@ -112,3 +112,20 @@ it('an interval edit before any recorded close retains unprocessed coverage from
  const {D1Repository}=await import('../repository');
  expect((await new D1Repository(ctx.db).getBriefingById('feed-1'))?.nextBriefingAt).toBe('2026-10-03T15:05:40.123Z');
 });
+it('persists a new clock policy and starts an edited cadence after the retained pending coverage',async()=>{
+ const clockStartAt='2026-10-03T12:08:40.123Z';
+ await ctx.db.prepare("UPDATE briefings SET v1_briefing_interval_minutes=30,briefing_schedule_clock_start_at=? WHERE id='feed-1'").bind(clockStartAt).run();
+ const first=await enrollV1Source(ctx.db,'feed-source-1','owner-1',clockStartAt);
+ expect(first.feed.briefingSchedule).toMatchObject({clockStartAt,durationMinutes:30});
+ const {livePublicationWindow}=await import('./schedule');
+ const window=livePublicationWindow(first.feed.briefingSchedule!,new Date('2026-10-03T12:25:00Z'));
+ const pending=JSON.stringify({id:'pending-clock',window,state:'PENDING',attempts:1,engine:'v3'});
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','pending-clock','feed-1',?)").bind(pending).run();
+ const changed=await enrollV1Source(ctx.db,'feed-source-1','owner-1','2026-10-03T12:40:00Z',{durationMinutes:60,timezone:'UTC'});
+ expect(changed.feed.briefingSchedule).toMatchObject({clockStartAt:window.end,durationMinutes:60});
+ expect(livePublicationWindow(changed.feed.briefingSchedule!,new Date('2026-10-03T13:55:00Z')).start).toBe(window.end);
+ expect((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id='pending-clock'").first<{json:string}>())?.json).toBe(pending);
+ const {D1Repository}=await import('../repository');expect((await new D1Repository(ctx.db).getBriefingById('feed-1'))?.briefingScheduleClockStartAt).toBe(window.end);
+ const plan=await ctx.db.prepare("EXPLAIN QUERY PLAN SELECT json_extract(json,'$.window.end') FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.clockStartAt')=? AND json_extract(json,'$.window.durationMinutes')=? ORDER BY json_extract(json,'$.window.end') DESC LIMIT 1").bind('feed-1',clockStartAt,30).all<{detail:string}>();
+ expect(plan.results.map(r=>r.detail).join(' ')).toContain('v1_clock_schedule_requests');
+});

@@ -5,9 +5,11 @@ import type {PublicationWindow} from './scoring';
 
 export const LIVE_INTERVALS=[30,60,120,360,720,1440] as const;
 export type LiveInterval=typeof LIVE_INTERVALS[number];
-export interface LiveSchedule {durationMinutes:LiveInterval;timezone:string;deliveryAnchor?:string;originAt?:string}
+export interface LiveSchedule {durationMinutes:LiveInterval;timezone:string;deliveryAnchor?:string;originAt?:string;clockStartAt?:string}
 export const LIVE_SCHEDULE_POLICY='local-calendar-anchors-v1';
 export const RELATIVE_SCHEDULE_POLICY='creation-relative-v1';
+export const CLOCK_SCHEDULE_POLICY='clock-aligned-delivery-v1';
+export const DELIVERY_LEAD_MS=5*60000;
 export const liveScheduleSchema=z.object({
  durationMinutes:z.union([z.literal(30),z.literal(60),z.literal(120),z.literal(360),z.literal(720),z.literal(1440)]),
  timezone:z.string().min(1).refine(zone=>{
@@ -15,7 +17,8 @@ export const liveScheduleSchema=z.object({
   try {Temporal.Instant.from('2000-01-01T00:00:00Z').toZonedDateTimeISO(zone);return true}catch{return false}
  }),
  deliveryAnchor:z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).optional(),
- originAt:z.string().datetime().optional()
+ originAt:z.string().datetime().optional(),
+ clockStartAt:z.string().datetime().optional()
 }).strict();
 
 /** Opted-in subdaily intervals use elapsed time from the persisted origin.
@@ -23,11 +26,23 @@ export const liveScheduleSchema=z.object({
  * elapsed hours at DST. Short intervals advance by elapsed minutes; a remaining
  * fragment closes at the next local anchor, so adjacent windows never leave a
  * hole or double-cover evidence when a local day has an unusual length.
- * Gap/overlap anchors use Temporal's explicit compatible disambiguation. */
+ * Gap/overlap anchors use Temporal's explicit compatible disambiguation.
+ * Before a new clock feed's first cutoff, returns its first future window;
+ * dispatchers must check end <= now before materializing or executing it. */
 export function livePublicationWindow(raw:LiveSchedule,now:Date):PublicationWindow {
  const parsed=liveScheduleSchema.safeParse(raw);
  if(!parsed.success || !Number.isFinite(now.getTime())) throw new HandoffError('INVALID_REQUEST');
  const schedule=parsed.data,instant=Temporal.Instant.fromEpochMilliseconds(now.getTime());
+ if(schedule.clockStartAt){
+  if(schedule.originAt)throw new HandoffError('INVALID_REQUEST');
+  const {clockStartAt,...calendar}=schedule;
+  // Evaluate readiness against the earlier evidence cutoff; retain the clock
+  // delivery label separately from both evidence time and actual publication.
+  const first=firstClockBriefingAt(schedule),due=livePublicationWindow(calendar,new Date(now.getTime()+DELIVERY_LEAD_MS));
+  const scheduledFor=Date.parse(due.end)<Date.parse(first)?first:due.end;
+  const interval=livePublicationWindow(calendar,new Date(scheduledFor));
+  return {...interval,...schedule,start:scheduledFor===first?clockStartAt:new Date(Date.parse(interval.start)-DELIVERY_LEAD_MS).toISOString(),end:new Date(Date.parse(scheduledFor)-DELIVERY_LEAD_MS).toISOString(),scheduledFor,schedulePolicy:CLOCK_SCHEDULE_POLICY};
+ }
  if(schedule.originAt&&schedule.durationMinutes!==1440){
   const step=schedule.durationMinutes*60000,origin=Date.parse(schedule.originAt);
   const end=origin+Math.floor((now.getTime()-origin)/step)*step;
@@ -56,6 +71,11 @@ export function livePublicationWindow(raw:LiveSchedule,now:Date):PublicationWind
 /** Read-only next boundary under the feed's persisted interval policy. */
 export function nextLiveBriefingAt(raw:LiveSchedule, now:Date):string {
  const schedule=liveScheduleSchema.parse(raw);
+ if(schedule.clockStartAt){
+  const {clockStartAt,...calendar}=schedule;
+  const next=nextLiveBriefingAt(calendar,now),first=firstClockBriefingAt(schedule);
+  return Date.parse(next)<Date.parse(first)?first:next;
+ }
  if(schedule.originAt&&schedule.durationMinutes!==1440){
   const step=schedule.durationMinutes*60000,origin=Date.parse(schedule.originAt);
   return new Date(origin+Math.max(1,Math.floor((now.getTime()-origin)/step)+1)*step).toISOString();
@@ -70,6 +90,17 @@ export function nextLiveBriefingAt(raw:LiveSchedule, now:Date):string {
  return new Date(Math.min(end,anchor.epochMilliseconds)).toISOString();
 }
 
+/** A new clock feed can join its opening interval during its first ten minutes.
+ * The first evidence interval starts at creation, even when one close is skipped. */
+export function firstClockBriefingAt(schedule:LiveSchedule):string {
+ if(!schedule.clockStartAt||schedule.originAt)throw new HandoffError('INVALID_REQUEST');
+ if(schedule.durationMinutes<1440&&schedule.deliveryAnchor&&schedule.deliveryAnchor!=='00:00')throw new HandoffError('INVALID_REQUEST');
+ if(schedule.durationMinutes===1440&&schedule.deliveryAnchor&&!['00','30'].includes(schedule.deliveryAnchor.slice(-2)))throw new HandoffError('INVALID_REQUEST');
+ const {clockStartAt,...calendar}=schedule,created=new Date(clockStartAt);
+ const opening=livePublicationWindow(calendar,created).end,next=nextLiveBriefingAt(calendar,created);
+ return created.getTime()-Date.parse(opening)<=10*60000?next:nextLiveBriefingAt(calendar,new Date(next));
+}
+
 /** First close whose entire interval follows feed creation. Equality at an
  * opening boundary is eligible; creation inside an interval skips that one. */
 export function firstFullLiveBriefingAt(schedule:LiveSchedule,created:Date):string {
@@ -81,6 +112,7 @@ export function firstFullLiveBriefingAt(schedule:LiveSchedule,created:Date):stri
 /** Warm mechanical planning only; final selection and writing await close. */
 export function preparingLiveWindow(schedule:LiveSchedule,now:Date):PublicationWindow|undefined {
  const end=nextLiveBriefingAt(schedule,now),lead=Math.min(5,schedule.durationMinutes/6)*60000;
+ if(schedule.clockStartAt){const untilCutoff=Date.parse(end)-DELIVERY_LEAD_MS-now.getTime();return untilCutoff>0&&untilCutoff<=lead?livePublicationWindow(schedule,new Date(end)):undefined;}
  return Date.parse(end)-now.getTime()<=lead?livePublicationWindow(schedule,new Date(end)):undefined;
 }
 
@@ -89,18 +121,22 @@ export const publicationWindowSchema=z.object({
  durationMinutes:liveScheduleSchema.shape.durationMinutes.optional(),
  timezone:liveScheduleSchema.shape.timezone.optional(),deliveryAnchor:liveScheduleSchema.shape.deliveryAnchor,
  originAt:liveScheduleSchema.shape.originAt,
- schedulePolicy:z.enum([LIVE_SCHEDULE_POLICY,RELATIVE_SCHEDULE_POLICY]).optional()
+ clockStartAt:liveScheduleSchema.shape.clockStartAt,
+ scheduledFor:z.string().datetime().optional(),
+ schedulePolicy:z.enum([LIVE_SCHEDULE_POLICY,RELATIVE_SCHEDULE_POLICY,CLOCK_SCHEDULE_POLICY]).optional()
 }).strict().superRefine((window,ctx)=>{
  if(Date.parse(window.start)>=Date.parse(window.end)) ctx.addIssue({code:'custom',message:'Window must increase'});
  if(window.durationMinutes===undefined) {
-  if(window.timezone || window.deliveryAnchor || window.originAt || window.schedulePolicy) ctx.addIssue({code:'custom',message:'Live metadata requires a live duration'});
+  if(window.timezone || window.deliveryAnchor || window.originAt || window.clockStartAt || window.scheduledFor || window.schedulePolicy) ctx.addIssue({code:'custom',message:'Live metadata requires a live duration'});
   return;
  }
  const relative=window.durationMinutes!==1440&&Boolean(window.originAt);
- if(!window.timezone || window.schedulePolicy!==(relative?RELATIVE_SCHEDULE_POLICY:LIVE_SCHEDULE_POLICY)) {ctx.addIssue({code:'custom',message:'Live timezone and policy required'});return}
+ if(!window.timezone || window.schedulePolicy!==(window.clockStartAt?CLOCK_SCHEDULE_POLICY:relative?RELATIVE_SCHEDULE_POLICY:LIVE_SCHEDULE_POLICY)) {ctx.addIssue({code:'custom',message:'Live timezone and policy required'});return}
+ if(!window.clockStartAt&&window.scheduledFor)ctx.addIssue({code:'custom',message:'Delivery label requires clock policy'});
  if(relative&&Date.parse(window.start)<Date.parse(window.originAt!))ctx.addIssue({code:'custom',message:'Window precedes schedule origin'});
  try {
-  const expected=livePublicationWindow({durationMinutes:window.durationMinutes,timezone:window.timezone,deliveryAnchor:window.deliveryAnchor,originAt:window.originAt},new Date(window.end));
+  const expected=livePublicationWindow({durationMinutes:window.durationMinutes,timezone:window.timezone,deliveryAnchor:window.deliveryAnchor,originAt:window.originAt,clockStartAt:window.clockStartAt},new Date(window.end));
   if(expected.kind!==window.kind || Date.parse(expected.start)!==Date.parse(window.start) || Date.parse(expected.end)!==Date.parse(window.end)) ctx.addIssue({code:'custom',message:'Not a canonical live window'});
+  if(expected.scheduledFor!==window.scheduledFor)ctx.addIssue({code:'custom',message:'Incorrect scheduled delivery'});
  }catch {ctx.addIssue({code:'custom',message:'Invalid live window'})}
 });
