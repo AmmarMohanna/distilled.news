@@ -37,7 +37,7 @@ Migration `0081_clock_aligned_delivery.sql` adds the nullable `briefing_schedule
 
 Ordinary edits preserve the marker. Interval/timezone/daily-anchor edits preserve already-recorded coverage, including pending requests; the new cadence starts at that coverage's end. Missed clock windows are materialized consecutively, one per scheduling tick, without retrieving all historical request payloads. The lookup is covered by the new index, verified through EXPLAIN in the database regression.
 
-Apply migration 0081 before deploying the backend. Deploy the matching frontend for intended-time labels. No live migration, feed mutation, paid experiment or deployment was performed for this implementation. The unrelated favicon edit was not included.
+Apply migration 0081 before deploying the backend. Deploy the matching frontend for intended-time labels. At completion of the local implementation, no live migration, feed mutation, paid experiment or deployment had been performed. The subsequently authorized staging activation is recorded below. The unrelated favicon edit was not included.
 
 ## Validation
 
@@ -51,3 +51,32 @@ All inference transports in these tests are mocked; actual paid inference cost w
 - Worker and frontend TypeScript checks passed. Frontend production build and Worker deployment dry run passed.
 
 Logs are retained in `.local-reports/clock-aligned-schedules/`. This is local integration evidence. A fresh new-feed staging observation remains necessary after deployment to measure actual deadline-to-publication timing under the new policy.
+
+## Staging activation — October 29, 2026
+
+After authorization to continue, runtime commit `87cb674` and its matching frontend were deployed to **https://distilled-news-staging.distillednews-platform.workers.dev/**. Active version: `9fafd946-697d-44f1-b9c2-624e00d386bd`, at 100% traffic. Production was not changed.
+
+Only migration **0081** was applied and recorded in `d1_migrations`. The migration listing also included older files 0071–0080, while earlier indexes were already present. An isolated directory containing only the exact committed 0081 file prevented replaying those older migrations; their schema and ledger entries were left alone. Original schedule origins and null clock-policy markers were checked for all **33 existing feeds**. Bindings, secrets configuration, compatibility settings and queue consumers were preserved.
+
+The first deployment failed at Cloudflare's asset-upload-session API with error `10013`, before Worker activation. One identical retry succeeded; no runtime workaround or alternate asset route was used. Earlier CLI authorization error `7403` cleared after the existing Wrangler session refreshed. Neither failure required a code change.
+
+Live static checks returned 200 and byte-matched the built HTML, JavaScript, CSS, service worker and logo. The deployed favicon was explicitly preserved rather than taking the unrelated local edit. Both public Lebanon feed APIs returned 200, and the private clean-feed API remained inaccessible anonymously (404).
+
+### Zero-inference live save/read-back test
+
+A fresh isolated QA identity was seeded directly, avoiding registration/verification emails. It used the real login and feed save/read/delete handlers. A static app icon was prefilled in its illustration cache to prevent an image model request. One private, source-free feed was created at **2026-10-29T09:44:18.925Z**, then saved/read back across all six intervals. Its original creation marker remained exact through these edits.
+
+| Interval | Intended delivery returned by staging (UTC) |
+|---|---|
+| 30 minutes | October 29, 10:30 |
+| 60 minutes | October 29, 11:00 |
+| 120 minutes | October 29, 12:00 |
+| 360 minutes | October 29, 18:00 |
+| 720 minutes | October 30, 00:00 |
+| Daily, selected 12:30 | October 30, 12:30 |
+
+An independent clock calculation matched every response. The owned-feed list read back the saved schedule, a daily `12:15` edit returned 400, and anonymous access remained 404. There were **zero sources, zero sketch jobs and zero model spending reservations**. Paid inference cost: **$0**. The QA account, feed and static icon were removed; no existing feed was edited, and no publication or notification was triggered by this test.
+
+Sanitized results: `benchmarks/results/v3-selective-database-reads/clock-aligned-deployment.json`. Exact deployment/API traces and cleanup proofs: `.local-reports/clock-aligned-live/`.
+
+**Limit:** this verifies real deployed creation, edits, persistence, API privacy and frontend assets. It does not measure a newly clock-aligned feed generating and publishing a real nonempty briefing at its first deadline. Timed generation, held verified results, late labels and retry reuse are proven by local integration tests; actual new-policy deadline-to-publication latency still requires a natural feed window or a separately authorized paid trial. No unused earlier paid authorization was reused.
