@@ -2824,3 +2824,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > * { border-top: 0; border-bottom: 0; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > .feed-preferences-group-label { border: 0; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > .feed-preferences-group-label:not(:first-child) { margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+/* Guest feed actions precede the same fixed language/theme/login rail as landing. */
+:root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions { gap: 20px; }
+@media(max-width:899px) {
+ :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions { gap: 4px; }
+}
