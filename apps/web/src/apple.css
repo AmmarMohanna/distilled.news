@@ -2842,3 +2842,5 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .users-role-filter { width: 160px; min-width: 0; flex: 0 0 160px; }
 :root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { min-height: 46px; }
 @media(max-width:600px) { :root.apple-ui.apple-ui .users-role-filter { width: 140px; flex-basis: 140px; } }
+/* Role filtering uses a white surface rather than the feed preferences tint. */
+:root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { background: var(--surface); }
