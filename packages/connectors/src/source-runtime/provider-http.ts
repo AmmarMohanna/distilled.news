@@ -20,7 +20,14 @@ export interface ProviderHttpPort {
 export interface DailyCollectorBudget {limitUsd:number;timeZone:string;now?:()=>Date}
 // A confirmed completion with a lost body stays charged conservatively and may
 // never be dispatched again. It is distinct from an unknown provider outcome.
-export const unresolvedProviderOperationSql="payload_ref IS NULL AND COALESCE(status=200 AND json_extract(headers,'$.reconciliation.kind')='COMPLETED_RESPONSE_LOST' AND json_extract(headers,'$.reconciliation.requestId') IS NOT NULL,0)=0";
+/** Only exact existing-run/dataset GETs are safe to repeat; actor starts remain paid submissions. */
+export function isReadOnlyApifyRequest(providerId:string,url:string,init:RequestInit):boolean {
+ if(!['x_apify','linkedin_apify','google_apify','apify_actor'].includes(providerId)||(init.method??'GET')!=='GET'||init.body!=null)return false;
+ try{const u=new URL(url);return u.origin==='https://api.apify.com'&&!u.username&&!u.password&&!u.hash&&(/^\/v2\/actor-runs\/\w+$/.test(u.pathname)&&!u.search||/^\/v2\/datasets\/\w+\/items$/.test(u.pathname)&&[...u.searchParams.keys()].every(k=>['format','clean','offset','limit'].includes(k)));}catch{return false}
+}
+/** Explicit operator acceptance retains the unknown charge; it only admits fresh operations. */
+const acknowledgedUnknownOperationSql="provider_id IN ('x_twitterapi_io','zyte') AND status=-1 AND payload_ref IS NULL AND feed_id IS NOT NULL AND feed_source_id IS NOT NULL AND json_extract(headers,'$.acknowledgement.kind')='UNKNOWN_OUTCOME_ACCEPTED_NO_REPLAY' AND json_extract(headers,'$.acknowledgement.requestHash')=request_hash AND json_extract(headers,'$.acknowledgement.reservedCeilingUsd')=ceiling_usd AND length(json_extract(headers,'$.acknowledgement.approvedBy'))>0 AND length(json_extract(headers,'$.acknowledgement.approvalId'))>0 AND (json_extract(headers,'$.failure.phase') IS NOT NULL OR json_extract(headers,'$.claimExpiresAt')<=json_extract(headers,'$.acknowledgement.at'))";
+export const unresolvedProviderOperationSql=`payload_ref IS NULL AND COALESCE(status=200 AND json_extract(headers,'$.reconciliation.kind')='COMPLETED_RESPONSE_LOST' AND json_extract(headers,'$.reconciliation.requestId') IS NOT NULL,0)=0 AND COALESCE(provider_id IN ('x_apify','linkedin_apify','google_apify','apify_actor') AND json_extract(headers,'$.readOnlyApify.kind')='EXISTING_RUN_READ' AND json_extract(headers,'$.readOnlyApify.requestHash')=request_hash,0)=0 AND COALESCE(${acknowledgedUnknownOperationSql},0)=0`;
 /** Only the narrow anonymous HTTP extraction shape is independent per target.
  * Sessions, browser actions and unknown historical request shapes stay fenced. */
 export function statelessZyteTarget(providerId:string,url:string,init:RequestInit):string|undefined {
@@ -66,7 +73,7 @@ export function collectorBudgetDay(date:Date,timeZone:string):string {
  * not reported actual costs. Caps are configured by deployment, not by source input. */
 export class DurableProviderHttp implements ProviderHttpPort {
   constructor(private readonly db:SqlDatabase,private readonly payloads:ImmutablePayloadStore,
-    private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=20_000,
+    private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=60_000,
     private readonly sourceProviderLimitUsd?:number,private readonly deploymentLimits?:Readonly<Record<string,number>>,
     private readonly dailyBudget?:DailyCollectorBudget,private readonly providerDeadlines:Readonly<Record<string,number>>={},private readonly enforceBudgetLimits=true) {
     if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>22_000_000||!Number.isSafeInteger(deadlineMs)||deadlineMs<1||deadlineMs>60_000)throw new Error('INVALID_PROVIDER_LIMITS');
@@ -98,13 +105,15 @@ export class DurableProviderHttp implements ProviderHttpPort {
     // Missing provenance, legacy rows and other providers remain conservative.
     const independentGuard=statelessTarget===undefined?'':` AND NOT COALESCE((provider_id='zyte' AND COALESCE(json_extract(headers,'$.statelessTarget'),'')<>'' AND json_extract(headers,'$.statelessTarget')<>? AND (json_extract(headers,'$.failure.phase') IS NOT NULL OR json_extract(headers,'$.claimExpiresAt')<=?)),0)`;
     const independentParams=statelessTarget===undefined?[]:[statelessTarget,now];
-    const load=()=>this.db.prepare('SELECT request_hash,payload_ref,status,headers FROM connector_provider_operations WHERE provider_id=? AND operation_id=?')
-      .bind(providerId,scoped).first<{request_hash:string;payload_ref:string|null;status:number|null;headers:string|null}>();
+    const load=()=>this.db.prepare(`SELECT request_hash,payload_ref,status,headers, COALESCE(${acknowledgedUnknownOperationSql},0) AS acknowledged FROM connector_provider_operations WHERE provider_id=? AND operation_id=?`)
+      .bind(providerId,scoped).first<{request_hash:string;payload_ref:string|null;status:number|null;headers:string|null;acknowledged:number}>();
+    const readOnly=isReadOnlyApifyRequest(providerId,url,init);
     const previous=await load();
     if(previous) {
       if(previous.request_hash!==hash)throw new Error('IDEMPOTENCY_CONFLICT');
+      if(previous.acknowledged)throw new SourceProviderError('RESULT_LOST',undefined,{detail:'ACKNOWLEDGED_UNKNOWN_OUTCOME_NO_REPLAY'});
       if(JSON.parse(previous.headers??'{}').reconciliation?.kind==='COMPLETED_RESPONSE_LOST')throw new SourceProviderError('RESULT_LOST');
-      if(!previous.payload_ref)throw pendingProviderError(previous.headers);
+      if(!previous.payload_ref){if(readOnly)return this.resumeRead(scope,providerId,scoped,url,init,hash,previous);throw pendingProviderError(previous.headers);}
       return this.decode(previous.status!,JSON.parse(previous.headers!),await this.payloads.get(scope,previous.payload_ref));
     }
     const deploymentLimit=this.enforceBudgetLimits?(this.deploymentLimits?.[providerId]??(this.deploymentLimits?0:undefined)):undefined;
@@ -131,7 +140,7 @@ export class DurableProviderHttp implements ProviderHttpPort {
     // Include both scoped and unattributed legacy fences in the reservation
     // transaction so two different run IDs cannot race past the read above.
     const unresolvedGuard=` AND NOT EXISTS(SELECT 1 FROM connector_provider_operations WHERE ${unresolvedProviderOperationSql} AND ((feed_id=? AND feed_source_id=?${independentGuard}) OR (provider_id=? AND feed_source_id IS NULL)))`;
-    const token=crypto.randomUUID(),claimHeaders=JSON.stringify({claimToken:token,claimExpiresAt:new Date(Date.now()+(this.providerDeadlines[providerId]??this.deadlineMs)+60_000).toISOString(),...(statelessTarget?{statelessTarget}:{})});
+    const token=crypto.randomUUID(),claimHeaders=JSON.stringify({claimToken:token,claimExpiresAt:new Date(Date.now()+(this.providerDeadlines[providerId]??this.deadlineMs)+60_000).toISOString(),...(statelessTarget?{statelessTarget}:{}),...(readOnly?{readOnlyApify:{kind:'EXISTING_RUN_READ',requestHash:hash}}:{})});
     await this.db.batch([
       ...(this.dailyBudget?[this.db.prepare('INSERT INTO connector_daily_provider_budgets(day,limit_usd,reserved_usd) VALUES(?,?,0) ON CONFLICT(day) DO UPDATE SET limit_usd=excluded.limit_usd').bind(day,this.dailyBudget.limitUsd)]:[]),
       ...sourceBudget,
@@ -158,16 +167,28 @@ export class DurableProviderHttp implements ProviderHttpPort {
     const mine=await this.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE provider_id=? AND operation_id=? AND status=-1 AND headers=? RETURNING operation_id')
       .bind(claimHeaders,providerId,scoped,claimHeaders).first();
     if(!mine){const owner=await load();if(owner?.payload_ref)return this.decode(owner.status!,JSON.parse(owner.headers!),await this.payloads.get(scope,owner.payload_ref));throw pendingProviderError(owner?.headers);}
+    return this.dispatchClaim(scope,providerId,scoped,url,init,claimHeaders);
+  }
+  private async resumeRead(scope:SourceScope,providerId:string,scoped:string,url:string,init:RequestInit,hash:string,previous:{headers:string|null}):Promise<ProviderHttpResult>{
+    const old=JSON.parse(previous.headers??'{}');
+    if(!old.failure&&Date.parse(old.claimExpiresAt)>Date.now())throw pendingProviderError(previous.headers);
+    const claimHeaders=JSON.stringify({claimToken:crypto.randomUUID(),claimExpiresAt:new Date(Date.now()+(this.providerDeadlines[providerId]??this.deadlineMs)+60_000).toISOString(),readOnlyApify:{kind:'EXISTING_RUN_READ',requestHash:hash},readRecovery:{attempt:(old.readRecovery?.attempt??0)+1,priorFailure:old.failure??old.readRecovery?.priorFailure}});
+    const claimed=await this.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE provider_id=? AND operation_id=? AND request_hash=? AND payload_ref IS NULL AND headers IS ? RETURNING operation_id').bind(claimHeaders,providerId,scoped,hash,previous.headers).first();
+    if(!claimed)throw new SourceProviderError('BACKPRESSURE');
+    return this.dispatchClaim(scope,providerId,scoped,url,init,claimHeaders);
+  }
+  private async dispatchClaim(scope:SourceScope,providerId:string,scoped:string,url:string,init:RequestInit,claimHeaders:string):Promise<ProviderHttpResult>{
+    const readOnly=isReadOnlyApifyRequest(providerId,url,init);
     const abort=new AbortController();
     let timer:ReturnType<typeof setTimeout>;
     const timeout=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{abort.abort();reject(new SourceProviderError('UNCERTAIN_PAID_SUBMISSION'));},this.providerDeadlines[providerId]??this.deadlineMs);});
     const uncertain=async(phase:string,reason:string,response?:Response)=>{
       // Diagnostic metadata never settles an operation or releases its fence.
       const requestId=response?.headers.get('zyte-request-id');
-      const diagnostic={claimToken:token,...(statelessTarget?{statelessTarget}:{}),failure:{phase,reason,at:new Date().toISOString(),...(response?{httpStatus:response.status}:{}),...(requestId&&/^[\w-]{1,200}$/.test(requestId)?{requestId}:{})}};
+      const diagnostic={...JSON.parse(claimHeaders),failure:{phase,reason,at:new Date().toISOString(),...(response?{httpStatus:response.status}:{}),...(requestId&&/^[\w-]{1,200}$/.test(requestId)?{requestId}:{})}};
       await this.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE provider_id=? AND operation_id=? AND payload_ref IS NULL AND headers=?')
         .bind(JSON.stringify(diagnostic),providerId,scoped,claimHeaders).run();
-      throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+      throw new SourceProviderError(readOnly?'TRANSIENT':'UNCERTAIN_PAID_SUBMISSION',undefined,readOnly?{detail:'APIFY_EXISTING_RUN_READ_FAILED'}:undefined);
     };
     let response:Response;
     const dispatch=this.dispatch;

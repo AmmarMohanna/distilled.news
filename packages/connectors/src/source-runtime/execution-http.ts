@@ -5,7 +5,7 @@ import {SourceProviderError} from './provider-types';
 export class HttpSourceExecution implements SourceExecutionPort {
   private readonly url: string;
   constructor(url:string,private readonly token:string,private readonly dispatch:typeof fetch=fetch,
-    allowLoopbackHttp=false,private readonly timeoutMs=65000) {
+    allowLoopbackHttp=false,private readonly timeoutMs=60000) {
     const parsed=new URL(url);
     if((parsed.protocol!=='https:'&&!(allowLoopbackHttp&&parsed.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(parsed.hostname)))||
       parsed.username||parsed.password||parsed.search||parsed.hash||token.length<32)throw new Error('INVALID_SOURCE_EXECUTION_CONFIG');
@@ -25,7 +25,17 @@ export class HttpSourceExecution implements SourceExecutionPort {
     };
     const response=await bounded(this.dispatch(this.url,{method:'POST',redirect:'manual',signal,
       headers:{authorization:`Bearer ${this.token}`,'content-type':'application/json'},body}));
-    if(response.status!==200){await response.body?.cancel();if(response.status===503||response.status===429){const seconds=Number(response.headers.get('retry-after')??5);throw new SourceProviderError('BACKPRESSURE',new Date(Date.now()+Math.max(1000,Number.isFinite(seconds)?seconds*1000:5000)).toISOString());}throw Object.assign(new Error('SOURCE_EXECUTION_UNAVAILABLE'),{httpStatus:response.status});}
+    if(response.status!==200){
+      if(response.status===503||response.status===429){
+        const seconds=Number(response.headers.get('retry-after')??5),retry=new Date(Date.now()+Math.max(1000,Number.isFinite(seconds)?seconds*1000:5000)).toISOString();
+        let busy=false;const reader=response.body?.getReader();
+        try{if(reader){const chunks:Uint8Array[]=[];let size=0;for(;;){const part=await bounded(reader.read());if(part.done)break;size+=part.value.length;if(size>1024)break;chunks.push(part.value);}if(size<=1024){const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}try{busy=JSON.parse(new TextDecoder().decode(bytes))?.error==='BUSY';}catch{}}}}
+        finally{await reader?.cancel().catch(()=>{});reader?.releaseLock();}
+        if(response.status===429||busy)throw new SourceProviderError('BACKPRESSURE',retry,{detail:response.status===429?'HELPER_HTTP_RATE_LIMIT':'HELPER_GLOBAL_CAPACITY_BUSY',httpStatus:response.status});
+        throw new SourceProviderError('TRANSIENT',retry,{detail:'HELPER_SERVICE_UNAVAILABLE',httpStatus:503});
+      }
+      await response.body?.cancel();throw Object.assign(new Error('SOURCE_EXECUTION_UNAVAILABLE'),{httpStatus:response.status});
+    }
     const reader=response.body?.getReader();if(!reader)throw new Error('SOURCE_EXECUTION_INVALID_RESPONSE');
     let size=0;const chunks:Uint8Array[]=[];
     try {

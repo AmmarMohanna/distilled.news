@@ -21,7 +21,7 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     if (url.origin !== this.origin||seen.has(url.href)||seen.size>3) throw new PublicSourcePolicyError();
     seen.add(url.href);
     let response: Response;
-    const signal = AbortSignal.timeout(15_000);
+    const signal = AbortSignal.timeout(60_000);
     const fetcher=this.fetcher;
     try { response = await fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml" } }); }
     catch (error) {

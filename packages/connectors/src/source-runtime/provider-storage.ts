@@ -1,4 +1,4 @@
-import { HandoffError, connectorHandoffRequestSchema, collectionCoverageSchema, validateHandoffResponse } from '@distilled/contracts';
+import { HandoffError, connectorHandoffRequestSchema, collectionCoverageSchema, validateHandoffResponse,sha256 } from '@distilled/contracts';
 import type { ConnectorHandoffRequest, ConnectorHandoffResponse,CollectionCoverage } from '@distilled/contracts';
 import type { SourceScope } from './ports';
 import { D1SourceRepository, type SqlDatabase } from './storage';
@@ -88,6 +88,14 @@ export class D1ProviderSourceRepository extends D1SourceRepository {
     return row?JSON.parse(row.data):undefined;
   }
   async hasReadRecovery(scope:SourceScope,runId:string,providerId:string):Promise<boolean> {
+    // A process may stop before journaling a read failure. Only an exact scoped
+    // status/dataset operation marked by our HTTP adapter permits resumption.
+    if(['x_apify','google_apify','linkedin_apify'].includes(providerId)){
+      const ids=await Promise.all(['status','dataset'].map(kind=>sha256(JSON.stringify([scope,runId+':'+kind]))));
+      if(await this.sql.prepare(`SELECT operation_id FROM connector_provider_operations WHERE provider_id=? AND feed_id=? AND feed_source_id=? AND operation_id IN (?,?)
+        AND json_extract(headers,'$.readOnlyApify.kind')='EXISTING_RUN_READ' AND json_extract(headers,'$.readOnlyApify.requestHash')=request_hash LIMIT 1`)
+        .bind(providerId,scope.feedId,scope.feedSourceId,...ids).first())return true;
+    }
     return !!await this.sql.prepare(`SELECT r.operation_id FROM connector_provider_read_recoveries r
       JOIN connector_provider_operations o ON o.provider_id=r.provider_id AND o.operation_id=r.operation_id AND o.feed_id=r.feed_id AND o.feed_source_id=r.feed_source_id
       WHERE r.feed_id=? AND r.feed_source_id=? AND r.source_id=? AND r.run_id=? AND r.provider_id=?

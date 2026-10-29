@@ -90,11 +90,11 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
  resolveGoogleArticle:helper&&env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'?async url=>{
   await authorizeArticle(url);
-  const result=await helper.execute('google_resolve',{urls:[url]},{timeoutMs:25000}) as {results?:unknown[]};
+  const result=await helper.execute('google_resolve',{urls:[url]},{timeoutMs:60_000}) as {results?:unknown[]};
   await authorizeArticle(url);return result?.results?.[0];
  }:undefined,
  publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
- publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:25000});await authorizeArticle(url);return result;}:undefined,
+ publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:60_000});await authorizeArticle(url);return result;}:undefined,
  articleFallback:env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{
   const source=await env.DB.prepare('SELECT source_url,provider,kind,input,actor_id FROM sources WHERE id=?').bind(job.feedSourceId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
   const approved=source&&productConnectorSource(source);
@@ -102,7 +102,7 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
   return runtimeArticleFallback(env,execution,authorizeArticle,fetcher)(claim);
  }:undefined,
  extractHtml:execution?async(url,html)=>{
-  await authorizeArticle(url);const result=await execution!.execute('extract',{url,html},{timeoutMs:15000});await authorizeArticle(url);return result;
+  await authorizeArticle(url);const result=await execution!.execute('extract',{url,html},{timeoutMs:60_000});await authorizeArticle(url);return result;
  }:undefined,stagesForClaim:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
   const ref=claim.input.observation.suppliedPayloadRef;
   const connectorPayload=await readConnectorPayload(env.RAW_ARCHIVE,claim.input.observation);

@@ -25,7 +25,7 @@ it.each(['https://other.example/article','http://publisher.example/article','htt
  const get=vi.fn().mockResolvedValue(reply(302,{location}));await expect(readPublicArticle({get},'https://publisher.example/story')).rejects.toThrow();expect(get).toHaveBeenCalledTimes(1);
 });
 it('bounds loops and never turns a 401 into successful article collection',async()=>{
- const get=vi.fn().mockResolvedValue(reply(302,{location:'/story'}));await expect(readPublicArticle({get},'https://publisher.example/story')).rejects.toMatchObject({code:'POLICY_DENIED'});expect(get).toHaveBeenCalledTimes(1);
+ const get=vi.fn().mockResolvedValue(reply(302,{location:'/story'}));await expect(readPublicArticle({get},'https://publisher.example/story')).rejects.toMatchObject({code:'POLICY_DENIED',diagnostic:{detail:'ARTICLE_REDIRECT_LOOP'}});expect(get).toHaveBeenCalledTimes(1);
  expect(await readPublicArticle({get:async()=>reply(401,{'www-authenticate':'Basic'})},'https://publisher.example/story')).toMatchObject({status:401,authenticationRequired:true});
 });
 

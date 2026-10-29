@@ -286,6 +286,12 @@ describe('RSS normalization and bounded HTTP',()=>{
     expect(()=>normalizeRssSnapshot('<html/>',input.url)).toThrow('INVALID_FEED');
     expect(normalizeRssSnapshot(xml(item('one')+item('one')),input.url)).toHaveLength(1);
   });
+  it('accepts literal HTML doctypes in CDATA while rejecting real XML declarations',()=>{
+    const result=normalizeRssSnapshot(xml('<item><guid>one</guid><description><![CDATA[<p><!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd"><br />Actual article body.</p>]]></description></item>'),input.url);
+    expect(result[0].body).toBe('Actual article body.');
+    expect(()=>normalizeRssSnapshot('<!DOCTYPE rss [<!ENTITY unsafe SYSTEM "file:///private">]>'+xml(item('one')),input.url)).toThrow('INVALID_FEED');
+    expect(()=>normalizeRssSnapshot(xml('<item><guid>one</guid><description><![CDATA[unfinished</description></item>'),input.url)).toThrow('INVALID_FEED');
+  });
   it('conflicting duplicate rows are visible to intake without choosing arbitrary content',async()=>{
     const s=setup(xml(item('one','A')+item('one','B'))); await s.collector.collect(input);
     expect(s.accepted[0].observations).toHaveLength(1); expect(s.accepted[0].proposals).toHaveLength(0);

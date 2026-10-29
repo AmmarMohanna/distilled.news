@@ -70,3 +70,10 @@ it('keeps publisher discovery separate from retained verification and reuses bot
  expect(starts).toHaveLength(2);
  expect(starts.map(([,init])=>JSON.parse(init!.body as string).maxItemsPerQuery)).toEqual([10,60]);
 },15000);
+
+it('honors configured unlimited collection during verification without clearing existing reservations',async()=>{
+ env.SOURCE_COLLECTION_BUDGET_MODE='unlimited';env.TWITTERAPI_IO_API_KEY='test-twitter-only';env.SOURCE_PROVIDER_BUDGETS_JSON='{"x_twitterapi_io":15}';env.SOURCE_OPERATION_CEILINGS_JSON='{"twitterApiIo":0.01}';env.SOURCE_DAILY_BUDGET_USD='0.001';
+ const fetcher=vi.fn<typeof fetch>(async()=>Response.json({tweets:[{id:'12345',text:'A real space mission update.',createdAt:new Date().toISOString(),author:{id:'123',userName:'NASA'}}],has_next_page:false}));
+ expect(await collectVerificationEvidence(env,'https://x.com/NASA',{ownerAccountId:'unlimited-owner',providerFetcher:fetcher})).toHaveLength(1);expect(fetcher).toHaveBeenCalledTimes(1);
+ const rows=await env.DB.prepare('SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id=?').bind('x_twitterapi_io').first<{reserved_usd:number}>();expect(rows?.reserved_usd).toBe(.01);
+});

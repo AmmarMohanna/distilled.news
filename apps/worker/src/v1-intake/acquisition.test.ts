@@ -48,7 +48,7 @@ it('operator recovery after an early extraction failure grants exactly one attem
 it('recovers a competing job after the original paid request has completed and its response is retained',async()=>{
  await terminalRecoveryFixture('UNCERTAIN_PAID_SUBMISSION');const row=(await store.read<DownstreamJob>('jobs',jobId))!;
  await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'}}]);
- await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,operation_id TEXT)');
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_id TEXT,ceiling_usd REAL,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,request_hash TEXT,operation_id TEXT)');
  await ctx.db.prepare('INSERT INTO connector_provider_operations(feed_source_id,status,payload_ref,headers,operation_id) VALUES(?,200,?,NULL,?)').bind(row.feedSourceId,'retained-response','other-job').run();
  await authorizeAcquisitionRecovery(store,jobId,'active-owner-finished',now);
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:5,recoveryAuthorizations:[{priorFailureCode:'UNCERTAIN_PAID_SUBMISSION',maxAttempts:6}]});
@@ -56,6 +56,50 @@ it('recovers a competing job after the original paid request has completed and i
 it.each(['CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'])('operator recovery preserves %s history after a route repair',async code=>{
  await terminalRecoveryFixture(code,1);await authorizeAcquisitionRecovery(store,jobId,'route-fix',now);
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{priorFailureCode:code,maxAttempts:2}]});
+});
+it('admits one retry of an undiagnosed legacy policy failure only with fresh exact-article HTTP evidence',async()=>{
+ await terminalRecoveryFixture('POLICY_DENIED',1);
+ const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:undefined}}]);
+ const url=(await store.read<any>('inputs','observation-1'))!.value.observation.canonicalUrl;
+ const evidence={url,status:200 as const,bodyHash:'a'.repeat(64),textCharacters:4021,observedAt:now};
+ for(const bad of [{...evidence,url:url+'/other'},{...evidence,url:'https://127.0.0.1/private'},{...evidence,bodyHash:'missing'},{...evidence,textCharacters:5},{...evidence,observedAt:'2026-10-03T11:00:00Z'}])
+  await expect(authorizeAcquisitionRecovery(store,jobId,'public-proof',now,undefined,undefined,bad)).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await authorizeAcquisitionRecovery(store,jobId,'public-proof',now,undefined,undefined,evidence);
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{priorFailureCode:'POLICY_DENIED',maxAttempts:2,publicHttpEvidence:evidence}]});
+});
+it('fresh HTTP evidence does not reopen an explicit policy refusal',async()=>{
+ await terminalRecoveryFixture('POLICY_DENIED',1);
+ const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,httpStatus:451}}]);
+ const url=(await store.read<any>('inputs','observation-1'))!.value.observation.canonicalUrl;
+ await expect(authorizeAcquisitionRecovery(store,jobId,'public-proof',now,undefined,undefined,{url,status:200,bodyHash:'a'.repeat(64),textCharacters:4021,observedAt:now})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+});
+it('recovers a fallback URL mismatch only with an exact verified public redirect chain',async()=>{
+ await terminalRecoveryFixture('INVALID_RESULT',1);const row=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'FALLBACK_URL_MISMATCH'}}]);
+ const from=(await store.read<any>('inputs','observation-1'))!.value.observation.canonicalUrl,to='https://learn.publisher.example/docs/topic';
+ const proof={requestedUrl:from,resolvedUrl:to,hops:[{from,to,status:307}]};
+ await expect(authorizeAcquisitionRecovery(store,jobId,'redirect-proof',now,undefined,undefined,undefined,{...proof,requestedUrl:from+'/other'})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await authorizeAcquisitionRecovery(store,jobId,'redirect-proof',now,undefined,undefined,undefined,proof);
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{priorFailureCode:'INVALID_RESULT',redirectProof:proof,maxAttempts:2}]});
+});
+it('persists a short readable primary description as partial evidence with incomplete extraction quality',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,url=claim.input.observation.canonicalUrl!,title='How OpenAI uses ChatGPT Atlas at work';
+ const html=`<article><h1>${title}</h1><p>Webinar ${title} Watch how OpenAI uses ChatGPT Atlas at work.</p></article>`;
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,publicGet:async()=>({url,body:html,contentType:'text/html',status:200})});
+ const result=await router(claim);expect(result).toMatchObject({representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL',quality:{extractionComplete:false}});
+ await persistAcquisitionResult(store,claim,result,now);
+ expect((await store.read<any>('acquisition_results',jobId))!.value.contentCompleteness).toBe('PARTIAL');
+});
+it('retains destination title, URL and redirect provenance without borrowing the original discovery date',async()=>{
+ const claim=(await claimAcquisition(store,jobId,now))!,from=claim.input.observation.canonicalUrl!,to='https://learn.publisher.example/docs/topic';
+ const proof={requestedUrl:from,resolvedUrl:to,hops:[{from,to,status:307}]};
+ claim.job.recoveryAuthorizations=[{id:'verified',authorizedAt:now,priorAttempts:0,priorFailureCode:'INVALID_RESULT',maxAttempts:2,redirectProof:proof}];
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,publicGet:async()=>{throw Error('UNNECESSARY_HTTP_HELPER')},articleFallback:async()=>({status:200,url:from,canonicalUrl:from,resolvedUrl:to,redirectEvidence:proof,pageKind:'article',title:'Destination title',body:'The destination describes its current programme and conditions. '.repeat(20),provider:'website_zyte'})});
+ const result=await router(claim);expect(result).toMatchObject({title:'Destination title',resolvedUrl:to,provenance:{redirectEvidence:proof}});expect(result.publishedAt).toBeUndefined();
+ await persistAcquisitionResult(store,claim,result,now);
+ expect((await store.read<any>('acquisition_results',jobId))!.value.provenance.redirectEvidence).toEqual(proof);
 });
 it('requires exact public redirect evidence to recover a historical redirect policy failure',async()=>{
  await terminalRecoveryFixture('POLICY_DENIED',1);
@@ -71,14 +115,14 @@ it.each(['AUTH_REQUIRED','POLICY_DENIED','UNCERTAIN_PAID_SUBMISSION','INVALID_RE
 });
 it('operator recovery refuses unresolved paid work and leaves the terminal job untouched',async()=>{
  await terminalRecoveryFixture();
- await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_id TEXT,ceiling_usd REAL,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,request_hash TEXT)');
  await ctx.db.prepare('INSERT INTO connector_provider_operations(feed_source_id,status,payload_ref,headers) VALUES(?,NULL,NULL,NULL)').bind('feed-source-1').run();
  await expect(authorizeAcquisitionRecovery(store,jobId,'qa-fix-1',now)).rejects.toThrow('RECOVERY_PAID_OUTCOME_UNRESOLVED');
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'FAILED',attempts:5});
 });
 it('can authorize a waiting job while another request owns a finite active claim',async()=>{
  await terminalRecoveryFixture('CHALLENGE_REQUIRED',1);
- await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_id TEXT,ceiling_usd REAL,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,request_hash TEXT)');
  await ctx.db.prepare('INSERT INTO connector_provider_operations(feed_source_id,status,payload_ref,headers) VALUES(?,-1,NULL,?)').bind('feed-source-1',JSON.stringify({claimToken:'active-owner',claimExpiresAt:'2026-10-03T12:01:00.000Z'})).run();
  await authorizeAcquisitionRecovery(store,jobId,'route-fix',now);expect((await store.read<DownstreamJob>('jobs',jobId))!.value.state).toBe('PENDING');
 });
@@ -115,6 +159,16 @@ it('an uncertain Zyte submission is terminal and cannot be retried by another ac
  expect(await runAcquisitionJob(store,jobId,testPolicy,router)).toBe('FAILED');
  expect(await runAcquisitionJob(store,jobId,{...testPolicy,now:()=>later},router)).toBe('SKIPPED');expect(calls).toBe(1);
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value.failureCode).toBe('UNCERTAIN_PAID_SUBMISSION');
+});
+it('repeated capacity waits back off without burning attempts or fabricating evidence',async()=>{
+ const original=(await store.read<DownstreamJob>('jobs',jobId))!;
+ await store.commit(await store.snapshot(original.feedSourceId),[{table:'jobs',id:jobId,value:{...original.value,resourceWaits:82}}]);
+ await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('BACKPRESSURE',true,{detail:'HELPER_GLOBAL_CAPACITY_BUSY'})});
+ const result=(await store.read<DownstreamJob>('jobs',jobId))!.value;
+ expect(result).toMatchObject({state:'PENDING',attempts:0,resourceWaits:83,exhausted:false});
+ expect(Date.parse(result.nextAttemptAt!)-Date.parse(now)).toBeGreaterThanOrEqual(60000);
+ expect(Date.parse(result.nextAttemptAt!)-Date.parse(now)).toBeLessThan(63000);
+ expect(await store.list('revisions','feed-source-1')).toHaveLength(0);
 });
 it('helper capacity waits preserve retry allowance and respect the provider deadline',async()=>{
  await runAcquisitionJob(store,jobId,testPolicy,async()=>{throw new AcquisitionFailure('BACKPRESSURE',true,{detail:'HELPER_CAPACITY_WAIT',retryNotBefore:'2026-10-03T12:05:00Z'})});
@@ -369,7 +423,7 @@ it('admits a URL-only discovery recheck without replacing complete canonical art
  const router=createCandidateAcquisitionRouter({now:()=>now,fetcher:async()=>new Response(`<link rel="canonical" href="${o.canonicalUrl}"><meta property="article:published_time" content="2026-10-03T10:00:00Z"><article><h1>Updated development</h1><p>Parliament approved the banking reform.</p></article>`)});
  expect(await runAcquisitionJob(store,JSON.stringify(['ACQUIRE',o.id,'']),testPolicy,router)).toBe('DONE');
  const acquired=(await store.list<AcceptedAcquiredContent>('acquired','feed-source-1')).find(c=>c.sourceObservationId===o.id)!;
- expect(acquired).toMatchObject({representation:'FULL_ARTICLE',acquisitionMethod:'direct_http',body:expect.stringContaining('Parliament approved')});
+ expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',publishedAt:'2026-10-03T10:00:00.000Z',acquisitionMethod:'direct_http',body:expect.stringContaining('Parliament approved')});expect(acquired.body).not.toContain('<link');
  expect(await store.list('revisions','feed-source-1')).toHaveLength(2);
 });
 
@@ -402,7 +456,7 @@ it.each([false,true])('operator recovery distinguishes a reconciled other-job ho
  await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row.value,failureDetail:'ARTICLE_PROVIDER_OUTCOME_UNCERTAIN'}}]);
  const input=(await store.read<any>('inputs',row.value.observationId))!.value,o=input.observation;
  const operationId=own?await sha256(JSON.stringify([{feedId:o.feedId,feedSourceId:o.feedSourceId,sourceId:o.sourceId},JSON.stringify(['article-fallback-v1',jobId,o.canonicalUrl])])):'different-job';
- await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,operation_id TEXT)');
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_id TEXT,ceiling_usd REAL,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,request_hash TEXT,operation_id TEXT)');
  await ctx.db.prepare('INSERT INTO connector_provider_operations(feed_source_id,status,payload_ref,headers,operation_id) VALUES(?,200,NULL,?,?)').bind(o.feedSourceId,JSON.stringify({reconciliation:{kind:'COMPLETED_RESPONSE_LOST',requestId:'verified-provider-receipt'}}),operationId).run();
  if(own){await expect(authorizeAcquisitionRecovery(store,jobId,'qa-receipt',now)).rejects.toThrow('RECOVERY_PAID_RESULT_LOST');expect((await store.read<DownstreamJob>('jobs',jobId))!.value.state).toBe('FAILED')}
  else{await authorizeAcquisitionRecovery(store,jobId,'qa-receipt',now);expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:5,recoveryAuthorizations:[{priorFailureCode:'UNCERTAIN_PAID_SUBMISSION'}]})}
@@ -410,9 +464,9 @@ it.each([false,true])('operator recovery distinguishes a reconciled other-job ho
 it.each(['independent','same-target','unproven','different-provider'])('operator recovery respects target-isolated Zyte uncertainty: %s',async kind=>{
  await terminalRecoveryFixture('RECOVERY_EXHAUSTED');
  const input=(await store.read<any>('inputs','observation-1'))!.value,target=input.observation.canonicalUrl;
- await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT)');
+ await ctx.db.exec('CREATE TABLE connector_provider_operations(provider_id TEXT,feed_id TEXT,ceiling_usd REAL,feed_source_id TEXT,status INTEGER,payload_ref TEXT,headers TEXT,request_hash TEXT)');
  const metadata={claimToken:'lost-owner',claimExpiresAt:'2026-10-03T11:00:00.000Z',...(kind==='unproven'?{}:{statelessTarget:kind==='same-target'?target:'https://publisher.example/unrelated'})};
- await ctx.db.prepare('INSERT INTO connector_provider_operations VALUES(?,?,-1,NULL,?)').bind(kind==='different-provider'?'apify':'zyte','feed-source-1',JSON.stringify(metadata)).run();
+ await ctx.db.prepare('INSERT INTO connector_provider_operations(provider_id,feed_source_id,status,payload_ref,headers) VALUES(?,?,-1,NULL,?)').bind(kind==='different-provider'?'apify':'zyte','feed-source-1',JSON.stringify(metadata)).run();
  const before=await ctx.db.prepare('SELECT * FROM connector_provider_operations').first();
  if(kind==='independent'){
   await authorizeAcquisitionRecovery(store,jobId,'target-isolation',now);
@@ -428,3 +482,10 @@ it('requires exact safe canonical-alias evidence to recover an identity rejectio
  await authorizeAcquisitionRecovery(store,jobId,'alias-fix',now,undefined,{from,to});
  expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'PENDING',attempts:1,recoveryAuthorizations:[{maxAttempts:2,priorFailureCode:'INVALID_RESULT',canonicalEvidence:{from,to}}]});
 },30000);
+
+it('retains the last failure code and a diagnostic when the acquisition limit is reached',async()=>{
+ const row=(await store.read<DownstreamJob>('jobs',jobId))!.value;
+ await store.commit(await store.snapshot(row.feedSourceId),[{table:'jobs',id:jobId,value:{...row,attempts:5,failureCode:'NETWORK'}}]);
+ expect(await claimAcquisition(store,jobId,now)).toBeUndefined();
+ expect((await store.read<DownstreamJob>('jobs',jobId))!.value).toMatchObject({state:'FAILED',failureCode:'RECOVERY_EXHAUSTED',priorFailureCode:'NETWORK',failureDetail:'ACQUISITION_ATTEMPT_LIMIT'});
+});

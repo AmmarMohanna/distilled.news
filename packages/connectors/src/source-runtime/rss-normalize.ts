@@ -52,7 +52,10 @@ function date(value: any): string | undefined {
 
 /** No DTD resolution. Invalid entries remain visible rather than disappearing at parse time. */
 export function normalizeRssSnapshot(xml: string, sourceUrl: string): RssItem[] {
-  if (/<!DOCTYPE|<!ENTITY/i.test(xml) || XMLValidator.validate(xml) !== true) throw new Error('INVALID_FEED');
+  // CDATA article HTML and comments are literal text, not XML declarations.
+  // Keep rejecting actual DTD/entity declarations before parsing the feed.
+  const declarations = xml.replace(/<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->/g, '');
+  if (/<!DOCTYPE|<!ENTITY/i.test(declarations) || XMLValidator.validate(xml) !== true) throw new Error('INVALID_FEED');
   const doc = parser.parse(xml);
   const atom = !!doc.feed;
   const root = doc.feed ?? doc.rss?.channel ?? doc['rdf:RDF'];

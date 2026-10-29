@@ -11,7 +11,7 @@ export async function admittedSourceExecution(db:D1Database,run:()=>Promise<Resp
  ORDER BY available.slot LIMIT 1
  ON CONFLICT(slot) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE lease_until<=? RETURNING slot`)
  .bind(token,at+leaseMs,at,at).first();
- if(!row)throw new SourceProviderError('BACKPRESSURE',new Date(at+5000+Math.floor(Math.random()*3000)).toISOString());
+ if(!row)throw new SourceProviderError('BACKPRESSURE',new Date(at+5000+Math.floor(Math.random()*3000)).toISOString(),{detail:'HELPER_LOCAL_CAPACITY_BUSY'});
  // The HTTP adapter bounds the complete response read. Keep the lease until
  // its stream closes/cancels, rather than releasing when headers arrive.
  let released=false;

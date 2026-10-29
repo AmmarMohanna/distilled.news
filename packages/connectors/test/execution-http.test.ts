@@ -2,6 +2,12 @@ import {describe,it,expect,vi} from 'vitest';
 import {HttpSourceExecution} from '../src/source-runtime/execution-http';
 const token='test-only-credential-'.repeat(3);
 describe('private source execution transport',()=>{
+  it('distinguishes confirmed helper occupancy, throttling and generic service failures',async()=>{
+    for(const [status,body,detail,code] of [[503,{error:'BUSY'},'HELPER_GLOBAL_CAPACITY_BUSY','BACKPRESSURE'],[429,{error:'throttled'},'HELPER_HTTP_RATE_LIMIT','BACKPRESSURE'],[503,{error:'service down'},'HELPER_SERVICE_UNAVAILABLE','TRANSIENT']] as const){
+      const client=new HttpSourceExecution('https://runtime.example/v1/source-execution',token,async()=>Response.json(body,{status,headers:{'retry-after':'30'}}));
+      await expect(client.execute('public_article',{})).rejects.toMatchObject({code,diagnostic:{detail,httpStatus:status}});
+    }
+  });
   it('requires HTTPS and a dedicated credential',()=>{
     expect(()=>new HttpSourceExecution('http://runtime.example/v1/source-execution',token)).toThrow();
     expect(()=>new HttpSourceExecution('https://runtime.example/v1/source-execution','short')).toThrow();

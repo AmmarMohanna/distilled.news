@@ -6,6 +6,10 @@ import type {AcquisitionClaim} from './acquisition';
 const url='https://publisher.example/news/decision';
 const claim={job:{id:'stable-job'},input:{observation:{canonicalUrl:url,feedId:'feed',feedSourceId:'source',sourceId:'publisher'}}} as AcquisitionClaim;
 const html=`<meta property="article:published_time" content="2026-10-01T12:00:00Z"><article><h1>Decision</h1><p>${'The council approved the proposal. '.repeat(30)}</p></article>`;
+it('retains a short primary webinar description as partial evidence while refusing title/date/CTA-only text',async()=>{
+ const title='How OpenAI uses ChatGPT Atlas at work',short=`<article><h1>${title}</h1><p>Webinar ${title} Watch how OpenAI uses ChatGPT Atlas at work.</p></article>`;
+ const f=fixture({status:200,url,html:short});expect(await f.fallback(claim)).toMatchObject({partial:true,shortTextEvidence:true,title});expect(f.request).not.toHaveBeenCalled();
+});
 it('retains readable article text in a publisher page larger than the previous six-megabyte limit',async()=>{
  const large=html+'<script>'+ 'x'.repeat(8_000_000)+'</script>';
  const f=fixture({status:200,url,html:large});
@@ -32,7 +36,7 @@ function fixture(browser:unknown={status:200,url,html}){
 }
 it('uses Playwright first and avoids paid dispatch when its exact article is readable',async()=>{
  const f=fixture();expect(await f.fallback(claim)).toMatchObject({status:200,url,provider:'website_playwright',pageKind:'article'});
- expect(f.execute).toHaveBeenCalledWith('playwright',{url,exactCandidateOnly:true},{timeoutMs:25000});expect(f.request).not.toHaveBeenCalled();
+ expect(f.execute).toHaveBeenCalledWith('playwright',{url,exactCandidateOnly:true},{timeoutMs:60000});expect(f.request).not.toHaveBeenCalled();
 });
 it('falls back to Zyte after helper transport failure with stable operation identity across retries',async()=>{
  const f=fixture();f.execute.mockRejectedValue(new Error('SOURCE_EXECUTION_UNAVAILABLE'));
@@ -62,6 +66,28 @@ it('does not spend on Zyte after an explicit browser paywall without article con
 it('never promotes a Zyte response for another URL',async()=>{
  const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url:url+'/other',httpResponseBody:btoa(html)}});
  await expect(f.fallback(claim)).rejects.toMatchObject({code:'INVALID_RESULT'});
+});
+it('retains the final page and public redirect evidence without labelling it as the old form',async()=>{
+ const target='https://publisher.example/community',proof={requestedUrl:url,resolvedUrl:target,hops:[{from:url,to:target,status:301}]};
+ const request=vi.fn(async()=>({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url:target,httpResponseBody:btoa(`<link rel="canonical" href="${target}">${html}`)}}));
+ const fallback=createArticleFallback({authorize:async()=>{},verifyRedirect:async()=>proof,zyte:{http:{request},key:'test',ceilingUsd:.01,initialize:async()=>{}}});
+ expect(await fallback(claim)).toMatchObject({url,canonicalUrl:url,resolvedUrl:target,redirectEvidence:proof,title:'Decision'});
+});
+it('uses recent job-bound operator redirect proof when the Worker cannot re-observe it',async()=>{
+ const target='https://publisher.example/community',proof={requestedUrl:url,resolvedUrl:target,hops:[{from:url,to:target,status:307}]};
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:target,httpResponseBody:btoa(`<link rel="canonical" href="${target}">${html}`)}});
+ const recovery={id:'verified',authorizedAt:new Date().toISOString(),priorAttempts:1,priorFailureCode:'INVALID_RESULT',maxAttempts:2,redirectProof:proof};
+ const recovered={...claim,job:{...claim.job,attempts:2,recoveryAuthorizations:[recovery]}} as AcquisitionClaim;
+ expect(await f.fallback(recovered)).toMatchObject({resolvedUrl:target,redirectEvidence:proof});
+ await expect(f.fallback({...recovered,job:{...recovered.job,attempts:3}})).rejects.toMatchObject({code:'INVALID_RESULT'});
+ await expect(f.fallback({...recovered,job:{...recovered.job,recoveryAuthorizations:[{...recovery,authorizedAt:'2020-01-01T00:00:00Z'}]}})).rejects.toMatchObject({code:'INVALID_RESULT'});
+});
+it('reuses an exact retained recovery response before calling an unavailable browser helper',async()=>{
+ const target='https://publisher.example/community',proof={requestedUrl:url,resolvedUrl:target,hops:[{from:url,to:target,status:307}]};
+ const execute=vi.fn(async()=>{throw new SourceProviderError('BACKPRESSURE')}),request=vi.fn(async()=>({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url:target,httpResponseBody:btoa(`<link rel="canonical" href="${target}">${html}`)}}));
+ const fallback=createArticleFallback({authorize:async()=>{},execution:{execute} as SourceExecutionPort,zyte:{http:{request},key:'test',ceilingUsd:.01,initialize:async()=>{},hasRetained:async()=>true}});
+ const recovered={...claim,job:{...claim.job,attempts:2,recoveryAuthorizations:[{id:'verified',authorizedAt:new Date().toISOString(),priorAttempts:1,priorFailureCode:'INVALID_RESULT',maxAttempts:3,redirectProof:proof}]}} as AcquisitionClaim;
+ expect(await fallback(recovered)).toMatchObject({resolvedUrl:target,redirectEvidence:proof});expect(execute).not.toHaveBeenCalled();expect(request).toHaveBeenCalledTimes(1);
 });
 
 it('accepts tracking-only canonical differences while preserving the admitted candidate identity',async()=>{

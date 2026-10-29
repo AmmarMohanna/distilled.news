@@ -55,7 +55,7 @@ export async function readTopicPublishers(env:Env,searchUrl:string,fetcher:typeo
  if((response.status===0||response.status>=500)&&env.SOURCE_EXECUTION_SERVICE&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN){
   try{
    const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(url,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(url,init),true);
-   const result=await execution.execute('google_feed',{url:searchUrl},{timeoutMs:25000});
+   const result=await execution.execute('google_feed',{url:searchUrl},{timeoutMs:60_000});
    onTransport?.({route:'runtime',status:result&&typeof result==='object'&&'status' in result?Number(result.status)||0:0});
    if(result&&typeof result==='object'&&'status' in result&&result.status===200&&'xml' in result&&typeof result.xml==='string'&&new TextEncoder().encode(result.xml).length<=2_000_000)return topicPublishers(result.xml,searchUrl);
   }catch{/* The configured paid route retains its own durable budget and retry fences. */}

@@ -49,3 +49,9 @@ it('a newly pending poll does not erase the last blocked collection outcome',asy
  expect((await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed'))[0]).toMatchObject({state:'UNAVAILABLE',reason:'COLLECTION_BLOCKED',collectionError:'RATE_LIMIT'});
  expect(query).toContain("state IN ('DONE','BLOCKED')");
 });
+it.each(['social','website'])('does not block fresh %s collection on an old paid error when no active payment hold remains',async family=>{
+ const source=family==='social'?{id:'x-source',title:'Account',provider:'twitterapi_io',kind:'x_profile',source_url:'https://x.com/NASA',input:JSON.stringify({username:'NASA'}),actor_id:null}:{id:'web-source',title:'Publisher',provider:'web',kind:'web_page',source_url:'https://publisher.example/',input:'https://publisher.example/',actor_id:null};
+ const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[]:[source]}},async first(){return sql.includes('connector_provider_operations')?null:{state:'BLOCKED',last_error:'UNCERTAIN_PAID_SUBMISSION',result:null}}})};
+ const result=await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_COLLECTION_BUDGET_MODE:'unlimited',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.01}',TWITTERAPI_IO_API_KEY:'private'} as unknown as Env,'feed');
+ expect(result[0]).toMatchObject({state:'AVAILABLE'});expect(result[0].collectionError).toBeUndefined();
+});

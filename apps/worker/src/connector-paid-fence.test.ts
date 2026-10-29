@@ -24,3 +24,9 @@ it('distinguishes an audited completed response loss from a genuinely unknown pa
  await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,feed_id,feed_source_id) VALUES('zyte','unverified-loss','hash',0.05,200,'unverified-feed','source')").run();
  expect(await hasUncertainSourcePayment(ctx.db,'unverified-feed','source',['zyte'])).toBe(true);
 });
+it('admits future collection only for a hash-bound operator acknowledgement without changing the unknown outcome',async()=>{
+ const acknowledgement={kind:'UNKNOWN_OUTCOME_ACCEPTED_NO_REPLAY',requestHash:'ack-hash',reservedCeilingUsd:.01,approvedBy:'operator',approvalId:'explicit-approval',at:'2026-10-29T16:00:00Z'};
+ await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,headers,feed_id,feed_source_id) VALUES('x_twitterapi_io','ack-old','ack-hash',0.01,-1,?,'ack-feed','ack-source')").bind(JSON.stringify({claimExpiresAt:'2026-10-29T15:00:00Z',acknowledgement})).run();
+ expect(await hasUncertainSourcePayment(ctx.db,'ack-feed','ack-source',['x_twitterapi_io'])).toBe(false);
+ expect(await ctx.db.prepare("SELECT status,payload_ref,ceiling_usd FROM connector_provider_operations WHERE operation_id='ack-old'").first()).toEqual({status:-1,payload_ref:null,ceiling_usd:.01});
+});

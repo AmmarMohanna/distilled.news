@@ -530,7 +530,7 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,limit:2,source:{family:'google_news',locator:'AI'}});
     expect(result.items.map(i=>i.url)).toEqual(['https://publisher.example/article',links[1],'https://publisher.example/article','https://publisher.example/article','https://publisher.example/article']);
     expect(execution.execute).toHaveBeenCalledTimes(1);
-    expect(execution.execute).toHaveBeenCalledWith('google_resolve',{urls:links},{timeoutMs:65000});
+    expect(execution.execute).toHaveBeenCalledWith('google_resolve',{urls:links},{timeoutMs:60_000});
     expect(vi.mocked(http.get).mock.calls.every(([url])=>new URL(url).hostname==='news.google.com')).toBe(true);
     expect(result.items.every(i=>i.representation==='LISTING_RESULT'&&i.contentCompleteness==='UNKNOWN')).toBe(true);
     expect(result.requests).toBe(12);
@@ -539,8 +539,8 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const http:FeedHttpPort={get:vi.fn(async()=>({status:0,headers:{},bytes:new Uint8Array(),telemetry:{requests:3,latencyMs:10,providerCostUsd:0}}))};
     const execution={execute:vi.fn(async()=>({status:200,xml:'<rss><channel><item><guid>google-id</guid><title>Result</title></item></channel></rss>',requests:1,latencyMs:5}))};
     const result=await new FeedSourceProvider('google_rss',http,execution).fetch({...request,source:{family:'google_news',locator:'Lebanon electricity',language:'en',region:'US'}});
-    expect(http.get).toHaveBeenCalledWith(expect.stringContaining('news.google.com/rss/search'),expect.anything(),{attempts:1,timeoutMs:5000});
-    expect(execution.execute).toHaveBeenCalledWith('google_feed',{url:vi.mocked(http.get).mock.calls[0][0]},{timeoutMs:25000});
+    expect(http.get).toHaveBeenCalledWith(expect.stringContaining('news.google.com/rss/search'),expect.anything(),{attempts:1,timeoutMs:60_000});
+    expect(execution.execute).toHaveBeenCalledWith('google_feed',{url:vi.mocked(http.get).mock.calls[0][0]},{timeoutMs:60_000});
     expect(result.items).toMatchObject([{sourceItemKey:'id:google-id',representation:'LISTING_RESULT'}]);expect(result.requests).toBe(4);
   });
   it.each([429,451,403])('does not route around Google rate, policy or authorization refusal (%s)',async status=>{
@@ -745,6 +745,26 @@ describe('durable paid HTTP',()=>{
     await expect(http.request(scope,'op','paid',0.02,'https://api.apify.com/v2/actors/a~b/runs',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
     await expect(http.request(scope,'op','paid',0.02,'https://api.apify.com/v2/actors/a~b/runs',{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');expect(dispatch).toHaveBeenCalledTimes(1);
   });
+  it('operator acknowledgement admits fresh requests, retains charges and never replays the old operation',async()=>{
+    const s=setup([]),dispatch=vi.fn(async()=>{throw Error('lost response')}),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await http.configureLimit('x_twitterapi_io',1);
+    const url='https://api.twitterapi.io/twitter/tweets';
+    await expect(http.request(scope,'old','x_twitterapi_io',.01,url,{})).rejects.toThrow('UNCERTAIN_PAID_SUBMISSION');
+    const saved=await s.db.prepare('SELECT * FROM connector_provider_operations').first<any>();
+    const acknowledgement={kind:'UNKNOWN_OUTCOME_ACCEPTED_NO_REPLAY',requestHash:saved.request_hash,reservedCeilingUsd:.01,approvedBy:'operator',approvalId:'explicit-approval',at:new Date().toISOString()};
+    for(const wrong of [{...acknowledgement,requestHash:'wrong'},{...acknowledgement,reservedCeilingUsd:0},{...acknowledgement,approvedBy:''}]){
+      await s.db.prepare('UPDATE connector_provider_operations SET headers=?').bind(JSON.stringify({...JSON.parse(saved.headers),acknowledgement:wrong})).run();
+      await expect(http.request(scope,'fresh','x_twitterapi_io',.01,url,{})).rejects.toThrow('BACKPRESSURE');
+    }
+    await s.db.prepare('UPDATE connector_provider_operations SET headers=?').bind(JSON.stringify({...JSON.parse(saved.headers),acknowledgement})).run();
+    await expect(http.request(scope,'old','x_twitterapi_io',.01,url,{})).rejects.toMatchObject({code:'RESULT_LOST'});
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    dispatch.mockImplementation(async()=>Response.json({ok:true}) as never);
+    await http.request(scope,'fresh','x_twitterapi_io',.01,url,{});
+    expect(dispatch).toHaveBeenCalledTimes(2);
+    expect(await s.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='x_twitterapi_io'").first()).toEqual({reserved_usd:.02});
+    expect(await s.db.prepare('SELECT status,payload_ref FROM connector_provider_operations WHERE operation_id=?').bind(saved.operation_id).first()).toEqual({status:-1,payload_ref:null});
+  });
   it('a new polling window and another provider cannot bypass an unresolved paid source operation',async()=>{
     const s=setup([]),dispatch=vi.fn(async():Promise<Response>=>{throw new Error('connection lost')}),http=new DurableProviderHttp(s.db,s.payloads,dispatch,1000,1000,15);
     await http.configureLimits({primary:100,fallback:100});
@@ -828,4 +848,51 @@ it('website collection refuses encoded text even when a helper labels it a full 
  const execution={execute:vi.fn(async()=>({body,publishedAt:'2026-10-21',pageKind:'article',contentCompleteness:'COMPLETE'}))};
  const provider=new WebsiteSourceProvider('website_http',feed(html),execution);
  await expect(provider.fetch({...request,source:{family:'website',locator:'https://publisher.example/space/story'}},run)).rejects.toMatchObject({code:'MALFORMED',diagnostic:{detail:'ENCODED_ARTICLE_TEXT'}});
+});
+
+it('retries only an exact existing Apify read without reserving or starting an actor again',async()=>{
+ const s=setup([]),url='https://api.apify.com/v2/actor-runs/existing123';
+ const dispatch=vi.fn<typeof fetch>().mockRejectedValueOnce(Error('connection lost')).mockResolvedValueOnce(Response.json({data:{status:'SUCCEEDED'}}));
+ const http=new DurableProviderHttp(s.db,s.payloads,dispatch);await http.configureLimit('linkedin_apify',1);
+ await expect(http.request(scope,'status','linkedin_apify',.000001,url,{})).rejects.toMatchObject({code:'TRANSIENT'});
+ const reserved=await s.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='linkedin_apify'").first();
+ expect((await http.request(scope,'status','linkedin_apify',.000001,url,{})).status).toBe(200);
+ expect(await s.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='linkedin_apify'").first()).toEqual(reserved);
+ expect(dispatch).toHaveBeenCalledTimes(2);expect(dispatch.mock.calls.every(([u,i])=>u===url&&(i?.method??'GET')==='GET')).toBe(true);
+});
+it('keeps an in-flight Apify read single-owner while allowing a retry after its failure',async()=>{
+ const s=setup([]);let reject!:(e:Error)=>void,started!:()=>void;const ready=new Promise<void>(r=>started=r);
+ const dispatch=vi.fn(()=>new Promise<Response>((_,r)=>{reject=r;started()})),http=new DurableProviderHttp(s.db,s.payloads,dispatch);await http.configureLimit('linkedin_apify',1);
+ const url='https://api.apify.com/v2/actor-runs/known123',first=http.request(scope,'read','linkedin_apify',.000001,url,{});const failure=expect(first).rejects.toMatchObject({code:'TRANSIENT'});await ready;
+ await expect(http.request(scope,'read','linkedin_apify',.000001,url,{})).rejects.toMatchObject({code:'BACKPRESSURE'});expect(dispatch).toHaveBeenCalledTimes(1);reject(Error('transport'));await failure;
+});
+
+it('allows a slow provider response past 20 seconds and stops it at 60 seconds by default',async()=>{
+ vi.useFakeTimers();
+ try{const s=setup([]);let started!:()=>void;const ready=new Promise<void>(r=>started=r);let signal:AbortSignal|undefined;
+  const http=new DurableProviderHttp(s.db,s.payloads,async(_url,init)=>{signal=init?.signal??undefined;started();return new Promise<Response>(()=>{})});await http.configureLimit('x_twitterapi_io',1);
+  const p=http.request(scope,'slow','x_twitterapi_io',.01,'https://api.twitterapi.io/twitter/tweets',{}),failed=expect(p).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});await ready;
+  await vi.advanceTimersByTimeAsync(20_000);expect(signal?.aborted).toBe(false);await vi.advanceTimersByTimeAsync(40_000);await failed;expect(signal?.aborted).toBe(true);
+ }finally{vi.useRealTimers()}
+});
+
+it.each(['status','dataset'])('resumes an Apify actor after a lost %s response without starting another actor',async failing=>{
+ const s=setup([]);let fail=true,starts=0,now=Date.parse(time);
+ const dispatch=vi.fn(async(url:string)=>{if(url.includes('/actors/')){starts++;return Response.json({data:{id:'actorRun'}})}const kind=url.includes('/actor-runs/')?'status':'dataset';if(kind===failing&&fail){fail=false;throw Error('response lost')}return Response.json(kind==='status'?{data:{status:'SUCCEEDED',defaultDatasetId:'dataset'}}:[{id:'1',text:'Text'}]);});
+ const http=new DurableProviderHttp(s.db,s.payloads,dispatch);await http.configureLimit('x_apify',1);
+ const collector=()=>new FallbackSourceCollector(new D1ProviderSourceRepository(s.db),s.payloads,s.intake,[new ApifySourceProvider('x_apify',['x_profile'],http,async()=> 'private-token',.1)],()=>time);
+ let scheduler=new D1ProviderPollScheduler(s.db,collector(),async()=>true,()=>now);await scheduler.schedule('lost-read',request,time,['x_apify']);expect(await scheduler.runOne()).toBe('RETRY');now+=2000;
+ scheduler=new D1ProviderPollScheduler(s.db,collector(),async()=>true,()=>now);expect(await scheduler.runOne()).toBe('RETRY');now+=10000;
+ scheduler=new D1ProviderPollScheduler(s.db,collector(),async()=>true,()=>now);expect(await scheduler.runOne()).toBe('DONE');expect(starts).toBe(1);expect(vi.mocked(s.intake.acceptBatch).mock.calls.at(-1)?.[0].observations[0].sourceItemKey).toBe('x:1');
+});
+
+it('resumes a proven existing-run read after process loss before failure journaling',async()=>{
+ const s=setup([]),providerId='x_apify',input={...request,continuation:{providerId,token:JSON.stringify({actor:'kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest',runId:'existingActor',offset:0})}},order=[providerId];
+ const repository=new D1ProviderSourceRepository(s.db),runId=await sha256(JSON.stringify([scope,input.runId,providerId])),key=await sha256(JSON.stringify([scope,input.source,input.requestedBounds,input.limit,order]));
+ await repository.allocate(scope,runId,key,time);await repository.claimFetch(scope,runId);
+ const url='https://api.apify.com/v2/actor-runs/existingActor',hash=await sha256(JSON.stringify([url,'GET',null])),id=await sha256(JSON.stringify([scope,runId+':status']));
+ await s.db.prepare('INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,feed_id,feed_source_id,status,headers) VALUES(?,?,?,?,?,?,?,?)').bind(providerId,id,hash,.000001,scope.feedId,scope.feedSourceId,-1,JSON.stringify({claimExpiresAt:'2026-01-01T00:00:00Z',readOnlyApify:{kind:'EXISTING_RUN_READ',requestHash:hash}})).run();
+ const dispatch=vi.fn(async(value:string)=>Response.json(value===url?{data:{status:'SUCCEEDED',defaultDatasetId:'existingDataset'}}:[{id:'1',text:'Reporting text'}])),http=new DurableProviderHttp(s.db,s.payloads,dispatch);await http.configureLimit(providerId,1);
+ const collector=new FallbackSourceCollector(repository,s.payloads,s.intake,[new ApifySourceProvider(providerId,['x_profile'],http,async()=> 'synthetic',.1)],()=>time);
+ expect((await collector.collect(input,order)).state).toBe('HANDED_OFF');expect(dispatch).toHaveBeenCalledTimes(2);expect(dispatch.mock.calls.every(([u])=>!u.includes('/actors/'))).toBe(true);
 });

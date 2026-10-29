@@ -39,9 +39,9 @@ export async function reconcileApifyRead(env:Env,jobId:string,fetcher:typeof fet
    const token=crypto.randomUUID(),now=Date.now();
    const claim=await env.DB.prepare(`INSERT INTO connector_provider_read_recoveries(feed_id,feed_source_id,source_id,run_id,provider_id,operation_id,token,lease_until)
     VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(feed_id,feed_source_id,run_id,operation_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until
-    WHERE state='PENDING' AND lease_until<=? RETURNING token`).bind(scope.feedId,scope.feedSourceId,scope.sourceId,runId,providerId,operationId,token,now+60000,now).first();
+    WHERE state='PENDING' AND lease_until<=? RETURNING token`).bind(scope.feedId,scope.feedSourceId,scope.sourceId,runId,providerId,operationId,token,now+120000,now).first();
    if(!claim)throw Error('READ_RECOVERY_BUSY');
-   const response=await fetcher(url,{method:'GET',redirect:'manual',headers:{authorization:`Bearer ${env.APIFY_API_TOKEN}`},signal:AbortSignal.timeout(20000)});
+   const response=await fetcher(url,{method:'GET',redirect:'manual',headers:{authorization:`Bearer ${env.APIFY_API_TOKEN}`},signal:AbortSignal.timeout(60000)});
    if(!response.ok)throw Error('READ_NOT_CONFIRMED');
    const reader=response.body?.getReader(),chunks:Uint8Array[]=[];let size=0;
    try{if(reader)for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>4000000)throw Error('READ_TOO_LARGE');chunks.push(part.value);}}

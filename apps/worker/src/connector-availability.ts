@@ -48,21 +48,25 @@ export async function feedSourceAvailability(env:Env,feedId:string){
    if(!availability.providers.length){availability.state='UNAVAILABLE';availability.reason='BUDGET_EXHAUSTED';}
   }
   const table=source?.source.family==='rss'?'connector_rss_poll_jobs':'connector_provider_poll_jobs';
-  if(financial&&source&&(source.source.family.startsWith('x_')||source.source.family.startsWith('linkedin_'))&&
-   await hasUncertainSourcePayment(env.DB,feedId,row.id,source.source.family.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify'])){
+  let paidUncertain=financial&&source&&(source.source.family.startsWith('x_')||source.source.family.startsWith('linkedin_'))?
+   await hasUncertainSourcePayment(env.DB,feedId,row.id,source.source.family.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify']):undefined;
+  if(paidUncertain){
    availability.state='UNAVAILABLE';availability.reason='PAID_OPERATION_UNCERTAIN';
   }
   // Scheduling another job is not recovery. Keep the most recent completed
   // outcome visible until a later poll actually finishes or reports a failure.
   const latest=await env.DB.prepare(`SELECT state,last_error,result FROM ${table} WHERE json_extract(request,'$.scope.feedSourceId')=? AND (state IN ('DONE','BLOCKED') OR last_error IS NOT NULL) ORDER BY CASE WHEN state IN ('DONE','BLOCKED') OR last_error NOT IN ('INTAKE_BUSY','BACKPRESSURE') THEN 0 ELSE 1 END,scheduled_at DESC,job_id DESC LIMIT 1`).bind(row.id).first<{state:string;last_error:string|null;result:string|null}>();
-  if(latest?.state==='BLOCKED'&&availability.state==='AVAILABLE'&&(enforceBudgets||latest.last_error!=='BUDGET_EXCEEDED')){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
+  if(financial&&latest?.last_error==='UNCERTAIN_PAID_SUBMISSION'&&paidUncertain===undefined)
+   paidUncertain=await hasUncertainSourcePayment(env.DB,feedId,row.id,source?.source.family==='google_news'?['google_apify','zyte']:['zyte']);
+  const historicalPaidBlock=latest?.last_error==='UNCERTAIN_PAID_SUBMISSION'&&paidUncertain===false;
+  if(latest?.state==='BLOCKED'&&!historicalPaidBlock&&availability.state==='AVAILABLE'&&(enforceBudgets||latest.last_error!=='BUDGET_EXCEEDED')){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
   const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0};
   for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
   const failed=jobs.filter(j=>j.state==='FAILED');
   const warning=acquisition.failed?failed.every(j=>j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':failed.every(j=>j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
   // Only typed errors are public. Never expose URLs, provider response text or
   // claim tokens retained in diagnostic storage.
-  const collectionError=collectionFailureReason(latest);
+  const collectionError=historicalPaidBlock?undefined:collectionFailureReason(latest);
   return {sourceId:row.id,title:row.title,...availability,acquisition,...(warning?{warning}:{}),...(collectionError?{collectionError}:{})};
  }));
 }

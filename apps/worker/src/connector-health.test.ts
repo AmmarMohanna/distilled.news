@@ -9,6 +9,10 @@ it('clears credential and budget warnings after a later accepted batch',()=>{
 it('keeps potentially billed historical calls visible after a later successful poll',()=>{
  expect(connectorOperationalAlerts({nextRunAt:null,acceptedSequence:10,uncertainPaidAttempts:1})).toEqual([{code:'PAID_RECONCILIATION_REQUIRED',severity:'warning'}]);
 });
+it('retains historical attempt counts without an active warning after explicit acceptance',()=>{
+ expect(connectorOperationalAlerts({nextRunAt:null,acceptedSequence:10,uncertainPaidAttempts:5,unresolvedPaidOperations:0})).toEqual([]);
+ expect(connectorOperationalAlerts({nextRunAt:null,acceptedSequence:10,uncertainPaidAttempts:5,unresolvedPaidOperations:1})).toEqual([{code:'PAID_RECONCILIATION_REQUIRED',severity:'warning'}]);
+});
 it('reports blocked jobs and overdue backlog without warning about future work',()=>{
  const now=new Date('2026-10-10T12:00:00Z');
  expect(connectorOperationalAlerts({job:{state:'BLOCKED',lastError:'BOUNDED_LIMIT'},nextRunAt:'2026-10-10T11:00:00Z',acceptedSequence:0},now)).toEqual([{code:'SOURCE_BLOCKED',severity:'error'},{code:'POLL_BACKLOG_OVERDUE',severity:'warning'}]);

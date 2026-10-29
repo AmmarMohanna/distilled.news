@@ -10,7 +10,7 @@ export async function readPublicArticle(http:FeedHttpPort,initial:string){
  const origin=new URL(initial).origin,seen=new Set<string>();let url=initial;
  for(let hop=0;hop<=3;hop++){
   new WorkerPublicSourceFetch(url);
-  if(new URL(url).origin!==origin||seen.has(url))throw new AcquisitionFailure('POLICY_DENIED',false);
+  if(new URL(url).origin!==origin||seen.has(url))throw new AcquisitionFailure('POLICY_DENIED',false,{detail:seen.has(url)?'ARTICLE_REDIRECT_LOOP':'ARTICLE_REDIRECT_ORIGIN_DENIED'});
   seen.add(url);
   const r=await http.get(url,{accept:'text/html'}).catch(error=>{
    if(error instanceof Error&&error.message==='FEED_TOO_LARGE')throw new AcquisitionFailure('BODY_BUDGET_EXCEEDED',false,{detail:'ARTICLE_HTML_TOO_LARGE'});
@@ -19,7 +19,7 @@ export async function readPublicArticle(http:FeedHttpPort,initial:string){
   if(r.status===402)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_PAYMENT_REQUIRED',httpStatus:402});
   if(r.status===0)throw new AcquisitionFailure('NETWORK',true);
   if(r.status>=300&&r.status<400){
-   if(hop===3||!r.headers.location)throw new AcquisitionFailure('POLICY_DENIED',false);
+   if(hop===3||!r.headers.location)throw new AcquisitionFailure('POLICY_DENIED',false,{detail:hop===3?'ARTICLE_REDIRECT_LIMIT':'ARTICLE_REDIRECT_LOCATION_MISSING',httpStatus:r.status});
    const next=new URL(r.headers.location,url);next.hash='';new WorkerPublicSourceFetch(next.href);
    // Do not follow cross-origin sessions/cookies in the Worker HTTP route.
    // A distinct diagnostic may admit an exact-article provider to resolve a
@@ -30,5 +30,5 @@ export async function readPublicArticle(http:FeedHttpPort,initial:string){
   }
   return {url,body:new TextDecoder().decode(r.bytes),contentType:r.headers['content-type']??'',status:r.status,...(Object.keys(r.headers).some(k=>k.toLowerCase()==='www-authenticate')?{authenticationRequired:true}:{}),...(r.headers['retry-after']?{retryAfter:r.headers['retry-after']}:{})};
  }
- throw new AcquisitionFailure('POLICY_DENIED',false);
+ throw new AcquisitionFailure('POLICY_DENIED',false,{detail:'ARTICLE_REDIRECT_LIMIT'});
 }

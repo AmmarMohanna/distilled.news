@@ -2,6 +2,18 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createSourceExecutionServer} from './source-execution-server.mjs';
 const token='test-only-credential-'.repeat(3);
+test('authenticated status reports active capacity without request inputs or credentials',async t=>{
+ let release,entered;const started=new Promise(resolve=>{entered=resolve});
+ const url=await server(t,async()=>{entered();return new Promise(resolve=>{release=()=>resolve({ok:true})})});
+ const pending=fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'public_article',input:{url:'https://private-user-input.example/secret'}})});
+ await started;
+ assert.equal((await fetch(url+'/status')).status,401);
+ const status=await (await fetch(url+'/status',{headers:{authorization:`Bearer ${token}`}})).json();
+ assert.equal(status.active,1);assert.equal(status.maxConcurrent,2);assert.equal(status.requests[0].kind,'public_article');
+ assert.equal(JSON.stringify(status).includes('private-user-input'),false);assert.equal(JSON.stringify(status).includes(token),false);
+ release();await (await pending).body.cancel();
+ assert.equal((await (await fetch(url+'/status',{headers:{authorization:`Bearer ${token}`}})).json()).active,0);
+});
 async function server(t,execute){
   const instance=createSourceExecutionServer({token,execution:{execute}});
   await new Promise(resolve=>instance.listen(0,'127.0.0.1',resolve));

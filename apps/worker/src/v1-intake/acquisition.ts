@@ -1,3 +1,4 @@
+import {validArticleRedirect,type ArticleRedirectEvidence} from './article-redirect';
 import { HandoffError, timestampSchema, sha256, type IntakeReceipt } from '@distilled/contracts';
 import {unresolvedProviderOperationSql,statelessZyteTarget} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from '../public-source-fetch';
@@ -7,7 +8,7 @@ import { canonicalJson } from './canonical';
 import { acceptAcquiredContent, acquiredSchema } from './evidence';
 import { requireAcquisitionLease } from './acquisition-lease';
 import {sameArticleUrl,scholarlyAbstractAlias} from './article-url-identity';
-import type { AcceptedAcquiredContent, AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy } from './types';
+import type { AcceptedAcquiredContent, AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy, PublicHttpRecoveryEvidence } from './types';
 
 const MAX_ATTEMPTS=5, LEASE_MS=90_000;
 function attemptLimit(job:DownstreamJob):number {
@@ -16,7 +17,7 @@ function attemptLimit(job:DownstreamJob):number {
 }
 /** Operator-only: no public API or automatic grant. Cumulative attempt counts,
  * source identity, paid identities and terminal failure history survive. */
-export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string,approvalId:string,rawNow:string,redirectEvidence?:{from:string;to:string},canonicalEvidence?:{from:string;to:string}):Promise<void>{
+export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string,approvalId:string,rawNow:string,redirectEvidence?:{from:string;to:string},canonicalEvidence?:{from:string;to:string},publicHttpEvidence?:PublicHttpRecoveryEvidence,redirectProof?:ArticleRedirectEvidence):Promise<void>{
  const now=timestampSchema.parse(rawNow);
  if(!/^[a-zA-Z0-9_-]{1,100}$/.test(approvalId))throw Error('INVALID_RECOVERY_APPROVAL');
  const row=await store.read<DownstreamJob>('jobs',id);if(!row)throw Error('RECOVERY_JOB_MISSING');
@@ -40,7 +41,25 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
     publicRedirect=input?.observation.canonicalUrl===redirectEvidence.from&&new URL(redirectEvidence.from).origin!==new URL(redirectEvidence.to).origin;
    }catch{/* Unsafe redirects never grant recovery. */}
   }
-  if(job.state!=='FAILED'||!job.exhausted||!['NETWORK','EXTRACTION_FAILED','RECOVERY_EXHAUSTED','CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'].includes(job.failureCode??'')&&!(job.failureCode==='UNSUPPORTED'&&job.failureDetail==='LISTING_PAGE')&&!fenced&&!publicRedirect&&!canonicalAlias)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';
+  let verifiedRedirect=false;
+  if(redirectProof&&job.failureCode==='INVALID_RESULT'&&job.failureDetail==='FALLBACK_URL_MISMATCH'){
+   const input=await tx.read<AcceptedInput>('inputs',job.observationId);
+   verifiedRedirect=!!input?.observation.canonicalUrl&&validArticleRedirect(redirectProof,input.observation.canonicalUrl,redirectProof.resolvedUrl);
+  }
+  let publicHttpConfirmed=false;
+  // Operator evidence from a fresh successful exact-article extraction can
+  // reopen an undiagnosed legacy policy failure once. Explicit access/policy
+  // refusals and unsafe URLs remain ineligible; the ordinary router revalidates.
+  if(publicHttpEvidence&&job.failureCode==='POLICY_DENIED'&&!job.httpStatus&&!job.failureDetail){
+   const input=await tx.read<AcceptedInput>('inputs',job.observationId);
+   try{
+    new WorkerPublicSourceFetch(publicHttpEvidence.url);
+    const age=Date.parse(now)-Date.parse(timestampSchema.parse(publicHttpEvidence.observedAt));
+    publicHttpConfirmed=input?.observation.canonicalUrl===publicHttpEvidence.url&&publicHttpEvidence.status===200&&
+     /^[a-f0-9]{64}$/.test(publicHttpEvidence.bodyHash)&&Number.isSafeInteger(publicHttpEvidence.textCharacters)&&publicHttpEvidence.textCharacters>=200&&publicHttpEvidence.textCharacters<=500000&&age>=0&&age<=300000;
+   }catch{/* Missing or unsafe operator evidence never grants recovery. */}
+  }
+  if(job.state!=='FAILED'||!job.exhausted||!['NETWORK','EXTRACTION_FAILED','RECOVERY_EXHAUSTED','CHALLENGE_REQUIRED','BODY_BUDGET_EXCEEDED'].includes(job.failureCode??'')&&!(job.failureCode==='UNSUPPORTED'&&job.failureDetail==='LISTING_PAGE')&&!fenced&&!publicRedirect&&!canonicalAlias&&!publicHttpConfirmed&&!verifiedRedirect)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';
   if(job.attempts>=10||!tx.snapshot.scope.enabled||await tx.read('acquisition_results',id))return 'RECOVERY_NOT_ELIGIBLE';
   const paid=await store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='connector_provider_operations'").first();
   if(paid){
@@ -63,7 +82,7 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
    const completed=await store.db.prepare("SELECT 1 FROM connector_provider_operations WHERE feed_source_id=? AND status=200 AND (payload_ref IS NOT NULL OR json_extract(headers,'$.reconciliation.kind')='COMPLETED_RESPONSE_LOST') LIMIT 1").bind(row.feedSourceId).first();
    if(!completed)return 'RECOVERY_FAILURE_NOT_ELIGIBLE';
   }
-  const history=[...(job.recoveryAuthorizations??[]),{id:approvalId,authorizedAt:now,priorAttempts:job.attempts,priorFailureCode:job.failureCode!,priorFailureDetail:job.failureDetail,maxAttempts:job.attempts+1,...(publicRedirect?{redirectEvidence}:{} ),...(canonicalAlias?{canonicalEvidence}:{})}];
+  const history=[...(job.recoveryAuthorizations??[]),{id:approvalId,authorizedAt:now,priorAttempts:job.attempts,priorFailureCode:job.failureCode!,priorFailureDetail:job.failureDetail,maxAttempts:job.attempts+1,...(publicRedirect?{redirectEvidence}:{} ),...(canonicalAlias?{canonicalEvidence}:{}),...(publicHttpConfirmed?{publicHttpEvidence}:{}),...(verifiedRedirect?{redirectProof}:{})}];
   tx.write('jobs',id,{...job,state:'PENDING',exhausted:false,nextAttemptAt:now,leaseToken:undefined,leaseUntil:undefined,recoveryAuthorizations:history});
  });
  if(refusal)throw Error(refusal);
@@ -89,7 +108,7 @@ export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:stri
   if(!candidate || job.feedId!==tx.snapshot.scope.feedId || candidate.feedId!==job.feedId || candidate.feedSourceId!==job.feedSourceId || candidate.sourceItemKey!==input.observation.sourceItemKey) throw new HandoffError('SCOPE_DENIED');
   // A fetched result survives repeated worker crashes without spending another provider attempt.
   const result=await tx.read<AcceptedAcquiredContent>('acquisition_results',id);
-  if((job.attempts>=attemptLimit(job) && !result) || (result && (job.resumeAttempts??0)>=MAX_ATTEMPTS)) {tx.write('jobs',id,{...job,state:'FAILED',exhausted:true,failureCode:'RECOVERY_EXHAUSTED',leaseToken:undefined,leaseUntil:undefined},input.observation.sourceItemKey);return undefined}
+  if((job.attempts>=attemptLimit(job) && !result) || (result && (job.resumeAttempts??0)>=MAX_ATTEMPTS)) {tx.write('jobs',id,{...job,state:'FAILED',exhausted:true,priorFailureCode:job.failureCode??job.priorFailureCode,failureCode:'RECOVERY_EXHAUSTED',failureDetail:job.failureDetail??(result?'SAVED_RESULT_RECOVERY_LIMIT':'ACQUISITION_ATTEMPT_LIMIT'),leaseToken:undefined,leaseUntil:undefined},input.observation.sourceItemKey);return undefined}
   const token=crypto.randomUUID(),claimed:DownstreamJob={...job,state:'RUNNING',attempts:job.attempts+(result?0:1),resumeAttempts:(job.resumeAttempts??0)+(result?1:0),leaseToken:token,leaseUntil:new Date(Date.parse(now)+leaseMs).toISOString(),nextAttemptAt:undefined};
   tx.write('jobs',id,claimed,input.observation.sourceItemKey);
   return {job:claimed,input,candidate,token};
@@ -146,7 +165,7 @@ export async function runAcquisitionJob(store:V1IntakeStore,id:string,policy:Int
    const job=await requireAcquisitionLease(tx,id,claim.token,policy.now());
    if(classified.code==='BUDGET_EXHAUSTED'||classified.code==='BACKPRESSURE'){
     const jitter=[...id].reduce((n,c)=>(n+c.charCodeAt(0))%120,0)*1000;
-    const wait=classified.code==='BACKPRESSURE'?5000:300000;
+    const wait=classified.code==='BACKPRESSURE'?Math.min(60000,5000*2**Math.min(4,job.resourceWaits??0)):300000;
     tx.write('jobs',id,{...job,state:'PENDING',attempts:Math.max(0,job.attempts-1),resourceWaits:(job.resourceWaits??0)+1,exhausted:false,failureCode:classified.code,failureDetail:classified.diagnostic?.detail,leaseToken:undefined,leaseUntil:undefined,nextAttemptAt:new Date(Math.max(Date.parse(policy.now())+wait+(classified.code==='BACKPRESSURE'?jitter%3000:jitter),Date.parse(classified.diagnostic?.retryNotBefore??'')||0)).toISOString()},claim.input.observation.sourceItemKey);
     return 'RETRY';
    }

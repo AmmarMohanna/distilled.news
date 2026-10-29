@@ -8,7 +8,7 @@ it('admits two helper streams, defers a third, and releases only on completion/c
   let calls=0;
   const run=async()=>{calls++;return new Response(new ReadableStream({start(c){c.enqueue(new Uint8Array([65]));}}));};
   const first=await admittedSourceExecution(ctx.db,run),second=await admittedSourceExecution(ctx.db,run);
-  await expect(admittedSourceExecution(ctx.db,run)).rejects.toMatchObject({code:'BACKPRESSURE'});
+  await expect(admittedSourceExecution(ctx.db,run)).rejects.toMatchObject({code:'BACKPRESSURE',diagnostic:{detail:'HELPER_LOCAL_CAPACITY_BUSY'}});
   expect(calls).toBe(2);
   await first.body!.cancel();
   const third=await admittedSourceExecution(ctx.db,async()=>new Response('done'));

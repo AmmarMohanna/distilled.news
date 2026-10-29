@@ -4,6 +4,7 @@ export interface QueryRestrictions { startTime?: string; endTime?: string; publi
 export interface IntakeScope { feedId: string; feedSourceId: string; sourceId: string; feedRevision: number; enabled: boolean; deletedAt?: string; restrictions: QueryRestrictions }
 export interface ValidationFacts { accountId?: string }
 export interface VerifiedSuppliedContent { representation: RepresentationKind; contentCompleteness: ContentCompleteness; contentHash: string }
+export interface PublicHttpRecoveryEvidence {url:string;status:200;bodyHash:string;textCharacters:number;observedAt:string}
 export interface IntakePolicy {
   expectedFeedRevision?: number;
   version: string;
@@ -19,9 +20,10 @@ export interface DownstreamJob {
   leaseToken?: string; leaseUntil?: string; failureCode?: string;
   resumeAttempts?: number;
     /** Explicit operator recovery; cumulative attempts and prior failures survive. */
-    recoveryAuthorizations?: {id:string;authorizedAt:string;priorAttempts:number;priorFailureCode:string;priorFailureDetail?:string;maxAttempts:number;redirectEvidence?:{from:string;to:string};canonicalEvidence?:{from:string;to:string}}[];
+    recoveryAuthorizations?: {id:string;authorizedAt:string;priorAttempts:number;priorFailureCode:string;priorFailureDetail?:string;maxAttempts:number;redirectEvidence?:{from:string;to:string};canonicalEvidence?:{from:string;to:string};publicHttpEvidence?:PublicHttpRecoveryEvidence;redirectProof?:import('./article-redirect').ArticleRedirectEvidence}[];
   resourceWaits?: number;
   failureDetail?: string;
+  priorFailureCode?: string;
   httpStatus?: number;
 }
 export interface AcceptedAcquiredContent {
@@ -31,7 +33,7 @@ export interface AcceptedAcquiredContent {
   acquisitionMethod: 'supplied_payload' | 'platform_api' | 'direct_http' | 'browser'; acquisitionProvider?: string;
   sourceId?: string; resolvedUrl?: string;
   quality?: { transportSuccess: boolean; extractionSuccess: boolean; extractionComplete: boolean };
-  provenance?: { contentKind?:'PRODUCT_DETAIL'|'CATALOGUE'; routerVersion: string; stages: string[]; rawPayloadRef?: string; languageResolution?:import('../v1-intelligence/language').LanguageResolution;publicationDate?:ReturnType<typeof import('./publication-date').resolvePublicationDate>;browserEvidence?: {acceptanceId?:string;observationId?:string;rawArtifactRef?:string} };
+  provenance?: { redirectEvidence?:import('./article-redirect').ArticleRedirectEvidence; contentKind?:'PRODUCT_DETAIL'|'CATALOGUE'; routerVersion: string; stages: string[]; rawPayloadRef?: string; languageResolution?:import('../v1-intelligence/language').LanguageResolution;publicationDate?:ReturnType<typeof import('./publication-date').resolvePublicationDate>;browserEvidence?: {acceptanceId?:string;observationId?:string;rawArtifactRef?:string} };
 }
 export interface AcceptedInput { observation: SourceObservation; proposal?: CandidateProposal }
 export interface CandidateRecord {

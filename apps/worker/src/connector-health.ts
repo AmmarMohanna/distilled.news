@@ -1,7 +1,8 @@
+import {unresolvedProviderOperationSql} from '@distilled/connectors';
 /** Read-only connector diagnostics. Do not expose raw provider responses or
  * operation identifiers: they can contain source data and paid credentials. */
 export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId:string,now=new Date()){
- const [run,providerBatch,rssBatch,providerSuccess,rssSuccess,providerCounts,rssCounts,providerCursor,rssCheckpoint,providerJob,rssJob,nextProviderJob,nextRssJob,failures,latestFailure]=await Promise.all([
+ const [run,providerBatch,rssBatch,providerSuccess,rssSuccess,providerCounts,rssCounts,providerCursor,rssCheckpoint,providerJob,rssJob,nextProviderJob,nextRssJob,failures,latestFailure,unresolved]=await Promise.all([
   db.prepare('SELECT started_at AS startedAt,sequence FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? ORDER BY sequence DESC LIMIT 1').bind(feedId,sourceId).first<{startedAt:string;sequence:number}>(),
   db.prepare(`SELECT json_extract(data,'$.providerId') AS provider,
     json_extract(data,'$.request.coverage.status') AS coverage,
@@ -48,13 +49,14 @@ export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId
   db.prepare(`SELECT json_extract(data,'$.providerId') AS provider,json_extract(data,'$.failure') AS failure,json_extract(data,'$.sequence') AS sequence,json_extract(data,'$.diagnostic.detail') AS detail,json_extract(data,'$.diagnostic.httpStatus') AS httpStatus
     FROM connector_provider_attempts WHERE feed_id=? AND feed_source_id=?
     ORDER BY json_extract(data,'$.sequence') DESC LIMIT 1`).bind(feedId,sourceId).first<{provider:string;failure:string;sequence:number;detail:string|null;httpStatus:number|null}>()
+  ,db.prepare(`SELECT COUNT(*) AS count FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND ${unresolvedProviderOperationSql}`).bind(feedId,sourceId).first<{count:number}>()
  ]);
  const batch=providerBatch??rssBatch,job=providerJob??rssJob;
  let checkpoint:unknown=rssCheckpoint?.data;
  if(typeof checkpoint==='string'){try{checkpoint=JSON.parse(checkpoint)}catch{checkpoint=undefined}}
  const nextRunAt=[nextProviderJob?.dueAt,nextRssJob?.dueAt].filter((value):value is string=>!!value).sort()[0]??null;
  const acceptedSequence=Math.max(providerSuccess?.sequence??0,rssSuccess?.sequence??0);
- const alerts=connectorOperationalAlerts({job,nextRunAt,failure:latestFailure,acceptedSequence,uncertainPaidAttempts:failures?.uncertainPaid??0},now);
+ const alerts=connectorOperationalAlerts({job,nextRunAt,failure:latestFailure,acceptedSequence,uncertainPaidAttempts:failures?.uncertainPaid??0,unresolvedPaidOperations:unresolved?.count??0},now);
  return {alerts,provider:providerBatch?.provider??(rssBatch?'rss_native':null),lastCheckedAt:run?.startedAt??null,
   lastAcceptedBatchAt:[providerSuccess?.checkedAt,rssSuccess?.checkedAt].filter((value):value is string=>!!value).sort().at(-1)??null,
   latestCoverage:batch?.coverage??null,
@@ -66,11 +68,11 @@ export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId
   latestJob:job?{state:job.state,dueAt:job.dueAt,lastError:job.lastError}:null,
   nextRunAt,
   providerFailures:failures?.count??0,latestProviderFailure:latestFailure??null,
-  uncertainPaidAttempts:failures?.uncertainPaid??0};
+  uncertainPaidAttempts:failures?.uncertainPaid??0,unresolvedPaidOperations:unresolved?.count??0};
 }
 
 /** Active warnings only; cumulative historical failures remain separate. */
-export function connectorOperationalAlerts(input:{job?:{state:string;lastError:string|null}|null;nextRunAt:string|null;failure?:{failure:string;sequence:number}|null;acceptedSequence:number;uncertainPaidAttempts?:number},now=new Date()){
+export function connectorOperationalAlerts(input:{job?:{state:string;lastError:string|null}|null;nextRunAt:string|null;failure?:{failure:string;sequence:number}|null;acceptedSequence:number;uncertainPaidAttempts?:number;unresolvedPaidOperations?:number},now=new Date()){
  const alerts:{code:string;severity:'warning'|'error'}[]=[];
  if(input.job?.state==='BLOCKED')alerts.push({code:'SOURCE_BLOCKED',severity:'error'});
  if(input.failure&&input.failure.sequence>input.acceptedSequence){
@@ -78,7 +80,8 @@ export function connectorOperationalAlerts(input:{job?:{state:string;lastError:s
   if(['AUTH_REQUIRED','BUDGET_EXCEEDED'].includes(code))alerts.push({code,severity:'error'});
  }
  // A newer successful poll does not settle an older potentially billed call.
- if((input.uncertainPaidAttempts??0)>0||input.failure?.failure==='UNCERTAIN_PAID_SUBMISSION'||input.job?.lastError==='UNCERTAIN_PAID_SUBMISSION')alerts.push({code:'PAID_RECONCILIATION_REQUIRED',severity:'warning'});
+ const resolutionRequired=input.unresolvedPaidOperations===undefined?(input.uncertainPaidAttempts??0)>0||input.failure?.failure==='UNCERTAIN_PAID_SUBMISSION'||input.job?.lastError==='UNCERTAIN_PAID_SUBMISSION':input.unresolvedPaidOperations>0;
+ if(resolutionRequired)alerts.push({code:'PAID_RECONCILIATION_REQUIRED',severity:'warning'});
  if(input.nextRunAt&&now.getTime()-Date.parse(input.nextRunAt)>30*60000)alerts.push({code:'POLL_BACKLOG_OVERDUE',severity:'warning'});
  return alerts;
 }

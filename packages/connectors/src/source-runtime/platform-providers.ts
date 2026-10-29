@@ -40,11 +40,11 @@ export class FeedSourceProvider implements SourceProvider {
     // enough. Three long public timeouts consumed most of the QA request before
     // the working private feed/redirect path could finish.
     let r=await this.http.get(url,{accept:'application/rss+xml,application/atom+xml,application/xml'},
-      this.id==='google_rss'&&this.execution?{attempts:1,timeoutMs:5_000}:undefined);
+      this.id==='google_rss'&&this.execution?{attempts:1,timeoutMs:60_000}:undefined);
     // Only transient transport/server failures may try the authorized private
     // route. Preserve rate limits, authorization and policy refusals unchanged.
     if(this.id==='google_rss'&&this.execution&&(r.status===0||r.status>=500)){
-      const feed=record(await executeSource(this.execution,'google_feed',{url},{timeoutMs:25_000}));
+      const feed=record(await executeSource(this.execution,'google_feed',{url},{timeoutMs:60_000}));
       if(feed.status===200&&typeof feed.xml==='string'&&new TextEncoder().encode(feed.xml).length<=2_000_000){
         r={status:200,headers:{},bytes:new TextEncoder().encode(feed.xml),telemetry:{requests:r.telemetry.requests+1,latencyMs:r.telemetry.latencyMs+Math.max(0,Number(feed.latencyMs)||0),providerCostUsd:0}};
       }else requireFeed(Number(feed.status)||0);
@@ -72,7 +72,7 @@ export class FeedSourceProvider implements SourceProvider {
       const links=[...new Set(entries.map(e=>string(e.url)).filter((v):v is string=>!!v&&googleArticleLink(v)))].slice(0,500);
       if(this.execution&&links.length){
         try{
-          const result=record(await executeSource(this.execution,'google_resolve',{urls:links},{timeoutMs:65_000}));
+          const result=record(await executeSource(this.execution,'google_resolve',{urls:links},{timeoutMs:60_000}));
           if(Number.isFinite(result.latencyMs)&&Number(result.latencyMs)>=0)latencyMs+=Number(result.latencyMs);
           if(Array.isArray(result.results))for(const value of result.results){
             const row=record(value),link=string(row.inputUrl),publisher=publicPublisherLocation(string(row.url));
@@ -85,7 +85,7 @@ export class FeedSourceProvider implements SourceProvider {
       const unresolved=links.filter(link=>!resolved.has(link)).slice(0,8);
       for(let index=0;index<unresolved.length;index+=2)await Promise.all(unresolved.slice(index,index+2).map(async link=>{
         try{
-          const probe=await this.http.get(link,{accept:'text/html'},{attempts:1,timeoutMs:3_000});
+          const probe=await this.http.get(link,{accept:'text/html'},{attempts:1,timeoutMs:60_000});
           requests+=probe.telemetry.requests;latencyMs+=probe.telemetry.latencyMs;
           if([301,302,303,307,308].includes(probe.status)){
             const location=Object.entries(probe.headers).find(([key])=>key.toLowerCase()==='location')?.[1];
@@ -105,12 +105,12 @@ export class FeedSourceProvider implements SourceProvider {
       }))].slice(0,Math.min(input.limit,2));
       for(const link of links) {
         try {
-          const article=await this.http.get(link,{accept:'text/html'},{attempts:1,timeoutMs:3_000});
+          const article=await this.http.get(link,{accept:'text/html'},{attempts:1,timeoutMs:60_000});
           requests+=article.telemetry.requests;latencyMs+=article.telemetry.latencyMs;
           if(article.status!==200)continue;
           const html=new TextDecoder('utf-8',{fatal:true}).decode(article.bytes);
           if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))continue;
-          const result=record(await executeSource(this.execution,'extract',{url:link,html},{timeoutMs:5_000}));
+          const result=record(await executeSource(this.execution,'extract',{url:link,html},{timeoutMs:60_000}));
           const body=string(result.body);
           if(body&&body.length>=200&&body.length<=500_000)extracted.set(link,body);
         } catch { /* Keep the feed excerpt when the optional article path fails. */ }
