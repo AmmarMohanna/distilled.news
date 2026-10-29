@@ -2820,3 +2820,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-editor .feed-time-field > button { flex: 0 0 36px; display: grid; place-items: center; padding: 4px; min-width: 36px; min-height: 44px; border: 0; background: transparent; color: var(--accent); box-shadow: none; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-time-field input[type="time"],
 :root.apple-ui.apple-ui .feed-editor .feed-time-field > button { min-height: 42px; }
+/* One divider separates the Schedule and General groups; rows stay unruled. */
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > * { border-top: 0; border-bottom: 0; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > .feed-preferences-group-label { border: 0; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > .feed-preferences-group-label:not(:first-child) { margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
