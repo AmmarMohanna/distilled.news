@@ -2035,6 +2035,25 @@ describe("worker app accounts", () => {
     expect(writes).toHaveLength(2);
   });
 
+  it.each(["جود-سنان", "élodie-françois"])("supports Unicode account creation, renaming and encoded feed aliases: %s", async (username) => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "unicode@test.com", username);
+    expect((await repo.resolveUsernameAlias(username))?.account.username).toBe(username);
+    const rename = await app.request("/api/me/account", {
+      method: "PATCH", headers: { "content-type": "application/json", cookie: user.cookie },
+      body: JSON.stringify({ username: `${username}-2` })
+    }, env());
+    expect(rename.status).toBe(200);
+    expect(await rename.json()).toMatchObject({ account: { username: `${username}-2` } });
+    const apiRedirect = await app.request(`/api/feed/${encodeURIComponent(username)}/personal`, {}, env());
+    expect(apiRedirect.status).toBe(301);
+    expect(decodeURI(apiRedirect.headers.get("location")!)).toContain(`/${username}-2/personal`);
+    const pageRedirect = await app.request(`/${encodeURIComponent(username)}/personal/`, {}, env());
+    expect(pageRedirect.status).toBe(301);
+    expect(decodeURI(pageRedirect.headers.get("location")!)).toContain(`/${username}-2/personal/`);
+  });
+
   it("redirects reserved old usernames after username changes", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });

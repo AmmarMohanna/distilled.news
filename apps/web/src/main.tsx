@@ -98,6 +98,7 @@ import {
   type SourceRefreshResult
 } from "./api";
 import { deriveBriefingSlug, formatClock, formatDayHeading, formatTime, publicFeedUrl, slugify } from "./helpers";
+import { normalizeUsername } from "@distilled/core";
 import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
@@ -425,7 +426,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     try {
       let nextAccount = account;
       let nextBriefings = briefingsRef.current;
-      if (slugify(input.username) !== account.username) {
+      if (normalizeUsername(input.username) !== account.username) {
         const result = await updateAccount({ username: input.username });
         nextAccount = result.account;
         nextBriefings = result.briefings;
@@ -638,7 +639,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const copy = authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
   const submitLabel = authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
-  const usernamePreview = username.trim() ? slugify(username) : "";
+  const usernamePreview = username.trim() ? normalizeUsername(username) : "";
 
   function resetTurnstile() {
     if (!requiresTurnstile) return;

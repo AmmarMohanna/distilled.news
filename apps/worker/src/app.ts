@@ -1459,7 +1459,9 @@ export function createApp(options: AppOptions = {}) {
     if (resolved.account.disabledAt) return c.json({ error: "feed not found" }, 404);
     if (!resolved.alias.isCurrent || username !== resolved.account.username) {
       const url = new URL(c.req.url);
-      url.pathname = url.pathname.replace(`/api/feed/${username}/`, `/api/feed/${resolved.account.username}/`);
+      const segments = url.pathname.split("/");
+      segments[3] = encodeURIComponent(resolved.account.username);
+      url.pathname = segments.join("/");
       return c.redirect(url.toString(), 301);
     }
     const briefing = await repo.getBriefingBySlug(resolved.account.id, briefingSlug);
@@ -2013,7 +2015,11 @@ async function maybeRedirectUsernameRoute(
   if (/^\/assets\/[^/]+\.(?:js|css|map)$/.test(path)) return null;
   const match = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
   if (!match) return null;
-  const [, username, slug] = match;
+  let username: string, slug: string;
+  try {
+    username = decodeURIComponent(match[1]);
+    slug = decodeURIComponent(match[2]);
+  } catch { return null; }
   const resolved = await repo.resolveUsernameAlias(username);
   if (!resolved || resolved.alias.isCurrent || resolved.account.username === username) return null;
   const briefing = await repo.getBriefingBySlug(resolved.account.id, slug);
