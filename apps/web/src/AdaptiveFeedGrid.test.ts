@@ -5,6 +5,7 @@ import {AdaptiveFeedGrid, feedGridLayout, fitFeedRowHeight} from './AdaptiveFeed
 it('fits available space without shrinking long content or enlarging short cards excessively', () => {
   expect(fitFeedRowHeight(280,16,110,132)).toBe(132);
   expect(fitFeedRowHeight(268,16,110,132)).toBe(126);
+  expect(fitFeedRowHeight(328,16,94,120)).toBe(98);
   expect(fitFeedRowHeight(140,10,217,120)).toBe(217);
   expect(fitFeedRowHeight(2000,16,110,132)).toBeLessThanOrEqual(144);
 });

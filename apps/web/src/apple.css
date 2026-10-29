@@ -2796,3 +2796,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
  :root.apple-ui.apple-ui .reset-password-brand > span { font-size: 24px; }
  :root.apple-ui.apple-ui .reset-password-brand > img { width: 48px; height: 24px; }
 }
+/* Shrink the card contents together when the available height calls for it. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"][data-fit="compact"] > .topic-card { padding: 6px 8px !important; column-gap: 6px; row-gap: 2px; border-radius: 20px; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-fit="compact"] { --widget-title-size: .9375rem; --widget-owner-size: .8125rem; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-fit="compact"] .feed-card-identity { gap: 1px !important; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-fit="compact"] .feed-updated-at { font-size: .6875rem !important; line-height: 1.4 !important; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-fit="compact"] > .topic-card .topic-art { width: 40px !important; height: 40px !important; }
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-fit="compact"] > .topic-card { grid-template-columns: 40px minmax(0,1fr) 44px 44px !important; }
+@media(max-width:400px) {
+ :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-fit="compact"] > .topic-card { grid-template-columns: 40px minmax(0,1fr) 44px !important; }
+}

@@ -1,8 +1,11 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 export function fitFeedRowHeight(space: number, gap: number, natural: number, preferred: number) {
-  const minimum = Math.max(104, Math.ceil(natural));
+  const minimum = Math.max(88, Math.ceil(natural));
   const maximum = Math.max(144, minimum);
+  const targetRows = Math.max(1, Math.ceil((space + gap) / (preferred + gap)));
+  const fitted = Math.floor((space - (targetRows - 1) * gap) / targetRows);
+  if (fitted >= minimum && fitted <= maximum) return fitted;
   let chosen = Math.max(minimum, Math.min(maximum, preferred));
   let distance = Infinity;
   for (let rows = 1; rows <= Math.ceil(Math.max(0, space) / (minimum + gap)) + 1; rows++) {
@@ -51,13 +54,16 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
       grid.dataset.layout = 'list';
       grid.dataset.size = layout.roomy ? 'large' : 'compact';
       grid.dataset.density = layout.compact ? 'tight' : 'regular';
+      const fold = Math.max(0, (bottom - top) / scale);
+      const targetRows = Math.max(1, Math.ceil((fold - 8 + layout.gap) / (layout.rowHeight + layout.gap)));
+      const targetHeight = (fold - 8 - (targetRows - 1) * layout.gap) / targetRows;
+      grid.dataset.fit = targetHeight < layout.rowHeight ? 'compact' : 'regular';
       grid.style.setProperty('--feed-columns', String(layout.columns));
       grid.style.setProperty('--feed-grid-gap', layout.gap + 'px');
       grid.style.setProperty('--feed-art-size', (layout.compact ? 44 : layout.roomy ? 72 : 56) + 'px');
       const cards = Array.from(grid.children).filter((node): node is HTMLElement => node instanceof HTMLElement);
       grid.style.setProperty('--feed-row-height', '0px');
       const natural = Math.max(0, ...cards.map(card => card.getBoundingClientRect().height / scale));
-      const fold = Math.max(0, (bottom - top) / scale);
       const height = fitFeedRowHeight(Math.max(0, fold - 8), layout.gap, natural, layout.rowHeight);
       grid.style.setProperty('--feed-row-height', height + 'px');
       // Keep a continuous page: row spacing never depends on the screen fold.

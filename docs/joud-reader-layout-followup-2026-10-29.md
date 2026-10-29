@@ -63,3 +63,9 @@ Validation: 98 frontend tests and three mailer tests passed; frontend and Worker
 ### Correction: continuous widget spacing
 
 Removed the fold-dependent margin that created a large blank gap between rows after scrolling. Available-space row sizing remains, but rows always use the normal 10px mobile / 16px desktop grid gap. A row may naturally cross the browser edge during page scrolling; content is not clipped inside cards. Browser checks at four sizes passed with no injected margins, horizontal overflow, or nested grid scrolling; Arabic layout was checked separately.
+
+### Available-height compact widgets — 2026-10-29
+
+The fitting calculation now attempts the next complete row by reducing card height, instead of keeping the preferred large height. A compact content style reduces padding, artwork and identity spacing together before measuring the minimum required for uncut text. Fit height is bounded by measured content; touch controls remain 44px. No fold-dependent margins, slicing or nested scrolling were added. Both routes use the same rule.
+
+Reproduced the screenshot with a collapsed sidebar at 1280x590 CSS pixels and nine representative English/Arabic titles, including Technology Briefing Check. All three rows fit in Home and Explore at 98px per card, versus the former 120px. Browser checks also covered mobile, 1280x640 and 1920x1006 with no horizontal overflow or grid scrolling. Focused layout tests (5), frontend typecheck and production build passed. Extremely long content can still require taller cards; readability takes priority over arbitrary shrinking.
