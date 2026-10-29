@@ -7,6 +7,7 @@ import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
 import { getSources, recommendSourceCandidates, assessSourceInput, type SourceAssessment } from "./api";
 import { VoiceInput } from "./VoiceInput";
+import {FeedLanguageSelect, FeedSettingsSelect} from './FeedLanguageSelect';
 import { SourceLogo } from "./SourceLogo";
 
 export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
@@ -115,11 +116,11 @@ export function FeedEditor(props: {
       <button type="button" className="feed-preferences-disclosure" aria-label={t("Preferences")} aria-expanded={advanced} aria-controls="feed-preferences" onClick={() => setAdvanced(value => !value)}><Settings size={26}/><span><strong>{t("Preferences")}</strong><small>{t(publicFeedEnabled ? "Public" : "Private")} · {t(rhythmLabels[rhythm])}{rhythm === 1440 ? ` ${t("at {time}", {time: deliveryTime})}` : ""} · {t(({ en: "English", fr: "French", ar: "Arabic" } as const)[feedLanguage])}</small></span><ChevronDown size={20}/></button>
       <div id="feed-preferences" className="feed-preferences-fields" hidden={!advanced}>
       <p className="feed-preferences-group-label">{t("Schedule")}</p>
-      <label><span className="feed-preference-label"><CalendarDays aria-hidden="true"/>{t("Update rhythm")}</span><select value={rhythm} onChange={event => setRhythm(Number(event.target.value) as FeedInput["updateIntervalMinutes"])}>{Object.entries(rhythmLabels).map(([value, label]) => <option key={value} value={value}>{t(label)}</option>)}</select></label>
+      <div className="feed-preference-row"><span className="feed-preference-label" id="feed-rhythm-label"><CalendarDays aria-hidden="true"/>{t("Update rhythm")}</span><FeedSettingsSelect value={String(rhythm)} onChange={value => setRhythm(Number(value) as FeedInput['updateIntervalMinutes'])} labelId="feed-rhythm-label" kind="rhythm" options={Object.entries(rhythmLabels).map(([value,label]) => ({value,label:t(label)}))}/></div>
       {rhythm === 1440 && <label><span className="feed-preference-label"><Clock aria-hidden="true"/>{t("Deliver at")}</span><input type="time" required value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)}/></label>}
       <p className="feed-preferences-group-label">{t("General")}</p>
       <div className="feed-preference-row"><span className="feed-preference-label" id="feed-visibility-label"><Users aria-hidden="true"/>{t("Feed visibility")}</span><span className="feed-visibility-options" role="group" aria-labelledby="feed-visibility-label">{([true, false] as const).map(option=><label key={String(option)}><input type="radio" name="feed-visibility" checked={publicFeedEnabled===option} onChange={()=>setPublicFeedEnabled(option)}/><span>{t(option?"Public":"Private")}</span></label>)}</span></div>
-      <label><span className="feed-preference-label"><Globe aria-hidden="true"/>{t("Briefing language")}</span><select value={feedLanguage} onChange={event=>setFeedLanguage(event.target.value as BriefingConfig["language"])}>{(["en", "fr", "ar"] as const).map(option=><option key={option} value={option}>{t(({en:"English",fr:"French",ar:"Arabic"} as const)[option])}</option>)}</select></label>
+      <div className="feed-preference-row"><span className="feed-preference-label" id="feed-language-label"><Globe aria-hidden="true"/>{t("Briefing language")}</span><FeedLanguageSelect value={feedLanguage} onChange={setFeedLanguage} labelId="feed-language-label"/></div>
       </div>
       {message && <p className="error" role="alert">{message}</p>}
       {editing && props.feed && <section className="feed-actions-panel" aria-labelledby="feed-actions-title">

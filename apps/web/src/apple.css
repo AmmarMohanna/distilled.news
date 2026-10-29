@@ -2793,3 +2793,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:not(:has(.feed-check-status)):not(:has(.unread-summary)) { grid-template-columns: minmax(0,440px); }
  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:has(.feed-check-status):has(.unread-summary) { grid-template-columns: minmax(0,440px) max-content max-content; }
 }
+/* Feed-language menu: flags, soft selection, and a viewport-safe top layer. */
+:root.apple-ui.apple-ui .feed-settings-select { min-width: 0; width: 100%; }
+:root.apple-ui.apple-ui .feed-settings-trigger { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: var(--surface-quiet); box-shadow: none; font-size: 14px; font-weight: 500; }
+:root.apple-ui.apple-ui .feed-settings-trigger > span { flex: 1; min-width: 0; text-align: start; }
+:root.apple-ui.apple-ui .feed-settings-trigger > svg:last-child { flex-shrink: 0; }
+:root.apple-ui.apple-ui .feed-language-flag { display: block; width: 28px; height: 19px; flex: 0 0 28px; overflow: hidden; border-radius: 3px; box-shadow: 0 0 0 1px rgb(0 0 0 / 5%); }
+:root.apple-ui.apple-ui .feed-settings-menu { position: fixed; inset: auto; margin: 0; width: 240px; box-sizing: border-box; padding: 8px; border: 1px solid color-mix(in srgb,var(--accent) 14%,var(--surface)); border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: 0 12px 36px color-mix(in srgb,var(--accent) 12%,transparent); overflow: auto; }
+:root.apple-ui.apple-ui .feed-settings-menu > button { display: flex; align-items: center; justify-content: start; gap: 18px; width: 100%; min-height: 50px; padding: 12px 14px; border: 0; border-radius: 12px; background: transparent; color: var(--text); box-shadow: none; font-size: 16px; font-weight: 400; text-align: start; }
+:root.apple-ui.apple-ui .feed-settings-menu > button[aria-selected="true"] { background: color-mix(in srgb,var(--accent) 7%,var(--surface)); }
+:root.apple-ui.apple-ui .feed-settings-menu > button:is(:hover,:focus-visible) { background: color-mix(in srgb,var(--accent) 11%,var(--surface)); outline: none; }
