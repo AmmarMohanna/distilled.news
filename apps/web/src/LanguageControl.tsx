@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { interfaceTranslations } from './interface-translations';
 
 export type Language = "en" | "fr" | "ar";
 export function preferredLanguage(): Language {
@@ -276,6 +277,12 @@ const translations: Record<string, [string, string]> = {
   "Copy URL": ["Copier le lien", "نسخ الرابط"], "Delete feed": ["Supprimer", "حذف الخلاصة"],
   "Search topics, feeds, or keywords…": ["Rechercher des sujets, fils ou mots-clés…", "ابحث عن مواضيع أو خلاصات…"],
 };
+Object.assign(translations, interfaceTranslations);
+const normalizedTranslations = new Map(Object.entries(translations).map(([key, value]) => [key.toLowerCase(), value]));
+export function translateInterface(text: string, language: Language, values?: Record<string, string | number>): string {
+  const translated = language === 'en' ? text : (translations[text] ?? normalizedTranslations.get(text.toLowerCase()))?.[language === 'fr' ? 0 : 1] ?? text;
+  return values ? translated.replace(/\{(\w+)\}/g, (match, key) => String(values[key] ?? match)) : translated;
+}
 export function useLanguage() {
   const [language, setLanguage] = useState<Language>(preferredLanguage);
   useEffect(() => {
@@ -283,7 +290,11 @@ export function useLanguage() {
     window.addEventListener("dn-language", sync);
     return () => window.removeEventListener("dn-language", sync);
   }, []);
-  return { language, t: (text: string) => language === "en" ? text : translations[text]?.[language === "fr" ? 0 : 1] ?? text };
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+  }, [language]);
+  return { language, t: (text: string, values?: Record<string, string | number>) => translateInterface(text, language, values) };
 }
 export function setWebsiteLanguage(next: Language) {
   localStorage.setItem("dn_language", next);
@@ -293,7 +304,8 @@ export const languageNames: Record<Language, string> = { en: "English", fr: "Fra
 export function LanguageControl() {
   const { language } = useLanguage();
   const next = ({ en: "fr", fr: "ar", ar: "en" } as const)[language];
-  return <button type="button" className="language-control language-cycle" aria-label={`Website language: ${language.toUpperCase()}. Switch to ${next.toUpperCase()}`} onClick={() => {
+  const label = language === 'ar' ? `لغة الموقع: ${language.toUpperCase()}. التبديل إلى ${next.toUpperCase()}` : language === 'fr' ? `Langue du site : ${language.toUpperCase()}. Passer à ${next.toUpperCase()}` : `Website language: ${language.toUpperCase()}. Switch to ${next.toUpperCase()}`;
+  return <button type="button" className="language-control language-cycle" aria-label={label} onClick={() => {
     localStorage.setItem("dn_language", next);
     window.dispatchEvent(new Event("dn-language"));
   }}><svg width="18" height="18" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="16" cy="16" r="13"/><ellipse cx="16" cy="16" rx="6" ry="13"/><path d="M3 16h26"/></svg><span>{language.toUpperCase()}</span></button>;

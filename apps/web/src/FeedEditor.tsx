@@ -128,7 +128,7 @@ export function FeedEditor(props: {
         <div className="feed-editor-actions">
           <button type="button" disabled={busy || !props.onPause} onClick={() => void run(async () => { await props.onPause?.(); props.onClose(); })}>{props.feed.paused ? <Play size={18} aria-hidden/> : <Pause size={18} aria-hidden/>}<span>{t(props.feed.paused ? "Resume feed" : "Pause feed")}</span></button>
           <button type="button" disabled={busy || !props.onCopy} onClick={() => void run(async () => { await props.onCopy?.(); setLinkCopied(true); })}><Copy size={18} aria-hidden/><span aria-live="polite">{t(linkCopied ? "Copied" : "Copy link")}</span></button>
-          <button type="button" className="danger-button" disabled={busy || !props.onDelete} onClick={async () => { if (await confirm('Delete "' + props.feed?.title + '" and its published content?')) void run(async () => { await props.onDelete?.(); }); }}><Trash2 size={18} aria-hidden/><span>{t("Delete feed")}</span></button>
+          <button type="button" className="danger-button" disabled={busy || !props.onDelete} onClick={async () => { if (await confirm(t('Delete "{name}" and its published content?', {name: props.feed?.title ?? ''}))) void run(async () => { await props.onDelete?.(); }); }}><Trash2 size={18} aria-hidden/><span>{t("Delete feed")}</span></button>
         </div>
       </section>}
       <div className="experience-dialog-actions"><button type="button" onClick={props.onClose}>{t("Cancel")}</button><button className="primary-button" disabled={busy || checkingSource || !sourcesReady || !title.trim() || !prompt.trim() || !timezone.trim()}>{busy ? "…" : t(editing ? "Save changes" : "Create feed")}</button></div>

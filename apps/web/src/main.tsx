@@ -164,6 +164,7 @@ function languageLabel(language: "en" | "ar" | "fr"): string {
 }
 
 function AdminPage(props: { initialTab?: "home" | "explore" }) {
+  const { t } = useLanguage();
   const { language: interfaceLanguage } = useLanguage();
   useEffect(() => { document.documentElement.lang = interfaceLanguage; document.documentElement.dir = interfaceLanguage === "ar" ? "rtl" : "ltr"; }, [interfaceLanguage]);
   const [session, setSession] = useState<SessionStatus | null>(null);
@@ -471,9 +472,9 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
           onAccount={() => setAuthOpen(true)} onHelp={() => {}}
           onCreate={() => { setCreateAfterLogin(true); setAuthOpen(true); }}
           error={error ? "We couldn’t load your session. Please refresh and try again." : undefined}/>
-        {authOpen && (session || error) && <Dialog label={!session && error ? "Sign-in Unavailable" : "Login or sign up"} className={`auth-dialog${!session && error ? ' auth-unavailable-dialog' : ''}`} onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
+        {authOpen && (session || error) && <Dialog label={t(!session && error ? "Sign-in Unavailable" : "Login or sign up")} className={`auth-dialog${!session && error ? ' auth-unavailable-dialog' : ''}`} onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
           <div className="auth-experience auth-modal-content">
-            <button type="button" className="dialog-close quiet-icon" aria-label="Close dialog" onClick={() => { setAuthOpen(false); setCreateAfterLogin(false); }}><X size={20}/></button>
+            <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={() => { setAuthOpen(false); setCreateAfterLogin(false); }}><X size={20}/></button>
             {session ? <AuthPanel
               setupRequired={session.setupRequired}
               turnstileSiteKey={session.turnstileSiteKey}
@@ -490,8 +491,8 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
               }}
             /> : error ? <section className="auth-unavailable" role="alert" aria-labelledby="auth-unavailable-title" dir="ltr">
               <span className="auth-unavailable-icon" aria-hidden="true"><X size={36} strokeWidth={2}/></span>
-              <h2 id="auth-unavailable-title">Sign-in Unavailable</h2>
-              <p>Sign-in is unavailable right now. Please refresh and try again.</p>
+              <h2 id="auth-unavailable-title">{t("Sign-in Unavailable")}</h2>
+              <p>{t("Sign-in is unavailable right now. Please refresh and try again.")}</p>
             </section> : null}
           </div>
         </Dialog>}
@@ -501,8 +502,8 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
 
   if (!account) {
     return (
-      <Shell title="create" onLogout={handleLogout}>
-        <p className="error">session account unavailable</p>
+      <Shell title={t("create")} onLogout={handleLogout}>
+        <p className="error">{t("session account unavailable")}</p>
       </Shell>
     );
   }
@@ -556,6 +557,7 @@ function AdminCommandPanel(props: {
   onOpenSettings: () => void;
   onCopy: () => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const enabledSources = props.sources.filter((source) => source.enabled).length;
   const queuedJobs = props.health?.processing.queued ?? 0;
   const failedJobs = props.health?.processing.failed ?? 0;
@@ -565,51 +567,48 @@ function AdminCommandPanel(props: {
   const sourceCopy = `${enabledSources}/${props.sources.length} enabled`;
 
   return (
-    <section className="command-panel" aria-label="feed command center">
+    <section className="command-panel" aria-label={t("feed command center")}>
       <div className="command-panel-main">
-        <span className="eyebrow">public console</span>
+        <span className="eyebrow">{t("public console")}</span>
         <div className="command-title-row">
           <span className={`status-dot ${props.briefing.paused ? "paused" : "live"}`} aria-hidden />
           <h2><bdi>{props.briefing.title}</bdi></h2>
         </div>
         <code className="command-url">/{props.briefing.ownerUsername}/{props.briefing.slug}/</code>
         <div className="command-actions">
-          <a className="button-link primary-button" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
-            <ExternalLink size={15} aria-hidden /> open feed
-          </a>
-          <button type="button" title="feed settings" onClick={props.onOpenSettings}>
-            <Settings size={15} aria-hidden /> settings
-          </button>
-          <button type="button" title="copy feed url" onClick={() => void props.onCopy()}>
-            <Copy size={15} aria-hidden /> copy url
-          </button>
+          <a className="button-link primary-button" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title={t("open feed")}>
+            <ExternalLink size={15} aria-hidden /> {t("open feed")}</a>
+          <button type="button" title={t("feed settings")} onClick={props.onOpenSettings}>
+            <Settings size={15} aria-hidden /> {t("settings")}</button>
+          <button type="button" title={t("copy feed url")} onClick={() => void props.onCopy()}>
+            <Copy size={15} aria-hidden /> {t("copy url")}</button>
         </div>
       </div>
-      <div className="command-metrics" aria-label="feed signals">
+      <div className="command-metrics" aria-label={t("feed signals")}>
         <div className="metric-tile">
           <RadioTower size={18} aria-hidden />
-          <span>state</span>
+          <span>{t("state")}</span>
           <strong>{props.briefing.paused ? "paused" : "live"}</strong>
         </div>
         <div className="metric-tile">
           <ListChecks size={18} aria-hidden />
-          <span>sources</span>
+          <span>{t("sources")}</span>
           <strong>{sourceCopy}</strong>
         </div>
         <div className="metric-tile">
           <Activity size={18} aria-hidden />
-          <span>queue</span>
-          <strong>{queuedJobs} queued / {failedJobs} failed</strong>
+          <span>{t("queue")}</span>
+          <strong>{queuedJobs} {t("queued /")}{failedJobs} {t("failed")}</strong>
         </div>
         <div className="metric-tile">
           <Clock3 size={18} aria-hidden />
-          <span>next</span>
-          <strong>{props.briefing.paused ? pausedScheduleLabel(props.briefing.language) : nextBriefingAt ? <Timestamp value={nextBriefingAt} language={props.briefing.language} /> : "after save"}</strong>
+          <span>{t("next")}</span>
+          <strong>{props.briefing.paused ? pausedScheduleLabel(props.briefing.language) : nextBriefingAt ? <Timestamp value={nextBriefingAt} language={props.briefing.language} /> : t("after save")}</strong>
         </div>
       </div>
       <div className="command-footer">
         <span><ShieldCheck size={15} aria-hidden /> {activity}</span>
-        <span>{latestPublishedAt ? <>latest <Timestamp value={latestPublishedAt} language={props.briefing.language} /></> : "no published brief yet"}</span>
+        <span>{latestPublishedAt ? <>{t("latest")}<Timestamp value={latestPublishedAt} language={props.briefing.language} /></> : t("no published brief yet")}</span>
       </div>
     </section>
   );
@@ -692,19 +691,18 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       </div>
       {props.setupRequired ? (
         <label>
-          Admin Setup Token
-          <input type="password" autoComplete="off" aria-describedby="admin-setup-token-help" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
-          <span className="field-help" id="admin-setup-token-help">Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.</span>
+          {t("Admin Setup Token")}<input type="password" autoComplete="off" aria-describedby="admin-setup-token-help" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
+          <span className="field-help" id="admin-setup-token-help">{t("Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.")}</span>
         </label>
       ) : null}
       <label className="auth-input">
-        <span className="sr-only">email</span><Mail size={21} aria-hidden/>
+        <span className="sr-only">{t("email")}</span><Mail size={21} aria-hidden/>
         <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {authStep === "details" && (mode === "register" || props.setupRequired) ? (
         <label>
-          <span className="auth-input"><span className="sr-only">username</span><User size={21} aria-hidden/>
-          <input required aria-label="username" aria-describedby={usernamePreview ? "auth-username-help" : undefined} placeholder={t("Username")} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
+          <span className="auth-input"><span className="sr-only">{t("username")}</span><User size={21} aria-hidden/>
+          <input required aria-label={t("username")} aria-describedby={usernamePreview ? "auth-username-help" : undefined} placeholder={t("Username")} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
           {usernamePreview ? <span className="field-help" id="auth-username-help">{t("Your feed URLs start with")} <bdi>/{usernamePreview}/</bdi></span> : null}
         </label>
       ) : null}
@@ -712,7 +710,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         <div className="auth-password-field"><div className="auth-input">
           <LockKeyhole size={21} aria-hidden/>
           <input
-            aria-label="password"
+            aria-label={t("password")}
             placeholder={t("Password")}
             required
             type={showPassword ? "text" : "password"}
@@ -730,7 +728,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
-        {error ? <p className="auth-error" role="alert">{error.charAt(0).toUpperCase() + error.slice(1)}</p> : message ? <p className="auth-message">{message}</p> : null}
+        {error ? <p className="auth-error" role="alert">{t(error.charAt(0).toUpperCase() + error.slice(1))}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
       {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
       {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
@@ -824,11 +822,12 @@ function TurnstileField(props: { siteKey: string; resetSignal: number; onToken: 
 }
 
 function ExploreFeedsPanel() {
+  const { t } = useLanguage();
   return (
     <section className="section explore-section" aria-labelledby="explore-feeds-title">
       <div className="section-title">
         <Compass size={16} aria-hidden />
-        <h2 id="explore-feeds-title">explore</h2>
+        <h2 id="explore-feeds-title">{t("explore")}</h2>
       </div>
       <ExploreFeedList />
     </section>
@@ -836,6 +835,7 @@ function ExploreFeedsPanel() {
 }
 
 function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" | "ar" | "fr" }) {
+  const { t } = useLanguage();
   const [feeds, setFeeds] = useState<PublicBriefing[] | null>(null);
   const [error, setError] = useState("");
   const language = props.language ?? "en";
@@ -854,7 +854,7 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
     };
   }, []);
 
-  if (error) return <p className="error">{error}</p>;
+  if (error) return <p className="error">{t(error)}</p>;
   if (!feeds) return null;
   if (feeds.length === 0) return <p className="muted">{noFeaturedFeedsLabel(language)}</p>;
 
@@ -869,7 +869,7 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
               <strong className="explore-title"><bdi>{feed.title}</bdi></strong>
               <span className="explore-meta">@{feed.ownerUsername}</span>
             </span>
-            <span className="explore-stars" aria-label={`${feed.stars} stars`}>
+            <span className="explore-stars" aria-label={t("{count} stars", {count: feed.stars})}>
               <Star size={13} aria-hidden /> {feed.stars}
             </span>
           </a>
@@ -880,6 +880,7 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
 }
 
 function VerifyEmailPage(props: { token: string }) {
+  const { t } = useLanguage();
   const [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -887,14 +888,14 @@ function VerifyEmailPage(props: { token: string }) {
     <main className="email-verification-page">
       <section className="email-verification-panel" aria-labelledby="email-verification-title">
         <div className="email-verification-brand" aria-hidden="true"><img src="/favicon.svg" alt="" /></div>
-        <h1 id="email-verification-title" aria-live="polite">{verified ? "Email Verified" : "Verify Email"}</h1>
+        <h1 id="email-verification-title" aria-live="polite">{t(verified ? "Email Verified" : "Verify Email")}</h1>
         {!verified && <>
-        <p className="email-verification-description">Confirm this email address</p>
+        <p className="email-verification-description">{t("Confirm this email address")}</p>
         <div className="email-verification-actions">
           <button
             type="button"
             className="email-verification-submit"
-            title="Verify Email"
+            title={t("Verify Email")}
             disabled={busy || !props.token}
             onClick={async () => {
               setBusy(true);
@@ -909,10 +910,10 @@ function VerifyEmailPage(props: { token: string }) {
               }
             }}
           >
-            {busy ? "Verifying…" : "Verify Email"}
+            {t(busy ? "Verifying…" : "Verify Email")}
           </button>
-          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{error.charAt(0).toUpperCase() + error.slice(1)}</p> : null}</div>
-          <a className="email-verification-create" href="/" title="Create">Create</a>
+          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{t(error.charAt(0).toUpperCase() + error.slice(1))}</p> : null}</div>
+          <a className="email-verification-create" href="/" title={t("Create")}>{t("Create")}</a>
         </div>
         </>}
       </section>
@@ -921,29 +922,44 @@ function VerifyEmailPage(props: { token: string }) {
 }
 
 function ResetPasswordPage(props: { token: string }) {
+  const { language, t } = useLanguage();
   const [password, setPassword] = useState("");
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { document.title = `${t('Reset Password')} · Distilled.News`; }, [language]);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   return (
-    <Shell title="Reset Password">
-      <form className="login" onSubmit={async (event) => {
+    <main className="reset-password-page" lang={language} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+      <AppHeader account={null} onAccount={() => {}} leading={<a className="reset-password-brand" href="/" aria-label="Distilled.News"><img src="/email-logo.png" alt=""/><span>Distilled<span className="reset-brand-dot">.</span>News</span></a>} />
+      <section className="reset-password-content" aria-labelledby="reset-password-title">
+      <div className="reset-password-heading"><h1 id="reset-password-title">{t('Reset Password')}</h1><p>{t('Account recovery.')}</p></div>
+      <form className="reset-password-form" onSubmit={async (event) => {
         event.preventDefault();
+        if (busy) return;
+        setBusy(true); setError(''); setMessage('');
         try {
           await resetPassword(props.token, password);
-          setMessage("password reset");
+          setMessage("Password reset successfully.");
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+          setBusy(false);
         }
       }}>
         <label>
-          New Password
-          <input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
+          {t('New Password')}
+          <span className="reset-password-input">
+          <input type={visible ? 'text' : 'password'} autoComplete="new-password" required minLength={8} placeholder={t('Enter your new password')} value={password} onChange={(event) => setPassword(event.target.value)} />
+          <button type="button" aria-label={t(visible ? 'Hide password' : 'Show password')} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={24} aria-hidden /> : <Eye size={24} aria-hidden />}</button>
+          </span>
         </label>
-        <button type="submit" title="save password"><Save size={15} aria-hidden /> save password</button>
-        {message ? <p className="muted">{message}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        <button className="reset-password-save" type="submit" disabled={busy || !props.token}>{t(busy ? 'Saving...' : 'Save')}</button>
+        {message ? <p role="status">{t(message)}</p> : null}
+        {error ? <p className="error" role="alert">{t(error)}</p> : null}
       </form>
-    </Shell>
+      </section>
+    </main>
   );
 }
 
@@ -1006,6 +1022,7 @@ function FirstRunSetupSheet(props: {
   onClose: () => void;
   onComplete: (input: { username: string; title: string; interestProfile: string; sourceUrl: string }) => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const [username, setUsername] = useState(props.account.username);
   const [title, setTitle] = useState(props.briefing.title);
   const [interestProfile, setInterestProfile] = useState(props.briefing.interestProfile);
@@ -1018,7 +1035,7 @@ function FirstRunSetupSheet(props: {
   }, []);
 
   return (
-    <Sheet title="Set up feed" closeLabel="Skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
+    <Sheet title={t("Set up feed")} closeLabel="Skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
       <form
         className="settings-grid"
         onSubmit={async (event) => {
@@ -1032,16 +1049,13 @@ function FirstRunSetupSheet(props: {
         }}
       >
         <label>
-          username
-          <input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
+          {t("username")}<input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
         </label>
         <label>
-          feed name
-          <input dir="ltr" required value={title} onChange={(event) => setTitle(event.target.value)} />
+          {t("feed name")}<input dir="ltr" required value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <label>
-          interest profile
-          <textarea
+          {t("interest profile")}<textarea
             dir="ltr"
             required
             rows={6}
@@ -1050,15 +1064,14 @@ function FirstRunSetupSheet(props: {
           />
         </label>
         <label>
-          first source
-          <input
+          {t("first source")}<input
             dir="ltr"
             value={sourceUrl}
             onChange={(event) => setSourceUrl(event.target.value)}
             placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Beirut power"
           />
         </label>
-        <div className="source-examples" aria-label="source examples">
+        <div className="source-examples" aria-label={t("source examples")}>
           {sourceInputExamples.map((example) => (
             <button
               key={example.label}
@@ -1071,12 +1084,11 @@ function FirstRunSetupSheet(props: {
           ))}
         </div>
         <div className="sheet-actions">
-          <button type="submit" className="primary-button" title="finish setup" disabled={props.busy || !title.trim() || !interestProfile.trim()}>
-            <Save size={15} aria-hidden /> finish setup
-          </button>
-          <button type="button" title="skip setup" onClick={props.onClose}>skip</button>
+          <button type="submit" className="primary-button" title={t("finish setup")} disabled={props.busy || !title.trim() || !interestProfile.trim()}>
+            <Save size={15} aria-hidden /> {t("finish setup")}</button>
+          <button type="button" title={t("skip setup")} onClick={props.onClose}>{t("skip")}</button>
         </div>
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
       </form>
     </Sheet>
   );
@@ -1089,6 +1101,7 @@ function HealthSummary(props: {
   retryBusy: boolean;
   onRetryProcessing: () => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const summary = getHealthSummaryParts(props.briefing, props.health);
   const failedJobs = props.health?.processing.failed ?? 0;
   const isPaused = props.briefing.paused;
@@ -1102,7 +1115,7 @@ function HealthSummary(props: {
       : "after save";
   return (
     <details className="health-summary">
-      <summary className="health-summary-line" title="source status">
+      <summary className="health-summary-line" title={t("source status")}>
         <span className={`status-dot ${isPaused ? "paused" : "live"}`} aria-hidden />
         <span className="health-summary-copy">
           <strong>{summary.feedState}</strong>
@@ -1134,9 +1147,8 @@ function HealthSummary(props: {
         <StatusLine label="status" value={props.briefing.paused ? "paused" : "live"} />
         {failedJobs > 0 ? (
           <div className="health-actions">
-            <button type="button" title="retry processing" disabled={props.retryBusy} onClick={() => void props.onRetryProcessing()}>
-              <RefreshCw size={15} aria-hidden /> retry processing
-            </button>
+            <button type="button" title={t("retry processing")} disabled={props.retryBusy} onClick={() => void props.onRetryProcessing()}>
+              <RefreshCw size={15} aria-hidden /> {t("retry processing")}</button>
           </div>
         ) : null}
       </div>
@@ -1200,7 +1212,7 @@ function AccountDialog(props: {
       >
         <div className="profile-card-heading"><span className="profile-card-icon" aria-hidden="true"><User size={28}/></span><div><label htmlFor="profile-username">{t("Username")}</label><p>{t("Your account username")}</p></div></div>
         <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
-        <button hidden={!editingUsername} type="submit" className="profile-save-button" title="Save" disabled={busy === "username"}>
+        <button hidden={!editingUsername} type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "username"}>
           {t("Save")}
         </button>
       </form>
@@ -1248,7 +1260,7 @@ function AccountDialog(props: {
             onChange={(event) => setNewPassword(event.target.value)}
           />
         </label>
-        <button type="submit" className="profile-save-button" title="Save" disabled={busy === "password"}>
+        <button type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "password"}>
           {t("Save")}
         </button>
       </form>
@@ -1256,7 +1268,7 @@ function AccountDialog(props: {
       <div className="account-actions">
         <button
           type="button"
-          title="logout"
+          title={t("logout")}
           disabled={busy === "logout"}
           onClick={async () => {
             setBusy("logout");
@@ -1266,7 +1278,7 @@ function AccountDialog(props: {
           <LogOut size={22} aria-hidden /> {t("Log out")}
         </button>
         {message ? <p className="muted">{t(message)}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
       </div>
       </section>
     </Dialog>
@@ -1326,7 +1338,7 @@ function AdminAccountsSection(props: {
   return (
     <>
       <details className="accounts-section">
-        <summary className="accounts-summary" title="accounts">
+        <summary className="accounts-summary" title={t("accounts")}>
           <User size={16} aria-hidden />
           <span className="accounts-back-label">{t("Settings")}</span><ChevronRight size={18}/><span className="accounts-label">{t("User Management")}</span>
         </summary>
@@ -1335,9 +1347,9 @@ function AdminAccountsSection(props: {
         <div className="user-management-heading"><h1>{t("User Management")}</h1><p>{t("Manage registered users and their feeds.")}</p></div>
         <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><select aria-label={t("Filter users by role")} value={role} onChange={event => setRole(event.target.value)}><option value="all">{t("All Roles")}</option><option value="admin">{t("Admin")}</option><option value="user">{t("User")}</option></select><ChevronDown size={18} aria-hidden="true"/></span><div className="users-counts"><span>{props.accounts.length} {t("users")}</span><span>{props.accounts.reduce((total, account) => total + feedCountFor(account), 0)} {t("feeds")}</span></div></div>
 
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
         <div className="users-table-scroll"><table className="users-table"><thead><tr><th><button type="button" onClick={() => setSortAscending(value => !value)}>{t("Name")} <ChevronDown size={14} style={{ transform: sortAscending ? "none" : "rotate(180deg)" }}/></button></th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Feeds")}</th><th>{t("Status")}</th><th><span className="sr-only">{t("Actions")}</span></th></tr></thead><tbody>{visibleAccounts.map(account => <tr key={account.id} className={account.id === managedAccountId ? "selected" : ""}>
-          <td><button className="user-name-button" type="button" style={{ background: "transparent" }} aria-label={`View ${account.username}`} onClick={() => setManagedAccountId(account.id)}><span className={`user-row-avatar ${account.role === "admin" ? "admin" : ""}`}>{accountInitials(account.username)}</span><span>{account.username}</span></button></td><td title={account.email}>{account.email}</td><td><span className={`user-role-badge ${account.role}`}>{t(account.role === "admin" ? "Admin" : "User")}</span></td><td>{feedCountFor(account)}</td><td><span className={`user-status ${account.disabledAt ? "suspended" : ""}`}>{t(account.disabledAt ? "Suspended" : account.emailVerifiedAt ? "Verified" : "Pending")}</span></td><td>{!managedAccount && <button type="button" className="user-manage-button" aria-label={`manage ${account.username}`} onClick={() => setManagedAccountId(account.id)}><MoreHorizontal size={20} aria-hidden /></button>}</td>
+          <td><button className="user-name-button" type="button" style={{ background: "transparent" }} aria-label={t("View {name}", {name: account.username})} onClick={() => setManagedAccountId(account.id)}><span className={`user-row-avatar ${account.role === "admin" ? "admin" : ""}`}>{accountInitials(account.username)}</span><span>{account.username}</span></button></td><td title={account.email}>{account.email}</td><td><span className={`user-role-badge ${account.role}`}>{t(account.role === "admin" ? "Admin" : "User")}</span></td><td>{feedCountFor(account)}</td><td><span className={`user-status ${account.disabledAt ? "suspended" : ""}`}>{t(account.disabledAt ? "Suspended" : account.emailVerifiedAt ? "Verified" : "Pending")}</span></td><td>{!managedAccount && <button type="button" className="user-manage-button" aria-label={`manage ${account.username}`} onClick={() => setManagedAccountId(account.id)}><MoreHorizontal size={20} aria-hidden /></button>}</td>
         </tr>)}</tbody></table>{visibleAccounts.length === 0 && <p className="users-empty">{t("No users found.")}</p>}</div>
         </div>
       {managedAccount ? (
@@ -1407,7 +1419,7 @@ function AdminAccountDialog(props: {
   }
 
   async function removeAdminBriefing(feed: BriefingConfig) {
-    if (!await confirm(`Delete "${feed.title}" and all of its sources and published items?`)) return;
+    if (!await confirm(t('Delete "{name}" and all of its sources and published items?', {name: feed.title}))) return;
     setBusy(`feed:${feed.id}:delete`);
     setError("");
     setMessage("");
@@ -1424,24 +1436,24 @@ function AdminAccountDialog(props: {
   }
 
   return (
-    <Panel title="manage account" closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
+    <Panel title={t("manage account")} closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
       {confirmation}
-      <div className="managed-user-identity"><span className="profile-avatar">{accountInitials(props.account.username)}</span><h2>{props.account.username}</h2><p>{props.account.email}</p><span className={`user-role-badge ${props.account.role}`}>{props.account.role === "admin" ? "Admin" : "User"}</span></div>
+      <div className="managed-user-identity"><span className="profile-avatar">{accountInitials(props.account.username)}</span><h2>{props.account.username}</h2><p>{props.account.email}</p><span className={`user-role-badge ${props.account.role}`}>{t(props.account.role === "admin" ? "Admin" : "User")}</span></div>
       <div className="managed-user-stats"><span>{t("Feeds")}<strong>{props.feedCount ?? props.briefings.length}</strong></span><span>{t("Joined")}<strong>{joinedAt}</strong></span></div>
-      <details className="managed-user-settings"><summary><Pencil size={20}/>Account Settings<ChevronRight size={18}/></summary>
+      <details className="managed-user-settings"><summary><Pencil size={20}/>{t("Account Settings")}<ChevronRight size={18}/></summary>
         <fieldset className="account-role-options"><legend>{t("Role")}</legend>{(["user", "admin"] as const).map(role => <label key={role}><input type="radio" name={`role-${props.account.id}`} checked={props.account.role === role} disabled={busy !== null} onChange={async () => { setBusy("role"); try { await updateAccountAndRefresh({ role }, `role changed to ${role}`); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(null); } }}/>{t(role === "admin" ? "Admin" : "User")}</label>)}</fieldset>
       </details>
-      <details className="managed-user-feeds"><summary><Newspaper size={22}/>View Feeds<ChevronRight size={18}/></summary>
-        <div className="admin-feed-list">{props.briefings.map(feed => <div key={feed.id} className="admin-feed-row"><strong title={feed.title}><bdi>{feed.title}</bdi></strong><div className="row-actions"><a className="icon-button" href={`/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`} target="_blank" rel="noopener noreferrer" aria-label={`Open ${feed.title} in new tab`}><ExternalLink size={18}/></a><details className="feed-options"><summary aria-label={`Options for ${feed.title}`}><MoreHorizontal size={20} aria-hidden /></summary><div className="feed-options-popover admin-feed-actions"><button type="button" aria-label={t(feed.paused ? "Resume feed" : "Pause feed")} title={t(feed.paused ? "Resume feed" : "Pause feed")} disabled={busy !== null} onClick={() => void toggleAdminBriefing(feed)}>{feed.paused ? <Play size={16}/> : <Pause size={16}/>}</button><button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy !== null} onClick={() => void removeAdminBriefing(feed)}><Trash2 size={18}/></button></div></details></div></div>)}</div>
+      <details className="managed-user-feeds"><summary><Newspaper size={22}/>{t("View Feeds")}<ChevronRight size={18}/></summary>
+        <div className="admin-feed-list">{props.briefings.map(feed => <div key={feed.id} className="admin-feed-row"><strong title={feed.title}><bdi>{feed.title}</bdi></strong><div className="row-actions"><a className="icon-button" href={`/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`} target="_blank" rel="noopener noreferrer" aria-label={t("Open {name} in new tab", {name: feed.title})}><ExternalLink size={18}/></a><details className="feed-options"><summary aria-label={t("Options for {name}", {name: feed.title})}><MoreHorizontal size={20} aria-hidden /></summary><div className="feed-options-popover admin-feed-actions"><button type="button" aria-label={t(feed.paused ? "Resume feed" : "Pause feed")} title={t(feed.paused ? "Resume feed" : "Pause feed")} disabled={busy !== null} onClick={() => void toggleAdminBriefing(feed)}>{feed.paused ? <Play size={16}/> : <Pause size={16}/>}</button><button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy !== null} onClick={() => void removeAdminBriefing(feed)}><Trash2 size={18}/></button></div></details></div></div>)}</div>
       </details>
       <button type="button" className="managed-user-suspend" disabled={busy !== null || isSignedInAdmin} onClick={async () => {
         setBusy("disabled");
         try { await updateAccountAndRefresh({ disabled: !props.account.disabledAt }, props.account.disabledAt ? "account enabled" : "account disabled"); }
         catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
         finally { setBusy(null); }
-      }}><Ban size={24}/><span>{props.account.disabledAt ? "Enable Account" : "Suspend Account"}</span><ChevronRight size={18}/></button>
-      {message ? <p className="muted">{message}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+      }}><Ban size={24}/><span>{t(props.account.disabledAt ? "Enable Account" : "Suspend Account")}</span><ChevronRight size={18}/></button>
+      {message ? <p className="muted">{t(message)}</p> : null}
+      {error ? <p className="error">{t(error)}</p> : null}
     </Panel>
   );
 }
@@ -1809,13 +1821,14 @@ function FeedSignalPanel(props: {
   language: "en" | "ar" | "fr";
   nowMs: number;
 }) {
+  const { t } = useLanguage();
   const nextValue = props.briefing.paused
     ? pausedScheduleLabel(props.language)
     : props.briefing.nextBriefingAt
       ? formatCountdown(props.briefing.nextBriefingAt, props.nowMs, props.language)
       : summaryPublishedLabel(props.language);
   return (
-    <section className="feed-signal-panel" aria-label="feed signal">
+    <section className="feed-signal-panel" aria-label={t("feed signal")}>
       <div className="feed-signal-primary">
         <span className="eyebrow">{cadenceMetaLabel(props.briefing.briefingCadence, props.language)}</span>
         <strong><bdi>{props.briefing.title}</bdi></strong>
@@ -2163,6 +2176,7 @@ function Shell(props: {
   pageLanguage?: "en" | "ar" | "fr";
   headingAction?: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   const { language: selectedLanguage } = useLanguage();
   const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
   const shellLanguage = selectedLanguage;
@@ -2188,7 +2202,7 @@ function Shell(props: {
             <div className="brand" aria-label="Distilled.news" title="Distilled.news">
               <span className="experience-brand"><BrandMark/></span>
             </div>
-            <a href="https://github.com/AmmarMohanna/distilled.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
+            <a href="https://github.com/AmmarMohanna/distilled.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label={t("Open GitHub repository")} title={t("open GitHub repository")}>
               <Github size={16} aria-hidden />
             </a>
           </div>
@@ -2197,12 +2211,12 @@ function Shell(props: {
           <div className="header-controls">
             <LanguageControl/>
             {props.onAccount ? (
-              <button type="button" className="icon-button" aria-label="account settings" title="account settings" onClick={props.onAccount}>
+              <button type="button" className="icon-button" aria-label={t("account settings")} title={t("account settings")} onClick={props.onAccount}>
                 <User size={16} aria-hidden />
               </button>
             ) : null}
             <ThemeToggle/>
-            {props.onLogout ? <button type="button" title="logout" onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> logout</button> : null}
+            {props.onLogout ? <button type="button" title={t("logout")} onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> {t("logout")}</button> : null}
           </div>
         </div>
       </header>}
