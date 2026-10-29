@@ -30,6 +30,7 @@ export function FeedEditor(props: {
   const [feedLanguage, setFeedLanguage] = useState<BriefingConfig["language"]>(props.feed?.language ?? preferredLanguage());
   const [publicFeedEnabled, setPublicFeedEnabled] = useState(props.feed?.publicFeedEnabled ?? true);
   const [deliveryTime, setDeliveryTime] = useState(props.feed?.briefingTimeOfDay ?? "08:00");
+  const deliveryTimeInput = useRef<HTMLInputElement>(null);
   const [timezone] = useState(() => props.feed?.briefingTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [sources, setSources] = useState<string[]>([]);
   const [sourceQuery, setSourceQuery] = useState("");
@@ -113,15 +114,17 @@ export function FeedEditor(props: {
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}
         </div>}
       </div>
+      <section className="feed-preferences-card">
       <button type="button" className="feed-preferences-disclosure" aria-label={t("Preferences")} aria-expanded={advanced} aria-controls="feed-preferences" onClick={() => setAdvanced(value => !value)}><Settings size={26}/><span><strong>{t("Preferences")}</strong><small>{t(publicFeedEnabled ? "Public" : "Private")} · {t(rhythmLabels[rhythm])}{rhythm === 1440 ? ` ${t("at {time}", {time: deliveryTime})}` : ""} · {t(({ en: "English", fr: "French", ar: "Arabic" } as const)[feedLanguage])}</small></span><ChevronDown size={20}/></button>
       <div id="feed-preferences" className="feed-preferences-fields" hidden={!advanced}>
       <p className="feed-preferences-group-label">{t("Schedule")}</p>
       <div className="feed-preference-row"><span className="feed-preference-label" id="feed-rhythm-label"><CalendarDays aria-hidden="true"/>{t("Update rhythm")}</span><FeedSettingsSelect value={String(rhythm)} onChange={value => setRhythm(Number(value) as FeedInput['updateIntervalMinutes'])} labelId="feed-rhythm-label" kind="rhythm" options={Object.entries(rhythmLabels).map(([value,label]) => ({value,label:t(label)}))}/></div>
-      {rhythm === 1440 && <label><span className="feed-preference-label"><Clock aria-hidden="true"/>{t("Deliver at")}</span><input type="time" required value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)}/></label>}
+      {rhythm === 1440 && <div className="feed-preference-row"><label className="feed-preference-label" htmlFor="feed-delivery-time"><Clock aria-hidden="true"/>{t("Deliver at")}</label><span className="feed-time-field"><input id="feed-delivery-time" ref={deliveryTimeInput} type="time" required value={deliveryTime} onChange={event => setDeliveryTime(event.target.value)}/><button type="button" aria-label={t('Choose delivery time')} onClick={() => {const input = deliveryTimeInput.current; if (!input) return; try {if (input.showPicker) input.showPicker(); else input.focus();} catch {input.focus();}}}><Clock size={18} aria-hidden/></button></span></div>}
       <p className="feed-preferences-group-label">{t("General")}</p>
       <div className="feed-preference-row"><span className="feed-preference-label" id="feed-visibility-label"><Users aria-hidden="true"/>{t("Feed visibility")}</span><span className="feed-visibility-options" role="group" aria-labelledby="feed-visibility-label">{([true, false] as const).map(option=><label key={String(option)}><input type="radio" name="feed-visibility" checked={publicFeedEnabled===option} onChange={()=>setPublicFeedEnabled(option)}/><span>{t(option?"Public":"Private")}</span></label>)}</span></div>
       <div className="feed-preference-row"><span className="feed-preference-label" id="feed-language-label"><Globe aria-hidden="true"/>{t("Briefing language")}</span><FeedLanguageSelect value={feedLanguage} onChange={setFeedLanguage} labelId="feed-language-label"/></div>
       </div>
+      </section>
       {message && <p className="error" role="alert">{message}</p>}
       {editing && props.feed && <section className="feed-actions-panel" aria-labelledby="feed-actions-title">
         <h3 id="feed-actions-title">{t("Feed actions")}</h3>

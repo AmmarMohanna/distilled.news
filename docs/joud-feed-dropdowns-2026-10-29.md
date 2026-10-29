@@ -9,3 +9,9 @@ Validation: frontend typecheck/build passed. Existing frontend suite passed befo
 ## Matched field styling and menu edges
 
 Updated both triggers to pale lavender fills/borders and violet chevrons. The closed language trigger uses the reference globe badge; flag icons remain inside its options. Popover width now comes from the trigger's measured width, and its left edge aligns with the trigger. Menus open directly above or below with a 6px gap according to available viewport space, and constrain height rather than extending off-screen. All twelve desktop/mobile language and interval browser cases passed exact edge alignment (within one pixel), adjacent placement, selection, keyboard, focus and viewport checks. Build and frontend typecheck passed.
+
+## Preferences card and matching daily-time field
+
+Wrapped the Preferences disclosure and its conditional Schedule/General contents in one continuous bordered card. The expanded contents no longer have a separate outer border. Daily delivery time uses the same measured control width, 44px total height, pale lavender fill, border and radius as the dropdown above it. Replaced the black native clock indicator with an accent-colored accessible picker button; input remains a native time field and keeps its existing value/save behavior.
+
+Frontend typecheck, production build and all ten FeedEditor tests passed. Six browser cases (mobile/desktop, English/French/Arabic) verified the shared card, no inner panel border, matching time/dropdown dimensions and fill, and working language dropdown selection/keyboard behavior. No real feed was changed during checks.

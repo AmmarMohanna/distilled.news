@@ -2809,3 +2809,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-language-badge { display: grid; place-items: center; flex: 0 0 28px !important; width: 28px; height: 28px; border-radius: 50%; color: var(--accent); background: color-mix(in srgb,var(--accent) 8%,var(--surface)); }
 :root.apple-ui.apple-ui .feed-settings-menu { width: auto; border-radius: 14px; padding: 5px; }
 :root.apple-ui.apple-ui .feed-settings-menu > button { min-height: 44px; padding: 9px 8px; gap: 10px; font-size: 14px; overflow-wrap: anywhere; }
+/* Preferences expands inside one continuous card. */
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); min-width: 0; overflow: visible; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-card > .feed-preferences-disclosure { margin: 0; width: 100%; border: 0; border-radius: 18px; background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-card > .feed-preferences-disclosure[aria-expanded="true"] { border-bottom: 1px solid var(--line); border-radius: 18px 18px 0 0; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-card > .feed-preferences-fields:not([hidden]) { margin: 0; border: 0; border-radius: 0 0 18px 18px; background: transparent; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-editor .feed-time-field { display: flex; align-items: center; min-width: 0; width: 100%; min-height: 44px; border: 1px solid color-mix(in srgb,var(--accent) 28%,var(--surface)); border-radius: 14px; background: color-mix(in srgb,var(--accent) 3%,var(--surface)); }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-time-field input[type="time"] { flex: 1; width: 0; min-width: 0; min-height: 44px; border: 0; border-radius: 14px; padding: 8px 10px; background: transparent; color: var(--text); font-size: 14px; box-shadow: none; }
+:root.apple-ui.apple-ui .feed-time-field input::-webkit-calendar-picker-indicator { display: none; }
+:root.apple-ui.apple-ui .feed-editor .feed-time-field > button { flex: 0 0 36px; display: grid; place-items: center; padding: 4px; min-width: 36px; min-height: 44px; border: 0; background: transparent; color: var(--accent); box-shadow: none; }
+:root.apple-ui.apple-ui .feed-editor .feed-preferences-fields .feed-time-field input[type="time"],
+:root.apple-ui.apple-ui .feed-editor .feed-time-field > button { min-height: 42px; }
