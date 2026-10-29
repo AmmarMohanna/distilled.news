@@ -104,6 +104,7 @@ import "./styles.css";
 import { accountInitials, AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage, languageNames, setWebsiteLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
+import {FeedSettingsSelect} from './FeedLanguageSelect';
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
 import { ThemeToggle } from "./ThemeToggle";
@@ -1351,7 +1352,7 @@ function AdminAccountsSection(props: {
         <div className={`user-management ${managedAccount ? "has-selection" : ""}`}>
         <div className="user-management-main">
         <div className="user-management-heading"><h1>{t("User Management")}</h1><p>{t("Manage registered users and their feeds.")}</p></div>
-        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><select aria-label={t("Filter users by role")} value={role} onChange={event => setRole(event.target.value)}><option value="all">{t("All Roles")}</option><option value="admin">{t("Admin")}</option><option value="user">{t("User")}</option></select><ChevronDown size={18} aria-hidden="true"/></span><div className="users-counts"><span>{props.accounts.length} {t("users")}</span><span>{props.accounts.reduce((total, account) => total + feedCountFor(account), 0)} {t("feeds")}</span></div></div>
+        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><span id="users-role-filter-label" className="sr-only">{t("Filter users by role")}</span><FeedSettingsSelect kind="role" value={role} onChange={setRole} labelId="users-role-filter-label" options={[{value:'all',label:t('All Roles')},{value:'admin',label:t('Admin')},{value:'user',label:t('User')}]}/></span><div className="users-counts"><span>{props.accounts.length} {t("users")}</span><span>{props.accounts.reduce((total, account) => total + feedCountFor(account), 0)} {t("feeds")}</span></div></div>
 
         {error ? <p className="error">{t(error)}</p> : null}
         <div className="users-table-scroll"><table className="users-table"><thead><tr><th><button type="button" onClick={() => setSortAscending(value => !value)}>{t("Name")} <ChevronDown size={14} style={{ transform: sortAscending ? "none" : "rotate(180deg)" }}/></button></th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Feeds")}</th><th>{t("Status")}</th><th><span className="sr-only">{t("Actions")}</span></th></tr></thead><tbody>{visibleAccounts.map(account => <tr key={account.id} className={account.id === managedAccountId ? "selected" : ""}>

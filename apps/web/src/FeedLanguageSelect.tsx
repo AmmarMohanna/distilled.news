@@ -17,7 +17,7 @@ export function FeedLanguageSelect({value, onChange, labelId}: {value: Language;
   return <FeedSettingsSelect value={value} onChange={onChange} labelId={labelId} kind="language" triggerIcon={<span className="feed-language-badge"><Globe size={20} aria-hidden/></span>} options={languages.map(language => ({value: language, label: t(names[language]), icon: <Flag language={language}/>}))}/>;
 }
 
-export function FeedSettingsSelect<T extends string>({value, onChange, labelId, kind, options, triggerIcon}: {value: T; onChange: (value: T) => void; labelId: string; kind: 'language' | 'rhythm'; options: {value: T; label: string; icon?: ReactNode}[]; triggerIcon?: ReactNode}) {
+export function FeedSettingsSelect<T extends string>({value, onChange, labelId, kind, options, triggerIcon}: {value: T; onChange: (value: T) => void; labelId: string; kind: 'language' | 'rhythm' | 'role'; options: {value: T; label: string; icon?: ReactNode}[]; triggerIcon?: ReactNode}) {
   const selected = options.find(option => option.value === value)!;
   const id = useId(), trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);

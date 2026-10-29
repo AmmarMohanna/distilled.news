@@ -15,3 +15,9 @@ Updated both triggers to pale lavender fills/borders and violet chevrons. The cl
 Wrapped the Preferences disclosure and its conditional Schedule/General contents in one continuous bordered card. The expanded contents no longer have a separate outer border. Daily delivery time uses the same measured control width, 44px total height, pale lavender fill, border and radius as the dropdown above it. Replaced the black native clock indicator with an accent-colored accessible picker button; input remains a native time field and keeps its existing value/save behavior.
 
 Frontend typecheck, production build and all ten FeedEditor tests passed. Six browser cases (mobile/desktop, English/French/Arabic) verified the shared card, no inner panel border, matching time/dropdown dimensions and fill, and working language dropdown selection/keyboard behavior. No real feed was changed during checks.
+
+## Account role filter and Arabic email branding
+
+The account role filter now uses the shared rounded listbox instead of the browser's native select. Its menu follows the same field width, aligned edges and above/below positioning, with translated All Roles/Admin/User options and keyboard support. Six browser cases verified actual user/admin/all filtering and menu alignment in English/French/Arabic on mobile and desktop. Frontend typecheck and build passed.
+
+Authentication email brand tables explicitly use LTR so the logo stays left of Distilled.News while Arabic body copy remains RTL. Two Arabic email previews (390px and 760px) verified actual logo-left/name-right coordinates, loaded imagery and no overflow. All six mailer tests and Worker typecheck passed. No real emails were sent; existing inbox messages cannot be restyled.

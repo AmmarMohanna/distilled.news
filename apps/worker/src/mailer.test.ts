@@ -45,6 +45,7 @@ it.each(['en', 'fr', 'ar'] as const)('localizes both authentication emails in %s
   for (const [index, message] of messages.entries()) {
     expect(message.html).toContain(`lang="${language}" dir="${language === 'ar' ? 'rtl' : 'ltr'}"`);
     expect(message.html).toContain(copy[index]);
+    expect(message.html).toContain('role="presentation" dir="ltr"');
     expect(message.text).toContain(`&lang=${language}`);
     expect(message.html).toContain('https://joud.example/');
     expect(message.subject).not.toBe(language === 'en' ? '' : index === 0 ? 'Verify your email for Distilled.News' : 'Reset your Distilled.News password');

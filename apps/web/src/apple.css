@@ -2838,3 +2838,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Arabic account-management chevrons point toward the RTL navigation direction. */
 :root.apple-ui.apple-ui[dir="rtl"] :is(.managed-user-settings,.managed-user-feeds):not([open]) > summary > svg:last-child,
 :root.apple-ui.apple-ui[dir="rtl"] .managed-user-suspend > svg:last-child { transform: scaleX(-1); }
+/* The account role filter uses the shared rounded, aligned dropdown. */
+:root.apple-ui.apple-ui .users-role-filter { width: 160px; min-width: 0; flex: 0 0 160px; }
+:root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { min-height: 46px; }
+@media(max-width:600px) { :root.apple-ui.apple-ui .users-role-filter { width: 140px; flex-basis: 140px; } }
