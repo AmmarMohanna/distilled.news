@@ -1,6 +1,10 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'Open your browser menu and choose Install app or Add to Home screen.': ['Ouvrez le menu du navigateur et choisissez Installer l’application ou Ajouter à l’écran d’accueil.', 'افتح قائمة المتصفح واختر تثبيت التطبيق أو إضافة إلى الشاشة الرئيسية.'],
+  'This browser cannot offer installation right now. If the app is installed, open it from your apps.': ['Ce navigateur ne peut pas proposer l’installation pour le moment. Si l’application est installée, ouvrez-la depuis vos applications.', 'لا يمكن لهذا المتصفح عرض التثبيت الآن. إذا كان التطبيق مثبتًا، فافتحه من تطبيقاتك.'],
+  'In Safari, tap Share, then Add to Home Screen. In Chrome on iPhone, use Share, then Add to Home Screen.': ['Dans Safari ou Chrome sur iPhone, touchez Partager, puis Sur l’écran d’accueil.', 'في Safari أو Chrome على iPhone، اضغط على مشاركة ثم إضافة إلى الشاشة الرئيسية.'],
+  'Could not install the app.': ['Impossible d’installer l’application.', 'تعذّر تثبيت التطبيق.'],
   'Every 30 min': ['Toutes les 30 minutes', 'كل ٣٠ دقيقة'],
   'Every hour': ['Toutes les heures', 'كل ساعة'],
   'Every 2 hours': ['Toutes les 2 heures', 'كل ساعتين'],

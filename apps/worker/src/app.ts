@@ -237,6 +237,8 @@ const feedStarInputSchema = z.object({
 });
 
 function buildManifestPayload(input: {
+  origin: string;
+  manifestUrl?: string;
   title: string;
   description: string;
   startUrl: string;
@@ -245,6 +247,8 @@ function buildManifestPayload(input: {
 }) {
   return {
     id: input.id,
+    related_applications: [{platform: 'webapp', url: input.manifestUrl ?? '/manifest.webmanifest', id: new URL(input.id, input.origin).href}],
+    prefer_related_applications: false,
     name: input.title,
     short_name: input.title,
     description: input.description,
@@ -1268,6 +1272,7 @@ export function createApp(options: AppOptions = {}) {
     const mobileIcons = c.req.header("sec-ch-ua-mobile") === "?1" || /Android|iPhone|iPad|iPod|Mobile/i.test(c.req.header("user-agent") ?? "");
 
     let manifest = buildManifestPayload({
+      origin: new URL(c.req.url).origin,
       id: "/",
       title: "Distilled.News",
       mobileIcons,
@@ -1280,6 +1285,8 @@ export function createApp(options: AppOptions = {}) {
       const briefing = resolved ? await repo.getBriefingBySlug(resolved.account.id, feedSlug) : null;
       if (resolved && briefing?.publicFeedEnabled) {
         manifest = buildManifestPayload({
+          origin: new URL(c.req.url).origin,
+          manifestUrl: `/manifest.webmanifest?user=${encodeURIComponent(resolved.account.username)}&feed=${encodeURIComponent(briefing.slug)}`,
           id: `/${resolved.account.username}/${briefing.slug}/`,
           title: briefing.title,
           mobileIcons,

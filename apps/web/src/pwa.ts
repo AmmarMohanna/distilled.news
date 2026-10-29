@@ -17,9 +17,9 @@ export async function installApp() {
     if (installed) return "already-installed" as const;
     try {
       const related = await browser.getInstalledRelatedApps?.();
-      const manifest = new URL("/manifest.webmanifest", location.origin).href;
+      const manifest = new URL(document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.href || '/manifest.webmanifest', location.origin);
       if (related?.some(app => app.platform === "webapp" && (
-        app.url && new URL(app.url, location.origin).href === manifest ||
+        app.url && new URL(app.url, location.origin).origin === manifest.origin && new URL(app.url, location.origin).pathname === manifest.pathname ||
         app.id && new URL(app.id, location.origin).href === new URL("/", location.origin).href
       ))) {
         installed = true;
@@ -34,11 +34,6 @@ export async function installApp() {
   if ((await prompt.userChoice).outcome !== "accepted") return "cancelled" as const;
   if (installed) return "installed" as const;
   return "installing" as const;
-}
-
-export function confirmInstalledApp(): void {
-  installed = true;
-  localStorage.setItem(installedKey, "1");
 }
 
 export async function notificationsEnabled(): Promise<boolean> {

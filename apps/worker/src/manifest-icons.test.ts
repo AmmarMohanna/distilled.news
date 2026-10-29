@@ -2,6 +2,13 @@ import {expect,it} from 'vitest';
 import {createApp} from './app';
 import {InMemoryRepository} from './repository';
 type Manifest={name:string;id:string;icons:{src:string}[]};
+it('serves the self relationship required for browser installation detection',async()=>{
+ const app=createApp({repository:new InMemoryRepository()});
+ const manifest=await (await app.request('https://joud.example/manifest.webmanifest')).json() as any;
+ expect(manifest.id).toBe('/');
+ expect(manifest.related_applications).toEqual([{platform:'webapp',url:'/manifest.webmanifest',id:'https://joud.example/'}]);
+ expect(manifest.prefer_related_applications).toBe(false);
+});
 it('keeps installed mobile icons white-backed and desktop icons transparent with the same app identity',async()=>{
  const app=createApp({repository:new InMemoryRepository()});
  const desktop=await (await app.request('/manifest.webmanifest',{headers:{'user-agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}})).json() as Manifest;
