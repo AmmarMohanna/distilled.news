@@ -2341,11 +2341,18 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience-header .experience-header-actions > .button-link { width: 80px; min-width: 80px; flex-basis: 80px; padding-inline: 6px; }
 }
 
-/* Keep Back reachable when feed actions and guest preferences outgrow one row. */
-@media (max-width: 899px) {
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { height: auto; max-height: none; flex-wrap: wrap; row-gap: 4px; }
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header > .experience-leading { flex: 0 0 auto; }
-  :root.apple-ui.apple-ui .feed-shell .experience-header.experience-header .experience-header-actions { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+/* Feed navigation stays on one row; extreme text sizes can scroll the rail. */
+:root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions > .button-link { width: auto; flex: 0 0 auto; }
+:root.apple-ui.apple-ui .shell.feed-shell > .experience-header { flex-wrap: nowrap; overflow-x: auto; }
+:root.apple-ui.apple-ui .shell.feed-shell > .experience-header > .experience-leading { flex: 0 0 auto; }
+:root.apple-ui.apple-ui .feed-shell .experience-header.experience-header .experience-header-actions { max-width: none; flex-wrap: nowrap; }
+:root.apple-ui.apple-ui .feed-shell .feed-nav-back { white-space: nowrap; }
+@media (max-width: 480px) {
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { gap: 0; }
+  :root.apple-ui.apple-ui .feed-shell .feed-nav-back { margin-inline-start: 0; padding-inline: 0; font-size: .75rem; }
+  :root.apple-ui.apple-ui .shell.feed-shell .experience-header.experience-header .experience-header-actions { gap: 0; }
+  :root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions > .language-cycle { width: 44px; min-width: 44px; flex-basis: 44px; padding-inline: 0; }
+  :root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions > .button-link { width: auto; min-width: 44px; flex: 0 0 auto; padding-inline: 4px; font-size: .75rem; }
 }
 
 /* Source actions keep their slots even when a hostname is very long. */
@@ -2850,4 +2857,12 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .reset-password-page .reset-password-heading > :is(h1,p) { text-align: center; }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui[dir="rtl"] .bottom-navigation { direction: rtl; }
+}
+
+@media (max-width: 480px) {
+  :root.apple-ui.apple-ui .feed-shell .experience-header-actions .feed-header-actions > .star-vote { flex-basis: 44px; width: 44px; min-width: 44px; gap: 2px; }
+}
+
+@media (max-width: 360px) {
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { width: calc(100% + 32px); margin-inline: -16px; }
 }
