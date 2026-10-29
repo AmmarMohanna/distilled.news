@@ -2776,3 +2776,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media(max-width:400px) {
  :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-fit="compact"] > .topic-card { grid-template-columns: var(--feed-art-size) minmax(0,1fr) 44px !important; }
 }
+/* Mirror the account layout and directional controls for Arabic. */
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog { direction: rtl; text-align: start; }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog-content { direction: rtl; padding-inline: 0 24px; }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog :is(.profile-card-heading,.password-disclosure,.profile-username-field,.account-actions > button) { direction: rtl; }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog .profile-username-field { padding-inline: 14px 8px; }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog .password-disclosure:not([aria-expanded="true"]) > svg { transform: scaleX(-1); }
+:root.apple-ui.apple-ui[dir="rtl"] .profile-dialog .account-actions > button > svg { transform: scaleX(-1); }
+:root.apple-ui.apple-ui .profile-dialog :is(.profile-email,.profile-avatar) { direction: ltr; }
+@media(max-width:600px) {
+ :root.apple-ui.apple-ui[dir="rtl"] .profile-dialog-content { padding-inline: 16px; }
+}
