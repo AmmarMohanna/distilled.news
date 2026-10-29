@@ -1,3 +1,4 @@
+import {observeInvocation} from '../agentops';
 import {executionCapacityDiagnostic} from './model-spending';
 import { traceSourceCollection } from './pipeline-trace-sources';
 import { HandoffError, sha256 } from '@distilled/contracts';
@@ -43,7 +44,7 @@ const safe = <T>(value: T): T => sanitizeTraceRecord(value);
 const pick = (r: Row, keys: string[]) => Object.fromEntries(keys.filter(k => r[k] !== undefined).map(k => [k, safe(r[k])]));
 /** Read-only, Feed-scoped facade over original records. No runner, model,
  * transaction, enrollment, source fetch or financial mutation is invoked. */
-export async function readPipelineTrace(db: D1Database, feedId: string, raw: TraceOptions = {}, runtime: {
+async function readPipelineTraceImpl(db: D1Database, feedId: string, raw: TraceOptions = {}, runtime: {
     admittedSourceIds?: string[];
 } = {}) {
     const o = traceOptionsSchema.parse(raw);
@@ -153,7 +154,7 @@ export async function readPipelineTrace(db: D1Database, feedId: string, raw: Tra
                     n: number;
                 }>())!.n : null, enrolledSources: scopes.results.length, observationsInWindow: start ? (await db.prepare("SELECT COUNT(*) AS n FROM v1_inputs d JOIN v1_intake_scopes s ON s.id=d.feed_source_id WHERE s.feed_id=? AND julianday(json_extract(d.json,'$.observation.observedAt'))>=julianday(?) AND julianday(json_extract(d.json,'$.observation.observedAt'))<julianday(?)").bind(feedId, start, end).first<{
                     n: number;
-                }>())!.n : null, definition: 'Observation count, not distinct articles. Configured source inventory is in the sources view; unenrolled sources are not implied absent.' }, editorial: { shortlistId: shortlist?.id ?? null, eligible: shortlist ? shortlist.candidates.length + (shortlist.overflow?.length ?? 0) : null, offered: plan?.inputCoverage?.offeredTargetVersionIds?.length ?? null, acceptedJudgments: plan?.route === 'GPT' ? decisions.filter((s: Row) => !notReviewed.has(s.targetVersionId)).length : plan ? 0 : null, selected: n('SELECT'), suppressed: n('SUPPRESS'), deferred: n('DEFER'), notComparativelyReviewed: plan?.inputCoverage ? notReviewed.size : null, planId: plan?.id ?? null }, publication: { briefingRequest: request ? { ...pick(request, ['id', 'state', 'result', 'failure', 'reason', 'attempts', 'createdAt', 'completedAt', 'blocked', 'requireModel', 'coverage', 'semanticCoverage']), diagnosticState: state(request) } : null, selected: selection ? selected.length : null, verified: null, published: start || edition ? published.length : null, currentlyPublished: start || edition ? new Set(editions.filter(e => statusFor(e.id)?.status === 'PUBLISHED').flatMap(e => e.stories?.map((s: Row) => s.candidateId) ?? [])).size : null, publicationStatuses: statuses, communicated: selection ? new Set(communication.entries.map(e => e.candidateId)).size : null, selectedUncommunicated: selection ? selected.filter((id: string) => !communication.entries.some(e => e.candidateId === id)).length : null, editionIds: ids(editions) }, problems: [] };
+                }>())!.n : null, definition: 'Observation count, not distinct articles. Configured source inventory is in the sources view; unenrolled sources are not implied absent.' }, editorial: { shortlistId: shortlist?.id ?? null, eligible: shortlist ? shortlist.candidates.length + (shortlist.overflow?.length ?? 0) : null, offered: plan?.inputCoverage?.offeredTargetVersionIds?.length ?? null, acceptedJudgments: plan?.route === 'GPT' ? decisions.filter((s: Row) => !notReviewed.has(s.targetVersionId)).length : plan ? 0 : null, selected: n('SELECT'), suppressed: n('SUPPRESS'), deferred: n('DEFER'), notComparativelyReviewed: plan?.inputCoverage ? notReviewed.size : null, planId: plan?.id ?? null }, publication: { briefingRequest: request ? { ...pick(request, ['id', 'state', 'result', 'failure', 'reason', 'attempts', 'createdAt', 'completedAt', 'scheduledFor', 'window', 'blocked', 'requireModel', 'coverage', 'semanticCoverage']), diagnosticState: state(request) } : null, selected: selection ? selected.length : null, verified: null, published: start || edition ? published.length : null, currentlyPublished: start || edition ? new Set(editions.filter(e => statusFor(e.id)?.status === 'PUBLISHED').flatMap(e => e.stories?.map((s: Row) => s.candidateId) ?? [])).size : null, publicationStatuses: statuses, recordedEditions: editions.map(e=>pick(e,['id','scheduledFor','publishedAt','windowStart','windowEnd'])), communicated: selection ? new Set(communication.entries.map(e => e.candidateId)).size : null, selectedUncommunicated: selection ? selected.filter((id: string) => !communication.entries.some(e => e.candidateId === id)).length : null, editionIds: ids(editions) }, problems: [] };
         if (!request)
             summary.problems.push({ stage: 'SCHEDULE', state: 'NOT_OBSERVABLE', reason: 'No matching durable request; no quiet or failed outcome inferred.' });
         if (request?.failure)
@@ -363,4 +364,9 @@ export async function readPipelineTrace(db: D1Database, feedId: string, raw: Tra
         }
     }
     return safe({ schemaVersion: 'pipeline-trace-v1', editorialContextWindow: shortlist?.window ?? null, feed: pick(feed, ['id', 'ownerId', 'title', 'interests', 'geography', 'revision', 'paused', 'enrollment']), window: start ? { start, end } : null, view: o.view, lookup, summary, items, page: pagination, consistency: { state: 'READ_ONLY_LIVE_VIEW', feedEpoch: feedRow?.epoch ?? null, note: 'Immutable references are stable. Multiple read queries can observe concurrent progress; this is not a transaction snapshot.' }, limitations: ['No record is not proof that a publisher produced no news.', 'Source reporting time is not event time.', 'Discovery outside recorded observations can be unobservable.', 'Push-service acceptance does not prove device delivery or frontend display.', financialNote] });
+}
+
+/** Investigation success means the diagnostic read completed, never pipeline success. */
+export async function readPipelineTrace(...args: Parameters<typeof readPipelineTraceImpl>) {
+  return observeInvocation('investigation',()=>readPipelineTraceImpl(...args));
 }
