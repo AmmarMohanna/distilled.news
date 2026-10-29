@@ -2787,3 +2787,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media(max-width:600px) {
  :root.apple-ui.apple-ui[dir="rtl"] .profile-dialog-content { padding-inline: 16px; }
 }
+/* Keep reader search bounded even when there is no unread-summary action. */
+@media(min-width:701px) {
+ :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools { grid-template-columns: minmax(0,440px) max-content; justify-content: center; gap: 16px; }
+ :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:not(:has(.feed-check-status)):not(:has(.unread-summary)) { grid-template-columns: minmax(0,440px); }
+ :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:has(.feed-check-status):has(.unread-summary) { grid-template-columns: minmax(0,440px) max-content max-content; }
+}
