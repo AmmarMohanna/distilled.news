@@ -102,3 +102,7 @@ Observer recovery: Cloudflare database access briefly returned `7403`; refreshin
 The 38 historical grant records and shared tracking configuration byte-matched the pretrial snapshot. No historical financial records were changed, no holds released, and no account cap changed. The QA-only guard and append-only trial records remain for audit. No reader notifications were sent; production was untouched. Exact local authorization, input/result documents, collector observations, accounting snapshots and HTTP checks are retained in `.local-reports/clock-timing-trial/`. Sanitized result: `benchmarks/results/v3-selective-database-reads/clock-aligned-timing-trial.json`.
 
 Next useful validation is a fresh, naturally nonempty window under a separately applicable authorization; this trial did not authorize another window.
+
+### Subsequent nonempty trial
+
+Under a new explicit four-call/$0.20 authorization, a separate private QA feed automatically published two source-grounded items at **16:00:50.463 Beirut**, for its **16:00** intended delivery. Three fresh AjaNews posts were processed; two settled model calls cost **$0.005714**, with no repair. Sources and reader persistence were checked. See [the complete nonempty-trial report](clock-aligned-nonempty-trial.md), including the local observer outage, delayed QA cleanup and limits of this one-window result. No runtime changes or further deployment were needed.
