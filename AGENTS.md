@@ -28,6 +28,14 @@ explicit integration change switches a source. Coordinate shared contract change
 
 ## Current Direction
 
+When merging `joud/aya-integration-fixes`, also read
+`documentation/JOUD_AYA_INTEGRATION_PRESERVATION_HANDOFF.md` and
+`documentation/JOUD_AYA_INTEGRATION_PRESERVATION_INVENTORY.md` before resolving
+conflicts or changing protected behavior. They record Joud's final October 29
+frontend, localization, branding, account, mail/PWA and source-recovery work.
+Preserve those final behaviors through feature-level merges, including clean
+automatic merges; older intermediate screenshots/reports do not supersede them.
+
 For the Joud/V3/source integration, also follow
 `documentation/FRONTEND_FIXED_MERGE_HANDOFF.md` and
 `documentation/FRONTEND_FIXED_MERGE_INVENTORY.md`. The protected frontend baseline
