@@ -3,7 +3,7 @@ import {createIntakeDatabase,seedIntakeScope,batchFixture,testPolicy} from '../v
 import {V1IntakeStore} from '../v1-intake/store';
 import {createCandidateIntakePort} from '../v1-intake/intake';
 import {createCandidateAcquisitionRouter} from '../v1-intake/acquisition-router';
-import {runAcquisitionJob} from '../v1-intake/acquisition';
+import {AcquisitionFailure,runAcquisitionJob} from '../v1-intake/acquisition';
 import type {DownstreamJob} from '../v1-intake/types';
 import {withIntelligenceTurn} from '../connector-intelligence-turn';
 import {V1FeedStore} from './store';
@@ -29,9 +29,15 @@ beforeEach(async()=>{
  env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',V1_REVIEW_PREPARATION_ISOLATED:'true',V1_PUBLICATION_PREPARATION_ISOLATED:'true',BRIEFING_ENGINE:'v3',BRIEFING_EDITOR_MODEL:'openai/gpt-4.1',BRIEFING_VERIFIER_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test-only-key'} as Env;
 });
 afterEach(async()=>ctx.dispose());
-async function acquire(publishedAt:string,body=text){
- const router=createCandidateAcquisitionRouter({now:()=>acquiredAt,preferFullArticle:true,fetcher:async()=>new Response(`<meta property="article:published_time" content="${publishedAt}"><meta property="article:modified_time" content="2026-10-03T12:20:00Z"><h1>Banking reform</h1><article>${body}</article>`)});
- return runAcquisitionJob(intake,jobId,{...testPolicy,now:()=>acquiredAt},router);
+async function acquire(publishedAt:string,body=text,now=acquiredAt){
+ const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,fetcher:async()=>new Response(`<meta property="article:published_time" content="${publishedAt}"><meta property="article:modified_time" content="2026-10-03T12:20:00Z"><h1>Banking reform</h1><article>${body}</article>`)});
+ return runAcquisitionJob(intake,jobId,{...testPolicy,now:()=>now},router);
+}
+async function separateBudgetWait(){
+ const job={id:'waiting-acquisition',feedId:'feed-1',feedSourceId:'feed-source-1',observationId:'waiting-observation',kind:'ACQUIRE',state:'PENDING',exhausted:false,failureCode:'BUDGET_EXHAUSTED',failureDetail:'ARTICLE_PROVIDER_BUDGET',attempts:1,resourceWaits:288,nextAttemptAt:'2026-10-03T13:00:00Z'};
+ await ctx.db.prepare('INSERT INTO v1_inputs(id,feed_source_id,json) VALUES(?,?,?)').bind('waiting-observation','feed-source-1',JSON.stringify({observation:{observedAt:'2026-10-03T11:20:00Z'}})).run();
+ await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(job.id,'feed-source-1',JSON.stringify(job)).run();
+ return job;
 }
 async function continuingTelegram(){
  const result={state:'HANDED_OFF',checkpoint:'UNCHANGED',request:{coverage:{createdAt:window.end},observations:[{id:'later',observedAt:window.end}]},response:{durable:true,receipts:[{observationId:'later',checkpointResolution:'RESOLVED'}]}};
@@ -53,10 +59,11 @@ it('still waits for unfinished pre-cutoff acquisition when a later collection pa
  expect(calls).toBe(0);expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'});
  expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(0);
 },30000);
-it.each([false,true])('publishes full acquired evidence with source-owned citations and receipts (continuing collection: %s)',async continuing=>{
+it.each(['complete','continuing','budget-wait'] as const)('publishes full acquired evidence with source-owned citations and receipts (%s)',async mode=>{
  expect(await acquire('2026-10-03T12:05:00Z')).toBe('DONE');
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),acquiredAt);
- if(continuing)await continuingTelegram();
+ if(mode==='continuing')await continuingTelegram();
+ const waitingJob=mode==='budget-wait'?await separateBudgetWait():undefined;
  expect(await store.list('feed-1','events')).toHaveLength(0);expect(await store.list('feed-1','claim_mentions')).toHaveLength(0);
  const prepared=await prepareV3Window(store,'feed-1',window,window.end);
  expect(prepared.input.articles[0].text).toBe(text);expect(text.length).toBeGreaterThan(6000);
@@ -78,9 +85,33 @@ it.each([false,true])('publishes full acquired evidence with source-owned citati
  expect(await store.list('feed-1','semantic_intents')).toHaveLength(2);expect(await store.list('feed-1','events')).toHaveLength(0);
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v3_model_spend').first<{n:number}>())?.n).toBe(0);
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<{n:number}>())?.n).toBe(2);
- if(continuing)expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_CONTINUING_AFTER_CUTOFF',count:1}]}});
+ if(mode==='continuing')expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_CONTINUING_AFTER_CUTOFF',count:1}]}});
+ if(waitingJob){
+  expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:'BUDGET_EXHAUSTED',count:1}]}});
+  expect((await intake.read('jobs',waitingJob.id))?.value).toEqual(waitingJob);
+  expect(calls.every(c=>!c.prompt.includes('waiting-observation'))).toBe(true);
+ }
  expect(await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=> '2026-10-03T12:35:00Z',undefined,fetcher))).toEqual(edition);
  expect(calls).toHaveLength(2);
+},30000);
+it('defers an empty budget-blocked window without inference and retains the same acquisition for late discovery',async()=>{
+ expect(await runAcquisitionJob(intake,jobId,{...testPolicy,now:()=>acquiredAt},async()=>{throw new AcquisitionFailure('BUDGET_EXHAUSTED',true,{detail:'ARTICLE_PROVIDER_BUDGET'});})).toBe('RETRY');
+ const waiting=(await intake.read<DownstreamJob>('jobs',jobId))!.value;
+ let calls=0;const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=>window.end,undefined,(async()=>{calls++;throw Error('No inference for unavailable evidence');}) as typeof fetch));
+ expect(calls).toBe(0);
+ expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:'BUDGET_EXHAUSTED',count:1}]}});
+ expect((await intake.read<DownstreamJob>('jobs',jobId))?.value).toEqual(waiting);
+ expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<{n:number}>())?.n).toBe(0);
+ expect(await acquire('2026-10-03T12:05:00Z',text,'2026-10-03T12:40:00Z')).toBe('DONE');
+ await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),'2026-10-03T12:41:00Z');
+ const next={...window,start:window.end,end:'2026-10-03T13:00:00Z'};
+ const prepared=await prepareV3Window(store,'feed-1',next,next.end);
+ expect(prepared.input.articles).toHaveLength(1);
+ expect(prepared.input.articles[0]).toMatchObject({text,publishedAt:'2026-10-03T12:05:00.000Z'});
+ expect((await intake.read<DownstreamJob>('jobs',jobId))?.value).toMatchObject({id:jobId,state:'DONE'});
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
 },30000);
 it('keeps an old original publication date out of paid V3 admission despite a current collection/update date',async()=>{
  expect(await acquire('2026-08-31T10:00:00Z')).toBe('DONE');

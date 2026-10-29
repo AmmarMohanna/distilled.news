@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-29",
+  "evaluation": "local-regressions-and-retained-live-snapshot-replay",
+  "snapshotAt": "2026-10-29T16:13:41.806Z",
+  "classificationChanged": { "kind": "ACQUIRE", "state": "PENDING", "failureCode": "BUDGET_EXHAUSTED" },
+  "jobStateMutated": false,
+  "unavailableCoverageDiagnostic": "ACQUIRE/BUDGET_EXHAUSTED",
+  "emptyWindowResult": "DEFERRED",
+  "sourceEvidenceCanRecover": true,
+  "newPaidCalls": 0,
+  "actualInferenceCostUsd": 0,
+  "deployed": false,
+  "retainedReplay": {
+    "windows": 29,
+    "windowsWithNoRemainingAcquisitionHold": 2,
+    "oldest": { "end": "2026-10-28T12:00:00.000Z", "baselineHoldingJobs": 2, "candidateHoldingJobs": 0 },
+    "newest": { "end": "2026-10-29T16:00:00.000Z", "baselineHoldingJobs": 31, "candidateHoldingJobs": 19 },
+    "onlyConfirmedBudgetWaitsRemoved": true
+  },
+  "tests": { "coverageMatrix": 2, "v3SourceIntegration": 8, "runtime": 27, "v3Window": 30, "briefingCoverage": 12, "acquisition": 62, "totalPassed": 141, "workerTypecheck": "passed" },
+  "preserved": ["Acquisition identities and retries", "Historical financial records and holds", "Running source work", "Transient backpressure", "Rate limits", "Reassessment waits", "Uncertain paid outcomes", "Source citations", "Existing model routing and prompts"],
+  "limitations": ["No live deployment validation", "Does not clear other source blockers or fund acquisition", "Retained replay is not a throughput benchmark", "Mocked providers do not prove editorial quality"]
+}
