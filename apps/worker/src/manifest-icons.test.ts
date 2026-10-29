@@ -1,7 +1,7 @@
 import {expect,it} from 'vitest';
 import {createApp} from './app';
 import {InMemoryRepository} from './repository';
-type Manifest={name:string;id:string;icons:{src:string}[]};
+type Manifest={name:string;id:string;background_color:string;icons:{src:string}[]};
 it('serves the self relationship required for browser installation detection',async()=>{
  const app=createApp({repository:new InMemoryRepository()});
  const manifest=await (await app.request('https://joud.example/manifest.webmanifest')).json() as any;
@@ -15,6 +15,7 @@ it('keeps installed mobile icons white-backed and desktop icons transparent with
  const mobile=await (await app.request('/manifest.webmanifest',{headers:{'user-agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)'}})).json() as Manifest;
  const hinted=await (await app.request('/manifest.webmanifest',{headers:{'sec-ch-ua-mobile':'?1'}})).json() as Manifest;
  expect(desktop.name).toBe('Distilled.News');expect(desktop.id).toBe(mobile.id);
+ expect(desktop.background_color).toBe('#ffffff');expect(mobile.background_color).toBe('#ffffff');
  expect(desktop.icons[0].src).toContain('/desktop-icon-192.png');
  expect(mobile.icons[0].src).toBe('/icon-192.png?v=light-5');
  expect(hinted.icons).toEqual(mobile.icons);
