@@ -2650,7 +2650,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand .distilled-logo-wordmark { font-size: var(--brand-type-size); letter-spacing: -.035em; }
 :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand .distilled-logo-symbol { width: 1.8em; }
 :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .sidebar-brand .distilled-logo-wordmark { font-size: var(--brand-type-size); letter-spacing: -.035em; }
-@container (max-width: 180px) {
+@container (max-width: 11.25rem) {
  :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand .distilled-logo-wordmark { display: none; }
 }
 
