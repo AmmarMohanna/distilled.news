@@ -25,6 +25,24 @@ it('post-cutoff source failure cannot change the earlier window coverage',async(
 it.each([['QUIET','NO_NEWS'],['DEFERRED','DEFERRED']] as const)('HTTP result preserves durable %s rather than guessing from undefined',async(result,state)=>{const id=await windowIdentity('feed-1',window);await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'DONE',result,reason:result==='DEFERRED'?'EDITORIAL_WORK_DEFERRED':'NO_SELECTED_DEVELOPMENTS',attempts:0,createdAt:window.end}));const app=createApp({repository:new InMemoryRepository(),now:()=>new Date(window.end)}),response=await app.request('/v1/downstream/briefing',{method:'POST',headers:{authorization:'Bearer test-runtime','content-type':'application/json'},body:JSON.stringify({feedId:'feed-1',window})},env);expect(response.status).toBe(200);expect(await response.json()).toMatchObject({state,requestId:id,result})},30000);
 it('HTTP model-setup wait is BLOCKED, never NO_NEWS',async()=>{const app=createApp({repository:new InMemoryRepository(),now:()=>new Date(window.end)}),response=await app.request('/v1/downstream/briefing',{method:'POST',headers:{authorization:'Bearer test-runtime','content-type':'application/json'},body:JSON.stringify({feedId:'feed-1',window})},{...env,V1_REAL_MODEL_REQUIRED:'true'});expect(await response.json()).toMatchObject({state:'BLOCKED',reason:'MODEL_SETUP_REQUIRED'});expect(await store.list('feed-1','editions')).toHaveLength(0)},30000);
 
-it.each(['failedCoverage','completedFailedCoverage','editorialDeferred','unclassified'] as const)('public status never presents %s as no new developments',async mode=>{const incomplete=mode==='failedCoverage'||mode==='completedFailedCoverage',id=await windowIdentity('feed-1',window);await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:mode==='failedCoverage'?'PENDING':'DONE',result:mode==='editorialDeferred'?'DEFERRED':undefined,reason:incomplete?'INCOMPLETE_INTAKE_COVERAGE':undefined,coverage:incomplete?{state:'INCOMPLETE',failedJobs:1,pendingJobs:0}:undefined,attempts:0,createdAt:window.end}));expect(await productPublicationState(env,'feed-1')).toBe(incomplete?'failed':'checking')},30000);
+it.each([
+ {name:'pending incomplete coverage',state:'PENDING',result:undefined,coverage:'INCOMPLETE',reason:'INCOMPLETE_INTAKE_COVERAGE',expected:'checking'},
+ {name:'completed incomplete coverage without publication',state:'DONE',result:undefined,coverage:'INCOMPLETE',reason:'INCOMPLETE_INTAKE_COVERAGE',expected:'failed'},
+ {name:'terminal failure',state:'FAILED',result:undefined,coverage:'COMPLETE',reason:'PUBLICATION_FAILED',expected:'failed'},
+ {name:'confirmed complete quiet',state:'DONE',result:'QUIET',coverage:'COMPLETE',reason:'NO_SELECTED_DEVELOPMENTS',expected:'quiet'},
+ {name:'deferred editorial work',state:'DONE',result:'DEFERRED',coverage:'COMPLETE',reason:'EDITORIAL_WORK_DEFERRED',expected:'checking'},
+ {name:'unresolved pending work',state:'PENDING',result:undefined,coverage:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT',expected:'checking'},
+ {name:'unclassified completed request',state:'DONE',result:undefined,coverage:undefined,reason:undefined,expected:'checking'},
+ {name:'incomplete coverage despite a retained quiet label',state:'DONE',result:'QUIET',coverage:'INCOMPLETE',reason:'INCOMPLETE_INTAKE_COVERAGE',expected:'failed'}
+] as const)('public publication lifecycle: $name is $expected',async({state,result,coverage,reason,expected})=>{
+ const id=await windowIdentity('feed-1',window);
+ const record={id,feedId:'feed-1',window,state,result,reason,coverage:coverage?{state:coverage,failedJobs:coverage==='INCOMPLETE'?1:0,pendingJobs:coverage==='PENDING'?1:0}:undefined,attempts:0,createdAt:window.end};
+ await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',id,record));
+ expect(await store.list('feed-1','editions')).toHaveLength(0);
+ const before=await request(),actual=await productPublicationState(env,'feed-1');
+ expect(actual).toBe(expected);
+ if(expected!=='quiet')expect(actual).not.toBe('quiet');
+ expect(await request()).toEqual(before);
+},30000);
 
 it('internal outcomes do not advertise a withdrawn edition as currently published',async()=>{const id=await windowIdentity('feed-1',window);await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'DONE',result:'PUBLISHED',attempts:0,createdAt:window.end});await tx.write('publication_status',id,{id,feedId:'feed-1',status:'WITHDRAWN'})});await ctx.db.prepare("INSERT INTO v1_feed_documents VALUES('editions',?,'feed-1',?)").bind(id,JSON.stringify({id,feedId:'feed-1'})).run();const {readBriefingOutcome}=await import('./briefing-outcome');expect(await readBriefingOutcome(ctx.db,'feed-1',window)).toMatchObject({state:'WITHDRAWN',requestId:id})},30000);
