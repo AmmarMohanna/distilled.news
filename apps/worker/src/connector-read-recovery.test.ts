@@ -50,9 +50,24 @@ it('recovers only the old receipt across a feed revision without resuming or reb
  const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(response());
  expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(true);expect(fetcher).toHaveBeenCalledTimes(1);
  expect(await ctx.db.prepare('SELECT status,payload_ref IS NOT NULL retained FROM connector_provider_operations').first()).toEqual({status:200,retained:1});
- expect(await ctx.db.prepare("SELECT state,last_error FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'BLOCKED',last_error:'UNCERTAIN_PAID_SUBMISSION'});
+ expect(await ctx.db.prepare("SELECT state,last_error FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'BLOCKED',last_error:'RETAINED_READ_RECONCILED'});
  expect(await ctx.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual(original);
  expect(await ctx.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='x_apify'").first()).toEqual({reserved_usd:0.250001});
+});
+it('a reconciled retired poll cannot starve a later interrupted read for the same source',async()=>{
+ await seedRevisedReadSource();
+ const request=JSON.parse((await ctx.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='read-job'").first<{request:string}>())!.request);
+ request.runId='later-poll';
+ const laterRun=await sha256(JSON.stringify([scope,request.runId,'x_apify']));
+ const laterOperation=await sha256(JSON.stringify([scope,laterRun+':status']));
+ await ctx.db.prepare("INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,state,last_error,scheduled_at) VALUES('later-job',?,'later','[\"x_apify\"]',?,'BLOCKED','UNCERTAIN_PAID_SUBMISSION','2099-01-01')").bind(JSON.stringify(request),new Date().toISOString()).run();
+ await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,feed_id,feed_source_id) VALUES('x_apify',?,?,0.000001,-1,?,?)").bind(laterOperation,await sha256(JSON.stringify([url,'GET',null])),scope.feedId,scope.feedSourceId).run();
+ const fetcher=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>response());
+ expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(true);
+ expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(true);
+ expect(fetcher).toHaveBeenCalledTimes(2);
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_operations WHERE payload_ref IS NULL").first()).toEqual({n:0});
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_poll_jobs WHERE state='BLOCKED' AND last_error='RETAINED_READ_RECONCILED'").first()).toEqual({n:2});
 });
 it.each(['paused','different-source','disabled-owner'])('refuses retained receipt recovery for %s',async mode=>{
  await seedRevisedReadSource();

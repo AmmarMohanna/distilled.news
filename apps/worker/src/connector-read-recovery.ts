@@ -40,7 +40,19 @@ export async function recoverInterruptedApifyRead(env:Env,feedId:string,sourceId
  try{
   await reconcileApifyRead(env,row.job_id,fetch,{retainedReadOnly:true});
   const saved=await env.DB.prepare('SELECT request FROM connector_provider_poll_jobs WHERE job_id=?').bind(row.job_id).first<{request:string}>();
-  if(!saved||!await authorizeConnectorSource(env,JSON.parse(saved.request)))return true;
+  if(!saved)return true;
+  const request=JSON.parse(saved.request) as SourceFetchRequest;
+  if(!await authorizeConnectorSource(env,request)){
+   // A retired poll stays blocked, but must not starve a later interrupted read.
+   // Mark only after every operation belonging to this exact run is retained.
+   const run=await sha256(JSON.stringify([request.scope,request.runId,request.continuation!.providerId]));
+   const identities=await Promise.all(['start','status','dataset'].map(kind=>sha256(JSON.stringify([request.scope,run+':'+kind]))));
+   const unknown=await env.DB.prepare(`SELECT 1 FROM connector_provider_operations WHERE provider_id=? AND operation_id IN (?,?,?) AND payload_ref IS NULL LIMIT 1`)
+    .bind(request.continuation!.providerId,...identities).first();
+   if(!unknown)await env.DB.prepare(`UPDATE connector_provider_poll_jobs SET last_error='RETAINED_READ_RECONCILED' WHERE job_id=? AND request=? AND state='BLOCKED' AND last_error='UNCERTAIN_PAID_SUBMISSION' AND (lease_until IS NULL OR lease_until<=?)`)
+    .bind(row.job_id,saved.request,new Date().toISOString()).run();
+   return true;
+  }
   const {recoverConnectorPoll}=await import('./connector-scheduling');
   await recoverConnectorPoll(env,'provider',row.job_id);return true;
  }catch(error){

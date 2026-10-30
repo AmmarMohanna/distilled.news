@@ -97,3 +97,39 @@ These are sampled recovery measurements, not final totals or steady-state rates.
 The authenticated helper status request returned upstream HTTP 404. This cannot
 establish its internal capacity state; VPS access is still needed to distinguish
 a missing status endpoint/proxy route from the actual execution-service load.
+
+## Restored VPS access and subsequent QA checks
+
+SSH access was restored on October 30. QA's deployed server file predated the
+authenticated status endpoint; its Python wrapper already enforced a 60-second
+execution timeout. After six local server regressions passed, the diagnostic
+server file was installed during a sampled idle gap. The environment file hash
+and Joud helper PID were preserved; QA concurrency remains two. Status now
+returns authenticated capacity data through the Worker. Sampled Google resolution
+requests completed within the observation period; these samples do not establish
+that every historical capacity error was caused by normal load.
+
+Commit `819d0373` was deployed at 100% as version
+`44b2f2cb-0442-4be9-8dba-d1708eb664b6`, with resource bindings preserved.
+By 19:27 UTC, six of nine legacy Apify reads had retained responses, and all
+eleven original X holds had acknowledgements. Four uncertain Apify actor starts
+and 21 uncertain Zyte operations remained fenced. Fresh uncertainty can still
+occur; this is not a claim that every paid request has been reconciled.
+
+The remaining three legacy reads exposed a selection defect: an already
+reconciled, retired-revision poll remained the first eligible candidate. Recovery
+now marks that poll `BLOCKED / RETAINED_READ_RECONCILED` only after no unresolved
+start/status/dataset operation belonging to its exact run remains. Its frozen
+request and all financial records remain unchanged, while later interrupted
+reads can advance. A two-poll regression covers this starvation case.
+
+At 19:27 UTC, acquisition totals were 3,738 deferred initial-backlog jobs,
+8,600 completed, 275 failed, 4,789 pending and 18 running. These are moving
+counts under continued collection, not a drained backlog. All 20 reader checks
+returned HTTP 200 (sample p50 2.143 s, p95 4.664 s). Durable publication records
+and readers independently showed 25 editions across 11 feeds; one edition
+predated the resumed test, so these are not 25 newly generated editions.
+
+The model authorization remains $24.3822355 total exposure, expiring November 1.
+The 19:23 UTC snapshot reported $18.8980212 paid and $0.08201 held, leaving
+approximately $5.40. No additional spending allowance was added in this follow-up.
