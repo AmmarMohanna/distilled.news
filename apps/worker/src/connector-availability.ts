@@ -60,8 +60,8 @@ export async function feedSourceAvailability(env:Env,feedId:string){
    paidUncertain=await hasUncertainSourcePayment(env.DB,feedId,row.id,source?.source.family==='google_news'?['google_apify','zyte']:['zyte'],true);
   const historicalPaidBlock=latest?.last_error==='UNCERTAIN_PAID_SUBMISSION'&&paidUncertain===false;
   if(latest?.state==='BLOCKED'&&!historicalPaidBlock&&availability.state==='AVAILABLE'&&(enforceBudgets||latest.last_error!=='BUDGET_EXCEEDED')){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
-  const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0,issues:acquisitionFailureIssues(acquired.results.filter(j=>j.feed_source_id===row.id&&j.state==='FAILED'))};
-  for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
+  const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0,deferred:0,issues:acquisitionFailureIssues(acquired.results.filter(j=>j.feed_source_id===row.id&&j.state==='FAILED'))};
+  for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(job.state==='DEFERRED')acquisition.deferred+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
   const failed=jobs.filter(j=>j.state==='FAILED');
   const warning=acquisition.failed?failed.every(j=>j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':failed.every(j=>j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
   // Only typed errors are public. Never expose URLs, provider response text or

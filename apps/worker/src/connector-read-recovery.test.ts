@@ -4,7 +4,7 @@ import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {sha256} from '@distilled/contracts';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import * as authorization from './connector-runtime';
-import {reconcileApifyRead} from './connector-read-recovery';
+import {reconcileApifyRead,recoverInterruptedApifyRead} from './connector-read-recovery';
 import {recoverConnectorPoll} from './connector-scheduling';
 import type {Env} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env,operationId:string,runId:string;
@@ -21,6 +21,21 @@ beforeEach(async()=>{
 });
 afterEach(async()=>{vi.restoreAllMocks();await ctx.dispose();});
 const response=()=>Response.json({data:{id:'ExistingRun',status:'SUCCEEDED',defaultDatasetId:'ExistingDataset'}});
+it('automatically resumes a legacy interrupted GET without starting an actor or changing reserved charges',async()=>{
+ const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(response());
+ expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(true);
+ expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher.mock.calls[0][0]).toBe(url);expect(fetcher.mock.calls[0][1]?.method).toBe('GET');
+ expect(await ctx.db.prepare("SELECT state,last_error FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'PENDING',last_error:null});
+ expect(await ctx.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='x_apify'").first()).toEqual({reserved_usd:0.250001});
+ expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(false);expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('automatic recovery preserves unknown actor starts and refuses unrelated feeds',async()=>{
+ const fetcher=vi.spyOn(globalThis,'fetch');
+ expect(await recoverInterruptedApifyRead(env,'other-feed',scope.feedSourceId)).toBe(false);
+ await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,feed_id,feed_source_id) VALUES('x_apify',?,'start-hash',0.25,-1,?,?)").bind(await sha256(JSON.stringify([scope,runId+':start'])),scope.feedId,scope.feedSourceId).run();
+ expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(false);expect(fetcher).not.toHaveBeenCalled();
+ expect(await ctx.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'BLOCKED'});
+});
 it('resumes a poll blocked before dispatch once another source owns the legacy hold',async()=>{
  await ctx.db.prepare("UPDATE connector_provider_operations SET feed_id='other-feed',feed_source_id='other-source'").run();
  await recoverConnectorPoll(env,'provider','read-job');

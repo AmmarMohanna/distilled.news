@@ -3,6 +3,31 @@ import {R2SourcePayloadStore,type SourceFetchRequest} from '@distilled/connector
 import {authorizeConnectorSource} from './connector-runtime';
 import type {Env} from './types';
 
+/** Bounded recovery of a legacy result GET, never an actor submission. The
+ * exact run/cursor and endpoint hash are revalidated by reconcileApifyRead.
+ * New operations already record readOnlyApify and self-recover in paid HTTP. */
+export async function recoverInterruptedApifyRead(env:Env,feedId:string,sourceId:string):Promise<boolean>{
+ if(!env.APIFY_API_TOKEN)return false;
+ const row=await env.DB.prepare(`SELECT p.job_id FROM connector_provider_poll_jobs p
+ WHERE json_extract(p.request,'$.scope.feedId')=? AND json_extract(p.request,'$.scope.feedSourceId')=?
+ AND p.state='BLOCKED' AND p.last_error='UNCERTAIN_PAID_SUBMISSION'
+ AND json_extract(p.request,'$.continuation.providerId') IN ('x_apify','linkedin_apify','google_apify')
+ AND (p.lease_until IS NULL OR p.lease_until<=?)
+ AND EXISTS(SELECT 1 FROM connector_provider_operations o WHERE o.feed_id=? AND o.feed_source_id=?
+ AND o.provider_id=json_extract(p.request,'$.continuation.providerId') AND o.status=-1 AND o.payload_ref IS NULL AND o.ceiling_usd<=0.000001
+ AND (json_extract(o.headers,'$.claimExpiresAt') IS NULL OR json_extract(o.headers,'$.claimExpiresAt')<=?))
+ ORDER BY p.scheduled_at,p.job_id LIMIT 1`).bind(feedId,sourceId,new Date().toISOString(),feedId,sourceId,new Date().toISOString()).first<{job_id:string}>();
+ if(!row)return false;
+ try{
+  await reconcileApifyRead(env,row.job_id);
+  const {recoverConnectorPoll}=await import('./connector-scheduling');
+  await recoverConnectorPoll(env,'provider',row.job_id);return true;
+ }catch(error){
+  // Retain every unknown operation and let its exact read lease bound retries.
+  console.warn(JSON.stringify({type:'CONNECTOR_EXISTING_RUN_RECOVERY_WAIT',feedId,sourceId,reason:error instanceof Error&&/^[A-Z_]{1,80}$/.test(error.message)?error.message:'READ_RECOVERY_FAILED'}));return false;
+ }
+}
+
 /** Operator-only reconciliation of an already identified Apify run. It never
  * invokes an actor, refunds a reservation, changes a sequence or fabricates a
  * response. Endpoint/method hashes must match the original durable operation. */
@@ -41,11 +66,17 @@ export async function reconcileApifyRead(env:Env,jobId:string,fetcher:typeof fet
     VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(feed_id,feed_source_id,run_id,operation_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until
     WHERE state='PENDING' AND lease_until<=? RETURNING token`).bind(scope.feedId,scope.feedSourceId,scope.sourceId,runId,providerId,operationId,token,now+120000,now).first();
    if(!claim)throw Error('READ_RECOVERY_BUSY');
-   const response=await fetcher(url,{method:'GET',redirect:'manual',headers:{authorization:`Bearer ${env.APIFY_API_TOKEN}`},signal:AbortSignal.timeout(60000)});
+   const signal=AbortSignal.timeout(60000);
+   const bounded=async<T>(operation:Promise<T>):Promise<T>=>{
+    signal.throwIfAborted();let abort:()=>void=()=>{};
+    const deadline=new Promise<never>((_,reject)=>{abort=()=>reject(Error('READ_TIMEOUT'));signal.addEventListener('abort',abort,{once:true});});
+    try{return await Promise.race([operation,deadline]);}finally{signal.removeEventListener('abort',abort);}
+   };
+   const response=await bounded(fetcher(url,{method:'GET',redirect:'manual',headers:{authorization:`Bearer ${env.APIFY_API_TOKEN}`},signal}));
    if(!response.ok)throw Error('READ_NOT_CONFIRMED');
    const reader=response.body?.getReader(),chunks:Uint8Array[]=[];let size=0;
-   try{if(reader)for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>4000000)throw Error('READ_TOO_LARGE');chunks.push(part.value);}}
-   finally{await reader?.cancel().catch(()=>{});reader?.releaseLock();}
+   try{if(reader)for(;;){const part=await bounded(reader.read());if(part.done)break;size+=part.value.length;if(size>4000000)throw Error('READ_TOO_LARGE');chunks.push(part.value);}}
+   finally{void reader?.cancel().catch(()=>{});reader?.releaseLock();}
    bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
    const parsed=JSON.parse(new TextDecoder().decode(bytes));
    if(kind==='status'?parsed?.data?.id!==cursor.runId:!Array.isArray(parsed))throw Error('READ_NOT_CONFIRMED');

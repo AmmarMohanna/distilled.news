@@ -689,6 +689,10 @@ export function createApp(options: AppOptions = {}) {
 
   app.use("/api/me/*", accountAuth(repoFor));
   app.use("/api/admin/*", adminAuth(repoFor));
+  app.get('/api/admin/source-execution-status',async c=>{
+    const {sourceExecutionStatus}=await import('./source-execution-status');
+    return c.json(await sourceExecutionStatus(c.env));
+  });
 
   // Account identity is derived from the session, never from caller-owned tenant fields.
   app.post("/api/me/acquisitions", async (c) => {

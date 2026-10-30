@@ -5,6 +5,7 @@ import {
 } from '@distilled/contracts';
 import { itemId, V1IntakeStore } from './store';
 import { canonicalJson, canonicalRequest } from './canonical';
+import {acquisitionDiscoveryIdentity} from './acquisition-backlog';
 import { IntakeTransaction, transact } from './transaction';
 import { currentEvidence, observationOrdering, representationDowngrade, validateQueryRestrictions } from './policy';
 import type { AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy } from './types';
@@ -56,13 +57,26 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
     else if(current?.revision && !(o.canonicalUrl&&['ARTICLE_EXCERPT','LISTING_RESULT','LINK_ONLY'].includes(o.representation)) && representationDowngrade(current.revision,verified??o) && !authoritative) set('QUARANTINED','QUARANTINE_REVISION_CONFLICT');
     else {
       receipt.candidateItemId=id;
+      let acquisitionObservationId=candidate?.acquisitionObservationId??candidate?.latestObservationId;
       if(verified && current?.item.state==='ACTIVE' && verified.contentHash===current.revision?.contentHash) {
         set('REPLAY','REPLAY_IDENTICAL');
         if(order==='WIN') tx.write('evidence',id,{...current.item,currentObservationId:o.id,currentFetchStartSequence:o.fetchStartSequence,currentSourceRevision:o.sourceRevision,updatedAt:now},o.sourceItemKey);
-      } else enqueue(tx,input,'ACQUIRE',undefined,policy.unpaidOnly);
+      } else {
+        const pendingInput=acquisitionObservationId?await tx.read<AcceptedInput>('inputs',acquisitionObservationId):undefined;
+        const pendingJob=acquisitionObservationId?await tx.read<DownstreamJob>('jobs',JSON.stringify(['ACQUIRE',acquisitionObservationId,''])):undefined;
+        const samePending=verified&&pendingInput&&pendingJob&&pendingJob.unpaidOnly===policy.unpaidOnly&&['PENDING','RUNNING','DEFERRED'].includes(pendingJob.state)&&
+          acquisitionDiscoveryIdentity(pendingInput.observation)===acquisitionDiscoveryIdentity(o);
+        const priorVerified=samePending?await policy.verifySuppliedContent(pendingInput.observation):undefined;
+        if(priorVerified&&priorVerified.contentHash===verified!.contentHash&&priorVerified.representation===verified!.representation&&priorVerified.contentCompleteness===verified!.contentCompleteness){
+          // Retain every observation/receipt, but identical discovery bytes do
+          // not need another scraper job while the original work is unresolved.
+          // This does not establish or advance canonical evidence ordering.
+          set('REPLAY','REPLAY_IDENTICAL');
+        }else{enqueue(tx,input,'ACQUIRE',undefined,policy.unpaidOnly);acquisitionObservationId=o.id;}
+      }
       // Pending acquisition does not establish accepted canonical evidence ordering.
       const latest=candidate?await tx.read<AcceptedInput>('inputs',candidate.latestObservationId):undefined;
-      if(!candidate || !latest || o.fetchStartSequence>=latest.observation.fetchStartSequence) tx.write('candidates',id,{id,feedId:o.feedId,feedSourceId:o.feedSourceId,sourceId:o.sourceId,sourceItemKey:o.sourceItemKey,latestObservationId:o.id,discoveredAt:candidate?.discoveredAt??o.observedAt,intakePolicyVersion:policy.version} satisfies CandidateRecord,o.sourceItemKey);
+      if(!candidate || !latest || o.fetchStartSequence>=latest.observation.fetchStartSequence) tx.write('candidates',id,{id,feedId:o.feedId,feedSourceId:o.feedSourceId,sourceId:o.sourceId,sourceItemKey:o.sourceItemKey,latestObservationId:o.id,discoveredAt:candidate?.discoveredAt??o.observedAt,intakePolicyVersion:policy.version,...(!candidate?{firstObservationId:o.id}:candidate.firstObservationId?{firstObservationId:candidate.firstObservationId}:{}),...(acquisitionObservationId?{acquisitionObservationId}:{})} satisfies CandidateRecord,o.sourceItemKey);
     }
   }
   if(receipt.decision==='QUARANTINED') enqueue(tx,input,'AUTHORITATIVE_RECHECK');
@@ -93,7 +107,7 @@ export function createCandidateIntakePort(store:V1IntakeStore,policy:IntakePolic
         const related=[];
         for(const o of request.observations){
           const id=itemId(o.feedSourceId,o.sourceItemKey),candidate=await tx.read<CandidateRecord>('candidates',id),evidence=await tx.read<NormalizedEvidenceItem>('evidence',id);
-          if(candidate)related.push({table:'inputs' as const,id:candidate.latestObservationId});
+          if(candidate){related.push({table:'inputs' as const,id:candidate.latestObservationId});const pending=candidate.acquisitionObservationId??candidate.latestObservationId;related.push({table:'inputs' as const,id:pending},{table:'jobs' as const,id:JSON.stringify(['ACQUIRE',pending,''])});}
           if(evidence?.currentRevisionId)related.push({table:'revisions' as const,id:evidence.currentRevisionId});
         }
         await tx.prefetch(related);

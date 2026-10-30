@@ -110,7 +110,7 @@ export async function claimAcquisition(store:V1IntakeStore,id:string,rawNow:stri
  if(!row || row.value.kind!=='ACQUIRE') return undefined;
  return transact(store,row.feedSourceId,async tx=>{
   const job=await tx.read<DownstreamJob>('jobs',id);
-  if(!job || job.state==='DONE' || job.state==='FAILED' || job.exhausted) return undefined;
+  if(!job || job.state==='DONE' || job.state==='FAILED' || job.state==='DEFERRED' || job.exhausted) return undefined;
   if(job.state==='RUNNING' && job.leaseUntil && Date.parse(job.leaseUntil)>Date.parse(now)) return undefined;
   if(job.nextAttemptAt && Date.parse(job.nextAttemptAt)>Date.parse(now)) return undefined;
   await tx.prefetch([{table:'inputs',id:job.observationId},{table:'intake_receipts',id:job.observationId},{table:'acquisition_results',id}]);

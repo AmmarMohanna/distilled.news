@@ -37,4 +37,8 @@ it('counts the closed window and excludes later arrivals, disabled sources and o
 });
 it('reports exhausted failures separately and never calls them completed reviews',async()=>{await scheduled();await job('failed','REASSESS','FAILED');await job('exhausted','REASSESS','PENDING',undefined,undefined,true);expect(await productPublicationProgress(env,'feed-1')).toMatchObject({stage:'PUBLISHING',review:{completed:0,total:2,failed:2},pending:0});});
 it('completed scheduled work has no stale in-progress notice',async()=>{await scheduled('DONE');expect(await productPublicationProgress(env,'feed-1')).toBeUndefined();});
+it('reports deferred initial backlog separately from fetched or pending acquisition',async()=>{
+ await scheduled();await job('old','ACQUIRE','DEFERRED');await job('new','ACQUIRE','PENDING');
+ expect(await productPublicationProgress(env,'feed-1')).toMatchObject({stage:'PROCESSING',acquisition:{completed:0,total:1,failed:0,deferred:1},pending:1});
+});
 it('scheduled acquisition reports progress without a manual request',async()=>{await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','scheduled','feed-1',?)").bind(JSON.stringify({state:'PENDING',window:{end:'2026-10-11T17:00:00Z'}})).run();await job('scheduled-pending','ACQUIRE','PENDING');expect(await productPublicationProgress(env,'feed-1')).toMatchObject({stage:'PROCESSING',acquisition:{total:1},pending:1});});

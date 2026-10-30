@@ -17,7 +17,9 @@ export interface IntakePolicy {
 export interface DownstreamJob {
   unpaidOnly?:true;
   id: string; feedId: string; feedSourceId: string; observationId: string;
-  kind: 'ACQUIRE' | 'REASSESS' | 'AUTHORITATIVE_RECHECK'; state: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED'; attempts: number;
+  kind: 'ACQUIRE' | 'REASSESS' | 'AUTHORITATIVE_RECHECK'; state: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' | 'DEFERRED'; attempts: number;
+  deferred?: {reason:'INITIAL_BACKLOG';policy:'initial-acquisition-backlog-v1';at:string;feedCreatedAt:string;publishedAtHint:string};
+  backlogReview?: {policy:'initial-acquisition-backlog-v1';at:string;result:'RETAINED'};
   nextAttemptAt?: string; exhausted?: boolean; conflictId?: string;
   leaseToken?: string; leaseUntil?: string; failureCode?: string;
   resumeAttempts?: number;
@@ -41,4 +43,6 @@ export interface AcceptedInput { observation: SourceObservation; proposal?: Cand
 export interface CandidateRecord {
   id:string; feedId:string; feedSourceId:string; sourceId:string; sourceItemKey:string;
   latestObservationId:string; discoveredAt:string; intakePolicyVersion:string;
+  firstObservationId?:string;
+  acquisitionObservationId?:string;
 }

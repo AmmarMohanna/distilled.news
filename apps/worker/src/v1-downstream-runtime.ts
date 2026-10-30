@@ -6,6 +6,7 @@ import { V1IntakeStore } from './v1-intake/store';
 import { createCandidateIntakePort } from './v1-intake/intake';
 import { createCandidateAcquisitionRouter } from './v1-intake/acquisition-router';
 import { runAcquisitionJob, AcquisitionFailure } from './v1-intake/acquisition';
+import {deferInitialAcquisitionBacklog} from './v1-intake/acquisition-backlog';
 import type { DownstreamJob, IntakePolicy } from './v1-intake/types';
 import { WorkerPublicSourceFetch } from './public-source-fetch';
 import {synchronizeV1ProductSource} from './v1-intelligence/product';
@@ -83,6 +84,10 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const unpaidOnly=job.value.unpaidOnly===true||job.value.recoveryAuthorizations?.at(-1)?.unpaidOnly===true;
  const reviewed=unpaidOnly&&job.value.recoveryAuthorizations?.at(-1)?.reviewedRedirect;
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
+ if(env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+  await deferInitialAcquisitionBacklog(store,job.feedSourceId,new Date().toISOString(),1,id);
+  if((await store.read<DownstreamJob>('jobs',id))?.value.state==='DEFERRED')return 'SKIPPED' as const;
+ }
  const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
  const authorizeArticle=async(url:string)=>{new WorkerPublicSourceFetch(url,fetcher);if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);};
  const articleMaxBytes=PUBLIC_ARTICLE_MAX_BYTES;
@@ -139,6 +144,7 @@ export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<num
  const offset=ids.length?Math.floor(now.getTime()/5000)%ids.length:0;
  for(const id of [...ids.slice(offset),...ids.slice(0,offset)]) {
   try {await synchronizeV1ProductSource(env.DB,id,now.toISOString())} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
+  if(env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')await deferInitialAcquisitionBacklog(new V1IntakeStore(env.DB),id,now.toISOString());
   groups.push(await pendingV1Jobs(env,id,'ACQUIRE',now));
  }
  for(let round=0;round<Math.max(0,...groups.map(rows=>rows.length));round++)for(const rows of groups){
