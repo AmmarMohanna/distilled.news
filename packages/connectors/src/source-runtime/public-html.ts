@@ -77,7 +77,7 @@ export function extractPublicHtml(html:string,url:string){
  // Some publishers use an explicit article-body div instead of <article>.
  // Require article metadata and one unambiguous content container; never read
  // the entire page or mistake a listing's generic content div for reporting.
- const bodyCandidates=articleMetadata?all.filter(n=>attr(n,'itemprop').split(/\s+/).includes('articleBody')||n.tagName==='div'&&(attr(n,'class').split(/\s+/).some(c=>['entry-content','article-body','field--name-body'].includes(c))||attr(n,'id')==='article-start'&&attr(n,'class').split(/\s+/).includes('content-box'))):[];
+ const bodyCandidates=articleMetadata?all.filter(n=>attr(n,'itemprop').split(/\s+/).includes('articleBody')||n.tagName==='div'&&(attr(n,'class').split(/\s+/).some(c=>['entry-content','article-body','article_body','field--name-body'].includes(c))||attr(n,'id')==='article-start'&&attr(n,'class').split(/\s+/).includes('content-box'))):[];
  // Nested CMS wrappers describe one body; sibling bodies remain ambiguous.
  const bodySet=new Set(bodyCandidates);
  const articleBodies=bodyCandidates.filter(n=>{for(let p=n.parentNode;p;p=p.parentNode)if(bodySet.has(p))return false;return true;});
@@ -107,7 +107,12 @@ export function extractPublicHtml(html:string,url:string){
  const content=articleBodies.length===1?articleBodies[0]:primary;
  const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n))||attr(n,'class').split(/\s+/).includes('paywall-content')&&/^preview this article\b/i.test(text(n)));
  const accessRestricted=restrictedMetadata&&(explicitPreview||!structuredBody&&!content&&!article&&all.some(n=>/(?:^|[\s_-])paywall(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))));
- let body=structuredBody??(articleBodies.length>1?'':primary&&content===primary?primaryDescendants(primary).filter(n=>n.nodeName==='#text').map(n=>n.value??'').join(' ').replace(/\s+/g,' ').trim():content||article||main?text(content??article??main!):'');
+ const visibleBody=articleBodies.length===1?text(articleBodies[0]):undefined;
+ // Some publishers label a teaser as JSON-LD articleBody. A substantial,
+ // unambiguous visible article body must not be replaced by that short teaser.
+ const visibleParagraphs=articleBodies.length===1?primaryDescendants(articleBodies[0]).filter(n=>n.tagName==='p'&&text(n).length>=40).length:0;
+ const preferVisible=!!structuredBody&&structuredBody.length<=300&&!!visibleBody&&visibleBody.length>=400&&visibleBody.length>structuredBody.length*2&&visibleParagraphs>=2;
+ let body=preferVisible?visibleBody!:structuredBody??(articleBodies.length>1?'':primary&&content===primary?primaryDescendants(primary).filter(n=>n.nodeName==='#text').map(n=>n.value??'').join(' ').replace(/\s+/g,' ').trim():content||article||main?text(content??article??main!):'');
  let contentKind:'PRODUCT_DETAIL'|'CATALOGUE'|undefined;
  const within=(n:Node,parent:Node)=>{for(let p:Node|undefined=n;p;p=p.parentNode)if(p===parent)return true;return false};
  // Retain a resource's own description, not an invented article/transcript or

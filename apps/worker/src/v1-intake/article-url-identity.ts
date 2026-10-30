@@ -1,3 +1,4 @@
+import {sameArticleUrl as samePublisherArticleUrl} from '@distilled/connectors';
 /** Comparison only: never rewrite stored URLs or paid-operation identities. */
 export function sameArticleUrl(left:unknown,right:unknown):boolean {
  if(typeof left!=='string'||typeof right!=='string')return false;
@@ -10,7 +11,7 @@ export function sameArticleUrl(left:unknown,right:unknown):boolean {
    if(u.hostname==='www.nejm.org'&&u.searchParams.get('referrer')==='https://www.google.com/')u.searchParams.delete('referrer');
    u.pathname=u.pathname.replace(/%[0-9a-f]{2}/gi,part=>part.toUpperCase()).replace(/\/$/,'')||'/';u.hash='';return u.href;
   };
-  return normalize(left)===normalize(right);
+  return samePublisherArticleUrl(normalize(left),normalize(right));
  }catch{return false}
 }
 /** A publisher's public abstract is the same PII article, but only partial evidence. */

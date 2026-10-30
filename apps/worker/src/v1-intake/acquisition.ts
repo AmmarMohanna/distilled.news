@@ -30,7 +30,7 @@ export async function authorizeAcquisitionRecovery(store:V1IntakeStore,id:string
   if(options?.unpaidOnly&&job.failureCode==='UNCERTAIN_PAID_SUBMISSION')return 'RECOVERY_PAID_OUTCOME_UNRESOLVED';
   const fenced=job.failureCode==='UNCERTAIN_PAID_SUBMISSION'&&job.failureDetail==='ARTICLE_PROVIDER_OUTCOME_UNCERTAIN';
   let canonicalAlias=false;
-  if(canonicalEvidence&&job.failureCode==='INVALID_RESULT'&&['FALLBACK_CANONICAL_MISMATCH','FALLBACK_URL_MISMATCH','ARTICLE_REDIRECT_IDENTITY_MISMATCH'].includes(job.failureDetail??'')){
+  if(canonicalEvidence&&job.failureCode==='INVALID_RESULT'&&['CANONICAL_IDENTITY_MISMATCH','FALLBACK_CANONICAL_MISMATCH','FALLBACK_URL_MISMATCH','ARTICLE_REDIRECT_IDENTITY_MISMATCH'].includes(job.failureDetail??'')){
    const input=await tx.read<AcceptedInput>('inputs',job.observationId);
    try{
     new WorkerPublicSourceFetch(canonicalEvidence.from);new WorkerPublicSourceFetch(canonicalEvidence.to);

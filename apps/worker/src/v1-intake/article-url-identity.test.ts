@@ -1,5 +1,11 @@
 import{it,expect}from'vitest';import{sameArticleUrl}from'./article-url-identity';
 const url='https://publisher.example/news/report';
+const uefa='https://www.uefa.com/womenschampionsleague/news/02a9-21a9b14a50b6-6f4a52d748c0-1000--old-headline/';
+it('accepts a UEFA headline change only for the identical full CMS article identity',()=>{
+ expect(sameArticleUrl(uefa,uefa.replace('old-headline','updated-headline'))).toBe(true);
+ for(const other of [uefa.replace('21a9b14a50b6','21a9b14a50b7'),uefa.replace('womenschampionsleague','uefachampionsleague'),uefa.replace('www.uefa.com','other.example'),uefa.replace('https:','http:'),uefa+'?edition=another'])expect(sameArticleUrl(uefa,other)).toBe(false);
+ expect(sameArticleUrl('https://www.uefa.com/news/old-headline','https://www.uefa.com/news/updated-headline')).toBe(false);
+});
 it.each(['traffic_source=rss','utm_source=rss&utm_medium=feed','fbclid=tracking','gclid=tracking'])('ignores known tracking query %s',query=>{expect(sameArticleUrl(url+'?'+query,url)).toBe(true)});
 it('preserves meaningful parameters while removing tracking',()=>{expect(sameArticleUrl(url+'?edition=ar&traffic_source=rss',url+'?edition=ar')).toBe(true);expect(sameArticleUrl(url+'?edition=ar&traffic_source=rss',url+'?edition=en')).toBe(false)});
 it.each([url+'?id=another','https://other.example/news/report','http://publisher.example/news/report','https://user:secret@publisher.example/news/report','https://publisher.example/news/another'])('rejects different identities: %s',other=>{expect(sameArticleUrl(url,other)).toBe(false)});

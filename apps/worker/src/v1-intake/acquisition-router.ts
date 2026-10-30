@@ -44,6 +44,7 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
     if(error instanceof AcquisitionFailure)throw error;
     if(error instanceof SourceProviderError&&error.code==='BACKPRESSURE')throw new AcquisitionFailure('BACKPRESSURE',true,{detail:['HELPER_LOCAL_CAPACITY_BUSY','HELPER_GLOBAL_CAPACITY_BUSY','HELPER_HTTP_RATE_LIMIT'].includes(error.diagnostic?.detail??'')?error.diagnostic!.detail:'GOOGLE_RESOLUTION_CAPACITY_WAIT',httpStatus:error.diagnostic?.httpStatus,retryNotBefore:error.retryNotBefore});
     if(error instanceof SourceProviderError&&error.code==='RATE_LIMIT')throw new AcquisitionFailure('RATE_LIMIT',true,{detail:'GOOGLE_RESOLUTION_RATE_LIMIT',retryNotBefore:error.retryNotBefore});
+    if(error instanceof SourceProviderError&&error.code==='MALFORMED')throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'GOOGLE_PUBLISHER_URL_INVALID'});
     if(error instanceof SourceProviderError&&['AUTH_REQUIRED','POLICY_REFUSAL'].includes(error.code))throw new AcquisitionFailure(error.code==='AUTH_REQUIRED'?'AUTH_REQUIRED':'POLICY_DENIED',false);
     throw new AcquisitionFailure('NETWORK',true,{detail:'GOOGLE_NEWS_RESOLUTION_UNAVAILABLE'});
    }

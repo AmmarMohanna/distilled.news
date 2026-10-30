@@ -14,6 +14,19 @@ const jobId=JSON.stringify(['ACQUIRE','observation-1','']);
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);await createCandidateIntakePort(store,testPolicy).acceptBatch(batchFixture())});
 afterEach(async()=>ctx.dispose());
 const now='2026-10-03T12:00:00Z',later='2026-10-03T12:02:00Z';
+it('authorizes one unpaid recovery for a proven UEFA canonical slug alias, retaining failure history',async()=>{
+ const from='https://www.uefa.com/womenschampionsleague/news/02aa-21e36ef64792-e4a02e83d527-1000--old-headline/',to=from.replace('old-headline','updated-headline');
+ const batch=batchFixture(2);batch.observations[0].canonicalUrl=from;batch.proposals[0].url=from;
+ await createCandidateIntakePort(store,testPolicy).acceptBatch(batch);
+ const jobId=JSON.stringify(['ACQUIRE','observation-2','']);
+ const job=(await store.read<DownstreamJob>('jobs',jobId))!.value;
+ await store.commit(await store.snapshot(job.feedSourceId),[{table:'jobs',id:jobId,value:{...job,state:'FAILED',attempts:2,exhausted:true,failureCode:'INVALID_RESULT',failureDetail:'CANONICAL_IDENTITY_MISMATCH'}}]);
+ await expect(authorizeAcquisitionRecovery(store,jobId,'wrong-canonical',later,undefined,{from,to:to.replace('21e36ef64792','21e36ef64793')},{unpaidOnly:true})).rejects.toThrow('RECOVERY_FAILURE_NOT_ELIGIBLE');
+ await authorizeAcquisitionRecovery(store,jobId,'uefa-canonical-fix',later,undefined,{from,to},{unpaidOnly:true});
+ const recovered=(await store.read<DownstreamJob>('jobs',jobId))!.value;
+ expect(recovered).toMatchObject({state:'PENDING',attempts:2,recoveryAuthorizations:[{id:'uefa-canonical-fix',unpaidOnly:true,priorFailureCode:'INVALID_RESULT',priorFailureDetail:'CANONICAL_IDENTITY_MISMATCH',maxAttempts:3}]});
+ expect((await store.read<any>('inputs',job.observationId))!.value.observation.canonicalUrl).toBe(from);
+});
 it('resolves a Google listing at acquisition while retaining observation identity',async()=>{
  const claim=(await claimAcquisition(store,jobId,now))!,listing='https://news.google.com/rss/articles/encoded',publisher='https://publisher.example/news/report';
  claim.input.observation={...claim.input.observation,canonicalUrl:listing,representation:'LISTING_RESULT'};

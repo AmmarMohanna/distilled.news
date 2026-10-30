@@ -3,12 +3,20 @@ export function isArticleSchemaType(type:unknown):boolean {
  return typeof type==='string'&&/^(?:https?:\/\/schema.org\/)?(?:Article|NewsArticle|BlogPosting|ReportageNewsArticle|OpinionNewsArticle|AnalysisNewsArticle|BackgroundNewsArticle|ReviewNewsArticle|ScholarlyArticle|MedicalScholarlyArticle)$/.test(type);
 }
 
-/** Ignore only transport tracking; preserve origin, path and content queries. */
+/** UEFA retains a complete CMS article ID while updating its headline slug.
+ * Preserve the competition, full ID, origin and meaningful query parameters. */
+function normalizePublisherArticlePath(url:URL):void {
+ if(url.protocol!=='https:'||url.hostname!=='www.uefa.com')return;
+ const article=/^\/([a-z0-9-]+)\/news\/([a-f0-9]{4}-[a-f0-9]{12}-[a-f0-9]{12}-[a-f0-9]{4})--[^/]+\/?$/.exec(url.pathname);
+ if(article)url.pathname=`/${article[1]}/news/${article[2]}`;
+}
+/** Ignore transport tracking and proven publisher slug aliases only. */
 export function sameArticleUrl(left:string,right:string):boolean {
  const normalize=(value:string)=>{
   const url=new URL(value);if(url.username||url.password||!['https:','http:'].includes(url.protocol))throw Error('INVALID_ARTICLE_URL');
   url.hash='';
   for(const key of [...url.searchParams.keys()])if(/^utm_/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source'].includes(key.toLowerCase()))url.searchParams.delete(key);
+  normalizePublisherArticlePath(url);
   return url.href;
  };
  try{return normalize(left)===normalize(right);}catch{return false;}

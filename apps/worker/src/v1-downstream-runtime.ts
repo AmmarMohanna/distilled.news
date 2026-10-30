@@ -22,6 +22,7 @@ import {readPublicArticle,PUBLIC_ARTICLE_MAX_BYTES} from './v1-intake/public-art
 import {runtimeArticleFallback,createArticleFallback} from './v1-intake/article-fallback';
 import {reviewedRedirectFor} from './v1-intake/reviewed-redirect';
 import {productConnectorSource} from './connector-source';
+import {sharedGoogleArticleResolver} from './google-article-resolution';
 
 function enabledSources(env:Env):string[] {
  const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
@@ -100,11 +101,7 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
   new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):undefined;
  const execution=composeSourceExecution(unpaidOnly||env.SOURCE_NATIVE_EXECUTION_ENABLED==='true',helper,async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)});
  const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
- resolveGoogleArticle:helper&&env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'?async url=>{
-  await authorizeArticle(url);
-  const result=await helper.execute('google_resolve',{urls:[url]},{timeoutMs:60_000}) as {results?:unknown[]};
-  await authorizeArticle(url);return result?.results?.[0];
- }:undefined,
+ resolveGoogleArticle:helper&&env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'?sharedGoogleArticleResolver(env.DB,env.RAW_ARCHIVE,helper,authorizeArticle):undefined,
  publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
  publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:60_000});await authorizeArticle(url);return result;}:undefined,
  articleFallback:(!unpaidOnly||reviewedBrowser)&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{

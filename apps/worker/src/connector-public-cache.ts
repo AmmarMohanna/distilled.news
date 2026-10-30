@@ -9,10 +9,10 @@ const credentialQueries=new Set(['access_token','api_key','apikey','token','auth
 /** Public HTTP bytes only. No sessions, paid results, feed receipts, cursors or
  * editorial state are shared. Authorization is rechecked on every cache read. */
 export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort,
- authorize:(url:string)=>Promise<void>,now=Date.now,maxBytes=PUBLIC_SOURCE_MAX_BYTES):FeedHttpPort {
+ authorize:(url:string)=>Promise<void>,now=Date.now,maxBytes=PUBLIC_SOURCE_MAX_BYTES,maxCacheMs=60_000):FeedHttpPort {
  return {get:async(url,headers,bounds)=>{
   const attempts=bounds?.attempts??3,timeoutMs=bounds?.timeoutMs??15_000;
-  if(!Number.isInteger(attempts)||attempts<1||attempts>5||!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>60_000||!Number.isInteger(maxBytes)||maxBytes<1||maxBytes>PUBLIC_ARTICLE_HTML_MAX_BYTES)throw Error('INVALID_HTTP_LIMITS');
+  if(!Number.isInteger(attempts)||attempts<1||attempts>5||!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>60_000||!Number.isInteger(maxBytes)||maxBytes<1||maxBytes>PUBLIC_ARTICLE_HTML_MAX_BYTES||!Number.isInteger(maxCacheMs)||maxCacheMs<1||maxCacheMs>3600_000)throw Error('INVALID_HTTP_LIMITS');
   await authorize(url);
   // Anonymous validators are part of the key: a 304 may only be reused by
   // another consumer presenting precisely the same validator, never a newcomer.
@@ -59,7 +59,7 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
    if([200,304].includes(response.status)&&!/(?:private|no-store|no-cache)/i.test(cacheControl)&&(!maxAge||Number(maxAge[1])>0)&&!response.headers['set-cookie']&&!(response.headers.vary??'').split(',').some(v=>v.trim()&&!['accept','accept-language'].includes(v.trim().toLowerCase()))){
     const objectKey=`connector-public-cache/${key}/${token}`;
     await bucket.put(objectKey,response.bytes);
-    const saved=await db.prepare('UPDATE connector_public_fetch_cache SET payload_key=?,status=?,headers=?,expires_at=?,lease_until=0 WHERE cache_key=? AND token=?').bind(objectKey,response.status,JSON.stringify(response.headers),now()+Math.min(60_000,maxAge?Number(maxAge[1])*1000:60_000),key,token).run();
+    const saved=await db.prepare('UPDATE connector_public_fetch_cache SET payload_key=?,status=?,headers=?,expires_at=?,lease_until=0 WHERE cache_key=? AND token=?').bind(objectKey,response.status,JSON.stringify(response.headers),now()+Math.min(maxCacheMs,maxAge?Number(maxAge[1])*1000:60_000),key,token).run();
     if(saved.meta.changes===0)await bucket.delete(objectKey);
     else if(cached?.payload_key&&cached.payload_key!==objectKey)await bucket.delete(cached.payload_key);
    }

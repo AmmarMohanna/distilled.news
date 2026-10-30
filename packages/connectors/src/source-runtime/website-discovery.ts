@@ -14,6 +14,9 @@ export function isWebsiteListingUrl(value:string):boolean {
  if(host==='jpost.com'&&['/mdaheroes','/podcast','/american-politics','/diaspora','/judaism','/christianworld','/food-recipes','/archaeology','/science','/israel-news/culture','/history','/omg','/travel'].includes(path))return true;
  if(host==='thenationalnews.com'&&(['/business','/arts-culture','/magazine'].includes(path)||/^\/podcasts\/(?:beyond-the-headlines|culture-bites|business-extra|tarab)$/.test(path)))return true;
  if(host==='lbcgroup.tv'&&(/^\/(?:news-highlights|latest-news)\/(?:ar|en)$/.test(path)||/^\/news-bulletin(?:\/[^/]+)*\/(?:ar|en)$/.test(path)))return true;
+ // ESA archive pagination is a section locator, even when its link appears
+ // inside a headline card. It must not become an article acquisition job.
+ if(host==='esa.int'&&/\/(?:\(archive\)|%28archive%29)\/\d+$/i.test(path))return true;
  return /^\/(?:tags?|category|categories|topics?|sections?)(?:\/[^/?#]+)*\/?$/i.test(new URL(value).pathname)||/^\/(?:(?:news|newsroom)\/(?:all-news|latest|all|recently-published)|all-news|latest-news|latest-articles|opinions?|live|archives?)\/?$/i.test(new URL(value).pathname)||/^\/(?:home\/writer|authors?)\/[^/]+\/?$/i.test(new URL(value).pathname);
 }
 const attr=(n:Node,key:string)=>n.attrs?.find(a=>a.name===key)?.value??'';
