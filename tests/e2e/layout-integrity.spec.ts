@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import {writeFile} from 'node:fs/promises';
 
 /**
  * Layout integrity: on each page state, every visible control must be reachable (not covered by anything but its
@@ -85,7 +86,7 @@ const variants = [
 ];
 
 for (const scene of scenes) for (const variant of variants) {
-  test(`layout integrity: ${scene.name} at ${variant.label}`, async ({ page }) => {
+  test(`layout integrity: ${scene.name} at ${variant.label}`, async ({ page }, info) => {
     await page.setViewportSize({ width: variant.width, height: variant.height });
     await page.addInitScript(() => { try { localStorage.setItem("dn_theme", "light"); } catch { /* storage unavailable */ } });
     await mock(page, scene.role);
@@ -94,6 +95,17 @@ for (const scene of scenes) for (const variant of variants) {
     await page.waitForTimeout(400);
     if (variant.scale !== 1) await page.addStyleTag({ content: `html { font-size: ${16 * variant.scale}px !important; }` });
     if (scene.act) { await scene.act(page); await page.waitForTimeout(300); }
-    expect(await page.evaluate(CHECK)).toEqual([]);
+    const measure=()=>page.evaluate(()=>[...document.querySelectorAll('.experience-header,.experience-header *,.explore-view,.explore-view .experience-title,.explore-view .experience-title p,.app-pages,.screen-page-viewport')].filter(node=>node.getBoundingClientRect().width>0).map(node=>{
+      const box=node.getBoundingClientRect(),css=getComputedStyle(node);
+      return {className:node.className,text:node.textContent?.slice(0,50),x:box.x,right:box.right,width:box.width,scrollLeft:node.scrollLeft,scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,display:css.display,minWidth:css.minWidth,fontSize:css.fontSize,flexShrink:css.flexShrink,whiteSpace:css.whiteSpace,transform:css.transform};
+    }));
+    const before=await measure(),issues=await page.evaluate(CHECK);
+    if(issues.length || (scene.name==='explore' && variant.scale===2)){
+      const path=info.outputPath('layout-bounds.json');
+      await writeFile(path,JSON.stringify({issues,before,after:await measure()},null,2));
+      await info.attach('layout-bounds',{path,contentType:'application/json'});
+      await page.screenshot({path:info.outputPath('layout-screenshot.png')});
+    }
+    expect(issues).toEqual([]);
   });
 }

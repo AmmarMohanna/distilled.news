@@ -1,4 +1,27 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
+
+/** Operate the approved button/listbox control and verify its selected state. */
+export async function chooseSetting(scope: Locator, label: string, optionName: string) {
+  const trigger = scope.getByRole('button', {name: new RegExp('^' + label + ' ')});
+  await trigger.click();
+  const menu = scope.getByRole('listbox', {name: label, exact: true});
+  await expect(menu).toBeInViewport({ratio:1});
+  await expect.poll(()=>menu.evaluate(node=>{
+    const bounds=node.getBoundingClientRect(),viewport=window.visualViewport;
+    const left=viewport?.offsetLeft??0,top=viewport?.offsetTop??0;
+    return bounds.left>=left && bounds.top>=top && bounds.right<=left+(viewport?.width??innerWidth) && bounds.bottom<=top+(viewport?.height??innerHeight);
+  })).toBe(true);
+  const option = menu.getByRole('option', {name: optionName, exact: true});
+  await option.click({trial:true});
+  await option.press('Enter');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toContainText(optionName);
+  await trigger.press('ArrowDown');
+  await expect(menu.getByRole('option', {name: optionName, exact: true})).toHaveAttribute('aria-selected', 'true');
+  await menu.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+}
 
 /** Public feeds refresh on focus, preserving reader state. */
 export async function refreshFeed(page: Page) {

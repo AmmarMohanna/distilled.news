@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import {chooseSetting} from './helpers';
 
 const titles = ["Lebanese politics", "Global affairs", "AI and technology", "Business markets"];
 const feed = (index: number) => ({ id: `feed-${index}`, ownerUsername: "owner", slug: `feed-${index}`, title: `${titles[index % titles.length]} ${index}`, stars: 0, publicFeedEnabled: true });
@@ -150,14 +151,18 @@ test('first feed card keeps its top outline inside the grid on hover',async({pag
  }
 });
 
-test('feed card design switches in both directions when the window resizes',async({page})=>{
+test('compact feed cards adapt columns in both directions when the window resizes',async({page})=>{
  await page.setViewportSize({width:1920,height:1100});await openApp(page,5);
  const grid=page.locator('.adaptive-feed-grid:visible');
- await expect(grid).toHaveAttribute('data-size','large');
+ await expect(grid).toHaveAttribute('data-layout','list');
+ await expect(grid).toHaveAttribute('data-size','compact');
+ await expect.poll(()=>grid.evaluate(node=>getComputedStyle(node).getPropertyValue('--feed-columns').trim())).toBe('3');
  await page.setViewportSize({width:390,height:664});
  await expect(grid).toHaveAttribute('data-size','compact');
+ await expect.poll(()=>grid.evaluate(node=>getComputedStyle(node).getPropertyValue('--feed-columns').trim())).toBe('1');
  await page.setViewportSize({width:1920,height:1100});
- await expect(grid).toHaveAttribute('data-size','large');
+ await expect(grid).toHaveAttribute('data-size','compact');
+ await expect.poll(()=>grid.evaluate(node=>getComputedStyle(node).getPropertyValue('--feed-columns').trim())).toBe('3');
  await expect.poll(async()=>grid.locator('.topic-art').first().evaluate(n=>n.getBoundingClientRect().width)).toBeLessThanOrEqual(112);
 });
 
@@ -171,30 +176,37 @@ for(const width of [1280,390]) test(`create feed preferences use aligned grouped
  await expect(page.locator('.feed-preferences-disclosure')).toContainText('Private');
  await visibility.getByRole('radio',{name:'Public',exact:true}).check();
  await expect(visibility.getByRole('radio',{name:'Public',exact:true})).toBeChecked();
- expect(await preferences.locator('.feed-preference-row').evaluate(node=>getComputedStyle(node).fontWeight)).toBe(await preferences.locator('label').first().evaluate(node=>getComputedStyle(node).fontWeight));
+ const rowWeights=await preferences.locator('.feed-preference-row').evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).fontWeight));
+ expect(rowWeights).toHaveLength(4);
+ expect(rowWeights).toEqual(['500','500','500','500']);
  await expect(preferences.getByText('Schedule',{exact:true})).toBeVisible();
- await preferences.getByLabel('Briefing language').selectOption('fr');
- await expect(preferences.getByLabel('Briefing language')).toHaveValue('fr');
- await preferences.getByLabel('Update rhythm').selectOption('60');
+ await chooseSetting(preferences,'Briefing language','French');
+ await chooseSetting(preferences,'Update rhythm','Every hour');
  await expect(preferences.getByLabel('Deliver at')).toHaveCount(0);
- await preferences.getByLabel('Update rhythm').selectOption('1440');
+ await chooseSetting(preferences,'Update rhythm','Daily');
  await expect(preferences.getByLabel('Deliver at')).toBeVisible();
  expect(await preferences.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true);
  await preferences.screenshot({path:`test-results/feed-preferences-${width}.png`});
 });
 
-test('desktop card has readable identity and separate menu and open controls',async({page})=>{
+test('desktop card has readable linked identity and a separate menu control',async({page})=>{
  await page.setViewportSize({width:1920,height:1100});await openApp(page,5);
- const card=page.locator('.adaptive-feed-grid:visible .topic-card').first();
+ const card=page.getByRole('article').filter({has:page.getByRole('link',{name:'Lebanese politics 0 @owner',exact:true})});
  await expect(card.locator('.topic-name strong')).toBeVisible();
- expect(await card.locator('.topic-name strong').evaluate(n=>parseFloat(getComputedStyle(n).fontSize))).toBeGreaterThanOrEqual(16);
+ await expect(card.locator('.topic-name strong')).toHaveCSS('font-size','15px');
+ expect(await card.locator('.topic-name strong').evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
  const geometry=await card.evaluate(node=>{
   const card=node.getBoundingClientRect();
   const menu=node.querySelector('.feed-options')!.getBoundingClientRect();
-  const arrow=node.querySelector('.feed-card-open')!.getBoundingClientRect();
-  return {menuOffset:menu.top-card.top,separation:arrow.top-menu.bottom};
+  const identity=node.querySelector('.feed-card-identity')!.getBoundingClientRect();
+  return {inside:menu.left>=card.left && menu.right<=card.right && menu.top>=card.top && menu.bottom<=card.bottom && identity.left>=card.left && identity.right<=card.right && identity.top>=card.top && identity.bottom<=card.bottom,overlap:Math.max(0,Math.min(menu.right,identity.right)-Math.max(menu.left,identity.left))*Math.max(0,Math.min(menu.bottom,identity.bottom)-Math.max(menu.top,identity.top))};
  });
- await expect(card.locator('a').first()).toHaveAttribute('href', (await card.locator('.feed-card-open').getAttribute('href'))!);
+ expect(geometry.inside).toBe(true);
+ expect(geometry.overlap).toBe(0);
+ await expect(card.getByRole('link')).toHaveAttribute('href','/owner/feed-0/');
+ await card.locator('.feed-card-identity').click({trial:true});
+ await expect(card.locator('.feed-card-open')).toBeHidden();
  await expect(card.locator('.feed-options summary')).toBeVisible();
+ await card.locator('.feed-options summary').click({trial:true});
  await card.screenshot({path:'test-results/desktop-feed-card.png'});
 });

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { cycleLanguage } from "./helpers";
+import { chooseSetting, cycleLanguage } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", route => {
@@ -24,8 +24,7 @@ for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }, {
     await dialog.getByLabel("What would you like to follow?", { exact: true }).fill("Botanical discoveries");
     await expect(dialog.getByLabel("Time zone", { exact: true })).toHaveCount(0);
     await dialog.getByRole("button", { name: "Preferences", exact: true }).click();
-    await dialog.getByLabel('Briefing language').selectOption('fr');
-    await expect(dialog.getByLabel('Briefing language')).toHaveValue('fr');
+    await chooseSetting(dialog,'Briefing language','French');
     const bounds = await dialog.boundingBox();
     expect(bounds!.y).toBeGreaterThanOrEqual(0);
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
@@ -42,14 +41,19 @@ test("website language cycles en fr ar en without a menu", async ({ page }) => {
   await expect(page.locator(".language-menu")).toHaveCount(0);
 });
 
-test("feeds are public and expose no private visibility control", async ({ page }) => {
+test("new feeds default to Public and retain explicit Private visibility controls", async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create feed', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Preferences', exact: true }).click();
   await expect(dialog.locator('.feed-preferences-disclosure')).toContainText('Public');
-  await expect(dialog.getByLabel('Visibility', { exact: true })).toHaveCount(0);
-  await expect(dialog.getByRole('option', { name: 'Private', exact: true })).toHaveCount(0);
+  const visibility=dialog.getByRole('group',{name:'Feed visibility',exact:true});
+  await expect(visibility.getByRole('radio',{name:'Public',exact:true})).toBeChecked();
+  await visibility.getByRole('radio',{name:'Private',exact:true}).check();
+  await expect(visibility.getByRole('radio',{name:'Private',exact:true})).toBeChecked();
+  await expect(dialog.getByRole('button',{name:'Preferences',exact:true})).toContainText('Private');
+  await visibility.getByRole('radio',{name:'Public',exact:true}).check();
+  await expect(dialog.getByRole('button',{name:'Preferences',exact:true})).toContainText('Public');
   await expect(dialog.getByLabel('What would you like to follow?', { exact: true })).toHaveCount(1);
   await expect(dialog.getByLabel('What would you like to follow?', { exact: true })).toHaveAttribute('placeholder', 'e.g. topics, keywords...');
 });
@@ -119,13 +123,15 @@ for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { 
       return rows.slice(1).every((row, index) => Math.abs(row.top - rows[index].bottom - gap) < 1);
     })).toBe(true);
     await expect(page.locator('.personal-feed-grid')).toHaveCSS('margin-top', '8px');
-    await expect.poll(() => page.evaluate(() => {
-      const navigation = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
-      const bottom = innerWidth < 900 ? navigation?.top ?? innerHeight : innerHeight;
-      return [...document.querySelectorAll('.personal-feed-grid .topic-card')].every(node => {
-        const card = node.getBoundingClientRect();
-        return card.top >= bottom - 1 || card.bottom <= bottom + 1;
-      });
+    // Rows scroll continuously across the fold; the final row must remain reachable.
+    const lastCard=page.locator('.personal-feed-grid .topic-card').last();
+    await lastCard.scrollIntoViewIfNeeded();
+    await expect(lastCard).toBeInViewport();
+    await expect.poll(()=>lastCard.evaluate(node=>{
+      const card=node.getBoundingClientRect(),viewport=node.closest('.screen-page-viewport')!.getBoundingClientRect();
+      const navigation=document.querySelector('.bottom-navigation')!.getBoundingClientRect();
+      const bottom=Math.min(viewport.bottom,innerWidth<900?navigation.top:innerHeight);
+      return card.top>=viewport.top-1 && card.bottom<=bottom+1 && card.left>=0 && card.right<=innerWidth;
     })).toBe(true);
 
 

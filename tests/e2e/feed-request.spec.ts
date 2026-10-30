@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { refreshFeed } from "./helpers";
+import { chooseSetting, refreshFeed } from "./helpers";
 const feed = { id: "one", ownerAccountId: "owner", ownerUsername: "admin", slug: "personal", title: "Personal Briefing", stars: 0, interestProfile: "News", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "UTC", retentionDays: 15 };
 test("requested feed layout and language controls", async ({ page }) => {
   await page.route("**/api/**", route => {
@@ -15,7 +15,8 @@ test("requested feed layout and language controls", async ({ page }) => {
   const card = page.locator(".personal-feed-grid .topic-card");
   await expect(card.locator(".feed-card-identity strong")).toHaveText("Personal Briefing");
   await expect(card.locator(".feed-card-identity small")).toHaveText("@admin");
-  await expect(card.locator(".feed-card-status")).toHaveText("Live");
+  await expect(card.locator(".feed-card-status")).toHaveCount(0);
+  await expect(card.getByRole('link').first()).toHaveAttribute('href','/admin/personal/');
   await expect(card.locator("time")).toContainText("Updated");
   await expect(card.locator(".topic-art")).toBeVisible();
   await expect(page.locator(".distilled-logo-dot").first()).toHaveCSS("color", "rgb(94, 92, 230)");
@@ -28,10 +29,11 @@ test("requested feed layout and language controls", async ({ page }) => {
   await page.getByRole("button", { name: "Create feed", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Add feed" });
   await dialog.getByRole("button", { name: "Preferences" }).click();
-  const languages=dialog.getByLabel("Briefing language");
-  await expect(languages.locator("option")).toHaveCount(3);
-  await languages.selectOption("fr");
-  await expect(languages).toHaveValue("fr");
+  await dialog.getByRole('button',{name:'Briefing language English',exact:true}).click();
+  const languages=dialog.getByRole('listbox',{name:'Briefing language',exact:true});
+  await expect(languages.getByRole('option')).toHaveText(['English','French','Arabic']);
+  await languages.press('Escape');
+  await chooseSetting(dialog,'Briefing language','French');
 });
 
 for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }]) test(`create feed fits ${size.width}x${size.height} with reachable preferences`, async ({ page }) => {
@@ -53,8 +55,9 @@ for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 664 }]) 
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height + 1);
   await dialog.getByRole("button", { name: "Preferences" }).click();
-  await dialog.getByLabel("Briefing language").scrollIntoViewIfNeeded();
-  await expect(dialog.getByLabel("Briefing language")).toBeInViewport();
+  const language=dialog.getByRole('button',{name:'Briefing language English',exact:true});
+  await language.scrollIntoViewIfNeeded();
+  await expect(language).toBeInViewport();
 });
 
 test("phone install control explains the browser install path", async ({ browser }) => {
@@ -79,7 +82,7 @@ test("phone install control explains the browser install path", async ({ browser
   await context.close();
 });
 
-for(const width of [1280,390])test(`scheduled processing remains visible without manual generation at ${width}px`,async({page})=>{
+for(const width of [1280,390])test(`pending scheduled work retains the empty reader without manual generation at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:800});let calls=0;
  const activeFeed={...feed,paused:false};
  await page.route('**/api/**',route=>{
@@ -92,6 +95,9 @@ for(const width of [1280,390])test(`scheduled processing remains visible without
  });
  await page.goto('/admin/personal/');
  await expect(page.getByRole('button',{name:/brief now/i})).toHaveCount(0);
- await expect(page.getByText(/Reviewing collected items/)).toBeVisible();
- await refreshFeed(page);expect(calls).toBe(0);
+ await expect(page.getByText('no published briefings',{exact:true})).toBeVisible();
+ await expect(page.getByText('The next scheduled briefing will appear here.',{exact:true})).toBeVisible();
+ await expect(page.getByText('No new developments in the latest scheduled briefing.',{exact:true})).toHaveCount(0);
+ const refreshed=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/feed/admin/personal');
+ await refreshFeed(page);await refreshed;expect(calls).toBe(0);
 });

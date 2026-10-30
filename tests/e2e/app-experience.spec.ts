@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { cycleLanguage, openEditSettings } from "./helpers";
+import { chooseSetting, cycleLanguage, openEditSettings } from "./helpers";
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
@@ -145,9 +145,9 @@ test('feed language and advanced settings persist independently of website langu
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.locator('.feed-preferences-disclosure').click();
- await expect(dialog.locator('.feed-preferences-fields select').last()).toHaveValue('en');
+ await expect(dialog.getByRole('button',{name:'Langue du bulletin Anglais',exact:true})).toBeVisible();
  expect(edits).toHaveLength(0);
- await dialog.locator('.feed-preferences-fields select').last().selectOption('ar');
+ await chooseSetting(dialog,'Langue du bulletin','Arabe');
  await expect(dialog.getByLabel('Fuseau horaire')).toHaveCount(0);
  const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/feeds')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Enregistrer',exact:true}).click();
@@ -156,7 +156,7 @@ test('feed language and advanced settings persist independently of website langu
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  await page.locator('.feed-preferences-disclosure').click();
- await expect(page.locator('.feed-preferences-fields select').last()).toHaveValue('ar');
+ await expect(dialog.getByRole('button',{name:'Langue du bulletin Arabe',exact:true})).toBeVisible();
  await page.mouse.click(4,4);
  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
@@ -186,7 +186,7 @@ test('new feed keeps the language selected in advanced settings',async({page})=>
  await dialog.getByLabel('Sources',{exact:true}).fill('https://example.test/feed.xml');
  await dialog.getByRole('button',{name:'Add source',exact:true}).click();
  await dialog.locator('.feed-preferences-disclosure').click();
- await dialog.locator('.feed-preferences-fields select').last().selectOption('ar');
+ await chooseSetting(dialog,'Briefing language','Arabic');
  const deviceZone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
  const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/feeds')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Create feed',exact:true}).click();
@@ -194,9 +194,27 @@ test('new feed keeps the language selected in advanced settings',async({page})=>
  await expect(page).toHaveURL(/\/joud\/science-today\/$/);
  await openEditSettings(page);
  await page.locator('.feed-preferences-disclosure').click();
- await expect(page.locator('.feed-preferences-fields select').last()).toHaveValue('ar');
+ await expect(dialog.getByRole('button',{name:'Briefing language Arabic',exact:true})).toBeVisible();
  await expect(page.locator('.feed-preferences-disclosure')).toContainText('Public');
  await expect(page.locator('html')).toHaveAttribute('lang','en');
+});
+
+for(const size of [{width:320,height:568},{width:667,height:375}])test(`Arabic preference menus stay reachable at ${size.width}x${size.height}`,async({page},info)=>{
+ await page.setViewportSize(size);
+ await page.addInitScript(()=>localStorage.setItem('dn_language','ar'));
+ await mock(page);await page.goto('/');
+ await page.getByRole('button',{name:'إنشاء خلاصة',exact:true}).click();
+ const dialog=page.getByRole('dialog');
+ await dialog.getByRole('button',{name:'التفضيلات',exact:true}).click();
+ await chooseSetting(dialog,'لغة الملخص','الفرنسية');
+ await expect(page.locator('html')).toHaveAttribute('dir','rtl');
+ await expect(page.locator('html')).toHaveAttribute('lang','ar');
+ await dialog.getByRole('button',{name:'لغة الملخص الفرنسية',exact:true}).press('ArrowDown');
+ const menu=dialog.getByRole('listbox',{name:'لغة الملخص',exact:true});
+ await expect(menu.getByRole('option',{name:'الفرنسية',exact:true})).toHaveAttribute('aria-selected','true');
+ await page.screenshot({path:info.outputPath('rtl-language-menu.png')});
+ await menu.press('Escape');
+ await expect(menu).toBeHidden();
 });
 
 test('account and help dialogs dismiss outside without dismissing on an inside click',async({page})=>{
