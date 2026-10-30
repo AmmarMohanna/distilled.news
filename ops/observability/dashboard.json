@@ -1,0 +1,466 @@
+{
+  "uid": "distilled-agentops-v1",
+  "title": "Distilled AgentOps \u2014 private scoped evidence",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": [
+    "distilled",
+    "private",
+    "provisional"
+  ],
+  "timezone": "utc",
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_METRICS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Private snapshot metrics"
+      },
+      {
+        "name": "DS_LOGS",
+        "type": "datasource",
+        "query": "loki",
+        "label": "Private Worker logs"
+      },
+      {
+        "name": "service",
+        "type": "textbox",
+        "query": "distilled-news-staging",
+        "current": {
+          "text": "distilled-news-staging",
+          "value": "distilled-news-staging"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "1. Persisted publication outcomes (not reader-confirmed)",
+      "type": "timeseries",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 1. Persisted publication outcomes (not reader-confirmed)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_publication_(published|quiet|deferred|failed|blocked|pending|unknown)\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "1. Observed invocation errors / 5m",
+      "type": "timeseries",
+      "description": "Sampled invocation failures only; no publication-success denominator.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOGS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (boundary) (count_over_time({service_name=~\"$service\"} | json | schema=\"agentops.v1\" | outcome=\"error\" [5m]))",
+          "legendFormat": "{{boundary}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "2. Retained acquisition/reassessment pending and running",
+      "type": "timeseries",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 2. Retained acquisition/reassessment pending and running",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_jobs_(acquire|reassess)_(pending|running)\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "2. Retained delivery attempts requiring investigation",
+      "type": "timeseries",
+      "description": "Retained delivery attempts and oldest known pending-age proxy. Legacy enqueue timestamps may be missing; review coverage gauges.",
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_queue_.*\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        },
+        {
+          "refId": "B",
+          "expr": "distilled_oldest_observed_pending_age_ms{job=\"distilled-snapshot\"}",
+          "legendFormat": "Oldest timestamped pending job (ms)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "3. Recorded publication delay and model latency R7 p95",
+      "type": "timeseries",
+      "description": "Publication uses scheduledFor to recorded publishedAt. Exact end-to-end reader latency unavailable; show sample count next to p95.",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_(publication|model)_duration_ms_p95\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        },
+        {
+          "refId": "B",
+          "expr": "{__name__=~\"distilled_v3_(edit|verify|repair|consolidate)_duration_ms_p95\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "3. Duration sample counts",
+      "type": "timeseries",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 3. Duration sample counts",
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_(publication|model)_duration_samples\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "4. Costs and held exposure (separate accounting meanings)",
+      "type": "timeseries",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 4. Costs and held exposure (separate accounting meanings)",
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_(settled_cost_usd|confirmed_partial_cost_usd|provider_reported_partial_cost_usd|held_exposure_usd|reserved_ceiling_usd)\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "4. Missing cost and unsettled operation counts",
+      "type": "timeseries",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 4. Missing cost and unsettled operation counts",
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_(unknown_cost_operations|unsettled_operations)\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "5. Last-known source collection state",
+      "type": "timeseries",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 5. Last-known source collection state",
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_source_.*\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "5. Explicit incomplete coverage",
+      "type": "timeseries",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 5. Explicit incomplete coverage",
+      "gridPos": {
+        "x": 12,
+        "y": 36,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_coverage_incomplete{job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "title": "6. Recovery obligations (retained exhausted/rejected deliveries)",
+      "type": "timeseries",
+      "description": "Recovery obligation, not evidence of completed recovery. Follow runbooks; retain original identities.",
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{__name__=~\"distilled_queue_(delivery_exhausted|delivery_rejected)\",job=\"distilled-snapshot\"}",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "6. Invocation duration p95 (observed logs)",
+      "type": "timeseries",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 6. Invocation duration p95 (observed logs)",
+      "gridPos": {
+        "x": 12,
+        "y": 45,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOGS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.95, {service_name=~\"$service\"} | json | schema=\"agentops.v1\" | unwrap duration_ms | __error__=\"\" [5m]) by (boundary)",
+          "legendFormat": "{{boundary}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "title": "7. Successful / unsuccessful diagnostic investigations",
+      "type": "timeseries",
+      "description": "Success means administrator trace read completed. Pipeline results appear in section 1; these concepts must remain separate.",
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOGS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (count_over_time({service_name=~\"$service\"} | json | schema=\"agentops.v1\" | boundary=\"investigation\" [5m]))",
+          "legendFormat": "{{boundary}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "title": "7. Telemetry availability and missingness",
+      "type": "timeseries",
+      "description": "Private textfile bridge replaces stale application gauges with observer_up=0; query-observation timestamp differs from projection time. Missing series need observer diagnosis.",
+      "gridPos": {
+        "x": 12,
+        "y": 54,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_METRICS}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_observer_up{job=\"distilled-snapshot\"}",
+          "legendFormat": "Local exporter health"
+        },
+        {
+          "refId": "B",
+          "expr": "time() - distilled_snapshot_observed_timestamp_seconds{job=\"distilled-snapshot\"}",
+          "legendFormat": "Input age (seconds)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

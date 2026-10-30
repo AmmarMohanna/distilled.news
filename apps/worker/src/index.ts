@@ -1,3 +1,4 @@
+import {observeInvocation,emitAgentOps} from './agentops';
 import {runStorageMaintenance} from './storage-maintenance';
 import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefing';
 import {recordV1QueueOutcome} from './v1-queue-dispatch';
@@ -47,9 +48,9 @@ const STALE_PROCESSING_JOB_REQUEUE_LIMIT = 25;
 const SLOW_QUEUE_JOB_MS = 10_000;
 
 export default {
-  fetch: async (request: Request, env: Env, ctx: ExecutionContext) => app.fetch(request, await productRuntimeEnv(env), ctx),
+  fetch: async (request: Request, env: Env, ctx: ExecutionContext) => env.AGENTOPS_ENABLED==='true' ? observeInvocation('fetch',async()=>app.fetch(request,await productRuntimeEnv(env),ctx)) : app.fetch(request,await productRuntimeEnv(env),ctx),
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runScheduledMaintenance(env));
+    ctx.waitUntil(env.AGENTOPS_ENABLED==='true'?observeInvocation('scheduled',()=>runScheduledMaintenance(env)):runScheduledMaintenance(env));
   },
   async queue(batch: MessageBatch<DistilledQueueMessage | WebOperatorRunMessage>, env: Env): Promise<void> {
     env = await productRuntimeEnv(env);
@@ -60,11 +61,12 @@ export default {
     for (const message of batch.messages) {
       const delivery=decodeConnectorDelivery(message.body),body=delivery.body;
       if(isRecord(body)&&['connector_feed','connector_poll','connector_relay'].includes(String(body.type))){
-        try{await processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token);message.ack();}
+        try{await (env.AGENTOPS_ENABLED==='true'?observeInvocation('queue',()=>processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token)):processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token));message.ack();}
         catch{await recordConnectorQueueFailure(env,message.id,body as ConnectorQueueMessage,message.attempts);message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
         continue;
       }
       const startedAt = Date.now();
+      const monotonicStart=performance.now();
       const bodyType = queueBodyType(body);
       let bodyId = queueBodyId(body);
       let latencyOutcome='SUCCEEDED';
@@ -153,6 +155,7 @@ export default {
           message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
         }
       }finally{
+        if(env.AGENTOPS_ENABLED==='true')emitAgentOps('queue',latencyOutcome==='SUCCEEDED'?'ok':'error',performance.now()-monotonicStart);
         if(isRecord(body)&&typeof body.type==='string'&&body.type.startsWith('v1_'))console.info(JSON.stringify({type:'V1_QUEUE_LATENCY',messageId:message.id,workType:bodyType,workId:bodyId,attempts:message.attempts,queueWaitMs:message.timestamp?Math.max(0,startedAt-message.timestamp.getTime()):undefined,durationMs:Date.now()-startedAt,outcome:latencyOutcome}));
         if(workHeartbeat!==undefined)clearInterval(workHeartbeat);if(renewingWork)await renewingWork;
       }
