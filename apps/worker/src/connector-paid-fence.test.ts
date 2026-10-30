@@ -30,3 +30,10 @@ it('admits future collection only for a hash-bound operator acknowledgement with
  expect(await hasUncertainSourcePayment(ctx.db,'ack-feed','ack-source',['x_twitterapi_io'])).toBe(false);
  expect(await ctx.db.prepare("SELECT status,payload_ref,ceiling_usd FROM connector_provider_operations WHERE operation_id='ack-old'").first()).toEqual({status:-1,payload_ref:null,ceiling_usd:.01});
 });
+it('does not label a live in-flight request as an unknown charge, but still serializes collection',async()=>{
+ await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,headers,feed_id,feed_source_id) VALUES('x_twitterapi_io','live-read','h',0.01,-1,?,'live-feed','live-source')").bind(JSON.stringify({claimExpiresAt:new Date(Date.now()+120000).toISOString()})).run();
+ expect(await hasUncertainSourcePayment(ctx.db,'live-feed','live-source',['x_twitterapi_io'])).toBe(true);
+ expect(await hasUncertainSourcePayment(ctx.db,'live-feed','live-source',['x_twitterapi_io'],true)).toBe(false);
+ await ctx.db.prepare("UPDATE connector_provider_operations SET headers=? WHERE operation_id='live-read'").bind(JSON.stringify({claimExpiresAt:new Date(Date.now()-1000).toISOString()})).run();
+ expect(await hasUncertainSourcePayment(ctx.db,'live-feed','live-source',['x_twitterapi_io'],true)).toBe(true);
+});

@@ -27,3 +27,6 @@ failures with exactly one provider call and one reservation. Fourteen worker tes
 passed, including cooldown, scope, paused feeds, active/legacy/other-provider
 exclusion, idempotency, retained reservations and source availability. Typechecks
 and final QA build are checked before deployment. No new spending grant is added.
+Public availability now distinguishes active in-flight claims from expired/failed
+unknown charges. Admission still fences both, so this display correction cannot
+permit a duplicate dispatch. Final worker regression count: 19 passed.

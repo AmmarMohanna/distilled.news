@@ -49,7 +49,7 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   }
   const table=source?.source.family==='rss'?'connector_rss_poll_jobs':'connector_provider_poll_jobs';
   let paidUncertain=financial&&source&&(source.source.family.startsWith('x_')||source.source.family.startsWith('linkedin_'))?
-   await hasUncertainSourcePayment(env.DB,feedId,row.id,source.source.family.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify']):undefined;
+   await hasUncertainSourcePayment(env.DB,feedId,row.id,source.source.family.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify'],true):undefined;
   if(paidUncertain){
    availability.state='UNAVAILABLE';availability.reason='PAID_OPERATION_UNCERTAIN';
   }
@@ -57,7 +57,7 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   // outcome visible until a later poll actually finishes or reports a failure.
   const latest=await env.DB.prepare(`SELECT state,last_error,result FROM ${table} WHERE json_extract(request,'$.scope.feedSourceId')=? AND (state IN ('DONE','BLOCKED') OR last_error IS NOT NULL) ORDER BY CASE WHEN state IN ('DONE','BLOCKED') OR last_error NOT IN ('INTAKE_BUSY','BACKPRESSURE') THEN 0 ELSE 1 END,scheduled_at DESC,job_id DESC LIMIT 1`).bind(row.id).first<{state:string;last_error:string|null;result:string|null}>();
   if(financial&&latest?.last_error==='UNCERTAIN_PAID_SUBMISSION'&&paidUncertain===undefined)
-   paidUncertain=await hasUncertainSourcePayment(env.DB,feedId,row.id,source?.source.family==='google_news'?['google_apify','zyte']:['zyte']);
+   paidUncertain=await hasUncertainSourcePayment(env.DB,feedId,row.id,source?.source.family==='google_news'?['google_apify','zyte']:['zyte'],true);
   const historicalPaidBlock=latest?.last_error==='UNCERTAIN_PAID_SUBMISSION'&&paidUncertain===false;
   if(latest?.state==='BLOCKED'&&!historicalPaidBlock&&availability.state==='AVAILABLE'&&(enforceBudgets||latest.last_error!=='BUDGET_EXCEEDED')){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
   const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0,issues:acquisitionFailureIssues(acquired.results.filter(j=>j.feed_source_id===row.id&&j.state==='FAILED'))};
