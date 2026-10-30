@@ -896,3 +896,13 @@ it('resumes a proven existing-run read after process loss before failure journal
  const collector=new FallbackSourceCollector(repository,s.payloads,s.intake,[new ApifySourceProvider(providerId,['x_profile'],http,async()=> 'synthetic',.1)],()=>time);
  expect((await collector.collect(input,order)).state).toBe('HANDED_OFF');expect(dispatch).toHaveBeenCalledTimes(2);expect(dispatch.mock.calls.every(([u])=>!u.includes('/actors/'))).toBe(true);
 });
+it('retries receipt persistence after transient database errors without repeating the paid request',async()=>{
+ const s=setup([]),dispatch=vi.fn(async()=>Response.json({ok:true}));let failures=0;
+ const db=new Proxy(s.db,{get(target,key){if(key==='prepare')return (query:string)=>{const stmt=target.prepare(query);return {bind(...args:unknown[]){stmt.bind(...args);return this},first:stmt.first.bind(stmt),run:async()=>{if(query.startsWith('UPDATE connector_provider_operations SET payload_ref=')&&failures++<2)throw Error('temporary D1 reset');return stmt.run()}} };const value=target[key as keyof typeof target];return typeof value==='function'?value.bind(target):value}});
+ const http=new DurableProviderHttp(db,s.payloads,dispatch);await http.configureLimit('x_twitterapi_io',1);
+ await http.request(scope,'persist-retry','x_twitterapi_io',.01,'https://api.twitterapi.io/twitter/tweets',{});
+ await http.request(scope,'persist-retry','x_twitterapi_io',.01,'https://api.twitterapi.io/twitter/tweets',{});
+ expect(dispatch).toHaveBeenCalledTimes(1);expect(failures).toBe(3);
+ expect(await s.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='x_twitterapi_io'").first()).toEqual({reserved_usd:.01});
+ expect((await s.db.prepare('SELECT status,payload_ref FROM connector_provider_operations').first<any>())?.status).toBe(200);
+});

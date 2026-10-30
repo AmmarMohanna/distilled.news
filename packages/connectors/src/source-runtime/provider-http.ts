@@ -199,10 +199,12 @@ export class DurableProviderHttp implements ProviderHttpPort {
     catch {void reader?.cancel().catch(()=>{});return uncertain('RESPONSE_BODY',size>this.maxBytes?'BODY_TOO_LARGE':abort.signal.aborted?'TIMEOUT':'TRANSPORT',response);}
     finally {clearTimeout(timer!);reader?.releaseLock();}
     const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
-    const payload=await this.payloads.put(scope,bytes,'application/json');
+    // Retry storage of the already downloaded bytes, never the billed HTTP request.
+    const persist=async<T>(write:()=>Promise<T>):Promise<T>=>{for(let attempt=0;;attempt++){try{return await write()}catch(error){if(attempt>=2)throw error;await new Promise(resolve=>setTimeout(resolve,200*(attempt+1)));}}};
+    const payload=await persist(()=>this.payloads.put(scope,bytes,'application/json'));
     const headers:Record<string,string>={};for(const name of ['retry-after','content-type','zyte-request-id']){const v=response.headers.get(name);if(v)headers[name]=v;}
-    await this.db.prepare('UPDATE connector_provider_operations SET payload_ref=?,status=?,headers=? WHERE provider_id=? AND operation_id=? AND headers=?')
-      .bind(payload.ref,response.status,JSON.stringify(headers),providerId,scoped,claimHeaders).run();
+    await persist(()=>this.db.prepare('UPDATE connector_provider_operations SET payload_ref=?,status=?,headers=? WHERE provider_id=? AND operation_id=? AND headers=?')
+      .bind(payload.ref,response.status,JSON.stringify(headers),providerId,scoped,claimHeaders).run());
     return this.decode(response.status,headers,bytes);
   }
   private decode(status:number,headers:Record<string,string>,bytes:Uint8Array):ProviderHttpResult {

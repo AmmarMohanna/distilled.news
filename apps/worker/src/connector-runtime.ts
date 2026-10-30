@@ -1,3 +1,4 @@
+import {recoverExpiredTwitterReads} from './source-fresh-poll-recovery';
 import {HandoffError,sha256,type CandidateIntakePort} from '@distilled/contracts';
 import {DEFAULT_SOURCE_ORDER,type SourceFetchRequest} from '@distilled/connectors';
 import {createSourceBackend} from './source-backend';
@@ -139,6 +140,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   if((paidFamily==='x_profile'||paidFamily==='x_search')&&
     !((budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0)||(budgets.x_apify>0&&ceilings.apify>0)))continue;
   if(paidFamily.startsWith('linkedin_')&&!(budgets.linkedin_apify>0&&ceilings.apify>0))continue;
+  if(paidFamily.startsWith('x_'))await recoverExpiredTwitterReads(env,row.briefing_id,id,now);
   if((paidFamily.startsWith('x_')||paidFamily.startsWith('linkedin_'))&&await hasUncertainSourcePayment(env.DB,
    row.briefing_id,id,
    paidFamily.startsWith('x_')?['x_twitterapi_io','x_apify']:['linkedin_apify']))continue;
