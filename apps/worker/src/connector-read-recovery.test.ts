@@ -2,6 +2,7 @@ import {createApp} from './app';
 import {InMemoryRepository} from './repository';
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {sha256} from '@distilled/contracts';
+import {TESTED_ACTORS} from '@distilled/connectors';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import * as authorization from './connector-runtime';
 import {reconcileApifyRead,recoverInterruptedApifyRead} from './connector-read-recovery';
@@ -35,6 +36,30 @@ it('automatic recovery preserves unknown actor starts and refuses unrelated feed
  await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,feed_id,feed_source_id) VALUES('x_apify',?,'start-hash',0.25,-1,?,?)").bind(await sha256(JSON.stringify([scope,runId+':start'])),scope.feedId,scope.feedSourceId).run();
  expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(false);expect(fetcher).not.toHaveBeenCalled();
  expect(await ctx.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'BLOCKED'});
+});
+async function seedRevisedReadSource(){
+ await ctx.db.prepare("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,created_at,updated_at) VALUES('read-owner','read@example.invalid','read@example.invalid','read-owner','user','hash','2026-10-29','2026-10-29')").run();
+ await ctx.db.prepare("INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,created_at,updated_at) VALUES('read-feed','read-owner','read','Read','news','2026-10-29','2026-10-29')").run();
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,actor_id,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('read-source','read-feed','test','channel','apify','x_profile','https://x.com/test','https://x.com/test',?,1,'connector','2026-10-29','2026-10-29','2026-10-29')").bind(TESTED_ACTORS.x).run();
+ await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind(scope.feedId,JSON.stringify({ownerId:'read-owner',revision:2,paused:false})).run();
+ await ctx.db.prepare('INSERT INTO v1_intake_scopes(id,feed_id,source_id,json) VALUES(?,?,?,?)').bind(scope.feedSourceId,scope.feedId,scope.sourceId,JSON.stringify({enabled:true,feedRevision:2})).run();
+ vi.mocked(authorization.authorizeConnectorSource).mockResolvedValue(false);
+}
+it('recovers only the old receipt across a feed revision without resuming or rebinding the frozen poll',async()=>{
+ await seedRevisedReadSource();const original=await ctx.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='read-job'").first();
+ const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(response());
+ expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(true);expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(await ctx.db.prepare('SELECT status,payload_ref IS NOT NULL retained FROM connector_provider_operations').first()).toEqual({status:200,retained:1});
+ expect(await ctx.db.prepare("SELECT state,last_error FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual({state:'BLOCKED',last_error:'UNCERTAIN_PAID_SUBMISSION'});
+ expect(await ctx.db.prepare("SELECT request FROM connector_provider_poll_jobs WHERE job_id='read-job'").first()).toEqual(original);
+ expect(await ctx.db.prepare("SELECT reserved_usd FROM connector_provider_budgets WHERE provider_id='x_apify'").first()).toEqual({reserved_usd:0.250001});
+});
+it.each(['paused','different-source','disabled-owner'])('refuses retained receipt recovery for %s',async mode=>{
+ await seedRevisedReadSource();
+ if(mode==='paused')await ctx.db.prepare("UPDATE briefings SET paused=1 WHERE id='read-feed'").run();
+ if(mode==='different-source')await ctx.db.prepare("UPDATE sources SET source_url='https://x.com/other',input='https://x.com/other' WHERE id='read-source'").run();
+ if(mode==='disabled-owner')await ctx.db.prepare("UPDATE accounts SET disabled_at='2026-10-30' WHERE id='read-owner'").run();
+ const fetcher=vi.spyOn(globalThis,'fetch');expect(await recoverInterruptedApifyRead(env,scope.feedId,scope.feedSourceId)).toBe(false);expect(fetcher).not.toHaveBeenCalled();
 });
 it('resumes a poll blocked before dispatch once another source owns the legacy hold',async()=>{
  await ctx.db.prepare("UPDATE connector_provider_operations SET feed_id='other-feed',feed_source_id='other-source'").run();

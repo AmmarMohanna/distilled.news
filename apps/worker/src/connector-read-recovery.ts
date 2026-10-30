@@ -2,6 +2,25 @@ import {sha256} from '@distilled/contracts';
 import {R2SourcePayloadStore,type SourceFetchRequest} from '@distilled/connectors';
 import {authorizeConnectorSource} from './connector-runtime';
 import type {Env} from './types';
+import {productConnectorSource} from './connector-source';
+import {canonicalJson} from './v1-intake/canonical';
+
+/** An old financial receipt may be recovered after a feed revision changes.
+ * Source identity, owner, current approval and the exact GET hash still bind it.
+ * This permission never authorizes replay of the old collection/handoff. */
+async function retainedReadApproved(env:Env,request:SourceFetchRequest):Promise<boolean>{
+ if(await authorizeConnectorSource(env,request))return true;
+ const row=await env.DB.prepare(`SELECT s.provider,s.kind,s.source_url,s.input,s.actor_id FROM sources s
+ JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id
+ JOIN v1_feeds f ON f.id=b.id AND json_extract(f.json,'$.ownerId')=b.owner_account_id
+ JOIN v1_intake_scopes v ON v.id=s.id AND v.feed_id=b.id
+ WHERE s.id=? AND b.id=? AND v.source_id=? AND s.enabled=1 AND s.collection_owner='connector'
+ AND b.paused=0 AND a.disabled_at IS NULL AND json_extract(v.json,'$.enabled')=1
+ AND json_extract(v.json,'$.deletedAt') IS NULL AND json_extract(f.json,'$.deletedAt') IS NULL`)
+ .bind(request.scope.feedSourceId,request.scope.feedId,request.scope.sourceId).first<{provider:string;kind:string;source_url:string|null;input:string|null;actor_id:string|null}>();
+ const approved=row&&productConnectorSource(row);
+ return !!approved&&canonicalJson(approved.source)===canonicalJson(request.source)&&Number.isSafeInteger(request.limit)&&request.limit>0&&request.limit<=approved.limit;
+}
 
 /** Bounded recovery of a legacy result GET, never an actor submission. The
  * exact run/cursor and endpoint hash are revalidated by reconcileApifyRead.
@@ -19,7 +38,9 @@ export async function recoverInterruptedApifyRead(env:Env,feedId:string,sourceId
  ORDER BY p.scheduled_at,p.job_id LIMIT 1`).bind(feedId,sourceId,new Date().toISOString(),feedId,sourceId,new Date().toISOString()).first<{job_id:string}>();
  if(!row)return false;
  try{
-  await reconcileApifyRead(env,row.job_id);
+  await reconcileApifyRead(env,row.job_id,fetch,{retainedReadOnly:true});
+  const saved=await env.DB.prepare('SELECT request FROM connector_provider_poll_jobs WHERE job_id=?').bind(row.job_id).first<{request:string}>();
+  if(!saved||!await authorizeConnectorSource(env,JSON.parse(saved.request)))return true;
   const {recoverConnectorPoll}=await import('./connector-scheduling');
   await recoverConnectorPoll(env,'provider',row.job_id);return true;
  }catch(error){
@@ -31,13 +52,14 @@ export async function recoverInterruptedApifyRead(env:Env,feedId:string,sourceId
 /** Operator-only reconciliation of an already identified Apify run. It never
  * invokes an actor, refunds a reservation, changes a sequence or fabricates a
  * response. Endpoint/method hashes must match the original durable operation. */
-export async function reconcileApifyRead(env:Env,jobId:string,fetcher:typeof fetch=fetch){
+export async function reconcileApifyRead(env:Env,jobId:string,fetcher:typeof fetch=fetch,options?:{retainedReadOnly:true}){
  const job=await env.DB.prepare('SELECT request,last_error,lease_until FROM connector_provider_poll_jobs WHERE job_id=?').bind(jobId).first<{request:string;last_error:string|null;lease_until:string|null}>();
  if(!job)throw Error('POLL_NOT_FOUND');
  if(job.lease_until&&Date.parse(job.lease_until)>Date.now())throw Error('POLL_LEASE_ACTIVE');
  const request=JSON.parse(job.request) as SourceFetchRequest,providerId=request.continuation?.providerId;
  if(!providerId||!['x_apify','google_apify','linkedin_apify'].includes(providerId)||!env.APIFY_API_TOKEN)throw Error('READ_RECOVERY_UNAVAILABLE');
- if(!await authorizeConnectorSource(env,request))throw Error('SOURCE_NOT_APPROVED');
+ const approved=()=>options?.retainedReadOnly?retainedReadApproved(env,request):authorizeConnectorSource(env,request);
+ if(!await approved())throw Error('SOURCE_NOT_APPROVED');
  const cursor=JSON.parse(request.continuation!.token) as {runId:string;offset:number};
  if(!/^\w+$/.test(cursor.runId)||!Number.isSafeInteger(cursor.offset)||cursor.offset<0)throw Error('INVALID_CONTINUATION');
  const scope=request.scope,runId=await sha256(JSON.stringify([scope,request.runId,providerId])),payloads=new R2SourcePayloadStore(env.RAW_ARCHIVE);
@@ -80,7 +102,7 @@ export async function reconcileApifyRead(env:Env,jobId:string,fetcher:typeof fet
    bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
    const parsed=JSON.parse(new TextDecoder().decode(bytes));
    if(kind==='status'?parsed?.data?.id!==cursor.runId:!Array.isArray(parsed))throw Error('READ_NOT_CONFIRMED');
-   if(!await authorizeConnectorSource(env,request))throw Error('SOURCE_NOT_APPROVED');
+   if(!await approved())throw Error('SOURCE_NOT_APPROVED');
    const payload=await payloads.put(scope,bytes,'application/json');
    const headers=JSON.stringify({'content-type':response.headers.get('content-type')??'application/json'});
    const result=await env.DB.batch([

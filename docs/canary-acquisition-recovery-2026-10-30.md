@@ -44,6 +44,15 @@ The complete response read now shares the same 60-second deadline as its request
 Unknown actor submissions still require provider evidence. They must not be
 cleared because a request timed out or because a new collection window exists.
 
+The first live follow-up found that nine legacy read continuations retained feed
+revision 5 while current source scopes were at revision 12. Receipt-only recovery
+therefore separately checks current owner/source identity and approval when the
+normal frozen-poll authorization fails. It can read and retain the exact old GET
+receipt, but cannot rewrite that poll's revision or resume its retired handoff.
+Ordinary collection must still pass the current revision checks. Paused feeds,
+changed source definitions, disabled owners and changed source identities remain
+ineligible.
+
 ## Helper diagnostics
 
 The admin-only `/api/admin/source-execution-status` route reads the fixed,
@@ -70,3 +79,21 @@ publication progress, window coverage, Apify read recovery and helper-status
 sanitization. The existing 28 intake regressions also passed. Worker TypeScript
 and the minified sources-QA dry-run build passed. QA migration 0082 was applied
 and its exact index definition read back before deployment.
+
+## First QA follow-up
+
+Code commit `79d79492` was deployed at 100% as worker version
+`5340f4fb-eea0-4fab-b7dc-5fe4412f3611`. All resource bindings were compared with
+the previous live settings and preserved. The only scope change enabled the
+existing fresh-X policy for the 20 active canaries alongside the four Aya feeds.
+Unauthenticated helper-status access returned 401.
+
+Between the first two post-deployment snapshots, deferred initial acquisitions
+rose from 164 to 986, while pending acquisitions fell from 7,144 to 6,351 and
+completed acquisitions rose from 6,198 to 6,244. Ten of eleven old canary X holds
+had received charge-preserving no-replay acknowledgements by the latter snapshot.
+These are sampled recovery measurements, not final totals or steady-state rates.
+
+The authenticated helper status request returned upstream HTTP 404. This cannot
+establish its internal capacity state; VPS access is still needed to distinguish
+a missing status endpoint/proxy route from the actual execution-service load.

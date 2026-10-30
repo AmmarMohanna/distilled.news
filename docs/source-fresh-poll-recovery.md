@@ -3,7 +3,9 @@
 On `aya-ghada-preserved-integration`, interrupted TwitterAPI.io reads no longer
 require a separate manual acknowledgement for every future failure when the
 owner has opted in through `SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS` (JSON feed IDs).
-The default is disabled. QA opts in only the four Aya-admin feeds.
+The default is disabled. QA initially opted in the four Aya-admin feeds. On
+30 October its explicit deployment scope was expanded to those four feeds plus
+the 20 user-requested canaries. Other feeds and deployments remain outside it.
 
 During ordinary source scheduling, at most five expired operations per source
 are acknowledged after a 15-minute cooldown beyond the recorded claim expiry
