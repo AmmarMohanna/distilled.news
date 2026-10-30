@@ -17,6 +17,8 @@ export interface DownstreamJob {
   unpaidOnly?:true;
   id: string; feedId: string; feedSourceId: string; observationId: string;
   kind: 'ACQUIRE' | 'REASSESS' | 'AUTHORITATIVE_RECHECK'; state: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED'; attempts: number;
+  /** Real wall-clock precommit enqueue proxy; absent on retained legacy jobs. */
+  enqueuedAt?: string;
   nextAttemptAt?: string; exhausted?: boolean; conflictId?: string;
   leaseToken?: string; leaseUntil?: string; failureCode?: string;
   resumeAttempts?: number;

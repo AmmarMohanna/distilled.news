@@ -20,3 +20,10 @@ describe('AgentOps boundary',()=>{
   emitAgentOps('fetch','ok',Infinity,s=>rows.push(s));expect(rows).toHaveLength(1);
  });
 });
+
+it('broken clocks cannot prevent work or replace its exception',async()=>{
+ const clock=()=>{throw Error('clock unavailable')};
+ expect(await observeInvocation('fetch',async()=>9,()=>{},clock)).toBe(9);
+ const original=Error('work failed');
+ await expect(observeInvocation('queue',async()=>{throw original},()=>{},clock)).rejects.toBe(original);
+});

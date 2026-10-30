@@ -9,7 +9,8 @@ export function emitAgentOps(boundary: AgentOpsBoundary, outcome: 'ok'|'error', 
   } catch { /* Observers must not alter authority, retries, or original exceptions. */ }
 }
 export async function observeInvocation<T>(boundary: AgentOpsBoundary, work:()=>Promise<T>, sink?:Sink, clock:()=>number=()=>performance.now()):Promise<T> {
-  const start=clock();let outcome:'ok'|'error'='error';
+  const safeClock=()=>{try{return clock();}catch{return Number.NaN;}};
+  const start=safeClock();let outcome:'ok'|'error'='error';
   try { const result=await work();outcome=result instanceof Response&&result.status>=500?'error':'ok';return result; }
-  finally { emitAgentOps(boundary,outcome,clock()-start,sink); }
+  finally { emitAgentOps(boundary,outcome,safeClock()-start,sink); }
 }
