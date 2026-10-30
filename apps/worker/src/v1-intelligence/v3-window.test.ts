@@ -85,8 +85,8 @@ const fetcher=(seen:string[])=>async(_url:unknown,init?:RequestInit)=>{
  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
  return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
 };
-it('prepares at the early cutoff, publishes at scheduled time, and reuses verified calls on delayed delivery',async()=>{
- const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'};
+it.each([undefined,'clock-aligned-delivery-v2'] as const)('prepares at the early cutoff, publishes at scheduled time, and reuses verified calls on delayed delivery (policy %s)',async clockPolicy=>{
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z',...(clockPolicy?{clockPolicy}:{})};
  const first=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z')),message={type:'v1_briefing' as const,feedId:'feed-1',window:first};
  await store.registerFeed({...feedFixture,revision:2,createdAt:schedule.clockStartAt,briefingFrequency:'30M',briefingSchedule:schedule});
  const intake=new V1IntakeStore(ctx.db),scope=(await intake.getScope('feed-source-1'))!;await intake.registerScope({...scope,feedRevision:2});

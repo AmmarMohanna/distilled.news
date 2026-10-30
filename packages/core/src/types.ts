@@ -20,6 +20,8 @@ export interface BriefingConfig {
   briefingScheduleOriginAt?: string;
   /** Coverage origin for opt-in clock schedules; preserved across ordinary edits. */
   briefingScheduleClockStartAt?: string;
+  /** Admission policy assigned at creation; absent retains the historical policy. */
+  briefingSchedulePolicy?: 'clock-aligned-delivery-v2';
   updateIntervalMinutes?: 30 | 60 | 120 | 360 | 720 | 1440;
   id: string;
   ownerAccountId: string;
