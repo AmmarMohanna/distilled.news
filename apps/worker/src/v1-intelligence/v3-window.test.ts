@@ -1,3 +1,4 @@
+import * as campaignFault from '../agentops-campaign-fault';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase,seedIntakeScope,batchFixture,testPolicy} from '../v1-intake/test-utils';
 import {createCandidateIntakePort} from '../v1-intake/intake';
@@ -180,6 +181,17 @@ it('reuses settled editor and verifier calls after a crash before result persist
  await expect(processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch)).rejects.toThrow();expect(seen).toHaveLength(2);
  const edition=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch);
  expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);
+},30000);
+it('campaign interruption after durable output reuses both paid calls and publishes once',async()=>{
+ await article();const seen:string[]=[];let interrupted=true;
+ vi.spyOn(campaignFault,'campaignInterruptAfterResult').mockImplementation(async()=>{if(interrupted){interrupted=false;throw Error('CAMPAIGN_INJECTED_AFTER_DURABLE_RESULT')}});
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await expect(processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch)).rejects.toThrow('TEMPORARY_UNAVAILABLE');
+ expect(campaignFault.campaignInterruptAfterResult).toHaveBeenCalledTimes(1);expect(seen).toHaveLength(2);expect(await store.list('feed-1','v3_window_results')).toHaveLength(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ const recovered=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch);
+ expect(recovered?.engine).toBe('v3');expect(seen).toHaveLength(2);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:33:00Z',undefined,fetcher(seen) as typeof fetch);
+ expect(await store.list('feed-1','editions')).toHaveLength(1);expect(seen).toHaveLength(2);
 },30000);
 it('uncertain provider outcomes preserve reservations and never reissue on redelivery',async()=>{
  await article();let calls=0;const offline=(async()=>{calls++;throw Error('connection lost after send')}) as typeof fetch;

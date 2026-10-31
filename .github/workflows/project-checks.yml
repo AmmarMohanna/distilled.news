@@ -32,7 +32,7 @@ jobs:
       - run: pnpm -r typecheck
       - run: pnpm exec tsc -p tsconfig.e2e.json
       - run: node --test scripts/*.test.mjs
-      - run: node --test evaluation/performance-reliability/*.test.mjs evaluation/performance-reliability/k6/*.test.mjs
+      - run: node --test evaluation/performance-reliability/*.test.mjs evaluation/performance-reliability/k6/*.test.mjs evaluation/performance-reliability/real/*.test.mjs
       - run: node scripts/validate-observability.mjs
       - run: python scripts/validate-wrangler-observability.py
       - run: python scripts/test_source_execution.py
@@ -58,6 +58,7 @@ jobs:
       - uses: grafana/setup-k6-action@v1
         with:
           k6-version: '1.3.0'
+      - run: node evaluation/performance-reliability/real/validate-k6.mjs
       - run: node evaluation/performance-reliability/k6/run-local.mjs smoke
       - run: node evaluation/performance-reliability/k6/run-local.mjs fault-proof
       - uses: actions/upload-artifact@v4

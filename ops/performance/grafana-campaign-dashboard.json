@@ -1,0 +1,326 @@
+{
+  "uid": "distilled-real-campaigns-v1",
+  "title": "Distilled staging real campaigns",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "staging",
+    "private",
+    "campaign"
+  ],
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "profile",
+        "type": "custom",
+        "query": "load,spike,stress,soak,recovery,agentops",
+        "current": {
+          "text": "load",
+          "value": "load"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Scheduled opportunities",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_opportunities_offered{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Completed opportunities",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_opportunities_completed{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Reader-visible publications",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_publications_read_back{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Unresolved opportunities",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_opportunities_unresolved{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "By-deadline ratio",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_by_deadline_ratio{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Pending jobs",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_pending_jobs{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Transport backlog (approximate)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_queue_backlog_approximate{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Model calls",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_model_calls{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Settled USD",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_settled_usd{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Held USD",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_held_usd{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Safety violations",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_safety_violations{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Worker CPU ms (window sum)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_worker_cpu_ms{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "D1 rows read",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_database_rows_read{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "D1 rows written",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_database_rows_written{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    }
+  ],
+  "description": "Optional definition only; no live campaign or dashboard import has been performed. Missing measurements stay absent. Private correlation is stored separately."
+}

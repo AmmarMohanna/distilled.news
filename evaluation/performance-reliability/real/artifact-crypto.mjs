@@ -1,0 +1,4 @@
+import {createCipheriv,createDecipheriv,randomBytes} from 'node:crypto';
+const keyBytes=key=>{if(!/^[a-f0-9]{64}$/i.test(key??''))throw Error('PRIVATE_ARTIFACT_KEY_REQUIRED');return Buffer.from(key,'hex');};
+export function seal(data,key){const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',keyBytes(key),iv),bytes=Buffer.concat([cipher.update(data),cipher.final()]);return {version:1,algorithm:'AES-256-GCM',iv:iv.toString('hex'),tag:cipher.getAuthTag().toString('hex'),ciphertext:bytes.toString('base64')};}
+export function unseal(envelope,key){if(envelope.version!==1||envelope.algorithm!=='AES-256-GCM'||!/^[a-f0-9]{24}$/.test(envelope.iv)||!/^[a-f0-9]{32}$/.test(envelope.tag))throw Error('ARTIFACT_ENVELOPE_INVALID');const decipher=createDecipheriv('aes-256-gcm',keyBytes(key),Buffer.from(envelope.iv,'hex'));decipher.setAuthTag(Buffer.from(envelope.tag,'hex'));return Buffer.concat([decipher.update(Buffer.from(envelope.ciphertext,'base64')),decipher.final()]);}

@@ -1,3 +1,4 @@
+import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence} from './agentops-campaign';
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
 import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryError} from './unread-summary';
 import {unreadSummaryPort} from './unread-summary-provider';
@@ -1058,6 +1059,43 @@ export function createApp(options: AppOptions = {}) {
     if(!b||b.approve!==true||typeof b.accountId!=='string'||typeof b.approvalId!=='string'||typeof b.evidenceHash!=='string')return c.json({error:'explicit evidence-bound approval required'},400);
     try{return c.json(await reconcileConfirmedModelRejection(c.env.DB,c.req.param('id'),{accountId:b.accountId,approvalId:b.approvalId,evidenceHash:b.evidenceHash,approvedBy:c.get('account')!.id}))}catch{return c.json({error:'reconciliation refused; inspect retained evidence'},409)}
   });
+  app.post('/api/admin/agentops/campaigns/:runId/:action',async c=>{
+    if(!campaignAvailable(c.env))return c.json({error:'not found'},404);
+    if(c.req.header('Origin')!==new URL(c.req.url).origin||!c.req.header('Content-Type')?.startsWith('application/json'))return c.json({error:'invalid operator request'},403);
+    c.header('Cache-Control','private, no-store');
+    const parsedRun=campaignId.safeParse(c.req.param('runId'));if(!parsedRun.success)return c.json({error:'invalid campaign'},400);
+    const run=parsedRun.data,action=c.req.param('action');
+    const raw=await c.req.text();if(raw.length>64000)return c.json({error:'request too large'},413);
+    let body:unknown;try{body=JSON.parse(raw)}catch{return c.json({error:'invalid JSON'},400)}
+    const repo=c.get('repo');
+    try{
+      if(action==='register'){
+        const b=z.object({feedId:z.string(),ownerId:z.string()}).strict().parse(body);
+        await registerCampaignFeed(c.env,repo,run,b.feedId,b.ownerId);return c.json({registered:true});
+      }
+      if(action==='plan')return c.json(await planCampaign(c.env,repo,run,campaignPlanSchema.parse(body)));
+      if(action==='snapshot')return c.json(await snapshotCampaign(c.env,repo,run,campaignSnapshotSchema.parse(body)));
+      if(action==='evidence'){const b=campaignSnapshotSchema.parse({opportunities:[body]}).opportunities[0];return c.json(await campaignEvidence(c.env,repo,run,b));}
+      if(action==='interrupt'){
+        if(c.env.AGENTOPS_CAMPAIGN_ALLOW_FAULTS!=='true')return c.json({error:'faults disabled'},403);
+        const b=z.object({feedId:z.string(),until:z.string().datetime().nullable()}).strict().parse(body);assertCampaignFeed(run,b.feedId);
+        if(b.until&&(Date.parse(b.until)<=Date.now()||Date.parse(b.until)>Date.now()+300000))return c.json({error:'fault duration'},400);
+        const changed=await c.env.DB.prepare('UPDATE agentops_campaign_feeds SET interrupt_until=? WHERE run_id=? AND feed_id=?').bind(b.until,run,b.feedId).run();
+        return changed.meta.changes===1?c.json({configured:true}):c.json({error:'scope denied'},404);
+      }
+      if(action==='duplicate'){
+        if(c.env.AGENTOPS_CAMPAIGN_ALLOW_FAULTS!=='true')return c.json({error:'faults disabled'},403);
+        const b=campaignSnapshotSchema.parse({opportunities:[body]}).opportunities[0];assertCampaignFeed(run,b.feedId);
+        // Snapshot performs registration/owner checks and confirms original work.
+        const state=await snapshotCampaign(c.env,repo,run,{opportunities:[b]});
+        if(state.items[0].state==='NOT_CREATED'||Date.parse(b.window.end)>Date.now())return c.json({error:'original work not admitted'},409);
+        if(state.items[0].operations.some(o=>o.uncertain))return c.json({error:'uncertain paid operation'},409);
+        await c.env.PROCESSING_QUEUE.send({type:'v1_briefing',feedId:b.feedId,window:b.window});return c.json({enqueued:true,originalId:state.items[0].id});
+      }
+      return c.json({error:'not found'},404);
+    }catch(error){if(error instanceof z.ZodError)return c.json({error:'invalid campaign request'},400);return c.json({error:error instanceof Error&&error.message==='CAMPAIGN_SCOPE_DENIED'?'scope denied':'campaign observation unavailable'},error instanceof Error&&error.message==='CAMPAIGN_SCOPE_DENIED'?404:503);}
+  });
+
   app.get('/api/admin/briefings/:feedId/pipeline-trace',async c=>{
     c.header('Cache-Control','private, no-store');
     const query=traceOptionsSchema.safeParse(c.req.query());

@@ -1,3 +1,4 @@
+import {campaignInterruptAfterResult} from '../agentops-campaign-fault';
 import {generateBriefing,openAiCompatibleModel,priorMemoryCutoff,type BriefingInput,type BriefingModels,type BriefingResult,type ModelPort,type ModelRequest} from '@distilled/briefing';
 import {HandoffError,sha256,type EvidenceRevision} from '@distilled/contracts';
 import type {Env} from '../types';
@@ -137,6 +138,9 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,saved!));
   }
   const completed=saved;
+  // Opt-in chaos test after the durable result: retries reuse original paid
+  // operation identities. No hook query or behavior change in normal deployments.
+  await campaignInterruptAfterResult(env,feedId);
   if(window.scheduledFor&&Date.parse(now())<Date.parse(window.scheduledFor)){
    await feedTransact(store,feedId,async tx=>{
     const request=await tx.read<BriefingRequest>('briefing_requests',id);
