@@ -1,3 +1,5 @@
+> Current live results supersede this earlier checkpoint: [staging activation results](ACTIVATION_RESULTS.md). The approved collector is deployed and real application/k6 metrics are queryable; trace privacy validation is tracked separately.
+
 # Private Cloudflare → Grafana setup
 
 Status: repository-side configuration only. No destination, dashboard, alert, datasource, secret, resource or deployment has been created remotely.

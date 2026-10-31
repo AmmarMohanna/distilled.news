@@ -1,3 +1,5 @@
+> Current live results supersede this earlier checkpoint: [staging activation results](ACTIVATION_RESULTS.md). The approved collector is deployed and real application/k6 metrics are queryable; trace privacy validation is tracked separately.
+
 # Worker-native collector and performance validation
 
 ## Status: 2026-10-31
