@@ -105,3 +105,34 @@ After authentication and collector inventory, present exact resource operations:
 - [Grafana service accounts versus ingest credentials](https://grafana.com/docs/grafana-cloud/platform/security-and-account-management/security-and-access/authentication-and-permissions/)
 - [Grafana alerting permissions](https://grafana.com/docs/grafana/latest/alerting/set-up/configure-rbac/)
 - [Grafana Cloud Access Policies](https://grafana.com/docs/grafana-cloud/platform/security-and-account-management/security-and-access/authentication-and-permissions/access-policies/)
+## Grafana authenticated preflight follow-up
+
+The operator supplied `https://giganticmantel34.grafana.net` and placed the service-account credential in an ignored local `.env` file. No credential was printed, committed or sent in command arguments.
+
+Actual API reads on 2026-10-31:
+
+- `/api/org`: 200; stack organization ID 1.
+- `/api/datasources`: 200; confirmed existing UIDs `grafanacloud-logs` (Loki), `grafanacloud-traces` (Tempo), and `grafanacloud-prom` (Prometheus).
+- `/api/folders`: 200; no task-created operations folder exists.
+- `/api/access-control/user/permissions`: 200; dashboard write and folder creation are available. Existing-folder permission administration is not established by this read; verify creator permissions before importing anything private.
+- `/api/v1/provisioning/alert-rules`: 200; no rule UID beginning `distilled-` was returned. Read access does not prove provisioning write access.
+- Prometheus query `count({__name__=~"distilled_.*"})`: success with an empty result. This means no matching series returned, not an observed healthy zero.
+- Tempo search for `service.name=distilled-news-staging`: 200 with an empty trace result. No trace ID or successful delivery is claimed.
+- Loki service-label request returned 200; its envelope still needs inspection before concluding whether a Distilled service is present.
+
+Prepared local dashboard and paused-rule API bodies bind to the actual datasource UIDs. No import has been applied. The explicit approval request covers only a restricted staging folder, the 14-panel dashboard and 11 paused rules; it excludes ingestion, deployment and notifications. If permission tightening or alert provisioning is denied, stop and report the exact missing permission rather than using a public/shared fallback or requesting an account-admin token automatically.
+
+Acceptance matrix amendment: Grafana stack identity/authentication is now VERIFIED for the read endpoints above. OTLP ingestion authentication, Cloudflare access, collector infrastructure, deployment, live panel results and end-to-end telemetry remain BLOCKED. The original blocked matrix records the initial preflight and must not be mistaken for the current authenticated Grafana state.
+
+Remaining credential presence checks found no Cloudflare API token, OTLP base URL/instance/ingest token, or private trace session. No value was displayed; only presence booleans were recorded. Grafana resource provisioning credentials cannot substitute for OTLP ingest credentials.
+## Approved Grafana resource activation attempt
+
+The operator approved the restricted folder/dashboard/11-alert import and subsequently requested alert evaluation be enabled. Notification delivery remains unapproved. No alert will be enabled against an unreviewed notification route or represented as healthy without data.
+
+On 2026-10-31 the authenticated Grafana API listed folders successfully, then created the empty folder UID `distilled-staging-ops` (title `Distilled staging operations`). Its permissions endpoint returned HTTP 403. Import stopped at that boundary: **no dashboard or alert rule was imported, no alert was enabled, and folder privacy has not been verified**. The empty folder's default permissions must not be described as operator-only.
+
+The operator was asked to grant the token's service account Admin on this folder only, avoiding a stack-wide administrator credential. Folder URL: `https://giganticmantel34.grafana.net/dashboards/f/distilled-staging-ops`. After permission is granted, remove general Viewer/Editor role grants while retaining explicit operator/admin access, read permissions back, and only then import resources. Preserve other folders and datasources.
+
+Actual datasource health endpoints for Loki and Tempo returned 200/OK. The Loki service-name label lookup returned success without a data field; it did not establish an existing Distilled log stream. Native traces, live metric data, OTLP ingestion credentials, Cloudflare authentication and private trace/collector access remain unavailable. The resource provisioning token is not reused as an ingest token.
+
+Private per-operation journals are retained locally. The first exact-folder GET returned 403 for the absent UID; folder inventory confirmed absence before the single approved POST. The subsequent permissions 403 is the actual remaining authorization blocker. No repeated create or blind overwrite was attempted.
