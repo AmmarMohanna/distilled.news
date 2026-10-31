@@ -1,0 +1,105 @@
+\documentclass[12pt, twoside, a4paper]{report}
+\textheight23cm \textwidth16cm
+
+ %------- DEFINE PACKAGES -------%
+
+\usepackage{graphicx} % Automatic driver supports the retained PNG figures.
+\usepackage{latexsym}
+\usepackage{epsf}
+\usepackage{epsfig}
+\usepackage{color}
+\usepackage{a4}
+\usepackage{amsmath} % real numbers, natural numbers, ...
+\usepackage{amssymb}
+\usepackage{amsxtra}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage[nottoc]{tocbibind} %% to avoid "contents" in the Table of contents
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{subfigure}
+\usepackage{cite}
+\usepackage{fancybox}
+\usepackage{pdfpages}
+\usepackage{tabularx}
+\usepackage[utf8]{inputenc}
+\usepackage{siunitx}
+\bibliographystyle{ieeetr}
+
+
+
+% Support for the report's existing and revised tables and figures.
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{ragged2e}
+% Allow justified paragraphs to wrap without changing template dimensions.
+\emergencystretch=2em
+% Fit wide data tables within the original text block.
+\setlength{\tabcolsep}{3pt}
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+\newcolumntype{L}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\newcommand{\sourcecode}[1]{\texttt{\footnotesize #1}}
+\newcommand{\evidence}[1]{\textbf{Evidence:} #1}
+\newcommand{\status}[1]{\textit{#1}}
+\newcommand{\req}[1]{\textbf{#1}}
+
+\begin{document}
+\pagestyle{empty}
+
+%First page in the report
+\include{1_cover}
+
+\pagenumbering{roman} \setcounter{page}{2}
+
+%Second page in the report
+\include{2_Acknowledgments}
+
+% Third page in the report 
+\include{3_ExecutiveSummary}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Table of contents
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pagestyle{empty}
+\tableofcontents 
+\listoffigures 
+\listoftables 
+\newpage
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Include files
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pagestyle{plain} \pagenumbering{arabic} \setcounter{page}{1}
+%
+
+
+% Include here all the chapters of the report 
+\include{4_Introduction}
+\include{5_TechnicalBackground}
+\include{6_ProposedSolution}
+\include{7_Technical_NonTechnicalConstraints_Standards}
+\include{8_ProgressDescription}
+\include{9_Conclusion}
+
+
+
+
+\appendix
+\include{10_ListofResources}
+\include{11_DetailedProjectSchedule}
+\include{12_Minutes}
+\include{14_RubricAlignment}
+
+% The file that contains all the references in the report
+\bibliography{13_ref}
+\end{document}

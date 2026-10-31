@@ -1,0 +1,120 @@
+\chapter{Technical Background and Literature Review}
+\label{chap:background}
+
+\section{Information Retrieval, Aggregation, and Event Tracking}
+
+Information retrieval systems help users find documents that match a query. News aggregators bring reports from different publishers into one place. Both reduce the effort needed to discover information, but readers may still encounter repeated coverage and struggle to identify what has changed.
+
+Duplicate detection addresses part of this problem by identifying identical or similar articles. However, similar articles can describe different incidents, while differently worded articles can describe the same incident. Publication dates can also be misleading: a newly published article may discuss an older event. A news briefing system must therefore consider the article's publication date, the time of the reported event, and what the feed has already communicated.
+
+Carbonell and Goldstein introduced Maximal Marginal Relevance (MMR), a method that balances relevance to a query with diversity among selected documents \cite{carbonell1998}. This provides a useful baseline for reducing repetitive results. However, MMR alone does not determine whether a report describes a new incident, an update, or a correction. Distilled.News must combine relevant article selection with awareness of previously published information.
+
+\section{Timeline Summarization and Event Continuity}
+
+Timeline summarization organizes important developments over time. It requires more than sorting articles by publication date. For example, a planned launch and a completed launch represent different stages of the same development. A correction to an earlier casualty figure changes an existing report, while a second incident at the same location may require a separate briefing item.
+
+Ghalandari and Ifrim compared approaches to timeline summarization based on direct summary generation, dates, and events \cite{ghalandari2020}. Their work highlights the need to evaluate both the selection of important events and their placement in time. Li \textit{et al.} explored event graphs, which represent events and their relationships to support coherent news timelines \cite{li2021}.
+
+Pratapa \textit{et al.} examined how to provide the background readers need to understand an unfolding event \cite{pratapa2023}. This is relevant to Distilled.News because a useful update may need a small amount of earlier context. Removing all repeated information could make a briefing difficult to understand, while including too much could recreate the repetition the platform aims to reduce.
+
+These studies inform our treatment of new developments, updates, corrections, and background information. They do not imply that Distilled.News implements an event graph. The current workflow uses source evidence, timestamps, and previously published briefings to support editorial decisions.
+
+Project testing has shown that this remains difficult when reports share the same people or locations, use vague dates, or refer to time using expressions such as ``yesterday.'' We therefore evaluate these cases separately rather than assuming that event continuity has been solved \cite{continuity,v3twenty}.
+
+\section{Evidence-Grounded Generation and Verification}
+
+Language models can produce readable summaries, but fluent writing does not guarantee factual accuracy. A generated summary may introduce an unsupported detail, combine unrelated facts, or change the meaning of a source.
+
+Lewis \textit{et al.} introduced retrieval-augmented generation (RAG), which combines text generation with information retrieved from an external collection \cite{lewis2020}. This provides a way to supply relevant evidence to a model. However, retrieving a useful document does not guarantee that every generated statement accurately reflects it.
+
+Maynez \textit{et al.} documented factual errors in abstractive summarization, where a model writes a new summary rather than simply extracting sentences \cite{maynez2020}. FActScore addresses factual evaluation by breaking generated text into individual factual claims and checking their support \cite{min2023}. Together, these studies show why summary quality must be assessed beyond readability.
+
+Distilled.News applies these ideas through separate editing and verification stages. The editor receives retained source material and prepares a cited briefing. The verifier checks the draft against that evidence, and a repair stage attempts to correct detected problems.
+
+This separation provides an additional check, but it does not establish independent factual truth. A verifier can overlook an error or make the same incorrect interpretation as the editor. Our October 2026 tests found unsupported claims about timing and scope that passed model verification \cite{v3twenty,v3overnight}. Independent factual assessment therefore remains necessary.
+
+\section{Agentic Acquisition Versus Deterministic Extraction}
+
+Collecting information from different sources requires several methods. Structured interfaces, such as APIs and RSS feeds, provide predictable fields. Fixed extraction rules can retrieve article content from known page layouts. Adaptive browsing uses a model to interpret pages and choose actions when fixed methods are insufficient.
+
+Adaptive browsing offers flexibility, but it also increases complexity and risk. A page may contain instructions intended to manipulate the model, and an overly permissive agent may attempt actions beyond the collection task. OWASP identifies prompt injection, excessive agency, and sensitive-information disclosure as relevant risks for applications using language models \cite{owasp2025}.
+
+Our acquisition design prioritizes structured and predictable methods before using adaptive discovery where justified. Successful discoveries can then inform reusable collection workflows. Before accepting collected material or carrying out an action, the system checks the relevant source, permissions, freshness, and account limits \cite{acquisition}. A model's recommendation does not itself grant permission.
+
+The project also includes an experiment in which a model chooses among predefined acquisition options. This remains an experimental approach and should be distinguished from the default production routing.
+
+\section{Reliability, Quality, and Evaluation}
+
+A system can complete a task successfully while producing an inaccurate or unhelpful result. It can also appear healthy while silently missing scheduled updates. Evaluation must therefore examine both software operation and briefing quality.
+
+For example, a database write confirms that information was stored, but does not establish that its claims are correct. A completed queue task does not show that all important developments were selected. Similarly, acceptance by a push service does not prove that a reader received or read a notification.
+
+ISO/IEC 25010:2023 provides a reference model for assessing software product quality, including reliability, security, maintainability, and performance efficiency \cite{iso25010}. The NIST AI Risk Management Framework provides complementary guidance for identifying and evaluating risks associated with AI systems \cite{nistairmf}.
+
+Our evaluation plan uses several forms of evidence. Automated tests check software rules and interfaces. Repeated tests on fixed source material help compare editorial changes under consistent conditions. Controlled live tests examine the connected workflow, while historical reviews help identify recurring failures \cite{performanceprotocol}.
+
+Each method supports a different conclusion. Replaying stored articles can test editorial behavior, but cannot establish live collection speed. Labels reviewed by an AI assistant cannot be treated as independent human judgments. Results must therefore state the test conditions, number of cases, measurement boundaries, and observed failures.
+
+\section{Existing News Products and the Product Gap}
+
+Existing products already address important parts of this problem. Google News offers personalized recommendations, topic following, and a Full Coverage view that brings together reporting from multiple sources. Its documentation distinguishes the personalization of the home feed from the behavior of Full Coverage \cite{googlenews}.
+
+Distilled.News builds on these established ideas. Its focus is a configurable feed that follows a reader's interests across scheduled updates, considers what has already been published, and retains the evidence supporting each briefing item.
+
+The intended benefit is to help readers distinguish new developments from repeated coverage without losing important context. This benefit must be demonstrated through comparison. Suitable baselines include a conventional headline feed and a summarizer that processes each set of articles without a separate verification stage. Using the same source material allows us to assess whether the additional processing improves accuracy, coverage, and reading effort.
+
+\section{Critical Comparison of Design Families}
+
+Table~\ref{tab:litcomparison} summarizes the main approaches considered and the additional requirements relevant to Distilled.News.
+
+\begin{table}[htbp]
+\small
+\centering
+\caption{Comparison of approaches relevant to Distilled.News}
+\label{tab:litcomparison}
+\begin{tabularx}{\linewidth}{p{2.7cm}XX}
+\toprule
+Approach & Main strength & Limitation or additional requirement \\
+\midrule
+
+News aggregation
+& Helps readers discover topics and compare sources \cite{googlenews}.
+& Our objective also requires tracking what a feed has already published. \\
+
+Diversity-aware ranking
+& Reduces repetition among selected documents \cite{carbonell1998}.
+& Requires additional reasoning about updates, corrections, and distinct incidents. \\
+
+Single-pass summarization
+& Produces readable summaries from multiple reports.
+& Can introduce unsupported claims without a separate checking stage \cite{maynez2020}. \\
+
+Evidence-grounded generation
+& Gives the model access to supporting material \cite{lewis2020}.
+& Source access and citations do not guarantee that every claim is supported. \\
+
+Timeline summarization
+& Organizes developments and background over time \cite{ghalandari2020,li2021,pratapa2023}.
+& Requires additional controls for scheduled publication and publication history. \\
+
+Adaptive browsing
+& Can interpret varied page layouts.
+& Requires limits on permissions, actions, and cost \cite{owasp2025}. \\
+
+Selected hybrid approach
+& Combines retained evidence, publication history, editing, verification, and publication controls.
+& Adds complexity and still requires independent assessment of factual errors. \\
+
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Our Specific Contribution and Research Gap}
+
+The project's contribution is the integration of established techniques into a working personalized briefing system. It combines collection from multiple source types, retained evidence, awareness of earlier publications, AI editing, separate verification, targeted repair, and controlled publication. It also records processing costs and preserves evaluation cases so that changes can be assessed consistently.
+
+Our experiments demonstrate why changes must be evaluated beyond their writing style. An October 23 prompt revision was rejected after it omitted important Arabic developments. Further candidate changes evaluated on October 25 were rejected because they did not provide a meaningful improvement in the paired comparisons \cite{notificationeval,continuity}. More polished text is therefore insufficient evidence of a better briefing.
+
+Several questions remain open. How often does the system miss an important development, approve an unsupported claim, confuse separate incidents, or repeat unchanged information? How do additional checks affect processing time and cost? Does performance vary across languages and source types? Can scheduled updates finish reliably within their deadlines? Finally, do the resulting briefings reduce the effort readers spend following their chosen topics?
+
+These questions guide the remaining evaluation and define the evidence needed to establish the platform's reliability and practical value.

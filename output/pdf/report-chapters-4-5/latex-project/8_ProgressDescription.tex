@@ -1,0 +1,227 @@
+\chapter{Progress and Preliminary Validation}
+\label{chap:progress}
+
+\section{Scope and Basis of the Progress Report}
+
+By 31 October 2026, Distilled.News had an integrated application that collects source material, generates V3 briefings, stores editions and citations, and displays them through multilingual feed pages. Aya's work covers source acquisition, recovery, and operational evaluation; Ghada's work covers V3 intelligence, scheduling, and database performance; Joud's work covers the frontend, account workflows, and quality-evaluation tooling \cite{currentintegration,preservation,localquality}.
+
+This chapter separates four kinds of evidence: implemented features, local software tests, fixed-source experiments, and live deployment observations. A passing test does not establish factual correctness, and a published briefing does not establish sustainable throughput. Earlier experiments retain their original dates and workloads; they are not presented as newly repeated measurements.
+
+\section{Design Alternatives and Selected Decisions}
+
+\subsection{System-Level Alternatives}
+
+Three approaches were considered:
+\begin{enumerate}
+\item \textbf{A feed aggregator with rule-based selection.} This approach is inexpensive and easy to inspect. It can display headlines and remove obvious duplicates, but the reader must combine reports and identify meaningful updates. It remains a useful baseline.
+\item \textbf{A single-pass LLM summarizer.} One model can produce readable multilingual summaries with fewer processing steps. However, there is no separate verification stage, and unsupported details or repetition may remain. This is a planned comparison baseline, not the selected publication workflow.
+\item \textbf{A hybrid workflow with separate verification.} Deterministic software controls source access, storage, retries, spending, and publication. V3 performs editing, verification, and targeted repair when needed. This adds processing time and complexity, but better supports source traceability and controlled publication. It is the selected approach \cite{v3overnight,v3twenty}.
+\end{enumerate}
+
+\subsection{Decisions Based on Preliminary Experiments}
+
+Table~\ref{tab:alternatives} summarizes alternatives that were actually examined. Rejected candidates are retained as evaluation evidence and are not current deployed behavior.
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.07}
+\begin{longtable}{L{2.2cm}L{7cm}L{\dimexpr\linewidth-9.2cm-6\tabcolsep\relax}}
+\caption{Preliminary experiments and retained decisions}\label{tab:alternatives}\\
+\toprule Decision & Evidence & Retained outcome \\ \midrule
+\endfirsthead
+\toprule Decision & Evidence & Retained outcome \\ \midrule
+\endhead
+\bottomrule
+\endfoot
+Collection method & Structured feeds and direct HTTP are easier to control and replay; browser-first collection adds execution and access complexity \cite{acquisition}.
+& Structured methods first, with approved fallbacks. \\
+Verifier model and parser & GPT-4.1 mini and Gemini 2.5 Flash each scored 21/21 on assistant-labelled synthetic cases; Gemini cost about 31\% more in that run. Four parser safety failures were corrected through stricter identifier validation \cite{controlledreliability}.
+& Keep GPT-4.1 mini and strict parsing. These results are not independent real-news accuracy scores. \\
+Editorial style and push previews & On the same 15 Telegram posts, an expanded editorial candidate omitted two important Arabic developments and increased English text from 125 to 140 words. Generated notification variants also changed source meaning \cite{notificationeval}.
+& Retain concise writing and a preview derived from the published lead headline. \\
+Continuity prompts & Five matched baseline/candidate pairs used ten paid calls costing \$0.058956. Extra instructions did not change the main decisions or resolve an ambiguous strike report \cite{continuity}.
+& Reject the additional prompt text. \\
+Interest grounding & A seven-case controlled study corrected two observed false approvals caused by treating reader interests as factual support \cite{interestgrounding}.
+& Interests guide selection; sources support claims. \\
+Later quality variants & A small controlled campaign recorded 49 paid calls costing \$0.19962245. No candidate met the combined quality and operating criteria. Charges from corrupted harness batches remained counted, although those batches were excluded from semantic comparison \cite{qualityexperiments}.
+& Keep the tested GPT-4.1 editor/repair and GPT-4.1 mini verifier configuration. \\
+\end{longtable}
+\endgroup
+
+\section{Implemented Components}
+
+\subsection{Source Collection, Storage, and Recovery}
+
+The application includes connectors for RSS, Google News, Telegram, X, LinkedIn, websites, and supported Apify sources, subject to deployment credentials and access permissions. Workers coordinate collection; D1 stores application and processing records; R2 retains source payloads and assets; Queues carry background work. Browser-dependent operations use a separate private helper \cite{repo,stagingintegration,acquisitionrecord}.
+
+Acquired records retain stable identities, source references, publication and acquisition timestamps, and extraction status. Recovery uses bounded calls, backoff, and persistent jobs. Repeated discoveries can share an unresolved acquisition job without deleting their observations. Unchanged initial backlog predating feed creation can be deferred, while corrections, revisions, and explicit recoveries remain eligible. Unknown paid outcomes retain their reservations; recovery does not assume that a missing response means a free request \cite{canaryrecovery,freshpoll}.
+
+These controls improve correctness and recovery. They do not guarantee that every publisher is reachable or that the collection workload can be sustained.
+
+\subsection{V3 Intelligence and Publication}
+
+The tested V3 workflow is
+\begin{center}
+\begin{tabular}{c}\textbf{Editor $\rightarrow$ Verifier $\rightarrow$ Targeted repair (when needed)}\\$\downarrow$\\\textbf{Persistence}\end{tabular}
+\end{center}
+It uses retained article evidence and the text of previously published briefings. It does not require the earlier V2 event-graph or claim-extraction stages. Evidence remains subject to explicit input limits, rather than the former default 6,000-character truncation.
+
+The editor selects and writes developments; the verifier checks source support, dates, attribution, and uncertainty. Targeted repair preserves the identity and citations of the affected item. Fixed reporting windows, ownership checks, and persistent publication records prevent retries from silently changing a window or duplicating an edition. Quiet windows can complete without model calls. Known verifier false approvals remain a limitation \cite{v3overnight,v3twenty,controlledreliability}.
+
+\subsection{Scheduling and Database Performance}
+
+The implementation preserves existing schedule policies and recovery identities. Newly opted-in clock-aligned feeds use the ten-minute creation admission rule and an evidence cutoff five minutes before intended delivery. Reporting cutoff, intended delivery, and actual publication remain distinct \cite{clockpolicy}.
+
+Database work now uses selective history reads and supporting indexes. In paired local preparation tests on 1,000 synthetic feeds, rows read fell from 345,510,603 to 985,803, and per-feed preparation p95 fell from 1,350.1 to 317.2 ms, with identical returned bytes. Full controlled publication covered a subset of at most 24 feeds. This demonstrates an improvement in database preparation, not 1,000 concurrent live briefings or sustainable acquisition \cite{capacityevaluation,boundedhistory}.
+
+\subsection{Frontend, Accounts, and Delivery}
+
+The integrated frontend supports feed creation and management, public/private visibility, Home and Explore, source panels, unread summaries, and responsive reader pages. English, French, and Arabic presentation includes Arabic right-to-left behavior, translated controls, Unicode usernames, and historical URL aliases. Account mail supports localized verification/reset flows through the configured transport. PWA work includes installation assets and an offline page using the saved interface language \cite{preservation,frontendrecord}.
+
+Notification previews use the published lead headline and update count, with a generic fallback and no additional model call. Provider acceptance, device receipt, and user reading remain separate outcomes. Full WCAG compliance, universal installation behavior, and physical-device delivery have not yet been demonstrated \cite{notificationeval}.
+
+\subsection{Software and Integration Checks}
+
+The repository defines automated type checks, unit tests, builds, Python helper tests, and browser tests, with retained failure artifacts. A workflow definition is not proof that every version passed every check \cite{checks}.
+
+The Aya/Ghada integration record reports 111 frontend passes, 202 connector passes and one skip, six helper-server passes, type checks, and builds. An initial Worker run passed 170 tests and failed two; those two passed focused reruns, not a full rerun of the original suite. The earlier preservation branch separately reported 1,000 passing tests and a browser cold-load timeout that passed an unchanged rerun. These overlapping counts must not be added together as unique tests \cite{currentintegration,ghadaintegration}.
+
+\section{Measured Results and Their Limits}
+
+Table~\ref{tab:results} reports selected experiments once, with their workload and measurement boundary. The p95 is the 95th-percentile latency: 95\% of measured observations are at or below it. Differences between rows cannot be attributed to a design change alone because source mixes and run conditions differ.
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.07}
+\begin{longtable}{L{2.7cm}L{4.7cm}L{\dimexpr\linewidth-7.4cm-6\tabcolsep\relax}}
+\caption{Selected preliminary measurements and valid interpretations}\label{tab:results}\\
+\toprule Experiment & Recorded result & Interpretation and limitation \\ \midrule
+\endfirsthead
+\toprule Experiment & Recorded result & Interpretation and limitation \\ \midrule
+\endhead
+\bottomrule
+\endfoot
+Twenty-article replay \cite{v3twenty} & 81,701 input characters; six items; four calls; \$0.0723856. Engine: 24.159 s; local request: 39.94 s; separate database reopen/read-back: 41.11 s. All six source references survived.
+& Real acquired evidence and paid inference, replayed in isolation. Excludes original acquisition and notification delivery. Temporal and lead-framing concerns remained. \\
+Earlier three-article QA run \cite{v3overnight} & Three items; four calls; 29.80 s; \$0.0159808.
+& A corrected small persistence case, not a latency distribution. \\
+Earlier twenty-article QA run \cite{v3overnight} & Nine items; ten calls; 96.08 s; \$0.2605756.
+& Shows workload-dependent cost and latency. A repair-indexing defect was corrected; semantic errors also occurred. \\
+Overnight integrity and quiet tests \cite{v3overnight} & One local and six remote editions; 35/35 compared source-handoff records preserved; one quiet window made no model calls.
+& Supports tested storage and identity behavior, not universal factual precision or scheduled reliability. \\
+Fresh staging publication \cite{nonemptytrial} & Three fresh Arabic posts produced two English items; two calls; \$0.005714. Persistence occurred 50.463 s after intended delivery and 350.463 s after cutoff.
+& One automatic cross-language journey. Insufficient for a p95 deadline claim, independent factual score, or device receipt. \\
+Performance measurement framework \cite{performanceprotocol} & Twenty-two offline reference and audit tests passed.
+& Supports metric calculations and evidence handling; live service-level targets remain unqualified. \\
+\end{longtable}
+\endgroup
+
+Factual review remains essential. Retained examples include source-relative timing errors, an overstated security exploitation claim, and loss of attribution or uncertainty despite verifier approval. Another case correctly detected and repaired an unsupported Japanese launch-timing statement. An AI-assisted review of twelve published editions from four feeds also recorded causal strengthening, repetition, and Arabic repair overhead. These examples guide regression testing; they do not provide an independently adjudicated accuracy rate \cite{v3overnight,v3twenty,retainedaudit}.
+
+\section{Live Acquisition Testing and Corrective Work}
+
+\subsection{Canary Workload and Findings}
+
+A canary test exercises a limited live workload before broader deployment. Our QA workload used 20 active test feeds with five configured sources each, covering different topics and source types. The audited QA configuration used five-minute collection intervals, separately from briefing delivery frequency. The feeds were aged test feeds, so their retained backlog is part of the workload. The exercise is not equivalent to testing 1,000 feeds or a clean new deployment \cite{canaryrecovery}.
+
+The early ramp increased pending acquisitions from 5,463 to 5,799 despite 245 completions. A later snapshot found 5,451 of 5,984 pending jobs predated feed creation and had no revision. This motivated narrow initial-backlog deferral, repeated-discovery coalescing, and bounded lookup indexes. Deferred work is not reported as successfully fetched \cite{canaryrecovery}.
+
+Live testing continued on 31 October. At 09:26 UTC, the canaries had 12,150 DONE acquisition jobs, 457 FAILED, 10,144 PENDING, 11 RUNNING, and 4,811 deferred initial-backlog jobs. These are retained job states, not unique articles or a success percentage. Over approximately eight minutes, DONE increased by 16, FAILED by three net, and PENDING by 62. The pending snapshot included 423 jobs with recorded backpressure (waiting for capacity or another required resource) and one with a rate-limit wait.
+
+\textbf{The acquisition workload is not yet sustainable.} New jobs were arriving faster than they were completed. Both helper slots were busy in the later sample, but other samples showed completed work and released slots. This identifies acquisition scheduling, redundant work, queue delay, and execution capacity as issues to investigate; it does not establish that V3's editor or verifier caused the backlog.
+
+\subsection{Confirmed Fixes and Read-Back}
+
+The follow-up corrected four observed problems:
+\begin{itemize}
+\item \textbf{False article-identity rejection:} UEFA changed URL headline slugs while retaining the same full article ID. Comparison now recognizes that verified alias and its aggregate \texttt{news-media} route while retaining checks on publisher, ID, and meaningful query parameters.
+\item \textbf{Summary replacing article text:} short structured summaries were taking precedence over substantial visible article bodies. The extractor now prefers a unique, sufficiently substantial body in the tested cases.
+\item \textbf{Repeated Google URL decoding:} verified listing-to-publisher mappings are cached for up to one hour and protected by a shared lease. Missing or invalid results are not cached, and source authorization is checked on reuse.
+\item \textbf{Archive navigation treated as an article:} ESA archive links are now classified as section locators rather than article candidates.
+\end{itemize}
+
+All 14 inspected UEFA failures were subsequently read back as DONE, with retained bodies of 1,820--6,136 characters, using explicitly unpaid recoveries. Completeness remains UNKNOWN where it cannot be proved. Two live Google-cache replays returned the expected mappings with zero helper calls. The repair checks passed 109 connector tests, 75 focused Worker tests, and seven recovery/resource-wait tests, together with type checks and a QA build. These tests have specific scopes and are not a complete repository test campaign.
+
+The deployed code is commit \texttt{83b37313}; the read-back and limits are retained in the project repair record.\footnote{\raggedright Project record: \nolinkurl{docs/canary-non-llm-acquisition-repairs-2026-10-30.md}. The later read-only snapshot is retained privately as \nolinkurl{current-acquisition-audit-summary-20261031.json}.} No LLM extraction fallback was added. All nine original interrupted Apify result reads recovered their saved receipts, while unknown actor starts and Zyte outcomes remained protected against blind replay. These fixes do not resolve every inaccessible page or prove that the growing backlog has been cleared.
+
+\section{Evaluation Dataset and Validation Preparation}
+
+The tracked acquired-data extension contains 95 reporting windows across 20 tracks and 13 feeds, with 565 distinct acquired IDs and 817 article occurrences. Twelve windows are empty; the output-language distribution is 75 English, six French, and 14 Arabic windows. Repeated reports and consecutive windows are retained to evaluate repetition and meaningful updates. The extension overlaps the pilot and cannot be treated as an independent test set \cite{dataaudit}.
+
+The saved local quality report describes two extractive baselines on 60 development windows: 54 English, three French, and three Arabic. This produced 120 system-window outcomes, with ten separate synthetic/adversarial challenges and 134 recorded harness/regression tests. The keyword baseline selected nothing in the three French windows despite 15 input occurrences. This is a useful failure to inspect, not a human-labelled count of missed important stories \cite{localquality}.
+
+That local report still lacked the 240 planned human case/system judgments, participant observations, and a paid V3-versus-single-model comparison. Seven nominated cross-split pairs required review, and no French held-out windows were available. Consequently, factual accuracy, relevance, importance, completeness, deduplication, novelty, and user benefit cannot yet be reported as validated system scores \cite{localquality}.
+
+The remaining evaluation must separate development, validation, and held-out data; replay consecutive windows chronologically with each variant's own published history; and compare manual monitoring, rule-based selection, single-pass summarization, and V3. Live tests must include missed scheduled opportunities, queue waiting, acquisition-to-publication latency, settled costs, and uncertain charges. A planned pilot with 6--10 consenting multilingual students or early-career researchers will compare matched manual and Distilled.News monitoring tasks; it has not yet produced participant results \cite{performanceprotocol,validationplan}.
+
+\section{Status Against the Requirements}
+
+Table~\ref{tab:traceability} maps progress to R01--R16 in Chapter~\ref{chap:solution}. \emph{Implemented} means that a mechanism exists. \emph{Partially tested} means that evidence covers a limited workload. Neither term means that the final acceptance target has passed.
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.05}
+\begin{longtable}{L{0.9cm}L{6cm}L{\dimexpr\linewidth-6.9cm-6\tabcolsep\relax}}
+\caption{Requirement status and remaining acceptance work}\label{tab:traceability}\\
+\toprule ID & Current evidence and status & Remaining acceptance work \\ \midrule
+\endfirsthead
+\toprule ID & Current evidence and status & Remaining acceptance work \\ \midrule
+\endhead
+\bottomrule
+\endfoot
+R01 & Implemented; partially tested account ownership and feed access.
+& Complete cross-account and private-feed negative tests. \\
+R02 & Implemented; source text, identities, timestamps, and extraction states are retained in tested paths.
+& Audit required fields across a representative multi-connector sample. \\
+R03 & Partially tested; six of six citations survived the twenty-article replay, with repair-mapping regressions.
+& Audit citations through all publication and recovery paths. \\
+R04 & Partially tested; a quiet window completed without model calls.
+& Repeat scheduled empty-window tests and verify absence of unnecessary calls. \\
+R05 & Partially tested continuity and correction controls; ambiguous real cases remain.
+& Use independently annotated, consecutive real-news windows. \\
+R06 & Strict verifier identifiers are implemented; semantic false approvals remain.
+& Combine adversarial parsing checks with independent claim review. \\
+R07 & Stable operations, leases, version checks, and replay controls are implemented.
+& Run concurrent-worker and crash-recovery campaigns; check duplicates. \\
+R08 & Reservations, settlements, and uncertain exposure are implemented and partly exercised.
+& Reconcile provider outcomes and verify retry behavior under lost responses. \\
+R09 & Deadline acceptance pending; one fresh staging trial and a growing canary backlog are documented.
+& Measure all expected opportunities under sustained load, including absent invocations. \\
+R10 & p95 latency target pending; individual replay timings are available.
+& Run at least 30 predeclared independent opportunities with consistent timing boundaries. \\
+R11 & Representative cost target pending; individual settled costs are available.
+& Include unsuccessful attempts, repair, retries, and unresolved exposure in workload-level costs. \\
+R12 & Important-news coverage and factual-support targets pending.
+& Establish independent reference labels and claim-level adjudication. \\
+R13 & Multilingual interface and limited English/Arabic experiments exist.
+& Evaluate all three languages independently, including French held-out cases. \\
+R14 & Responsive/RTL work implemented; full accessibility acceptance pending.
+& Complete automated and manual WCAG 2.2 AA checks. \\
+R15 & Source, origin, ownership, and model-authority controls are partly tested.
+& Complete the threat model and permission/failure test matrix. \\
+R16 & User-validation protocol prepared; participant outcomes pending.
+& Recruit the pilot and measure time, missed information, comprehension, and usefulness. \\
+\end{longtable}
+\endgroup
+
+\section{Remaining Risks and Next Steps}
+
+The integrated application and source-preserving publication path demonstrate engineering feasibility. Final acceptance remains open because factual quality, sustained acquisition, representative cost, and user benefit require stronger evidence.
+
+\begin{table}[htbp]
+\centering\small
+\renewcommand{\arraystretch}{1.07}
+\caption{Priority risks and next measurable actions}\label{tab:risks}
+\begin{tabularx}{\linewidth}{L{3.2cm}X}
+\toprule Risk & Next action \\ \midrule
+Growing acquisition backlog & Measure arrival/completion rates, queue age, helper occupancy, and redundant work together. Test any capacity or scheduling change under sustained load. \\
+Unsupported or omitted news & Build independently labelled claim and development histories; report false approvals, omissions, repetition, and corrections. \\
+Unknown provider charges & Reconcile retained operations with provider evidence. Preserve reservations and prevent duplicate submissions. \\
+Unqualified delivery and cost targets & Run a prospective opportunity-based campaign with p50/p95 latency, deadline success, settled cost, and failure counts. \\
+Uneven language/accessibility quality & Conduct separate English, French, and Arabic reviews and complete keyboard/screen-reader checks. \\
+Unproven reader benefit & Complete the matched manual-versus-product pilot and report negative feedback and sample limitations. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The next milestone is therefore a qualified evaluation of the integrated system, rather than simply producing more briefings. The team must retain failed and quiet outcomes alongside successes, use fixed comparison inputs, and report what the evidence supports without treating deployment or model approval as proof of correctness.

@@ -1,0 +1,74 @@
+\chapter{Introduction}
+\label{chap:introduction}
+
+\section{Motivation and Problem Identification}
+
+News is available through websites, social platforms, messaging channels, and news aggregators. Although this makes information easier to access, following a specific topic can still require considerable effort. A reader monitoring Lebanese infrastructure, artificial intelligence policy, scientific developments, or a particular organization may need to consult several sources regularly. Many reports repeat information, while others introduce small updates or provide conflicting details. Readers must determine what has changed, which reports are relevant, and how well the available evidence supports them.
+
+The Reuters Institute's \textit{Digital News Report 2026} found that 54\% of surveyed audiences across its markets used social and video networks for news, while 42\% reported avoiding news at least sometimes \cite{reuters2026}. These findings provide broader context for the project. However, they do not establish the needs of our intended users or demonstrate that our proposed solution will improve their experience. Those questions require direct observation and user evaluation, as described in our validation plan \cite{validationplan}.
+
+Distilled.News addresses this problem by producing personalized briefings that highlight relevant developments and retain links to supporting sources. The project investigates three questions: whether the system can reliably collect and publish information, whether its briefings are accurate and useful, and whether it helps readers follow their chosen topics with less effort.
+
+\section{Problem Statement}
+
+The problem is to transform reports from multiple sources into a concise, relevant, and verifiable briefing. For each scheduled update, the system must consider the user's interests, the available source material, and what the feed has already published. It should identify meaningful developments, avoid repeating earlier coverage, and preserve enough context for readers to understand each update. When there is no relevant new information, it should avoid producing an unnecessary briefing.
+
+This requires both editorial judgment and reliable software controls. AI models can help assess relevance, interpret reports, and write summaries, but their output may contain errors. The system must therefore check generated claims against source evidence and apply explicit rules for access permissions, spending, and publication. Successful processing alone is insufficient: the published result must also be accurate, understandable, and useful to the reader.
+
+\section{Scope and Boundaries}
+
+The project includes configurable feeds in which users choose their topics, sources, preferred language, and update frequency. Supported source types include RSS, Google News, public Telegram channels, and other supported integrations where access is permitted. The system collects and stores source material, records its origin, identifies duplicate reports, and prepares briefings that account for previous publications.
+
+The scope also includes scheduled processing, factual verification, targeted correction of detected errors, public feed pages, and optional browser notifications. Multilingual support covers English, French, and Arabic, with each language requiring separate evaluation. Supporting a language in the application does not by itself demonstrate that briefings in that language are equally accurate.
+
+The project does not aim to index the entire web, provide a general-purpose chatbot, bypass source restrictions, or guarantee that every statement in an original report is true. AI models do not have independent authority to publish content. Claims about user benefit will depend on the results of participant studies rather than implementation progress alone.
+
+\section{Stakeholders and Desired Needs}
+
+The main stakeholders are readers, system operators, and project evaluators. Their needs guide both the platform's features and the criteria used to assess its performance.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Stakeholder needs and proposed responses}
+\label{tab:needs}
+\begin{tabularx}{\linewidth}{p{2.8cm}XX}
+\toprule
+Stakeholder & Main need & Proposed response \\
+\midrule
+Topic monitor
+& Follow relevant developments without repeatedly reading similar reports.
+& Personalized briefings that consider previously published information. \\
+
+Reader checking evidence
+& Understand the basis of a claim and any uncertainty.
+& Source citations, factual checks, and wording that preserves uncertainty. \\
+
+Multilingual reader
+& Read updates in a preferred language.
+& Per-feed language selection and separate evaluation of each language. \\
+
+System operator
+& Control costs and recover from processing failures.
+& Spending limits, processing records, and safeguards against lost or duplicate publications. \\
+
+Project evaluator
+& Assess performance and inspect unsuccessful cases.
+& Recorded test inputs, retained results, and independent assessment of briefing quality. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Project Objectives}
+
+The project has five main objectives:
+
+\begin{enumerate}
+    \item Develop a complete workflow from source collection to published briefings.
+    \item Preserve source references and use publication history to distinguish new developments from repeated information.
+    \item Make processing and publication reliable under interruptions, retries, and concurrent tasks.
+    \item Produce clear briefings and an accessible interface with multilingual support.
+    \item Evaluate factual accuracy, relevance, processing time, operating cost, reliability, and reader benefit against simpler approaches.
+\end{enumerate}
+
+Together, these objectives define success in terms of both system operation and the quality of the reader's experience. A briefing must be saved and displayed reliably, but it must also accurately represent its sources and help the reader understand relevant developments.

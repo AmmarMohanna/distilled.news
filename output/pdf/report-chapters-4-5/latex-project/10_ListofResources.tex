@@ -1,0 +1,26 @@
+\chapter{Resources and Engineering Tools}\label{app:resources}
+\section{Required Hardware, Software and External Services}
+\begin{longtable}{L{3.35cm}L{3cm}L{3.7cm}L{2.25cm}}
+\caption{Resource inventory and anticipated further work}\label{tab:resources}\\\toprule Component & Role & Availability / learning need & Cost basis \\ \midrule\endfirsthead\toprule Component & Role & Availability / learning need & Cost basis \\ \midrule\endhead
+Developer laptops; internet access & Local coding, test execution, documentation & Existing; no special physical build or hardware procurement & Existing equipment \\
+Cloudflare Workers/Hono & API, schedules, ingestion and publication & Implemented; fault and deployment runbooks need tightening & Provider plan-dependent \\
+Cloudflare D1, R2, Queues & SQL state, source archives, durable work & Implemented; capacity, migration and restoration tests remain & Usage-dependent \\
+Private browser helper / Playwright; optional Containers & Permissioned browser acquisition & Guarded fallback; deployment-specific VPS/helper access and capacity checks remain & Usage-dependent \\
+React, Vite, TypeScript & Reader and configuration UI & Implemented; mobile, RTL, and accessibility audits remain & Open-source tools \\
+Vitest, Playwright, Automated continuous integration & Automated unit, API, interface and CI checks & Existing pipeline; security, performance and promotion gates remain & Hosted CI allowance \\
+OpenRouter / provider models & V3 editor, verifier and targeted repair & Existing routes; candidate model cost/quality tested on limited cases & Per-token; actual receipts \\
+RSS, Google News, Telegram; optional social connectors & Heterogeneous evidence acquisition & Implemented; fallbacks vary; provider eligibility and TOS checks remain & Provider-dependent \\
+Reference annotation and analysis scripts & Human labels, confidence intervals, reproducibility & Tracked performance foundation and local quality harness; human labels, live qualification and participant evidence remain & Open-source + staff time \\
+Version-control system & Source, diffs, audit evidence and release tags & Integrated candidate available; final release qualification remains & Existing access \\
+\bottomrule\end{longtable}
+
+\subsection{Authentication and Deployment Resources}
+The application also uses configurable email transport (including Outlook Graph for configured deployments), service-worker/PWA assets and deployment-specific browser-helper bindings. Mail OAuth credentials, D1 token storage, remote sessions and provider grants are not portable Git artifacts. Joud, staging, sources-QA and production targets require separate migration/binding checks. Code integration does not transfer database content, authorize spending or imply identical live deployment state \cite{currentintegration,preservation}.
+
+\section{Economic and Resource Planning}
+Our economic accounting has three classes: (1) confirmed settled provider charges, (2) reserved/unknown exposure not yet a confirmed invoice, and (3) shared infrastructure cost, which requires provider billing data and allocation. We will never add a conservative reservation to a settled charge and label the sum a single actual bill. In isolated tests, the 20-article V3 replay cost \$0.0723856 in confirmed model inference, while a different larger run cost \$0.2605756; these are \emph{per-case inference charges}, not subscriptions, cost per active user, or full service total cost \cite{v3twenty,v3overnight}.
+
+For final evaluation, each run manifest will identify preapproved maximum exposure, provider/model, source/API usage, number of attempts, original billable operation keys, exact settled amounts, unresolved holds, and allocation for shared collection. The team will use finite per-experiment approvals and a separate project expenditure ledger. No arbitrary bill-of-materials dollar total is asserted where the deployment invoices have not been examined.
+
+\section{Key Skills and Training Needs}
+The team has working experience with TypeScript, React, API services, CI, SQL persistence, automated testing and bounded AI workflows. Remaining learning/application focuses are independent annotation methodology and inter-rater agreement; confidence intervals and paired statistics; live load/fault injection; Cloudflare billing and tracing; threat modelling; and WCAG 2.2 AA manual accessibility audit. These are listed as planned skills, not as limitations imposed on the product itself.
