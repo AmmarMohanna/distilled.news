@@ -16,6 +16,11 @@ competition and meaningful query parameters. Other publishers and different IDs
 remain distinct. Stored URLs, observation identities and paid operation keys
 are not rewritten.
 
+A subsequent live case confirmed that UEFA's aggregate `news-media` section and
+a competition section expose the same complete article ID. This specific section
+alias is accepted. Arbitrary different competition paths and different IDs are
+still rejected.
+
 The existing explicit unpaid-recovery endpoint can now reopen this particular
 canonical failure when exact safe alias evidence is supplied. It retains prior
 failure history and permits one additional unpaid attempt. It does not clear

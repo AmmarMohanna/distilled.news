@@ -24,6 +24,8 @@ it('keeps substantive structured evidence rather than silently substituting diff
  expect(extractPublicHtml(page(`<div class="article_body"><p>${first}</p><p>${second}</p></div>`,retained),old).body).toBe(retained);
 });
 it('never equates unrelated publishers, competitions, IDs, or content queries',()=>{
+ expect(sameArticleUrl(old,canonical.replace('womenschampionsleague','news-media'))).toBe(true);
+ expect(sameArticleUrl(old,canonical.replace('womenschampionsleague','news-media').replace('21e36ef64792','21e36ef64793'))).toBe(false);
  for(const other of [canonical.replace('21e36ef64792','21e36ef64793'),canonical.replace('womenschampionsleague','uefachampionsleague'),canonical.replace('www.uefa.com','example.com'),canonical+'?edition=other'])expect(sameArticleUrl(old,other)).toBe(false);
 });
 it('does not enqueue ESA archive navigation as an article',()=>{

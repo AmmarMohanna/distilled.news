@@ -19,7 +19,14 @@ export function sameArticleUrl(left:string,right:string):boolean {
   normalizePublisherArticlePath(url);
   return url.href;
  };
- try{return normalize(left)===normalize(right);}catch{return false;}
+ try{
+  const a=normalize(left),b=normalize(right);if(a===b)return true;
+  // UEFA's aggregate news-media section exposes the same CMS article as a
+  // competition section. Do not generalize this to arbitrary competitions.
+  const u=new URL(a),v=new URL(b),id=/^\/([a-z0-9-]+)\/news\/([a-f0-9]{4}-[a-f0-9]{12}-[a-f0-9]{12}-[a-f0-9]{4})$/;
+  const x=id.exec(u.pathname),y=id.exec(v.pathname);
+  return u.origin==='https://www.uefa.com'&&v.origin===u.origin&&u.search===v.search&&!!x&&!!y&&x[2]===y[2]&&(x[1]==='news-media'||y[1]==='news-media');
+ }catch{return false;}
 }
 
 /** Some publishers use a numeric CMS ID instead of a URL in JSON-LD.

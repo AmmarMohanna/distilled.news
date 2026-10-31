@@ -3,6 +3,8 @@ const url='https://publisher.example/news/report';
 const uefa='https://www.uefa.com/womenschampionsleague/news/02a9-21a9b14a50b6-6f4a52d748c0-1000--old-headline/';
 it('accepts a UEFA headline change only for the identical full CMS article identity',()=>{
  expect(sameArticleUrl(uefa,uefa.replace('old-headline','updated-headline'))).toBe(true);
+ expect(sameArticleUrl(uefa,uefa.replace('womenschampionsleague','news-media').replace('old-headline','updated-headline'))).toBe(true);
+ expect(sameArticleUrl(uefa,uefa.replace('womenschampionsleague','news-media').replace('21a9b14a50b6','21a9b14a50b7'))).toBe(false);
  for(const other of [uefa.replace('21a9b14a50b6','21a9b14a50b7'),uefa.replace('womenschampionsleague','uefachampionsleague'),uefa.replace('www.uefa.com','other.example'),uefa.replace('https:','http:'),uefa+'?edition=another'])expect(sameArticleUrl(uefa,other)).toBe(false);
  expect(sameArticleUrl('https://www.uefa.com/news/old-headline','https://www.uefa.com/news/updated-headline')).toBe(false);
 });
