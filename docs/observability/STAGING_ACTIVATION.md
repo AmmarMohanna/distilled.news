@@ -1,6 +1,6 @@
-﻿# Staging AgentOps activation: acceptance record
+# Staging AgentOps activation: acceptance record
 
-Status: **BLOCKED before cloud activation; not an operational acceptance**.
+Status: **PARTIAL: private Grafana resources imported; telemetry and metrics activation remain blocked. Not an end-to-end acceptance.**
 
 ## Baseline and boundary
 
@@ -9,7 +9,7 @@ Status: **BLOCKED before cloud activation; not an operational acceptance**.
 - Complete baseline GitHub Actions run [41142513586](https://github.com/AmmarMohanna/distilled.news/actions/runs/41142513586) completed successfully. This is the baseline workflow result, not a claim that a later activation deployment passed.
 - Intended target: `distilled-news-staging`, account `e32b564514d4f9b9e383b7dd30dbb026`, staging URL `https://distilled-news-staging.distillednews-platform.workers.dev`.
 - Expected resources from the explicit staging config: D1 `ab259bfe-6029-4e20-8cb6-eea6b7a67459`, R2 `distilled-news-staging-raw`, and staging-prefixed queues. Live resources must be re-read after authentication is restored.
-- No product instrumentation, prompts, scheduling, frontend, accounting or provider routing was changed. No cloud resource mutation, deployment, provider call, notification or financial mutation was performed.
+- No product instrumentation, prompts, scheduling, frontend, accounting or provider routing was changed. The initial preflight performed no cloud mutations; subsequent explicitly approved Grafana resource changes are recorded below. No Worker deployment, paid provider call, notification or financial mutation was performed by this activation task.
 
 ## Authentication preflight
 
@@ -136,3 +136,41 @@ The operator was asked to grant the token's service account Admin on this folder
 Actual datasource health endpoints for Loki and Tempo returned 200/OK. The Loki service-name label lookup returned success without a data field; it did not establish an existing Distilled log stream. Native traces, live metric data, OTLP ingestion credentials, Cloudflare authentication and private trace/collector access remain unavailable. The resource provisioning token is not reused as an ingest token.
 
 Private per-operation journals are retained locally. The first exact-folder GET returned 403 for the absent UID; folder inventory confirmed absence before the single approved POST. The subsequent permissions 403 is the actual remaining authorization blocker. No repeated create or blind overwrite was attempted.
+
+
+## Grafana resource import and real query validation
+
+After the operator updated folder authority, the token reported `canAdmin=true` and the folder permissions API returned 200. General Viewer and Editor grants were removed. Permissions read-back returned an empty explicit ACL: ordinary Viewer/Editor role access is absent; implicit administrators and separately assigned administration authority remain. This is a folder-access check, not proof that all pre-existing stack datasource permissions are operator-only.
+
+Actual resources now present:
+
+- [Private staging dashboard](https://giganticmantel34.grafana.net/d/distilled-agentops-v1/), UID `distilled-agentops-v1`, version 1; 14 panels.
+- [Staging operations folder](https://giganticmantel34.grafana.net/dashboards/f/distilled-staging-ops), UID `distilled-staging-ops`.
+- Eleven rules in `distilled-provisional`, folder `distilled-staging-ops`, all read back paused, evaluation group interval 60 seconds. No contact points or notification policies were modified.
+- Datasources bound to `grafanacloud-prom` and `grafanacloud-logs`; existing Tempo UID is `grafanacloud-traces`.
+
+All 17 target queries across the existing 14 panels executed against actual Grafana datasources with HTTP/status 200. Every target returned no samples. This verifies query execution and datasource binding, **not** measured publication, latency, cost or ingestion. Empty data remains unavailable; it is not a zero or a healthy briefing pipeline.
+
+One genuine server-side alert preview was evaluated through `/api/v1/eval`: `distilled-missing-observer`, condition C. Both the Loki query and threshold expression returned numeric 1. This correctly detects the lack of observed AgentOps events during the evaluated period. It is a real Grafana query evaluation, not synthetic telemetry, an activated scheduler, a notification or an observed recovery.
+
+The operator approved enabling evaluation too. Rules remain paused while ingestion is absent and delivery isolation is unresolved: the verified missing-observer condition would otherwise fire during setup. Notification delivery has not been approved. Do not unpause rules into an unreviewed existing default notification route, and do not silently route all other services' alerts to a mute destination.
+
+The first local alert-import attempt failed before any network mutation because Windows PowerShell had written the prepared JSON as UTF-16. Regenerating it directly using Node's UTF-8 writer resolved that local issue; the 11 POSTs and full read-back then succeeded. No duplicate or unrelated rule was overwritten.
+
+Current acceptance amendments:
+
+| Requirement | Current status | Exact limit |
+| --- | --- | --- |
+| Grafana authentication/datasource identity | VERIFIED | Actual authenticated API reads and Loki/Tempo health OK. |
+| Private dashboard folder and import | VERIFIED | General role grants removed; 14-panel dashboard read back. |
+| Panel queries | PARTIAL | 17 queries execute; no live samples available to validate their semantics. |
+| Paused alert import/group | VERIFIED | 11 rules, correct folder, all paused, interval 60 seconds. |
+| One alert evaluation | VERIFIED | Missing-observer preview returns 1; no firing notification or recovery claimed. |
+| Active alert scheduler | BLOCKED | Ingestion and notification-safe activation required. |
+| Cloudflare destinations/deployment | BLOCKED | Account authentication and actual destination ingest credentials still missing. |
+| Loki/Tempo delivery and native trace correlation | BLOCKED | No exported event/span observed; no trace ID invented. |
+| Continuous metrics and real workflow evidence | BLOCKED | Collector host, private trace authentication and approved live scenario still needed. |
+
+Credential requests remain local-only. The requested next values are the account-scoped Cloudflare token and the Grafana OTLP base URL, instance ID and stack-scoped ingest token. The existing service-account token is not used for ingestion. An existing collector host has not been identified. No new server has been provisioned, and no telemetry ingestion, paid inference, real scraping or reader notification has been initiated.
+
+Private local evidence includes `grafana-import-verification.json`, `folder-acl-after.json`, `alert-readback.json`, `panel-query-validation.json` and `alert-evaluation.json`. Only this sanitized summary is committed.
