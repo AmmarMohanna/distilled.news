@@ -1,0 +1,56 @@
+name: Manually approved staging read-only performance
+on:
+  workflow_dispatch:
+    inputs:
+      approval_id:
+        description: Explicit campaign approval and verified account headroom evidence ID
+        required: true
+      profile:
+        type: choice
+        options: [public-read, authenticated-read]
+        default: public-read
+permissions:
+  contents: read
+concurrency:
+  group: staging-read-performance
+  cancel-in-progress: false
+jobs:
+  staging:
+    # Repository settings must configure required reviewers. YAML alone cannot enforce approval.
+    environment: agentops-staging-readonly-approval
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      STAGING_ORIGIN: https://distilled-news-staging.distillednews-platform.workers.dev
+      STAGING_AUTHORIZATION: APPROVED_READ_ONLY
+      FREE_TIER_PREFLIGHT: ${{ vars.FREE_TIER_PREFLIGHT }}
+      APPROVAL_ID: ${{ inputs.approval_id }}
+      STAGING_PROFILE: ${{ inputs.profile }}
+      REQUEST_BUDGET: '10'
+      RUN_ID: staging-${{ github.run_id }}-${{ github.run_attempt }}
+      COMMIT_SHA: ${{ github.sha }}
+      FEED_USER: ${{ vars.PERFORMANCE_FEED_USER }}
+      FEED_SLUG: ${{ vars.PERFORMANCE_FEED_SLUG }}
+      EDITION_ID: ${{ vars.PERFORMANCE_EDITION_ID }}
+      ISOLATED_ACCOUNT_ID: ${{ vars.PERFORMANCE_ACCOUNT_ID }}
+      STAGING_SESSION_COOKIE: ${{ secrets.PERFORMANCE_SESSION_COOKIE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node evaluation/performance-reliability/k6/verify-staging-approval.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '1.3.0'
+      - run: k6 run evaluation/performance-reliability/k6/staging-read.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-performance-${{ github.run_id }}
+          path: |
+            staging-performance.json
+            staging-performance.html
+          retention-days: 3

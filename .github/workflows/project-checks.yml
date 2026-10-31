@@ -66,3 +66,57 @@ jobs:
           name: agentops-fixture-performance-${{ github.sha }}
           path: .local-reports/k6/
           retention-days: 7
+
+  agentops-fixture-campaigns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      max-parallel: 2
+      fail-fast: false
+      matrix:
+        profile: [load, spike, stress, soak, recovery, fault]
+    env:
+      ENABLE_CAMPAIGN: 'yes'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '1.3.0'
+      - run: node evaluation/performance-reliability/k6/run-local.mjs "${{ matrix.profile }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fixture-${{ matrix.profile }}-${{ github.sha }}
+          path: .local-reports/k6/
+          retention-days: 7
+
+  agentops-correctness-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      max-parallel: 2
+      fail-fast: false
+      matrix:
+        group: [browser, v3, accounts]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+        if: matrix.group == 'browser'
+      - run: node evaluation/performance-reliability/run-correctness-fixtures.mjs "${{ matrix.group }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: correctness-${{ matrix.group }}-${{ github.sha }}
+          path: .local-reports/agentops-fixtures/
+          retention-days: 7

@@ -20,5 +20,6 @@ export function journey(config){
 }
 export function summary(config,data){
  const report={schemaVersion:'distilled-k6-result.v1',mode:config.mode,evidence:config.local?'synthetic fixture HTTP only; not application throughput':'authorized read-only HTTP campaign',profile:config.profile,harnessSha256:__ENV.HARNESS_SHA256||null,k6Version:__ENV.K6_VERSION||null,commit:__ENV.COMMIT_SHA||'UNRECORDED',startedAt:__ENV.RUN_STARTED_AT||null,finishedAt:new Date().toISOString(),origin:config.origin,settings:config.options,metrics:data.metrics,limitations:['HTTP request latency is not cutoff-to-reader pipeline latency.','k6 quantiles are diagnostic; use raw samples and Aya R7 for evaluation comparisons.','Public fixture routes only; no publication, inference, source collection or notification.','No client cache; warmup excluded from measured thresholds; CDN cache state unobserved.']};
- return {[(__ENV.RESULT_DIR||'.')+'/'+config.profile+'.json']:JSON.stringify(report,null,2),'stdout':JSON.stringify({profile:config.profile,metrics:data.metrics},null,2)+'\n'};
+ const html='<!doctype html><meta charset="utf-8"><title>Offline k6 evidence</title><h1>k6 '+config.profile+'</h1><pre>'+JSON.stringify(report,null,2).replaceAll('&','&amp;').replaceAll('<','&lt;')+'</pre>';
+ return {[(__ENV.RESULT_DIR||'.')+'/'+config.profile+'.html']:html,[(__ENV.RESULT_DIR||'.')+'/'+config.profile+'.json']:JSON.stringify(report,null,2),'stdout':JSON.stringify({profile:config.profile,metrics:data.metrics},null,2)+'\n'};
 }
