@@ -58,3 +58,7 @@ __pycache__/
 # Abandoned local temporary test directories
 /evaluation/acquisition-benchmark/scripts/tmp*/
 .local-reports/
+
+# Isolated local engineering tools and generated results
+.local-tools/
+.local-reports/

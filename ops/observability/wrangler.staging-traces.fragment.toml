@@ -1,0 +1,15 @@
+# INACTIVE. Merge only after explicit trace deployment/traffic approval.
+# Existing legacy console logs must not be attached to any Grafana destination.
+# The live API-level observability.redact_query_string=true setting is also
+# required; installed Wrangler 4.100 does not expose this key in its schema.
+[observability.logs]
+enabled = false
+invocation_logs = false
+persist = false
+destinations = []
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05
+persist = false
+destinations = ["distilled-staging-traces"]

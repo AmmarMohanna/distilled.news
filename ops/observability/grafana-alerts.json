@@ -1,0 +1,816 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "distilled-provisional",
+      "folder": "Distilled private",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "distilled-publication-failures",
+          "title": "Repeated scoped publication failures",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "sum(distilled_publication_failed{job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        2
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Repeated scoped publication failures",
+            "description": "Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#publication"
+          },
+          "for": "10m"
+        },
+        {
+          "uid": "distilled-publication-delay",
+          "title": "Recorded publication delay p95 above review threshold",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "max(distilled_publication_duration_ms_p95{job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        600000
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Recorded publication delay p95 above review threshold",
+            "description": "Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#publication"
+          },
+          "for": "10m"
+        },
+        {
+          "uid": "distilled-backlog",
+          "title": "Persistently elevated acquisition/reassessment backlog",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "sum({__name__=~\"distilled_jobs_(acquire|reassess)_(pending|running)\",job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        25
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Persistently elevated acquisition/reassessment backlog",
+            "description": "Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#backlog"
+          },
+          "for": "15m"
+        },
+        {
+          "uid": "distilled-backlog-age",
+          "title": "Persistently old observed pending jobs",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "max(distilled_oldest_observed_pending_age_ms{job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        1800000
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Persistently old observed pending jobs",
+            "description": "Provisional 30-minute precommit enqueue-age review trigger; known timestamp subset only, legacy gaps remain explicit.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#backlog"
+          },
+          "for": "15m"
+        },
+        {
+          "uid": "distilled-provider-failures",
+          "title": "Scoped retained provider failures require diagnosis",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "sum(distilled_provider_failed_operations{job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        2
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Scoped retained provider failures require diagnosis",
+            "description": "Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#provider"
+          },
+          "for": "10m"
+        },
+        {
+          "uid": "distilled-runtime-failures",
+          "title": "Elevated observed invocation error fraction; inspect provider and DB spans",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-logs",
+              "model": {
+                "refId": "A",
+                "expr": "sum(count_over_time({service_name=\"distilled-news-staging\"} | json | schema=\"agentops.v1\" | outcome=\"error\" [5m])) / sum(count_over_time({service_name=\"distilled-news-staging\"} | json | schema=\"agentops.v1\" [5m]))",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.05
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Elevated observed invocation error fraction; inspect provider and DB spans",
+            "description": "Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#provider"
+          },
+          "for": "10m"
+        },
+        {
+          "uid": "distilled-uncertain",
+          "title": "Persistent uncertain/unsettled paid operations",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "sum(distilled_unsettled_operations{job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "critical",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Persistent uncertain/unsettled paid operations",
+            "description": "Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#finance"
+          },
+          "for": "15m"
+        },
+        {
+          "uid": "distilled-spending",
+          "title": "Confirmed partial retained spend increase exceeds review policy",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "sum(delta(distilled_confirmed_partial_cost_usd{job=\"distilled-snapshot\"}[1h]))",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        5
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Confirmed partial retained spend increase exceeds review policy",
+            "description": "Provisional USD 5/hour review trigger; retained cohort must be stable and complete. Not all-in spend, not an authorization limit. Do not enable for changing window cohorts.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#finance"
+          },
+          "for": "5m"
+        },
+        {
+          "uid": "distilled-missing-observer",
+          "title": "No scheduled invocation telemetry for ten minutes",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-logs",
+              "model": {
+                "refId": "A",
+                "expr": "sum(absent_over_time({service_name=\"distilled-news-staging\"} | json | schema=\"agentops.v1\" | boundary=\"scheduled\" [10m]))",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "No scheduled invocation telemetry for ten minutes",
+            "description": "Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#observer"
+          },
+          "for": "2m"
+        },
+        {
+          "uid": "distilled-snapshot-observer",
+          "title": "Snapshot observer failed or absent",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "max((1 - distilled_observer_up{job=\"distilled-snapshot\"}) or absent(distilled_observer_up{job=\"distilled-snapshot\"}))",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Snapshot observer failed or absent",
+            "description": "Provisional five-minute freshness policy for an approved bounded collection cadence. Absence is observer failure, never healthy zero.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#observer"
+          },
+          "for": "2m"
+        },
+        {
+          "uid": "distilled-snapshot-stale",
+          "title": "Private snapshot input is stale",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "time() - min(distilled_snapshot_observed_timestamp_seconds{job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        300
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "Private snapshot input is stale",
+            "description": "Provisional five-minute freshness policy for an approved bounded collection cadence. Absence is observer failure, never healthy zero.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#observer"
+          },
+          "for": "2m"
+        }
+      ]
+    }
+  ]
+}

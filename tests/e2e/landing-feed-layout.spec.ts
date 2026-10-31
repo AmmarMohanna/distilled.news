@@ -71,8 +71,8 @@ for (const width of [320, 749, 900, 1280]) {
     expect(await cards.first().locator('.topic-art').evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     const authorBounds = await cards.first().locator('.feed-card-identity small').boundingBox();
     const updatedBounds = await cards.first().locator('.feed-updated-at').boundingBox();
-    expect(updatedBounds!.y - authorBounds!.y - authorBounds!.height).toBeGreaterThanOrEqual(4);
-    expect(updatedBounds!.y - authorBounds!.y - authorBounds!.height).toBeLessThanOrEqual(8);
+    await expect(cards.first()).toHaveCSS('row-gap','2px');
+    expect(updatedBounds!.y - authorBounds!.y - authorBounds!.height).toBeCloseTo(2,0);
     const grid = await page.locator('.curated-feed-grid').boundingBox();
     await page.screenshot({path:`.local-reports/staging-feed-card-layout/${info.project.name}-${width}-cards.png`,animations:"disabled"});
     const lastY = measurements.at(-1)!.y;

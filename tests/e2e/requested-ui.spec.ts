@@ -16,7 +16,7 @@ async function mock(page: import("@playwright/test").Page, authenticated = true)
  });
 }
 
-test("phone header aligns the full logo and controls with an icon-only create button", async ({ page }) => {
+test("phone header preserves compact branding and controls with an icon-only create button", async ({ page }) => {
  await mock(page, false);
  await page.setViewportSize({ width: 390, height: 844 });
  await page.goto("/");
@@ -25,7 +25,8 @@ test("phone header aligns the full logo and controls with an icon-only create bu
  await expect(create.locator('.create-feed-label')).toBeHidden();
  await expect(create).toHaveCSS('width', '48px');
  const brand = page.locator('.experience-header .experience-brand');
- await expect(brand.locator('.distilled-logo-wordmark')).toBeVisible();
+ await expect(brand.locator('.distilled-logo-wordmark')).toBeHidden();
+ await expect(brand).toHaveAttribute('aria-label','Distilled.news');
  await expect(brand.locator('.distilled-logo-symbol')).toBeVisible();
  const symbol = await brand.locator('.distilled-logo-symbol').boundingBox();
  await expect(page.locator('.experience-header .language-cycle')).toBeVisible();
@@ -35,11 +36,16 @@ test("phone header aligns the full logo and controls with an icon-only create bu
  const login = await page.getByRole('link', { name: 'Log in', exact: true }).boundingBox();
  expect(Math.abs(symbol!.y + symbol!.height / 2 - login!.y - login!.height / 2)).toBeLessThan(2);
  await page.setViewportSize({ width: 320, height: 568 });
- const wordmark = await brand.locator('.distilled-logo-wordmark').boundingBox();
+ await expect(brand.locator('.distilled-logo-wordmark')).toBeHidden();
+ const narrowSymbol = await brand.locator('.distilled-logo-symbol').boundingBox();
  const narrowLogin = await page.getByRole('link', { name: 'Log in', exact: true }).boundingBox();
- expect(wordmark!.x + wordmark!.width).toBeLessThanOrEqual(narrowLogin!.x);
+ expect(narrowSymbol!.x).toBeGreaterThanOrEqual(0);
+ expect(narrowSymbol!.x + narrowSymbol!.width).toBeLessThanOrEqual(narrowLogin!.x);
  await create.click();
  await expect(page.getByRole('dialog')).toBeVisible();
+ await page.keyboard.press('Escape');
+ await page.setViewportSize({width:1280,height:844});
+ await expect(brand.locator('.distilled-logo-wordmark')).toBeVisible();
 });
 
 test("feed menus stay visible at viewport edges and escape card clipping", async ({ page }) => {
@@ -68,7 +74,7 @@ test("feed menus stay visible at viewport edges and escape card clipping", async
   await expect(panel).toBeHidden();
  }
 });
-test("feed cards have rounded artwork, plain controls, and real update times", async ({ page }) => {
+test("feed cards retain transparent illustrations, rounded cards, plain controls, and real update times", async ({ page }) => {
  await page.clock.install({ time: new Date("2026-10-02T14:00:00Z") });
  await mock(page);
  await page.route("**/api/feed/owner/science", route => route.fulfill({ json: {
@@ -80,7 +86,8 @@ test("feed cards have rounded artwork, plain controls, and real update times", a
  await expect(card.locator("time")).toHaveText("Updated 2 hours ago");
  await expect(card.locator("time")).toHaveAttribute("datetime", "2026-10-02T12:00:00Z");
  await expect(card).toHaveCSS("border-radius", "20px");
- await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", /^1[246]px$/);
+ await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", '0px');
+ await expect(card.locator(".topic-art")).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
  await expect(card.locator(".feed-card-meta > button")).toBeVisible();
  for (const selector of [".theme-toggle", ".language-cycle", ".personal-feed-grid .feed-options > summary"]) {
   await expect(page.locator(selector)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");

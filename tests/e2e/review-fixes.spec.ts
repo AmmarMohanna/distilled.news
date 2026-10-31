@@ -244,15 +244,18 @@ test("Add feed microphones align and preferences are a single-column list", asyn
   expect(new Set(tops).size).toBe(tops.length);
 });
 
-test("a few feeds become large capped cards on laptops but stay compact on phones", async ({ page }) => {
+test("a few feeds retain bounded compact cards on laptops and phones", async ({ page }) => {
   await mock(page, true);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   const card = page.locator(".personal-feed-grid .topic-card").first();
   await expect(card).toBeVisible();
   const large = await card.boundingBox();
-  expect(large!.height).toBeGreaterThanOrEqual(160);
-  expect(large!.width).toBeLessThanOrEqual(1440);
+  await expect(page.locator('.personal-feed-grid')).toHaveAttribute('data-size','compact');
+  expect(large!.height).toBeGreaterThanOrEqual(88);
+  expect(large!.height).toBeLessThanOrEqual(144);
+  expect(large!.width).toBeLessThanOrEqual(440);
+  expect(await card.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(140);
 });
@@ -272,7 +275,7 @@ test("a feed retains per-edition read controls in one reading column", async ({ 
   expect(width).toBeLessThanOrEqual(1440);
 });
 
-test("the guest landing page also uses large cards when there are only a few feeds", async ({ page }) => {
+test("the guest landing page retains bounded compact cards for a few feeds", async ({ page }) => {
   const feeds = ["Lebanon", "Technology"].map((title, index) => ({ ...feed, id: `g${index}`, slug: title.toLowerCase(), title, stars: index }));
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
@@ -284,7 +287,12 @@ test("the guest landing page also uses large cards when there are only a few fee
   await page.goto("/");
   const card = page.locator(".curated-feed-grid .topic-card").first();
   await expect(card).toBeVisible();
-  expect((await card.boundingBox())!.height).toBeGreaterThanOrEqual(160);
+  await expect(page.locator('.curated-feed-grid')).toHaveAttribute('data-size','compact');
+  const bounds=(await card.boundingBox())!;
+  expect(bounds.height).toBeGreaterThanOrEqual(88);
+  expect(bounds.height).toBeLessThanOrEqual(144);
+  expect(bounds.width).toBeLessThanOrEqual(440);
+  expect(await card.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
 });
 

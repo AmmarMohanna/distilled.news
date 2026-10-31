@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "distilled-real-campaign-preflight-summary.v1",
+  "observedAt": "2026-10-31T18:15:57.770Z",
+  "status": "BLOCKED_NOT_AUTHORIZED_TO_EXECUTE",
+  "basisRevision": "a39deb40b6af07c0e7d6c4e7c44fc7c2a6b5b21e",
+  "liveCampaignsExecuted": 0,
+  "newAccountsCreated": 0,
+  "newFeedsCreated": 0,
+  "newDeployments": 0,
+  "paidInferenceCalls": 0,
+  "paidInferenceUsd": 0,
+  "cloudflareInventory": {
+    "workersRequestsMonthToDate": 3157640,
+    "workersCpuMicrosecondsMonthToDate": 591711911410,
+    "d1RowsReadMonthToDate": 91346760555,
+    "d1RowsWrittenMonthToDate": 76070754,
+    "campaignWorkerHttpStatus": 404,
+    "notes": [
+      "Account-wide existing usage, not attributable campaign consumption.",
+      "First inventory encountered expired OAuth (401); existing CLI session refreshed; second read succeeded.",
+      "No new resources provisioned. Cost/headroom approval is not established by these totals."
+    ]
+  },
+  "grafanaInventory": {
+    "reportedBillableSeries": 3,
+    "includedSeries": 10000,
+    "reportedTraceUsage": 0,
+    "includedTraceUsage": 50,
+    "notes": [
+      "Usage-datasource readings, not a claim that only three active metric series exist.",
+      "Trial status and future billing need explicit campaign preflight; no subscription upgrade."
+    ]
+  },
+  "profiles": {
+    "load": "NOT_RUN",
+    "spike": "NOT_RUN",
+    "stress": "NOT_RUN",
+    "soak": "NOT_RUN",
+    "recovery": "NOT_RUN",
+    "agentops": "NOT_RUN"
+  },
+  "capacity": "NOT_MEASURED",
+  "factualAccuracy": "NOT_ASSESSED",
+  "blockers": [
+    "Dedicated campaign deployment/resources not approved or created",
+    "Real QA mailbox/challenge/admin sessions not connected",
+    "Authoritative new-account task admission and complete external-tool cost reconciliation not connected",
+    "Exact model/source exposure and campaign resource headroom not verified",
+    "Protected GitHub environment required reviewers not established",
+    "Broad application/model/tool trace privacy not qualified",
+    "No new campaign/spending approval"
+  ]
+}

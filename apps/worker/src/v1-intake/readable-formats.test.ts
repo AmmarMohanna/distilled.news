@@ -1,5 +1,5 @@
 import {expect,it,vi} from 'vitest';
-import {extractPublicHtml} from '@distilled/connectors';
+import {extractPublicHtml,isWebsiteListingUrl} from '@distilled/connectors';
 import {createCandidateAcquisitionRouter} from './acquisition-router';
 import type {AcquisitionClaim} from './acquisition';
 const url='https://publisher.example/topic/resource/2026/report/';
@@ -9,8 +9,12 @@ const claim={job:{id:'job'},candidate:{id:'candidate'},input:{observation:{id:'o
 const router=(text:string,contentType='text/html')=>createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00.000Z',preferFullArticle:true,publicGet:async()=>({url,body:text,contentType,status:200})});
 it('extracts source-owned prose without requiring a supported URL layout or article metadata',async()=>{
  const html='<nav>Unrelated navigation</nav><main><h1>Investigation</h1><div class="article-body"><p>'+prose.repeat(3)+'</p><p>'+prose.repeat(3)+'</p></div><h2><a href="/related">Related article</a></h2><h2><a href="/another">Another article</a></h2></main>';
+ expect(isWebsiteListingUrl(url)).toBe(true);
  const p=extractPublicHtml(html,url);expect(p.pageKind).toBe('article');expect(p.body).not.toContain('Related article');
- const acquired=await router(html)(claim);expect(acquired.body).toContain(prose.trim());expect(acquired).toMatchObject({representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',quality:{extractionSuccess:true,extractionComplete:false}});
+ const fallback=vi.fn(async()=>undefined);
+ const acquire=createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00.000Z',preferFullArticle:true,publicGet:async()=>({url,body:html,contentType:'text/html',status:200}),articleFallback:fallback});
+ const acquired=await acquire(claim);expect(acquired.body).toContain(prose.trim());expect(acquired.body).not.toContain('Related article');expect(acquired).toMatchObject({canonicalUrl:url,sourceObservationId:'obs',representation:'FULL_ARTICLE',contentCompleteness:'UNKNOWN',quality:{transportSuccess:true,extractionSuccess:true,extractionComplete:false}});
+ expect(fallback).not.toHaveBeenCalled();
 });
 it.each(['text/plain','text/markdown','text/x-markdown'])('retains readable %s response text exactly',async media=>{
  expect((await router(body,media)(claim)).body).toBe(body);
@@ -24,10 +28,18 @@ it('rejects unrelated JSON identities and preserves genuine authentication requi
  const acquire=createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00Z',publicGet:async()=>({url,body,contentType:'text/plain',status:401})});
  await expect(acquire(claim)).rejects.toMatchObject({code:'AUTH_REQUIRED'});
 });
-it('does not turn a headline index into a full article',async()=>{
+it.each([
+ {name:'recognized listing URL',target:url,listingUrl:true,code:'UNSUPPORTED',detail:'LISTING_PAGE',fallbackCalls:0},
+ {name:'article-style URL',target:'https://publisher.example/news/2026/report/',listingUrl:false,code:'EXTRACTION_FAILED',detail:'NO_PRIMARY_ARTICLE_TEXT',fallbackCalls:1}
+] as const)('rejects headline-index HTML at $name with its exact failure and fallback contract',async({target,listingUrl,code,detail,fallbackCalls})=>{
  const html='<main><h1>Latest news</h1>'+[1,2,3].map(n=>'<article><h2><a href="/story/'+n+'">Headline '+n+'</a></h2><p>'+prose+'</p></article>').join('')+'</main>';
- expect(extractPublicHtml(html,url).pageKind).toBe('listing');
- await expect(router(html)(claim)).rejects.toMatchObject({code:'EXTRACTION_FAILED'});
+ expect(isWebsiteListingUrl(target)).toBe(listingUrl);
+ expect(extractPublicHtml(html,target).pageKind).toBe('listing');
+ const fallback=vi.fn(async()=>undefined),candidate={...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:target}}};
+ const acquire=createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00.000Z',preferFullArticle:true,publicGet:async()=>({url:target,body:html,contentType:'text/html',status:200}),articleFallback:fallback});
+ await expect(acquire(candidate)).rejects.toMatchObject({code,transient:false,diagnostic:{detail}});
+ expect(fallback).toHaveBeenCalledTimes(fallbackCalls);
+ if(fallbackCalls===1)expect(fallback).toHaveBeenCalledWith(candidate);
 });
 
 it('retains a readable main body even without article tags, headings or metadata',async()=>{

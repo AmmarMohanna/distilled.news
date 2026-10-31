@@ -84,6 +84,7 @@ interface BriefingRow {
   v1_briefing_interval_minutes?: BriefingConfig["updateIntervalMinutes"];
   briefing_schedule_origin_at?: string | null;
   briefing_schedule_clock_start_at?: string | null;
+  briefing_schedule_policy?: BriefingConfig['briefingSchedulePolicy'] | null;
   paused?: number;
   language?: "en" | "ar" | "fr" | null;
   intensity?: "low" | "medium" | "high" | null;
@@ -551,8 +552,8 @@ export class D1Repository implements Repository {
         `INSERT INTO briefings (
           id, owner_account_id, slug, title, stars, interest_profile, style_instruction,
           public_feed_enabled, paused, language, intensity, briefing_cadence, briefing_time_of_day,
-          briefing_timezone, next_briefing_at, retention_days, created_at, updated_at, v1_briefing_interval_minutes, briefing_schedule_origin_at, briefing_schedule_clock_start_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          briefing_timezone, next_briefing_at, retention_days, created_at, updated_at, v1_briefing_interval_minutes, briefing_schedule_origin_at, briefing_schedule_clock_start_at, briefing_schedule_policy
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           slug = excluded.slug,
           title = excluded.title,
@@ -571,6 +572,7 @@ export class D1Repository implements Repository {
           v1_briefing_interval_minutes = excluded.v1_briefing_interval_minutes,
           briefing_schedule_origin_at = COALESCE(excluded.briefing_schedule_origin_at, briefings.briefing_schedule_origin_at),
           briefing_schedule_clock_start_at = COALESCE(excluded.briefing_schedule_clock_start_at, briefings.briefing_schedule_clock_start_at),
+          briefing_schedule_policy = briefings.briefing_schedule_policy,
           updated_at = excluded.updated_at`
       )
       .bind(
@@ -594,7 +596,8 @@ export class D1Repository implements Repository {
         timestamp,
         input.updateIntervalMinutes ?? null,
         input.briefingScheduleOriginAt ?? null,
-        input.briefingScheduleClockStartAt ?? null
+        input.briefingScheduleClockStartAt ?? null,
+        input.briefingSchedulePolicy ?? null
       )
       .run();
     const saved = await this.getBriefingById(input.id);
@@ -2520,6 +2523,7 @@ function rowToBriefing(row: BriefingRow): BriefingConfig {
     updateIntervalMinutes: row.v1_briefing_interval_minutes,
     briefingScheduleOriginAt: row.briefing_schedule_origin_at ?? undefined,
     briefingScheduleClockStartAt: row.briefing_schedule_clock_start_at ?? undefined,
+    briefingSchedulePolicy: row.briefing_schedule_policy ?? undefined,
     paused: row.paused === 1,
     language: row.language === "ar" || row.language === "fr" ? row.language : "en",
     intensity: row.intensity === "low" || row.intensity === "high" ? row.intensity : "medium",

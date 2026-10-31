@@ -2415,6 +2415,7 @@ it('creates clock-aligned schedules only for new feeds and preserves them on ord
  };
  const feed=await save({...original,id:'relative-feed',slug:'relative',updateIntervalMinutes:30});
  expect(feed.briefingScheduleOriginAt).toBeUndefined();expect(feed.briefingScheduleClockStartAt).toBe('2026-10-22T16:05:40.123Z');expect(feed.nextBriefingAt).toBe('2026-10-22T16:30:00.000Z');
+ expect(feed.briefingSchedulePolicy).toBe('clock-aligned-delivery-v2');
  at=new Date('2026-10-22T16:45:00Z');
  const title=await save({...feed,title:'Renamed'});expect(title.nextBriefingAt).toBe(feed.nextBriefingAt);expect(title.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);
  const zone=await save({...title,briefingTimezone:'America/New_York'});expect(zone.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(zone.nextBriefingAt).toBe('2026-10-22T17:00:00.000Z');
@@ -2422,10 +2423,26 @@ it('creates clock-aligned schedules only for new feeds and preserves them on ord
  expect(hourly.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(hourly.nextBriefingAt).toBe('2026-10-22T17:00:00.000Z');
  const again=await save({...hourly,title:'Renamed again'});expect(again.briefingScheduleOriginAt).toBe(hourly.briefingScheduleOriginAt);expect(again.nextBriefingAt).toBe(hourly.nextBriefingAt);
  expect(again.briefingScheduleClockStartAt).toBe(feed.briefingScheduleClockStartAt);
+ expect(again.briefingSchedulePolicy).toBe('clock-aligned-delivery-v2');
  const invalid=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...feed,id:'clock-daily-invalid',slug:'clock-daily-invalid',updateIntervalMinutes:1440,briefingTimeOfDay:'08:15'})},env());
  expect(invalid.status).toBe(400);
  const daily=await save({...feed,id:'clock-daily',slug:'clock-daily',updateIntervalMinutes:1440,briefingTimeOfDay:'08:30'});
  expect(daily.nextBriefingAt).toContain(':30:00.000Z');expect(daily.briefingScheduleClockStartAt).toBe(at.toISOString());
+});
+it.each([
+ [1440,'07:40:00','2026-10-31T08:00:00.000Z'],
+ [1440,'07:50:00','2026-11-01T08:00:00.000Z'],
+ [1440,'08:11:00','2026-11-01T08:00:00.000Z'],
+ [60,'03:11:00','2026-10-31T04:00:00.000Z']
+] as const)('new feed API persists the preparation policy for %i minutes created at %s',async(updateIntervalMinutes,time,expected)=>{
+ const at=new Date(`2026-10-31T${time}Z`),repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>at});
+ const user=await createVerifiedUser(app,repo,'preparation-owner@test.com','Preparation Owner');
+ const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+ const response=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...original,id:'prepared-feed',slug:'prepared-feed',updateIntervalMinutes,briefingTimezone:'UTC',briefingTimeOfDay:'08:00'})},env());
+ expect(response.status).toBe(200);
+ const {briefing}=await response.json() as any;
+ expect(briefing).toMatchObject({briefingSchedulePolicy:'clock-aligned-delivery-v2',briefingScheduleClockStartAt:at.toISOString(),nextBriefingAt:expected});
+ expect(await repo.getBriefingById('prepared-feed')).toMatchObject({briefingSchedulePolicy:'clock-aligned-delivery-v2',nextBriefingAt:expected});
 });
 it('editing an existing clock-aligned feed does not opt it into relative scheduling',async()=>{
  const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>new Date('2026-10-22T16:05:40Z')});
@@ -2441,4 +2458,16 @@ it('editing an existing clock-aligned feed does not opt it into relative schedul
  const renamed=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...relative,title:'Still relative'})},env());
  expect(renamed.status).toBe(200);expect((await renamed.json() as any).briefing).toMatchObject({briefingScheduleOriginAt:originAt,nextBriefingAt:relative.nextBriefingAt});
  expect((await repo.getBriefingById(original.id))?.briefingScheduleClockStartAt).toBeUndefined();
+});
+it('ordinary edits cannot reclassify an existing v1 clock feed into preparation admission',async()=>{
+ const at=new Date('2026-10-31T03:11:00Z'),repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>at});
+ const user=await createVerifiedUser(app,repo,'retained-clock@test.com','Retained Clock');
+ const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+ const retained=await repo.upsertBriefing({...original,updateIntervalMinutes:60,briefingTimezone:'UTC',briefingScheduleClockStartAt:at.toISOString(),nextBriefingAt:'2026-10-31T05:00:00.000Z'});
+ const response=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...retained,title:'Renamed',briefingSchedulePolicy:'clock-aligned-delivery-v2'})},env());
+ expect(response.status).toBe(200);
+ const {briefing}=await response.json() as {briefing:import('@distilled/core').BriefingConfig};
+ expect(briefing.nextBriefingAt).toBe(retained.nextBriefingAt);
+ expect(briefing.briefingScheduleClockStartAt).toBe(retained.briefingScheduleClockStartAt);
+ expect(briefing.briefingSchedulePolicy).toBeUndefined();
 });

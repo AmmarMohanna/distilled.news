@@ -12,7 +12,7 @@ import type { AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy } from
 
 export function enqueue(tx:IntakeTransaction,input:AcceptedInput,kind:DownstreamJob['kind'],conflictId?:string,unpaidOnly?:true) {
   const o=input.observation,id=JSON.stringify([kind,o.id,conflictId??'']);
-  const job:DownstreamJob={...(unpaidOnly?{unpaidOnly}:{}),id,feedId:o.feedId,feedSourceId:o.feedSourceId,observationId:o.id,kind,state:'PENDING',attempts:0,...(conflictId?{conflictId}:{})};
+  const job:DownstreamJob={...(unpaidOnly?{unpaidOnly}:{}),id,feedId:o.feedId,feedSourceId:o.feedSourceId,observationId:o.id,kind,state:'PENDING',attempts:0,enqueuedAt:new Date().toISOString(),...(conflictId?{conflictId}:{})};
   tx.write('jobs',id,job,o.sourceItemKey,true);
 }
 async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:IntakePolicy,prior?:IntakeReceipt):Promise<IntakeReceipt> {

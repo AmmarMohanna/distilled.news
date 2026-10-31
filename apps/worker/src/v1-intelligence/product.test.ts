@@ -129,3 +129,38 @@ it('persists a new clock policy and starts an edited cadence after the retained 
  const plan=await ctx.db.prepare("EXPLAIN QUERY PLAN SELECT json_extract(json,'$.window.end') FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.clockStartAt')=? AND json_extract(json,'$.window.durationMinutes')=? ORDER BY json_extract(json,'$.window.end') DESC LIMIT 1").bind('feed-1',clockStartAt,30).all<{detail:string}>();
  expect(plan.results.map(r=>r.detail).join(' ')).toContain('v1_clock_schedule_requests');
 });
+it('round-trips v2 admission through D1 and enrollment without changing retained pending windows',async()=>{
+ const clockStartAt='2026-10-03T12:11:40.123Z',clockPolicy='clock-aligned-delivery-v2' as const;
+ await ctx.db.prepare("UPDATE briefings SET created_at=?,v1_briefing_interval_minutes=30,briefing_schedule_clock_start_at=?,briefing_schedule_policy=? WHERE id='feed-1'").bind(clockStartAt,clockStartAt,clockPolicy).run();
+ const {D1Repository}=await import('../repository'),repo=new D1Repository(ctx.db);
+ expect((await repo.getBriefingById('feed-1'))?.briefingSchedulePolicy).toBe(clockPolicy);
+ const enrolled=await enrollV1Source(ctx.db,'feed-source-1','owner-1',clockStartAt);
+ expect(enrolled.feed.briefingSchedule).toEqual({durationMinutes:30,timezone:'UTC',deliveryAnchor:'00:00',clockStartAt,clockPolicy});
+ const {livePublicationWindow,nextLiveBriefingAt}=await import('./schedule');
+ expect(nextLiveBriefingAt(enrolled.feed.briefingSchedule!,new Date(clockStartAt))).toBe('2026-10-03T12:30:00.000Z');
+ const window=livePublicationWindow(enrolled.feed.briefingSchedule!,new Date('2026-10-03T12:25:00Z'));
+ const pending=JSON.stringify({id:'pending-v2',window,state:'PENDING',attempts:1,engine:'v3'});
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','pending-v2','feed-1',?)").bind(pending).run();
+ expect(await enrollV1Source(ctx.db,'feed-source-1','owner-1','2026-10-03T12:20:00Z')).toEqual(enrolled);
+ const changed=await enrollV1Source(ctx.db,'feed-source-1','owner-1','2026-10-03T12:40:00Z',{durationMinutes:60,timezone:'UTC'});
+ expect(changed.feed.briefingSchedule).toMatchObject({durationMinutes:60,clockStartAt:window.end,clockPolicy});
+ expect((await new D1Repository(ctx.db).getBriefingById('feed-1'))).toMatchObject({briefingSchedulePolicy:clockPolicy,nextBriefingAt:'2026-10-03T13:00:00.000Z'});
+ expect((await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id='pending-v2'").first<{json:string}>())?.json).toBe(pending);
+});
+it('does not let source re-enrollment opt a retained feed into a different admission policy',async()=>{
+ await expect(enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now(),{durationMinutes:30,timezone:'UTC',clockPolicy:'clock-aligned-delivery-v2'})).rejects.toMatchObject({code:'INVALID_REQUEST'});
+ const feed=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
+ expect(feed.feed.briefingSchedule).not.toHaveProperty('clockPolicy');
+});
+it('D1 creation persists the policy and ordinary saves cannot replace retained admission semantics',async()=>{
+ const {D1Repository}=await import('../repository'),repo=new D1Repository(ctx.db),base=(await repo.getBriefingById('feed-1'))!;
+ const at=new Date('2026-10-31T03:11:40.123Z'),policy='clock-aligned-delivery-v2' as const;
+ const created=await repo.upsertBriefing({...base,id:'new-policy',slug:'new-policy',updateIntervalMinutes:30,briefingScheduleClockStartAt:at.toISOString(),briefingSchedulePolicy:policy,nextBriefingAt:'2026-10-31T03:30:00.000Z'},at);
+ expect(created).toMatchObject({briefingSchedulePolicy:policy,briefingScheduleClockStartAt:at.toISOString()});
+ expect(await ctx.db.prepare('SELECT created_at AS createdAt FROM briefings WHERE id=?').bind(created.id).first()).toEqual({createdAt:at.toISOString()});
+ await repo.upsertBriefing({...created,title:'Renamed',briefingSchedulePolicy:undefined},at);
+ expect(await new D1Repository(ctx.db).getBriefingById(created.id)).toMatchObject({title:'Renamed',briefingSchedulePolicy:policy});
+ const retained=await repo.upsertBriefing({...base,updateIntervalMinutes:60,briefingScheduleClockStartAt:at.toISOString(),nextBriefingAt:'2026-10-31T05:00:00.000Z'},at);
+ await repo.upsertBriefing({...retained,briefingSchedulePolicy:policy},at);
+ expect((await new D1Repository(ctx.db).getBriefingById(base.id))?.briefingSchedulePolicy).toBeUndefined();
+});

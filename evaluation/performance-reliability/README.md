@@ -23,3 +23,9 @@ All 22 offline reference/audit tests passed at this design checkpoint. They qual
 Still to implement after this protocol is reviewed: evidence collectors, independent opportunity schedule, run manifests/schema validation, chronological replay orchestration, baseline adapters, live/fault runners, paired clustered analysis and report generation. Missing measurements and human judgments must remain unavailable rather than being invented to fill a report.
 
 Existing 20- and 95-window exports are overlapping development assets. They are not independent validation/held-out sets, nor human-reviewed gold. Do not publish their article text. Live campaigns need their own explicit authorization, positive bounded allowances, existing durable admission/settlement and isolated resources.
+
+## AgentOps and HTTP performance extension
+
+The opt-in [k6 workload v1](k6/WORKLOAD.v1.md) adds bounded read-only HTTP tests and deterministic fixture faults. [AgentOps setup](../../docs/observability/SETUP.md) and the [supplemental metric catalog](../../ops/observability/metric-catalog.json) reuse this protocol and its R7 arithmetic. This extension does not complete the prospective evaluation observer, live integration, human quality labels or account-level limit accounting.
+
+Real authenticated campaigns are separate from fixture CI. See [the gated multi-user framework](real/README.md) and [implementation/preflight evidence](../../docs/observability/REAL_CAMPAIGNS.md). No new real load/stress/soak result is claimed.

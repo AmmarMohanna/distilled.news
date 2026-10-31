@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import {chooseSetting} from './helpers';
+import {writeFile} from 'node:fs/promises';
 
 const admin = { id: "admin", username: "admin", email: "platform-admin@distilled-example.test", role: "admin", createdAt: "2026-01-12T12:00:00Z", emailVerifiedAt: "2026-10-01T12:00:00Z", briefingCount: 1 };
 const reader = { id: "reader", username: "reader", email: "reader@example.test", role: "user", createdAt: "2026-05-12T12:00:00Z", briefingCount: 0, disabledAt: undefined as string | undefined };
@@ -56,7 +58,7 @@ test("add feed selects, removes, and submits real source inputs", async ({ page 
   await expect(dialog.locator(".selected-source-row")).toHaveCount(2);
   await dialog.getByRole("button", { name: "Remove source: https://t.me/mtvlebanon", exact: true }).click();
   await dialog.getByRole("button", { name: "Preferences", exact: true }).click();
-  await expect(dialog.getByLabel("Update rhythm")).toBeVisible();
+  await expect(dialog.getByRole('button',{name:'Update rhythm Daily',exact:true})).toBeVisible();
   await dialog.getByRole("button", { name: "Preferences", exact: true }).click();
   await dialog.locator('.screen-page-viewport').evaluate(node => { node.scrollTop = 0; });
   await page.mouse.move(0, 0);
@@ -90,13 +92,16 @@ test("user management filters users and manages the selected account", async ({ 
   await page.locator(".accounts-summary").click();
   await expect(page.getByRole("heading", { name: "User Management", exact: true })).toBeVisible();
   await expect(page.locator(".users-table tbody tr")).toHaveCount(2);
-  const roleSelect = await page.getByLabel("Filter users by role").boundingBox();
-  const roleArrow = await page.locator(".users-role-filter > svg").boundingBox();
-  expect(roleArrow!.x).toBeGreaterThan(roleSelect!.x);
-  expect(roleArrow!.x + roleArrow!.width).toBeLessThan(roleSelect!.x + roleSelect!.width);
-  await page.getByLabel("Filter users by role").selectOption("user");
+  const roleTrigger=page.getByRole('button',{name:'Filter users by role All Roles',exact:true});
+  const roleBounds=await roleTrigger.evaluate(node=>{
+    const trigger=node.getBoundingClientRect(),arrow=node.querySelector('svg')!.getBoundingClientRect();
+    return {left:trigger.left,right:trigger.right,arrowLeft:arrow.left,arrowRight:arrow.right};
+  });
+  expect(roleBounds.arrowLeft).toBeGreaterThan(roleBounds.left);
+  expect(roleBounds.arrowRight).toBeLessThan(roleBounds.right);
+  await chooseSetting(page.locator('main'),'Filter users by role','User');
   await expect(page.locator(".users-table tbody tr")).toHaveCount(1);
-  await page.getByLabel("Filter users by role").selectOption("all");
+  await chooseSetting(page.locator('main'),'Filter users by role','All Roles');
   await page.getByLabel("Search users", { exact: true }).fill("reader");
   await expect(page.locator(".users-table tbody tr")).toHaveCount(1);
   await page.getByLabel("Search users", { exact: true }).fill("");
@@ -190,7 +195,7 @@ test("settings use contact links and honest installation popups", async ({ page 
   await expect(installation.getByRole("status")).toHaveText("Already installed");
 });
 
-test("configured notifications subscribe and unsubscribe directly in Settings", async ({ page }) => {
+test("configured notifications subscribe and unsubscribe directly in Settings", async ({ page }, info) => {
   await page.addInitScript(() => {
     let subscription: object | null = null;
     const worker = { pushManager: {
@@ -214,12 +219,20 @@ test("configured notifications subscribe and unsubscribe directly in Settings", 
   await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
   const notificationSwitch = page.getByRole("switch", { name: "Notifications" });
+  await expect(notificationSwitch).toBeEnabled();
   await expect(notificationSwitch).not.toBeChecked();
   const track = notificationSwitch.locator(".notification-switch");
-  const trackBounds = await track.boundingBox();
-  const offThumb = await track.locator("span").boundingBox();
-  expect(offThumb!.x).toBeGreaterThanOrEqual(trackBounds!.x);
-  expect(offThumb!.x + offThumb!.width).toBeLessThanOrEqual(trackBounds!.x + trackBounds!.width + 1);
+  // Sidebar hover animates the content width/margin. Read both rectangles in
+  // one frame: separate boundingBox calls can compare different positions.
+  const atomic=await track.evaluate(node=>{
+    const bounds=node.getBoundingClientRect(),thumb=node.querySelector('span')!.getBoundingClientRect();
+    return {track:{left:bounds.left,right:bounds.right,top:bounds.top,bottom:bounds.bottom},thumb:{left:thumb.left,right:thumb.right,top:thumb.top,bottom:thumb.bottom}};
+  });
+  await writeFile(info.outputPath('toggle-bounds.json'),JSON.stringify(atomic,null,2));
+  expect(atomic.thumb.left).toBeGreaterThanOrEqual(atomic.track.left);
+  expect(atomic.thumb.right).toBeLessThanOrEqual(atomic.track.right + 1);
+  expect(atomic.thumb.top).toBeGreaterThanOrEqual(atomic.track.top);
+  expect(atomic.thumb.bottom).toBeLessThanOrEqual(atomic.track.bottom);
   await notificationSwitch.click();
   await expect(notificationSwitch).toBeChecked();
   await expect(page.getByRole("dialog", { name: "Notifications" })).toHaveCount(0);
@@ -245,26 +258,28 @@ test("installed app detection works from a browser tab", async ({ page }) => {
   await expect(dialog.locator(".install-status-icon.success svg")).toBeVisible();
 });
 
-test("Edge users can confirm an existing installation when detection is unavailable", async ({ page }) => {
+test("Edge reports installation guidance without fabricating installed status when detection is unavailable", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "userAgent", { value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0" });
     Object.defineProperty(navigator, "getInstalledRelatedApps", { value: async () => [] });
+    window.addEventListener('beforeinstallprompt',event=>event.stopImmediatePropagation(),true);
+    localStorage.setItem('dn_pwa_installed_on_device','1');
   });
   await mock(page); await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Install app", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Install app" });
-  await expect(dialog.getByRole("button", { name: "Already installed on this device" })).toBeVisible();
-  await dialog.getByRole("button", { name: "Already installed on this device" }).click();
-  await expect(dialog.getByRole("status")).toHaveText("Already installed");
+  const guidance='This browser cannot offer installation right now. If the app is installed, open it from your apps.';
+  await expect(dialog.getByRole("button", { name: "Already installed on this device" })).toHaveCount(0);
+  await expect(dialog.getByRole("status")).toHaveText(guidance);
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Install app", exact: true }).click();
-  await expect(dialog.getByRole("status")).toHaveText("Already installed");
+  await expect(dialog.getByRole("status")).toHaveText(guidance);
   await page.keyboard.press("Escape");
   await page.reload();
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Install app", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Install app" }).getByRole("status")).toHaveText("Already installed");
+  await expect(page.getByRole("dialog", { name: "Install app" }).getByRole("status")).toHaveText(guidance);
 });
 
 test("dark controls have no inset frames and support has one surface", async ({ page }) => {

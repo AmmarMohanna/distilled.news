@@ -282,3 +282,18 @@ it('candidate diagnostics follow an independently verified derived publication d
  expect(r.items[0].writer.draftIds).toContain(key);
  expect(r.items[0].verification.semanticResults).toEqual(expect.arrayContaining([expect.objectContaining({id:key,supportedClaimIds:['derived-claim']})]));
 });
+
+it('observability exposes recorded schedule and publication proxies without changing authority',async()=>{
+ const scheduledFor='2026-10-03T14:05:00Z',publishedAt='2026-10-03T14:05:30Z';
+ await ctx.db.prepare("INSERT INTO v1_feed_documents VALUES('editions','metrics-edition','feed-1',?)").bind(JSON.stringify({id:'metrics-edition',feedId:'feed-1',selectionId:'selection',windowStart:start,windowEnd:end,scheduledFor,publishedAt,stories:[]})).run();
+ const trace=await readPipelineTrace(ctx.db,'feed-1',options);
+ expect(trace.summary!.publication.recordedEditions).toContainEqual(expect.objectContaining({id:'metrics-edition',windowStart:start,windowEnd:end,scheduledFor,publishedAt}));
+});
+
+it('projects persisted V3 stage timings without exporting reader text or changing operations',async()=>{
+ await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.engine','v3','$.v3InputId','observability-v3-run') WHERE feed_id='feed-1' AND kind='briefing_requests'").run();
+ await ctx.db.prepare("INSERT INTO v1_feed_documents VALUES('v3_window_results','observability-v3-run','feed-1',?)").bind(JSON.stringify({id:'observability-v3-run',result:{status:'published',items:[{text:'private reader text'}],timings:{totalMs:35,stages:{edit:10,verify:20,repair:5}}}})).run();
+ const trace=await readPipelineTrace(ctx.db,'feed-1',options);
+ expect(trace.summary!.v3Run).toMatchObject({status:'published',timings:{totalMs:35,stages:{edit:10,verify:20,repair:5}}});
+ expect(JSON.stringify(trace.summary!.v3Run)).not.toContain('private reader text');
+});

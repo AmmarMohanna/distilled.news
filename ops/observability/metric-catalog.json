@@ -1,0 +1,685 @@
+{
+  "schemaVersion": "agentops-metrics.v1",
+  "extends": "../../evaluation/performance-reliability/metric-catalog.json",
+  "protocol": "../../evaluation/performance-reliability/PROTOCOL.md",
+  "metrics": [
+    {
+      "name": "distilled_publication_published",
+      "unit": "requests",
+      "sourceOfTruth": "trace overview publication.briefingRequest",
+      "aggregation": "one request per feed and explicit window; replay deduplicated",
+      "interpretation": "published durable result; published is persisted, not independently read back",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_quiet",
+      "unit": "requests",
+      "sourceOfTruth": "trace overview publication.briefingRequest",
+      "aggregation": "one request per feed and explicit window; replay deduplicated",
+      "interpretation": "quiet durable result; published is persisted, not independently read back",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_deferred",
+      "unit": "requests",
+      "sourceOfTruth": "trace overview publication.briefingRequest",
+      "aggregation": "one request per feed and explicit window; replay deduplicated",
+      "interpretation": "deferred durable result; published is persisted, not independently read back",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_failed",
+      "unit": "requests",
+      "sourceOfTruth": "trace overview publication.briefingRequest",
+      "aggregation": "one request per feed and explicit window; replay deduplicated",
+      "interpretation": "failed durable result; published is persisted, not independently read back",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_blocked",
+      "unit": "requests",
+      "sourceOfTruth": "trace overview publication.briefingRequest",
+      "aggregation": "one request per feed and explicit window; replay deduplicated",
+      "interpretation": "blocked durable result; published is persisted, not independently read back",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_pending",
+      "unit": "requests",
+      "sourceOfTruth": "trace overview publication.briefingRequest",
+      "aggregation": "one request per feed and explicit window; replay deduplicated",
+      "interpretation": "pending durable result; published is persisted, not independently read back",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_unknown",
+      "unit": "requests",
+      "sourceOfTruth": "trace overview publication.briefingRequest",
+      "aggregation": "one request per feed and explicit window; replay deduplicated",
+      "interpretation": "unknown durable result; published is persisted, not independently read back",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_operations",
+      "unit": "operations",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_failed_operations",
+      "unit": "operations",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_provider_failed_operations",
+      "unit": "operations",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_unknown_cost_operations",
+      "unit": "operations",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_unsettled_operations",
+      "unit": "operations",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_unattributed_operation_records",
+      "unit": "records",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_referenced_repair_operations",
+      "unit": "operations",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_model_calls",
+      "unit": "calls",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_tokens_in",
+      "unit": "tokens",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_tokens_out",
+      "unit": "tokens",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_reserved_ceiling_usd",
+      "unit": "USD",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_confirmed_partial_cost_usd",
+      "unit": "USD",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_provider_reported_partial_cost_usd",
+      "unit": "USD",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_settled_cost_usd",
+      "unit": "USD",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_held_exposure_usd",
+      "unit": "USD",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_model_duration_ms_sum",
+      "unit": "ms",
+      "sourceOfTruth": "complete trace operations view; original immutable identity and receipt/account provenance",
+      "aggregation": "deduplicate feed + recordKind + id; sum known values only; settled total absent unless all paid intents account-settled",
+      "interpretation": "retained scoped snapshot, never a rate or incremental run cost; exposure/reservation is not spend; fields absent when unobserved",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_jobs_acquire_pending",
+      "unit": "jobs",
+      "sourceOfTruth": "sources.collection.jobCounts",
+      "aggregation": "sum disjoint source job counts; current retained state, not window",
+      "interpretation": "missing groups absent; source discovery failure can coexist with zero jobs",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_jobs_acquire_running",
+      "unit": "jobs",
+      "sourceOfTruth": "sources.collection.jobCounts",
+      "aggregation": "sum disjoint source job counts; current retained state, not window",
+      "interpretation": "missing groups absent; source discovery failure can coexist with zero jobs",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_jobs_acquire_failed",
+      "unit": "jobs",
+      "sourceOfTruth": "sources.collection.jobCounts",
+      "aggregation": "sum disjoint source job counts; current retained state, not window",
+      "interpretation": "missing groups absent; source discovery failure can coexist with zero jobs",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_jobs_acquire_done",
+      "unit": "jobs",
+      "sourceOfTruth": "sources.collection.jobCounts",
+      "aggregation": "sum disjoint source job counts; current retained state, not window",
+      "interpretation": "missing groups absent; source discovery failure can coexist with zero jobs",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_jobs_reassess_pending",
+      "unit": "jobs",
+      "sourceOfTruth": "sources.collection.jobCounts",
+      "aggregation": "sum disjoint source job counts; current retained state, not window",
+      "interpretation": "missing groups absent; source discovery failure can coexist with zero jobs",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_jobs_reassess_running",
+      "unit": "jobs",
+      "sourceOfTruth": "sources.collection.jobCounts",
+      "aggregation": "sum disjoint source job counts; current retained state, not window",
+      "interpretation": "missing groups absent; source discovery failure can coexist with zero jobs",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_jobs_reassess_failed",
+      "unit": "jobs",
+      "sourceOfTruth": "sources.collection.jobCounts",
+      "aggregation": "sum disjoint source job counts; current retained state, not window",
+      "interpretation": "missing groups absent; source discovery failure can coexist with zero jobs",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_jobs_reassess_done",
+      "unit": "jobs",
+      "sourceOfTruth": "sources.collection.jobCounts",
+      "aggregation": "sum disjoint source job counts; current retained state, not window",
+      "interpretation": "missing groups absent; source discovery failure can coexist with zero jobs",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_source_success",
+      "unit": "sources",
+      "sourceOfTruth": "sources.collection.pollingState",
+      "aggregation": "count sources by last-known polling state",
+      "interpretation": "not full source/window collection recall",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_source_failed",
+      "unit": "sources",
+      "sourceOfTruth": "sources.collection.pollingState",
+      "aggregation": "count sources by last-known polling state",
+      "interpretation": "not full source/window collection recall",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_source_blocked",
+      "unit": "sources",
+      "sourceOfTruth": "sources.collection.pollingState",
+      "aggregation": "count sources by last-known polling state",
+      "interpretation": "not full source/window collection recall",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_source_deferred",
+      "unit": "sources",
+      "sourceOfTruth": "sources.collection.pollingState",
+      "aggregation": "count sources by last-known polling state",
+      "interpretation": "not full source/window collection recall",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_source_unknown",
+      "unit": "sources",
+      "sourceOfTruth": "sources.collection.pollingState",
+      "aggregation": "count sources by last-known polling state",
+      "interpretation": "not full source/window collection recall",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_queue_failed",
+      "unit": "delivery attempts",
+      "sourceOfTruth": "overview.summary.queue.outcomes",
+      "aggregation": "sum retained feed delivery-attempt counts",
+      "interpretation": "not unique jobs, queue dispatch successes or window-specific executions",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_queue_delivery_exhausted",
+      "unit": "delivery attempts",
+      "sourceOfTruth": "overview.summary.queue.outcomes",
+      "aggregation": "sum retained feed delivery-attempt counts",
+      "interpretation": "not unique jobs, queue dispatch successes or window-specific executions",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_queue_delivery_rejected",
+      "unit": "delivery attempts",
+      "sourceOfTruth": "overview.summary.queue.outcomes",
+      "aggregation": "sum retained feed delivery-attempt counts",
+      "interpretation": "not unique jobs, queue dispatch successes or window-specific executions",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_queue_retryable_wait",
+      "unit": "delivery attempts",
+      "sourceOfTruth": "overview.summary.queue.outcomes",
+      "aggregation": "sum retained feed delivery-attempt counts",
+      "interpretation": "not unique jobs, queue dispatch successes or window-specific executions",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_model_duration_ms_p50",
+      "unit": "ms",
+      "sourceOfTruth": "operation.latencyMs",
+      "aggregation": "Aya latencySummary R7 over known valid samples",
+      "interpretation": "conditional measured subset only; publication is recorded timestamp proxy, not cutoff-to-public-readback; exploratory below 100",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_model_duration_ms_p95",
+      "unit": "ms",
+      "sourceOfTruth": "operation.latencyMs",
+      "aggregation": "Aya latencySummary R7 over known valid samples",
+      "interpretation": "conditional measured subset only; publication is recorded timestamp proxy, not cutoff-to-public-readback; exploratory below 100",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_model_duration_samples",
+      "unit": "samples",
+      "sourceOfTruth": "same validated duration sample",
+      "aggregation": "count",
+      "interpretation": "show beside quantile; never average cohort quantiles",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_duration_ms_p50",
+      "unit": "ms",
+      "sourceOfTruth": "recordedEditions scheduledFor/publishedAt",
+      "aggregation": "Aya latencySummary R7 over known valid samples",
+      "interpretation": "conditional measured subset only; publication is recorded timestamp proxy, not cutoff-to-public-readback; exploratory below 100",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_duration_ms_p95",
+      "unit": "ms",
+      "sourceOfTruth": "recordedEditions scheduledFor/publishedAt",
+      "aggregation": "Aya latencySummary R7 over known valid samples",
+      "interpretation": "conditional measured subset only; publication is recorded timestamp proxy, not cutoff-to-public-readback; exploratory below 100",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_publication_duration_samples",
+      "unit": "samples",
+      "sourceOfTruth": "same validated duration sample",
+      "aggregation": "count",
+      "interpretation": "show beside quantile; never average cohort quantiles",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_coverage_incomplete",
+      "unit": "requests",
+      "sourceOfTruth": "request.coverage.state",
+      "aggregation": "count explicit INCOMPLETE; missing is absent",
+      "interpretation": "not source recall or all unresolved coverage",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_oldest_observed_pending_age_ms",
+      "unit": "ms",
+      "sourceOfTruth": "trace sources.collection.jobCounts and observedAt",
+      "aggregation": "existing grouped source query; no new scan; maximum known age, other values summed",
+      "interpretation": "Enqueue wall-clock precommit proxy on new jobs only. Legacy timestamp absence remains counted; known oldest is a lower bound on full backlog age. Resource waits include only recorded counters.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_pending_timestamp_missing_jobs",
+      "unit": "jobs",
+      "sourceOfTruth": "trace sources.collection.jobCounts and observedAt",
+      "aggregation": "existing grouped source query; no new scan; maximum known age, other values summed",
+      "interpretation": "Enqueue wall-clock precommit proxy on new jobs only. Legacy timestamp absence remains counted; known oldest is a lower bound on full backlog age. Resource waits include only recorded counters.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_pending_timestamp_observed_jobs",
+      "unit": "jobs",
+      "sourceOfTruth": "trace sources.collection.jobCounts and observedAt",
+      "aggregation": "existing grouped source query; no new scan; maximum known age, other values summed",
+      "interpretation": "Enqueue wall-clock precommit proxy on new jobs only. Legacy timestamp absence remains counted; known oldest is a lower bound on full backlog age. Resource waits include only recorded counters.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_job_attempts",
+      "unit": "attempts",
+      "sourceOfTruth": "trace sources.collection.jobCounts and observedAt",
+      "aggregation": "existing grouped source query; no new scan; maximum known age, other values summed",
+      "interpretation": "Enqueue wall-clock precommit proxy on new jobs only. Legacy timestamp absence remains counted; known oldest is a lower bound on full backlog age. Resource waits include only recorded counters.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_job_resource_waits",
+      "unit": "waits",
+      "sourceOfTruth": "trace sources.collection.jobCounts and observedAt",
+      "aggregation": "existing grouped source query; no new scan; maximum known age, other values summed",
+      "interpretation": "Enqueue wall-clock precommit proxy on new jobs only. Legacy timestamp absence remains counted; known oldest is a lower bound on full backlog age. Resource waits include only recorded counters.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_edit_duration_ms_p50",
+      "unit": "ms",
+      "sourceOfTruth": "overview.v3Run.timings.stages.edit",
+      "aggregation": "R7 over one persisted V3 result per explicit feed/window",
+      "interpretation": "Existing engine wall-clock duration includes parallel calls/reuse; not fresh provider-call latency. Missing stages are absent, never zero.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_edit_duration_ms_p95",
+      "unit": "ms",
+      "sourceOfTruth": "overview.v3Run.timings.stages.edit",
+      "aggregation": "R7 over one persisted V3 result per explicit feed/window",
+      "interpretation": "Existing engine wall-clock duration includes parallel calls/reuse; not fresh provider-call latency. Missing stages are absent, never zero.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_edit_duration_samples",
+      "unit": "samples",
+      "sourceOfTruth": "same persisted stage sample",
+      "aggregation": "count",
+      "interpretation": "Report alongside conditional timing quantile; exploratory below 100.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_verify_duration_ms_p50",
+      "unit": "ms",
+      "sourceOfTruth": "overview.v3Run.timings.stages.verify",
+      "aggregation": "R7 over one persisted V3 result per explicit feed/window",
+      "interpretation": "Existing engine wall-clock duration includes parallel calls/reuse; not fresh provider-call latency. Missing stages are absent, never zero.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_verify_duration_ms_p95",
+      "unit": "ms",
+      "sourceOfTruth": "overview.v3Run.timings.stages.verify",
+      "aggregation": "R7 over one persisted V3 result per explicit feed/window",
+      "interpretation": "Existing engine wall-clock duration includes parallel calls/reuse; not fresh provider-call latency. Missing stages are absent, never zero.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_verify_duration_samples",
+      "unit": "samples",
+      "sourceOfTruth": "same persisted stage sample",
+      "aggregation": "count",
+      "interpretation": "Report alongside conditional timing quantile; exploratory below 100.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_repair_duration_ms_p50",
+      "unit": "ms",
+      "sourceOfTruth": "overview.v3Run.timings.stages.repair",
+      "aggregation": "R7 over one persisted V3 result per explicit feed/window",
+      "interpretation": "Existing engine wall-clock duration includes parallel calls/reuse; not fresh provider-call latency. Missing stages are absent, never zero.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_repair_duration_ms_p95",
+      "unit": "ms",
+      "sourceOfTruth": "overview.v3Run.timings.stages.repair",
+      "aggregation": "R7 over one persisted V3 result per explicit feed/window",
+      "interpretation": "Existing engine wall-clock duration includes parallel calls/reuse; not fresh provider-call latency. Missing stages are absent, never zero.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_repair_duration_samples",
+      "unit": "samples",
+      "sourceOfTruth": "same persisted stage sample",
+      "aggregation": "count",
+      "interpretation": "Report alongside conditional timing quantile; exploratory below 100.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_consolidate_duration_ms_p50",
+      "unit": "ms",
+      "sourceOfTruth": "overview.v3Run.timings.stages.consolidate",
+      "aggregation": "R7 over one persisted V3 result per explicit feed/window",
+      "interpretation": "Existing engine wall-clock duration includes parallel calls/reuse; not fresh provider-call latency. Missing stages are absent, never zero.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_consolidate_duration_ms_p95",
+      "unit": "ms",
+      "sourceOfTruth": "overview.v3Run.timings.stages.consolidate",
+      "aggregation": "R7 over one persisted V3 result per explicit feed/window",
+      "interpretation": "Existing engine wall-clock duration includes parallel calls/reuse; not fresh provider-call latency. Missing stages are absent, never zero.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_v3_consolidate_duration_samples",
+      "unit": "samples",
+      "sourceOfTruth": "same persisted stage sample",
+      "aggregation": "count",
+      "interpretation": "Report alongside conditional timing quantile; exploratory below 100.",
+      "type": "gauge",
+      "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_observer_up",
+      "unit": "boolean",
+      "sourceOfTruth": "scripts/agentops-textfile.mjs and private trace observedAt",
+      "aggregation": "replace the complete textfile atomically; never sum scrapes",
+      "interpretation": "1 after a successful fresh export; 0 replaces application series after failure. Filesystem failure still needs external monitoring.",
+      "type": "gauge",
+      "status": "implemented_textfile_export"
+    },
+    {
+      "name": "distilled_snapshot_observed_timestamp_seconds",
+      "unit": "Unix seconds",
+      "sourceOfTruth": "scripts/agentops-textfile.mjs and private trace observedAt",
+      "aggregation": "replace the complete textfile atomically; never sum scrapes",
+      "interpretation": "Minimum query-observation time across complete views; textfile bridge rejects older than 5 minutes or future timestamps.",
+      "type": "gauge",
+      "status": "implemented_textfile_export"
+    },
+    {
+      "name": "distilled_projection_timestamp_seconds",
+      "unit": "Unix seconds",
+      "sourceOfTruth": "scripts/agentops-textfile.mjs and private trace observedAt",
+      "aggregation": "replace the complete textfile atomically; never sum scrapes",
+      "interpretation": "Local projection time, distinct from data-observation time.",
+      "type": "gauge",
+      "status": "implemented_textfile_export"
+    },
+    {
+      "name": "distilled_collector_queries",
+      "unit": "queries",
+      "sourceOfTruth": "work.queries",
+      "aggregation": "gauge for one complete current collector invocation; not a cumulative counter",
+      "interpretation": "Actual collector resource observation; unknown values are absent",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_collector_rows_read",
+      "unit": "rows",
+      "sourceOfTruth": "D1 result meta.rows_read",
+      "aggregation": "gauge for one complete current collector invocation; not a cumulative counter",
+      "interpretation": "Actual collector resource observation; unknown values are absent",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_collector_sql_duration_ms",
+      "unit": "milliseconds",
+      "sourceOfTruth": "D1 result meta.timings.sql_duration_ms",
+      "aggregation": "gauge for one complete current collector invocation; not a cumulative counter",
+      "interpretation": "Actual collector resource observation; unknown values are absent",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    }
+  ],
+  "events": {
+    "schema": "agentops.v1",
+    "fields": {
+      "boundary": [
+        "fetch",
+        "scheduled",
+        "queue",
+        "investigation"
+      ],
+      "outcome": [
+        "ok",
+        "error"
+      ],
+      "duration_ms": "nonnegative monotonic invocation elapsed"
+    },
+    "aggregation": "count log events as observed invocation attempts; sampled/duplicate export is not durable operation count",
+    "privacy": "No IDs, paths, content, URLs, errors, tokens or account labels"
+  },
+  "unavailable": [
+    {
+      "metric": "offered_window_success_rate",
+      "reason": "Independent offered-opportunity manifest and reader probes not implemented"
+    },
+    {
+      "metric": "cutoff_to_public_readback",
+      "reason": "No prospective reader observer"
+    },
+    {
+      "metric": "notification_device_receipt",
+      "reason": "No authorized instrumented client"
+    },
+    {
+      "metric": "authorized_spending_limit_utilization",
+      "reason": "No account authorization snapshot in trace operations; never infer a limit from reservations"
+    },
+    {
+      "metric": "database_failure_rate",
+      "reason": "Invocation error logs are generic; inspect Cloudflare binding error spans privately"
+    },
+    {
+      "metric": "lease_recovery_count",
+      "reason": "Existing records retained but no complete distinct recovery projection in this implementation"
+    },
+    {
+      "metric": "oldest_pending_age_full_history",
+      "reason": "new jobs expose a precommit enqueue proxy; legacy jobs remain missing, with coverage counts"
+    }
+  ]
+}

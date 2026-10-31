@@ -20,6 +20,8 @@ export interface DownstreamJob {
   kind: 'ACQUIRE' | 'REASSESS' | 'AUTHORITATIVE_RECHECK'; state: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' | 'DEFERRED'; attempts: number;
   deferred?: {reason:'INITIAL_BACKLOG';policy:'initial-acquisition-backlog-v1';at:string;feedCreatedAt:string;publishedAtHint:string};
   backlogReview?: {policy:'initial-acquisition-backlog-v1';at:string;result:'RETAINED'};
+  /** Real wall-clock precommit enqueue proxy; absent on retained legacy jobs. */
+  enqueuedAt?: string;
   nextAttemptAt?: string; exhausted?: boolean; conflictId?: string;
   leaseToken?: string; leaseUntil?: string; failureCode?: string;
   resumeAttempts?: number;

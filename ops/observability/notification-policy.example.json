@@ -1,0 +1,11 @@
+{
+  "receiver": "EXISTING_PRIVATE_CONTACT_POINT",
+  "group_by": [
+    "alertname",
+    "service"
+  ],
+  "group_wait": "1m",
+  "group_interval": "10m",
+  "repeat_interval": "12h",
+  "note": "Review and merge into existing policy. No contact point created and no notification sent."
+}
