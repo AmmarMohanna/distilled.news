@@ -6,7 +6,9 @@ export async function collectAndExport(env,{now=Date.now,fetcher=fetch}={}) {
   const at=now();let snapshot;
   try{snapshot=await collectSnapshot(env.DB,env.COLLECTOR_FEED_ID,at);}
   catch{return {state:'OBSERVER_FAILED',...await sendMetrics(env,{observer_up:0,projection_timestamp_seconds:at/1000},at,fetcher)};}
-  return {state:'EXPORTED',work:snapshot.work,...await sendMetrics(env,snapshot.values,at,fetcher)};
+  const values={...snapshot.values,collector_queries:snapshot.work.queries,collector_rows_read:snapshot.work.rowsRead};
+  if(snapshot.work.sqlMs!==null)values.collector_sql_duration_ms=snapshot.work.sqlMs;
+  return {state:'EXPORTED',work:snapshot.work,...await sendMetrics(env,values,at,fetcher)};
 }
 export default {
   // No public metrics, mutation endpoint, account cookies or source access.

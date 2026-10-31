@@ -37,6 +37,15 @@ test('caps fail closed, missing source inventory is not zero backlog',async()=>{
   const r=await collectSnapshot(database({sources:[],operations:[]}),'feed',at);
   assert.equal(r.values.jobs_acquire_pending,undefined);
 });
+test('successful export includes measured query work without private identities',async()=>{
+  let payload;
+  const r=await collectAndExport({DB:database(),COLLECTOR_ENABLED:'true',COLLECTOR_FEED_ID:'private-feed',GRAFANA_OTLP_METRICS_URL:'https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics',GRAFANA_OTLP_AUTH:'secret'},{now:()=>at,fetcher:async(_u,init)=>{payload=JSON.parse(init.body);return Response.json({});}});
+  assert.equal(r.state,'EXPORTED');
+  const metrics=payload.resourceMetrics[0].scopeMetrics[0].metrics;
+  assert.equal(metrics.find(m=>m.name==='distilled_collector_queries').gauge.dataPoints[0].asDouble,7);
+  assert.equal(metrics.find(m=>m.name==='distilled_collector_rows_read').gauge.dataPoints[0].asDouble,8);
+  assert.ok(!JSON.stringify(payload).includes('private-feed'));
+});
 test('read budgets stop collection and an observer failure exports no old application gauges',async()=>{
   const calls=[];const db={prepare(){return {bind(){return {all:async()=>({success:true,results:[],meta:{rows_read:2001}})};}};}};
   await assert.rejects(()=>collectSnapshot(db,'feed',at),/ROW_READ_BUDGET/);
@@ -57,7 +66,8 @@ test('OTLP preserves names, job selector, gauge values and excludes arbitrary me
 });
 test('export has one attempt, rejects partial ingestion and never follows redirects',async()=>{
   const env={GRAFANA_OTLP_METRICS_URL:'https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics',GRAFANA_OTLP_AUTH:'private'};let n=0;
-  await assert.rejects(()=>sendMetrics(env,{observer_up:1},at,async(_u,init)=>{n++;assert.equal(init.redirect,'error');throw Error('lost');}),/lost/);assert.equal(n,1);
+  await assert.rejects(()=>sendMetrics(env,{observer_up:1},at,async(_u,init)=>{n++;assert.equal(init.redirect,'manual');throw Error('lost');}),/lost/);assert.equal(n,1);
+  await assert.rejects(()=>sendMetrics(env,{observer_up:1},at,async(_u,init)=>{assert.equal(init.redirect,'manual');return new Response(null,{status:302,headers:{location:'https://elsewhere.invalid'}});}),/REJECTED/);
   await assert.rejects(()=>sendMetrics(env,{observer_up:1},at,async()=>Response.json({partialSuccess:{rejectedDataPoints:1}})),/PARTIAL/);
   await assert.rejects(()=>sendMetrics({...env,GRAFANA_OTLP_METRICS_URL:'https://evil.example/otlp/v1/metrics'},{observer_up:1},at),/DESTINATION/);
 });

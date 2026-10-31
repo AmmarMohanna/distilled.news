@@ -605,6 +605,33 @@
       "interpretation": "Local projection time, distinct from data-observation time.",
       "type": "gauge",
       "status": "implemented_textfile_export"
+    },
+    {
+      "name": "distilled_collector_queries",
+      "unit": "queries",
+      "sourceOfTruth": "work.queries",
+      "aggregation": "gauge for one complete current collector invocation; not a cumulative counter",
+      "interpretation": "Actual collector resource observation; unknown values are absent",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_collector_rows_read",
+      "unit": "rows",
+      "sourceOfTruth": "D1 result meta.rows_read",
+      "aggregation": "gauge for one complete current collector invocation; not a cumulative counter",
+      "interpretation": "Actual collector resource observation; unknown values are absent",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_collector_sql_duration_ms",
+      "unit": "milliseconds",
+      "sourceOfTruth": "D1 result meta.timings.sql_duration_ms",
+      "aggregation": "gauge for one complete current collector invocation; not a cumulative counter",
+      "interpretation": "Actual collector resource observation; unknown values are absent",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
     }
   ],
   "events": {

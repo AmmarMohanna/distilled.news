@@ -21,7 +21,9 @@ export async function sendMetrics(env, values, now, fetcher=fetch) {
   if(url.protocol!=='https:'||url.hostname!=='otlp-gateway-prod-eu-west-2.grafana.net'||url.pathname!=='/otlp/v1/metrics'||url.search||url.username||url.password||url.port||!env.GRAFANA_OTLP_AUTH)throw Error('DESTINATION_NOT_ADMITTED');
   const body=JSON.stringify(metricsPayload(values,now));
   if(new TextEncoder().encode(body).length>64000)throw Error('BODY_LIMIT');
-  const response=await fetcher(url.href,{method:'POST',redirect:'error',headers:{authorization:env.GRAFANA_OTLP_AUTH,'content-type':'application/json'},body,signal:AbortSignal.timeout(10000)});
+  // Workers supports follow/manual, not redirect:error. Reject 3xx explicitly
+  // so authorization can never be forwarded to a redirect destination.
+  const response=await fetcher(url.href,{method:'POST',redirect:'manual',headers:{authorization:env.GRAFANA_OTLP_AUTH,'content-type':'application/json'},body,signal:AbortSignal.timeout(10000)});
   // A lost/rejected export is not retried; it must not create a retry storm.
   if(!response.ok){await response.body?.cancel();throw Error('INGEST_REJECTED');}
   const reader=response.body?.getReader();let text='',size=0;

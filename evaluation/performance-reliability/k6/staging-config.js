@@ -1,7 +1,7 @@
 // Separate from every existing fixture/campaign profile. Never runs on import.
 export function stagingConfiguration(env) {
   const origin='https://distilled-news-staging.distillednews-platform.workers.dev';
-  if(env.STAGING_ORIGIN!==origin||env.STAGING_AUTHORIZATION!=='APPROVED_READ_ONLY'||env.FREE_TIER_PREFLIGHT!=='VERIFIED'||!/^[-a-zA-Z0-9_]{1,64}$/.test(env.APPROVAL_ID??''))throw Error('STAGING_APPROVAL_AND_FREE_TIER_PREFLIGHT_REQUIRED');
+  if(env.STAGING_ORIGIN!==origin||env.STAGING_AUTHORIZATION!=='APPROVED_READ_ONLY'||env.USAGE_PREFLIGHT!=='VERIFIED'||!/^[-a-zA-Z0-9_]{1,64}$/.test(env.APPROVAL_ID??''))throw Error('STAGING_APPROVAL_AND_USAGE_PREFLIGHT_REQUIRED');
   if(!/^[a-zA-Z0-9_-]{1,64}$/.test(env.RUN_ID??'')||!/^[a-f0-9]{40}$/.test(env.COMMIT_SHA??''))throw Error('REPRODUCIBLE_RUN_REQUIRED');
   const profile=env.STAGING_PROFILE??'public-read';
   if(!['public-read','authenticated-read'].includes(profile))throw Error('READ_ONLY_PROFILE_REQUIRED');

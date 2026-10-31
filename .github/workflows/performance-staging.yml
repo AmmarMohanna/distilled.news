@@ -23,7 +23,7 @@ jobs:
     env:
       STAGING_ORIGIN: https://distilled-news-staging.distillednews-platform.workers.dev
       STAGING_AUTHORIZATION: APPROVED_READ_ONLY
-      FREE_TIER_PREFLIGHT: ${{ vars.FREE_TIER_PREFLIGHT }}
+      USAGE_PREFLIGHT: ${{ vars.USAGE_PREFLIGHT }}
       APPROVAL_ID: ${{ inputs.approval_id }}
       STAGING_PROFILE: ${{ inputs.profile }}
       REQUEST_BUDGET: '10'

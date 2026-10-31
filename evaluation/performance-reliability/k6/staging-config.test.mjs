@@ -1,10 +1,10 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {stagingConfiguration,campaignReports} from './staging-config.js';
 import {verifyProtection} from './verify-staging-approval.mjs';
-const approved={STAGING_ORIGIN:'https://distilled-news-staging.distillednews-platform.workers.dev',STAGING_AUTHORIZATION:'APPROVED_READ_ONLY',FREE_TIER_PREFLIGHT:'VERIFIED',APPROVAL_ID:'approval',RUN_ID:'pilot-1',COMMIT_SHA:'a'.repeat(40),FEED_USER:'fixture',FEED_SLUG:'news',EDITION_ID:'edition-1'};
-test('live profile requires explicit staging, free-tier evidence, budget and reproducible identities',()=>{
+const approved={STAGING_ORIGIN:'https://distilled-news-staging.distillednews-platform.workers.dev',STAGING_AUTHORIZATION:'APPROVED_READ_ONLY',USAGE_PREFLIGHT:'VERIFIED',APPROVAL_ID:'approval',RUN_ID:'pilot-1',COMMIT_SHA:'a'.repeat(40),FEED_USER:'fixture',FEED_SLUG:'news',EDITION_ID:'edition-1'};
+test('live profile requires explicit staging, usage evidence, budget and reproducible identities',()=>{
  assert.throws(()=>stagingConfiguration({}),/APPROVAL/);
- for(const patch of [{STAGING_ORIGIN:'https://distilled.news'},{FREE_TIER_PREFLIGHT:'UNKNOWN'},{REQUEST_BUDGET:21},{STAGING_PROFILE:'stress'},{RUN_ID:'../x'}])assert.throws(()=>stagingConfiguration({...approved,...patch}));
+ for(const patch of [{STAGING_ORIGIN:'https://distilled.news'},{USAGE_PREFLIGHT:'UNKNOWN'},{REQUEST_BUDGET:21},{STAGING_PROFILE:'stress'},{RUN_ID:'../x'}])assert.throws(()=>stagingConfiguration({...approved,...patch}));
  const c=stagingConfiguration(approved);assert.equal(c.options.scenarios.staging.vus,1);assert.equal(c.budget.maximumRequests,10);assert.equal(c.budget.mutationRequests,0);
 });
 test('authenticated reads require disposable account identity and never place credentials in reports',()=>{

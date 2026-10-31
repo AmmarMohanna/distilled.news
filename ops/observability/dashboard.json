@@ -1,6 +1,6 @@
 {
   "uid": "distilled-agentops-v1",
-  "title": "Distilled AgentOps \u2014 private scoped evidence",
+  "title": "Distilled AgentOps — private scoped evidence",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
@@ -37,6 +37,15 @@
           "text": "distilled-news-staging",
           "value": "distilled-news-staging"
         }
+      },
+      {
+        "name": "environment",
+        "type": "textbox",
+        "query": "staging",
+        "current": {
+          "text": "staging",
+          "value": "staging"
+        }
       }
     ]
   },
@@ -45,7 +54,7 @@
       "id": 1,
       "title": "1. Persisted publication outcomes (not reader-confirmed)",
       "type": "timeseries",
-      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 1. Persisted publication outcomes (not reader-confirmed)",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 1. Persisted publication outcomes (not reader-confirmed) Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -59,7 +68,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_publication_(published|quiet|deferred|failed|blocked|pending|unknown)\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_publication_(published|quiet|deferred|failed|blocked|pending|unknown)\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -74,7 +83,7 @@
       "id": 2,
       "title": "1. Observed invocation errors / 5m",
       "type": "timeseries",
-      "description": "Sampled invocation failures only; no publication-success denominator.",
+      "description": "Sampled invocation failures only; no publication-success denominator. UNAVAILABLE in current staging activation: log export is intentionally disabled. Empty results are not healthy zeroes.",
       "gridPos": {
         "x": 12,
         "y": 0,
@@ -103,7 +112,7 @@
       "id": 3,
       "title": "2. Retained acquisition/reassessment pending and running",
       "type": "timeseries",
-      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 2. Retained acquisition/reassessment pending and running",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 2. Retained acquisition/reassessment pending and running Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 0,
         "y": 9,
@@ -117,7 +126,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_jobs_(acquire|reassess)_(pending|running)\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_jobs_(acquire|reassess)_(pending|running)\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -132,7 +141,7 @@
       "id": 4,
       "title": "2. Retained delivery attempts requiring investigation",
       "type": "timeseries",
-      "description": "Retained delivery attempts and oldest known pending-age proxy. Legacy enqueue timestamps may be missing; review coverage gauges.",
+      "description": "Retained delivery attempts and oldest known pending-age proxy. Legacy enqueue timestamps may be missing; review coverage gauges. Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 12,
         "y": 9,
@@ -146,12 +155,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_queue_.*\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_queue_.*\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         },
         {
           "refId": "B",
-          "expr": "distilled_oldest_observed_pending_age_ms{job=\"distilled-snapshot\"}",
+          "expr": "last_over_time(distilled_oldest_observed_pending_age_ms{job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "Oldest timestamped pending job (ms)"
         }
       ],
@@ -166,7 +175,7 @@
       "id": 5,
       "title": "3. Recorded publication delay and model latency R7 p95",
       "type": "timeseries",
-      "description": "Publication uses scheduledFor to recorded publishedAt. Exact end-to-end reader latency unavailable; show sample count next to p95.",
+      "description": "Publication uses scheduledFor to recorded publishedAt. Exact end-to-end reader latency unavailable; show sample count next to p95. Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 0,
         "y": 18,
@@ -180,12 +189,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_(publication|model)_duration_ms_p95\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_(publication|model)_duration_ms_p95\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         },
         {
           "refId": "B",
-          "expr": "{__name__=~\"distilled_v3_(edit|verify|repair|consolidate)_duration_ms_p95\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_v3_(edit|verify|repair|consolidate)_duration_ms_p95\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -200,7 +209,7 @@
       "id": 6,
       "title": "3. Duration sample counts",
       "type": "timeseries",
-      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 3. Duration sample counts",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 3. Duration sample counts Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 12,
         "y": 18,
@@ -214,7 +223,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_(publication|model)_duration_samples\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_(publication|model)_duration_samples\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -229,7 +238,7 @@
       "id": 7,
       "title": "4. Costs and held exposure (separate accounting meanings)",
       "type": "timeseries",
-      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 4. Costs and held exposure (separate accounting meanings)",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 4. Costs and held exposure (separate accounting meanings) Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 0,
         "y": 27,
@@ -243,7 +252,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_(settled_cost_usd|confirmed_partial_cost_usd|provider_reported_partial_cost_usd|held_exposure_usd|reserved_ceiling_usd)\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_(settled_cost_usd|confirmed_partial_cost_usd|provider_reported_partial_cost_usd|held_exposure_usd|reserved_ceiling_usd)\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -258,7 +267,7 @@
       "id": 8,
       "title": "4. Missing cost and unsettled operation counts",
       "type": "timeseries",
-      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 4. Missing cost and unsettled operation counts",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 4. Missing cost and unsettled operation counts Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 12,
         "y": 27,
@@ -272,7 +281,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_(unknown_cost_operations|unsettled_operations)\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_(unknown_cost_operations|unsettled_operations)\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -287,7 +296,7 @@
       "id": 9,
       "title": "5. Last-known source collection state",
       "type": "timeseries",
-      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 5. Last-known source collection state",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 5. Last-known source collection state Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 0,
         "y": 36,
@@ -301,7 +310,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_source_.*\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_source_.*\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -316,7 +325,7 @@
       "id": 10,
       "title": "5. Explicit incomplete coverage",
       "type": "timeseries",
-      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 5. Explicit incomplete coverage",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 5. Explicit incomplete coverage Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 12,
         "y": 36,
@@ -330,7 +339,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "distilled_coverage_incomplete{job=\"distilled-snapshot\"}",
+          "expr": "last_over_time(distilled_coverage_incomplete{job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -345,7 +354,7 @@
       "id": 11,
       "title": "6. Recovery obligations (retained exhausted/rejected deliveries)",
       "type": "timeseries",
-      "description": "Recovery obligation, not evidence of completed recovery. Follow runbooks; retain original identities.",
+      "description": "Recovery obligation, not evidence of completed recovery. Follow runbooks; retain original identities. Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 0,
         "y": 45,
@@ -359,7 +368,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{__name__=~\"distilled_queue_(delivery_exhausted|delivery_rejected)\",job=\"distilled-snapshot\"}",
+          "expr": "last_over_time({__name__=~\"distilled_queue_(delivery_exhausted|delivery_rejected)\",job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -374,7 +383,7 @@
       "id": 12,
       "title": "6. Invocation duration p95 (observed logs)",
       "type": "timeseries",
-      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 6. Invocation duration p95 (observed logs)",
+      "description": "Scoped snapshot gauge; missing series is unavailable, not zero. 6. Invocation duration p95 (observed logs) UNAVAILABLE in current staging activation: log export is intentionally disabled. Empty results are not healthy zeroes.",
       "gridPos": {
         "x": 12,
         "y": 45,
@@ -403,7 +412,7 @@
       "id": 13,
       "title": "7. Successful / unsuccessful diagnostic investigations",
       "type": "timeseries",
-      "description": "Success means administrator trace read completed. Pipeline results appear in section 1; these concepts must remain separate.",
+      "description": "Success means administrator trace read completed. Pipeline results appear in section 1; these concepts must remain separate. UNAVAILABLE in current staging activation: log export is intentionally disabled. Empty results are not healthy zeroes.",
       "gridPos": {
         "x": 0,
         "y": 54,
@@ -432,7 +441,7 @@
       "id": 14,
       "title": "7. Telemetry availability and missingness",
       "type": "timeseries",
-      "description": "Private textfile bridge replaces stale application gauges with observer_up=0; query-observation timestamp differs from projection time. Missing series need observer diagnosis.",
+      "description": "Private textfile bridge replaces stale application gauges with observer_up=0; query-observation timestamp differs from projection time. Missing series need observer diagnosis. Worker collector uses fifteen-minute snapshots: retain the most recent sample for twenty minutes and inspect freshness separately.",
       "gridPos": {
         "x": 12,
         "y": 54,
@@ -446,12 +455,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "distilled_observer_up{job=\"distilled-snapshot\"}",
+          "expr": "last_over_time(distilled_observer_up{job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "Local exporter health"
         },
         {
           "refId": "B",
-          "expr": "time() - distilled_snapshot_observed_timestamp_seconds{job=\"distilled-snapshot\"}",
+          "expr": "time() - last_over_time(distilled_snapshot_observed_timestamp_seconds{job=\"distilled-snapshot\",service=~\"$service\",environment=~\"$environment\"}[20m])",
           "legendFormat": "Input age (seconds)"
         }
       ],
