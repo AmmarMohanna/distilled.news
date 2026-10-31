@@ -82,3 +82,31 @@ released; a permanently stuck slot was not established. Reuse reduces redundant
 Google work but is not proof of sustained throughput or a drained backlog.
 Provider rate limits, inaccessible pages, genuinely missing text, unknown paid
 outcomes and the existing backlog remain separate operational concerns.
+
+## Live QA validation, October 31
+
+Code commit `83b37313` is deployed at 100% on sources-QA as version
+`15a418d2-6d65-4011-9b24-3b8665f50fb2`. Resource bindings and the existing
+financial authorizations were preserved. No production or staging deployment
+was changed.
+
+At 09:19 UTC, all 14 inspected UEFA canonical failures were independently read
+back as DONE with retained bodies of 1,820–6,136 characters. Each has an explicit
+unpaid-only recovery authorization, cumulative attempts and prior failure history.
+Completeness remains UNKNOWN where the existing acquisition policy cannot prove
+it. The aggregate-section cases required the alias follow-up and a separately
+guarded additional unpaid attempt; existing approval IDs were reused for busy
+admission retries rather than granting extra attempts on every operator retry.
+
+Two live cache mappings were replayed through the resolver with helper execution
+disabled: both returned the same mapping, with zero helper calls. The later
+cache snapshot contained 160 unexpired mappings. This confirms reuse, not an
+end-to-end throughput guarantee.
+
+The 09:18 UTC canary snapshot still contained 10,082 pending acquisitions,
+12,134 DONE, 454 FAILED, 4,802 deferred initial-backlog jobs and 20 running.
+Continued collection had outpaced processing; the workload is not fully
+recovered. All nine original Apify read holds had retained receipts, while
+four unknown actor starts and 21 original Zyte outcomes remained fenced.
+These observations do not authorize clearing uncertain charges, increasing
+spending, changing feed frequencies or claiming 1,000-feed scalability.
