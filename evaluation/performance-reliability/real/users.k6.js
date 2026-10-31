@@ -1,3 +1,4 @@
+import {readViolation} from './journeys.mjs';
 import http from 'k6/http';
 import {check,sleep} from 'k6';
 import exec from 'k6/execution';
@@ -17,6 +18,6 @@ export default function(){
  const r=http.get(m.origin+path,{redirects:0,timeout:'15s',headers:{cookie:user.cookie,'X-Distilled-Campaign':m.runId},tags:{name},responseCallback:http.expectedStatuses(...(name==='foreign-private'?[404]:[200]))});
  check(r,{'request completed':res=>name==='foreign-private'?res.status===404:res.status===200});
  let json;try{json=r.json()}catch{json=null;}
- const bad=(name==='session'&&r.status===200&&json?.account?.id!==user.id)||(name==='owned-feeds'&&r.status===200&&json?.briefings?.some(f=>f.ownerAccountId!==user.id))||(name==='foreign-private'&&r.status===200);
+ const bad=readViolation(name,r.status,json,user,feed);
  safety.add(bad?1:0);if(bad)exec.test.abort('ISOLATION_VIOLATION');sleep(1);
 }

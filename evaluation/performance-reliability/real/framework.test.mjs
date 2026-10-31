@@ -94,3 +94,14 @@ import {seal,unseal} from './artifact-crypto.mjs';
 test('private artifacts authenticate ciphertext and never contain their key',()=>{
  const key='12'.repeat(32),plain=Buffer.from('OFFLINE ONLY credentials/result fixture'),box=seal(plain,key);assert.deepEqual(unseal(box,key),plain);assert.ok(!JSON.stringify(box).includes(key));assert.ok(!JSON.stringify(box).includes(plain.toString()));assert.throws(()=>unseal({...box,tag:'00'.repeat(16)},key));
 });
+import {assertStartupFresh} from './manifest.mjs';
+import {readViolation} from './journeys.mjs';
+test('cleanup may quiesce its scope after capacity evidence ages, but work cannot',()=>{
+ const now=Date.now(),pf={observedAt:new Date(now-7200000).toISOString()};assert.throws(()=>assertStartupFresh(pf,'campaign',now),/FRESH_INITIAL_PREFLIGHT_REQUIRED/);assert.doesNotThrow(()=>assertStartupFresh(pf,'cleanup',now));
+ // This exception never changes the admission check on authorization expiry.
+ const m=manifest(),p={schemaVersion:'distilled-real-preflight.v1',status:'READY',blockers:[],manifestHash:digest(m),revision:m.revision};
+ assert.throws(()=>admit(m,p,{schemaVersion:'distilled-real-approval.v1',manifestHash:digest(m),preflightHash:digest(p),revision:m.revision,phases:['cleanup'],issuedAt:new Date(now-10000).toISOString(),expiresAt:new Date(now-1).toISOString()},'cleanup',now),/APPROVAL_EXPIRED/);
+});
+test('successful HTTP cannot hide wrong account/feed data or private Explore entries',()=>{
+ const user={id:'owner'},feed={id:'owned'};assert.equal(readViolation('account',200,{account:{id:'other'}},user,feed),'ACCOUNT_RESPONSE_MISMATCH');assert.equal(readViolation('feed',200,{briefing:{id:'other',ownerAccountId:'owner'}},user,feed),'FEED_RESPONSE_MISMATCH');assert.equal(readViolation('owned-feeds',200,{},user,feed),'OWNED_FEED_SCOPE_MISMATCH');assert.equal(readViolation('explore',200,{feeds:[{id:'private',ownerAccountId:'other',publicFeedEnabled:false}]},user,feed),'EXPLORE_VISIBILITY_MISMATCH');assert.equal(readViolation('feed',200,{briefing:{id:'owned',ownerAccountId:'owner'}},user,feed),null);assert.equal(readViolation('explore',200,{feeds:[]},user,feed),null);
+});

@@ -4,7 +4,7 @@ import {readFileSync,writeFileSync,existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {spawn,execFileSync} from 'node:child_process';
-import {validateManifest,preflight,admit,digest} from './manifest.mjs';
+import {validateManifest,preflight,admit,digest,assertStartupFresh} from './manifest.mjs';
 import {ApplicationClient,privateDirectory,writePrivate,readRegistry,journal,lockRun} from './client.mjs';
 import {setup,reconcileSetup,archive} from './lifecycle.mjs';
 import {CampaignObservation,observeOnce} from './observer.mjs';
@@ -28,7 +28,7 @@ if(command==='report'){
  writeFileSync(resolve(dir,'report.private.html'),renderReport(m,summary,traffic),{mode:0o600});console.log('Report saved inside the private run directory.');process.exit(0);
 }
 const pf=read(preflightPath),approval=read(approvalPath);
-if(!Number.isFinite(Date.parse(pf.observedAt))||Date.now()-Date.parse(pf.observedAt)>=3600000||Date.parse(pf.observedAt)>Date.now())throw Error('FRESH_INITIAL_PREFLIGHT_REQUIRED');
+assertStartupFresh(pf,command);
 admit(m,pf,approval,command);
 const cleanupDrainMs=m.cleanupReserveRequests*15000;
 if(['setup','campaign','traffic'].includes(command)&&Date.parse(approval.expiresAt)-Date.now()<cleanupDrainMs+(command==='traffic'?m.durationSeconds:m.observeSeconds)*1000)throw Error('SCOPE_MUST_COVER_WORK_AND_CLEANUP');

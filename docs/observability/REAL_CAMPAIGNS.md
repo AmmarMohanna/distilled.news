@@ -27,9 +27,11 @@ The expanded private campaign test file passed **seven tests**, including actual
 
 The new post-durable-result recovery regression passed separately: interruption after two fixture provider calls left one saved V3 result and no edition; recovery published one edition, and another duplicate delivery made no additional provider call. The existing runtime intentionally surfaced the injected internal exception as `TEMPORARY_UNAVAILABLE`; the regression checks that public behavior and the actual hook execution.
 
-The final combined performance Node contract suite passed **51 tests**, including 23 new framework tests. Workspace TypeScript checks passed. The official checksum-verified k6 1.3.0 binary passed configuration inspection with zero traffic requests. Final GitHub CI results must be read from the final validation record; a passing harness is not staged execution evidence.
+The final combined performance Node contract suite passed **53 tests**, including 25 new framework tests. Workspace TypeScript checks passed. The official checksum-verified k6 1.3.0 binary passed configuration inspection with zero traffic requests. Final GitHub CI results must be read from the final validation record; a passing harness is not staged execution evidence.
 
 A fixture typo (`50`/`30m` instead of the real intensity/cadence types) was detected by workspace TypeScript checks and corrected in the new test only. k6 inspection initially did not inherit environment variables; explicit `-e` inputs and an isolated k6 configuration fixed it without generating traffic. No application behavior was restored or weakened to satisfy an obsolete expectation.
+
+A final runner review corrected an orchestration defect before live use: a 90-minute run can age its initial capacity preflight beyond one hour. The cleanup phase now accepts that aged capacity evidence while still enforcing the exact original approval and its expiry; normal work still requires fresh startup evidence. HTTP 200 responses now also have account/feed/Explore identity checks, and a persisted edition must explicitly identify the V3 engine. Premature reader visibility uses the actual read timestamp, not the later evidence-export time.
 
 ## Actual read-only preflight
 

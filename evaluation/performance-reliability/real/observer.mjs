@@ -11,6 +11,7 @@ export class CampaignObservation{
   for(const item of snapshot.items){
    const offered=this.plan.opportunities.find(o=>o.id===item.id&&o.feedId===item.feedId);if(!offered)throw Error('UNPLANNED_OPPORTUNITY');
    if(item.window.start!==offered.window.start||item.window.end!==offered.window.end)this.violate('WINDOW_REINTERPRETED',item.id);
+   if(item.editionId&&item.engine!=='v3')this.violate('UNEXPECTED_PUBLICATION_ENGINE',item.id);
    if(item.duplicateEditions>0)this.violate('DUPLICATE_PUBLICATION',item.id);
    if(item.unownedCitations>0)this.violate('CITATION_OWNERSHIP',item.id);
    if(item.editionId&&item.citationCount===0)this.violate('PUBLISHED_WITHOUT_CITATIONS',item.id);
@@ -61,7 +62,7 @@ export async function observeOnce(m,client,dir,registry,observation,adminCookie,
   const edition=response.value?.edition??response.value;const positive=response.status===200&&edition?.id===item.editionId;
   observation.visible(o.id,new Date().toISOString(),positive);
   if(positive){if(!existsSync(resolve(dir,o.id+'.evidence.private.json'))){const evidence=await client.request(`/api/admin/agentops/campaigns/${m.runId}/evidence`,{method:'POST',cookie:adminCookie,body:{feedId:o.feedId,window:o.window},category:'private-evidence-export'});writePrivate(dir,o.id+'.evidence.private.json',evidence.value);}
-   if(Date.now()<Date.parse(o.window.scheduledFor??o.window.end))observation.violate('PREMATURE_READER_VISIBILITY',o.id);writePrivate(dir,o.id+'.edition.private.json',response.value);if(edition.windowStart&&edition.windowStart!==o.window.start||edition.windowEnd&&edition.windowEnd!==o.window.end)observation.violate('READER_WINDOW_MISMATCH',o.id);}
+   if(Date.parse(observation.visibility.get(o.id).firstPositive)<Date.parse(o.window.scheduledFor??o.window.end))observation.violate('PREMATURE_READER_VISIBILITY',o.id);writePrivate(dir,o.id+'.edition.private.json',response.value);if(edition.windowStart&&edition.windowStart!==o.window.start||edition.windowEnd&&edition.windowEnd!==o.window.end)observation.violate('READER_WINDOW_MISMATCH',o.id);}
   if(!o.public){for(const cookie of [undefined,other.cookie]){const probe=await client.request(path,{cookie,category:'isolation-probe',expected:[200,401,403,404]});if(probe.status===200)observation.violate('CROSS_ACCOUNT_OR_ANONYMOUS_LEAKAGE',o.id);}}
   if(positive)observation.visibility.set(o.id,{...observation.visibility.get(o.id),isolationChecked:true});
  }

@@ -78,3 +78,10 @@ export function budgetStop(m,snapshot){
  if(snapshot.coverageComplete!==true)reasons.push('OBSERVATION_INCOMPLETE');
  return reasons;
 }
+
+/** Cleanup still needs exact, unexpired authorization. It does not require a
+ * new capacity preflight merely to quiesce the same owned campaign resources. */
+export function assertStartupFresh(preflight,phase,now=Date.now()){
+ if(phase==='cleanup')return;
+ if(!Number.isFinite(Date.parse(preflight?.observedAt))||now-Date.parse(preflight.observedAt)>=3600000||Date.parse(preflight.observedAt)>now)throw Error('FRESH_INITIAL_PREFLIGHT_REQUIRED');
+}
