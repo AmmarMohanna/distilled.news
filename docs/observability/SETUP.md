@@ -76,3 +76,7 @@ node scripts/agentops-textfile.mjs /PRIVATE/TEXTFILE/DIRECTORY/distilled.prom PR
 ```
 
 The parent directory must already exist. This command performs no network calls. It accepts at most 1000 files/50 MB total/20 MB per input, requires complete views from one explicit window and fresh observedAt values (at most five minutes old, never future), and atomically replaces the .prom output with mode 0600. On validation failure it replaces application metrics with observer_up=0 and exits nonzero; it never rewrites source JSON. It exports both the minimum data-observation timestamp and projection time, so regenerating an old file cannot make it appear fresh. Configure scraping under job distilled-snapshot, with node_exporter running as the file owner. Filesystem failures can prevent replacement; the separate timestamp/absence alerts and host monitoring must catch those. The five-minute freshness policy is provisional: approve a collection cadence and database budget before enabling these two additional paused alerts. Historical synthetic fixtures intentionally fail this freshness gate; use the offline projector for demonstrations.
+
+## Staging activation progress
+
+See [STAGING_ACTIVATION.md](STAGING_ACTIVATION.md) for the current authenticated-access blockers, exact baseline CI evidence, static privacy audit and per-requirement acceptance status. Do not treat the inactive fragments as a completed Grafana integration. No export should be enabled before the privacy findings and explicit cloud/deployment approvals are resolved.
