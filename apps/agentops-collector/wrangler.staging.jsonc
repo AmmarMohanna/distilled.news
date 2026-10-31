@@ -1,0 +1,18 @@
+{
+  "name": "distilled-news-staging-agentops",
+  "account_id": "e32b564514d4f9b9e383b7dd30dbb026",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-10-05",
+  "workers_dev": false,
+  "preview_urls": false,
+  "limits": {"cpu_ms": 100},
+  "routes": [],
+  "vars": {
+    "COLLECTOR_ENABLED": "false",
+    "COLLECTOR_FEED_ID": "",
+    "GRAFANA_OTLP_METRICS_URL": "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics"
+  },
+  "d1_databases": [{"binding":"DB","database_name":"distilled-news-staging","database_id":"ab259bfe-6029-4e20-8cb6-eea6b7a67459"}],
+  "triggers": {"crons": ["*/15 * * * *"]},
+  "observability": {"enabled":false,"logs":{"enabled":false,"invocation_logs":false},"traces":{"enabled":false}}
+}
