@@ -80,3 +80,6 @@ The parent directory must already exist. This command performs no network calls.
 ## Staging activation progress
 
 See [STAGING_ACTIVATION.md](STAGING_ACTIVATION.md) for the current authenticated-access blockers, exact baseline CI evidence, static privacy audit and per-requirement acceptance status. Do not treat the inactive fragments as a completed Grafana integration. No export should be enabled before the privacy findings and explicit cloud/deployment approvals are resolved.
+# Current staging activation policy
+
+For this activation, follow [the final approval package](ACTIVATION_APPROVAL.md) and [Worker collector evidence](WORKER_COLLECTOR_VALIDATION.md). The selected collector is Worker-native; no Alloy host is required. Legacy application-log export is prohibited. Earlier generic unsampled-log instructions below do not authorize staging log export. Native traces require a separate attribute/privacy review and deployment approval. The collector remains disabled until its concrete deployment is approved; all alerts remain paused.

@@ -1,5 +1,7 @@
 # AgentOps incident runbooks
 
+For the proposed fifteen-minute Worker collector, keep alerts paused until cadence-aware thresholds and missingness are validated. Do not apply shorter absence thresholds unchanged or infer continuous health from latest-window gauges. See [activation approval](ACTIVATION_APPROVAL.md) for the currently blocked deployment and rollback procedure. No legacy-log export is authorized.
+
 All thresholds are provisional review policies. Preserve one incident per service/alertname; group for 1 minute, update at most every 10 minutes, repeat after 12 hours while unresolved. Do not page repeatedly for every request or add feed/operation IDs to labels. No live notification policy has been changed.
 
 ## Publication

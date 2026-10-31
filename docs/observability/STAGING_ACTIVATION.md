@@ -174,3 +174,30 @@ Current acceptance amendments:
 Credential requests remain local-only. The requested next values are the account-scoped Cloudflare token and the Grafana OTLP base URL, instance ID and stack-scoped ingest token. The existing service-account token is not used for ingestion. An existing collector host has not been identified. No new server has been provisioned, and no telemetry ingestion, paid inference, real scraping or reader notification has been initiated.
 
 Private local evidence includes `grafana-import-verification.json`, `folder-acl-after.json`, `alert-readback.json`, `panel-query-validation.json` and `alert-evaluation.json`. Only this sanitized summary is committed.
+## Cloudflare access correction and live read-only audit
+
+The operator correctly noted that Cloudflare access was available. Re-running Wrangler's existing OAuth refresh succeeded. The earlier authentication-blocked statement was stale and is superseded here; no new general Cloudflare login or broad API token is required.
+
+Authenticated live reads now verify the intended Worker settings and deployments (HTTP 200), staging D1/R2 identities, and active version `af2e8b34-238b-421a-ab26-6f9da1fe6c7a` at 100%. `SOURCE_GOOGLE_RESOLUTION_ENABLED=true` remains present. `AGENTOPS_ENABLED` is unset. Native tracing is disabled. Current logs are enabled, retained in Cloudflare and include invocation logs; these are live settings, not the proposed export fragment.
+
+The observability **destination inventory** endpoint alone returns HTTP 403/code 10000. The existing OAuth session lacks the required destination permission. Use a separate account-scoped token with Workers Observability Edit/Write for destination operations if necessary; do not ask for another broad Worker/D1/queue token. Existing Wrangler access can continue to handle Worker deployment after explicit approval. Grafana OTLP gateway/instance/ingest credentials are still required independently.
+
+A bounded 40-second live Worker tail audit observed one `ok` invocation and no console entries. It saved only sanitized counts, not raw messages, payloads or tokens. This sample does not exercise known rich-error paths and does not clear the static privacy findings. No native trace ID was observed.
+
+Three real read-only staging probes returned: homepage 200 (564 ms), existing Lebanon feed API 200 (2226 ms), and anonymous private trace API request 401 (148 ms). The last probe verifies access denial at the actual API. These are individual request timings, not p50/p95 or a fresh acquisition-to-publication workflow; no provider operation was initiated. They are not correlated Grafana telemetry because export has not been activated.
+
+Acceptance amendments: live target/bindings and general Cloudflare authentication are VERIFIED. Observability destination permission remains BLOCKED. A real denied request is VERIFIED at HTTP level, but trace correlation remains BLOCKED. The privacy audit remains PARTIAL. Worker deployment, OTLP delivery, continuous metrics, controlled model/tool failure and notification-safe scheduler activation remain incomplete.
+## Destination and OTLP credential verification
+
+The operator supplied the remaining credentials in the existing ignored local `.env`. Only presence booleans and sanitized endpoint metadata were displayed. The account-scoped observability token successfully listed Cloudflare destinations (HTTP 200); the returned destination list was empty. The live Grafana OTLP base is `https://otlp-gateway-prod-eu-west-2.grafana.net/otlp`, without embedded credentials or query parameters.
+
+Empty OTLP protocol authentication checks returned 204 for logs and 200 for traces. Each submitted **zero records**. These results verify authentication/endpoint reachability only; they do not prove application telemetry delivery, ingestion cost or trace correlation. No destination was created and no Worker was deployed.
+
+Local process inventory found `cloudflared`, but no running Alloy, Prometheus or node_exporter process. This does not establish that no external collector exists. The operator was asked to choose an existing always-on host, a supervised local proof without new hosting, or a costed hosted recommendation before provisioning. A workstation proof must not be represented as unattended monitoring.
+
+A secret-free destination plan is retained locally with proposed names `distilled-staging-logs` and `distilled-staging-traces`, initially disabled. Basic authorization is derived only in memory from the provided credentials when an approved destination operation is executed; it is not included in the plan or repository. Before attaching exports to the active Worker, resolve the static legacy-log privacy findings, inspect a controlled span sample, preserve all live settings/bindings, obtain explicit staging deployment approval for the concrete artifact, and establish ingestion/cost bounds.
+
+Current access status: Grafana provisioning, Grafana logs/traces OTLP authentication, general Cloudflare access and Cloudflare destination inventory are VERIFIED. Collector placement, privacy filtering, actual telemetry export, continuous metrics, notification-safe alert activation and the remaining end-to-end scenarios remain incomplete. No additional authentication is requested for already verified endpoints.
+# Latest preflight supersedes earlier blockers
+
+See [ACTIVATION_APPROVAL.md](ACTIVATION_APPROVAL.md): one sanitized OTLP point was ingested and independently queried successfully on October 31. Metrics-write capability exists, but a dedicated minimal credential remains required. The selected host is a dedicated Cron Worker. Actual account analytics exceed standard included CPU and D1 allowances, so continuous operation has a small estimated marginal cost and remains disabled pending explicit approval. All alerts remain paused; no native application trace has been exported or correlated. Earlier host-selection/authentication-only statements below are historical progress records, not current blockers.
