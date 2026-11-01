@@ -1,6 +1,8 @@
+import {DELIVERY_LEAD_MS} from './v1-intelligence/schedule';
+export interface CollectionDeliveryContext {scheduledFor?:string;now:number}
 /** One read-only definition of the collection gate, shared by dispatch and UI.
  * Terminal failures and polls started after this boundary do not hold it open. */
-export async function pendingWindowCollections(db:D1Database,feedId:string,end:string,v3=false){
+export async function pendingWindowCollections(db:D1Database,feedId:string,end:string,v3=false,delivery?:CollectionDeliveryContext){
  const rows=await db.prepare(`WITH polls AS (
  SELECT request,scheduled_at,last_error,result,'rss' AS family FROM connector_rss_poll_jobs WHERE state='PENDING'
  UNION ALL SELECT request,scheduled_at,last_error,result,'provider' AS family FROM connector_provider_poll_jobs WHERE state='PENDING'
@@ -37,5 +39,11 @@ export async function pendingWindowCollections(db:D1Database,feedId:string,end:s
  GROUP BY s.id,s.title ORDER BY s.id`).bind(v3?1:0,end,end,feedId,feedId,end,end).all<{id:string;title:string;n:number;continuing:number}>();
  // Later pages keep collecting normally. They no longer extend the old turn,
  // but V3 must retain incomplete coverage rather than claiming a quiet window.
- return {pending:rows.results.reduce((n,row)=>n+row.n,0),sources:rows.results.filter(row=>row.n>0).map(row=>row.title),continuing:rows.results.reduce((n,row)=>n+row.continuing,0),continuingSources:rows.results.filter(row=>row.continuing>0).map(row=>row.title)};
+ const pending=rows.results.reduce((n,row)=>n+row.n,0),sources=rows.results.filter(row=>row.n>0).map(row=>row.title);
+ // A scheduled V3 window prepares from already acquired evidence at its fixed
+ // cutoff. Pending upstream polls remain recoverable; they cannot move delivery.
+ // Explicit schedule context avoids changing V2 or unscheduled replay behavior.
+ const cutoff=Date.parse(end),scheduled=Date.parse(delivery?.scheduledFor??'');
+ const released=Boolean(v3&&delivery&&Number.isFinite(cutoff)&&Number.isFinite(scheduled)&&scheduled-cutoff===DELIVERY_LEAD_MS&&Number.isFinite(delivery.now)&&delivery.now>=cutoff);
+ return {pending:released?0:pending,sources:released?[]:sources,continuing:rows.results.reduce((n,row)=>n+row.continuing,0),continuingSources:rows.results.filter(row=>row.continuing>0).map(row=>row.title),...(released&&pending?{deadlineReleased:pending,deadlineReleasedSources:sources}:{})};
 }
