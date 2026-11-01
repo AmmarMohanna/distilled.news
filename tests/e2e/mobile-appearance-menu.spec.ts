@@ -25,6 +25,11 @@ for (const width of [320,390,600]) for (const authenticated of [false,true]) {
       return;
     }
     const trigger = page.locator('.appearance-menu > summary');
+    await page.evaluate(() => document.fonts.ready);
+    const stableHeader = await page.locator('.experience-header').boundingBox();
+    const stableLogo = await brand.boundingBox();
+    const stableTrigger = await trigger.boundingBox();
+    const stableLogin = await page.locator('.experience-header a[href="/login"]').boundingBox();
     await expect(page.locator('.appearance-menu')).toHaveCSS('border-top-width','0px');
     await expect(page.locator('.appearance-menu')).toHaveCSS('padding-top','0px');
     await expect(trigger.locator('.appearance-symbol')).toHaveAttribute('data-theme','light');
@@ -45,6 +50,12 @@ for (const width of [320,390,600]) for (const authenticated of [false,true]) {
       await panel.locator('button').first().click();
       await expect(page.locator('html')).toHaveAttribute('lang',next);
       await expect(brand.locator('.distilled-logo-wordmark')).toBeVisible();
+      expect(await page.locator('.experience-header').boundingBox()).toEqual(stableHeader);
+      expect(await brand.boundingBox()).toEqual(stableLogo);
+      expect(await trigger.boundingBox()).toEqual(stableTrigger);
+      expect(await page.locator('.experience-header a[href="/login"]').boundingBox()).toEqual(stableLogin);
+      const currentLogo = (await brand.boundingBox())!, currentTrigger = (await trigger.boundingBox())!;
+      expect(currentLogo.x + currentLogo.width).toBeLessThanOrEqual(currentTrigger.x + 1);
     }
     await page.keyboard.press('Escape');
     await expect(panel).toBeHidden();

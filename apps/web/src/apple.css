@@ -2912,6 +2912,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand { --brand-type-size: 1.125rem; }
   :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand .distilled-logo-wordmark { display: inline; }
   :root.apple-ui.apple-ui .experience.product-refresh > .experience-header.experience-header .experience-header-actions > .button-link {
-    width: auto; min-width: 60px; flex-basis: auto; padding-inline: 8px;
+    width: 80px; min-width: 80px; flex-basis: 80px; padding-inline: 4px; font-size: 12px;
   }
 }
