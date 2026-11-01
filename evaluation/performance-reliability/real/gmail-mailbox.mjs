@@ -34,7 +34,7 @@ export class GmailMailbox {
  }
  async find({email,runId,registeredAt,origin}){
   if(!Array.from({length:20},(_,slot)=>gmailAlias(this.email,runId,slot)).includes(email)||!QA_ORIGIN.test(origin)||!Number.isFinite(Date.parse(registeredAt))||Date.parse(registeredAt)>this.now()||this.now()-Date.parse(registeredAt)>14400000)throw Error('CAMPAIGN_MAIL_SCOPE_DENIED');
-  const query=new URLSearchParams({q:'to:'+email+' after:'+Math.floor(Date.parse(registeredAt)/1000),maxResults:'10',fields:'messages/id,nextPageToken'});
+  const query=new URLSearchParams({q:'to:'+email+' after:'+Math.floor(Date.parse(registeredAt)/1000),maxResults:'10',includeSpamTrash:'true',fields:'messages/id,nextPageToken'});
   const list=await this.get('messages?'+query,'gmail-list');if(list.nextPageToken||list.messages?.length>10)throw Error('MAIL_MATCH_LIMIT');
   const matches=[];for(const row of list.messages??[]){if(!/^[a-zA-Z0-9_-]{1,64}$/.test(row.id))throw Error('MAIL_ID_INVALID');const message=await this.get('messages/'+row.id+'?format=full&fields=id,internalDate,payload','gmail-message');const token=verificationToken(message,{email,origin,registeredAt});if(token)matches.push({token,receipt:{receivedAt:new Date(Number(message.internalDate)).toISOString(),messageHash:createHash('sha256').update(JSON.stringify(message)).digest('hex'),runId}})}
   if(new Set(matches.map(m=>m.token)).size>1)throw Error('AMBIGUOUS_VERIFICATION_MAIL');return matches[0]??null;

@@ -78,10 +78,18 @@ export async function snapshotCampaign(env:Env,repo:Repository,runId:string,inpu
  }
  const feeds=[];
  for(const [id]of scoped){const sources=await read(SQL.sources.replace('LIMIT 5','LIMIT 4'),id);if(sources.length>=4)throw Error('CAMPAIGN_SOURCE_LIMIT');const jobs=[];for(const s of sources){const rows=await read(SQL.jobs,s.id);if(rows.length>100)throw Error('CAMPAIGN_BACKLOG_INCOMPLETE');jobs.push(...rows);}feeds.push({feedId:id,backlog:jobs.length,timestamped:jobs.filter(j=>j.enqueuedAt).length,oldestPendingAt:jobs.map(j=>j.enqueuedAt).filter(Boolean).sort()[0]??null});}
+ // Application owners and provider billing accounts are different identities.
+ // Resolve only the already observed operations by primary key and feed fence;
+ // never scan a user's billing ID or include unrelated provider-account work.
  for(const owner of [...new Set([...scoped.values()].map(f=>f.ownerAccountId))]){
-  const rows=await read("SELECT r.id,r.model,r.reserved_cost_usd AS reservedUsd,s.cost_usd AS settledUsd,s.reported FROM v1_model_spending_reservations r INDEXED BY v1_model_spending_reservation_account LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=? ORDER BY r.created_at LIMIT 501",owner);
+  const rows:Row[]=[];
+  for(const [feedId,config] of scoped){
+   if(config.ownerAccountId!==owner)continue;
+   const ids=[...new Set(items.filter(i=>i.feedId===feedId).flatMap(i=>i.operations.map(o=>'semantic_intents:'+o.id)))];
+   for(let n=0;n<ids.length;n+=50){const chunk=ids.slice(n,n+50);rows.push(...await read(`SELECT r.id,r.account_id AS billingAccountId,r.model,r.reserved_cost_usd AS reservedUsd,s.cost_usd AS settledUsd,s.reported FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')}) ORDER BY r.id`,feedId,...chunk));}
+  }
   if(rows.length>500)throw Error('CAMPAIGN_LEDGER_LIMIT');
-  financial.push({ownerId:owner,reservations:rows.map(r=>({id:r.id,model:r.model,reservedUsd:r.reservedUsd,settledUsd:r.reported===1?r.settledUsd:null,reported:r.reported===1}))});
+  financial.push({ownerId:owner,coverage:'OBSERVED_WINDOW_MODEL_OPERATIONS',reservations:rows.map(r=>({id:r.id,billingAccountId:r.billingAccountId,model:r.model,reservedUsd:r.reservedUsd,settledUsd:r.reported===1?r.settledUsd:null,reported:r.reported===1}))});
  }
  const browser=[];
  for(const ref of input.browserRuns??[]){
@@ -89,7 +97,7 @@ export async function snapshotCampaign(env:Env,repo:Repository,runId:string,inpu
   const rows=await read('SELECT run_id AS runId,state,outcome,discovery_model_calls AS modelCalls,browser_operations AS toolCalls,agent_browser_actions AS actions,started_at AS startedAt,completed_at AS completedAt,total_duration_ms AS totalMs,agent_duration_ms AS agentMs,verification_duration_ms AS verificationMs FROM browser_use_discovery_runs WHERE run_id=? AND tenant_id=?',ref.runId,ref.ownerId);
   browser.push(rows[0]??{runId:ref.runId,state:'NOT_OBSERVED'});
  }
- return {schemaVersion:'distilled-real-snapshot.v1',runId,startedAt,observedAt:new Date().toISOString(),work,items,feeds,financial,financialCoverage:'ACCOUNT_MODEL_LEDGER_ONLY_EXTERNAL_COLLECTOR_USAGE_REQUIRES_RECONCILIATION',coverageComplete:true,browserAgent:{coverage:browser.length&&browser.every(b=>b.state!=='NOT_OBSERVED')?'OBSERVED':'NOT_OBSERVED',runs:browser,reason:'Only explicit owned run IDs are read; HTTP success never establishes Browser Agent correctness.'}};
+ return {schemaVersion:'distilled-real-snapshot.v1',runId,startedAt,observedAt:new Date().toISOString(),work,items,feeds,financial,financialCoverage:'OBSERVED_WINDOW_MODEL_OPERATIONS_ONLY_SETUP_AND_COLLECTORS_REQUIRE_RECONCILIATION',coverageComplete:true,browserAgent:{coverage:browser.length&&browser.every(b=>b.state!=='NOT_OBSERVED')?'OBSERVED':'NOT_OBSERVED',runs:browser,reason:'Only explicit owned run IDs are read; HTTP success never establishes Browser Agent correctness.'}};
 }
 
 /** Explicit private evidence export, never telemetry. Fixed PKs, hard payload

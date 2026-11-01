@@ -59,6 +59,14 @@ describe('campaign-only schema and interruption (local D1)',()=>{
   expect(snapshot.items[0].state).toBe('NOT_CREATED');expect(snapshot.items[0].operations).toEqual([]);expect(snapshot.financial).toHaveLength(1);expect(snapshot.work.queries).toBeLessThan(15);expect(snapshot.work.rowsRead).toBeLessThan(100);
   await expect(snapshotCampaign(env,repo,run,{opportunities:[{...opportunity,window:{...opportunity.window,scheduledFor:'2026-10-31T19:31:00.000Z'}}]})).rejects.toThrow('CAMPAIGN_SCOPE_DENIED');
   expect(await ctx.db.prepare('SELECT count(*) AS n FROM v1_model_spending_reservations').first('n')).toBe(0);
+  await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind(id,JSON.stringify({id,revision:1})).run();
+  const {windowIdentity}=await import('./v1-intelligence/runtime'),windowId=await windowIdentity(id,opportunity.window),operation='observed-editor';
+  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('semantic_intents',?,?,?)").bind(operation,id,JSON.stringify({id:operation,input:{budgetKey:'v3:'+windowId},reservedCostUsd:.05})).run();
+  for(const [key,billing,ownedFeed] of [['semantic_intents:'+operation,'provider-billing',id],['unrelated-owner-row',account.id,'not-campaign-feed']])await ctx.db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,NULL,?,?,?,?,?,?,?)').bind(key,billing,'token','openai/gpt-4.1',ownedFeed,.05,0,'2026-10-31T19:25:00Z','{}').run();
+  await ctx.db.prepare('INSERT INTO v1_model_spending_settlements VALUES(?,?,?,?)').bind('semantic_intents:'+operation,'token',.012,1).run();
+  const actual=await snapshotCampaign(env,repo,run,{opportunities:[opportunity]});
+  expect(actual.financial[0].reservations).toEqual([{id:'semantic_intents:'+operation,billingAccountId:'provider-billing',model:'openai/gpt-4.1',reservedUsd:.05,settledUsd:.012,reported:true}]);
+
  });
  it('interrupts only the explicitly scoped unexpired control and leaves it durable',async()=>{
   const until=new Date(Date.now()+60000).toISOString();await ctx.db.prepare('INSERT INTO agentops_campaign_feeds(feed_id,run_id,owner_id,created_at,interrupt_until) VALUES(?,?,?,?,?)').bind(id,run,'owner',new Date().toISOString(),until).run();

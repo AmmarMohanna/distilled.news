@@ -1,3 +1,4 @@
+import {campaignAssessmentFetcher} from './agentops-assessment';
 import {assessmentModelPayload} from './source-assessment-model';
 import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
 import { normalizeRssSnapshot,extractPublicHtml,discoverWebsiteArticles, type SourceFamily } from '@distilled/connectors';
@@ -193,7 +194,7 @@ export async function assessSource(env: Env, context: { title: string; descripti
       }
     };
     const chat = Boolean(env.SOURCE_ASSESSMENT_MODEL);
-    const modelFetcher=paidVerification?(verification?.providerFetcher??fetcher):fetcher;
+    const modelFetcher=campaignAssessmentFetcher(env,verification?.ownerAccountId,paidVerification?(verification?.providerFetcher??fetcher):fetcher);
     const response = await assessmentModelPayload(modelFetcher,chat ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://openrouter.ai/api/alpha/decisions', {
       method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(60_000),
       headers: { 'content-type': 'application/json', authorization: `Bearer ${env.OPENROUTER_API_KEY}` },

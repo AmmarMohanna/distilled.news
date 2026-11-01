@@ -29,7 +29,7 @@ function seed(dir,expiresAt){writeFileSync(resolve(dir,'gmail-client.json'),JSON
 test('mailbox queries only the exact alias/time and reads a bounded matching message',async()=>{
  const dir=fixtureDirectory(),now=Date.parse(since)+10000,requests=[];try{
   seed(dir,now+3600000);const mailbox=new GmailMailbox({directory:dir,email:'qa.inbox@gmail.com',now:()=>now,fetcher:async(url,options)=>{requests.push({url,options});return Response.json(url.includes('/messages?')?{messages:[{id:'abc123'}]}:message(`${origin}/verify-email?token=offline-verification-token`))}});
-  const found=await mailbox.find({email,runId:'pilotnov01',registeredAt:since,origin});assert.equal(found.token,'offline-verification-token');assert.equal(requests.length,2);const q=new URL(requests[0].url);assert.equal(q.searchParams.get('q'),'to:'+email+' after:'+Math.floor(Date.parse(since)/1000));assert.equal(q.searchParams.get('maxResults'),'10');assert.ok(requests.every(r=>r.options.redirect==='error'));
+  const found=await mailbox.find({email,runId:'pilotnov01',registeredAt:since,origin});assert.equal(found.token,'offline-verification-token');assert.equal(requests.length,2);const q=new URL(requests[0].url);assert.equal(q.searchParams.get('q'),'to:'+email+' after:'+Math.floor(Date.parse(since)/1000));assert.equal(q.searchParams.get('maxResults'),'10');assert.equal(q.searchParams.get('includeSpamTrash'),'true');assert.ok(requests.every(r=>r.options.redirect==='error'));
   await assert.rejects(mailbox.find({email:'someone@gmail.com',runId:'pilotnov01',registeredAt:since,origin}),/SCOPE_DENIED/);assert.equal(requests.length,2);
  }finally{rmSync(dir,{recursive:true,force:true})}
 });
