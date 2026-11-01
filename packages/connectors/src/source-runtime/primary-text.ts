@@ -33,6 +33,15 @@ export function primaryTextContainer(all:TextNode[]):TextNode|undefined {
    if(usable(n,n.tagName==='article')&&(!outer.length||outer.every(p=>contains(n,p))))return n;
   }
  }
+ // Older publisher chapters put the heading and prose directly under BODY.
+ // Require one unlinked H1 followed by several substantial direct paragraphs;
+ // do not broaden the root fallback to navigation indexes or related cards.
+ if(headings.length===1){
+  const body=all.find(n=>n.tagName==='body'),children=body?.childNodes??[];
+  const paragraphs=children.filter(n=>n.tagName==='p'&&text(primaryDescendants(n)).length>=200);
+  const first=paragraphs[0];
+  if(body&&headings[0].parentNode===body&&first&&children.indexOf(headings[0])<children.indexOf(first)&&paragraphs.length>=3&&paragraphs.map(p=>text(primaryDescendants(p))).join(' ').length>=1500&&usable(body,false))return body;
+ }
  if(!headings.length){const main=all.filter(n=>n.tagName==='main'||attr(n,'role')==='main');const candidate=main.length===1?main[0]:all.find(n=>n.tagName==='body');return candidate&&usable(candidate,false)?candidate:undefined}
  return undefined;
 }

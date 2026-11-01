@@ -34,6 +34,20 @@ it('does not accept a footer body class as missing article evidence',()=>{
  const r=extractPublicHtml(`<h1>Report</h1><main>Content unavailable</main><footer class="post-content">${prose}</footer>`,url);
  expect(r.body).not.toContain(first.trim());expect(r.body.length).toBeLessThan(200);
 });
+it('extracts a legacy chapter whose heading, prose and data table belong directly to body',()=>{
+ const paragraph='Researchers described how changes in forest cover affect contact between people and wildlife. The report discusses surveillance and the limits of the available evidence. '.repeat(4);
+ const html=`<body><p><a href="previous.htm">Previous</a> <a href="contents.htm">Contents</a></p><h1>Forests and human health</h1><p>${paragraph}</p><p>${paragraph}</p><table><tr><td>Reported disease</td><td>Reported setting</td></tr></table><p>${paragraph}</p><p>${last}</p><footer>FOOTER MUST NOT BECOME EVIDENCE</footer></body>`;
+ const r=extractPublicHtml(html,url);
+ expect(r.pageKind).toBe('article');expect(r.body).toContain(last);expect(r.body).toContain('Reported disease');expect(r.body).not.toContain('FOOTER MUST');expect(r.publishedAt).toBeUndefined();
+});
+it('does not turn a root-level news index with linked headings and long previews into article evidence',()=>{
+ const cards=[1,2,3].map(i=>`<h2><a href="/story-${i}">Story ${i}</a></h2><p>${first.repeat(2)}</p>`).join('');
+ const r=extractPublicHtml(`<body><h1>Latest news</h1>${cards}</body>`,url);
+ expect(r.pageKind).toBe('listing');expect(r.body).toBe('');
+});
+it('does not promote a short root-level teaser or several unrelated article cards to a legacy chapter',()=>{
+ for(const html of [`<h1>Report</h1>${prose}`,`<h1>Latest news</h1>${card.repeat(4)}`])expect(extractPublicHtml(html,url).body.length).toBeLessThan(200);
+});
 
 it('retains a short multi-bullet liveblog summary as partial content, excluding navigation',()=>{
  const a='Officials announced preliminary election results after counting ballots overnight. Coalition negotiations are continuing and no final agreement has been announced.';

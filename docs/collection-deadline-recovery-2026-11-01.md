@@ -110,3 +110,29 @@ identities and recover through the existing late-discovery path. No paid hold is
 released, source authentication bypassed or original reporting window expanded.
 Local regression tests cover the refusal boundary and safeguards, plus full-text
 V3 editor/verifier publication with citations and exactly-once result reuse.
+
+## Backlog failure audit and legacy HTML follow-up
+
+A November 1 QA audit found no failed ACQUIRE jobs in Aya's Cyberwar or Israeli
+Elections feeds. The AI feed retained 21 failures; all their recorded publication
+hints preceded subscription. Pandemic retained 25 non-authentication failures:
+23 preceded subscription, while two observations concerned the same later
+Portland Business Journal story. These are dated retained-record counts, not
+proof that every currently configured source is available.
+
+Anonymous direct HTTP checks returned 403/challenge pages for the Business
+Journal story and sampled OpenAI URLs. No readable article body was received.
+A FAO chapter returned HTTP 200 with substantive prose, but the extractor returned
+zero body characters because its H1 and paragraphs were direct children of BODY.
+The guarded legacy-layout fallback now recognizes one unlinked root H1 followed
+by at least three substantial direct paragraphs (1,500 combined characters),
+subject to existing link-density and competing-heading checks. It preserves
+chapter tables, excludes navigation/footer elements, and does not fabricate dates.
+The retained anonymous FAO response now yields 32,071 text characters and an
+article classification, with no publication date inferred from body prose.
+
+The connector suite passed 348 tests with one existing skipped test. Synthetic
+regressions cover the root-level chapter, long linked news indexes and short
+teasers. Full acquired HTML stays in private local evidence, outside the repo.
+Old failures, login/payment responses, uncertain operations and stale article
+dates are not erased or indiscriminately resubmitted to paid providers.
