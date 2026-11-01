@@ -2924,3 +2924,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .guest-landing .landing-introduction h1 > :is(.landing-headline-reference,.landing-headline-text) { grid-area: 1 / 1; align-self: center; }
 :root.apple-ui.apple-ui .landing-headline-reference { visibility: hidden; pointer-events: none; user-select: none; direction: ltr; }
 :root.apple-ui.apple-ui .landing-headline-text > span { display: block; }
+@media (max-width: 360px) {
+  :root.apple-ui.apple-ui .feed-shell .feed-nav-back { min-width: 44px; }
+  :root.apple-ui.apple-ui .feed-shell .feed-nav-back > svg { width: 20px; height: 20px; }
+  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions > .button-link { padding-inline: 0; }
+}

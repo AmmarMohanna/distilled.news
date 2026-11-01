@@ -13,6 +13,7 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         :path.startsWith('/api/feed/')?{briefing:feed,editions:[],viewerHasStarred:false}:{}});
     });
     await page.goto('/owner/news/');
+    await page.evaluate(() => document.fonts.ready);
     await expect(page.getByRole('heading',{name:'News',exact:true})).toBeVisible();
     await expect(page.locator('.feed-shell .appearance-menu')).toHaveCount(0);
     if (!owner) {
@@ -61,6 +62,12 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         window.dispatchEvent(new Event('dn-language'));
       },language);
       await expect(page.locator('.feed-nav-back')).toHaveText(language==='fr'?'Retour':'رجوع');
+      await expect(page.locator('html')).toHaveAttribute('lang',language);
+      await check();
+    }
+    if (!owner && width === 320) {
+      // Linux and Windows resolve the system font stack differently.
+      await page.addStyleTag({content: ':root.apple-ui { --app-font: Arial, sans-serif; }'});
       await check();
     }
     await page.evaluate(()=>{

@@ -80,7 +80,7 @@ test("create feed continues to the editor after login", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Welcome back!" })).toBeVisible();
 });
 
-test("website language cycles to Arabic without opening a menu", async ({ page }) => {
+test("guest language switching preserves the visible Arabic heading and RTL", async ({ page }) => {
   await mockGuest(page);
   await page.goto("/");
   await cycleLanguage(page);
@@ -89,6 +89,7 @@ test("website language cycles to Arabic without opening a menu", async ({ page }
   await expect(page.locator("html")).toHaveAttribute("lang", "ar");
   await expect(page.locator(".language-menu")).toHaveCount(0);
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("رؤية أكثر هدوءًا لعالم معقّد.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveAccessibleName("رؤية أكثر هدوءًا لعالم معقّد.");
+  await expect(page.locator('.landing-headline-text')).toHaveText("رؤية أكثر هدوءًا لعالم معقّد.");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
