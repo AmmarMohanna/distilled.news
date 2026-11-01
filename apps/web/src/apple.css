@@ -2929,3 +2929,38 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .feed-shell .feed-nav-back > svg { width: 20px; height: 20px; }
   :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions > .button-link { padding-inline: 0; }
 }
+
+/* Translated guest navigation keeps the same slots on mobile feed readers. */
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest {
+    --guest-back-width: 100px;
+    --guest-login-width: 96px;
+  }
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest > .experience-leading {
+    flex: 0 0 auto;
+    width: max-content; min-width: var(--guest-back-width);
+  }
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest .feed-nav-back {
+    box-sizing: border-box; width: max-content; min-width: var(--guest-back-width);
+  }
+  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions > .button-link {
+    box-sizing: border-box; flex: 0 0 auto;
+    width: max-content; min-width: var(--guest-login-width);
+    justify-content: center; white-space: nowrap;
+  }
+}
+@media (max-width: 480px) {
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest {
+    --guest-back-width: 64px;
+    --guest-login-width: 88px;
+  }
+}
+@media (max-width: 360px) {
+  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest {
+    --guest-back-width: 56px;
+    --guest-login-width: 72px;
+  }
+  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions > .button-link {
+    font-size: .6875rem;
+  }
+}

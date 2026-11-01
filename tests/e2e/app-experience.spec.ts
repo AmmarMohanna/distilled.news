@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { chooseSetting, cycleLanguage, openEditSettings } from "./helpers";
+import { chooseSetting, cycleLanguage, openEditSettings, expectSignedInAppearanceControls } from "./helpers";
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
@@ -57,8 +57,7 @@ test('a signed-in feed keeps feed actions and an accessible account profile',asy
  await mock(page); await page.goto('/joud/lebanon/');
  await expect(page.locator('.experience-header .experience-leading')).toBeVisible();
  await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
- await expect(page.locator('.experience-header .language-cycle')).toHaveCount(0);
- await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(0);
+ await expectSignedInAppearanceControls(page);
  await page.goto('/');
  await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
  await page.getByRole('button',{name:'Account profile',exact:true}).click();

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { cycleLanguage, toggleTheme } from "./helpers";
+import { cycleLanguage, toggleTheme, expectSignedInAppearanceControls } from "./helpers";
 const feed = { id: "one", ownerAccountId: "owner", ownerUsername: "owner", slug: "science", title: "Science", stars: 2, interestProfile: "Science news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "UTC", retentionDays: 15 };
 async function mock(page: import("@playwright/test").Page, authenticated = true) {
  await page.route("**/api/**", route => {
@@ -90,7 +90,7 @@ test("feed cards retain transparent illustrations, rounded cards, plain controls
  await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", '0px');
  await expect(card.locator(".topic-art")).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
  await expect(card.locator(".feed-card-meta > button")).toBeVisible();
- await expect(page.locator('.experience-header .theme-toggle, .experience-header .language-cycle')).toHaveCount(0);
+ await expectSignedInAppearanceControls(page);
  for (const selector of [".personal-feed-grid .feed-options > summary"]) {
   await expect(page.locator(selector)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
  }
@@ -101,7 +101,7 @@ test("feed cards retain transparent illustrations, rounded cards, plain controls
  await expect(card.locator("details")).not.toHaveAttribute("open", "");
  await toggleTheme(page);
  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
- await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(0);
+ await expectSignedInAppearanceControls(page);
  await expect(card.locator(".feed-options > summary")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -1,5 +1,16 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+/** Desktop keeps header shortcuts; compact signed-in layouts use Settings. */
+export async function expectSignedInAppearanceControls(page: Page) {
+  const desktop = (page.viewportSize()?.width ?? 1280) >= 900;
+  for (const selector of ['.language-cycle', '.theme-toggle']) {
+    const control = page.locator('.experience-header ' + selector);
+    await expect(control).toHaveCount(1);
+    if (desktop) await expect(control).toBeVisible();
+    else await expect(control).toBeHidden();
+  }
+}
+
 /** Operate the approved button/listbox control and verify its selected state. */
 export async function chooseSetting(scope: Locator, label: string, optionName: string) {
   const trigger = scope.getByRole('button', {name: new RegExp('^' + label + ' ')});
