@@ -1,3 +1,4 @@
+import * as collectionCoverage from '../connector-publication-coverage';
 import * as campaignFault from '../agentops-campaign-fault';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {readFileSync} from 'node:fs';
@@ -436,3 +437,38 @@ it('a stale publication callback cannot start a model after catch-up deferred it
  expect(provider).not.toHaveBeenCalled();expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
  expect(await store.read('feed-1','briefing_requests',id)).toEqual(request);
 });
+
+it('prepares despite delayed collection, delivers at scheduled time and retains incomplete coverage without repeat calls',async()=>{
+ await ctx.dispose();ctx=await createIntakeDatabase({product:true});await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);env={...env,DB:ctx.db};
+ await ctx.db.exec("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('owner-1','delivery@example.invalid','delivery@example.invalid','delivery','user','hash','2026-10-01','2026-10-01','2026-10-01'); INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,created_at,updated_at) VALUES('feed-1','owner-1','delivery','Delivery','news','2026-10-01','2026-10-01');");
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'},closed=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z'));
+ await store.registerFeed({...feedFixture,revision:2,createdAt:schedule.clockStartAt,briefingFrequency:'30M',briefingSchedule:schedule});
+ await article(1,'2026-10-03T12:15:00Z','2026-10-03T12:20:00Z','2026-10-03T12:19:00Z');
+ env={...env,SOURCE_QUEUE_SCHEDULING_ENABLED:'true'};
+ const collection=vi.spyOn(collectionCoverage,'pendingWindowCollections').mockResolvedValue({pending:0,sources:[],continuing:0,continuingSources:[],unavailable:0,unavailableSources:[],deadlineReleased:1,deadlineReleasedSources:['Busy source']});
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window:closed},transport=fetcher(seen) as typeof fetch;
+ expect(await processV1Briefing(env,message,()=>closed.end,undefined,transport)).toBeUndefined();expect(seen).toHaveLength(2);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ const edition=await processV1Briefing(env,message,()=>closed.scheduledFor!,undefined,transport);
+ expect(edition).toMatchObject({scheduledFor:closed.scheduledFor,createdAt:closed.scheduledFor});expect(seen).toHaveLength(2);
+ expect(collection.mock.calls[0][0]===ctx.db).toBe(true);expect(collection.mock.calls[0].slice(1)).toEqual(['feed-1',closed.end,true,{scheduledFor:closed.scheduledFor,now:Date.parse(closed.scheduledFor!)}]);
+ const id=await windowIdentity('feed-1',closed),request=await store.read<any>('feed-1','briefing_requests',id);
+ expect(request).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_DEFERRED_AT_REPORTING_CUTOFF',count:1}]}});
+ await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,transport);expect(await store.list('feed-1','editions')).toHaveLength(1);expect(seen).toHaveLength(2);
+ // A late-acquired article remains eligible in the following window rather
+ // than forcing this edition to be rewritten or expanding its frozen period.
+ await article(2,'2026-10-03T12:24:00Z','2026-10-03T12:35:00Z','2026-10-03T12:34:00Z');
+ const next=livePublicationWindow(schedule,new Date('2026-10-03T12:55:00Z'));
+ const prepared=await prepareV3Window(store,'feed-1',next,'2026-10-03T12:55:00Z');
+ expect(prepared.input.articles.some(a=>a.publishedAt==='2026-10-03T12:24:00Z')).toBe(true);
+},30000);
+
+it('an empty scheduled window with delayed collection is deferred, not falsely complete or fabricated',async()=>{
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'},closed=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z'));
+ await store.registerFeed({...feedFixture,revision:2,createdAt:schedule.clockStartAt,briefingFrequency:'30M',briefingSchedule:schedule});
+ env={...env,SOURCE_QUEUE_SCHEDULING_ENABLED:'true'};
+ vi.spyOn(collectionCoverage,'pendingWindowCollections').mockResolvedValue({pending:0,sources:[],continuing:0,continuingSources:[],unavailable:0,unavailableSources:[],deadlineReleased:1,deadlineReleasedSources:['Busy source']});
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window:closed};
+ expect(await processV1Briefing(env,message,()=>closed.scheduledFor!,undefined,fetcher(seen) as typeof fetch)).toBeUndefined();
+ expect(seen).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect(await store.read<any>('feed-1','briefing_requests',await windowIdentity('feed-1',closed))).toMatchObject({state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_DEFERRED_AT_REPORTING_CUTOFF',count:1}]}});
+},30000);
