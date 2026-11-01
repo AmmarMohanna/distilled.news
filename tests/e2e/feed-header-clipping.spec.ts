@@ -28,5 +28,12 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     expect(art.y).toBeGreaterThanOrEqual(container.y);
     expect(art.y + art.height).toBeLessThanOrEqual(container.y + container.height + 1);
     expect(art.height).toBeGreaterThanOrEqual(96);
+    if(width<900){
+      const title=(await page.locator('.page-title-row').boundingBox())!;
+      expect(container.y-header.y-header.height).toBeLessThanOrEqual(4);
+      expect(title.y-container.y-container.height).toBeLessThanOrEqual(2);
+      await expect(page.locator('.feed-hero-art .topic-art')).toHaveCSS('transform','none');
+      await expect(page.locator('.feed-hero-art')).toHaveCSS('overflow','visible');
+    }
   });
 }

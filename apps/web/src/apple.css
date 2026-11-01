@@ -2932,6 +2932,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 /* Translated guest navigation keeps the same slots on mobile feed readers. */
 .feed-check-status-compact { display: none; }
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) {
+    margin-block: -8px 8px; padding-block: 0; gap: 0;
+  }
+}
 @media (max-width: 700px) {
   .feed-check-status.has-compact-label .feed-check-status-full { display: none; }
   .feed-check-status.has-compact-label .feed-check-status-compact { display: inline; }
