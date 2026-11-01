@@ -38,6 +38,7 @@ import {
 } from "@distilled/agent-runtime";
 import {
   defaultNextBriefingAt,
+  FEED_TITLE_MAX_LENGTH,
   searchBriefingEditions,
   sanitizeEditionSectionForLanguage,
   sanitizeEvidenceText,
@@ -172,7 +173,7 @@ const briefingCadenceSchema = z.preprocess(
 const briefingInputSchema = z.object({
   id: z.string().min(1).default(() => `briefing_${crypto.randomUUID()}`),
   slug: z.string().default(""),
-  title: z.string().min(1).default("Personal Briefing"),
+  title: z.string().trim().min(1).max(FEED_TITLE_MAX_LENGTH).default("Personal Briefing"),
   stars: z.number().int().min(0).default(0),
   interestProfile: z.string().min(1),
   styleInstruction: z.string().optional(),
@@ -858,7 +859,7 @@ export function createApp(options: AppOptions = {}) {
 
   app.post('/api/me/feeds', async c => {
     if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
-    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(120),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")).min(1),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleFields.durationMinutes,briefingTimeOfDay:liveScheduleFields.deliveryAnchor,briefingTimezone:liveScheduleFields.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
+    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(FEED_TITLE_MAX_LENGTH),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")).min(1),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleFields.durationMinutes,briefingTimeOfDay:liveScheduleFields.deliveryAnchor,briefingTimezone:liveScheduleFields.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
     if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);

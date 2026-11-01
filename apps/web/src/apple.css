@@ -2533,6 +2533,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-card-identity > :is(strong, small) {
   white-space: normal; overflow: visible; overflow-wrap: anywhere; padding: 0; line-height: 1.4;
 }
+/* A feed title always occupies one line, including retained oversized names. */
+:root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-card-identity > strong {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-card-identity small { font-size: .875rem; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-card-status { justify-self: start; font-size: .8125rem; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-layout="list"] > .topic-card .feed-updated-at { font-size: .75rem; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }

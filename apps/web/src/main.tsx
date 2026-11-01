@@ -62,7 +62,7 @@ import {
   X
 } from "lucide-react";
 import type { BriefingConfig, BriefingEdition, BriefingEditionSection, BriefingEvidence } from "@distilled/core";
-import { personalNewsBriefing } from "@distilled/core";
+import { personalNewsBriefing, FEED_TITLE_MAX_LENGTH } from "@distilled/core";
 import {
   addSource,
   deleteBriefing,
@@ -1060,7 +1060,7 @@ function FirstRunSetupSheet(props: {
           {t("username")}<input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
         </label>
         <label>
-          {t("feed name")}<input dir="ltr" required value={title} onChange={(event) => setTitle(event.target.value)} />
+          {t("feed name")}<input dir="ltr" required maxLength={FEED_TITLE_MAX_LENGTH} value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <label>
           {t("interest profile")}<textarea

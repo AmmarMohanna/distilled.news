@@ -26,6 +26,21 @@ it('translates every schedule option when language changes and preserves the sel
 vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNode;className:string})=><div className={className}>{children}</div>}));
 
 vi.mock('./api', () => ({getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
+it('preserves an existing long name and asks for a shorter name before saving',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async()=>{});
+ try {
+  await act(async()=>setWebsiteLanguage('en'));
+  await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'W'.repeat(25)}} onClose={()=>{}} onSave={onSave}/>));
+  const input=host.querySelector<HTMLInputElement>('input[aria-label="Feed name"]')!;
+  expect(input.maxLength).toBe(24);
+  expect(input.value).toBe('W'.repeat(25));
+  expect(host.querySelector('#feed-title-limit')?.textContent).toBe('25/24 characters');
+  await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  expect(onSave).not.toHaveBeenCalled();
+  expect(host.textContent).toContain('Use 24 characters or fewer for the feed name.');
+ } finally {await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
 it.each([false,true])('uses half-hour daily choices only for clock-policy feeds (clock: %s)',async clock=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
  const host=document.createElement('div'),root=createRoot(host);
