@@ -1136,7 +1136,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Feed top bar: Back on the leading side; Star, Share and More beside the account controls.
    Search gets its own full-width row below the title, and secondary actions live in More. */
 :root.apple-ui.apple-ui .experience-leading { display: flex; align-items: center; min-width: 0; }
-:root.apple-ui.apple-ui .feed-nav-back { display: inline-flex; align-items: center; min-height: 44px; margin-inline-start: -8px; padding-inline: 2px 12px; border-radius: 12px; color: var(--accent-ink); font-size: 1.0625rem; font-weight: 500; letter-spacing: -0.01em; text-decoration: none; }
+:root.apple-ui.apple-ui .feed-nav-back { display: inline-flex; align-items: center; min-height: 44px; margin-inline-start: 0; padding-inline: 2px 12px; border-radius: 12px; color: var(--accent-ink); font-size: 1.0625rem; font-weight: 500; letter-spacing: -0.01em; text-decoration: none; }
 :root.apple-ui.apple-ui .feed-nav-back svg { stroke-width: 2.4; flex: none; }
 :root.apple-ui.apple-ui .feed-nav-back:active { opacity: 0.55; transition: none; }
 @media (hover: hover) and (pointer: fine) { :root.apple-ui.apple-ui .feed-nav-back:hover { background: var(--surface-hover); } }
@@ -1971,7 +1971,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   direction: ltr; margin-left: 0; margin-right: auto; justify-content: flex-start;
 }
 :root.apple-ui.apple-ui[dir="rtl"] .feed-shell .experience-header .experience-leading { direction: rtl; flex-shrink: 0; }
-:root.apple-ui.apple-ui[dir="rtl"] .feed-shell .feed-nav-back { margin-inline-start: -8px; }
+:root.apple-ui.apple-ui[dir="rtl"] .feed-shell .feed-nav-back { margin-inline-start: 0; }
 
 /* Each reader is identified by its own transparent, enlarged feed artwork. */
 :root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) {
@@ -2615,7 +2615,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Override the older two-column hero positioning as one centered stack. */
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) { display: flex !important; gap: 4px; padding-block: 4px 8px; }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > :is(.feed-hero-art,.page-title-row,p) { align-self: center; text-align: center; width: auto; max-width: 100%; margin-inline: 0; }
-:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-art { width: clamp(64px,5vw,80px); }
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-art { width: clamp(96px,7.5vw,120px); height: clamp(96px,7.5vw,120px); }
 
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) .page-title-row { display: flex; }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) .page-title-row h1 { align-self: center; }
@@ -2634,8 +2634,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui[dir="ltr"] .feed-shell .news-head { direction: ltr; }
 :root.apple-ui.apple-ui[dir="rtl"] .accounts-summary > svg:nth-of-type(2) { transform: rotate(180deg); }
 
-/* Grow the feed illustration upward without changing header flow or text positions. */
-:root.apple-ui.apple-ui .shell.feed-shell .feed-hero-art .topic-art { transform: scale(1.5); transform-origin: center bottom; }
+/* The hero reserves its full displayed size below the sticky header. */
+:root.apple-ui.apple-ui .shell.feed-shell .feed-hero-art .topic-art { transform: none; }
 
 /* One rhythm across language, appearance and feed actions instead of nested gaps. */
 :root.apple-ui.apple-ui .feed-shell .experience-header.experience-header .experience-header-actions { gap: 8px; }
