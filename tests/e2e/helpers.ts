@@ -50,6 +50,13 @@ export async function cycleLanguage(page: Page) {
   await page.locator(".experience-header").first().waitFor();
   const button = page.locator('.language-cycle');
   if (await button.isVisible()) { await button.click(); return; }
+  const appearance = page.locator('.appearance-menu > summary');
+  if (await appearance.isVisible()) {
+    await appearance.click();
+    await page.locator('.appearance-menu-panel > button').first().click();
+    await page.keyboard.press('Escape');
+    return;
+  }
   const language = await page.locator('html').getAttribute('lang') ?? 'en';
   const order = ['en', 'fr', 'ar'];
   const next = order[(order.indexOf(language) + 1) % order.length];
@@ -60,6 +67,13 @@ export async function toggleTheme(page: Page) {
   await page.locator(".experience-header").first().waitFor();
   const button = page.locator('.theme-toggle');
   if (await button.isVisible()) { await button.click(); return; }
+  const appearance = page.locator('.appearance-menu > summary');
+  if (await appearance.isVisible()) {
+    await appearance.click();
+    await page.locator('.appearance-menu-panel > button').nth(1).click();
+    await page.keyboard.press('Escape');
+    return;
+  }
   await inSettings(page, () => page.locator('.settings-preferences-group > button[role="switch"]').click());
 }
 

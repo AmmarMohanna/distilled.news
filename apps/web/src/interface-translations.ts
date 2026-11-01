@@ -1,6 +1,10 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'Language and theme': ['Langue et thème', 'اللغة والمظهر'],
+  'Theme': ['Thème', 'المظهر'],
+  'Light': ['Clair', 'فاتح'],
+  'Dark': ['Sombre', 'داكن'],
   '{count}/{max} characters': ['{count}/{max} caractères', '{count}/{max} حرفًا'],
   'Use {max} characters or fewer for the feed name.': ['Utilisez au maximum {max} caractères pour le nom du fil.', 'استخدم {max} حرفًا أو أقل لاسم الخلاصة.'],
   'Choose delivery time': ['Choisir l’heure de livraison', 'اختيار وقت التسليم'],
