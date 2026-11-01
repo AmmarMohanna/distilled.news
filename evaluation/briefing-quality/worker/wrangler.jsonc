@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../apps/worker/node_modules/wrangler/config-schema.json",
+  "name": "distilled-briefing-quality",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "account_id": "e32b564514d4f9b9e383b7dd30dbb026",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true, "traces": { "enabled": true, "head_sampling_rate": 0.1 } },
+  "limits": { "cpu_ms": 30000 },
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": {
+    "EVALUATION_ENABLED": "true",
+    "DAILY_BUDGET_USD": "5",
+    "MAX_CALLS_PER_DAY": "100",
+    "JUDGE_MODEL": "openai/gpt-4.1",
+    "INPUT_USD_PER_MILLION_CEILING": "2",
+    "OUTPUT_USD_PER_MILLION_CEILING": "8",
+    "MAX_OUTPUT_TOKENS": "6000",
+    "MAX_REQUEST_BYTES": "350000",
+    "ENROLL_FROM": "2026-11-01T00:00:00Z",
+    "SOURCE_LABEL": "distilled-news-staging",
+    "RETENTION_DAYS": "90",
+    "GRAFANA_EXPORT_ENABLED": "true",
+    "GRAFANA_OTLP_METRICS_URL": "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics"
+  },
+  "secrets": { "required": ["DASHBOARD_TOKEN", "METRICS_TOKEN"] },
+  "d1_databases": [
+    { "binding": "EVAL_DB", "database_name": "distilled-briefing-quality", "database_id": "fc476615-df19-482c-8cba-7bd399dbeef3", "migrations_dir": "migrations" },
+    { "binding": "SOURCE_DB", "database_name": "distilled-news-staging", "database_id": "ab259bfe-6029-4e20-8cb6-eea6b7a67459" }
+  ],
+  "r2_buckets": [{ "binding": "EVIDENCE", "bucket_name": "distilled-briefing-quality-private" }],
+  "queues": {
+    "producers": [{ "binding": "REVIEWS", "queue": "distilled-briefing-quality" }],
+    "consumers": [{ "queue": "distilled-briefing-quality", "max_batch_size": 1, "max_batch_timeout": 5, "max_retries": 3, "max_concurrency": 1, "dead_letter_queue": "distilled-briefing-quality-dlq" }]
+  }
+}

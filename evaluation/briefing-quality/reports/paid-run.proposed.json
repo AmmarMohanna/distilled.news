@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "authorized": false,
+  "measurementClass": "isolated_model_replay",
+  "archiveSha256": "8fadc205f5f77529d430eb6037b0c43ee8e4be3cc8aa4a2b6834f37358462652",
+  "snapshotSha256": "cdba80b052b5c86285daa8cb635683caf747725076da002ad03aa76e04305ed2",
+  "gitRevision": "c5f6b08aea98406d26474c49e77f82f4cd150786",
+  "cases": [
+    "education-en-oct21_2026-10-21T13-30-00-000Z.json",
+    "education-en-oct21_2026-10-21T14-00-00-000Z.json",
+    "education-en-oct21_2026-10-21T14-30-00-000Z.json",
+    "culture-fr-oct21_2026-10-21T13-30-00-000Z.json",
+    "culture-fr-oct21_2026-10-21T14-00-00-000Z.json",
+    "culture-fr-oct21_2026-10-21T14-30-00-000Z.json",
+    "lebanon-ar-oct21_2026-10-21T13-30-00-000Z.json",
+    "lebanon-ar-oct21_2026-10-21T14-00-00-000Z.json",
+    "lebanon-ar-oct21_2026-10-21T14-30-00-000Z.json"
+  ],
+  "split": "development",
+  "systems": [
+    "single-llm",
+    "v3"
+  ],
+  "models": {
+    "editor": "openai/gpt-4.1",
+    "verifier": "openai/gpt-4.1-mini"
+  },
+  "maxUsd": 5,
+  "maxCalls": 60,
+  "maxPerCallUsd": 0.5,
+  "maxRequestUtf8Bytes": 200000,
+  "maxOutputTokens": 4000,
+  "priceBasis": "OpenRouter model pages checked 2026-10-27: GPT-4.1 $2/$8 and mini $0.40/$1.60 per million input/output tokens; reconfirm before execution",
+  "priceSources": [
+    "https://openrouter.ai/openai/gpt-4.1",
+    "https://openrouter.ai/openai/gpt-4.1-mini"
+  ],
+  "estimatedNormalCalls": 24,
+  "estimatedUsdRange": null,
+  "costMethod": "Normal path 1 single-LLM + 1 editor + 1 verifier per nonempty case; repairs, malformed replies and chunks consume global call/dollar caps; byte-count token upper bound for admission.",
+  "execution": "Local engine generateBriefing with evaluation-only provider port and append-only reservations; no Worker, D1, queues, feeds or notifications",
+  "history": "own actual published prose; null initialHistory means recorded deliberate cold start; replay clock = windowEnd",
+  "candidate": null,
+  "candidateReason": "No adjudicated development findings justify a candidate yet",
+  "stopPolicy": "No automatic transport retry. Unknown outcome retains worst-case reservation, aborts run and fences restart. No held-out execution.",
+  "sourceHashes": {
+    "packages\\briefing\\src\\engine.ts": "d590f7015222c613c838bdfe7a73e8153487145870786cea3f6932e20c565064",
+    "packages\\briefing\\src\\index.ts": "dfe4ad0936729d59f56a7983032148ee745c0e873d42a1e3e59960d86e6aae0e",
+    "packages\\briefing\\src\\model.ts": "5195769e2e1b16e558142f71c98f84f924878a8949b6e92882d9eccddf5c24b8",
+    "packages\\briefing\\src\\prepare.ts": "37f18853b4d852c067f75b15ab183237f36e3ce16ab6840ab85c584dddca763b",
+    "packages\\briefing\\src\\prompts.ts": "98db2d306e8b981baab2a4c5c7c5f1ec41cdff753d9863469b66ba00cf0d989a",
+    "packages\\briefing\\src\\text.ts": "9784876bd082885adcceaad173b26d470537e626874f7463ae26adf75dfbc659",
+    "packages\\briefing\\src\\types.ts": "5b073610e39178c45e9c4215e28d39ed443af3ee611b3fce7ae2bab23bbffa49",
+    "scripts/export-acquired-benchmark.mjs": "c75241c50cbf062d32c772b571675054e94ad08d05ab9700deb766885c7dc08f",
+    "evaluation\\briefing-quality\\challenges.py": "2c7fd35f6bce506d1056dc188bafdacd56f61920b08df42d529862ed10b3bbcf",
+    "evaluation\\briefing-quality\\evaluate.py": "44f644e0b3af29475182de44113f641bb4044813e918d181ae18849b24b99a45",
+    "evaluation\\briefing-quality\\freeze.py": "82cc99f369e23f7769ef1efda3ac089d770c61a06109b4e082b3679690235577",
+    "evaluation\\briefing-quality\\runtime.py": "5b67bfafe44ba0f3b704734f9a29c5634f68a1eec8b9cb82888a9468d7ef39e6",
+    "evaluation\\briefing-quality\\study.py": "3e426616e1d8a5848fa0ba16d6a69ac9567969c2aacbcafc8a10b09447e0b937",
+    "evaluation\\briefing-quality\\suite.py": "a61d3c475623d575583e86f5f4bc3b9ba5719e40be336ccba4f2acd325414c7d",
+    "evaluation\\briefing-quality\\test_evaluate.py": "f6e65c0547f9acad10b6dff51cd79b07c92f4b64837c85d076181298e423a460",
+    "evaluation\\briefing-quality\\test_suite.py": "36f02f86aa779b7cdf6d052b98411213cd4b32efa13d3d1f9c04cdbdf8760c90",
+    "evaluation\\briefing-quality\\diagnose.ts": "ce1c0876a39b464d20c2ac0ae38b201ed1bfdeb66d88b00cf352e1f631065b70",
+    "evaluation\\briefing-quality\\replay.test.ts": "d824871f839bb39d06a5e474a2ce36df3ebfe441813d5da81219de6ecc5afc72",
+    "evaluation\\briefing-quality\\replay.ts": "e645cebce3a9265fbf4ca931de7cec2ee88b58b4025f9c04e53ce41c4938f47e",
+    "evaluation\\briefing-quality\\vitest.config.ts": "de2b098296675264ff6a470861ffa562e1737512f9d147056795b8c7e19b0bcd",
+    "evaluation\\briefing-quality\\rebuild.mjs": "70f925e0f3d81e9ff66d9de64e4f322f7209ed3b89674e6c4d936764e1427b90"
+  }
+}

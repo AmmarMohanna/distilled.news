@@ -1,0 +1,17 @@
+{
+  "validatedAt": "2026-10-27T22:42:44.843358+00:00",
+  "gitRevision": "c5f6b08aea98406d26474c49e77f82f4cd150786",
+  "manifestSha256": "592b5940e47963f4e22c2f7bc9432347c562409f3c495bd3c9c6721a7388aca0",
+  "sourceHashesChecked": 21,
+  "sourceHashMismatches": [],
+  "rawArchiveGitIgnored": true,
+  "offlineBaselineOutcomes": 120,
+  "pythonTestsPassed": 21,
+  "replayTestsPassed": 10,
+  "existingBriefingTestsPassed": 100,
+  "exporterTestsPassed": 3,
+  "typeScriptCheck": "passed",
+  "paidCalls": 0,
+  "humanJudgments": 0,
+  "participants": 0
+}
