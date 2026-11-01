@@ -74,6 +74,11 @@ function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>, he
     const headline = text(item?.headline);
     const body = text(item?.body);
     const sources = Array.isArray(item?.sources) ? item.sources : [];
+    // A selected current-format draft with unusable citations is malformed, not
+    // an editorial omission. callJson already permits one accounted correction.
+    if (headlineOnly && headline && (!sources.length || sources.some((s) => !known.has(text(s).toUpperCase())))) {
+      throw new Error('INVALID_ARTICLE_CITATIONS: cite only the supplied article labels (S1, S2, etc.), never publisher IDs; return the complete corrected items array');
+    }
     const refs = [...new Set(sources.map((s) => text(s).toUpperCase()).filter((ref) => known.has(ref)))];
     if (!headline || (!body && !headlineOnly) || (headlineOnly && typeof item?.body !== "string") || !refs.length) continue; // uncited or empty drafts cannot be published
     const relation = RELATIONS.has(text(item.relation)) ? (text(item.relation) as ItemRelation) : "new";

@@ -310,7 +310,18 @@ it('large V3 batches serialize feed commits and can replay paid chunks without l
  for(let n=1;n<=2;n++){await acceptEvidence(store,n,(n===1?'Parliament approved banking legislation while presidential approval remains required. ':'Scientists discovered a meteorite beneath Antarctic ice during an expedition studying ancient asteroid material. ').repeat(1200),'publisher-'+n,'2026-10-03T12:10:00Z','en','2026-10-03T12:05:00Z',undefined,'https://publisher.example/'+n);await processV1Reassessment(env,JSON.stringify(['REASSESS',`observation-${n}`,'']),'2026-10-03T12:10:00Z')}
  const original=V1FeedStore.prototype.commit;let active=0,maxActive=0;
  vi.spyOn(V1FeedStore.prototype,'commit').mockImplementation(async function(this:V1FeedStore,tx){active++;maxActive=Math.max(maxActive,active);try{await new Promise(resolve=>setTimeout(resolve,1));if(active>1)throw Error('competing feed commit');return await original.call(this,tx)}finally{active--}});
- const seen:string[]=[];const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ // Chunk refs are global, not restarted at S1. This fixture must cite the
+ // banking article actually supplied, and explicitly omit the off-topic chunk.
+ const seen:string[]=[];const provider=async(url:unknown,init?:RequestInit)=>{
+  const body=JSON.parse(init!.body as string);
+  if(body.messages[0].content.startsWith('You are the editor')){
+   const chunk=body.messages[1].content.split('NEW ARTICLES')[1]??'',ref=chunk.match(/\[(S\d+)\]/)?.[1];
+   const items=chunk.includes('Parliament approved')?[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:[ref],relation:'new',importance:1}]:[];
+   seen.push(JSON.stringify(body));return Response.json({id:'gen-chunk-'+seen.length,choices:[{message:{content:JSON.stringify({items})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
+  }
+  return fetcher(seen)(url,init);
+ };
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,provider as typeof fetch);
  expect(edition?.engine).toBe('v3');expect(seen.length).toBeGreaterThan(2);expect(maxActive).toBe(1);
 },60000);
 
@@ -439,4 +450,30 @@ it('freezes opt-in novelty policy for a new window without changing models or al
  env={...env,BRIEFING_PROMPT_VERSION:'4'};
  await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:31:00Z',undefined,transport);expect(seen).toHaveLength(2);
  expect((await store.read<any>('feed-1','v3_window_inputs',id)).promptVersion).toBe(5);
+},30000);
+
+it('accounts the citation correction separately and reuses all settled calls on duplicate delivery',async()=>{
+ await article();let calls=0;const requests:any[]=[];
+ const provider=async(_url:unknown,init?:RequestInit)=>{
+  const request=JSON.parse(init!.body as string);requests.push(request);calls++;
+  const content=calls===1?{items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['publisher-1'],relation:'new',importance:1}]}:request.messages[0].content.includes('meticulous fact-checker')?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
+  return Response.json({id:'gen-citation-'+calls,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
+ };
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,provider as typeof fetch);
+ expect(calls).toBe(3);expect(requests[1].messages[1].content).toContain('INVALID_ARTICLE_CITATIONS');
+ expect(await store.list('feed-1','semantic_results')).toHaveLength(3);expect(await store.list('feed-1','editions')).toHaveLength(1);
+ const paid=await ctx.db.prepare('SELECT COUNT(*) AS n,SUM(s.cost_usd) AS cost,SUM(s.reported) AS reported FROM v1_model_spending_reservations r JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.feed_id=?').bind('feed-1').first<any>();
+ expect(paid).toMatchObject({n:3,reported:3});expect(paid.cost).toBeCloseTo(0.003);
+ await processV1Briefing(env,message,()=>window.end,undefined,provider as typeof fetch);
+ expect(calls).toBe(3);expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);
+},30000);
+
+it('never persists empty success after two invalid-citation replies and never repays them on recovery',async()=>{
+ await article();let calls=0;
+ const provider=async()=>{calls++;return Response.json({id:'gen-bad-citation-'+calls,choices:[{message:{content:JSON.stringify({items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['publisher-1'],relation:'new',importance:1}]} )},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}})};
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await expect(processV1Briefing(env,message,()=>window.end,undefined,provider as typeof fetch)).rejects.toThrow();
+ expect(calls).toBe(2);expect(await store.list('feed-1','v3_window_results')).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ await expect(processV1Briefing(env,message,()=>window.end,undefined,provider as typeof fetch)).rejects.toThrow();expect(calls).toBe(2);
 },30000);

@@ -99,12 +99,12 @@ describe("generateBriefing", () => {
     await expect(generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, MODELS)).rejects.toThrow(/usable JSON/);
   });
 
-  it("ignores uncited drafts, unknown refs and unknown update ids", async () => {
+  it("preserves legacy prompt-3 uncited-draft and unknown-update handling", async () => {
     const { port } = scripted({
       edit: [{ items: [fund({ sources: ["S9"] }), fund({ updates: "ghost", relation: "update" })] }],
       verify: [{ results: [{ i: 0, verdict: "ok", issues: [] }] }]
     });
-    const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, MODELS);
+    const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, MODELS, { promptVersion: 3 });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].updatesId).toBeUndefined();
     expect(result.items[0].relation).toBe("update");

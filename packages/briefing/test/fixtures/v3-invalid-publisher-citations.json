@@ -1,0 +1,53 @@
+{
+  "provenance": "Exact retained Arabic 18:00 editor output, November 1. Public publisher identifiers are not article references. Used for citation-contract replay only, not a factual-accuracy label.",
+  "response": {
+    "items": [
+      {
+        "headline": "إتاحة تسديد الضرائب والرسوم في لبنان نقداً بالدولار أو الليرة أو عبر البطاقات المصرفية",
+        "body": "",
+        "sources": [
+          "2812da9c285f456f298a07cd04e7716ed586cb556a6f17d13bb89f572b433dc1"
+        ],
+        "relation": "new",
+        "updates": null,
+        "importance": 1
+      },
+      {
+        "headline": "مصادر كهرباء لبنان: احتمال تعميم العتمة على الوزارات والإدارات والمتاحف إذا لم تُسدّد المستحقات",
+        "body": "",
+        "sources": [
+          "c87d1fa1a90fcc9bd04574df40cbf634d884484a7010df5ccda445fbca498ce6"
+        ],
+        "relation": "new",
+        "updates": null,
+        "importance": 2
+      }
+    ],
+    "left_out": [
+      {
+        "sources": [
+          "066c116ecf3342454126b664b9af89bfe72972d0827e1d97cd734a12dae03d73"
+        ],
+        "why": "روتيني أو غير مؤثر: تعليمات طيران الشرق الأوسط للمسافرين من الرياض إلى بيروت"
+      },
+      {
+        "sources": [
+          "2812da9c285f456f298a07cd04e7716ed586cb556a6f17d13bb89f572b433dc1"
+        ],
+        "why": "روتيني: زيارة وفود كويتية إلى لبنان"
+      },
+      {
+        "sources": [
+          "2812da9c285f456f298a07cd04e7716ed586cb556a6f17d13bb89f572b433dc1"
+        ],
+        "why": "تصريح سياسي روتيني: باسيل يكرر رفض زج لبنان في الحرب"
+      },
+      {
+        "sources": [
+          "c87d1fa1a90fcc9bd04574df40cbf634d884484a7010df5ccda445fbca498ce6"
+        ],
+        "why": "روتيني: تصريح تذكاري عن رفيق الحريري"
+      }
+    ]
+  }
+}
