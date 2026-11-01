@@ -1,4 +1,5 @@
 import {SourceHealth} from './SourceHealth';
+import { useFeedViewer } from './useFeedViewer';
 import { sourceEvidenceLabels } from "./source-evidence-labels";
 import { SourceLogo } from "./SourceLogo";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
@@ -1473,21 +1474,9 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
 function FeedPage(props: { username: string; slug: string }) {
   const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
   const { language: uiLanguage, t } = useLanguage();
-  const [account, setAccount] = useState<AccountRecord | null>(null);
+  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading } = useFeedViewer(props.username, props.slug);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
-  const [ownedFeed, setOwnedFeed] = useState<BriefingConfig | null>(null);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
-  useEffect(() => {
-    let active = true;
-    getSession().then(async session => {
-      if (!active) return;
-      setAccount(session.authenticated ? session.account ?? null : null);
-      if (!session.authenticated || session.account?.username !== props.username) return;
-      const owned = await getBriefings();
-      if (active) setOwnedFeed(owned.find(feed => feed.slug === props.slug) ?? null);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, [props.username, props.slug]);
   const feedKey = `${props.username}/${props.slug}`;
   const feedIdentity = useRef(feedKey);
   const feedRequest = useRef(0);
@@ -1707,7 +1696,7 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
+      header={<AppHeader account={account} loading={viewerLoading} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
