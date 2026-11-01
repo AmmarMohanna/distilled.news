@@ -2872,3 +2872,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (max-width: 360px) {
   :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { width: calc(100% + 32px); margin-inline: -16px; }
 }
+
+/* Pinch zoom magnifies the page, including its navigation, without repinning
+   the enlarged bars over the smaller visual viewport. */
+:root.apple-ui.apple-ui[data-pinch-zoom] .experience.product-refresh > .experience-header,
+:root.apple-ui.apple-ui[data-pinch-zoom] .shell.feed-shell > .experience-header { position: relative; top: auto; }
+:root.apple-ui.apple-ui[data-pinch-zoom] .shell.feed-shell { position: relative; }
+:root.apple-ui.apple-ui[data-pinch-zoom] .bottom-navigation.collapsible-navigation {
+  position: absolute; inset: auto; top: var(--pinch-nav-top); left: var(--pinch-nav-left);
+  width: var(--pinch-nav-width); height: var(--pinch-nav-height); margin: 0;
+}
