@@ -14,6 +14,13 @@ for (const width of [320,390,600]) for (const authenticated of [false,true]) {
     expect(logoBounds.x).toBeGreaterThanOrEqual(0);
     await expect(page.locator('.experience-header > .experience-header-actions > .language-cycle')).toBeHidden();
     const trigger = page.locator('.appearance-menu > summary');
+    await expect(page.locator('.appearance-menu')).toHaveCSS('border-top-width','0px');
+    await expect(page.locator('.appearance-menu')).toHaveCSS('padding-top','0px');
+    await expect(trigger.locator('.appearance-symbol')).toHaveAttribute('data-theme','light');
+    if (!authenticated) {
+      const icon = (await trigger.boundingBox())!, login = (await page.locator('.experience-header a[href="/login"]').boundingBox())!;
+      expect(Math.abs(icon.y + icon.height / 2 - login.y - login.height / 2)).toBeLessThan(1);
+    }
     await trigger.click();
     const panel = page.locator('.appearance-menu-panel');
     await expect(panel).toBeVisible();
@@ -22,6 +29,7 @@ for (const width of [320,390,600]) for (const authenticated of [false,true]) {
     expect(panelBounds.x + panelBounds.width).toBeLessThanOrEqual(width);
     await panel.getByRole('button', {name:'Theme Light'}).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+    await expect(trigger.locator('.appearance-symbol')).toHaveAttribute('data-theme','dark');
     for (const next of ['fr','ar','en']) {
       await panel.locator('button').first().click();
       await expect(page.locator('html')).toHaveAttribute('lang',next);

@@ -32,7 +32,13 @@ export function AppearanceMenu() {
     };
   }, []);
   return <details className="appearance-menu" ref={ref}>
-    <summary aria-label={t('Language and theme')} title={t('Language and theme')}><Globe size={22} aria-hidden/><Moon className="appearance-menu-moon" size={14} aria-hidden/></summary>
+    <summary aria-label={t('Language and theme')} title={t('Language and theme')}>
+      <svg className="appearance-symbol" data-theme={theme} width="34" height="34" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+        <Globe x="1" y="1" width="19" height="19"/>
+        <path d="M6 34 34 6"/>
+        {theme === 'dark' ? <Moon x="20" y="20" width="19" height="19"/> : <Sun x="20" y="20" width="19" height="19"/>}
+      </svg>
+    </summary>
     <div className="feed-options-popover appearance-menu-panel" role="group" aria-label={t('Language and theme')}>
       <button type="button" onClick={() => setWebsiteLanguage(({en:'fr',fr:'ar',ar:'en'} as const)[language])}>
         <Globe size={21} aria-hidden/><strong>{t('Language')}</strong><span dir="ltr">{language.toUpperCase()}</span><ChevronRight size={18} aria-hidden/>

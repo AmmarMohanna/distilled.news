@@ -2881,7 +2881,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 
 /* One mobile appearance control leaves room for the complete brand. */
-:root.apple-ui.apple-ui .appearance-menu { display: none; }
+:root.apple-ui.apple-ui .appearance-menu { display: none; border: 0; padding: 0; margin: 0; height: 44px; align-self: center; }
 :root.apple-ui.apple-ui .appearance-menu > summary {
   position: relative; display: flex; align-items: center; justify-content: center;
   width: 44px; height: 44px; min-width: 44px; box-sizing: border-box;
@@ -2889,7 +2889,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .appearance-menu > summary::-webkit-details-marker { display: none; }
 :root.apple-ui.apple-ui .appearance-menu[open] > summary { background: color-mix(in srgb,var(--accent) 10%,var(--surface)); }
-:root.apple-ui.apple-ui .appearance-menu > summary > .appearance-menu-moon { position: absolute; right: 6px; bottom: 6px; background: var(--surface); border-radius: 50%; }
+:root.apple-ui.apple-ui .appearance-menu > summary > .appearance-symbol { display: block; flex: none; }
 :root.apple-ui.apple-ui .appearance-menu-panel {
   width: 240px; padding: 8px; border: 1px solid var(--line); border-radius: 22px;
   background: var(--surface); color: var(--text); box-shadow: var(--elev-2);
