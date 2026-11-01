@@ -9,7 +9,7 @@ import {feedFixture,acceptEvidence} from './test-utils';
 import {V1FeedStore,feedTransact,FeedTransaction} from './store';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,windowIdentity} from './runtime';
 import {publicV1Edition} from './public-read';
-import {prepareV3Window} from './v3-window';
+import {prepareV3Window,productV3PromptVersion} from './v3-window';
 import {livePublicationWindow} from './schedule';
 import {readScheduleAudit} from './schedule-audit';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
@@ -314,7 +314,7 @@ it('large V3 batches serialize feed commits and can replay paid chunks without l
  expect(edition?.engine).toBe('v3');expect(seen.length).toBeGreaterThan(2);expect(maxActive).toBe(1);
 },60000);
 
-for (const promptVersion of [undefined,2,3,4] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
+for (const promptVersion of [undefined,2,3,4,5] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
  await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end);
  expect(prepared.promptVersion).toBe(4);
  const id=await windowIdentity('feed-1',window),full='Earlier notice\nOfficials say approval is still required.';
@@ -424,4 +424,19 @@ it('an empty scheduled window with delayed collection is deferred, not falsely c
  expect(await processV1Briefing(env,message,()=>closed.scheduledFor!,undefined,fetcher(seen) as typeof fetch)).toBeUndefined();
  expect(seen).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(0);
  expect(await store.read<any>('feed-1','briefing_requests',await windowIdentity('feed-1',closed))).toMatchObject({state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_DEFERRED_AT_REPORTING_CUTOFF',count:1}]}});
+},30000);
+
+it('novelty prompt version is explicit and default routing remains the qualified baseline',()=>{
+ expect(productV3PromptVersion({})).toBe(4);expect(productV3PromptVersion({BRIEFING_PROMPT_VERSION:'4'})).toBe(4);expect(productV3PromptVersion({BRIEFING_PROMPT_VERSION:'5'})).toBe(5);
+ expect(()=>productV3PromptVersion({BRIEFING_PROMPT_VERSION:'invalid' as '5'})).toThrow('INVALID_BRIEFING_PROMPT_VERSION');
+});
+it('freezes opt-in novelty policy for a new window without changing models or already saved work',async()=>{
+ await article();env={...env,BRIEFING_PROMPT_VERSION:'5'};
+ const seen:string[]=[],transport=fetcher(seen) as typeof fetch,id=await windowIdentity('feed-1',window);
+ expect((await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,transport))?.engine).toBe('v3');
+ expect(await store.read<any>('feed-1','v3_window_inputs',id)).toMatchObject({promptVersion:5,models:{editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'}});
+ expect(seen).toHaveLength(2);expect(seen.every(raw=>JSON.parse(raw).messages[0].content.includes('the union of all ALREADY TOLD items'))).toBe(true);
+ env={...env,BRIEFING_PROMPT_VERSION:'4'};
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:31:00Z',undefined,transport);expect(seen).toHaveLength(2);
+ expect((await store.read<any>('feed-1','v3_window_inputs',id)).promptVersion).toBe(5);
 },30000);

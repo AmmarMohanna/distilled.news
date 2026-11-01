@@ -35,7 +35,7 @@ importance: 1 = lead story, 2 = notable, 3 = worth a line. Order items most impo
 /** New windows may use one complete headline; older frozen prompts retain their bytes. */
 export const EDITOR_SYSTEM_V4 = EDITOR_SYSTEM + "\n\nThe body is optional: return \"body\":\"\" when the headline already communicates the complete development with its necessary attribution, uncertainty and conditions. Otherwise use the body only for essential information the headline does not convey. Do not repeat the headline or invent background just to fill the body.";
 
-function describePrior(prior: PriorItem[], promptVersion: 1 | 2 | 3 | 4 = 2): string {
+function describePrior(prior: PriorItem[], promptVersion: 1 | 2 | 3 | 4 | 5 = 2): string {
   if (!prior.length) return "(nothing yet: this is the reader's first briefing, or earlier ones are older than the memory window)";
   return prior.map((item) => {
     // V3 stores the first full reader claim as its legacy headline as well.
@@ -73,7 +73,7 @@ export function editorUser(input: {
   articles: PreparedArticle[];
   /** True when this call sees only part of the window; a later pass trims across all parts. */
   partial?: boolean;
-  promptVersion?: 1 | 2 | 3 | 4;
+  promptVersion?: 1 | 2 | 3 | 4 | 5;
 }): string {
   const { feed } = input;
   return [
@@ -102,7 +102,7 @@ OUTPUT: one JSON object, nothing else:
 {"items":[{"from":[0,3],"headline":"...","body":"...","relation":"new|update|correction","updates":"id or null","importance":1}],"cut":[{"from":[5],"why":"one short phrase"}]}
 "from" lists the draft numbers the item is built from (one number if unchanged). "cut" lists every draft you dropped for the reading budget, with the reason, so the cut can be audited.`;
 
-export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2 | 3 | 4; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
+export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2 | 3 | 4 | 5; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
   return [
     `READER INTEREST: ${input.feed.interest}`,
     `WRITE IN: ${LANGUAGE_NAME[input.feed.language]}`,
@@ -146,7 +146,7 @@ export const VERIFY_SYSTEM = LEGACY_VERIFY_SYSTEM.replace(
 export interface PreviousReview {index: number; headline: string; body: string; issues: string[]}
 
 export function verifyUser(input: {
-  promptVersion?: 1 | 2 | 3 | 4;
+  promptVersion?: 1 | 2 | 3 | 4 | 5;
   previousReviews?: PreviousReview[];
   windowEnd: string;
   items: Array<{ index: number; headline: string; body: string; relation: string; sources: string[]; updatesText?: string; hints: string[] }>;
@@ -192,3 +192,9 @@ export function repairUser(input: {
       .join("\n")}`
   ].join("\n");
 }
+
+/** Candidate policy: frozen v1-v4 requests retain their exact prompt bytes. */
+export const NOVELTY_RULE = 'Compare each proposed item against the union of all ALREADY TOLD items, not just one. Recombining earlier items, rewording them, or more outlets repeating the same originating report is redundant, even when labeled new. Retain an evidenced material change, correction, or distinct occurrence; independent confirmation qualifies only if it materially changes the reported certainty. Report only that change with necessary context. Do not merge distinct developments.';
+export const EDITOR_SYSTEM_V5 = EDITOR_SYSTEM_V4 + '\n\n' + NOVELTY_RULE;
+export const VERIFY_SYSTEM_V5 = VERIFY_SYSTEM + '\n\n' + NOVELTY_RULE + ' Return redundant for repetition, regardless of its supplied relation label.';
+export const CONSOLIDATE_SYSTEM_V5 = CONSOLIDATE_SYSTEM + '\n\n' + NOVELTY_RULE;

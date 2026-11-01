@@ -1,0 +1,71 @@
+{
+  "id": "retained-lebanon-recombined-prior",
+  "provenance": "Exact public source passages and reader prose retained from staging 2026-11-01; private feed/account identifiers replaced by stable fixture IDs. User identified repetition, confirmed by source comparison; not an independent factual-quality gold set.",
+  "language": "ar",
+  "windowStart": "2026-11-01T06:55:00.000Z",
+  "windowEnd": "2026-11-01T07:55:00.000Z",
+  "prior": [
+    {
+      "id": "prior-0",
+      "at": "2026-11-01T07:04:48.586Z",
+      "headline": "تقارير: البحرية الإسرائيلية تجهز لعمليات قصف وضربات بعمق لبنان وقد تفرض حصاراً على موانئ بيروت وطرابلس",
+      "body": "ذكرت صحيفة معاريف أن البحرية الإسرائيلية تجهز لعمليات قصف تمهيدي مكثف وضربات في عمق لبنان وضاحية بيروت الجنوبية، كما أفادت بتخطيط محتمل لفرض حصار بحري على مينائي بيروت وطرابلس."
+    },
+    {
+      "id": "prior-1",
+      "at": "2026-11-01T07:04:48.586Z",
+      "headline": "معاريف: خطة لاحتلال صور وصيدا والنبطية في لبنان إذا تحرك حزب الله ضد إسرائيل",
+      "body": ""
+    }
+  ],
+  "articles": [
+    {
+      "id": "1c84625d-020f-4897-a9e6-daea8e1b1ce5",
+      "source": "066c116ecf3342454126b664b9af89bfe72972d0827e1d97cd734a12dae03d73",
+      "url": "https://x.com/i/status/2116782570755219497",
+      "publishedAt": "2026-11-01T06:41:07.000Z",
+      "text": "إسرائيل تسعى لاحتلال صيدا وصور.. \"معاريف\" تتحدّث عن \"عمل عسكري\"! \n\n#lebanon24\n#لبنان \n\nhttps://t.co/zKk3ySH9pD via @Lebanon24"
+    },
+    {
+      "id": "9af6c896-d5e6-4e0c-b102-3d15f85858cc",
+      "source": "2812da9c285f456f298a07cd04e7716ed586cb556a6f17d13bb89f572b433dc1",
+      "url": "https://x.com/i/status/2116783741695873198",
+      "publishedAt": "2026-11-01T06:45:46.000Z",
+      "text": "إعلام عبري: خطة إسرائيلية لاحتلال صور وصيدا والنبطية وفرض حصار بحري\n\n#عاجل \nhttps://t.co/ssHcjB4lM3"
+    },
+    {
+      "id": "d10da5a0-b1c2-4c19-9778-ca691ae4770c",
+      "source": "c87d1fa1a90fcc9bd04574df40cbf634d884484a7010df5ccda445fbca498ce6",
+      "url": "https://x.com/i/status/2116788061736751106",
+      "publishedAt": "2026-11-01T07:02:56.000Z",
+      "text": "خطة إسرائيلية لاحتلال صور وصيدا وحصار بحري.. إذا تحرك حزب الله!https://t.co/Jr6G7JNoed!"
+    },
+    {
+      "id": "d494a1e8-be40-49ac-ba4a-00fb5c3bbe69",
+      "source": "030ffd2a0d9b1dcf5d1fa2242923f22289e18828feab2fc4f02ea5240ef55307",
+      "url": "https://x.com/i/status/2116784245670600817",
+      "publishedAt": "2026-11-01T06:47:46.000Z",
+      "text": "\"معاريف\": - خطة لاحتلال مدن صور وصيدا والنبطية في لبنان إذا تحرك حزب الله ضد إسرائيل\n\n- البحرية الإسرائيلية قد تفرض حصاراً بحرياً على مينائي بيروت وطرابلس\n\n-  البحرية الإسرائيلية تجهز عمليات قصف تمهيدي مكثف وضربات بعمق لبنان وضاحية بيروت"
+    }
+  ],
+  "repeatedItem": {
+    "headline": "تقارير متطابقة: خطة إسرائيلية لاحتلال صور وصيدا والنبطية وفرض حصار بحري إذا تحرك حزب الله",
+    "body": "ذكرت عدة مصادر إعلامية أن إسرائيل وضعت خطة لاحتلال مدن صور وصيدا والنبطية جنوب لبنان وفرض حصار بحري على مينائي بيروت وطرابلس، وذلك في حال قيام حزب الله بأي تحرك عسكري ضدها. كما أشارت التقارير إلى استعداد البحرية الإسرائيلية لتنفيذ ضربات وقصف تمهيدي في عمق لبنان.",
+    "relation": "new",
+    "importance": 1,
+    "sourceIds": [
+      "1c84625d-020f-4897-a9e6-daea8e1b1ce5",
+      "9af6c896-d5e6-4e0c-b102-3d15f85858cc",
+      "d494a1e8-be40-49ac-ba4a-00fb5c3bbe69",
+      "d10da5a0-b1c2-4c19-9778-ca691ae4770c"
+    ]
+  },
+  "expectedVerdict": "redundant",
+  "reason": "Every material detail, including the naval blockade and preliminary strikes, was already communicated across the two prior items. Several outlets repeat attribution to the same original report; no evidenced new official decision or changed status.",
+  "recorded": {
+    "editorRelation": "new",
+    "verifierVerdict": "ok",
+    "editorSystemSha256": "4ea933b181cfa3c8d33cc0a06f341849f5c4a32c539c51ee0bab72c2993f77ce",
+    "verifierSystemSha256": "f1b1ece753ed3d5bda12f86aade5951a05084ba6489226bb3050fa29e6d40907"
+  }
+}
