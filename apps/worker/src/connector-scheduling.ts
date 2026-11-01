@@ -240,6 +240,19 @@ export async function completeConnectorDownstream(env:Env,body:DistilledQueueMes
  const completed=await env.DB.prepare('UPDATE connector_queue_dispatch SET available_ms=0 WHERE kind=? AND id=? AND token=? AND available_ms>0 RETURNING id').bind(body.type,await sha256(JSON.stringify(body)),dispatchToken).first();
  if(!completed)return;
  await releaseConnectorWork(env,dispatchToken);
+ // A completed preparation has released its lane. Wake the existing relay at
+ // delivery time rather than reserving a sleeping intelligence slot. The relay
+ // still checks account/source scope and canonical request due time. Cron is
+ // the durable fallback if this bounded, idempotent wake is lost or duplicated.
+ if(body.type==='v1_briefing'&&body.window.scheduledFor&&env.V1_ACQUISITION_QUEUE){
+  const id=await windowIdentity(body.feedId,body.window);
+  const row=await env.DB.prepare("SELECT json FROM v1_feed_documents WHERE kind='briefing_requests' AND id=? AND feed_id=?").bind(id,body.feedId).first<{json:string}>();
+  const request=row?JSON.parse(row.json):undefined,deadline=Date.parse(body.window.scheduledFor),now=Date.now();
+  if(request?.engine==='v3'&&request.state==='PENDING'&&request.reason==='AWAITING_SCHEDULED_DELIVERY'&&request.nextAttemptAt===body.window.scheduledFor&&Math.abs(deadline-now)<=900000){
+   await env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=?').bind(deadline,body.feedId).run();
+   await env.V1_ACQUISITION_QUEUE.send({type:'connector_relay',feedId:body.feedId},{delaySeconds:Math.max(0,Math.ceil((deadline-now)/1000))});
+  }
+ }
  let feedId:string|undefined;
  if('jobId' in body){
   const row=await env.DB.prepare('SELECT feed_id FROM v1_intake_scopes WHERE id=(SELECT feed_source_id FROM v1_jobs WHERE id=?)').bind(body.jobId).first<{feed_id:string}>();feedId=row?.feed_id;

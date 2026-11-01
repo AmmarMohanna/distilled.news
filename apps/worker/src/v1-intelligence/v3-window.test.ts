@@ -477,3 +477,38 @@ it('never persists empty success after two invalid-citation replies and never re
  expect(calls).toBe(2);expect(await store.list('feed-1','v3_window_results')).toHaveLength(0);expect(await store.list('feed-1','editions')).toHaveLength(0);
  await expect(processV1Briefing(env,message,()=>window.end,undefined,provider as typeof fetch)).rejects.toThrow();expect(calls).toBe(2);
 },30000);
+it('delivers a verified frozen window despite subsequently pending acquisition, without completing that job',async()=>{
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'},closed=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z'));
+ await store.registerFeed({...feedFixture,revision:2,createdAt:schedule.clockStartAt,briefingFrequency:'30M',briefingSchedule:schedule});
+ await article(1,'2026-10-03T12:15:00Z','2026-10-03T12:20:00Z');
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window:closed},seen:string[]=[],provider=fetcher(seen) as typeof fetch;
+ await processV1Briefing(env,message,()=>closed.end,undefined,provider);expect(seen).toHaveLength(2);
+ const pending={id:'late-acquisition',kind:'ACQUIRE',state:'PENDING',attempts:0};
+ await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(pending.id,'feed-source-1',JSON.stringify(pending)).run();
+ const dispatched:unknown[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{dispatched.push(body)}}} as unknown as Env;
+ await dispatchV1Intelligence(env,new Date(closed.scheduledFor!));expect(dispatched).toContainEqual(message);
+ const edition=await processV1Briefing(env,message,()=>closed.scheduledFor!,undefined,provider);
+ expect(edition).toMatchObject({scheduledFor:closed.scheduledFor});expect(seen).toHaveLength(2);
+ const id=await windowIdentity('feed-1',closed);expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',deferredJobs:1,failures:[{kind:'ACQUIRE',code:'ACQUISITION_DEFERRED_AFTER_VERIFICATION',count:1}]}});
+ expect(JSON.parse((await ctx.db.prepare('SELECT json FROM v1_jobs WHERE id=?').bind(pending.id).first<{json:string}>())!.json)).toEqual(pending);
+ await processV1Briefing(env,message,()=>closed.scheduledFor!,undefined,provider);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);expect(seen).toHaveLength(2);
+},30000);
+it('prepared-delivery readiness rejects early, manual, V2, mismatched and stale results',async()=>{
+ const {preparedV3Delivery}=await import('./window-coverage'),schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'},closed=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z'));
+ await store.registerFeed({...feedFixture,revision:2,createdAt:schedule.clockStartAt,briefingFrequency:'30M',briefingSchedule:schedule});await article(1,'2026-10-03T12:15:00Z','2026-10-03T12:20:00Z');
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window:closed},seen:string[]=[];await processV1Briefing(env,message,()=>closed.end,undefined,fetcher(seen) as typeof fetch);
+ const id=await windowIdentity('feed-1',closed),at=Date.parse(closed.scheduledFor!);
+ expect(await preparedV3Delivery(ctx.db,'feed-1',id,at-1)).toBe(false);expect(await preparedV3Delivery(ctx.db,'feed-1',id,at)).toBe(true);
+ const originalRequest=await store.read<any>('feed-1','briefing_requests',id),originalInput=await store.read<any>('feed-1','v3_window_inputs',id),originalResult=await store.read<any>('feed-1','v3_window_results',id);
+ for(const mode of ['manual','v2','rejected','mismatched','stale']){
+  const key=id+'-'+mode,request=structuredClone(originalRequest),input=structuredClone(originalInput),result=structuredClone(originalResult);
+  request.id=input.id=result.id=key;
+  if(mode==='manual')delete request.window.scheduledFor;
+  if(mode==='v2')request.engine='v2';
+  if(mode==='rejected')result.result.status='rejected';
+  if(mode==='mismatched')result.inputId='wrong';
+  if(mode==='stale')input.feedRevision=1;
+  for(const [kind,value] of [['briefing_requests',request],['v3_window_inputs',input],['v3_window_results',result]])await ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind(kind,key,'feed-1',JSON.stringify(value)).run();
+  expect(await preparedV3Delivery(ctx.db,'feed-1',key,at),mode).toBe(false);
+ }
+},30000);

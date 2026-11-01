@@ -191,3 +191,11 @@ it.each(['Feed','intake'] as const)('%s commit fences replacement atomically at 
  expect(result).toMatchObject({state:'REJECTED',error:{code:'TEMPORARY_UNAVAILABLE'}});
  expect(await ctx.db.prepare("SELECT token FROM connector_intelligence_turns WHERE feed_id='turn-1'").first()).toEqual({token:'batch-replacement'});
 });
+it('only the final isolated publication commit has bounded priority; aged intake retains its turn',async()=>{
+ env.V1_PUBLICATION_PREPARATION_ISOLATED='true';const {withCanonicalCommitTurn}=await import('./connector-intelligence-turn');
+ const now=Date.now();await ctx.db.prepare('INSERT INTO connector_feed_turn_waiters VALUES(?,?,?,?)').bind('turn-1','intake:recent',now-100,now+300000).run();
+ expect(await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},()=>withCanonicalCommitTurn(ctx.db,'turn-1',async()=> 'published',true))).toBe('published');
+ await ctx.db.prepare("UPDATE connector_feed_turn_waiters SET queued_at=?,expires_at=? WHERE work_id='intake:recent'").bind(Date.now()-11000,Date.now()+300000).run();
+ await expect(withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},()=>withCanonicalCommitTurn(ctx.db,'turn-1',async()=> 'blocked',true))).rejects.toThrow('INTELLIGENCE_TURN_BUSY');
+ expect(await withFeedWriteTurn(env,'turn-1',async()=> 'intake','intake:recent')).toBe('intake');
+});
