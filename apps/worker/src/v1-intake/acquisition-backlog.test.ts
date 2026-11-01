@@ -71,10 +71,14 @@ it('keeps old financial operations unchanged while deferring bounded legacy back
  await createCandidateIntakePort(store,testPolicy).acceptBatch(batch());
  await ctx.db.exec("CREATE TABLE connector_provider_operations(operation_id TEXT,headers TEXT,reserved REAL);INSERT INTO connector_provider_operations VALUES('old','uncertain',0.05)");
  const before=await ctx.db.prepare('SELECT * FROM connector_provider_operations').all();
+ expect(before.results).toEqual([{operation_id:'old',headers:'uncertain',reserved:0.05}]);
  const candidate=(await store.read<CandidateRecord>('candidates',itemId('feed-source-1','guid-1')))!.value;const {firstObservationId:_,acquisitionObservationId:__,...legacy}=candidate;
  await store.commit(await store.snapshot('feed-source-1'),[{table:'candidates',id:candidate.id,itemKey:'guid-1',value:legacy}]);
  expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now)).toBe(1);
- expect(await ctx.db.prepare('SELECT * FROM connector_provider_operations').all()).toEqual(before);
+ const after=await ctx.db.prepare('SELECT * FROM connector_provider_operations').all();
+ expect(after.success).toBe(true);
+ // Query duration is nondeterministic; the retained financial records must match.
+ expect(after.results).toEqual(before.results);
 });
 it('does not let deferred backlog inflate displayed acquisition work or hold a publication window',async()=>{
  const {windowIntakeCoverage}=await import('../v1-intelligence/window-coverage');
