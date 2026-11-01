@@ -15,7 +15,7 @@ for (const width of [320,390,600]) for (const authenticated of [false,true]) {
     await expect(page.locator('.experience-header > .experience-header-actions > .language-cycle')).toBeHidden();
     if (authenticated) {
       await expect(page.locator('.experience-header .appearance-menu')).toHaveCount(0);
-      await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(0);
+      await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
       await page.getByRole('button', {name:'Settings', exact:true}).click();
       await expect(page.locator('.setting-language')).toBeVisible();
       await page.locator('.setting-language button[lang="fr"]').click();
