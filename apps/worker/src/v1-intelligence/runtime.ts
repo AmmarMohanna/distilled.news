@@ -165,7 +165,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
  for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
-  if(await jobsHoldingWindow(env.DB,feedId,older.window.end)||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
+  if(await jobsHoldingWindow(env.DB,feedId,older.window.end,{v3:older.engine==='v3',now:now()})||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
   if(job?.state==='RUNNING'&&Date.parse(job.leaseUntil)>Date.parse(now()))return undefined;
@@ -173,7 +173,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   countLatency('olderWindowPending');return undefined;
  }
  const initialCoverage=await measureLatency('WINDOW_READINESS',()=>feedTransact(store,feedId,async tx=>{
-  const coverage=await windowIntakeCoverage(env.DB,feedId,window.end),current=await tx.read<BriefingRequest>('briefing_requests',id);
+  const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{v3:request.engine==='v3',now:now()}),current=await tx.read<BriefingRequest>('briefing_requests',id);
   if(current&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||coverage.pendingJobs&&current.reason!=='AWAITING_INTAKE_REASSESSMENT'))await tx.write('briefing_requests',id,{...current,coverage,...(coverage.pendingJobs?{reason:'AWAITING_INTAKE_REASSESSMENT',nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()}: {})});
   return coverage;
  }));
@@ -289,7 +289,8 @@ async function maintenance(feedId:string,step:string,run:()=>Promise<void>):Prom
  * for evidence observed before the window closed (or whose observation time is unknown). Evidence that
  * arrived later belongs to a later window, so continuous arrivals cannot postpone an earlier boundary, and
  * nothing is lost: that job keeps running on the ordinary queue and its Event lands in the next window. */
-export async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:string):Promise<number> {
+export async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:string,options:import('./window-coverage').IntakeDeadlineOptions={}):Promise<number> {
+ if(options.v3)return (await windowIntakeCoverage(db,feedId,windowEnd,options)).pendingJobs;
  // Keep both explicit reconciliation dependencies and confirmed acquisition-budget
  // waits recoverable without holding healthy-source publication. Other live work
  // retains its existing readiness and paid-operation protections.
@@ -355,7 +356,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    if(next<=Date.parse(window.end))window=livePublicationWindow(schedule,new Date(next));
   }
   if(Date.parse(window.end)>now.getTime())continue;
-  const editionId=await windowIdentity(id,window),pending={n:await jobsHoldingWindow(env.DB,id,window.end)};
+  const editionId=await windowIdentity(id,window);
   // Preparation is a read-through mechanical shortlist, not an early edition
   // or a frozen paid editorial decision. Final arrivals are reloaded at close.
   const preparing=feed.briefingSchedule?preparingLiveWindow(feed.briefingSchedule,now):undefined;
@@ -390,7 +391,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   // Reobserving an unchanged wait is read-only: an epoch bump every minute
   // would fence slow reassessment/publication work for other windows too.
   // A wait label is written once on entry and cleared once on release; unchanged observations stay read-only.
-  const coverage=await windowIntakeCoverage(env.DB,id,window.end),waiting=Boolean(pending?.n),current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
+  const current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
+  const coverage=await windowIntakeCoverage(env.DB,id,window.end,{v3:current?.engine==='v3',now:now.toISOString()}),waiting=Boolean(coverage.pendingJobs);
   const coverageReason=waiting?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
   if(current?.state==='PENDING'&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;await tx.write('briefing_requests',editionId,{...request,coverage,...(coverageReason?{reason:coverageReason}:request.reason==='AWAITING_INTAKE_REASSESSMENT'?{reason:undefined}:{})})});
   const requests=await store.pendingBriefingRequests(id);
@@ -401,7 +403,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    }
 
    // Each window is held only by jobs for evidence that existed when it closed.
-   if(await jobsHoldingWindow(env.DB,id,request.window.end))continue;
+   if(await jobsHoldingWindow(env.DB,id,request.window.end,{v3:request.engine==='v3',now:now.toISOString()}))continue;
    const v3=request.engine==='v3'||!request.engine&&productV3Enabled(env);
    if((v3||request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!(v3?productV3Ready(env):createStoredEvidenceModel(env))){
     if(request.reason!=='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING')await tx.write('briefing_requests',request.id,{...current,reason:'MODEL_SETUP_REQUIRED'});});

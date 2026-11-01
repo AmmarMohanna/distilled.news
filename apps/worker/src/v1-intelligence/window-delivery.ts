@@ -12,7 +12,10 @@ export async function editorialWindowAwaitingRecovery(db:D1Database,feedId:strin
  // Cross-window reuse can return the original UNKNOWN operation without
  // creating an intent under this window's key. That wait must not seize every
  // subsequent relay turn either. Explicit recovery can still invoke the window.
- if(reason==='SEMANTIC_OUTCOME_UNKNOWN')return true;
+ // A started V3 input cannot be rewritten when one of its retained revisions
+ // is superseded. Repeating it cannot repair that identity, so preserve it for
+ // explicit recovery without letting it monopolize all later feed windows.
+ if(reason==='SEMANTIC_OUTCOME_UNKNOWN'||reason==='V3_FROZEN_EVIDENCE_SUPERSEDED')return true;
  const row=await db.prepare(`SELECT 1 blocked FROM v1_feed_documents i
  LEFT JOIN v1_feed_documents r ON r.feed_id=i.feed_id AND r.kind='semantic_results' AND r.id=i.id
  WHERE i.feed_id=? AND i.kind='semantic_intents'

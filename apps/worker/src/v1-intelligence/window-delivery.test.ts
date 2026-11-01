@@ -6,6 +6,10 @@ it('a reused UNKNOWN without a new window intent does not monopolize dispatch',a
  const db={prepare:()=>{throw Error('No new intent exists for a reused operation')}} as unknown as D1Database;
  expect(await editorialWindowAwaitingRecovery(db,'feed', {start:'2026-10-20T22:00:00Z',end:'2026-10-20T22:30:00Z'},'SEMANTIC_OUTCOME_UNKNOWN')).toBe(true);
 });
+it('a frozen superseded V3 input yields to later windows without querying or mutating paid work',async()=>{
+ const db={prepare:()=>{throw Error('Frozen work must remain untouched')}} as unknown as D1Database;
+ expect(await editorialWindowAwaitingRecovery(db,'feed',{start:'2026-10-20T22:00:00Z',end:'2026-10-20T22:30:00Z'},'V3_FROZEN_EVIDENCE_SUPERSEDED')).toBe(true);
+});
 it.each([['00:20','01:00'],['00:35','01:30'],['00:50','01:30'],['00:59','01:30'],['01:05','02:00'],['00:30','01:00']])('first complete interval for creation at %s closes %s',(created,end)=>{
  expect(firstFullLiveBriefingAt(schedule,new Date(`2026-10-21T${created}:00+03:00`))).toBe(new Date(`2026-10-21T${end}:00+03:00`).toISOString());
 });

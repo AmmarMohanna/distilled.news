@@ -87,3 +87,26 @@ No model/source authorization, server setting, live feed or deployed Worker was
 changed. Deployments need the additive migration first. Follow-up live validation
 must measure actual scheduled-to-published time and coverage; passing these tests
 does not demonstrate 1,000-feed capacity, on-time delivery or factual accuracy.
+
+## November 1 QA recovery follow-up
+
+Live QA exposed two additional causes of backlog beyond collection polling:
+
+- A started V3 window whose retained evidence was superseded could repeatedly
+  monopolize the oldest runnable window. It now yields to later windows through
+  the existing recovery bypass. The original input, request and financial history
+  stay intact; the superseded work is not replayed or declared successful.
+- Confirmed helper-capacity refusals in ACQUIRE jobs could stay pending after
+  hundreds of waits and hold every later V3 window. After cutoff plus five minutes,
+  these count as incomplete acquisition coverage while recovery keeps running.
+  Admission, queue-consumption checks and final V3 publication use the same rule.
+  Only the explicit local/global helper-capacity and helper-rate-limit details
+  qualify. Unknown observation times, invalid/live leases, running acquisitions,
+  provider-in-flight/unknown work, reassessment and retained V2 keep their gates.
+
+This does not make unavailable source content available. Healthy retained evidence
+can publish with honest incomplete coverage; missing acquisitions retain their
+identities and recover through the existing late-discovery path. No paid hold is
+released, source authentication bypassed or original reporting window expanded.
+Local regression tests cover the refusal boundary and safeguards, plus full-text
+V3 editor/verifier publication with citations and exactly-once result reuse.

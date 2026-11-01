@@ -126,6 +126,19 @@ it('an older live synthesis lease keeps priority even while its paid call is pen
  expect(await dispatchV1Intelligence(env,now)).toBe(0);
  expect(await dispatchV1Intelligence(env,new Date('2026-10-03T13:03:00Z'))).toBe(1);
 });
+it('dispatch and consumption bypass a frozen superseded V3 window without rewriting its recovery state',async()=>{
+ const now=new Date('2026-10-03T13:00:00Z'),oldWindow={start:'2026-10-03T11:00:00Z',end:'2026-10-03T12:00:00Z',kind:'HOURLY' as const},oldId=await windowIdentity('feed-1',oldWindow);
+ const old={id:oldId,feedId:'feed-1',window:oldWindow,engine:'v3',state:'PENDING',attempts:0,reason:'V3_FROZEN_EVIDENCE_SUPERSEDED',createdAt:oldWindow.end};
+ await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',oldId,old));
+ const before=(await ctx.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? AND id=?').bind('feed-1','briefing_requests',oldId).first())!.json;
+ expect(await dispatchV1Intelligence(env,now)).toBe(1);
+ const message=sent.find(m=>m.type==='v1_briefing') as Extract<DistilledQueueMessage,{type:'v1_briefing'}>;
+ expect(message.window.end).toBe(now.toISOString());
+ const fetcher=vi.fn(async()=>{throw Error('Frozen paid work must not be replayed')});
+ expect((await processV1Briefing(env,message,()=>now.toISOString(),undefined,fetcher))?.stories).toHaveLength(1);
+ expect(fetcher).not.toHaveBeenCalled();
+ expect((await ctx.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? AND id=?').bind('feed-1','briefing_requests',oldId).first())!.json).toBe(before);
+},30000);
 it('publication windows are closed UTC intervals and weeks start Monday',()=>{
  expect(publicationWindow('30M',new Date('2026-10-03T13:17:00Z'))).toEqual({start:'2026-10-03T12:30:00.000Z',end:'2026-10-03T13:00:00.000Z',kind:'30M'});
  expect(publicationWindow('WEEKLY',new Date('2026-10-03T13:17:00Z'))).toEqual({start:'2026-09-21T00:00:00.000Z',end:'2026-09-28T00:00:00.000Z',kind:'WEEKLY'});

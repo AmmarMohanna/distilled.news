@@ -150,7 +150,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   return feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<BriefingEditionRecord>('editions',id);if(prior)return prior;
    const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
-   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(coverage.pendingJobs)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{v3:true,now:now()});if(coverage.pendingJobs)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
     const collection=await pendingWindowCollections(env.DB,feedId,window.end,true,Date.parse(now()));
     if(collection.pending)throw new HandoffError('TEMPORARY_UNAVAILABLE');

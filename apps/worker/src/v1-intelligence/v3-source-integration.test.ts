@@ -73,12 +73,13 @@ it('still waits for unfinished pre-cutoff acquisition when a later collection pa
  expect(calls).toBe(0);expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'});
  expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(0);
 },30000);
-it.each(['complete','continuing','budget-wait','capacity'] as const)('publishes full acquired evidence with source-owned citations and receipts (%s)',async mode=>{
+it.each(['complete','continuing','budget-wait','capacity','acquisition-capacity'] as const)('publishes full acquired evidence with source-owned citations and receipts (%s)',async mode=>{
  expect(await acquire('2026-10-03T12:05:00Z')).toBe('DONE');
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),acquiredAt);
  if(mode==='continuing')await continuingTelegram();
  if(mode==='capacity'){await continuingTelegram();await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET result=NULL,last_error='BACKPRESSURE' WHERE job_id='later-poll'").run();}
- const waitingJob=mode==='budget-wait'?await separateBudgetWait():undefined;
+ let waitingJob=mode==='budget-wait'||mode==='acquisition-capacity'?await separateBudgetWait():undefined;
+ if(mode==='acquisition-capacity'){waitingJob={...waitingJob!,failureCode:'BACKPRESSURE',failureDetail:'HELPER_LOCAL_CAPACITY_BUSY'};await ctx.db.prepare('UPDATE v1_jobs SET json=? WHERE id=?').bind(JSON.stringify(waitingJob),waitingJob.id).run();}
  expect(await store.list('feed-1','events')).toHaveLength(0);expect(await store.list('feed-1','claim_mentions')).toHaveLength(0);
  const prepared=await prepareV3Window(store,'feed-1',window,window.end);
  expect(prepared.input.articles[0].text).toBe(text);expect(text.length).toBeGreaterThan(6000);
@@ -90,7 +91,7 @@ it.each(['complete','continuing','budget-wait','capacity'] as const)('publishes 
   return Response.json({id:`gen-integration-${calls.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
  const message={type:'v1_briefing' as const,feedId:'feed-1',window};
- const edition=await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=>mode==='capacity'?'2026-10-03T12:35:00Z':'2026-10-03T12:34:00Z',undefined,fetcher));
+ const edition=await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=>mode==='capacity'||mode==='acquisition-capacity'?'2026-10-03T12:35:00Z':'2026-10-03T12:34:00Z',undefined,fetcher));
  expect(edition).toMatchObject({engine:'v3',windowStart:window.start,windowEnd:window.end});
  expect(calls.map(c=>c.model)).toEqual(['openai/gpt-4.1','openai/gpt-4.1-mini']);
  expect(calls.every(c=>c.prompt.includes('the measure has not taken effect'))).toBe(true);
@@ -106,20 +107,20 @@ it.each(['complete','continuing','budget-wait','capacity'] as const)('publishes 
   expect(await ctx.db.prepare("SELECT state,last_error FROM connector_provider_poll_jobs WHERE job_id='later-poll'").first()).toEqual({state:'PENDING',last_error:'BACKPRESSURE'});
  }
  if(waitingJob){
-  expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:'BUDGET_EXHAUSTED',count:1}]}});
+  expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:mode==='acquisition-capacity'?'ACQUISITION_BACKPRESSURE_AT_DEADLINE':'BUDGET_EXHAUSTED',count:1}]}});
   expect((await intake.read('jobs',waitingJob.id))?.value).toEqual(waitingJob);
   expect(calls.every(c=>!c.prompt.includes('waiting-observation'))).toBe(true);
  }
  expect(await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=> '2026-10-03T12:35:00Z',undefined,fetcher))).toEqual(edition);
  expect(calls).toHaveLength(2);
 },30000);
-it('defers an empty budget-blocked window without inference and retains the same acquisition for late discovery',async()=>{
- expect(await runAcquisitionJob(intake,jobId,{...testPolicy,now:()=>acquiredAt},async()=>{throw new AcquisitionFailure('BUDGET_EXHAUSTED',true,{detail:'ARTICLE_PROVIDER_BUDGET'});})).toBe('RETRY');
+it.each(['budget','capacity'] as const)('defers an empty unavailable window without inference and retains acquisition for late discovery (%s)',async mode=>{
+ expect(await runAcquisitionJob(intake,jobId,{...testPolicy,now:()=>acquiredAt},async()=>{throw new AcquisitionFailure(mode==='capacity'?'BACKPRESSURE':'BUDGET_EXHAUSTED',true,{detail:mode==='capacity'?'HELPER_LOCAL_CAPACITY_BUSY':'ARTICLE_PROVIDER_BUDGET'});})).toBe('RETRY');
  const waiting=(await intake.read<DownstreamJob>('jobs',jobId))!.value;
  let calls=0;const message={type:'v1_briefing' as const,feedId:'feed-1',window};
- await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=>window.end,undefined,(async()=>{calls++;throw Error('No inference for unavailable evidence');}) as typeof fetch));
+ await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=>mode==='capacity'?'2026-10-03T12:35:00Z':window.end,undefined,(async()=>{calls++;throw Error('No inference for unavailable evidence');}) as typeof fetch));
  expect(calls).toBe(0);
- expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:'BUDGET_EXHAUSTED',count:1}]}});
+ expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:mode==='capacity'?'ACQUISITION_BACKPRESSURE_AT_DEADLINE':'BUDGET_EXHAUSTED',count:1}]}});
  expect((await intake.read<DownstreamJob>('jobs',jobId))?.value).toEqual(waiting);
  expect(await store.list('feed-1','editions')).toHaveLength(0);
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<{n:number}>())?.n).toBe(0);
