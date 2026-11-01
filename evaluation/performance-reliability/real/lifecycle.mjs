@@ -19,10 +19,10 @@ export async function setup(m,client,dir,{emailDomain,gmailAddress,mailbox,chall
  const results=await bounded(registry.users,m.setupConcurrency,async u=>{
   // Journal before every mutation. An interruption is reconciled through owned
   // reads; a SENT/UNKNOWN operation is never blindly replayed.
-  u.state='REGISTER_SENT';save();
+  u.state='REGISTER_SENT';u.registrationStartedAt=new Date().toISOString();save();
   await client.request('/api/auth/register',{method:'POST',body:{email:u.email,username:u.username,password:u.password,language:u.slot%2?'ar':'en',turnstileToken:await challenge(u,'register')},category:'register'});
   u.state='AWAITING_EMAIL';save();
-  const token=await mailbox({email:u.email,runId:m.runId});assert(typeof token==='string'&&token.length>0,'MAILBOX_TOKEN_REQUIRED');
+  const token=await mailbox({email:u.email,runId:m.runId,registeredAt:u.registrationStartedAt});assert(typeof token==='string'&&token.length>0,'MAILBOX_TOKEN_REQUIRED');
   const verified=await client.request('/api/auth/verify-email',{method:'POST',body:{token},category:'verify-email'});
   assert(verified.value?.account?.username===u.username&&verified.cookie,'VERIFIED_ACCOUNT_IDENTITY');u.id=verified.value.account.id;u.cookie=verified.cookie;u.state='VERIFIED';save();
   await login(client,u,challenge);save();
