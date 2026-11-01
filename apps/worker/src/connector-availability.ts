@@ -36,6 +36,13 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE s.feed_id=? AND json_extract(j.json,'$.kind')='ACQUIRE'
   GROUP BY j.feed_source_id,state,failure,detail`).bind(feedId).all<{feed_source_id:string;state:string;failure:string|null;detail?:string|null;count:number}>();
  const costs:Record<string,string>={x_twitterapi_io:'twitterApiIo',x_apify:'apify',google_apify:'apify',linkedin_apify:'apify',zyte:'zyte'};
+ // A previous success must not hide a current capacity refusal that is now
+ // yielding publication with incomplete coverage. Return typed causes only.
+ const capacity=financial?await env.DB.prepare(`SELECT json_extract(request,'$.scope.feedSourceId') source_id FROM connector_provider_poll_jobs
+ WHERE json_extract(request,'$.scope.feedId')=? AND state='PENDING' AND last_error='BACKPRESSURE' AND COALESCE(json_type(result),'null')='null'
+ UNION SELECT json_extract(request,'$.scope.feedSourceId') source_id FROM connector_rss_poll_jobs
+ WHERE json_extract(request,'$.scope.feedId')=? AND state='PENDING' AND last_error='BACKPRESSURE' AND COALESCE(json_type(result),'null')='null'`).bind(feedId,feedId).all<{source_id:string}>():{results:[]};
+ const capacitySources=new Set(capacity.results.map(r=>r.source_id));
  const rows=await env.DB.prepare("SELECT id,title,provider,kind,source_url,input,actor_id FROM sources WHERE briefing_id=? AND collection_owner='connector' AND enabled=1 ORDER BY id").bind(feedId).all<{id:string;title:string;provider:string;kind:string;source_url:string|null;input:string|null;actor_id:string|null}>();
  return Promise.all(rows.results.map(async row=>{
   const source=productConnectorSource(row),availability:SourceAvailability=source?sourceAvailability(env,source.source.family):{state:'UNAVAILABLE',providers:[],reason:'UNSUPPORTED_SOURCE'};
@@ -66,7 +73,7 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   const warning=acquisition.failed?failed.every(j=>j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':failed.every(j=>j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
   // Only typed errors are public. Never expose URLs, provider response text or
   // claim tokens retained in diagnostic storage.
-  const collectionError=historicalPaidBlock?undefined:collectionFailureReason(latest);
+  const collectionError=capacitySources.has(row.id)?'BACKPRESSURE':historicalPaidBlock?undefined:collectionFailureReason(latest);
   return {sourceId:row.id,title:row.title,...availability,acquisition,...(warning?{warning}:{}),...(collectionError?{collectionError}:{})};
  }));
 }

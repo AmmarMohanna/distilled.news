@@ -74,7 +74,8 @@ it('keeps old financial operations unchanged while deferring bounded legacy back
  const candidate=(await store.read<CandidateRecord>('candidates',itemId('feed-source-1','guid-1')))!.value;const {firstObservationId:_,acquisitionObservationId:__,...legacy}=candidate;
  await store.commit(await store.snapshot('feed-source-1'),[{table:'candidates',id:candidate.id,itemKey:'guid-1',value:legacy}]);
  expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now)).toBe(1);
- expect(await ctx.db.prepare('SELECT * FROM connector_provider_operations').all()).toEqual(before);
+ // D1 timing/cache metadata varies between reads; compare the financial rows.
+ expect((await ctx.db.prepare('SELECT * FROM connector_provider_operations').all()).results).toEqual(before.results);
 });
 it('does not let deferred backlog inflate displayed acquisition work or hold a publication window',async()=>{
  const {windowIntakeCoverage}=await import('../v1-intelligence/window-coverage');

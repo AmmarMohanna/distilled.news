@@ -43,15 +43,29 @@ async function continuingTelegram(){
  const result={state:'HANDED_OFF',checkpoint:'UNCHANGED',request:{coverage:{createdAt:window.end},observations:[{id:'later',observedAt:window.end}]},response:{durable:true,receipts:[{observationId:'later',checkpointResolution:'RESOLVED'}]}};
  await ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at,result) VALUES(?,?,?,?,?,?,?)').bind('later-poll',JSON.stringify({scope:{feedId:'feed-1',feedSourceId:'feed-source-1'},source:{family:'telegram'},requestedBounds:{}}),'fixture','[]',window.end,window.start,JSON.stringify(result)).run();
 }
-it('completes an empty window as deferred rather than quiet when collection has moved past cutoff',async()=>{
+it.each(['continuing','capacity'] as const)('defers an empty window without inference when collection is incomplete (%s)',async mode=>{
  expect(await acquire('2026-08-31T10:00:00Z')).toBe('DONE');
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),acquiredAt);
  await continuingTelegram();let calls=0;
- await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'feed-1',window},()=>processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,(async()=>{calls++;throw Error('unexpected inference')}) as typeof fetch));
+ if(mode==='capacity')await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET result=NULL,last_error='BACKPRESSURE' WHERE job_id='later-poll'").run();
+ await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'feed-1',window},()=>processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>mode==='capacity'?'2026-10-03T12:35:00Z':window.end,undefined,(async()=>{calls++;throw Error('unexpected inference')}) as typeof fetch));
  const request=(await store.list<any>('feed-1','briefing_requests'))[0];
- expect(request).toMatchObject({state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_CONTINUING_AFTER_CUTOFF',count:1}]}});
+ expect(request).toMatchObject({state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:mode==='capacity'?'COLLECTION_BACKPRESSURE_AT_DEADLINE':'COLLECTION_CONTINUING_AFTER_CUTOFF',count:1}]}});
  expect(calls).toBe(0);expect(await store.list('feed-1','editions')).toHaveLength(0);
  expect(await ctx.db.prepare("SELECT state FROM connector_provider_poll_jobs WHERE job_id='later-poll'").first()).toEqual({state:'PENDING'});
+ if(mode==='capacity'){
+  const late=batchFixture(2);late.observations[0].sourceItemKey=late.proposals[0].sourceItemKey='late-story';
+  late.coverage.createdAt=late.observations[0].observedAt=late.proposals[0].discoveredAt='2026-10-03T12:36:00Z';
+  late.observations[0].publishedAtHint=late.proposals[0].publishedAtHint='2026-10-03T12:15:00Z';
+  await createCandidateIntakePort(intake,{...testPolicy,now:()=> '2026-10-03T12:36:00Z'}).acceptBatch(late);
+  const router=createCandidateAcquisitionRouter({now:()=> '2026-10-03T12:37:00Z',preferFullArticle:true,fetcher:async()=>new Response(`<meta property="article:published_time" content="2026-10-03T12:15:00Z"><h1>Recovered story</h1><article>${text}</article>`)});
+  expect(await runAcquisitionJob(intake,JSON.stringify(['ACQUIRE','observation-2','']),{...testPolicy,now:()=> '2026-10-03T12:37:00Z'},router)).toBe('DONE');
+  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T12:38:00Z');
+  const next={...window,start:window.end,end:'2026-10-03T13:00:00Z'};
+  const prepared=await prepareV3Window(store,'feed-1',next,next.end);
+  expect(prepared.input.articles).toHaveLength(1);expect(prepared.input.articles[0]).toMatchObject({text,publishedAt:'2026-10-03T12:15:00.000Z'});
+  expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'DEFERRED',window});
+ }
 },30000);
 it('still waits for unfinished pre-cutoff acquisition when a later collection page is releasable',async()=>{
  await continuingTelegram();let calls=0;
@@ -59,10 +73,11 @@ it('still waits for unfinished pre-cutoff acquisition when a later collection pa
  expect(calls).toBe(0);expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'});
  expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(0);
 },30000);
-it.each(['complete','continuing','budget-wait'] as const)('publishes full acquired evidence with source-owned citations and receipts (%s)',async mode=>{
+it.each(['complete','continuing','budget-wait','capacity'] as const)('publishes full acquired evidence with source-owned citations and receipts (%s)',async mode=>{
  expect(await acquire('2026-10-03T12:05:00Z')).toBe('DONE');
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),acquiredAt);
  if(mode==='continuing')await continuingTelegram();
+ if(mode==='capacity'){await continuingTelegram();await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET result=NULL,last_error='BACKPRESSURE' WHERE job_id='later-poll'").run();}
  const waitingJob=mode==='budget-wait'?await separateBudgetWait():undefined;
  expect(await store.list('feed-1','events')).toHaveLength(0);expect(await store.list('feed-1','claim_mentions')).toHaveLength(0);
  const prepared=await prepareV3Window(store,'feed-1',window,window.end);
@@ -75,7 +90,7 @@ it.each(['complete','continuing','budget-wait'] as const)('publishes full acquir
   return Response.json({id:`gen-integration-${calls.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
  const message={type:'v1_briefing' as const,feedId:'feed-1',window};
- const edition=await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=> '2026-10-03T12:34:00Z',undefined,fetcher));
+ const edition=await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=>mode==='capacity'?'2026-10-03T12:35:00Z':'2026-10-03T12:34:00Z',undefined,fetcher));
  expect(edition).toMatchObject({engine:'v3',windowStart:window.start,windowEnd:window.end});
  expect(calls.map(c=>c.model)).toEqual(['openai/gpt-4.1','openai/gpt-4.1-mini']);
  expect(calls.every(c=>c.prompt.includes('the measure has not taken effect'))).toBe(true);
@@ -86,6 +101,10 @@ it.each(['complete','continuing','budget-wait'] as const)('publishes full acquir
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v3_model_spend').first<{n:number}>())?.n).toBe(0);
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<{n:number}>())?.n).toBe(2);
  if(mode==='continuing')expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',failures:[{kind:'COLLECTION',code:'COLLECTION_CONTINUING_AFTER_CUTOFF',count:1}]}});
+ if(mode==='capacity'){
+  expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',unavailableCollections:[{id:'feed-source-1',count:1}],failures:[{kind:'COLLECTION',code:'COLLECTION_BACKPRESSURE_AT_DEADLINE',count:1}]}});
+  expect(await ctx.db.prepare("SELECT state,last_error FROM connector_provider_poll_jobs WHERE job_id='later-poll'").first()).toEqual({state:'PENDING',last_error:'BACKPRESSURE'});
+ }
  if(waitingJob){
   expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',pendingJobs:0,failedJobs:1,failures:[{kind:'ACQUIRE',code:'BUDGET_EXHAUSTED',count:1}]}});
   expect((await intake.read('jobs',waitingJob.id))?.value).toEqual(waitingJob);

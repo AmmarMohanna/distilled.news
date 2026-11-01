@@ -1,0 +1,89 @@
+# Collection deadlines and recoverable source capacity waits
+
+Branch: `aya-collection-deadline-recovery`, based on `b11c12cd`.
+
+## Retained trigger
+
+The October 31 read-only staging audit of `product-proof/leb-arab` found six
+published editions, 6 minutes 42 seconds to 22 minutes 19 seconds after their
+intended hourly delivery. Average lateness was approximately 12 minutes. V3's
+recorded editing/verification stages took 13–21 seconds; most waiting preceded
+the first model intent. The 23:00 Beirut request was still pending in the final
+audit snapshot. These observations are a dated workload, not a scalability result.
+
+An Annahar X poll scheduled at 14:51:03 UTC only allocated its fetch run at
+15:06:32 UTC, although TwitterAPI.io telemetry recorded 2.333 seconds. Almodon
+polls retained `BACKPRESSURE / HELPER_GLOBAL_CAPACITY_BUSY / 503`; two final
+retry eligibility times were immediately before the late 20:17 and 21:22 local
+publications. Retry eligibility is not an exact completion timestamp.
+
+Authenticated VPS status samples showed two occupied helper slots, then zero
+three seconds later. That establishes transient occupancy, not a dead process
+or proof of the tasks causing every historical delay. No server capacity or
+service configuration was changed.
+
+## Implementation
+
+- Poll dispatch admits at most two live deliveries per feed and family by
+  default. Atomic claims count existing live dispatch leases. Completion refills
+  only that family instead of waiting for another feed/Cron scan. Other feeds
+  retain their independent capacity, and every fifth minute retains oldest-due
+  fairness. Telegram keeps its separate dispatch lane.
+- Eligible polls holding closed pending windows receive priority. Future retry
+  times and live canonical/transport leases remain authoritative. No provider
+  request, source checkpoint, collection bound or paid identity is replaced.
+- For V3, a confirmed `BACKPRESSURE` poll with no captured result may stop
+  holding publication at cutoff plus the existing five-minute delivery lead.
+  This is the intended clock delivery, not an extra five-minute delay.
+  Unknown scheduling times, live execution leases, captured pages, unresolved
+  handoffs, other failures and V2 keep their prior gate.
+- Publication records `INCOMPLETE` coverage, a typed
+  `COLLECTION_BACKPRESSURE_AT_DEADLINE` count and the affected source identities.
+  Healthy evidence can publish; an empty incomplete window becomes `DEFERRED`,
+  not `QUIET`. The refused poll stays pending with its original identity for
+  recovery and the existing late-discovery path.
+- Current source capacity refusals remain visible even when a previous poll
+  succeeded. Recovery clears this warning naturally; no history is rewritten.
+- Poll dispatch and consumer timing logs contain operational identities and
+  timestamps, not source text, URLs, credentials or claim tokens. They supplement
+  existing fetch-run and provider timings to separate future dispatch/queue waits
+  from upstream work. Existing restricted Grafana export rules remain unchanged.
+- Additive migration `0083_collection_dispatch_capacity.sql` indexes live pending
+  dispatch occupancy. Collection-gate reads filter by feed inside each poll CTE,
+  avoiding a global pending-poll scan before classification.
+
+## NNA extraction and stale backlog
+
+Anonymous HTTP for a retained failed NNA URL returned HTTP 200 after redirecting
+to its article-specific title URL. The returned HTML was a client-rendered shell:
+the deterministic extractor found the expected title/canonical identity and
+article metadata, but zero article-body characters.
+
+Previously, this verified publisher relocation could only use the existing
+rendering fallback if it had a separate operator-reviewed redirect. It now uses
+the already-authorized exact-article fallback after the same origin, headline,
+page-kind and canonical-identity checks. Fallback results must still validate
+against the original article identity. Foreign identities and unrelated headlines
+remain rejected. No LLM extractor, login or paywall bypass was introduced.
+
+The retained NNA examples had September publication dates, predating the October
+31 feed. This branch already inherits initial-backlog deferral from Aya's work.
+It must not turn those articles into fresh news or silently reopen the 20 old
+failed jobs. Their live recovery and actual rendered-body acquisition have not
+been performed by this change. Completed zero-result `@961news` polls likewise
+do not establish a scraper defect; useful post delivery remains unverified.
+
+## Validation and rollout boundaries
+
+Regression tests cover deadline equality, active leases, captured/unknown work,
+V2 preservation, truthful incomplete publication and empty-window deferral,
+source warning recovery, concurrent dispatch bounds, cross-feed isolation,
+periodic fairness and relocated client-rendered article identity checks. Existing
+financial, stale-backlog, publication-window and recovery tests remain in place.
+
+All provider/model tests use mocks and local D1. The anonymous NNA HTML check is
+a read-only HTTP diagnostic, not a successful rendered acquisition or paid test.
+No model/source authorization, server setting, live feed or deployed Worker was
+changed. Deployments need the additive migration first. Follow-up live validation
+must measure actual scheduled-to-published time and coverage; passing these tests
+does not demonstrate 1,000-feed capacity, on-time delivery or factual accuracy.

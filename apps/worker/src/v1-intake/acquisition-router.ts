@@ -169,7 +169,10 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
     // Keep original observation/citation/payment identities; retain its final URL.
     const item=helperArticle({...redirected,url:o.canonicalUrl,canonicalUrl:o.canonicalUrl,status:200,dateMetadata:readArticleDateMetadata(document.body,document.url)},'publisher_redirect_http');
     if(!item){
-     if(reviewedMatch&&options.articleFallback){const rendered=helperArticle(await options.articleFallback(claim),'reviewed_publisher_browser');if(rendered)return fallbackSuccess(rendered);}
+     // A verified same-publisher relocation may still be a client-rendered
+     // shell (for example NNA). Reuse the authorized exact-article fallback;
+     // helperArticle still validates its original URL and redirect evidence.
+     if(options.articleFallback){const rendered=helperArticle(await options.articleFallback(claim),'publisher_redirect_fallback');if(rendered)return fallbackSuccess(rendered);}
      redirectFailure=new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'ARTICLE_REDIRECT_TEXT_UNAVAILABLE'});return {stage:'HTTP',status:'POLICY_DENIED'};
     }
     return fallbackSuccess({...item,originalSourceReference:document.url});

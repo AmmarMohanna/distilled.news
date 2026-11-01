@@ -108,9 +108,10 @@ it('per-feed dispatch gives a quiet feed slots even when another has a large bac
  const statements=[];
  for(let i=0;i<40;i++)for(const feed of ['scale-0001','scale-0002'])statements.push(ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at) VALUES(?,?,?,?,?)').bind(`${feed}-${i}`,JSON.stringify({scope:{feedId:feed}}),'hash','[]','1970-01-01T00:00:00.000Z'));
  await ctx.db.batch(statements);messages.length=0;
- expect(await dispatchConnectorPolls(env,'scale-0001',3000)).toBe(1);
- expect(await dispatchConnectorPolls(env,'scale-0002',3000)).toBe(1);
- expect(messages.map(m=>(m as {body:{feedId:string}}).body.feedId)).toEqual(['scale-0001','scale-0002']);
+ expect(await dispatchConnectorPolls(env,'scale-0001',3000)).toBe(2);
+ expect(await dispatchConnectorPolls(env,'scale-0002',3000)).toBe(2);
+ expect(messages.map(m=>(m as {body:{feedId:string}}).body.feedId)).toEqual(['scale-0001','scale-0001','scale-0002','scale-0002']);
+ expect(await dispatchConnectorPolls(env,'scale-0001',3001)).toBe(0);
 });
 
 it('a failed mixed-family send releases both atomic claims for retry',async()=>{

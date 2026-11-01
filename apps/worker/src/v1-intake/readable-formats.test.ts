@@ -7,6 +7,19 @@ const prose='Officials published a detailed investigation describing the affecte
 const body=prose.repeat(6);
 const claim={job:{id:'job'},candidate:{id:'candidate'},input:{observation:{id:'obs',feedId:'feed',feedSourceId:'source',sourceId:'publisher',canonicalUrl:url,representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL'}}} as AcquisitionClaim;
 const router=(text:string,contentType='text/html')=>createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00.000Z',preferFullArticle:true,publicGet:async()=>({url,body:text,contentType,status:200})});
+it.each(['exact','foreign-result','wrong-headline'] as const)('uses the existing fallback for a verified publisher relocation with a client-rendered body (%s)',async mode=>{
+ const target='https://publisher.example/news/224932/original-story',headline='Minister discusses media cooperation with the ambassador';
+ const candidate={...claim,input:{...claim.input,observation:{...claim.input.observation,titleHint:headline}}};
+ const html=`<link rel="canonical" href="${target}"><meta property="og:type" content="article"><meta property="og:title" content="${mode==='wrong-headline'?'An entirely different story':headline}"><div id="client-root"></div>`;
+ const fallback=vi.fn(async()=>({status:200,url:mode==='foreign-result'?'https://other.example/unrelated':url,canonicalUrl:url,pageKind:'article',title:headline,body}));
+ const acquire=createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00Z',preferFullArticle:true,publicGet:async()=>({url:target,body:html,contentType:'text/html',status:200}),articleFallback:fallback});
+ if(mode==='exact'){
+  expect(await acquire(candidate)).toMatchObject({body,sourceObservationId:'obs',canonicalUrl:url});expect(fallback).toHaveBeenCalledWith(candidate);
+ }else{
+  await expect(acquire(candidate)).rejects.toMatchObject({code:mode==='wrong-headline'?'INVALID_RESULT':'EXTRACTION_FAILED'});
+  expect(fallback).toHaveBeenCalledTimes(mode==='wrong-headline'?0:1);
+ }
+});
 it('extracts source-owned prose without requiring a supported URL layout or article metadata',async()=>{
  const html='<nav>Unrelated navigation</nav><main><h1>Investigation</h1><div class="article-body"><p>'+prose.repeat(3)+'</p><p>'+prose.repeat(3)+'</p></div><h2><a href="/related">Related article</a></h2><h2><a href="/another">Another article</a></h2></main>';
  expect(isWebsiteListingUrl(url)).toBe(true);

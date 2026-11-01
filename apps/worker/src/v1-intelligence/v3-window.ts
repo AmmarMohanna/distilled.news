@@ -152,9 +152,10 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
    const coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(coverage.pendingJobs)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
-    const collection=await pendingWindowCollections(env.DB,feedId,window.end,true);
+    const collection=await pendingWindowCollections(env.DB,feedId,window.end,true,Date.parse(now()));
     if(collection.pending)throw new HandoffError('TEMPORARY_UNAVAILABLE');
     if(collection.continuing){coverage.state='INCOMPLETE';coverage.failures.push({kind:'COLLECTION',code:'COLLECTION_CONTINUING_AFTER_CUTOFF',count:collection.continuing});}
+    if(collection.unavailable){coverage.state='INCOMPLETE';coverage.failures.push({kind:'COLLECTION',code:'COLLECTION_BACKPRESSURE_AT_DEADLINE',count:collection.unavailable});coverage.unavailableCollections=collection.unavailableSources;}
    }
    const active=await store.activeEvidenceRevisionIds(feedId);if(frozen.evidenceRevisionIds.some(r=>!active.has(r)))throw new HandoffError('SCOPE_DENIED');
    const result=completed.result;

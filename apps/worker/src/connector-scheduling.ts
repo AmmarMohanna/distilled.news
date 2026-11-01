@@ -15,6 +15,7 @@ const tables={rss:'connector_rss_poll_jobs',provider:'connector_provider_poll_jo
 const DELIVERY_LEASE_MS=120_000;
 const POLL_DELIVERY_MS=360_000;
 export const FEED_DISPATCH_BATCH=100;
+function pollDiagnostic(value:Record<string,unknown>){try{console.info(JSON.stringify(value));}catch{/* Observations cannot change dispatch or recovery authority. */}}
 
 /** Dispatch generations are transport bookkeeping, never canonical job/model
  * identity. Strip metadata before strict parsers and canonical journaling. */
@@ -78,7 +79,7 @@ export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueu
  * collection windows do not hold this boundary; blocked sources are reported
  * separately as unavailable and remain visible to operators/readers. */
 export async function collectionReadyForWindow(env:Env,feedId:string,end:string,id:string,now=Date.now()){
- const {pending}=await pendingWindowCollections(env.DB,feedId,end,env.BRIEFING_ENGINE==='v3');
+ const {pending}=await pendingWindowCollections(env.DB,feedId,end,env.BRIEFING_ENGINE==='v3',now);
  if(pending)await env.DB.prepare('INSERT INTO connector_publication_waits(request_id,feed_id,window_end,pending_collections,checked_at) VALUES(?,?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET pending_collections=excluded.pending_collections,checked_at=excluded.checked_at WHERE pending_collections<>excluded.pending_collections').bind(id,feedId,end,pending,new Date(now).toISOString()).run();
  else await env.DB.prepare('DELETE FROM connector_publication_waits WHERE request_id=?').bind(id).run();
  return pending===0;
@@ -107,22 +108,28 @@ export async function connectorDownstreamEnv(env:Env,body:DistilledQueueMessage)
 
 /** Indexed per-feed pending-job discovery keeps a prolific feed from taking all
  * dispatch slots. Stable poll IDs retain paid submission/pagination identities. */
-export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(),perKind=1){
+export async function dispatchConnectorPolls(env:Env,feedId:string,now=Date.now(),perKind=2,onlyKind?:'rss'|'provider'){
  requireConnectorQueues(env);
  if(!env.SOURCE_COLLECTION_QUEUE)throw Error('SOURCE_COLLECTION_QUEUE_REQUIRED');
  if(!Number.isSafeInteger(perKind)||perKind<1||perKind>4)throw Error('INVALID_POLL_DISPATCH_LIMIT');
- const kinds=['rss','provider'] as const,token=crypto.randomUUID();
+ const kinds=onlyKind?[onlyKind]:['rss','provider'] as const,token=crypto.randomUUID();
  const claims=kinds.map(kind=>{
   const table=tables[kind];
   return env.DB.prepare(`UPDATE ${table} SET dispatch_until=?,dispatch_token=? WHERE job_id IN (
    SELECT job_id FROM ${table} WHERE json_extract(request,'$.scope.feedId')=? AND state='PENDING' AND due_at<=?
-   AND dispatch_until<=? AND (lease_until IS NULL OR lease_until<=?) ${kind==='provider'?"AND COALESCE(json_extract(request,'$.source.family'),'')<>'telegram'":''} ORDER BY due_at,job_id LIMIT ?) RETURNING job_id`)
-   .bind(now+POLL_DELIVERY_MS,token,feedId,new Date(now).toISOString(),now,new Date(now).toISOString(),perKind);
+   AND dispatch_until<=? AND (lease_until IS NULL OR lease_until<=?) ${kind==='provider'?"AND COALESCE(json_extract(request,'$.source.family'),'')<>'telegram'":''}
+   ORDER BY CASE WHEN ?=1 THEN 0 WHEN EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.feed_id=? AND r.kind='briefing_requests'
+    AND json_extract(r.json,'$.state')='PENDING' AND json_extract(r.json,'$.window.end')<=?
+    AND ${table}.scheduled_at<>'' AND ${table}.scheduled_at<json_extract(r.json,'$.window.end')) THEN 0 ELSE 1 END,due_at,job_id
+   LIMIT MAX(0,?-(SELECT COUNT(*) FROM ${table} active WHERE json_extract(active.request,'$.scope.feedId')=? AND active.state='PENDING' AND active.dispatch_until>? ${kind==='provider'?"AND COALESCE(json_extract(active.request,'$.source.family'),'')<>'telegram'":''}))) RETURNING job_id,scheduled_at`)
+   .bind(now+POLL_DELIVERY_MS,token,feedId,new Date(now).toISOString(),now,new Date(now).toISOString(),new Date(now).getUTCMinutes()%5===0?1:0,feedId,new Date(now).toISOString(),perKind,feedId,now);
  });
  const results=await env.DB.batch(claims);
- const messages=results.flatMap((rows,index)=>(rows.results as {job_id:string}[]).map(row=>({body:{type:'connector_poll',feedId,jobId:row.job_id,table:kinds[index],token} as ConnectorQueueMessage})));
+ const messages=results.flatMap((rows,index)=>(rows.results as {job_id:string;scheduled_at:string}[]).map(row=>({body:{type:'connector_poll',feedId,jobId:row.job_id,table:kinds[index],token} as ConnectorQueueMessage})));
  if(!messages.length)return 0;
- try{await env.SOURCE_COLLECTION_QUEUE.sendBatch(messages);return messages.length;}
+ try{await env.SOURCE_COLLECTION_QUEUE.sendBatch(messages);
+  for(const [index,result] of results.entries())for(const row of result.results as {job_id:string;scheduled_at:string}[])pollDiagnostic({type:'CONNECTOR_POLL_DISPATCH',feedId,jobId:row.job_id,family:kinds[index],scheduledAt:row.scheduled_at||null,dispatchedAt:new Date(now).toISOString()});
+  return messages.length;}
  catch(error){await env.DB.batch(kinds.map(kind=>env.DB.prepare(`UPDATE ${tables[kind]} SET dispatch_until=?,dispatch_token=NULL WHERE dispatch_token=?`).bind(now+30_000,token)));throw error;}
 }
 
@@ -193,7 +200,7 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
  }else{
   if(!Object.hasOwn(tables,body.table))throw Error('INVALID_CONNECTOR_MESSAGE');
   const table=tables[body.table];
-  const job=await env.DB.prepare(`SELECT job_id,${body.table==='provider'?"json_extract(request,'$.source.family')":"'rss'"} AS family FROM ${table} WHERE job_id=? AND dispatch_token=? AND json_extract(request,'$.scope.feedId')=?`).bind(body.jobId,body.token,body.feedId).first<{family:string}>();
+  const job=await env.DB.prepare(`SELECT job_id,scheduled_at,${body.table==='provider'?"json_extract(request,'$.source.family')":"'rss'"} AS family FROM ${table} WHERE job_id=? AND dispatch_token=? AND json_extract(request,'$.scope.feedId')=?`).bind(body.jobId,body.token,body.feedId).first<{family:string;scheduled_at:string}>();
   if(!job)return;
   let scoped=await feedEnv(env,body.feedId);
   const unpaidOnly=!!scoped&&!!await env.DB.prepare("SELECT 1 FROM connector_queue_recovery WHERE id=? AND kind='UNPAID_POLL_RECOVERY' AND feed_id=?").bind(unpaidPollRecoveryId(body.table,body.jobId),body.feedId).first();
@@ -201,13 +208,18 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
   if(!scoped){await env.DB.prepare(`UPDATE ${table} SET state='CANCELLED',dispatch_until=0,dispatch_token=NULL WHERE job_id=? AND dispatch_token=?`).bind(body.jobId,body.token).run();if(job.family==='telegram')await dispatchTelegramLane(env);return;}
   const backend=createConnectorRuntime(scoped,undefined,unpaidOnly?true:undefined);
   // Budget configuration is installed before scheduling, never by a source input.
+  const pollStarted=Date.now();
   const state=await (body.table==='rss'?backend.rssScheduler:backend.scheduler).runOne(300_000,body.jobId);
+  pollDiagnostic({type:'CONNECTOR_POLL_LATENCY',feedId:body.feedId,jobId:body.jobId,family:body.table,scheduledAt:job.scheduled_at||null,consumerStartedAt:new Date(pollStarted).toISOString(),durationMs:Date.now()-pollStarted,outcome:state});
   const release=env.DB.prepare(`UPDATE ${table} SET dispatch_until=0,dispatch_token=NULL WHERE job_id=? AND dispatch_token=?`).bind(body.jobId,body.token);
   if(state==='LEASE_LOST'){await release.run();throw new HandoffError('TEMPORARY_UNAVAILABLE');}
   // Persist continuation wakeup together with delivery release; relay failures
   // cannot strand a completed page or an eligible pending continuation.
   await env.DB.batch([release,env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),body.feedId)]);
   await continueConnectorIntake(scoped,body.feedId,body.jobId,body.table);
+  // Refill this bounded lane on completion; do not wait for another Cron scan
+  // or flood the other family. Live dispatch leases count against the cap.
+  await dispatchConnectorPolls(scoped,body.feedId,Date.now(),2,body.table);
   if(job.family==='telegram')await dispatchTelegramLane(env);
   await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});
   // Finish one page, then yield: other feeds run before this continuation.

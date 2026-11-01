@@ -2,6 +2,8 @@ import {beforeAll,afterAll,beforeEach,it,expect} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {pendingWindowCollections} from './connector-publication-coverage';
 import {readFileSync} from 'node:fs';
+import {feedSourceAvailability} from './connector-availability';
+import type {Env} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 const end='2026-10-28T22:32:09.437Z';
 beforeAll(async()=>{
@@ -42,6 +44,31 @@ it.each(['before','unresolved','missing-receipt','unknown-observation','earlier-
 });
 it('never gates a poll scheduled at or after the cutoff',async()=>{
  await poll(null,{scheduledAt:end});expect(await pendingWindowCollections(ctx.db,'feed',end,true)).toMatchObject({pending:0});
+});
+it('yields confirmed capacity refusal exactly at delivery, retaining the original recoverable poll',async()=>{
+ await poll(null,{family:'website'});
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET last_error='BACKPRESSURE',result=NULL WHERE job_id='poll'").run();
+ const deadline=Date.parse(end)+300000;
+ const original=await ctx.db.prepare("SELECT * FROM connector_provider_poll_jobs WHERE job_id='poll'").first();
+ expect(await pendingWindowCollections(ctx.db,'feed',end,true,deadline-1)).toMatchObject({pending:1,unavailable:0});
+ expect(await pendingWindowCollections(ctx.db,'feed',end,true,deadline)).toMatchObject({pending:0,unavailable:1,unavailableSources:[{id:'source',title:'Telegram',count:1}]});
+ expect(await pendingWindowCollections(ctx.db,'feed',end,false,deadline)).toMatchObject({pending:1,unavailable:0});
+ expect(await ctx.db.prepare("SELECT * FROM connector_provider_poll_jobs WHERE job_id='poll'").first()).toEqual(original);
+});
+it.each(['captured','uncertain','unknown','missing-time','live-lease'] as const)('never bypasses %s work at the capacity deadline',async mode=>{
+ await poll(mode==='captured'?{state:'HANDED_OFF',request:{observations:[{id:'old',observedAt:'2026-10-28T22:00:00Z'}]}}:null,{family:'website'});
+ await ctx.db.prepare('UPDATE connector_provider_poll_jobs SET last_error=?,scheduled_at=? WHERE job_id=?').bind(mode==='uncertain'?'UNCERTAIN_PAID_SUBMISSION':mode==='unknown'?null:'BACKPRESSURE',mode==='missing-time'?'':'2026-10-28T22:00:00Z','poll').run();
+ if(mode==='live-lease')await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET lease_until='2026-10-28T23:00:00Z' WHERE job_id='poll'").run();
+ expect(await pendingWindowCollections(ctx.db,'feed',end,true,Date.parse(end)+300000)).toMatchObject({pending:1,unavailable:0});
+});
+it('reports a current capacity refusal despite an earlier success and clears it only on recovery',async()=>{
+ await poll(null,{family:'telegram'});
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET last_error='BACKPRESSURE',result=NULL WHERE job_id='poll'").run();
+ await ctx.db.prepare("INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at,scheduled_at,state) SELECT 'old-success',request,initial_hash,provider_order,due_at,'2026-10-28T21:00:00Z','DONE' FROM connector_provider_poll_jobs WHERE job_id='poll'").run();
+ const env={DB:ctx.db,SOURCE_CONNECTORS_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_COLLECTION_BUDGET_MODE:'unlimited',SOURCE_EXECUTION_URL:'http://127.0.0.1:8790/v1/source-execution',SOURCE_EXECUTION_TOKEN:'fixture-only',SOURCE_EXECUTION_SERVICE:{}} as unknown as Env;
+ expect((await feedSourceAvailability(env,'feed'))[0]).toMatchObject({collectionError:'BACKPRESSURE'});
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='DONE',last_error=NULL WHERE job_id='poll'").run();
+ expect((await feedSourceAvailability(env,'feed'))[0].collectionError).toBeUndefined();
 });
 it('does not apply the Telegram exception to a bounded request or another provider',async()=>{
  await poll(laterPage(),{bounds:{endTime:end}});expect(await pendingWindowCollections(ctx.db,'feed',end,true)).toMatchObject({pending:1});
