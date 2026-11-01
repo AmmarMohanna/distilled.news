@@ -11,6 +11,7 @@
   "preview_urls": false,
   "routes": [],
   "vars": {
+    "V3_BACKLOG_CATCHUP_ENABLED": "true",
     "PUBLIC_API_BASE_URL": "https://distilled-news-sources-qa.distillednews-platform.workers.dev",
     "PUBLIC_WEB_BASE_URL": "https://distilled-news-sources-qa.distillednews-platform.workers.dev",
     "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",

@@ -39,6 +39,7 @@ import {withSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import {SemanticContentionError} from './semantic-operations';
 import {prepareSemanticShortlist,shortlistInTransaction} from './shortlist';
 import {orderedPendingWindows,editorialWindowAwaitingRecovery} from './window-delivery';
+import {materializeV3Catchup,supersedeUnstartedV3Windows,V3_CATCHUP_LIMIT} from './window-catchup';
 import {prepareEditorialPlan} from './editorial-plan';
 import {createStrongSemanticModel} from './semantic-model';
 import type {FeedRecord} from './types';
@@ -47,7 +48,7 @@ import {publicationWindowSchema,livePublicationWindow,preparingLiveWindow,nextLi
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
-export interface BriefingRequest {engine?:'v2'|'v3';v3InputId?:string;coverage?:WindowIntakeCoverage;semanticCoverage?:{unresolvedTargets:unknown[]};id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
+export interface BriefingRequest {catchup?:{policy:'v3-unstarted-backlog-v1';supersededBy:string;at:string};engine?:'v2'|'v3';v3InputId?:string;coverage?:WindowIntakeCoverage;semanticCoverage?:{unresolvedTargets:unknown[]};id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
 export const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
@@ -337,6 +338,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
   let window=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);
+  const latestWindow=window,catchup=env.V3_BACKLOG_CATCHUP_ENABLED==='true'&&productV3Enabled(env);
   if(feed.briefingSchedule?.clockStartAt){
    const schedule=feed.briefingSchedule,clockStartAt=schedule.clockStartAt!;
    const last=await env.DB.prepare(`SELECT json_extract(json,'$.window.end') AS end FROM v1_feed_documents
@@ -350,12 +352,32 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   else if(feed.briefingSchedule?.originAt&&feed.briefingSchedule.durationMinutes<1440){
    // Materialize one consecutive close per tick, including after an outage or
    // a shorter interval edit. Retained requests keep their original windows.
-   const schedule=feed.briefingSchedule,requests=await store.list<BriefingRequest>(id,'briefing_requests');
-   const through=requests.reduce((end,r)=>r.window.originAt===schedule.originAt&&r.window.durationMinutes===schedule.durationMinutes?Math.max(end,Date.parse(r.window.end)):end,Date.parse(schedule.originAt!));
+   const schedule=feed.briefingSchedule;
+   const last=await env.DB.prepare("SELECT json_extract(json,'$.window.end') AS end FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.originAt')=? AND json_extract(json,'$.window.durationMinutes')=? ORDER BY json_extract(json,'$.window.end') DESC LIMIT 1").bind(id,schedule.originAt!,schedule.durationMinutes).first<{end:string}>();
+   const through=Math.max(Date.parse(schedule.originAt!),last?Date.parse(last.end):0);
    const next=through+schedule.durationMinutes*60000;
    if(next<=Date.parse(window.end))window=livePublicationWindow(schedule,new Date(next));
   }
   if(Date.parse(window.end)>now.getTime())continue;
+  if(catchup&&Date.parse(window.end)<Date.parse(latestWindow.end)){
+   let caughtUp=false;
+   await maintenance(id,'V3_CATCHUP_MATERIALIZATION',async()=>{
+   const windows:PublicationWindow[]=[];let cursor=window;
+   while(windows.length<V3_CATCHUP_LIMIT&&Date.parse(cursor.end)<=Date.parse(latestWindow.end)){
+    if(!isAutomaticReportingWindow(cursor)||Date.parse(cursor.start)<Date.parse(feed.createdAt))throw new HandoffError('INVALID_REQUEST');
+    windows.push(cursor);if(Date.parse(cursor.end)===Date.parse(latestWindow.end))break;
+    const delivery=feed.briefingSchedule?nextLiveBriefingAt(feed.briefingSchedule,new Date(cursor.scheduledFor??cursor.end)):undefined;
+    const next=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,new Date(Date.parse(delivery!)-(feed.briefingSchedule.clockStartAt?DELIVERY_LEAD_MS:0))):publicationWindow(feed.briefingFrequency,new Date(Date.parse(cursor.end)+(Date.parse(cursor.end)-Date.parse(cursor.start))));
+    if(Date.parse(next.start)!==Date.parse(cursor.end)||Date.parse(next.end)<=Date.parse(cursor.end))throw new HandoffError('INVALID_REQUEST');
+    cursor=next;
+   }
+   await materializeV3Catchup(store,id,windows,now.toISOString(),w=>windowIdentity(id,w));
+   console.info(JSON.stringify({type:'V3_CATCHUP_MATERIALIZATION',feedId:id,windows:windows.length,through:windows.at(-1)!.end,target:latestWindow.end}));
+   caughtUp=Date.parse(windows.at(-1)!.end)===Date.parse(latestWindow.end);
+   });
+   if(!caughtUp)continue;
+   window=latestWindow;
+  }
   const editionId=await windowIdentity(id,window);
   // Preparation is a read-through mechanical shortlist, not an early edition
   // or a frozen paid editorial decision. Final arrivals are reloaded at close.
@@ -388,6 +410,13 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
   if(!await store.read(id,'editions',editionId)) await feedTransact(store,id,async tx=>{
    if(!await tx.read('briefing_requests',editionId)) await tx.write('briefing_requests',editionId,{id:editionId,feedId:id,window,state:'PENDING',attempts:0,createdAt:now.toISOString(),engine:productV3Enabled(env)?'v3':'v2'} satisfies BriefingRequest);
   });
+  let catchupSettling=catchup;
+  if(catchup)await maintenance(id,'V3_BACKLOG_CATCHUP',async()=>{
+   const superseded=await supersedeUnstartedV3Windows(store,id,editionId,now.toISOString(),isAutomaticReportingWindow);
+   catchupSettling=superseded.length===V3_CATCHUP_LIMIT;
+   if(superseded.length)console.info(JSON.stringify({type:'V3_BACKLOG_CATCHUP',feedId:id,targetWindowId:editionId,superseded:superseded.length,policy:'v3-unstarted-backlog-v1'}));
+  });
+  if(catchupSettling)continue;
   // Reobserving an unchanged wait is read-only: an epoch bump every minute
   // would fence slow reassessment/publication work for other windows too.
   // A wait label is written once on entry and cleared once on release; unchanged observations stay read-only.

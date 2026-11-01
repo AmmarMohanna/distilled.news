@@ -276,3 +276,56 @@ it('applies the staging development limit to selected publication work without d
  const selection=vi.spyOn(await import('./scoring'),'scoreAndSelect').mockResolvedValue({selectedCandidateIds:['a','b','c','d']} as any),writer=vi.spyOn(publicationModule,'publishSelection');
  try{await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetch,{maxSelectedDevelopments:3})).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(writer).not.toHaveBeenCalled();expect(await store.list('feed-1','events')).toEqual(before)}finally{selection.mockRestore();writer.mockRestore()}
 });
+
+it.each([false,true])('V3 catch-up opt-in (%s) changes recovery order without changing original windows',async enabled=>{
+ await store.registerFeed({...feedFixture,revision:2,createdAt:'2026-10-03T08:00:00Z',briefingFrequency:'HOURLY'});
+ env={...env,BRIEFING_ENGINE:'v3',OPENROUTER_API_KEY:'fixture-only',V3_BACKLOG_CATCHUP_ENABLED:String(enabled)};
+ const older={start:'2026-10-03T10:00:00Z',end:'2026-10-03T11:00:00Z',kind:'HOURLY' as const},oldId=await windowIdentity('feed-1',older);
+ await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',oldId,{id:oldId,feedId:'feed-1',window:older,engine:'v3',state:'PENDING',attempts:0,createdAt:older.end}));
+ expect(await dispatchV1Intelligence(env,new Date('2026-10-03T13:00:00Z'))).toBe(1);
+ const message=sent.find(m=>m.type==='v1_briefing') as Extract<DistilledQueueMessage,{type:'v1_briefing'}>;
+ expect(message.window.end).toBe(enabled?'2026-10-03T13:00:00.000Z':older.end);
+ expect(await store.read('feed-1','briefing_requests',oldId)).toMatchObject({window:older,state:enabled?'DONE':'PENDING',...(enabled?{result:'DEFERRED',reason:'SUPERSEDED_BY_LATER_WINDOW'}:{})});
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},30000);
+
+it('materializes consecutive missed clock windows before dispatching the current delivery',async()=>{
+ const created='2026-10-03T00:08:40.123Z',schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:created,clockPolicy:'clock-aligned-delivery-v2' as const};
+ await store.registerFeed({...feedFixture,revision:2,createdAt:created,briefingFrequency:'30M',briefingSchedule:schedule});
+ env={...env,BRIEFING_ENGINE:'v3',OPENROUTER_API_KEY:'fixture-only',V3_BACKLOG_CATCHUP_ENABLED:'true'};
+ expect(await dispatchV1Intelligence(env,new Date('2026-10-03T04:30:00Z'))).toBe(1);
+ const requests=(await store.list<any>('feed-1','briefing_requests')).sort((a,b)=>a.window.end.localeCompare(b.window.end));
+ expect(requests).toHaveLength(9);expect(requests[0].window.start).toBe(created);
+ for(let i=1;i<requests.length;i++)expect(requests[i].window.start).toBe(requests[i-1].window.end);
+ expect(requests.slice(0,-1).every(r=>r.state==='DONE'&&r.result==='DEFERRED')).toBe(true);
+ expect(requests.at(-1)).toMatchObject({state:'PENDING',window:{end:'2026-10-03T04:25:00.000Z',scheduledFor:'2026-10-03T04:30:00.000Z'}});
+ expect(requests.every(r=>r.createdAt==='2026-10-03T04:30:00.000Z')).toBe(true);
+ expect(sent.filter(m=>m.type==='v1_briefing')).toMatchObject([{window:{end:'2026-10-03T04:25:00.000Z'}}]);
+},30000);
+
+it('large outages use bounded mechanical passes and make no catch-up model calls before reaching the current window',async()=>{
+ const created='2026-10-03T00:08:40.123Z',schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:created,clockPolicy:'clock-aligned-delivery-v2' as const};
+ await store.registerFeed({...feedFixture,revision:2,createdAt:created,briefingFrequency:'30M',briefingSchedule:schedule});
+ env={...env,BRIEFING_ENGINE:'v3',OPENROUTER_API_KEY:'fixture-only',V3_BACKLOG_CATCHUP_ENABLED:'true'};
+ const at=new Date('2026-10-04T12:00:00Z');
+ expect(await dispatchV1Intelligence(env,at)).toBe(0);expect(await store.list('feed-1','briefing_requests')).toHaveLength(50);
+ expect(await dispatchV1Intelligence(env,at)).toBe(0);
+ expect(await dispatchV1Intelligence(env,at)).toBe(1);
+ const requests=await store.list<any>('feed-1','briefing_requests');expect(requests).toHaveLength(72);
+ expect(requests.filter(r=>r.state==='PENDING')).toHaveLength(1);
+ expect(sent.filter(m=>m.type==='v1_briefing')).toMatchObject([{window:{end:'2026-10-04T11:55:00.000Z'}}]);
+ expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+},60000);
+
+it('daily catch-up preserves the selected local delivery time and the DST transition',async()=>{
+ const created='2026-10-31T00:10:00.000Z',schedule={durationMinutes:1440 as const,timezone:'America/New_York',deliveryAnchor:'08:00',clockStartAt:created,clockPolicy:'clock-aligned-delivery-v2' as const};
+ await store.registerFeed({...feedFixture,revision:2,createdAt:created,briefingFrequency:'DAILY',briefingSchedule:schedule});
+ env={...env,BRIEFING_ENGINE:'v3',OPENROUTER_API_KEY:'fixture-only',V3_BACKLOG_CATCHUP_ENABLED:'true'};
+ expect(await dispatchV1Intelligence(env,new Date('2026-11-02T13:00:00Z'))).toBe(1);
+ const requests=(await store.list<any>('feed-1','briefing_requests')).sort((a,b)=>a.window.end.localeCompare(b.window.end));
+ expect(requests.map(r=>r.window.scheduledFor)).toEqual(['2026-10-31T12:00:00.000Z','2026-11-01T13:00:00.000Z','2026-11-02T13:00:00.000Z']);
+ expect(requests[0].window.start).toBe(created);
+ expect(requests[1].window.start).toBe(requests[0].window.end);expect(requests[2].window.start).toBe(requests[1].window.end);
+ expect(Date.parse(requests[1].window.end)-Date.parse(requests[1].window.start)).toBe(25*3600000);
+ expect(sent.filter(m=>m.type==='v1_briefing')).toMatchObject([{window:{scheduledFor:'2026-11-02T13:00:00.000Z'}}]);
+},30000);

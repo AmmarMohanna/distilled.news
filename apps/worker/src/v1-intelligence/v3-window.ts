@@ -41,15 +41,14 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const retryIds=await store.carryEvidenceIds(feedId,evidence.map(e=>e.revision.id));
  const observedAt=new Map(evidence.map(e=>[e.revision.id,e.observedAt]));
  const beforeClose=(r:Pick<EvidenceRevision,'id'|'acceptedAt'>)=>Date.parse(observedAt.get(r.id)??r.acceptedAt)<Date.parse(window.end);
- const active=evidence.filter(({revision:r})=>{
-  if(!beforeClose(r))return false;
-  if(previouslyUsed.has(r.id)&&!retryIds.has(r.id))return false;
-  const eligibility=newsWindowEligibility([r],window,feed.createdAt);
-  const revised=previousEvidenceIds.has(r.evidenceId)&&Date.parse(r.acceptedAt)>=Date.parse(window.start);
+ const eligibleIn=(r:Pick<EvidenceRevision,'id'|'publishedAt'|'acceptedAt'|'evidenceId'>,reporting:PublicationWindow)=>{
+  const eligibility=newsWindowEligibility([r],reporting,feed.createdAt);
+  const revised=previousEvidenceIds.has(r.evidenceId)&&Date.parse(r.acceptedAt)>=Date.parse(reporting.start);
   return eligibility==='IN_WINDOW'||eligibility==='LATE_DISCOVERY'||eligibility!=='AFTER_WINDOW'&&(revised||retryIds.has(r.id));
- });
+ };
+ const active=evidence.filter(({revision:r})=>beforeClose(r)&&(!previouslyUsed.has(r.id)||retryIds.has(r.id))&&eligibleIn(r,window));
  const pending=(await store.unresolvedPublicationWindows(feedId)).filter(r=>Date.parse(r.window.end)<=Date.parse(window.start)&&Date.parse(r.window.start)>=Date.parse(feed.createdAt));
- const carried=evidence.filter(({revision:r})=>!active.some(a=>a.revision.id===r.id)&&!previouslyUsed.has(r.id)&&beforeClose(r)&&pending.some(p=>newsWindowEligibility([r],p.window,feed.createdAt)==='IN_WINDOW'));
+ const carried=evidence.filter(({revision:r})=>!active.some(a=>a.revision.id===r.id)&&!previouslyUsed.has(r.id)&&beforeClose(r)&&pending.some(p=>eligibleIn(r,p.window)));
  active.push(...carried);active.sort((a,b)=>a.revision.id.localeCompare(b.revision.id));
  const hydrated=new Map((await store.currentEvidenceByIds(feedId,active.map(e=>e.revision.id))).map(e=>[e.revision.id,e]));
  const selected=active.map(e=>{const full=hydrated.get(e.revision.id);if(!full)throw new HandoffError('TEMPORARY_UNAVAILABLE');return full});
@@ -101,6 +100,9 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   store.transactionQueue={tail:Promise.resolve()};
   const existing=await store.read<BriefingEditionRecord>(feedId,'editions',id);if(existing)return existing;
   const request=await store.read<BriefingRequest>(feedId,'briefing_requests',id);
+  // A previously queued delivery may reach this callback after catch-up
+  // deferred its unstarted request. Never freeze or pay for that old window.
+  if(!request||request.state!=='PENDING'||request.engine!=='v3')return undefined;
   let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',request?.v3InputId??id);
   if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env));snapshot=await feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<V3WindowInput>('v3_window_inputs',id);if(prior)return prior;

@@ -1,5 +1,7 @@
 import * as campaignFault from '../agentops-campaign-fault';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+import {readFileSync} from 'node:fs';
+import {applyTestMigration} from '../test-migrations';
 import {createIntakeDatabase,seedIntakeScope,batchFixture,testPolicy} from '../v1-intake/test-utils';
 import {createCandidateIntakePort} from '../v1-intake/intake';
 import {acceptAcquiredContent} from '../v1-intake/evidence';
@@ -8,16 +10,18 @@ import {feedFixture,acceptEvidence} from './test-utils';
 import {V1FeedStore,feedTransact,FeedTransaction} from './store';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,windowIdentity} from './runtime';
 import {publicV1Edition} from './public-read';
-import {prepareV3Window} from './v3-window';
+import {prepareV3Window,publishProductV3Window} from './v3-window';
+import {supersedeUnstartedV3Windows} from './window-catchup';
+import {isAutomaticReportingWindow} from './runtime';
 import {livePublicationWindow} from './schedule';
 import {readScheduleAudit} from './schedule-audit';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
-async function supersedeFrozenRevision(id:string){
+async function supersedeFrozenRevision(id:string,changes:Record<string,unknown>={}){
  const row=await ctx.db.prepare('SELECT feed_source_id,item_key,json FROM v1_revisions WHERE id=?').bind(id).first<any>();
- const revision=JSON.parse(row.json),next={...revision,id:id+'-new',revision:revision.revision+1};
+ const revision=JSON.parse(row.json),next={...revision,...changes,id:id+'-new',revision:revision.revision+1};
  await ctx.db.prepare('INSERT INTO v1_revisions(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(next.id,row.feed_source_id,row.item_key,JSON.stringify(next)).run();
  await ctx.db.prepare("UPDATE v1_evidence SET json=json_set(json,'$.currentRevisionId',?) WHERE id=?").bind(next.id,revision.evidenceId).run();
  await ctx.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(row.feed_source_id).run();return next.id;
@@ -389,3 +393,46 @@ it('does not load old article bodies to prepare an unchanged current window',asy
  const full=vi.spyOn(store,'currentEvidence');const selected=vi.spyOn(store,'currentEvidenceByIds');const actual=await prepareV3Window(store,'feed-1',window,window.end);
  expect(actual).toEqual(baseline);expect(full).not.toHaveBeenCalled();expect(selected).toHaveBeenCalledWith('feed-1',baseline.evidenceRevisionIds);
 },30000);
+
+it('publishes the newest catch-up window with both ordinary and late-discovered old evidence, without replaying old windows',async()=>{
+ await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0084_v3_catchup_admission.sql',import.meta.url),'utf8'));
+ const oldWindow={...window,start:'2026-10-03T11:30:00Z',end:'2026-10-03T12:00:00Z'},oldId=await windowIdentity('feed-1',oldWindow),targetId=await windowIdentity('feed-1',window),at='2026-10-03T12:34:00Z';
+ await article(1,'2026-10-03T11:40:00Z','2026-10-03T11:45:00Z','2026-10-03T11:44:00Z');
+ await article(2,'2026-10-03T11:10:00Z','2026-10-03T11:46:00Z','2026-10-03T11:44:00Z');
+ await feedTransact(store,'feed-1',async tx=>{for(const [id,w]of [[oldId,oldWindow],[targetId,window]] as const)await tx.write('briefing_requests',id,{id,feedId:'feed-1',window:w,engine:'v3',state:'PENDING',attempts:0,createdAt:w.end});});
+ expect(await supersedeUnstartedV3Windows(store,'feed-1',targetId,at,isAutomaticReportingWindow)).toEqual([oldId]);
+ const prepared=await prepareV3Window(store,'feed-1',window,at);
+ expect(prepared.input.articles.map(a=>a.publishedAt).sort()).toEqual(['2026-10-03T11:10:00Z','2026-10-03T11:40:00Z']);
+ const seen:string[]=[],provider=fetcher(seen) as typeof fetch,message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ const edition=await processV1Briefing(env,message,()=>at,undefined,provider);
+ expect(edition).toMatchObject({id:targetId,engine:'v3',windowStart:window.start,windowEnd:window.end});
+ expect(seen).toHaveLength(2);expect(await publicV1Edition(ctx.db,targetId)).toBeDefined();
+ expect(await processV1Briefing(env,{...message,window:oldWindow},()=>at,undefined,provider)).toBeUndefined();
+ expect(await processV1Briefing(env,message,()=>at,undefined,provider)).toEqual(edition);expect(seen).toHaveLength(2);
+ expect(await store.read('feed-1','editions',oldId)).toBeUndefined();
+ expect(await store.read('feed-1','briefing_requests',oldId)).toMatchObject({state:'DONE',result:'DEFERRED',window:oldWindow});
+ const later=await prepareV3Window(store,'feed-1',{...window,start:window.end,end:'2026-10-03T13:00:00Z'},'2026-10-03T13:00:00Z');
+ expect((later.input.prior??[]).some(item=>item.body.includes('presidential approval'))).toBe(true);
+},30000);
+
+it('keeps an updated revision of previously published evidence available after its unstarted window is superseded',async()=>{
+ await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0084_v3_catchup_admission.sql',import.meta.url),'utf8'));
+ await article();const seen:string[]=[];
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:31:00Z',undefined,fetcher(seen) as typeof fetch);
+ const revised=await supersedeFrozenRevision(edition!.evidenceRevisionIds[0],{acceptedAt:'2026-10-03T12:45:00Z',body:'The publisher corrected the measure: presidential approval is still required.'});
+ const old={...window,start:window.end,end:'2026-10-03T13:00:00Z'},target={...window,start:old.end,end:'2026-10-03T13:30:00Z'},oldId=await windowIdentity('feed-1',old),targetId=await windowIdentity('feed-1',target);
+ await feedTransact(store,'feed-1',async tx=>{for(const [id,w]of [[oldId,old],[targetId,target]] as const)await tx.write('briefing_requests',id,{id,feedId:'feed-1',window:w,engine:'v3',state:'PENDING',attempts:0,createdAt:w.end});});
+ expect(await supersedeUnstartedV3Windows(store,'feed-1',targetId,target.end,isAutomaticReportingWindow)).toEqual([oldId]);
+ const prepared=await prepareV3Window(store,'feed-1',target,target.end);
+ expect(prepared.input.articles).toHaveLength(1);expect(prepared.input.articles[0]).toMatchObject({id:revised,publishedAt:'2026-10-03T12:05:00Z',text:'The publisher corrected the measure: presidential approval is still required.'});
+ expect(prepared.input.prior).toHaveLength(1);
+},30000);
+
+it('a stale publication callback cannot start a model after catch-up deferred its request',async()=>{
+ const id=await windowIdentity('feed-1',window),request={id,feedId:'feed-1',window,engine:'v3',state:'DONE',result:'DEFERRED',reason:'SUPERSEDED_BY_LATER_WINDOW',attempts:0,createdAt:window.end};
+ await feedTransact(store,'feed-1',tx=>tx.write('briefing_requests',id,request));
+ const provider=vi.fn(async()=>{throw Error('No model call for a superseded window');});
+ expect(await publishProductV3Window(env,'feed-1',window,id,()=> '2026-10-03T13:00:00Z',provider as typeof fetch)).toBeUndefined();
+ expect(provider).not.toHaveBeenCalled();expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(0);expect(await store.list('feed-1','semantic_intents')).toHaveLength(0);
+ expect(await store.read('feed-1','briefing_requests',id)).toEqual(request);
+});

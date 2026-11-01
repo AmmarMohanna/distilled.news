@@ -177,6 +177,7 @@ export interface Env extends Cloudflare.Env {
   OPENROUTER_API_KEY?: string;
   /** "v3" switches scheduled editions to the V3 briefing engine; anything else keeps the legacy path. */
   BRIEFING_ENGINE?: string;
+  V3_BACKLOG_CATCHUP_ENABLED?: string;
   /** Isolated performance deployment only. All are disabled by default. */
   AGENTOPS_CAMPAIGN_ENABLED?: string;
   AGENTOPS_CAMPAIGN_ISOLATED?: string;
