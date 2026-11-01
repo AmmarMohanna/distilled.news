@@ -1608,6 +1608,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const pageDir = textDirection(language);
   const canStar = Boolean(payload);
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
+  const compactFeedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language, true) : "";
   const reportEdition = selectedReport
     ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
     : undefined;
@@ -1734,7 +1735,7 @@ function FeedPage(props: { username: string; slug: string }) {
             />
           </form>
         </div>
-        {feedStatusMessage&&<span className="feed-check-status"><Clock3 size={18} aria-hidden/>{feedStatusMessage}</span>}
+        {feedStatusMessage&&<span className={`feed-check-status${compactFeedStatusMessage !== feedStatusMessage ? " has-compact-label" : ""}`} role="status" aria-label={feedStatusMessage} title={feedStatusMessage}><Clock3 size={18} aria-hidden/><span className="feed-check-status-full" aria-hidden>{feedStatusMessage}</span><span className="feed-check-status-compact" aria-hidden>{compactFeedStatusMessage}</span></span>}
         {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
           key={JSON.stringify([account.id,props.username,props.slug])}
           readerId={account.id}
@@ -2573,13 +2574,14 @@ function formatCountdown(isoDate: string, nowMs: number, language: "en" | "ar" |
   return `in ${days}d`;
 }
 
-function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr"): string {
+function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr", compact = false): string {
   if (briefing.paused) return pausedFeedMessage(language);
   if (!briefing.nextBriefingAt) return "";
   const nextAt = new Date(briefing.nextBriefingAt).getTime();
   if (!Number.isFinite(nextAt)) return "";
   if (nextAt <= nowMs) return awaitingAcceptedBriefMessage(briefing.briefingCadence, language);
   const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language);
+  if (compact && countdown) return `${language === "ar" ? "التالي" : language === "fr" ? "Brief" : "Next"} ${countdown}`;
   return countdown ? nextBriefingText(briefing.briefingCadence, countdown, language) : "";
 }
 

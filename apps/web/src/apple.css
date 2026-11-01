@@ -2931,6 +2931,18 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 
 /* Translated guest navigation keeps the same slots on mobile feed readers. */
+.feed-check-status-compact { display: none; }
+@media (max-width: 700px) {
+  .feed-check-status.has-compact-label .feed-check-status-full { display: none; }
+  .feed-check-status.has-compact-label .feed-check-status-compact { display: inline; }
+  :root.apple-ui.apple-ui .feed-shell .feed-tools:has(.feed-check-status.has-compact-label) :is(.feed-check-status, .unread-summary-button) {
+    white-space: nowrap; overflow-wrap: normal; gap: 4px; padding-inline: 6px; font-size: .75rem;
+  }
+  :root.apple-ui.apple-ui .feed-shell .feed-tools:has(.feed-check-status.has-compact-label) :is(.feed-check-status, .unread-summary-button) > svg { width: 14px; height: 14px; }
+}
+@media (max-width: 360px) {
+  :root.apple-ui.apple-ui .feed-shell .feed-tools:has(.feed-check-status.has-compact-label) :is(.feed-check-status, .unread-summary-button) { font-size: .6875rem; }
+}
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest {
     --guest-back-width: 100px;
