@@ -9,6 +9,7 @@ import {requireConnectorQueues} from './connector-queue-config';
 import {reserveConnectorWork,releaseConnectorWork} from './connector-work-admission';
 import {pendingWindowCollections} from './connector-publication-coverage';
 import {dispatchReadyConnectorBriefing} from './connector-briefing-priority';
+import {canonicalJson} from './v1-intake/canonical';
 
 export type ConnectorQueueMessage={type:'connector_feed';feedId:string;token:string}|{type:'connector_poll';feedId:string;jobId:string;table:'rss'|'provider';token:string}|{type:'connector_relay';feedId:string};
 const tables={rss:'connector_rss_poll_jobs',provider:'connector_provider_poll_jobs'} as const;
@@ -57,7 +58,7 @@ export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueu
   const {body}=decodeConnectorDelivery(raw);
   if(!body.type?.startsWith('v1_')&&body.type!=='connector_relay')return env.PROCESSING_QUEUE.send(body,options);
   const id=await sha256(JSON.stringify(body)),token=crypto.randomUUID();
-  if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now))return false as never;
+  if(body.type==='v1_briefing'&&!await collectionReadyForWindow(env,body.feedId,body.window.end,id,now,body.window.start))return false as never;
   const claimed=await env.DB.prepare(`INSERT INTO connector_queue_dispatch(kind,id,available_ms,token) VALUES(?,?,?,?)
    ON CONFLICT(kind,id) DO UPDATE SET available_ms=excluded.available_ms,token=excluded.token,sends=sends+1,last_error=NULL WHERE available_ms<=? RETURNING id`).bind(body.type,id,now+DELIVERY_LEASE_MS,token,now).first();
   if(!claimed)return false as never;
@@ -78,8 +79,13 @@ export function coalescedProcessingQueue(env:Env,at?:number):Queue<DistilledQueu
 /** Publication must not silently call an uncollected window "quiet". Later
  * collection windows do not hold this boundary; blocked sources are reported
  * separately as unavailable and remain visible to operators/readers. */
-export async function collectionReadyForWindow(env:Env,feedId:string,end:string,id:string,now=Date.now()){
- const {pending}=await pendingWindowCollections(env.DB,feedId,end,env.BRIEFING_ENGINE==='v3',now);
+export async function collectionReadyForWindow(env:Env,feedId:string,end:string,id:string,now=Date.now(),start?:string){
+ const requestId=start?await sha256(canonicalJson({feedId,start:new Date(start).toISOString(),end:new Date(end).toISOString()})):undefined;
+ const retained=requestId?await env.DB.prepare("SELECT json_extract(json,'$.engine') engine FROM v1_feed_documents WHERE kind='briefing_requests' AND id=? AND feed_id=?").bind(requestId,feedId).first<{engine:string|null}>():undefined;
+ // An unmarked retained request may still own legacy V2 artifacts. Only its
+ // canonical admission may choose an engine; a transport gate cannot upgrade it.
+ const v3=retained?retained.engine==='v3':env.BRIEFING_ENGINE==='v3';
+ const {pending}=await pendingWindowCollections(env.DB,feedId,end,v3,now);
  if(pending)await env.DB.prepare('INSERT INTO connector_publication_waits(request_id,feed_id,window_end,pending_collections,checked_at) VALUES(?,?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET pending_collections=excluded.pending_collections,checked_at=excluded.checked_at WHERE pending_collections<>excluded.pending_collections').bind(id,feedId,end,pending,new Date(now).toISOString()).run();
  else await env.DB.prepare('DELETE FROM connector_publication_waits WHERE request_id=?').bind(id).run();
  return pending===0;

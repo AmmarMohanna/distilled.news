@@ -4,6 +4,10 @@ import {pendingWindowCollections} from './connector-publication-coverage';
 import {readFileSync} from 'node:fs';
 import {feedSourceAvailability} from './connector-availability';
 import type {Env} from './types';
+import {coalescedProcessingQueue} from './connector-scheduling';
+import {V1FeedStore} from './v1-intelligence/store';
+import {feedFixture} from './v1-intelligence/test-utils';
+import {windowIdentity} from './v1-intelligence/runtime';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 const end='2026-10-28T22:32:09.437Z';
 beforeAll(async()=>{
@@ -69,6 +73,18 @@ it('reports a current capacity refusal despite an earlier success and clears it 
  expect((await feedSourceAvailability(env,'feed'))[0]).toMatchObject({collectionError:'BACKPRESSURE'});
  await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='DONE',last_error=NULL WHERE job_id='poll'").run();
  expect((await feedSourceAvailability(env,'feed'))[0].collectionError).toBeUndefined();
+});
+it.each(['v2','unmarked'] as const)('honors a retained %s window on a V3-default deployment before reserving transport',async mode=>{
+ await ctx.db.exec('DELETE FROM connector_queue_dispatch; DELETE FROM connector_work_slots;');
+ await new V1FeedStore(ctx.db).registerFeed({...feedFixture,id:'feed',ownerId:'owner'});
+ const window={start:'2026-10-28T22:00:00.000Z',end,kind:'HOURLY' as const},id=await windowIdentity('feed',window);
+ await ctx.db.prepare("INSERT OR REPLACE INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests',?,'feed',?)").bind(id,JSON.stringify({...(mode==='v2'?{engine:'v2'}:{}),state:'PENDING',window})).run();
+ await poll(null,{family:'website'});await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET result=NULL,last_error='BACKPRESSURE' WHERE job_id='poll'").run();
+ let sent=0;const env={DB:ctx.db,BRIEFING_ENGINE:'v3',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_COLLECTION_QUEUE:{},V1_ACQUISITION_QUEUE:{},V1_PROCESSING_QUEUE:{send:async()=>{sent++}}} as unknown as Env;
+ const message={type:'v1_briefing' as const,feedId:'feed',window};
+ expect(await coalescedProcessingQueue(env,Date.parse(end)+300000).send(message)).toBe(false);expect(sent).toBe(0);
+ await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.engine','v3') WHERE kind='briefing_requests' AND id=?").bind(id).run();
+ await coalescedProcessingQueue(env,Date.parse(end)+300000).send(message);expect(sent).toBe(1);
 });
 it('does not apply the Telegram exception to a bounded request or another provider',async()=>{
  await poll(laterPage(),{bounds:{endTime:end}});expect(await pendingWindowCollections(ctx.db,'feed',end,true)).toMatchObject({pending:1});
