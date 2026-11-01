@@ -1,6 +1,8 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'A calmer perspective': ['Un regard plus serein', 'رؤية أكثر هدوءًا'],
+  'on a complex world.': ['sur un monde complexe.', 'لعالم معقّد.'],
   'Language and theme': ['Langue et thème', 'اللغة والمظهر'],
   'Theme': ['Thème', 'المظهر'],
   'Light': ['Clair', 'فاتح'],

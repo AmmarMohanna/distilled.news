@@ -803,7 +803,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .settings-view .accounts-section { margin-top: 8px; }
   :root.apple-ui.apple-ui .settings-view .accounts-summary { min-height: 44px; padding-block: 8px; }
 }
-@media (max-width: 899px) and (max-height: 450px) and (orientation: landscape) {
+@media (min-width: 900px), (max-width: 899px) and (max-height: 450px) and (orientation: landscape) {
   :root.apple-ui.apple-ui .settings-view { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "title title" "account-label app-label" "account-group app-group" "preferences-label preferences-label" "preferences-group preferences-group"; column-gap: 12px; }
   :root.apple-ui.apple-ui .settings-view > .experience-title { grid-area: title; display: flex; align-items: baseline; gap: 12px; min-height: 0; margin: 0 0 4px; }
   :root.apple-ui.apple-ui .settings-view > .experience-title p { margin: 0; }
@@ -1171,8 +1171,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* The page heading no longer overlays the header, so it must not stack above the More menu. */
 :root.apple-ui.apple-ui .feed-shell .page-heading { z-index: auto; }
 
-/* Language and appearance appear in Settings only where the header drops them (phones). */
-:root.apple-ui.apple-ui :is(.settings-preferences-label, .settings-preferences-group) { display: none; }
+/* Signed-in users reach language and appearance in Settings on every screen. */
+:root.apple-ui.apple-ui :is(.settings-preferences-label, .settings-preferences-group) { display: block; }
 @media (max-width: 700px) {
   :root.apple-ui.apple-ui .settings-preferences-label { display: block; }
   :root.apple-ui.apple-ui .settings-preferences-group { display: block; }
@@ -2914,4 +2914,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .experience.product-refresh > .experience-header.experience-header .experience-header-actions > .button-link {
     width: 80px; min-width: 80px; flex-basis: 80px; padding-inline: 4px; font-size: 12px;
   }
+}
+@media (max-width: 360px) {
+  :root.apple-ui.apple-ui .guest-landing > .experience-header.experience-header { width: calc(100% + 24px); margin-inline: -12px; }
+}
+@media (max-width: 899px) {
+  :root.apple-ui.apple-ui[lang="fr"] .guest-landing .landing-introduction h1 { font-size: clamp(20px, 6.4vw, 34px); }
 }

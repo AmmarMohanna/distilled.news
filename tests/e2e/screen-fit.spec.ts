@@ -84,7 +84,8 @@ test("voice controls keep feed name separate from description", async ({ page })
   await page.getByRole("button", { name: "Describe by voice" }).click();
   await expect(page.getByLabel("Feed name")).toHaveValue("");
   await page.getByRole("button", {name: "Record feed title"}).click();
-  await expect(page.getByLabel("Feed name")).toHaveValue("Marine archaeology discoveries");
+  await expect(page.getByLabel("Feed name")).toHaveValue("Marine archaeology disco");
+  await expect(page.getByLabel("Feed name")).toHaveAttribute('maxlength','24');
   await expect(page.getByLabel("What would you like to follow?", { exact: true })).toHaveValue("Marine archaeology discoveries");
 });
 

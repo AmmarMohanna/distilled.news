@@ -16,7 +16,7 @@ async function mock(page: import("@playwright/test").Page, authenticated = true)
  });
 }
 
-test("phone header preserves compact branding and controls with an icon-only create button", async ({ page }) => {
+test("phone header preserves the full brand and compact appearance menu with an icon-only create button", async ({ page }) => {
  await mock(page, false);
  await page.setViewportSize({ width: 390, height: 844 });
  await page.goto("/");
@@ -25,18 +25,19 @@ test("phone header preserves compact branding and controls with an icon-only cre
  await expect(create.locator('.create-feed-label')).toBeHidden();
  await expect(create).toHaveCSS('width', '48px');
  const brand = page.locator('.experience-header .experience-brand');
- await expect(brand.locator('.distilled-logo-wordmark')).toBeHidden();
+ await expect(brand.locator('.distilled-logo-wordmark')).toBeVisible();
  await expect(brand).toHaveAttribute('aria-label','Distilled.news');
  await expect(brand.locator('.distilled-logo-symbol')).toBeVisible();
  const symbol = await brand.locator('.distilled-logo-symbol').boundingBox();
- await expect(page.locator('.experience-header .language-cycle')).toBeVisible();
- await expect(page.locator('.experience-header .theme-toggle')).toBeVisible();
+ await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
+ await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
+ await expect(page.locator('.experience-header .appearance-menu > summary')).toBeVisible();
  await expect(page.locator('.experience-header .mobile-appearance-settings')).toHaveCount(0);
  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
  const login = await page.getByRole('link', { name: 'Log in', exact: true }).boundingBox();
  expect(Math.abs(symbol!.y + symbol!.height / 2 - login!.y - login!.height / 2)).toBeLessThan(2);
  await page.setViewportSize({ width: 320, height: 568 });
- await expect(brand.locator('.distilled-logo-wordmark')).toBeHidden();
+ await expect(brand.locator('.distilled-logo-wordmark')).toBeVisible();
  const narrowSymbol = await brand.locator('.distilled-logo-symbol').boundingBox();
  const narrowLogin = await page.getByRole('link', { name: 'Log in', exact: true }).boundingBox();
  expect(narrowSymbol!.x).toBeGreaterThanOrEqual(0);
@@ -89,7 +90,8 @@ test("feed cards retain transparent illustrations, rounded cards, plain controls
  await expect(card.locator(".topic-art")).toHaveCSS("border-top-left-radius", '0px');
  await expect(card.locator(".topic-art")).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
  await expect(card.locator(".feed-card-meta > button")).toBeVisible();
- for (const selector of [".theme-toggle", ".language-cycle", ".personal-feed-grid .feed-options > summary"]) {
+ await expect(page.locator('.experience-header .theme-toggle, .experience-header .language-cycle')).toHaveCount(0);
+ for (const selector of [".personal-feed-grid .feed-options > summary"]) {
   await expect(page.locator(selector)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
  }
  await expect(page.locator(".avatar-button")).toHaveCSS("color", "rgb(94, 92, 230)");
@@ -99,7 +101,7 @@ test("feed cards retain transparent illustrations, rounded cards, plain controls
  await expect(card.locator("details")).not.toHaveAttribute("open", "");
  await toggleTheme(page);
  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
- await expect(page.locator(".theme-toggle")).toHaveAttribute("aria-label", /light mode/i);
+ await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(0);
  await expect(card.locator(".feed-options > summary")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

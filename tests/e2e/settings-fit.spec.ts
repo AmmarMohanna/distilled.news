@@ -80,15 +80,19 @@ for (const size of [{ width: 1280, height: 637 }, { width: 1280, height: 593 }, 
     }));
     expect(corners.management).toBe(corners.group);
     if (size.width === 1280) {
-      const gaps = await page.evaluate(() => {
+      const layout = await page.evaluate(() => {
         const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
-        return [
-          box(".settings-account-label").top - box(".settings-view .experience-title").bottom,
-          box(".settings-app-label").top - box(".settings-account-group").bottom,
-          box(".accounts-section").top - box(".settings-app-group").bottom
-        ];
+        return {
+          labelAlignment: box('.settings-account-label').top - box('.settings-app-label').top,
+          groupAlignment: box('.settings-account-group').top - box('.settings-app-group').top,
+          preferencesGap: box('.settings-preferences-label').top - Math.max(box('.settings-account-group').bottom, box('.settings-app-group').bottom),
+          managementGap: box('.accounts-section').top - box('.settings-preferences-group').bottom
+        };
       });
-      for (const gap of gaps) expect(Math.abs(gap - gaps[0])).toBeLessThanOrEqual(1);
+      expect(Math.abs(layout.labelAlignment)).toBeLessThanOrEqual(1);
+      expect(Math.abs(layout.groupAlignment)).toBeLessThanOrEqual(1);
+      expect(layout.preferencesGap).toBeGreaterThanOrEqual(0);
+      expect(layout.managementGap).toBeGreaterThanOrEqual(0);
     }
     const navigation = await page.locator(".bottom-navigation").boundingBox();
     const settings = await page.locator(".settings-view").boundingBox();

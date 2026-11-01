@@ -127,7 +127,7 @@ export function AppExperience(props: {
     </div>}
     <section className="explore-view" style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
-        <h1>{t("A calmer perspective on a complex world.")}</h1>
+        <h1 aria-label={t("A calmer perspective on a complex world.")}>{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
       <div className={props.account ? "explore-controls" : "landing-controls"}>
