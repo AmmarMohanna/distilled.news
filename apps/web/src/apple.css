@@ -2919,5 +2919,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .guest-landing > .experience-header.experience-header { width: calc(100% + 24px); margin-inline: -12px; }
 }
 @media (max-width: 899px) {
-  :root.apple-ui.apple-ui[lang="fr"] .guest-landing .landing-introduction h1 { font-size: clamp(20px, 6.4vw, 34px); }
+  :root.apple-ui.apple-ui[lang="fr"] .guest-landing .landing-headline-text { font-size: min(1em, clamp(20px, 6.4vw, 34px)); }
 }
+:root.apple-ui.apple-ui .guest-landing .landing-introduction h1 > :is(.landing-headline-reference,.landing-headline-text) { grid-area: 1 / 1; align-self: center; }
+:root.apple-ui.apple-ui .landing-headline-reference { visibility: hidden; pointer-events: none; user-select: none; direction: ltr; }
+:root.apple-ui.apple-ui .landing-headline-text > span { display: block; }
