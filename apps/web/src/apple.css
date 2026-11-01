@@ -900,6 +900,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-editor .feed-language-options label { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; width: auto; }
 :root.apple-ui.apple-ui .feed-editor .feed-language-options input { width: 17px; height: 17px; min-height: 0; margin: 0; padding: 0; flex: 0 0 17px; }
 :root.apple-ui.apple-ui .feed-editor .source-picker > small { color: var(--muted); }
+:root.apple-ui.apple-ui .feed-editor #feed-title-limit { color: var(--muted); }
 :root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: start; gap: 6px; }
 :root.apple-ui.apple-ui .feed-editor .voice-field textarea { resize: vertical; min-height: 64px; max-height: 320px; padding-inline-end: 12px; overflow: auto; }
 :root.apple-ui.apple-ui .feed-editor .voice-field:has(textarea) .voice-input { position: static; padding-top: 4px; }
