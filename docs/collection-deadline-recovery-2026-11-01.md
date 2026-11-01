@@ -49,7 +49,7 @@ service configuration was changed.
   existing fetch-run and provider timings to separate future dispatch/queue waits
   from upstream work. Existing restricted Grafana export rules remain unchanged.
 - Additive migration `0083_collection_dispatch_capacity.sql` indexes live pending
-  dispatch occupancy. Collection-gate reads filter by feed inside each poll CTE,
+  dispatch occupancy and pending reporting deadlines. Collection-gate reads filter by feed inside each poll CTE,
   avoiding a global pending-poll scan before classification.
 
 ## NNA extraction and stale backlog

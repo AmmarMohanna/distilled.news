@@ -32,8 +32,18 @@ it('caps concurrent same-feed refills and immediately replaces only a completed 
  expect(await dispatchConnectorPolls(env(),'feed-1',at+360001,2,'provider')).toBe(2);
 });
 it('retains periodic oldest-due fairness and isolates other feeds',async()=>{
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','window','feed-1',?)").bind(JSON.stringify({state:'PENDING',window:{end:'2026-10-31T12:25:00Z'}})).run();
+ await poll('urgent','2026-10-31T12:20:00Z','2026-10-31T12:20:00Z');
  await poll('oldest','2026-10-31T12:26:00Z');await poll('other-feed','2026-10-31T12:20:00Z','2026-10-31T11:00:00Z','feed-2');
  expect(await dispatchConnectorPolls(env(),'feed-1',Date.parse('2026-10-31T12:35:00Z'),1)).toBe(1);
  expect(sendBatch.mock.calls[0][0][0].body.jobId).toBe('oldest');
  expect(await ctx.db.prepare("SELECT dispatch_until FROM connector_provider_poll_jobs WHERE job_id='other-feed'").first()).toEqual({dispatch_until:0});
+});
+it('uses pending-only indexes for dispatch occupancy and reporting deadlines',async()=>{
+ for(const table of ['connector_rss_poll_jobs','connector_provider_poll_jobs']){
+  const plan=await ctx.db.prepare(`EXPLAIN QUERY PLAN SELECT COUNT(*) FROM ${table} WHERE json_extract(request,'$.scope.feedId')=? AND state='PENDING' AND dispatch_until>?`).bind('feed-1',at).all<{detail:string}>();
+  expect(plan.results.map(r=>r.detail).join('\n')).toContain(table==='connector_rss_poll_jobs'?'connector_rss_dispatch_capacity':'connector_provider_dispatch_capacity');
+ }
+ const plan=await ctx.db.prepare("EXPLAIN QUERY PLAN SELECT 1 FROM v1_feed_documents r WHERE r.feed_id=? AND r.kind='briefing_requests' AND json_extract(r.json,'$.state')='PENDING' AND json_extract(r.json,'$.window.end')<=?").bind('feed-1',new Date(at).toISOString()).all<{detail:string}>();
+ expect(plan.results.map(r=>r.detail).join('\n')).toContain('v1_collection_pending_deadlines');
 });
