@@ -422,14 +422,14 @@ describe("worker app accounts", () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo, bucket: new FakeBucket(), queue: new FakeQueue() });
     const user = await createVerifiedUser(app, repo, "title-limit@test.com", "Title Limit");
-    for (const length of [24, 25]) {
+    for (const length of [35, 36]) {
       const response = await app.request("/api/me/briefings", {
         method: "POST",
         headers: { "content-type": "application/json", cookie: user.cookie },
         body: JSON.stringify({ id: `title_limit_${length}`, title: "W".repeat(length), interestProfile: "Technology news" })
       }, env());
-      expect(response.status).toBe(length === 24 ? 200 : 400);
-      expect(Boolean(await repo.getBriefingById(`title_limit_${length}`))).toBe(length === 24);
+      expect(response.status).toBe(length === 35 ? 200 : 400);
+      expect(Boolean(await repo.getBriefingById(`title_limit_${length}`))).toBe(length === 35);
     }
   });
 

@@ -31,14 +31,14 @@ it('preserves an existing long name and asks for a shorter name before saving',a
  const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async()=>{});
  try {
   await act(async()=>setWebsiteLanguage('en'));
-  await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'W'.repeat(25)}} onClose={()=>{}} onSave={onSave}/>));
+  await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'W'.repeat(36)}} onClose={()=>{}} onSave={onSave}/>));
   const input=host.querySelector<HTMLInputElement>('input[aria-label="Feed name"]')!;
-  expect(input.maxLength).toBe(24);
-  expect(input.value).toBe('W'.repeat(25));
-  expect(host.querySelector('#feed-title-limit')?.textContent).toBe('25/24 characters');
+  expect(input.maxLength).toBe(35);
+  expect(input.value).toBe('W'.repeat(36));
+  expect(host.querySelector('#feed-title-limit')?.textContent).toBe('36/35 characters');
   await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
   expect(onSave).not.toHaveBeenCalled();
-  expect(host.textContent).toContain('Use 24 characters or fewer for the feed name.');
+  expect(host.textContent).toContain('Use 35 characters or fewer for the feed name.');
  } finally {await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
 it.each([false,true])('uses half-hour daily choices only for clock-policy feeds (clock: %s)',async clock=>{
