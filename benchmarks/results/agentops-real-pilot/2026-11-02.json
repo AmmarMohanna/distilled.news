@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "distilled-real-pilot-result.v1",
+  "applicationRevision": "9ce7ad755d360d180d90bb4613f37d3bbbbc50e9",
+  "environment": "isolated-campaign",
+  "status": "PARTIAL",
+  "asynchronous": {
+    "requestedSeconds": 5400,
+    "observedSeconds": 994,
+    "stopReason": "QUEUE_AGE_UNOBSERVABLE",
+    "users": 2,
+    "feeds": 4,
+    "persistedEditions": 0,
+    "v3Calls": 0,
+    "preparedEnglishWindows": 2
+  },
+  "http": {
+    "at": "2026-11-01T23:39:55.296Z",
+    "totalRequests": 120,
+    "initial": {
+      "requests": 102,
+      "errorRatio": 0,
+      "p50": 117.74115,
+      "p95": 500.49078499999985,
+      "p99": 618.4065769999995,
+      "measuredConcurrentVus": 1
+    },
+    "twoConcurrentUsers": {
+      "requests": 18,
+      "errorRatio": 0,
+      "p50": 122.17304999999999,
+      "p95": 454.35058,
+      "p99": 474.53243599999996,
+      "measuredConcurrentVus": 2,
+      "checksPassed": 18,
+      "checksFailed": 0,
+      "safetyViolations": 0
+    },
+    "combinedPercentiles": null,
+    "publicationCampaign": "ABORTED_QUEUE_AGE_UNOBSERVABLE"
+  },
+  "financial": {
+    "actualProviderUsd": 0.0039584,
+    "heldUsd": 0,
+    "uncertainOperations": 0,
+    "setupCalls": 8,
+    "actualCloudInvoiceUsd": null
+  },
+  "resources": {
+    "worker": {
+      "cpuTimeUs": 16492130,
+      "errors": 0,
+      "requests": 423
+    },
+    "database": {
+      "readQueries": 5460,
+      "rowsRead": 60889,
+      "rowsWritten": 5204,
+      "writeQueries": 2203
+    },
+    "analyticsMayLag": true
+  },
+  "cleanup": {
+    "disabledUsers": 2,
+    "pausedFeeds": 4,
+    "enabledSources": 0,
+    "publishedEditions": 0
+  },
+  "ciApplicationRevision": {
+    "status": "success",
+    "url": "https://github.com/AmmarMohanna/distilled.news/actions/runs/41361141073"
+  },
+  "limitations": [
+    "Telegram acquisition failed; publisher RSS only",
+    "No fresh nonempty window or V3 factual-quality result",
+    "HTTP phase ran separately from stopped asynchronous publication",
+    "Queue age reported unknown; guard preserved",
+    "Infrastructure invoice cost unavailable",
+    "Initial HTTP profile observed one VU; final eighteen requests observed two VUs"
+  ]
+}

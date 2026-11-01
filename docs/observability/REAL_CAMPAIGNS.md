@@ -1,4 +1,6 @@
-# Multi-user AgentOps campaign framework — implementation and preflight
+# Multi-user AgentOps campaign framework ï¿½ implementation and preflight
+
+> Later execution: see [the real pilot follow-up](PILOT_EXECUTION_FOLLOW_UP.md). Two users and four feeds were created, real paid assessment and HTTP testing ran, and the asynchronous publication phase stopped safely before completion. The historical checkpoint below is preserved; its earlier credential blockers are not the current status.
 
 ## Outcome
 
@@ -51,7 +53,7 @@ The first Cloudflare inventory returned 401 after the old OAuth expired. The exi
 
 No production/shared-feed table scans, provider execution, source scraping, telemetry writes, alert notifications or new cloud mutations were needed for these reads. Model spend for this task is **$0 / zero paid inference calls**. Control-plane reads are not a measured billable campaign; no new attributable cloud invoice charge is claimed.
 
-## Approval package — not ready to launch
+## Approval package ï¿½ not ready to launch
 
 Proposed first pilot: **two users, two feeds each, English/public/30-minute and Arabic/private/60-minute, a shared public Telegram channel plus a regional RSS source/topic (permissions still to verify), one setup worker, at most two HTTP VUs, 120 GETs over two minutes near the first deadline, 90 minutes of asynchronous observation, 60-second polling**. Application request ceiling 2,000; private/control-plane ceiling 512; 60 application requests reserved for cleanup. Automatic safety stops and exact phase authorization are required.
 

@@ -123,3 +123,12 @@ test('Gmail QA setup registers distinct plus aliases through ordinary registrati
   assert.deepEqual(registered,['qa.inbox+load0001-u0@gmail.com','qa.inbox+load0001-u1@gmail.com']);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+test('Grafana HTTP metrics preserve both installed flat k6 summaries and nested summaries',()=>{
+ const base={http_req_duration:{'p(50)':117.74115,'p(95)':500.490785,'p(99)':618.406577},http_reqs:{count:102,rate:.84999},http_req_failed:{value:0}};
+ for(const traffic of [{metrics:base},{metrics:{http_req_duration:{values:base.http_req_duration},http_reqs:{values:base.http_reqs},http_req_failed:{values:{rate:0}}}}]){
+  const metrics=metricsPayload(manifest(),{},Date.now(),traffic).resourceMetrics[0].scopeMetrics[0].metrics;
+  const values=Object.fromEntries(metrics.map(m=>[m.name,m.gauge.dataPoints[0].asDouble]));
+  assert.equal(values.distilled_campaign_http_latency_95_ms,500.490785);assert.equal(values.distilled_campaign_http_requests,102);assert.equal(values.distilled_campaign_http_error_ratio,0);
+ }
+ const empty=JSON.stringify(metricsPayload(manifest(),{},Date.now(),{metrics:{}}));assert.ok(!empty.includes('http_requests'));assert.ok(!empty.includes('http_error_ratio'));
+});

@@ -1,4 +1,6 @@
-﻿# Real AgentOps pilot activation — 2026-11-01
+# Real AgentOps pilot activation — 2026-11-01
+
+> Later execution: see [the real pilot follow-up](PILOT_EXECUTION_FOLLOW_UP.md). Two users and four feeds were created, real paid assessment and HTTP testing ran, and the asynchronous publication phase stopped safely before completion. The historical checkpoint below is preserved; its earlier credential blockers are not the current status.
 
 ## Outcome
 
