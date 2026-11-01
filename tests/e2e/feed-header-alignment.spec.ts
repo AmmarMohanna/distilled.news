@@ -18,6 +18,9 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
     if (!owner) {
       await expect(page.locator('.feed-shell .language-cycle')).toBeVisible();
       await expect(page.locator('.feed-shell .theme-toggle')).toBeVisible();
+    } else {
+      await expect(page.locator('.feed-shell .language-cycle')).toHaveCount(0);
+      await expect(page.locator('.feed-shell .theme-toggle')).toHaveCount(0);
     }
     const check=async(enlarged=false)=>{
       const overflow=await page.locator(".experience-header").evaluate(node=>node.scrollWidth-node.clientWidth);

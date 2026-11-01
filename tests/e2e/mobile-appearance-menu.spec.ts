@@ -13,6 +13,17 @@ for (const width of [320,390,600]) for (const authenticated of [false,true]) {
     expect(logoBounds.x + logoBounds.width).toBeLessThanOrEqual(controls.x + 1);
     expect(logoBounds.x).toBeGreaterThanOrEqual(0);
     await expect(page.locator('.experience-header > .experience-header-actions > .language-cycle')).toBeHidden();
+    if (authenticated) {
+      await expect(page.locator('.experience-header .appearance-menu')).toHaveCount(0);
+      await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(0);
+      await page.getByRole('button', {name:'Settings', exact:true}).click();
+      await expect(page.locator('.setting-language')).toBeVisible();
+      await page.locator('.setting-language button[lang="fr"]').click();
+      await expect(page.locator('html')).toHaveAttribute('lang','fr');
+      await page.locator('.settings-preferences-group > button[role="switch"]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+      return;
+    }
     const trigger = page.locator('.appearance-menu > summary');
     await expect(page.locator('.appearance-menu')).toHaveCSS('border-top-width','0px');
     await expect(page.locator('.appearance-menu')).toHaveCSS('padding-top','0px');
