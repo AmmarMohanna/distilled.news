@@ -14,6 +14,11 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
     });
     await page.goto('/owner/news/');
     await expect(page.getByRole('heading',{name:'News',exact:true})).toBeVisible();
+    await expect(page.locator('.feed-shell .appearance-menu')).toHaveCount(0);
+    if (!owner) {
+      await expect(page.locator('.feed-shell .language-cycle')).toBeVisible();
+      await expect(page.locator('.feed-shell .theme-toggle')).toBeVisible();
+    }
     const check=async(enlarged=false)=>{
       const overflow=await page.locator(".experience-header").evaluate(node=>node.scrollWidth-node.clientWidth);
       if(!enlarged) expect(overflow).toBeLessThanOrEqual(1);

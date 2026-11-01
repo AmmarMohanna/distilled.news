@@ -31,7 +31,7 @@ export function AppHeader({ account, onAccount, leading, actions, contextual, lo
   return <header aria-busy={loading || undefined} className={`experience-header${loading ? " is-loading" : account ? " has-account" : " is-guest"}${contextual && account ? " is-contextual" : ""}`}>
     {leading ? <div className="experience-leading">{leading}</div> : <div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div>}
     <div className="experience-header-actions" aria-hidden={loading || undefined} inert={loading || undefined} style={loading ? {visibility: 'hidden'} : undefined}>
-      {(!contextual || !account) && actions}<LanguageControl/><ThemeToggle/><AppearanceMenu/>
+      {(!contextual || !account) && actions}<LanguageControl/><ThemeToggle/>{!contextual && <AppearanceMenu/>}
       {account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}
       {contextual && account && actions}
     </div>

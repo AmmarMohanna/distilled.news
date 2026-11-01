@@ -2906,12 +2906,12 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .appearance-menu-panel > button > span { color: var(--muted); }
 :root.apple-ui.apple-ui .appearance-menu-panel > button:hover { background: color-mix(in srgb,var(--accent) 9%,var(--surface)); }
 @media (max-width: 899px) {
-  :root.apple-ui.apple-ui .experience-header .appearance-menu { display: block; flex: 0 0 44px; }
-  :root.apple-ui.apple-ui .experience-header.experience-header .experience-header-actions > :is(.language-cycle,.theme-toggle) { display: none; }
-  :root.apple-ui.apple-ui .experience-header.experience-header .experience-header-actions { gap: 6px; }
+  :root.apple-ui.apple-ui .experience.product-refresh > .experience-header .appearance-menu { display: block; flex: 0 0 44px; }
+  :root.apple-ui.apple-ui .experience.product-refresh > .experience-header.experience-header .experience-header-actions > :is(.language-cycle,.theme-toggle) { display: none; }
+  :root.apple-ui.apple-ui .experience.product-refresh > .experience-header.experience-header .experience-header-actions { gap: 6px; }
   :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand { --brand-type-size: 1.125rem; }
   :root.apple-ui.apple-ui .experience-header.experience-header .experience-brand .distilled-logo-wordmark { display: inline; }
-  :root.apple-ui.apple-ui .experience-header.experience-header .experience-header-actions > .button-link {
+  :root.apple-ui.apple-ui .experience.product-refresh > .experience-header.experience-header .experience-header-actions > .button-link {
     width: auto; min-width: 60px; flex-basis: auto; padding-inline: 8px;
   }
 }
