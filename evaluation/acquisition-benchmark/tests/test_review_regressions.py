@@ -2,10 +2,12 @@
 import asyncio
 import csv
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from bench import adapters
+import bench.runner as runner_module
 from bench.config import load
 from bench.runner import Runner, plan, process_run, report
 from bench.state import State
@@ -88,6 +90,11 @@ def test_report_overrides_legacy_stale_pass_without_replaying(tmp_path, kind):
 @pytest.mark.parametrize("adapter", ["zyte_http", "browser_playwright"])
 def test_capacity_wait_is_excluded_from_attempt_timeout_and_latency(tmp_path, monkeypatch, adapter):
     async def scenario():
+        # Keep asyncio's real deadline clock, but control the runner's metric
+        # clock. Artifact writes on a loaded runner may outlast the queue wait;
+        # their relative wall durations do not establish the timing boundary.
+        clock = [0.0]
+        monkeypatch.setattr(runner_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
         config, state = single_job(tmp_path, "article")
         config["mode"] = "live"
         config["limits"]["attempt_seconds"] = .1
@@ -98,6 +105,7 @@ def test_capacity_wait_is_excluded_from_attempt_timeout_and_latency(tmp_path, mo
         calls = []
         async def acquire(ctx):
             calls.append(ctx.route["id"])
+            clock[0] += .025
             return {"payload": b"<html>fixture</html>", "format": "html"}
         monkeypatch.setattr(adapters, "acquire", acquire)
         await lock.acquire()
@@ -106,12 +114,14 @@ def test_capacity_wait_is_excluded_from_attempt_timeout_and_latency(tmp_path, mo
             await asyncio.sleep(.2)  # Longer than the request deadline, before any provider work.
             was_waiting = not task.done()
             assert not calls
-        finally: lock.release()
+        finally:
+            clock[0] = 5.0
+            lock.release()
         try:
             result = await task
             assert was_waiting and result["status"] == "captured"
-            assert result["queue_ms"] >= 100
-            assert result["duration_ms"] < result["queue_ms"]
+            assert result["queue_ms"] == 5000
+            assert result["duration_ms"] == 25
             assert len(calls) == 1
             assert not lock.locked() and not any(item.locked() for item in runner.domain_locks.values())
             assert runner.next_start[runner.domain_key(job["spec"]["target"], route)] > 0
