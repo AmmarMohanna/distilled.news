@@ -116,3 +116,10 @@ test('real resource observer covers all four application queues plus the dedicat
   await assert.rejects(observeResources(m,{...target,queueIds:[...target.queueIds,'9'.repeat(32)]},dir,{},'2026-11-01T14:00:00Z','2026-11-01T14:01:00Z',fetcher),/ISOLATED_RESOURCE_BINDING/);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('Gmail QA setup registers distinct plus aliases through ordinary registration without a catch-all domain',async()=>{
+ const dir=temp(),registered=[];try{
+  await assert.rejects(setup(manifest(),{request:async(path,options)=>{assert.equal(path,'/api/auth/register');registered.push(options.body.email);throw Error('OFFLINE_STOP_BEFORE_SEND')}},dir,{gmailAddress:'qa.inbox@gmail.com',adminCookie:'dn_session=offline-admin',challenge:async()=> 'offline-only',mailbox:async()=>{throw Error('UNEXPECTED_MAILBOX')},authorizeAccount:async()=>{throw Error('UNEXPECTED_ADMISSION')}}),/SETUP_PARTIAL_STOP_AND_RECONCILE/);
+  assert.deepEqual(registered,['qa.inbox+load0001-u0@gmail.com','qa.inbox+load0001-u1@gmail.com']);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

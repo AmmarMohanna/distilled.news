@@ -107,3 +107,11 @@ Grafana queries use `distilled_campaign_*{environment="staging",profile="load",s
 Reference APIs: [Queue metrics](https://developers.cloudflare.com/api/resources/queues/methods/get_metrics/), [Queue consumer update](https://developers.cloudflare.com/api/resources/queues/subresources/consumers/methods/update/), [Workers analytics](https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-workers-metrics/), [D1 analytics](https://developers.cloudflare.com/d1/observability/metrics-analytics/).
 
 For protected CI, prefer a private bundle with `phase: "run"`; it executes setup ? plan ? campaign and always attempts owned cleanup. Standalone setup in that workflow is archived when the phase exits. Preserve the artifact encryption key securely outside Git. Restore a downloaded encrypted bundle locally with `CAMPAIGN_ARTIFACT_KEY` set and `node evaluation/performance-reliability/real/open-artifacts.mjs PATH_TO_ENCRYPTED_BUNDLE`; do not paste the key into chat or pass it as a command-line argument.
+
+## Supervised Gmail consent and plus aliases
+
+A dedicated Gmail inbox can replace the catch-all-domain requirement for local setup. Set `CAMPAIGN_QA_GMAIL` to its base Gmail address; the runner creates `localpart+RUNID-u0@gmail.com`, `localpart+RUNID-u1@gmail.com`, etc. Normal registration, email verification, login and account admission remain required. Existing `CAMPAIGN_EMAIL_DOMAIN` behavior remains supported when the Gmail option is absent.
+
+`gmail-consent.mjs PRIVATE_DIRECTORY QA_EMAIL` uses a Google Desktop client from the protected directory's `gmail-client.json`, a loopback-only callback, PKCE and random state. It requests only `gmail.readonly`, verifies mailbox identity through Gmail's profile endpoint, and stores the refresh/access tokens locally as `gmail-token.json`. Never commit that directory or print token contents. The supervised consent helper is not a public Worker endpoint or a production authentication feature.
+
+A successful consent/profile check establishes Gmail API access, not a completed registration-email round trip. It does not authorize sending email through Gmail or configure the isolated Worker's outbound mail transport. Live mailbox polling/accounting integration and a bounded authorized campaign must still be verified before launch.
