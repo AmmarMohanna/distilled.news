@@ -251,12 +251,12 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 
   await expect(page.getByRole("link", { name: "Back", exact: true })).toHaveAttribute("href", "/");
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
-  await expect(page.getByText("waiting for the next accepted update.")).toBeVisible();
+  await expect(page.getByRole("status", { name: "waiting for the next accepted update.", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
   expect(summaryRequests).toBe(0);
   feedPaused = true;
   await page.reload();
-  await expect(page.getByText("feed paused; no new briefings will publish until it resumes.")).toBeVisible();
+  await expect(page.getByRole("status", { name: "feed paused; no new briefings will publish until it resumes.", exact: true })).toBeVisible();
   await expect(page.getByText(/is due/i)).toHaveCount(0);
   await expect(page.getByText("by ammar-mohanna")).toBeVisible();
   await expect(page.getByRole("button", { name: /explore/i })).toHaveCount(0);
