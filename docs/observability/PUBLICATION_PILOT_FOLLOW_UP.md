@@ -1,5 +1,7 @@
 ﻿# Publication pilot blocker follow-up
 
+Latest execution: [real publication pilot](REAL_PUBLICATION_PILOT_2026-11-02.md) ? four persisted/read-back editions; 90-minute observation remained partial. The historical results below are unchanged.
+
 Status: **BLOCKERS INVESTIGATED; REPEAT PUBLICATION PILOT NOT RUN.** No new paid model calls. Fresh spending approval is pending; the previous pilot approval is not reused.
 
 ## Queue age

@@ -1,5 +1,7 @@
 # Real isolated multi-user pilot — execution results
 
+Latest execution: [real publication pilot](REAL_PUBLICATION_PILOT_2026-11-02.md) ? four persisted/read-back editions; 90-minute observation remained partial. The historical results below are unchanged.
+
 ## Executive result
 
 **PARTIAL: real accounts, source assessment, automatic polling, private Grafana ingestion and 120 authenticated HTTP reads were exercised. The requested 90-minute publication pilot did not complete. No V3 briefing was generated or persisted.**

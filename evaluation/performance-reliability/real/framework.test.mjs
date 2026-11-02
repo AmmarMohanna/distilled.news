@@ -159,3 +159,21 @@ test('queue safety ages cached native readings and preserves unknown/empty disti
  assert.deepEqual(queueSafetyStops({observedAt:new Date(now+1).toISOString(),queues:[{backlog:0,bytes:0,oldestPendingMs:null}]},stop,now),['QUEUE_OBSERVATION_TIME_UNOBSERVABLE']);
  assert.deepEqual(queueSafetyStops({observedAt:new Date(now-420001).toISOString(),queues:[{backlog:0,bytes:0,oldestPendingMs:null}]},stop,now),['QUEUE_OBSERVATION_STALE']);
 });
+
+test('quiet outcome timing precedes expected missing-edition observations',()=>{
+ const m=manifest(),due='2026-11-02T07:00:00Z',now=Date.parse('2026-11-02T07:10:00Z');m.deadlineGraceMs=300000;
+ for(const [completedAt,expected]of [['2026-11-02T07:00:19.267Z','BY_DEADLINE'],['2026-11-02T07:06:00Z','LATE'],[undefined,'UNKNOWN']]){
+  const o=new CampaignObservation(m,{opportunities:[{id:'q',feedId:'feed',window:{start:'2026-11-02T06:34:43.719Z',end:'2026-11-02T06:55:00Z',scheduledFor:due}}]});
+  o.items.set('q',{state:'DONE',result:'QUIET',completedAt});o.visible('q','2026-11-02T07:10:00Z',false);const v=o.summary(now);
+  assert.equal(v.byDeadline,Number(expected==='BY_DEADLINE'));assert.equal(v.confirmedLate,Number(expected==='LATE'));assert.equal(v.deadlineUnknown,Number(expected==='UNKNOWN'));
+ }
+ const o=new CampaignObservation(m,{opportunities:[{id:'p',feedId:'feed',window:{start:'2026-11-02T06:34:43.719Z',end:'2026-11-02T06:55:00Z',scheduledFor:due}}]});o.items.set('p',{state:'PENDING'});o.visible('p','2026-11-02T07:10:00Z',false);assert.equal(o.summary(now).confirmedLate,1);
+});
+test('one metrics-only GraphQL retry is bounded, charged to read budget and fail-closed',async()=>{
+ for(const permanent of [false,true]){const dir=temp();try{const m=manifest(),target={runId:m.runId,isolated:true,accountId:'a'.repeat(32),worker:new URL(m.origin).hostname.split('.')[0],databaseId:'12345678-1234-1234-1234-123456789abc',queueIds:['1'.repeat(32)]};let graph=0,queues=0;
+  const fetcher=async url=>{if(url.endsWith('/graphql')){graph++;return Response.json(graph===1||permanent?{errors:[{extensions:{code:'INTERNAL_SERVER_ERROR'}}]}:{data:{viewer:{accounts:[{}]}}});}queues++;return Response.json({result:{backlog_count:0,backlog_bytes:0,oldest_message_timestamp_ms:0}})};
+  const call=observeResources(m,target,dir,{CAMPAIGN_CLOUDFLARE_TOKEN:'offline'},'2026-11-02T07:00:00Z','2026-11-02T07:01:00Z',fetcher);
+  if(permanent)await assert.rejects(call,/RESOURCE_ANALYTICS_UNAVAILABLE/);else{const r=await call;assert.equal(r.worker,null);assert.equal(r.database,null);assert.equal(r.queues[0].oldestPendingMs,null);}
+  assert.equal(graph,2);assert.equal(queues,permanent?0:1);assert.equal(JSON.parse(readFileSync(resolve(dir,'control-plane-budget.private.json'),'utf8')).requests,permanent?2:3);
+ }finally{rmSync(dir,{recursive:true,force:true});}}
+});

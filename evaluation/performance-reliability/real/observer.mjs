@@ -38,9 +38,11 @@ export class CampaignObservation{
   const mature=due.filter(o=>Date.parse(o.window.scheduledFor??o.window.end)+this.m.deadlineGraceMs<=now);
   const deadlineStates=mature.map(o=>{
    const item=this.items.get(o.id),v=this.visibility.get(o.id),deadline=Date.parse(o.window.scheduledFor??o.window.end)+this.m.deadlineGraceMs;
+   // A quiet completion deliberately has no reader edition. Its later 404s
+   // cannot override a durable, on-time completion (or invent a missing time).
+   if(item?.state==='DONE'&&item.result==='QUIET')return item.completedAt?Date.parse(item.completedAt)<=deadline?'BY_DEADLINE':'LATE':'UNKNOWN';
    if(v?.firstPositive&&Date.parse(v.firstPositive)<=deadline)return 'BY_DEADLINE';
    if(v?.lastNegative&&Date.parse(v.lastNegative)>=deadline||item?.publishedAt&&Date.parse(item.publishedAt)>deadline)return 'LATE';
-   if(item?.result==='QUIET'&&item.completedAt)return Date.parse(item.completedAt)<=deadline?'BY_DEADLINE':'LATE';
    return 'UNKNOWN';
   });
   const byDeadline=deadlineStates.filter(x=>x==='BY_DEADLINE'),deadlineUnknown=deadlineStates.filter(x=>x==='UNKNOWN');
