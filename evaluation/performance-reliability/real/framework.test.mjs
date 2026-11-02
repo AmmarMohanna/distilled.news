@@ -106,7 +106,7 @@ test('successful HTTP cannot hide wrong account/feed data or private Explore ent
  const user={id:'owner'},feed={id:'owned'};assert.equal(readViolation('account',200,{account:{id:'other'}},user,feed),'ACCOUNT_RESPONSE_MISMATCH');assert.equal(readViolation('feed',200,{briefing:{id:'other',ownerAccountId:'owner'}},user,feed),'FEED_RESPONSE_MISMATCH');assert.equal(readViolation('owned-feeds',200,{},user,feed),'OWNED_FEED_SCOPE_MISMATCH');assert.equal(readViolation('explore',200,{feeds:[{id:'private',ownerAccountId:'other',publicFeedEnabled:false}]},user,feed),'EXPLORE_VISIBILITY_MISMATCH');assert.equal(readViolation('feed',200,{briefing:{id:'owned',ownerAccountId:'owner'}},user,feed),null);assert.equal(readViolation('explore',200,{feeds:[]},user,feed),null);
 });
 
-import {observeResources} from './resource-window.mjs';
+import {observeResources,queueAgeObservation,queueSafetyStops} from './resource-window.mjs';
 test('real resource observer covers all four application queues plus the dedicated dead-letter queue',async()=>{
  const dir=temp();try{
   const m=manifest(),target={runId:m.runId,isolated:true,accountId:'a'.repeat(32),worker:new URL(m.origin).hostname.split('.')[0],databaseId:'12345678-1234-1234-1234-123456789abc',queueIds:Array.from({length:5},(_,i)=>String(i+1).repeat(32))};
@@ -131,4 +131,31 @@ test('Grafana HTTP metrics preserve both installed flat k6 summaries and nested 
   assert.equal(values.distilled_campaign_http_latency_95_ms,500.490785);assert.equal(values.distilled_campaign_http_requests,102);assert.equal(values.distilled_campaign_http_error_ratio,0);
  }
  const empty=JSON.stringify(metricsPayload(manifest(),{},Date.now(),{metrics:{}}));assert.ok(!empty.includes('http_requests'));assert.ok(!empty.includes('http_error_ratio'));
+});
+
+test('queue fallback is a conservative native upper bound, never unknown-as-zero',()=>{
+ const now=Date.parse('2026-11-02T00:00:00Z'),pending={backlog_count:4,backlog_bytes:412,oldest_message_timestamp_ms:0};
+ const unknown=queueAgeObservation(pending,undefined,now);assert.equal(unknown.metrics.oldestPendingMs,null);assert.equal(unknown.metrics.state,'PENDING');
+ const native=queueAgeObservation({...pending,oldest_message_timestamp_ms:now-10000},undefined,now);
+ const fallback=queueAgeObservation(pending,native.receipt,now+20000);
+ assert.equal(fallback.metrics.oldestPendingMs,30000);assert.equal(fallback.metrics.ageSource,'NATIVE_RETAINED_UPPER_BOUND');assert.equal(fallback.metrics.ageIsUpperBound,true);
+ assert.equal(fallback.metrics.ageEvidenceAt,new Date(now).toISOString());
+ assert.equal(queueAgeObservation(pending,native.receipt,now+16*60000).metrics.oldestPendingMs>15*60000,true);
+ for(const invalid of [{timestampMs:now+1,observedAtMs:now},{timestampMs:now-1,observedAtMs:now+1},{timestampMs:0,observedAtMs:now}])assert.equal(queueAgeObservation(pending,invalid,now).metrics.oldestPendingMs,null);
+ assert.equal(queueAgeObservation({...pending,oldest_message_timestamp_ms:now+1},undefined,now).metrics.oldestPendingMs,null);
+ const empty=queueAgeObservation({backlog_count:0,backlog_bytes:0,oldest_message_timestamp_ms:0},undefined,now);assert.equal(empty.metrics.state,'EMPTY');assert.equal(empty.metrics.oldestPendingMs,null);
+ assert.equal(queueAgeObservation({backlog_count:0,backlog_bytes:412},undefined,now).metrics.state,'PENDING');
+ assert.equal(queueAgeObservation({},undefined,now).metrics.state,'UNKNOWN');
+});
+
+test('queue safety ages cached native readings and preserves unknown/empty distinction',()=>{
+ const now=Date.parse('2026-11-02T00:10:00Z'),stop={maxBacklog:20,oldestPendingMs:900000};
+ const resource=q=>({observedAt:new Date(now-120000).toISOString(),queues:[q]});
+ assert.deepEqual(queueSafetyStops(resource({backlog:1,bytes:100,oldestPendingMs:840000}),stop,now),['QUEUE_PENDING_AGE_LIMIT']);
+ assert.deepEqual(queueSafetyStops(resource({backlog:1,bytes:100,oldestPendingMs:null}),stop,now),['QUEUE_AGE_UNOBSERVABLE']);
+ assert.deepEqual(queueSafetyStops(resource({backlog:0,bytes:100,oldestPendingMs:null}),stop,now),['QUEUE_AGE_UNOBSERVABLE']);
+ assert.deepEqual(queueSafetyStops(resource({backlog:0,bytes:0,oldestPendingMs:null}),stop,now),[]);
+ assert.deepEqual(queueSafetyStops(resource({backlog:null,bytes:null,oldestPendingMs:null}),stop,now),['QUEUE_BACKLOG_UNOBSERVABLE']);
+ assert.deepEqual(queueSafetyStops({observedAt:new Date(now+1).toISOString(),queues:[{backlog:0,bytes:0,oldestPendingMs:null}]},stop,now),['QUEUE_OBSERVATION_TIME_UNOBSERVABLE']);
+ assert.deepEqual(queueSafetyStops({observedAt:new Date(now-420001).toISOString(),queues:[{backlog:0,bytes:0,oldestPendingMs:null}]},stop,now),['QUEUE_OBSERVATION_STALE']);
 });
