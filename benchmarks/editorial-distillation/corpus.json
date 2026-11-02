@@ -1,0 +1,1217 @@
+{
+  "schemaVersion": 1,
+  "baselineRevision": "5e32a483d65d9f8f94069709c30dc3a21af698c7",
+  "labelAuthority": "AI-assisted engineering review of retained source text. Labels are provisional, not independent human gold.",
+  "sourceFiles": [
+    {
+      "name": "lebanon",
+      "path": "benchmarks/results/v3-reader-notification/summary.json",
+      "sha256": "58bf026348a4786c0d10e3ce199f0f911bfdf8562a509053ead9be64c1efa5aa"
+    },
+    {
+      "name": "ai",
+      "path": "packages/briefing/eval/corpus/anthropic-news.json",
+      "sha256": "490825cd13ff31aebc3995f10ac07ede1727f65b5534232693a564231e05cefd"
+    },
+    {
+      "name": "factual",
+      "path": "packages/briefing/test/fixtures/v3-factual-reliability.json",
+      "sha256": "9e47c150df18c991062e0d37dab7f789a3a284a94038b0b5e28573f251c4cba6"
+    }
+  ],
+  "sources": [
+    {
+      "article": {
+        "id": "762779a7-f41a-4d26-8110-143aaca0e636",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107623",
+        "publishedAt": "2026-10-23T13:48:07.000Z",
+        "text": "🚨وسائل إعلام أردنية: 7 قتلى على الأقل في إطلاق نار داخل كنيسة في محافظة الكرك جنوبي المملكة\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "b8f7e6c594fde51cc4ca8bfe76970e5e95aab710dc22d06c280fcddc96e76119",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "762779a7-f41a-4d26-8110-143aaca0e636"
+      }
+    },
+    {
+      "article": {
+        "id": "78a8013d-f33c-4c96-a435-8776f78c5f57",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107624",
+        "publishedAt": "2026-10-23T13:52:26.000Z",
+        "text": "🔴 الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجــ ـرامي الذي وقع خلال جنازة بمحافظة الكرك\n\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "cd499c6eefd9f71b85dfd6c7a4b2861466b3624cf29ff6bff8cd911ab0594d9e",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "78a8013d-f33c-4c96-a435-8776f78c5f57"
+      }
+    },
+    {
+      "article": {
+        "id": "e640d1b3-d69c-450f-9745-0542dfc3adad",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107625",
+        "publishedAt": "2026-10-23T13:55:12.000Z",
+        "text": "🔴 نتنياهو: اطلعت على عملية  واسعة جدا في الضفة الغربية ستكون غير مسبوقة منذ 67 وسنختار توقيت تنفيذها\n\n\n🚨 الجيش الإســـرائيلي: سنجري الأسبوع المقبل مناورات في الشمال والوسط تحاكي سيناريوهات دفاعية متعددة الجبهات\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "6a1a38fa60a43fcfaff1e197c928b0bd61fcbcf2895347e94cc2c1009f96729d",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "e640d1b3-d69c-450f-9745-0542dfc3adad"
+      }
+    },
+    {
+      "article": {
+        "id": "f619024d-bab6-4a88-8d82-31222f97521d",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107626",
+        "publishedAt": "2026-10-23T14:18:34.000Z",
+        "text": "🔴صاحب مطعم لبناني في بكين في الصين يطرد زبائن إسرائيليين بعدما سمعهم يتحدثون العبرية\n\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "9be87ea975ca16fba5c07c34b29a9afbd1e0706eb7f53363b7eafc71f21d3bbc",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "f619024d-bab6-4a88-8d82-31222f97521d"
+      }
+    },
+    {
+      "article": {
+        "id": "545f5560-9ac3-42e6-8531-957d9fe10af9",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107627",
+        "publishedAt": "2026-10-23T14:21:41.000Z",
+        "text": "🚨خام برنت يقفز إلى 116 دولارًا للبرميل الواحد.\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "6428a59378c76f831ee9a62dda85024b15a7baf51b631cfd9a5d9a7209630fae",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "545f5560-9ac3-42e6-8531-957d9fe10af9"
+      }
+    },
+    {
+      "article": {
+        "id": "8fce8732-0ed8-4499-bb4d-ce8367f6008c",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107628",
+        "publishedAt": "2026-10-23T14:44:06.000Z",
+        "text": "🔴 لحظة الهجوم على الكنيسة في الكرك.\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "ed636f95f48eb99889e2385bab2355da474144bba932b0084fff3bb82fcba09d",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+      }
+    },
+    {
+      "article": {
+        "id": "6e70783f-0769-4ab9-a519-93d270aec4c2",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107629",
+        "publishedAt": "2026-10-23T15:24:07.000Z",
+        "text": "🚨تفجير ضخم نفذه العدو الإســـرائيلي في بلدة القنطرة\nهز جنوب لبنان\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "9b1f6f1d2fb5403248b9e7b200e2aba565f76e5ab4d094e7a122addbf4ca9220",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "6e70783f-0769-4ab9-a519-93d270aec4c2"
+      }
+    },
+    {
+      "article": {
+        "id": "b2ea311c-7b1b-4f0c-b313-593d2d1d437a",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107630",
+        "publishedAt": "2026-10-23T15:28:17.000Z",
+        "text": "🔴التفجير الضخم في القنطرة\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "cf301bbf046f4e0fe77379baccc2d91e0fdba0b7af6dc7683416571c00cf0399",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+      }
+    },
+    {
+      "article": {
+        "id": "3c52259a-6f75-4df0-a273-0f8574ec0557",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107631",
+        "publishedAt": "2026-10-23T15:31:08.000Z",
+        "text": "ترامب: نجري محادثات بناءة مع إيـ ـران ولن نهاجمها قبل انتخابات التجديد\n\n\n\n🔴رويترز عن وزير الخارجية الألماني: فرنسا وبريطانيا وألمانيا مستعدة للتفاوض مع ايران\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "9d59a09a01526d72b3bc2cc844deb2fa205d6ae04c90122004b5c0f3693f8661",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "3c52259a-6f75-4df0-a273-0f8574ec0557"
+      }
+    },
+    {
+      "article": {
+        "id": "63bdd3de-7a11-4674-8fc7-c5a826b53836",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107632",
+        "publishedAt": "2026-10-23T15:45:18.000Z",
+        "text": "🔴 غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "18e244aac4fee1005ce714f45e24b90c7ddd193b597216d0cd795bdcaed298a9",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+      }
+    },
+    {
+      "article": {
+        "id": "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107633",
+        "publishedAt": "2026-10-23T16:31:41.000Z",
+        "text": "🚨 المبعوث الأميركي توم براك :\n\n* *ترامب قد يهاجم إيران نهاية الأسبوع*\n\n*ترامب أفسح المجال مراراً للتوصّل إلى اتفاق، لكن طهران اتخذت مضيق هرمز ورقة للمساومة\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "1688135228ceb713eb01ca2b950f3376cdd1036e59c0364a7b172a11e7734676",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e"
+      }
+    },
+    {
+      "article": {
+        "id": "69c9f685-3339-4057-ba7e-07678a33816e",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107634",
+        "publishedAt": "2026-10-23T16:32:29.000Z",
+        "text": "🔴هجوم يمني يستهدف مطار الدمام بالمنطقة الشرقية في السعودية.\n\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "050c6cb79ea664c795ed45149f831a5d2073d96b85f22ecab468e78f3270f20c",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "69c9f685-3339-4057-ba7e-07678a33816e"
+      }
+    },
+    {
+      "article": {
+        "id": "d54d92e1-3175-4465-8f47-09031a4de464",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107635",
+        "publishedAt": "2026-10-23T16:33:23.000Z",
+        "text": "🔴المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.\n\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "548d7167f1f90d5b9d94ce0615e91a3fad570ecdfcdc76864accb1e55ffcea99",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "d54d92e1-3175-4465-8f47-09031a4de464"
+      }
+    },
+    {
+      "article": {
+        "id": "7951d27e-8979-4bfa-b3fe-9b20d87855db",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107636",
+        "publishedAt": "2026-10-23T16:34:45.000Z",
+        "text": "🔴 مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "52aec32f005da42e66f04fceb795a0dfdeed51438394137eb548b6231d589537",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+      }
+    },
+    {
+      "article": {
+        "id": "1e764cd1-5749-4428-8449-8e09d5e86751",
+        "source": "4e1dce08fee6e0de9babc36db4b5382e29098ba5e633e9f47d382dee3348c9f8",
+        "url": "https://t.me/lebanonnews2/107637",
+        "publishedAt": "2026-10-23T17:01:20.000Z",
+        "text": "🔴رويتز: وضعت طهران خططاً مفصلة لاستهداف كابلات الاتصالات تحت البحر في الخليج إذا هاجمت الولايات المتحدة وإسرائيل إيران مرة أخرى\n\n\n\nhttps://telegram.me/lebanonnews2"
+      },
+      "sha256": "46f097b42dd4616457d07c3ce25e6689ee8e3aa2d658f5140f139d2d09a724fa",
+      "origin": {
+        "file": "benchmarks/results/v3-reader-notification/summary.json",
+        "articleId": "1e764cd1-5749-4428-8449-8e09d5e86751"
+      }
+    },
+    {
+      "article": {
+        "id": "public-benefit-fund",
+        "source": "anthropic.com/news",
+        "title": "Investing in the public benefit",
+        "url": "https://www.anthropic.com/news/public-benefit-fund",
+        "publishedAt": "2026-10-18T00:00:00Z",
+        "text": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline.\n\nAs a public benefit corporation, most of our work in pursuit of our mission takes place inside the company: research relevant to AI safety and interpretability; applied biomedical research; discounts on Claude for nonprofits and scientific institutions. These activities have both a public benefit component and for-profit value, so we house them directly in the company.\n\nThe Anthropic Public Benefit Fund will have increased flexibility and scale, enabling us to pursue our mission in new ways: for example, we might explore large donations to traditional nonprofits or direct distributions to specific populations.\n\nOne example is labor market impacts. AI may generate enormous economic value, but it could also cause instability for many workers. Anthropic has already committed $200 million to studying and addressing this issue, but given the pace of AI progress, bolder approaches may be needed. The Fund will have the versatility to pursue them.\n\nWe’re establishing the Anthropic Public Benefit Fund as a wholly-owned LLC—rather than a 501(c)(3) or other format—to give adjustability between different forms of giving. None of the Anthropic equity held by the LLC will be used for lobbying or political giving, in the US or abroad.\n\nBecause of the way the Fund is structured, the more Anthropic grows, the larger the share of the company that can be dedicated expressly to the public good. It is common practice for tech companies to offer escalating compensation awards to their executives. We are instead directing that equity to the public benefit.\n\nThis builds on commitments our co-founders and employees have already made. When Anthropic was founded, our co-founders pledged to donate 80% of their equity holdings, and since founding we have also operated an equity donation match program that allows employees to pledge equity which Anthropic matches. Approximately half of our employees participate in this program. When combined with today’s announcement, roughly 20% of Anthropic shares will be dedicated to the public good, plus any additional percentage that could be added if the company reaches specific valuation milestones.\n\nIn the coming months, we will share more about the Anthropic Public Benefit Fund’s structure and governance, including the valuation milestones that may add to its stake. We will also report on our progress to date against our mission in an upcoming public benefit report."
+      },
+      "sha256": "ecf0e5a32a867459ffa2f576e1af2d2f63d853092f8eacf6b0e73e3f77435683",
+      "origin": {
+        "file": "packages/briefing/eval/corpus/anthropic-news.json",
+        "articleId": "public-benefit-fund"
+      }
+    },
+    {
+      "article": {
+        "id": "an-update-on-independent-evaluators",
+        "source": "anthropic.com/news",
+        "title": "Anthropic update on independent evaluators",
+        "url": "https://www.anthropic.com/news/an-update-on-independent-evaluators",
+        "publishedAt": "2026-10-15T00:00:00Z",
+        "text": "Last month, we committed to stronger independent, third-party assessment of our models and safety practices. We also signed the White House Accord on Super Intelligence, in which companies pledged to partner with independent external auditors or evaluators. Today, we’re announcing that we’ve started to give employee-like access to a team from METR, a nonprofit that evaluates frontier AI models.\n\nMETR will publish the results of its risk assessments. Over the past year, we’ve worked with METR on several reviews of our Risk Reports. We’re also working with SecureBio and Accenture as evaluators, and are in early discussions with several other organizations, including Hugging Face.\n\nHere, we explain our approach to working with evaluators.\n\n## Why we work with independent evaluators\n\nAs models have become more powerful, they’ve required stronger safeguards and more challenging risk assessments. We want to be publicly accountable for the decisions we’re making. But we can’t publicly share all the information relevant to our safety work. Some of it could be useful to malicious actors, or is commercially sensitive, like compute or training information. Instead, we’re giving third-party evaluators deep access to our information, and are having them share evidence and reasoned conclusions about the risks involved in building our models. We aim to close the gap between what evaluators understand about a frontier AI company’s systems and what the company itself understands.\n\nTo evaluate frontier models, evaluators need the following:\n\nExpertise in assessing the capabilities of frontier models, including understanding the way evaluations can go wrong, such as alignment faking.\n\nIndependence: they shouldn’t hold equity in the company they’re evaluating, or be financially or operationally dependent on it.\n\nEnough access to meaningfully evaluate risks. Beyond access to the latest models, evaluators also need visibility into how those models were trained, into how our safeguards function, and more.\n\nFreedom to publish observations and assessments of a model or a process.\n\nAlthough the analogy isn’t exact, bank supervision operates on similar logic. Banks know more about their own risk positions than outsiders do, so regulators assign resident examiners to work inside the largest banks. If a bank’s risk-taking could threaten the public, third parties try to see that in advance.\n\nFor the AI industry, this is a step toward robust safety oversight. We’re moving quickly with multiple evaluators and learning actively about what kinds of partnership work. We’re committed to sharing updates as we go.\n\n## What we mean by “employee-like access”\n\nWe’ve onboarded six METR employees with company hardware, office space, and access to internal tools and systems that are roughly on par with what our own risk assessment teams have access to. Outside a small number of clearly defined categories (e.g., data about customers, attorney-client privileged information, or information about our model architectures), Anthropic employees are encouraged to share information with them just as they would with a fellow employee working on alignment risk.1\n\nMETR will publish its analysis of our risk levels, incidents, or practices. Anthropic can’t veto publication, but we can require them to redact information if it falls into predefined categories such as reproducing confidential IP. (Anthropic ultimately decides what information does and does not fall into these categories, although METR reserves the right to make certain statements about the level of access and information it received.)2\n\nOur engagement with METR is limited to a small team operating under enforceable agreements. Other METR employees are siloed from that team’s work, including researchers who work with us on other projects. Embedded evaluation gives a few qualified people working under Anthropic’s security standards a close view of how we operate. It’s not a way for other organizations to obtain our information, or that of our customers and partners.\n\n## Our other evaluator partnerships\n\nWe’re working on several other partnerships. Because these other partnerships are still in early stages, we’re providing these evaluators with more limited information, and they have more limited publication rights. Our goal with these early engagements is to make sure that our partners protect confidential information and have the requisite resources and expertise to evaluate our models. As partnerships progress and we build trust, we hope to fully embed more independent evaluators.\n\nWe’re developing three tiers of access for evaluators. Over time, we hope to have several evaluators at the third tier, with each team publishing their own analysis of our risk posture and key decisions.\n\nIn the first tier, evaluators conduct narrowly scoped risk investigations. We decide what access to provide a first-tier evaluator, and evaluators can publish their findings with our approval.\n\nIn the second tier, evaluators can publish without our approval, and they have access to more information. We can still require removal of specific categories of information, though evaluators can publish their views on whether our redactions were justified.\n\nThe third tier is the arrangement we’ve described with METR, with employee-like access and publication rights similar to those of the second tier.\n\nSecureBio is in the process of reviewing the chemical and biological weapons chapter of our August Risk Report, after completing and publishing a pilot review of our previous risk report. After this review is complete, we will consider moving to projects with increased access.3\n\nWith Accenture and Faculty, we're working toward an ambitious partnership that includes evaluating and red-teaming models, conducting alignment assessments, testing model safeguards, and building capabilities across our organizations.\n\nWe’re embedding evaluators voluntarily, and we believe every frontier AI company should do the same.\n\n## Footnotes\n\n01Because these evaluators (like bank examiners) may also work with other companies, we exercise caution around the possibility of inadvertent leaks. Information about architectures presents a high risk of inadvertent leaks, and its relevance to risk assessment is typically low. When it is highly relevant, we will generally seek to share it, though this will require explicit internal approvals.\n\n02Updated on October 16 to clarify METR's current project terms with Anthropic.\n\n03Updated on October 15 to clarify SecureBio's current project terms with Anthropic."
+      },
+      "sha256": "366b34f50fe8a4dfbff0e91fd4383c62bd69808f3d9f6be2d930eb616b401d64",
+      "origin": {
+        "file": "packages/briefing/eval/corpus/anthropic-news.json",
+        "articleId": "an-update-on-independent-evaluators"
+      }
+    },
+    {
+      "article": {
+        "id": "enterprise-frontier-safeguards",
+        "source": "anthropic.com/news",
+        "title": "Developing Enterprise Frontier Safeguards with our customers",
+        "url": "https://www.anthropic.com/news/enterprise-frontier-safeguards",
+        "publishedAt": "2026-09-01T00:00:00Z",
+        "text": "Today we’re announcing Enterprise Frontier Safeguards (EFS), a solution that combines the privacy of zero data retention (ZDR) with state-of-the-art safeguards for detecting misuse. EFS works by storing data in cloud infrastructure controlled by the customer, not Anthropic. EFS will be rolling out to customers in phases, starting later this fall. To make the transition smooth, eligible customers will receive ZDR on Fable 5 and Fable 5.1 until EFS is ready.\n\nWe developed EFS in close collaboration with more than 100 customers in industries like financial services, healthcare, manufacturing, telecom, law, retail, and the public sector, and with our cloud partners at Amazon Web Services, Google Cloud, and Microsoft Azure.\n\nEFS will be supported on Claude Code, Claude Enterprise, the Claude Platform, Amazon Bedrock, Claude Platform on AWS, Google’s Agent Platform, and Microsoft Foundry.\n\n## Solving the dilemma of frontier security\n\nMythos-class models, like Claude Fable 5.1, represent a major increase in intelligence and agentic capabilities. However, with that increase comes the potential for both misuse and autonomous misbehavior.\n\nOver the last few months, we’ve seen substantial evidence of attempted misuse of AI models. These range from typical forms of abuse, such as fraud, to sophisticated cyberattacks, which can include agents autonomously engaging in destructive behavior. Some of these instances involve theft or misappropriation of enterprise customers’ credentials, which are difficult to detect without the ability to monitor traffic and detect abnormal behavior.\n\nFurthermore, because the most sophisticated misuse can involve many tasks spread across multiple sessions and accounts, it is not sufficient to run automated analysis on each interaction separately and then instantaneously discard the data. Effective detection requires storing data for a meaningful period of time so that it can be correlated across time and accounts.\n\nFor this reason, we introduced 30-day data retention starting with Fable 5. This policy was not motivated by a desire to train on enterprise data: Anthropic has never trained on enterprise data without explicit permission, and never will.\n\nThe enterprises we worked with generally understood the safety and security value of data retention, but many–especially in regulated industries–found it difficult to use models with data retention. We therefore sat down with customers to design a solution that could provide the best of both worlds: the privacy of ZDR and the safety allowed by monitoring across time and accounts.\n\n## Designed with our customers\n\nWe built Enterprise Frontier Safeguards with feedback from the experts who will use it every day: security, product, compliance, and delivery teams. One of the groups we worked with was the Analysis and Resilience Center for Systemic Risk (ARC), whose members include the chief information security officers of the largest US banks, including Goldman Sachs, Morgan Stanley, Citi, Bank of America, and Wells Fargo.\n\nWe also worked with leaders at companies such as Comcast, KPMG, Mastercard, Salesforce, and Visa, to make sure the design held up across industries. Our conversations spanned a quarter of the Fortune 100, every US global systemically important bank, and virtually every regulated industry.\n\nHere is what we heard from this wide range of customers, and what we built into EFS to address these common concerns:\n\n## On monitoring\n\nEnterprises have long applied monitoring for insider risk, and now want help upleveling monitoring for agents. Their concerns were about Anthropic’s automated monitoring systems meeting their regulatory standards.\n\nWith EFS, customers control how data gets reviewed. When monitoring detects a pattern that needs attention, those signals are sent directly to customers so they can review what the automated systems detected.\n\n## On data storage\n\nIt’s a lot of work for enterprises to add another “trusted data vendor” for a number of reasons. They need to notify all of their customers who these vendors are and update contracts. They also have internal requirements for safely storing and auditing data, given its high level of sensitivity. Because of these concerns, we architected EFS so that customers have the ability to store data on their existing cloud infrastructure.\n\nIn EFS, customers can control their data storage and management. Customers want the ability to have their data live in infrastructure they control, under their own encryption keys, access policies, and audit logging. Activity data used for monitoring can be stored in the customer’s own cloud account (such as Amazon S3, Azure Blob Storage, or Google Cloud Storage).\n\n## On automated and human review\n\nEven as automated review is becoming more effective, a person looking at a flag still adds value by confirming real misuse and clearing false positives. But what we heard from many customers, especially those in regulated industries, is that the person doing that review needs to be one of their own. Many operate under rules that tightly govern who may see certain information—privileged legal material, non-public information, drug-safety reports. Their teams are already trained and cleared for that work.\n\nEFS has automated safety monitoring, no Anthropic human review required. Customers want protection against cyberattacks, and appreciate that these can be difficult to detect if they unfold across many sessions and accounts. With EFS, automated systems analyze a rolling window of traffic for signals of serious misuse, including attempts to develop offensive cyber or biological capabilities and signs of stolen or leaked credentials. Those flags go directly to the customer and their people take it from there – no human review by Anthropic employees is required.\n\n“AI controls need to be designed to protect sensitive information, and model safeguards are an important part of that process. Anthropic engaged us as they developed Enterprise Frontier Safeguards to ensure alignment with our requirements and standards.”\n\nMatt Chung\n\nChief Information Security Officer and Head of Technology Risk\n\n“Enterprise Frontier Safeguards gives us exactly what we asked for: our logs stay in a Wells-managed environment under Wells-managed keys. We keep custody of our data while Anthropic operates the detection. That split is what lets our teams put frontier models to work safely and meet our obligations to customers, employees, and regulators. We helped shape these safeguards because our industry needs them.”\n\nMunish Kumar Sharma\n\nChief Information Security Officer\n\n“As a company that runs critical infrastructure, the capability of models is important. Just as important are solutions that allow us to keep our data in our own account, and Enterprise Frontier Safeguards settled it.”\n\nNoopur Davis\n\nEVP, Chief Information Security and Product Privacy Officer\n\n“Eight of our members worked with Anthropic to define what it would take to run the most capable frontier models inside a systemically important bank: who holds the data, who holds the keys, what automated review can and cannot see, and under what conditions a human is ever permitted to look. This collaboration is leading to the development and delivery of improved safeguards and standards that could scale across our industry and beyond.”\n\nScott DePasquale\n\nPresident and CEO\n\n“One of the key tenets of the safeguards architecture is the ability for us to retain data and have it held outside the model itself, protected within our environment. There are areas of the firm, and of our clients' work, that are regulated and highly sensitive. Those safeguards actually allow us to apply AI in parts of the business that we wouldn't have been able to before. Service Partner”\n\nTodd Lohr\n\nNational Managing Partner, Clients and Markets\n\n“Our customers have trusted us with their data for more than two decades. That experience is exactly why we wanted to help think this through with Anthropic, rather than wait on the sidelines. We were able to work together on new security and privacy capabilities at the architecture level, not just the policy level.”\n\nMeir Amiel\n\nPresident, Chief Trust and Infrastructure Officer\n\n“Our clients want to put frontier models to work, and their security teams want the data to stay in infrastructure they control. Anthropic built Enterprise Frontier Safeguards with more than a hundred enterprises to do exactly that. Service Partner”\n\nLan Guan\n\nChief AI and Data Officer\n\n“As AI models take on more regulated, sensitive workloads, scaling responsibly also comes down to architecture, not just policy commitments. Direct control over the data environment, paired with pattern-based automated safety monitoring, gives enterprises the concrete, structural capabilities they need to deploy with real oversight, accountability, and confidence. Service Partner”\n\nAdnan Amjad\n\nUS Cyber Leader\n\n“The safeguards and the design of them—clearly, you heard our feedback. They put us in the driver's seat. The logs are under our control; they don't go anywhere else unless we want them to. It gives us control of the data, control of the information, and control of what's done after something that might exceed a safeguard is detected.”\n\nPhilip Martin\n\nChief Information Security Officer\n\n“As AI becomes more embedded across the enterprise, security and trust are what move organizations from experimentation to deployment at scale. Enterprise Frontier Safeguards will build those in from the start: monitoring data stays in infrastructure the customer controls, and their own team decides who can access it. Service Partner”\n\nMorgan Adamski\n\nUS Cyber, Data & Tech Leader\n\n“Keeping customer data confidential is a promise Snowflake makes to every customer. We've always moved fast getting frontier models into their hands. The hard part was doing that safely under the strictest data guarantees. We partnered with Anthropic to design Enterprise Frontier Safeguards so we can do both: data stays in the customer's environment, under keys they control, running Anthropic's most capable models from day one. This is what responsible frontier AI looks like when it's built with platforms in mind.”\n\nMayank Upadhyay\n\nChief Security and Trust Officer\n\n“At Stripe, protecting customer data is foundational to how we operate. Anthropic’s Enterprise Frontier Safeguards will enable us to use covered frontier models while retaining conversation logs in Stripe’s AWS environment, with access and review governed by Stripe’s security controls.”\n\nMatthew Kemelhar\n\nHead of Security\n\n“Rogo’s customers expect access to the best intelligence available, but never at the expense of security and guardrails around their data. Enterprise Frontier Safeguards will bring the most capable models to financial institutions while meeting the institutional-grade data requirements they demand. That combination of frontier intelligence and enterprise-grade controls is critical to deploying AI across financial services.”\n\nStrib Walker\n\nHead of Product\n\n“FIS powers the infrastructure behind how money moves and how financial institutions operate, so any AI safeguard we deploy has to meet that scale and standard of trust. Our partnership with Anthropic already includes testing their most advanced frontier models against our own systems through Project Glasswing. Claude Enterprise Frontier Safeguards expands that work, keeping retained data in our own account and routing flags directly to our security team.”\n\nGreg Barnett\n\nChief Information Security Officer\n\n“Companies trust Cognition's autonomous engineers with real production work, and that trust depends on their work staying private. With Enterprise Frontier Safeguards, customer data and identities never leave our side. It will let us bring frontier AI to production work, no privacy tradeoff required.”\n\nScott Wu\n\nCEO\n\n“Our customers' code and data are some of their most valuable intellectual property. Protecting that information is foundational to how we build at Factory. Together with Anthropic, we're enabling customers to use Claude's most capable models while keeping control of proprietary data in their hands. Enterprise Frontier Safeguards gives enterprises access to frontier intelligence with the data protections their security teams require.”\n\nEno Reyes\n\nCo-founder and CTO\n\n“We have always maintained an unwavering commitment to client confidentiality and security. The leading legal and professional teams we serve view these principles as nonnegotiable, and we hold ourselves to the same standard. Enterprise Frontier Safeguards reflects this commitment, enabling customers with the most rigorous confidentiality requirements access to frontier models without the model provider retaining their data.”\n\nJohn LaBarre\n\nChief Legal Officer\n\n## How EFS works\n\nThese controls are designed to work the same way whether you access Claude directly from Anthropic or through a cloud partner. Customers on Amazon Web Services, Google Cloud, and Microsoft Azure will get equivalent controls, with their activity data stored in their own cloud account, in the environment they already trust. We’re also working to support third-party offerings that serve customers that are eligible for Enterprise Frontier Safeguards.\n\nCustomer-owned storage, Customer-Managed Encryption Keys, and fully automated review are each opt-in, so you enable the ones your organization needs. None of them change model behavior, API pricing, or rate limits.\n\nAnthropic doesn’t charge for Enterprise Frontier Safeguards. If customers elect to store their data in their cloud account, their cloud provider bills them for that storage, as well as reads, writes, and data egress fees, the same way it bills any other resource.\n\n## Getting started\n\nEnterprise Frontier Safeguards will roll out to customers in phases, with the goal of making it broadly available later this fall. To request access to Enterprise Frontier Safeguards, please complete this form."
+      },
+      "sha256": "97f0fbea989ea4e137d96f0f213196e1511a44827e50a3c24850194bd4a6c6a7",
+      "origin": {
+        "file": "packages/briefing/eval/corpus/anthropic-news.json",
+        "articleId": "enterprise-frontier-safeguards"
+      }
+    },
+    {
+      "article": {
+        "id": "barclays-scales-claude",
+        "source": "anthropic.com/news",
+        "title": "Barclays scales Claude to upgrade operations and improve client experience ",
+        "url": "https://www.anthropic.com/news/barclays-scales-claude",
+        "publishedAt": "2026-10-01T00:00:00Z",
+        "text": "Barclays, the British universal bank, is expanding its strategic collaboration with Anthropic to integrate secure, enterprise-grade AI systems across its global operations.\n\nBarclays is extending Claude across the bank to accelerate software development, modernize legacy systems, and improve operational efficiency. As part of this rollout, Barclays expects Claude Code adoption to reach 50% of its developer population by the end of 2026, rising to a majority of software engineers in 2027.\n\n## Barclays builds with Claude to better serve customers\n\nIntegrating AI across a large, complex, and highly regulated organization requires both capable technology and disciplined governance. Expanding its collaboration with Anthropic reflects a shared commitment to deploying AI responsibly, reliably, and in ways that deliver real outcomes, such as providing faster support for customers.\n\n“The true measure of any technology is the impact it has on customers, clients, and colleagues, and the outcomes it enables,” said Anne Marie Darling, Group Co-Chief Operating Officer at Barclays. “Expanding the use of Claude across Barclays is about more than adopting AI. It is about transforming how work gets done: reimagining processes, enhancing customer and client experiences, and building a simpler, more efficient organization within a secure and well-governed environment. By reducing time spent on routine activities and streamlining decision-making, we can enable colleagues to focus their expertise where it matters most, solving more complex problems, accelerating innovation, and delivering better outcomes for our customers, clients, and business.”\n\n“Software engineering and cyber security are both being reshaped by increasingly capable AI systems,” said Craig Bright, Group Co-Chief Operating Officer at Barclays. “We're moving towards AI as an increasingly agentic capability embedded within how we build, test, secure, and operate technology. At Barclays, we're using Claude to help modernize legacy platforms, improve software quality, and allow our technical experts to focus on the most complex challenges. The combination of skilled engineers, cyber specialists, and trusted AI capabilities has the potential to fundamentally improve how technology is developed and managed across large-scale enterprises.”\n\n## Claude powers knowledge assistance to speed up customer servicing\n\nOne example of the partnership already in action is Barclays’ Colleague Knowledge Assistant, which helps Barclays UK employees find information and answers more quickly when supporting their over 20 million UK retail customers.\n\nThe capability, which has been live since 2025, is powered by Claude through a retrieval-augmented generation architecture. More than 16,000 colleagues have adopted the assistant, and it has handled over one million searches.\n\nThe result is faster access to information and quicker support for customers.\n\n## Enhancing operational efficiency in Barclays’ Global Markets business\n\nWithin Barclays' Global Markets business, Claude models are helping streamline how client inquiries are processed and managed.\n\nTeams use Claude models to classify, enrich, and determine the optimal processing route for incoming emails, helping to prioritize and ensure requests contain the information needed for operations colleagues to take action. The platform processes approximately 120,000 emails each day, reducing manual handling activity while helping colleagues identify and act on relevant information more efficiently.\n\n## Scaling AI responsibly\n\nAs Barclays continues to expand its use of AI, responsible deployment remains central to the partnership. The bank applies robust governance, security controls, and human oversight to AI use cases, ensuring technology is deployed safely and effectively across the organization.\n\n“Our work with Barclays is a significant milestone for us in the UK. Barclays serves millions of customers and clients across the globe, so their standard for AI is high. That's why Barclays is rolling Claude out with strong security and oversight,” said Paul Smith, Chief Commercial Officer at Anthropic. “Claude now helps 16,000 Barclays’ colleagues find answers for customers, sorts 120,000 emails a day, and will be in the hands of most Barclays engineers by 2027. Very few institutions hold AI to such a high standard.”\n\n## Looking ahead\n\nThe expanded partnership reflects Barclays’ long-term commitment to using AI to improve productivity, strengthen resilience, and improve customer and client outcomes. By combining Anthropic’s frontier AI capabilities with Barclays’ focus on responsible innovation, the organizations are working together to scale practical AI applications across one of the world’s largest financial institutions."
+      },
+      "sha256": "f474a9b0dddcc8bc71753af3773f020456fd8c64833c0f17184ebffca25a24f3",
+      "origin": {
+        "file": "packages/briefing/eval/corpus/anthropic-news.json",
+        "articleId": "barclays-scales-claude"
+      }
+    },
+    {
+      "article": {
+        "id": "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+        "source": "techcrunch.com",
+        "title": "Replit makes OpenAI its default over Anthropic, CEO says",
+        "url": "https://techcrunch.com/2026/10/17/replit-is-no-longer-working-with-anthropic-ceo-says/",
+        "publishedAt": "2026-10-17T18:48:08.000Z",
+        "text": "Replit, the AI coding platform that has become a favorite of startup founders and developers, is no longer working with Anthropic, the company’s CEO and co-founder Amjad Masad said Thursday while onstage at TechCrunch Disrupt.\nMasad said the decision was made for a number of different reasons, including cost. Replit announced a partnership with OpenAI in August, but there was never any indication that it was no longer partnering with Anthropic. \n“I think ChatGPT is better now,” Masad said, adding that the company uses an internal benchmark to help assess metrics like performance. “We publish a public benchmark as well, and consistently, Sol and Astra perform better on building vibe-coded applications from scratch. It was a decision based on both cost, partnership, and performance. And for all these reasons, we just felt like they were a better partner for now.”\nIt seems, however, that Anthropic hasn’t been completely cut out of Replit, which sells a cloud-based software development platform where users can develop and deploy apps directly from inside their browser. \nAfter Disrupt, Masad clarified that customers can still access Anthropic models on the platform, but that OpenAI’s ChatGPT is now the default. This shift could significantly reduce Replit’s spend with Anthropic since most customers stick with the default rather than selecting a model themselves.\nPrior to striking a deal with OpenAI, Replit relied on Anthropic’s Claude models to run its platform. That partnership was said to have helped the company grow its revenue significantly, and Masad noted onstage that Replit had been, until recently, a top-five customer of Anthropic’s.\n“Replit remains model agnostic,” Masad told TechCrunch over the weekend. “Our users can choose Anthropic’s Claude or other supported models … OpenAI is now our preferred partner for powering Replit Agent, based on performance, economics, and the strength of our partnership.”\nHowever, Masad’s comments onstage were rejected by insiders familiar with the partnership between Anthropic and Replit. One person familiar, who asked not to be named, said the partnership was still in place.\nThere is evidence on the company’s website, blog posts, and social media posts that Replit was promoting Anthropic products as recently as a few weeks ago. For instance, a blog post in late September cites Anthropic’s Claude Fable 5 and Claude Fable 5.1 as models running in Replit Agent’s production environment. Around the same time, one of Replit’s product employees posted on X about using Anthropic’s flagship model Opus 5.5 and promoting its capabilities.\nMasad also shared insights about the company’s growth while onstage at Disrupt, noting that enterprise is starting to provide a larger slice of revenue.\n“We’re not sharing ARR numbers just yet, but in terms of growth, like, I would say, enterprise was like 2% of revenue last year,” Masad said. “This year, I would say like 15% of our revenue is enterprise contracts, and more than 50% of our revenue is B2B.”\nBackstage, Masad told TechCrunch that he expects more than half of Replit’s revenue to come from enterprise and government customers in 2027.\nMasad also commented on the necessity for good AI safety measures.\n“In the same way that us humans need a certain environment to work — you need a nice office, maybe nice good food in the office, air-conditioning, computer — agents need a habitat for them to exist and do good work,” he said. “So that habitat has good orchestration, good error recovery, good safety and security and sandboxing, good networking, good identity and authorization. And once you figure all of that out, then you can deploy AI safely.”\nThis article was originally published on October 16 at 2:22 p.m. PT. It has been updated to include more context around Replit’s partnerships with Anthropic and OpenAI. Its title has been updated, as well."
+      },
+      "sha256": "72e5bef18895d2fbe3accc73427f18748044becc5c0034da19693d23f9004405",
+      "origin": {
+        "file": "packages/briefing/test/fixtures/v3-factual-reliability.json",
+        "articleId": "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+      }
+    },
+    {
+      "article": {
+        "id": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+        "source": "techcrunch.com",
+        "title": "Anthropic says it’s committing 5% of its shares to a ‘public benefit fund’",
+        "url": "https://techcrunch.com/2026/10/18/anthropic-says-its-committing-5-of-its-shares-to-a-public-benefit-fund/",
+        "publishedAt": "2026-10-18T20:37:40.000Z",
+        "text": "Anthropic announced today that it’s creating a “public benefit fund” that will give the company “increased flexibility and scale” to support projects for societal good.\nAnthropic said that it will commit 5% of its shares to the fund — structured as a wholly-owned entity within the company — with the option to contribute an additional 2% for every 50% increase in Anthropic’s value. And it offered some broad-strokes ideas for how this money might actually be used, such as “large donations to traditional nonprofits or direct distributions to specific populations.”\nThere’s also the impact that AI might have on the job market, which Anthropic has already committed $200 million to study. But the company said, “Given the pace of AI progress, bolder approaches may be needed. The Fund will have the versatility to pursue them.”\nAnthropic’s announcement comes as the AI industry faces increasingly negative public sentiment, which CEO Dario Amodei has described as “fundamentally a crisis of trust.”\nIf you’re wondering who will actually decide which public benefits are worth funding, Anthropic said it will share more information about structure and governance in the coming months."
+      },
+      "sha256": "f23f9f04cd9bfb4c104e1b5c21849bf0ce84f742612fa881e1795d752a4c3728",
+      "origin": {
+        "file": "packages/briefing/test/fixtures/v3-factual-reliability.json",
+        "articleId": "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      }
+    },
+    {
+      "article": {
+        "id": "21e96058-02dc-470a-953e-deebc8d0b3ba",
+        "source": "thehackernews.com",
+        "title": "ThreatsDay: Adobe RCE, DNS Wallet Theft, NVIDIA Container Escape, Self-Healing Backdoor + 23 More",
+        "url": "https://thehackernews.com/2026/10/threatsday-adobe-rce-dns-wallet-theft.html",
+        "publishedAt": "2026-10-16T00:00:00.000Z",
+        "text": "Someone built a tool to steal data, then decided it should scare the victim for fun. Yes, that’s an actual feature. And somehow, it fits right in with this week's security stories.\nThe rest gets interesting in different ways. A small permission can lead to a big theft. A trusted login can hide the wrong person. Old bugs are finding new victims, familiar tools are being put to strange uses, and some flaws are so simple you wonder how nobody spotted them sooner.\nThere's a lot more hiding in the details, including a few twists you probably wouldn't expect. Here's what made the list this week.\nThe threats change every week. Subscribe, and we’ll alert you when each new ThreatsDay Bulletin is out.\n-\nActive ransomware exploitation\nQilin and Settra ransomware groups are actively exploiting CVE-2026-0257, an authentication bypass vulnerability in PAN-OS GlobalProtect and Prisma Access. The vulnerability, disclosed in May 2026, has since come under active exploitation. \"Because this access originates through an organization’s own VPN, malicious activity can resemble legitimate remote work and may go undetected until credential theft, lateral movement, data theft, or ransomware deployment is underway,\" ReliaQuest said. \"Organizations should immediately upgrade affected deployments, disable authentication override cookies where they are not required, terminate all active GlobalProtect sessions after patching, and investigate unexpected connections, including sessions using hostnames such as 'kali.' Patching alone may not remove access established before remediation.\"\n-\nHybrid warfare escalates across Europe\nRussia is assessed to have escalated its use of hybrid, asymmetric warfare across Europe following its full-scale invasion of Ukraine in February 2022. \"They do not involve troops moving across a country’s border or a state’s military dropping bombs on an adversary’s capital city,\" Recorded Future said. \"Instead, they are a complex kit of psychological, cyber, and physical tactics meant to achieve several key aims: (1) Test the enemy’s defensive capabilities, as Russia evaluates whether to escalate aggression into a formal, kinetic conflict, (2) Degrade the enemy’s critical infrastructure, and (3) Sow an environment of fear in the enemy’s government and population to degrade the enemy’s ability to respond.\"\n-\nDNS-powered wallet theft\nInfoblox has analyzed a cryptocurrency wallet-drainer kit, self-branded as Noir, that makes use of DNS TXT records to locate its hosted pool, which currently runs on Cloudflare Pages. It's delivered by means of a loader that queries the TXT record through public DoH services to learn which backend pool is active. \"The drainer does not need a seed phrase, password, or private key,\" Infoblox said. \"It tailors content to the user after receiving initial read permissions, developing a plan for the specific wallet. Then it obtains spending permissions that can look less alarming than a direct transfer and performs the theft from attacker-controlled infrastructure.\" It's suspected that the malware was created and maintained with AI assistance.\n-\nDiscord-based remote access threat\nA Rust-based remote access trojan dubbed CikaBika Bot has been observed being delivered via a document-themed lure containing a malicious LNK file and a PDF with an embedded payload. \"The malware uses a Nim loader, PowerShell UAC bypass, and DLL search-order hijacking before leveraging Discord for C2, reconnaissance, remote execution, and data exfiltration through ngrok in observed malicious activity,\" Darktrace said. The malware also supports screenshot capture and file transfers.\n-\nRAT combines theft and intimidation\nA Windows remote access trojan (RAT) called KGB RAT is being marketed on underground forums since late 2025 as being fully undetectable. It features a built-in crypter, HVNC, credential theft, ransomware, and an unusual set of psychological harassment capabilities, per Group-IB. \"KGB RAT is, in practice, a full-featured malware package that gives attackers silent and persistent control over infected Windows machines,\" it said. \"What sets it apart from comparable RAT families is not only its technical breadth — combining credential theft, keylogging, hidden desktop takeover, and ransomware in a single builder — but also a dedicated set of psychological harassment features, including screamer functions, jump scares, and forced blue screens of death. These 'fun settings,' as the developers themselves describe them, signal a threat actor profile comfortable weaponizing victim anxiety alongside data theft.\" A public disclosure referencing a KGB RAT server at version 0.1 dates to late January 2022, indicating the developer had been building and testing the malware for years before bringing it to market. Subscriptions start at $150 for one month and go up to $800 for one year, with lower prices for renewals. The cheapest package includes remote desktop access, file management, camera and microphone access, keylogging, password theft, persistence and anti-detection features. The more expensive plans add the ability to manage several infected computers at once, customize payloads, access extra evasion features, and support for plugins.\n-\nStealthy live-screen surveillance\nA multi-stage infection chain on Windows has been observed deriving a previously undocumented .NET RAT with live screen surveillance capability. It's been codenamed BotHelper RAT. \"The first stage is a native x64 stager that fingerprints the host computer name, logged-on user, processor configuration, and installed memory, then connects to easyllms.xyz over HTTPS and retrieves a file named payload.bin from a path guarded by a long hexadecimal identifier, disabling TLS certificate validation beforehand,\" Point Wild said. \"The second stage is BotHelper RAT. It copies itself to a hidden location, registers a scheduled task to relaunch every 30 minutes, patches the Antimalware Scan Interface, and registers with the same host that delivered it before polling a set of PHP endpoints for tasking.\"\n-\nNew Android anti-scam defenses\nGoogle said it's rolling out multi-layered protections across Google Messages and third-party messaging apps to protect Android users against mobile scams. This includes enhanced Scam Detection with Private AI Compute, link safety checks with Gemini Nano, and redesigned warnings before tapping unfamiliar links. Google also said it's bringing Scam Detection in chat notifications to warn users about suspicious messages directly from their notification shade to other Android devices in partnership with device makers. Other security improvements include automatic screen-share privacy to hide sensitive information in native apps, Chrome, and Android WebView, blocking apps from quietly enabling call forwarding in the background, and real-time verification for bank calls in collaboration with Banco do Brasil, Itaú Unibanco, and other leading banks. \"Android checks incoming calls in real time to verify whether the bank actually initiated the call,\" Google said. \"If an incoming caller claiming to represent a bank fails this verification check, Android hangs up the call and immediately alerts you.\" Since launching this feature in June 2026, Android has blocked more than 3 million spoofed calls from Banco do Brasil and Itaú Unibanco alone.\n-\nAI model theft defenses strengthened\nAnthropic has disclosed that new measures like preserved thinking, two-stage classifiers, and charging for requests that are blocked by our safeguards before Claude responds in its Fable 5.1 and Opus 5.5 models have reduced data harvesting through distillation attacks by about 90% to 99%.\n-\nEnterprise browser security controls\nMozilla has launched Firefox Enterprise, a browser iteration \"built for organizations with strict security, governance, and compliance requirements.\" Mozilla added, \"IT and security teams get more control over their data, IT infrastructure and browser environment — helping strengthen technological independence and operational resilience.\"\n-\nSelf-healing WordPress backdoor\nWordfence has detailed an unusual malware that's installed as a must-use WordPress plugin and makes use of \"several self-healing mechanisms in place in order to survive removal. It also makes use of EtherHiding, a technique that hides the location of the attacker's servers behind a smart contract on the Ethereum blockchain, making the command channel resilient to takedown.\" The malware is capable of establishing administrator access, hiding the rogue administrator account, harvesting administrator passwords, remote site modification, data exfiltration, and spreading to other WordPress installations on the file system.\n-\nStolen credentials expose GitHub data\nMeta said it's notifying about 1,500 people, most of them its own employees in the U.S., after unknown threat actors broke into some of the company's GitHub repositories. The intrusion, detected a few weeks ago, involved the use of an employee's stolen credentials. The access has since been shut down, according to SecurityWeek.\n-\nXWorm expands surveillance capabilities\nThe malware known as XWorm has transitioned from an infostealer to a full-blown surveillance platform. The malware's plugin count has expanded from 35 to 46. The latest versions detected since July 2025 are V6.4, V6.5 \"XWorm Reborn,\" V7.2, and V7.4. \"The Maps plugin provides victims' GPS location without triggering a user prompt,\" Netskope said. \"The Microphone plugin streams live audio from the victim’s device. HBrowser gives operators interactive control of authenticated browser sessions without touching credentials, bypassing MFA entirely. Webcam capture is also available on demand.\"\n-\nHigher rewards for memory-safety bugs\nGoogle has announced that it's raising bug bounty rewards for some Chrome vulnerabilities, with a focus on memory safety issues. While the company lowered standard payout amounts for some vulnerabilities in April, such as a base reward of $500 for memory safety issues, it has now quadrupled base rates for memory safety flaws to $2,000. Vulnerabilities in Chrome's browser, GPU, and network processes can now earn researchers up to $20,000.\n-\nPost-quantum readiness warning\nMicrosoft is urging organizations to prepare their certificate systems for post-quantum authentication, stating that public key infrastructure (PKI), hardware security modules (HSMs), and security appliances need testing before deployment. \"Organizations should begin now by inventorying certificate dependencies, assessing vendor roadmaps, identifying long-lived infrastructure, and creating non-production test environments,\" Microsoft said. \"Early testing can surface compatibility and process gaps before post-quantum authentication is required at scale.\"\n-\nAI tool credentials at risk\nA new malware-as-a-service (MaaS) infostealer written in Rust comes with its own loader and a built-in cryptocurrency clipper. \"Warden Stealer is one of the first infostealers targeting configuration files and local data belonging to AI assistants and agentic coding tools,\" Gen Digital said. \"Its builds are heavily obfuscated, morphed, and regularly updated to evade detection.\"\n-\nAdvanced browser data theft\nNewer versions of CastleStealer can \"bypass app-bound encryption in Chromium-based browsers, execute commands remotely, and exfiltrate stolen information in small encrypted transmissions rather than a single large archive,\" according to Flashpoint. The C#-based stealer was first discovered in April 2026.\n-\nAI developer credentials targeted\nThe infostealer known as Aoki (aka Aokigahara) is targeting credential and session files used by AI coding assistants, including Claude, OpenAI's Codex, Cursor, Codeium, and Gemini. The stealer was first seen earlier this year. \"API keys and Open Authorization (OAuth) or session tokens allow malicious activity to be carried out under a legitimate developer's identity and API quota,\" the Symantec Threat Hunter team said. \"They can also expose connected repositories, cloud services and CI/CD pipelines linked to that account, and may bypass safeguards that assume requests originate from a trusted user.\" In a report published last month, Google-owned Wiz said AI service provider API keys are a hot commodity. \"These AI credentials are highly lucrative; allowing attackers to freely run their own workloads or resell the access as part of the illicit LLM resale market,\" it said. \"In addition, these keys can potentially grant access to historical chat logs that may contain sensitive corporate data, but we’re not aware of public occurrences of this scenario.\"\n-\nCustomizable MaaS infostealer\nK7 Labs has detailed a Python-based builder that is sold under a MaaS model and is used to embed an infostealer payload. \"Rather than operating as a standalone stealer script, the builder follows a MaaS-style model,\" it said. \"It allows operators to generate customized Windows executables using Nuitka or PyInstaller, with webhook configuration integrated into the build process.\" The stealer capabilities include anti-analysis techniques, persistence, credential harvesting, and data exfiltration.\n-\nCloud credential theft risk\nAn SSRF vulnerability (GHSA-2phj-cp9f-qq6w, CVSS score: 8.5) in Harbor, the CNCF open-source container registry, can be abused by a registered user to steal cloud credentials. \"Any registered user who can create a project can point a webhook at the cloud metadata endpoint and walk away with the server’s IAM credentials,\" OX Security said.\n-\nUnauthenticated RCE chain\nA set of high-impact vulnerabilities in Adobe Experience Manager (AEM) can be abused to achieve unauthenticated remote code execution (RCE). The chain combines four flaws: Unauthenticated DAM bulk import, stored cross-site scripting (XSS), unsafe XML parsing, and Groovy execution via /bin/asynccommand. The flaws affect only the cloud version of AEM and have been patched.\n-\nCritical unauthenticated RCE\nSamsung has patched a critical security flaw (CVE-2026-110392, CVSS score: 9.8) in QA-Board that allows unauthenticated RCE. Samsung's QA-Board is an experiment-tracking tool that's used to organize, visualize, compare, and share research runs, specifically for algorithm and performance tuning. The problem stems from a case of improper neutralization of user-controlled data that could result in shell command injection. The vulnerability was flagged by Claude Opus 5.5.\n-\nLinux root and container escape\nSecurity researcher Ziyi Guo has disclosed details of a critical Linux security vulnerability in NVIDIA's GPU Display Driver for Linux (CVE-2026-47595, CVSS score: 7.5, aka Bad UVM) that could allow an unprivileged user can write to read-only memory by taking advantage of the fact that the memory's permissions are not preserved. The vulnerability could be exploited to achieve code execution, escalation of privileges, denial-of-service, information disclosure, data tampering, and even a container escape. \"By injecting our exploit code into nvidia-persistenced, we first force the hijacked process to execute a UVM-based local privilege escalation (LPE),\" the researcher said. \"Once the privilege barrier is crossed, we trigger the subsequent operations, ultimately granting us the ability to execute commands on the host with full root access.\"\n-\nActive command injection attacks\nA command injection vulnerability in EG Secure Solutions SiteGuard Server Edition (CVE-2026-106931, CVSS score: 8.5) has come under active exploitation in the wild. The flaw affects customers using version 2.20 or later with statistics enabled, which is turned on by default. Successful exploitation could allow an attacker to execute arbitrary OS commands with root or SYSTEM privileges on affected systems. It's currently not known how the flaw is being exploited, by whom, and who is being targeted.\n-\nCritical unpatched SQL injection\nRapid7 has disclosed details of a critical SQL Injection vulnerability in Channel Software WebAlliance eCommerce (CVE-2026-108065, CVSS score: 9.8). \"The exploit allows a malicious actor to read sensitive data from the database, or, if the database user has high privileges, run system commands on the database server,\" Rapid7 said. \"The SQL Injection exploit can be leveraged to view sensitive information in the database, such as user PII and passwords. If logged in with DB admin privileges, the vulnerability can be exploited to run system commands on the server running the database.\"\n-\nFour code execution flaws patched\nNSD has released patches for four security flaws (CVE-2026-101341, CVE-2026-101339, CVE-2026-101338, and CVE-2026-101337) that could be exploited to achieve execution of arbitrary commands. The vulnerabilities, credited to Qifan Zhang from Palo Alto Networks and Gaurang Maheta, have been patched in NSD 4.15.3 or newer.\n-\nPotential VM-to-host escape\nThe Xen project has published details of CVE-2026-79610, a race condition in Xen's grant-table mechanism that could be abused to compromise the security of a virtual machine host and allow an unprivileged guest to elevate its privileges to that of the host. All Xen versions from 4.0 onwards are vulnerable. The issue has been addressed in xsa517.patch. As mitigation, it's advised to use the \"gnttab=max-ver:1\" hypervisor command line option or the \"max_grant_version=1\" guest configuration option for guests. The project maintainers credited Anthropic's Claude Opus with the discovery and Teddy Astie of Vates for diagnosing it as a security issue.\n-\nSYSTEM-level remote code execution\nA Windows security vulnerability in MyReport Updater 2.1.1 can permit an attacker to seize control of a machine, including remotely, without authentication. \"An attacker with standard user privileges can set an arbitrary reference server,\" Quarkslab said. \"If MyReportUpdaterService can contact this server over gRPC on TCP port 9095, the attacker can write files into a chosen directory with NT AUTHORITY\\SYSTEM privileges. The attacker can use this file-write access to place a DLL that will be loaded by a privileged process. The DLL code is then executed with high privileges. This vulnerability gives full control of the Citrix server. It can also affect other machines where the vulnerable MyReport solution is installed.\"\nIf there's one thing this week's stories make clear, it's that attackers don't always need a clever trick. Sometimes a stolen login, a forgotten setting, or one small mistake is enough. And even when the bug gets fixed, the trouble it caused might still be sitting there.\nThe lesson is pretty simple: don't just check what's broken. Check who got in, what they touched, and whether they can come back. Keep an eye on the things everyone assumes are safe. Those are often the ones nobody looks at until something goes wrong. That's it for this edition. See you next week, hopefully with fewer surprises."
+      },
+      "sha256": "511209518c735cec76ec2fbc8f297fb8b761cf5b5ee6b54ad5fd6fcd748ff477",
+      "origin": {
+        "file": "packages/briefing/test/fixtures/v3-factual-reliability.json",
+        "articleId": "21e96058-02dc-470a-953e-deebc8d0b3ba"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "lebanon-roundup-en",
+      "split": "development",
+      "feed": {
+        "interest": "Track important news and developments affecting Lebanon, including politics, government decisions, security, the economy, banking, public services, electricity, infrastructure, and major social developments.",
+        "language": "en",
+        "windowMinutes": 120,
+        "style": "Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time."
+      },
+      "articleIds": [
+        "762779a7-f41a-4d26-8110-143aaca0e636",
+        "78a8013d-f33c-4c96-a435-8776f78c5f57",
+        "e640d1b3-d69c-450f-9745-0542dfc3adad",
+        "f619024d-bab6-4a88-8d82-31222f97521d",
+        "545f5560-9ac3-42e6-8531-957d9fe10af9",
+        "8fce8732-0ed8-4499-bb4d-ce8367f6008c",
+        "6e70783f-0769-4ab9-a519-93d270aec4c2",
+        "b2ea311c-7b1b-4f0c-b313-593d2d1d437a",
+        "3c52259a-6f75-4df0-a273-0f8574ec0557",
+        "63bdd3de-7a11-4674-8fc7-c5a826b53836",
+        "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+        "69c9f685-3339-4057-ba7e-07678a33816e",
+        "d54d92e1-3175-4465-8f47-09031a4de464",
+        "7951d27e-8979-4bfa-b3fe-9b20d87855db",
+        "1e764cd1-5749-4428-8449-8e09d5e86751"
+      ],
+      "prior": [
+        {
+          "id": "2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:0",
+          "at": "2026-10-23T14:17:01.456Z",
+          "headline": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications.",
+          "body": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications."
+        },
+        {
+          "id": "fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:0",
+          "at": "2026-10-23T14:46:23.250Z",
+          "headline": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23.",
+          "body": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23."
+        },
+        {
+          "id": "74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:0",
+          "at": "2026-10-23T15:16:09.091Z",
+          "headline": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23.",
+          "body": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23."
+        }
+      ],
+      "windowStart": "2026-10-23T15:20:00Z",
+      "windowEnd": "2026-10-23T17:20:00Z",
+      "expected": {
+        "important": [
+          {
+            "id": "edl-cutoff",
+            "summary": "EDL decided to cut electricity to nonpaying public bodies from November 2",
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ],
+            "necessary": [
+              "Decision, nonpayment/public-body scope, effective date if included"
+            ],
+            "optional": [
+              "Board procedures"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "qantara",
+            "summary": "One reported Qantara explosion",
+            "sourceIds": [
+              "6e70783f-0769-4ab9-a519-93d270aec4c2",
+              "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+            ],
+            "necessary": [
+              "Reported explosion, Qantara; Israeli attribution is a channel claim"
+            ],
+            "optional": [
+              "Routine unknown-casualty commentary"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "baraachit",
+            "summary": "Reported strike near Baraachit toward Kounin",
+            "sourceIds": [
+              "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+            ],
+            "necessary": [
+              "Reported strike and location"
+            ],
+            "optional": [],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "prospective-strikes",
+            "summary": "Separate attributed announcement of future Lebanese-front strikes",
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ],
+            "necessary": [
+              "Prospective status and attribution; not the already-reported Baraachit strike"
+            ],
+            "optional": [],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [
+          [
+            "6e70783f-0769-4ab9-a519-93d270aec4c2",
+            "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+          ]
+        ],
+        "separateOccurrences": [
+          [
+            "63bdd3de-7a11-4674-8fc7-c5a826b53836",
+            "d54d92e1-3175-4465-8f47-09031a4de464"
+          ]
+        ],
+        "repetition": [
+          "545f5560-9ac3-42e6-8531-957d9fe10af9",
+          "e640d1b3-d69c-450f-9745-0542dfc3adad"
+        ],
+        "optional": [
+          "3c52259a-6f75-4df0-a273-0f8574ec0557",
+          "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+          "1e764cd1-5749-4428-8449-8e09d5e86751"
+        ]
+      },
+      "notes": [
+        "Original two-hour corpus, not relabelled as a 30-minute fresh window. Off-topic later casualty reports may be omitted for this Lebanon feed."
+      ],
+      "family": "lebanon-roundup",
+      "languageRequirements": "Natural concise English; preserve attribution, conditions, numbers and temporal meaning. Avoid headline/body repetition."
+    },
+    {
+      "id": "lebanon-roundup-ar",
+      "split": "development",
+      "feed": {
+        "interest": "Track important news and developments affecting Lebanon, including politics, government decisions, security, the economy, banking, public services, electricity, infrastructure, and major social developments.",
+        "language": "ar",
+        "windowMinutes": 120,
+        "style": "Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time."
+      },
+      "articleIds": [
+        "762779a7-f41a-4d26-8110-143aaca0e636",
+        "78a8013d-f33c-4c96-a435-8776f78c5f57",
+        "e640d1b3-d69c-450f-9745-0542dfc3adad",
+        "f619024d-bab6-4a88-8d82-31222f97521d",
+        "545f5560-9ac3-42e6-8531-957d9fe10af9",
+        "8fce8732-0ed8-4499-bb4d-ce8367f6008c",
+        "6e70783f-0769-4ab9-a519-93d270aec4c2",
+        "b2ea311c-7b1b-4f0c-b313-593d2d1d437a",
+        "3c52259a-6f75-4df0-a273-0f8574ec0557",
+        "63bdd3de-7a11-4674-8fc7-c5a826b53836",
+        "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+        "69c9f685-3339-4057-ba7e-07678a33816e",
+        "d54d92e1-3175-4465-8f47-09031a4de464",
+        "7951d27e-8979-4bfa-b3fe-9b20d87855db",
+        "1e764cd1-5749-4428-8449-8e09d5e86751"
+      ],
+      "prior": [
+        {
+          "id": "2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:0",
+          "at": "2026-10-23T14:17:01.456Z",
+          "headline": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications.",
+          "body": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications."
+        },
+        {
+          "id": "fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:0",
+          "at": "2026-10-23T14:46:23.250Z",
+          "headline": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23.",
+          "body": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23."
+        },
+        {
+          "id": "74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:0",
+          "at": "2026-10-23T15:16:09.091Z",
+          "headline": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23.",
+          "body": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23."
+        }
+      ],
+      "windowStart": "2026-10-23T15:20:00Z",
+      "windowEnd": "2026-10-23T17:20:00Z",
+      "expected": {
+        "important": [
+          {
+            "id": "edl-cutoff",
+            "summary": "EDL decided to cut electricity to nonpaying public bodies from November 2",
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ],
+            "necessary": [
+              "Decision, nonpayment/public-body scope, effective date if included"
+            ],
+            "optional": [
+              "Board procedures"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "qantara",
+            "summary": "One reported Qantara explosion",
+            "sourceIds": [
+              "6e70783f-0769-4ab9-a519-93d270aec4c2",
+              "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+            ],
+            "necessary": [
+              "Reported explosion, Qantara; Israeli attribution is a channel claim"
+            ],
+            "optional": [
+              "Routine unknown-casualty commentary"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "baraachit",
+            "summary": "Reported strike near Baraachit toward Kounin",
+            "sourceIds": [
+              "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+            ],
+            "necessary": [
+              "Reported strike and location"
+            ],
+            "optional": [],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "prospective-strikes",
+            "summary": "Separate attributed announcement of future Lebanese-front strikes",
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ],
+            "necessary": [
+              "Prospective status and attribution; not the already-reported Baraachit strike"
+            ],
+            "optional": [],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [
+          [
+            "6e70783f-0769-4ab9-a519-93d270aec4c2",
+            "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+          ]
+        ],
+        "separateOccurrences": [
+          [
+            "63bdd3de-7a11-4674-8fc7-c5a826b53836",
+            "d54d92e1-3175-4465-8f47-09031a4de464"
+          ]
+        ],
+        "repetition": [
+          "545f5560-9ac3-42e6-8531-957d9fe10af9",
+          "e640d1b3-d69c-450f-9745-0542dfc3adad"
+        ],
+        "optional": [
+          "3c52259a-6f75-4df0-a273-0f8574ec0557",
+          "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+          "1e764cd1-5749-4428-8449-8e09d5e86751"
+        ]
+      },
+      "notes": [
+        "Original two-hour corpus, not relabelled as a 30-minute fresh window. Off-topic later casualty reports may be omitted for this Lebanon feed."
+      ],
+      "family": "lebanon-roundup",
+      "languageRequirements": "Natural concise Arabic; preserve named actors, attribution, conditions, numbers and temporal meaning. Avoid literal translated filler."
+    },
+    {
+      "id": "ai-multisource-en",
+      "split": "development",
+      "feed": {
+        "interest": "Important AI provider strategy, independent safety evaluation and corporate decisions; omit marketing and routine detail.",
+        "language": "en",
+        "windowMinutes": 7200
+      },
+      "articleIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+        "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+        "an-update-on-independent-evaluators"
+      ],
+      "prior": [],
+      "windowStart": "2026-10-15T00:00:00Z",
+      "windowEnd": "2026-10-20T00:00:00Z",
+      "expected": {
+        "important": [
+          {
+            "id": "fund",
+            "summary": "One public-benefit-fund announcement across primary and secondary coverage",
+            "sourceIds": [
+              "public-benefit-fund",
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+            ],
+            "necessary": [
+              "Proposed 5% share commitment is subject to stockholder approval; not cash already paid"
+            ],
+            "optional": [
+              "Discretionary escalator, governance plans when relevant"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "replit",
+            "summary": "OpenAI default; Anthropic models remain available",
+            "sourceIds": [
+              "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+            ],
+            "necessary": [
+              "Default is not exclusivity; preserve clarification sequence if reporting the original statement"
+            ],
+            "optional": [
+              "Revenue forecasts"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "metr",
+            "summary": "Employee-like access granted to METR for independent evaluations",
+            "sourceIds": [
+              "an-update-on-independent-evaluators"
+            ],
+            "necessary": [
+              "Access is not an already-published evaluation result"
+            ],
+            "optional": [
+              "Other prospective partners"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [
+          [
+            "public-benefit-fund",
+            "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+          ]
+        ],
+        "separateOccurrences": [
+          [
+            "public-benefit-fund",
+            "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+          ],
+          [
+            "public-benefit-fund",
+            "an-update-on-independent-evaluators"
+          ]
+        ],
+        "repetition": [],
+        "optional": []
+      },
+      "notes": [
+        "Historical replay with original dates; not a live freshness or scheduling test. Primary plus secondary coverage is not independent corroboration."
+      ],
+      "family": "ai-multisource",
+      "languageRequirements": "Natural concise English; preserve attribution, conditions, numbers and temporal meaning. Avoid headline/body repetition."
+    },
+    {
+      "id": "ai-multisource-ar",
+      "split": "development",
+      "feed": {
+        "interest": "Important AI provider strategy, independent safety evaluation and corporate decisions; omit marketing and routine detail.",
+        "language": "ar",
+        "windowMinutes": 7200
+      },
+      "articleIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+        "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+        "an-update-on-independent-evaluators"
+      ],
+      "prior": [],
+      "windowStart": "2026-10-15T00:00:00Z",
+      "windowEnd": "2026-10-20T00:00:00Z",
+      "expected": {
+        "important": [
+          {
+            "id": "fund",
+            "summary": "One public-benefit-fund announcement across primary and secondary coverage",
+            "sourceIds": [
+              "public-benefit-fund",
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+            ],
+            "necessary": [
+              "Proposed 5% share commitment is subject to stockholder approval; not cash already paid"
+            ],
+            "optional": [
+              "Discretionary escalator, governance plans when relevant"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "replit",
+            "summary": "OpenAI default; Anthropic models remain available",
+            "sourceIds": [
+              "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+            ],
+            "necessary": [
+              "Default is not exclusivity; preserve clarification sequence if reporting the original statement"
+            ],
+            "optional": [
+              "Revenue forecasts"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "metr",
+            "summary": "Employee-like access granted to METR for independent evaluations",
+            "sourceIds": [
+              "an-update-on-independent-evaluators"
+            ],
+            "necessary": [
+              "Access is not an already-published evaluation result"
+            ],
+            "optional": [
+              "Other prospective partners"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [
+          [
+            "public-benefit-fund",
+            "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+          ]
+        ],
+        "separateOccurrences": [
+          [
+            "public-benefit-fund",
+            "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+          ],
+          [
+            "public-benefit-fund",
+            "an-update-on-independent-evaluators"
+          ]
+        ],
+        "repetition": [],
+        "optional": []
+      },
+      "notes": [
+        "Historical replay with original dates; not a live freshness or scheduling test. Primary plus secondary coverage is not independent corroboration."
+      ],
+      "family": "ai-multisource",
+      "languageRequirements": "Natural concise Arabic; preserve named actors, attribution, conditions, numbers and temporal meaning. Avoid literal translated filler."
+    },
+    {
+      "id": "casualty-update-en",
+      "split": "reserved-transfer",
+      "feed": {
+        "interest": "Major Jordan public-safety incidents and official casualty updates.",
+        "language": "en",
+        "windowMinutes": 120
+      },
+      "articleIds": [
+        "762779a7-f41a-4d26-8110-143aaca0e636",
+        "78a8013d-f33c-4c96-a435-8776f78c5f57",
+        "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+      ],
+      "prior": [
+        {
+          "id": "74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:0",
+          "at": "2026-10-23T15:16:09.091Z",
+          "headline": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23.",
+          "body": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23."
+        }
+      ],
+      "windowStart": "2026-10-23T15:20:00Z",
+      "windowEnd": "2026-10-23T17:20:00Z",
+      "expected": {
+        "important": [
+          {
+            "id": "karak-casualties",
+            "summary": "Casualty information beyond the previously communicated attack video",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57"
+            ],
+            "necessary": [
+              "Government spokesperson reports six killed and 28 injured; retain attribution"
+            ],
+            "optional": [
+              "Earlier media figure of at least seven deaths may be contrasted, not declared conclusively corrected"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [
+          [
+            "762779a7-f41a-4d26-8110-143aaca0e636",
+            "78a8013d-f33c-4c96-a435-8776f78c5f57",
+            "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+          ]
+        ],
+        "separateOccurrences": [],
+        "repetition": [
+          "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+        ],
+        "optional": []
+      },
+      "notes": [
+        "Prior item is the exact retained reader memory, including its old style. Conflicting attributed tallies are not permission to invent a correction or reconciliation."
+      ],
+      "family": "casualty-update",
+      "languageRequirements": "Natural concise English; preserve attribution, conditions, numbers and temporal meaning. Avoid headline/body repetition."
+    },
+    {
+      "id": "casualty-update-ar",
+      "split": "reserved-transfer",
+      "feed": {
+        "interest": "Major Jordan public-safety incidents and official casualty updates.",
+        "language": "ar",
+        "windowMinutes": 120
+      },
+      "articleIds": [
+        "762779a7-f41a-4d26-8110-143aaca0e636",
+        "78a8013d-f33c-4c96-a435-8776f78c5f57",
+        "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+      ],
+      "prior": [
+        {
+          "id": "74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:0",
+          "at": "2026-10-23T15:16:09.091Z",
+          "headline": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23.",
+          "body": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23."
+        }
+      ],
+      "windowStart": "2026-10-23T15:20:00Z",
+      "windowEnd": "2026-10-23T17:20:00Z",
+      "expected": {
+        "important": [
+          {
+            "id": "karak-casualties",
+            "summary": "Casualty information beyond the previously communicated attack video",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57"
+            ],
+            "necessary": [
+              "Government spokesperson reports six killed and 28 injured; retain attribution"
+            ],
+            "optional": [
+              "Earlier media figure of at least seven deaths may be contrasted, not declared conclusively corrected"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [
+          [
+            "762779a7-f41a-4d26-8110-143aaca0e636",
+            "78a8013d-f33c-4c96-a435-8776f78c5f57",
+            "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+          ]
+        ],
+        "separateOccurrences": [],
+        "repetition": [
+          "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+        ],
+        "optional": []
+      },
+      "notes": [
+        "Prior item is the exact retained reader memory, including its old style. Conflicting attributed tallies are not permission to invent a correction or reconciliation."
+      ],
+      "family": "casualty-update",
+      "languageRequirements": "Natural concise Arabic; preserve named actors, attribution, conditions, numbers and temporal meaning. Avoid literal translated filler."
+    },
+    {
+      "id": "security-status-en",
+      "split": "reserved-transfer",
+      "feed": {
+        "interest": "Actionable enterprise security threats and vulnerabilities, prioritizing active exploitation over routine advisories.",
+        "language": "en",
+        "windowMinutes": 1440
+      },
+      "articleIds": [
+        "21e96058-02dc-470a-953e-deebc8d0b3ba"
+      ],
+      "prior": [],
+      "windowStart": "2026-10-16T00:00:00.000Z",
+      "windowEnd": "2026-10-20T00:00:00.000Z",
+      "expected": {
+        "important": [
+          {
+            "id": "panos-exploitation",
+            "summary": "Active ransomware exploitation of PAN-OS GlobalProtect",
+            "sourceIds": [
+              "21e96058-02dc-470a-953e-deebc8d0b3ba"
+            ],
+            "necessary": [
+              "Do not share actively-exploited status with NVIDIA or Samsung"
+            ],
+            "optional": [],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [],
+        "separateOccurrences": [],
+        "repetition": [],
+        "optional": [
+          "NVIDIA disclosure and Samsung patch may be selected independently; do not require every roundup entry.",
+          "Google bounty and Microsoft certificate advice have different actor/action ownership."
+        ]
+      },
+      "notes": [
+        "One long multi-development source. Optional entries are checked for accuracy if included, not demanded as exhaustive coverage."
+      ],
+      "family": "security-status",
+      "languageRequirements": "Natural concise English; preserve attribution, conditions, numbers and temporal meaning. Avoid headline/body repetition."
+    },
+    {
+      "id": "security-status-ar",
+      "split": "reserved-transfer",
+      "feed": {
+        "interest": "Actionable enterprise security threats and vulnerabilities, prioritizing active exploitation over routine advisories.",
+        "language": "ar",
+        "windowMinutes": 1440
+      },
+      "articleIds": [
+        "21e96058-02dc-470a-953e-deebc8d0b3ba"
+      ],
+      "prior": [],
+      "windowStart": "2026-10-16T00:00:00.000Z",
+      "windowEnd": "2026-10-20T00:00:00.000Z",
+      "expected": {
+        "important": [
+          {
+            "id": "panos-exploitation",
+            "summary": "Active ransomware exploitation of PAN-OS GlobalProtect",
+            "sourceIds": [
+              "21e96058-02dc-470a-953e-deebc8d0b3ba"
+            ],
+            "necessary": [
+              "Do not share actively-exploited status with NVIDIA or Samsung"
+            ],
+            "optional": [],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [],
+        "separateOccurrences": [],
+        "repetition": [],
+        "optional": [
+          "NVIDIA disclosure and Samsung patch may be selected independently; do not require every roundup entry.",
+          "Google bounty and Microsoft certificate advice have different actor/action ownership."
+        ]
+      },
+      "notes": [
+        "One long multi-development source. Optional entries are checked for accuracy if included, not demanded as exhaustive coverage."
+      ],
+      "family": "security-status",
+      "languageRequirements": "Natural concise Arabic; preserve named actors, attribution, conditions, numbers and temporal meaning. Avoid literal translated filler."
+    },
+    {
+      "id": "same-company-distinct-en",
+      "split": "reserved-transfer",
+      "feed": {
+        "interest": "Consequential enterprise AI deployment decisions and safeguards. Distinguish products from individual customer adoption.",
+        "language": "en",
+        "windowMinutes": 44640
+      },
+      "articleIds": [
+        "enterprise-frontier-safeguards",
+        "barclays-scales-claude"
+      ],
+      "prior": [],
+      "windowStart": "2026-09-01T00:00:00Z",
+      "windowEnd": "2026-10-02T00:00:00Z",
+      "expected": {
+        "important": [
+          {
+            "id": "efs",
+            "summary": "Enterprise Frontier Safeguards phased rollout proposal",
+            "sourceIds": [
+              "enterprise-frontier-safeguards"
+            ],
+            "necessary": [
+              "Customer-controlled storage and staged future availability if discussed"
+            ],
+            "optional": [
+              "Long partner list"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "barclays",
+            "summary": "Barclays expanding Claude adoption",
+            "sourceIds": [
+              "barclays-scales-claude"
+            ],
+            "necessary": [
+              "Adoption projections are targets, not achieved deployment percentages"
+            ],
+            "optional": [
+              "Executive quotes"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [],
+        "separateOccurrences": [
+          [
+            "enterprise-frontier-safeguards",
+            "barclays-scales-claude"
+          ]
+        ],
+        "repetition": [],
+        "optional": []
+      },
+      "notes": [
+        "Historical backlog replay, not current news. Shared company vocabulary is not one occurrence."
+      ],
+      "family": "same-company-distinct",
+      "languageRequirements": "Natural concise English; preserve attribution, conditions, numbers and temporal meaning. Avoid headline/body repetition."
+    },
+    {
+      "id": "same-company-distinct-ar",
+      "split": "reserved-transfer",
+      "feed": {
+        "interest": "Consequential enterprise AI deployment decisions and safeguards. Distinguish products from individual customer adoption.",
+        "language": "ar",
+        "windowMinutes": 44640
+      },
+      "articleIds": [
+        "enterprise-frontier-safeguards",
+        "barclays-scales-claude"
+      ],
+      "prior": [],
+      "windowStart": "2026-09-01T00:00:00Z",
+      "windowEnd": "2026-10-02T00:00:00Z",
+      "expected": {
+        "important": [
+          {
+            "id": "efs",
+            "summary": "Enterprise Frontier Safeguards phased rollout proposal",
+            "sourceIds": [
+              "enterprise-frontier-safeguards"
+            ],
+            "necessary": [
+              "Customer-controlled storage and staged future availability if discussed"
+            ],
+            "optional": [
+              "Long partner list"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          },
+          {
+            "id": "barclays",
+            "summary": "Barclays expanding Claude adoption",
+            "sourceIds": [
+              "barclays-scales-claude"
+            ],
+            "necessary": [
+              "Adoption projections are targets, not achieved deployment percentages"
+            ],
+            "optional": [
+              "Executive quotes"
+            ],
+            "labelAuthority": "Provisional engineering source review; not independent human gold"
+          }
+        ],
+        "sameOccurrence": [],
+        "separateOccurrences": [
+          [
+            "enterprise-frontier-safeguards",
+            "barclays-scales-claude"
+          ]
+        ],
+        "repetition": [],
+        "optional": []
+      },
+      "notes": [
+        "Historical backlog replay, not current news. Shared company vocabulary is not one occurrence."
+      ],
+      "family": "same-company-distinct",
+      "languageRequirements": "Natural concise Arabic; preserve named actors, attribution, conditions, numbers and temporal meaning. Avoid literal translated filler."
+    },
+    {
+      "id": "quiet-repeat-en",
+      "split": "reserved-transfer",
+      "feed": {
+        "interest": "Track important news and developments affecting Lebanon, including politics, government decisions, security, the economy, banking, public services, electricity, infrastructure, and major social developments.",
+        "language": "en",
+        "windowMinutes": 120,
+        "style": "Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time."
+      },
+      "articleIds": [
+        "545f5560-9ac3-42e6-8531-957d9fe10af9"
+      ],
+      "prior": [
+        {
+          "id": "2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:0",
+          "at": "2026-10-23T14:17:01.456Z",
+          "headline": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications.",
+          "body": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications."
+        },
+        {
+          "id": "fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:0",
+          "at": "2026-10-23T14:46:23.250Z",
+          "headline": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23.",
+          "body": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23."
+        },
+        {
+          "id": "74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:0",
+          "at": "2026-10-23T15:16:09.091Z",
+          "headline": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23.",
+          "body": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23."
+        }
+      ],
+      "windowStart": "2026-10-23T15:20:00Z",
+      "windowEnd": "2026-10-23T17:20:00Z",
+      "expected": {
+        "important": [],
+        "sameOccurrence": [],
+        "separateOccurrences": [],
+        "repetition": [
+          "545f5560-9ac3-42e6-8531-957d9fe10af9"
+        ],
+        "optional": [],
+        "validEmpty": true
+      },
+      "notes": [
+        "Same oil-price claim already communicated; do not fabricate a Lebanese consequence to fill space."
+      ],
+      "family": "quiet-repeat",
+      "languageRequirements": "Natural concise English; preserve attribution, conditions, numbers and temporal meaning. Avoid headline/body repetition."
+    },
+    {
+      "id": "quiet-repeat-ar",
+      "split": "reserved-transfer",
+      "feed": {
+        "interest": "Track important news and developments affecting Lebanon, including politics, government decisions, security, the economy, banking, public services, electricity, infrastructure, and major social developments.",
+        "language": "ar",
+        "windowMinutes": 120,
+        "style": "Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time."
+      },
+      "articleIds": [
+        "545f5560-9ac3-42e6-8531-957d9fe10af9"
+      ],
+      "prior": [
+        {
+          "id": "2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:2cf724e9c2ab161f62e3186fed42a934ecdcdc40c3ca203e6478f67d7d7af17d:0",
+          "at": "2026-10-23T14:17:01.456Z",
+          "headline": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications.",
+          "body": "Israeli military announces multi-front defense drills in northern and central regions next week\nThe Israeli army stated it will conduct exercises next week in northern and central Israel simulating multi-front defensive scenarios. No direct mention of Lebanon, but such drills may have regional security implications."
+        },
+        {
+          "id": "fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:fcb025769354756396772305619fe3d4ee049943ea125de5e65278eb9e01a788:0",
+          "at": "2026-10-23T14:46:23.250Z",
+          "headline": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23.",
+          "body": "Brent crude oil price jumps to $116 per barrel\nBrent crude oil jumped to $116 per barrel, according to a report published on 2026-10-23."
+        },
+        {
+          "id": "74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8:0",
+          "at": "2026-10-23T15:16:09.091Z",
+          "headline": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23.",
+          "body": "Video shows moment of attack on church in Karak\nA video posted online shows a moment of an attack on a church in Karak. No further details on casualties, perpetrators, or official confirmation were provided as of the source's publication on 2026-10-23."
+        }
+      ],
+      "windowStart": "2026-10-23T15:20:00Z",
+      "windowEnd": "2026-10-23T17:20:00Z",
+      "expected": {
+        "important": [],
+        "sameOccurrence": [],
+        "separateOccurrences": [],
+        "repetition": [
+          "545f5560-9ac3-42e6-8531-957d9fe10af9"
+        ],
+        "optional": [],
+        "validEmpty": true
+      },
+      "notes": [
+        "Same oil-price claim already communicated; do not fabricate a Lebanese consequence to fill space."
+      ],
+      "family": "quiet-repeat",
+      "languageRequirements": "Natural concise Arabic; preserve named actors, attribution, conditions, numbers and temporal meaning. Avoid literal translated filler."
+    }
+  ],
+  "limitations": [
+    "All source families were retained or inspected previously; reserved-transfer is not a genuinely unseen-source holdout.",
+    "No broad many-publisher, genuinely consecutive-window dataset is included.",
+    "Synthesis value must not be inferred from citation count or invented consequences.",
+    "No source timestamps, original bodies or previous briefing prose were corrected."
+  ]
+}
