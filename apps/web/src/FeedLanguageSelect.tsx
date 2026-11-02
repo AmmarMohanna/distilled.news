@@ -1,5 +1,5 @@
 import {useEffect, useId, useRef, useState, type ReactNode} from 'react';
-import {ChevronDown, Globe} from 'lucide-react';
+import {ChevronDown} from 'lucide-react';
 import {useLanguage} from './LanguageControl';
 
 type Language = 'en' | 'fr' | 'ar';
@@ -14,7 +14,7 @@ function Flag({language}: {language: Language}) {
 
 export function FeedLanguageSelect({value, onChange, labelId}: {value: Language; onChange: (language: Language) => void; labelId: string}) {
   const {t} = useLanguage();
-  return <FeedSettingsSelect value={value} onChange={onChange} labelId={labelId} kind="language" triggerIcon={<span className="feed-language-badge"><Globe size={20} aria-hidden/></span>} options={languages.map(language => ({value: language, label: t(names[language]), icon: <Flag language={language}/>}))}/>;
+  return <FeedSettingsSelect value={value} onChange={onChange} labelId={labelId} kind="language" options={languages.map(language => ({value: language, label: t(names[language]), icon: <Flag language={language}/>}))}/>;
 }
 
 export function FeedSettingsSelect<T extends string>({value, onChange, labelId, kind, options, triggerIcon}: {value: T; onChange: (value: T) => void; labelId: string; kind: 'language' | 'rhythm' | 'role'; options: {value: T; label: string; icon?: ReactNode}[]; triggerIcon?: ReactNode}) {
@@ -38,7 +38,11 @@ export function FeedSettingsSelect<T extends string>({value, onChange, labelId, 
   };
   useEffect(() => {
     const panel = menu.current!;
-    const toggled = () => {setOpen(panel.matches(':popover-open')); position();};
+    const toggled = () => {
+      const visible = panel.matches(':popover-open');
+      setOpen(visible); position();
+      if (visible) panel.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
+    };
     panel.addEventListener('toggle', toggled);
     window.addEventListener('resize', position);
     document.addEventListener('scroll', position, true);
@@ -50,10 +54,10 @@ export function FeedSettingsSelect<T extends string>({value, onChange, labelId, 
     menu.current?.querySelector<HTMLButtonElement>(`[data-value="${value}"]`)?.focus();
   };
   return <div className="feed-settings-select">
-    <button ref={trigger} type="button" className={`feed-settings-trigger feed-${kind}-trigger`} aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-labelledby={`${labelId} ${id}-value`} onClick={() => open ? close() : show()} onKeyDown={event => {if(event.key === 'ArrowDown' || event.key === 'ArrowUp'){event.preventDefault(); show();}}}>
+    <button ref={trigger} type="button" className={`feed-settings-trigger feed-${kind}-trigger`} popoverTarget={id} popoverTargetAction="toggle" aria-haspopup="listbox" aria-expanded={open} aria-controls={id} aria-labelledby={`${labelId} ${id}-value`} onKeyDown={event => {if(event.key === 'ArrowDown' || event.key === 'ArrowUp'){event.preventDefault(); show();}}}>
       {triggerIcon ?? selected.icon}<span id={`${id}-value`}>{selected.label}</span><ChevronDown size={16} aria-hidden/>
     </button>
-    <div ref={menu} id={id} popover="auto" role="listbox" aria-labelledby={labelId} className={`feed-settings-menu feed-${kind}-menu`} onBlur={event => {if(event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) menu.current?.hidePopover?.();}} onKeyDown={event => {
+    <div ref={menu} id={id} popover="auto" role="listbox" aria-labelledby={labelId} className={`feed-settings-menu feed-${kind}-menu`} onBlur={event => {if(event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node) && !trigger.current?.contains(event.relatedTarget as Node)) menu.current?.hidePopover?.();}} onKeyDown={event => {
       if(event.key === 'Escape'){event.preventDefault(); close();}
       if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){
         event.preventDefault();
