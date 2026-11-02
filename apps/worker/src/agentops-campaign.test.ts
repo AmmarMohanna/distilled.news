@@ -1,6 +1,6 @@
 import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
 import {readFileSync} from 'node:fs';
-import {assertCampaignFeed,campaignAvailable,scheduledOpportunities,registerCampaignFeed,snapshotCampaign,campaignEvidence} from './agentops-campaign';
+import {assertCampaignFeed,campaignAvailable,scheduledOpportunities,registerCampaignFeed,snapshotCampaign,campaignEvidence,campaignSourceProbe} from './agentops-campaign';
 import {campaignInterruptAfterResult} from './agentops-campaign-fault';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {createApp} from './app';
@@ -75,5 +75,25 @@ describe('campaign-only schema and interruption (local D1)',()=>{
   await expect(campaignInterruptAfterResult({...env,AGENTOPS_CAMPAIGN_ALLOW_FAULTS:'false'},id)).resolves.toBeUndefined();
   await ctx.db.prepare('UPDATE agentops_campaign_feeds SET interrupt_until=? WHERE feed_id=?').bind('2020-01-01T00:00:00Z',id).run();await expect(campaignInterruptAfterResult(env,id)).resolves.toBeUndefined();
   expect(await ctx.db.prepare('SELECT count(*) AS n FROM agentops_campaign_feeds').first('n')).toBe(1);
+ });
+});
+
+describe('sanitized campaign source diagnostic',()=>{
+ const base={ENVIRONMENT:'staging',AGENTOPS_CAMPAIGN_ENABLED:'true',AGENTOPS_CAMPAIGN_ISOLATED:'true',SOURCE_EXECUTION_URL:'http://127.0.0.1/v1/source-execution',SOURCE_EXECUTION_TOKEN:'x'.repeat(32)};
+ it('distinguishes failed HTTP runtime execution from capacity without returning sensitive prose',async()=>{
+  const fetch=vi.fn(async()=>new Response(JSON.stringify({error:'EXECUTION_FAILED',detail:'private-session-secret'}),{status:502}));
+  const result=await campaignSourceProbe({...base,SOURCE_EXECUTION_SERVICE:{fetch}} as unknown as Env,'lebanonnews2');
+  expect(result.ok).toBe(false);expect(result.steps[0]).toMatchObject({kind:'telegram_resolve',status:502,code:'EXECUTION_FAILED'});
+  expect(result).toMatchObject({code:'SOURCE_EXECUTION_UNAVAILABLE'});expect(JSON.stringify(result)).not.toContain('private-session-secret');expect(fetch).toHaveBeenCalledTimes(1);
+ });
+ it('preserves public channel records and exposes only freshness bounds',async()=>{
+  const fetch=vi.fn(async(_url:unknown,init:any)=>new Response(JSON.stringify(JSON.parse(init.body).kind==='telegram_resolve'?{channelId:'-100123',username:'lebanonnews2'}:{channelId:'-100123',records:[{id:1,text:'private raw source body',publishedAt:'2026-11-02T12:00:00Z'}]})));
+  const result=await campaignSourceProbe({...base,SOURCE_EXECUTION_SERVICE:{fetch}} as unknown as Env,'lebanonnews2');
+  expect(result).toMatchObject({ok:true,records:1,latestPublishedAt:'2026-11-02T12:00:00Z'});expect(fetch).toHaveBeenCalledTimes(2);expect(JSON.stringify(result)).not.toContain('private raw source body');
+ });
+ it('remains unavailable outside isolated campaigns and reports format failures honestly',async()=>{
+  await expect(campaignSourceProbe({} as Env,'lebanonnews2')).rejects.toThrow('CAMPAIGN_SCOPE_DENIED');
+  const fetch=vi.fn(async()=>new Response(JSON.stringify({channelId:'123',username:'lebanonnews2'})));
+  expect(await campaignSourceProbe({...base,SOURCE_EXECUTION_SERVICE:{fetch}} as unknown as Env,'lebanonnews2')).toMatchObject({ok:false,code:'TELEGRAM_IDENTITY_UNVERIFIED'});
  });
 });
