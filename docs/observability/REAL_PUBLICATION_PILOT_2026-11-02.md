@@ -163,3 +163,7 @@ Unidentified hostile drone reported flying over Beirut's southern suburbs
 ## Regression validation
 
 The updated framework suite passed 32 tests. Root script regressions passed 102 tests and workspace TypeScript checks passed. The retained real quiet-window regression failed before the correction and passed afterward. Final independent Grafana querying confirmed four publications, ten completed opportunities, 16 calls, $0.0186864 settled, an inactive execution and an explicitly aborted observation. The new commit's full CI result is recorded separately from the already-green tested baseline.
+
+## CI follow-up
+
+The first pushed pilot commit passed all performance/correctness fixture jobs but its main job failed on an unchanged Miniflare synchronous IPC message-ID assertion in `shortlist.integration.test.ts`. The exact test passed on local replay. One failed-job rerun passed that case and exposed a separate flaky assertion in `acquisition-backlog.test.ts`: it compared complete D1 responses, and query duration changed from 0 to 1 ms while all financial rows were identical. The assertion now compares all returned financial rows, excluding per-query runtime metadata. No financial validation or product behavior was weakened. Both CI attempts are retained privately; build/E2E were skipped on those attempts. Local build and Playwright passed (597 passed, one skipped), alongside 60 performance regressions, 102 root script tests and workspace typechecks. Final CI status is recorded separately for the follow-up commit.
