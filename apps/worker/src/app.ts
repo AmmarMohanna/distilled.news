@@ -1,4 +1,4 @@
-import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence} from './agentops-campaign';
+import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence,campaignSourceProbe} from './agentops-campaign';
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
 import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryError} from './unread-summary';
 import {unreadSummaryPort} from './unread-summary-provider';
@@ -1077,6 +1077,10 @@ export function createApp(options: AppOptions = {}) {
       if(action==='register'){
         const b=z.object({feedId:z.string(),ownerId:z.string()}).strict().parse(body);
         await registerCampaignFeed(c.env,repo,run,b.feedId,b.ownerId);return c.json({registered:true});
+      }
+      if(action==='source-probe'){
+        const b=z.object({username:z.literal('lebanonnews2')}).strict().parse(body);
+        return c.json(await campaignSourceProbe(c.env,b.username));
       }
       if(action==='plan')return c.json(await planCampaign(c.env,repo,run,campaignPlanSchema.parse(body)));
       if(action==='snapshot')return c.json(await snapshotCampaign(c.env,repo,run,campaignSnapshotSchema.parse(body)));

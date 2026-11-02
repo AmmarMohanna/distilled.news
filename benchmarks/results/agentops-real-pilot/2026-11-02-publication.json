@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "distilled-publication-pilot-result.v1",
+  "date": "2026-11-02",
+  "codeRevision": "68a06eff84fddbde3825228dc0b3d5f704bdf249",
+  "publicationPath": "VERIFIED",
+  "campaign": "STOPPED_EARLY_AFTER_ALL_PLANNED_OPPORTUNITIES_RESOLVED",
+  "plannedObservationMinutes": 90,
+  "stopAt": "2026-11-02T08:04:20.964Z",
+  "reason": "RESOURCE_ANALYTICS_UNAVAILABLE",
+  "users": 2,
+  "feeds": 4,
+  "opportunities": 10,
+  "published": 4,
+  "quiet": 6,
+  "failedWindows": 0,
+  "unresolvedWindows": 0,
+  "load": {
+    "vus": 2,
+    "requests": 120,
+    "errors": 0,
+    "p50Ms": 152.49355,
+    "p95Ms": 937.638665,
+    "p99Ms": 1121.400081,
+    "overlap": "QUIET_COMPLETIONS_ONLY",
+    "supplementalRequests": 0
+  },
+  "inference": {
+    "calls": 16,
+    "inputTokens": 19360,
+    "outputTokens": 1087,
+    "settledUsd": 0.0186864,
+    "heldUsd": 0,
+    "uncertainOperations": 0,
+    "editorModel": "openai/gpt-4.1",
+    "verifierModel": "openai/gpt-4.1-mini",
+    "promptVersion": 4,
+    "repairs": 0
+  },
+  "publications": [
+    {
+      "slot": 1,
+      "language": "ar",
+      "scheduledFor": "2026-11-02T08:00:00.000Z",
+      "publishedAt": "2026-11-02T08:00:36.772Z",
+      "delayMs": 36772,
+      "items": 2,
+      "ownedCitations": 2
+    },
+    {
+      "slot": 1,
+      "language": "en",
+      "scheduledFor": "2026-11-02T07:30:00.000Z",
+      "publishedAt": "2026-11-02T07:30:35.381Z",
+      "delayMs": 35381,
+      "items": 2,
+      "ownedCitations": 2
+    },
+    {
+      "slot": 0,
+      "language": "ar",
+      "scheduledFor": "2026-11-02T08:00:00.000Z",
+      "publishedAt": "2026-11-02T08:00:48.835Z",
+      "delayMs": 48835,
+      "items": 2,
+      "ownedCitations": 2
+    },
+    {
+      "slot": 0,
+      "language": "en",
+      "scheduledFor": "2026-11-02T07:30:00.000Z",
+      "publishedAt": "2026-11-02T07:30:24.394Z",
+      "delayMs": 24394,
+      "items": 2,
+      "ownedCitations": 2
+    }
+  ],
+  "cleanup": {
+    "usersDisabled": 2,
+    "feedsPaused": 4,
+    "enabledSources": 0,
+    "cron": false,
+    "allQueuesEmpty": true
+  },
+  "limitations": [
+    "No uninterrupted 90-minute observer qualification",
+    "No k6 overlap with nonempty generation/publication",
+    "Single channel, two distinct fresh posts",
+    "No live repair/incomplete-source/late-recovery scenario",
+    "AI-assisted entailment review, not real-world corroboration",
+    "Cloud invoice and R2/queue attribution unknown"
+  ]
+}

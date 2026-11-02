@@ -1,3 +1,4 @@
+import {telegramVerificationEvidence} from './telegram-verification';
 import {z} from 'zod';
 import type {BriefingConfig} from '@distilled/core';
 import type {Env,Repository} from './types';
@@ -78,10 +79,18 @@ export async function snapshotCampaign(env:Env,repo:Repository,runId:string,inpu
  }
  const feeds=[];
  for(const [id]of scoped){const sources=await read(SQL.sources.replace('LIMIT 5','LIMIT 4'),id);if(sources.length>=4)throw Error('CAMPAIGN_SOURCE_LIMIT');const jobs=[];for(const s of sources){const rows=await read(SQL.jobs,s.id);if(rows.length>100)throw Error('CAMPAIGN_BACKLOG_INCOMPLETE');jobs.push(...rows);}feeds.push({feedId:id,backlog:jobs.length,timestamped:jobs.filter(j=>j.enqueuedAt).length,oldestPendingAt:jobs.map(j=>j.enqueuedAt).filter(Boolean).sort()[0]??null});}
+ // Application owners and provider billing accounts are different identities.
+ // Resolve only the already observed operations by primary key and feed fence;
+ // never scan a user's billing ID or include unrelated provider-account work.
  for(const owner of [...new Set([...scoped.values()].map(f=>f.ownerAccountId))]){
-  const rows=await read("SELECT r.id,r.model,r.reserved_cost_usd AS reservedUsd,s.cost_usd AS settledUsd,s.reported FROM v1_model_spending_reservations r INDEXED BY v1_model_spending_reservation_account LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.account_id=? ORDER BY r.created_at LIMIT 501",owner);
+  const rows:Row[]=[];
+  for(const [feedId,config] of scoped){
+   if(config.ownerAccountId!==owner)continue;
+   const ids=[...new Set(items.filter(i=>i.feedId===feedId).flatMap(i=>i.operations.map(o=>'semantic_intents:'+o.id)))];
+   for(let n=0;n<ids.length;n+=50){const chunk=ids.slice(n,n+50);rows.push(...await read(`SELECT r.id,r.account_id AS billingAccountId,r.model,r.reserved_cost_usd AS reservedUsd,s.cost_usd AS settledUsd,s.reported FROM v1_model_spending_reservations r LEFT JOIN v1_model_spending_settlements s ON s.id=r.id WHERE r.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')}) ORDER BY r.id`,feedId,...chunk));}
+  }
   if(rows.length>500)throw Error('CAMPAIGN_LEDGER_LIMIT');
-  financial.push({ownerId:owner,reservations:rows.map(r=>({id:r.id,model:r.model,reservedUsd:r.reservedUsd,settledUsd:r.reported===1?r.settledUsd:null,reported:r.reported===1}))});
+  financial.push({ownerId:owner,coverage:'OBSERVED_WINDOW_MODEL_OPERATIONS',reservations:rows.map(r=>({id:r.id,billingAccountId:r.billingAccountId,model:r.model,reservedUsd:r.reservedUsd,settledUsd:r.reported===1?r.settledUsd:null,reported:r.reported===1}))});
  }
  const browser=[];
  for(const ref of input.browserRuns??[]){
@@ -89,7 +98,7 @@ export async function snapshotCampaign(env:Env,repo:Repository,runId:string,inpu
   const rows=await read('SELECT run_id AS runId,state,outcome,discovery_model_calls AS modelCalls,browser_operations AS toolCalls,agent_browser_actions AS actions,started_at AS startedAt,completed_at AS completedAt,total_duration_ms AS totalMs,agent_duration_ms AS agentMs,verification_duration_ms AS verificationMs FROM browser_use_discovery_runs WHERE run_id=? AND tenant_id=?',ref.runId,ref.ownerId);
   browser.push(rows[0]??{runId:ref.runId,state:'NOT_OBSERVED'});
  }
- return {schemaVersion:'distilled-real-snapshot.v1',runId,startedAt,observedAt:new Date().toISOString(),work,items,feeds,financial,financialCoverage:'ACCOUNT_MODEL_LEDGER_ONLY_EXTERNAL_COLLECTOR_USAGE_REQUIRES_RECONCILIATION',coverageComplete:true,browserAgent:{coverage:browser.length&&browser.every(b=>b.state!=='NOT_OBSERVED')?'OBSERVED':'NOT_OBSERVED',runs:browser,reason:'Only explicit owned run IDs are read; HTTP success never establishes Browser Agent correctness.'}};
+ return {schemaVersion:'distilled-real-snapshot.v1',runId,startedAt,observedAt:new Date().toISOString(),work,items,feeds,financial,financialCoverage:'OBSERVED_WINDOW_MODEL_OPERATIONS_ONLY_SETUP_AND_COLLECTORS_REQUIRE_RECONCILIATION',coverageComplete:true,browserAgent:{coverage:browser.length&&browser.every(b=>b.state!=='NOT_OBSERVED')?'OBSERVED':'NOT_OBSERVED',runs:browser,reason:'Only explicit owned run IDs are read; HTTP success never establishes Browser Agent correctness.'}};
 }
 
 /** Explicit private evidence export, never telemetry. Fixed PKs, hard payload
@@ -102,4 +111,27 @@ export async function campaignEvidence(env:Env,repo:Repository,runId:string,offe
  if(checked.items[0].operations.length>16)throw Error('CAMPAIGN_EVIDENCE_OPERATION_LIMIT');
  const operations=[];for(const op of checked.items[0].operations)operations.push(await get('semantic_results',op.id));
  return {runId,id,feedId:offered.feedId,exportedAt:new Date().toISOString(),input:await get('v3_window_inputs',inputId),result:await get('v3_window_results',inputId),operations,qualityAssessment:'NOT_ASSESSED'};
+}
+
+/** Read-only authorized public-channel diagnostic. Never returns text, credentials or exception prose. */
+export async function campaignSourceProbe(env:Env,username:string){
+ if(!campaignAvailable(env))throw Error('CAMPAIGN_SCOPE_DENIED');
+ const steps:Array<{kind:string;status?:number;elapsedMs:number;code?:string}>=[];
+ const codes=new Set(['AUTH_REQUIRED','RATE_LIMIT','EXECUTION_FAILED','UNAVAILABLE','BUSY']);
+ const service=env.SOURCE_EXECUTION_SERVICE;
+ const wrapped={...env,SOURCE_EXECUTION_SERVICE:service?{fetch:async(value:RequestInfo|URL,init?:RequestInit)=>{
+  const started=Date.now();let kind='unknown';try{const k=JSON.parse(String(init?.body)).kind;if(k==='telegram_resolve'||k==='telethon')kind=k;}catch{}
+  try{const response=await service.fetch(value,init);let code:string|undefined;
+   // Read a bounded diagnostic clone only for failed HTTP responses.
+   if(response.status!==200){const reader=response.clone().body?.getReader();try{if(reader){const part=await reader.read();if(part.done||part.value.length<=1024){try{const c=JSON.parse(new TextDecoder().decode(part.value)).error;if(codes.has(c))code=c;}catch{}}}}finally{void reader?.cancel().catch(()=>{});}}
+   steps.push({kind,status:response.status,elapsedMs:Date.now()-started,...(code?{code}:{})});return response;
+  }catch{steps.push({kind,elapsedMs:Date.now()-started,code:'TRANSPORT_FAILURE'});throw Error('SOURCE_EXECUTION_TRANSPORT_FAILURE');}
+ }}:undefined} as Env;
+ try{const evidence=await telegramVerificationEvidence(wrapped,username,20000);
+  const published=evidence.map(e=>e.publishedAt).filter((v):v is string=>typeof v==='string'&&Number.isFinite(Date.parse(v))).sort();
+  return {observedAt:new Date().toISOString(),ok:true,steps,records:evidence.length,earliestPublishedAt:published[0]??null,latestPublishedAt:published.at(-1)??null};
+ }catch(error){const allowed=new Set(['TELEGRAM_NOT_CONFIGURED','TELEGRAM_AUTH_REQUIRED','TELEGRAM_RATE_LIMIT','TELEGRAM_EXECUTION_FAILED','TELEGRAM_UNAVAILABLE','TELEGRAM_IDENTITY_UNVERIFIED','SOURCE_EXECUTION_UNAVAILABLE','SOURCE_EXECUTION_TIMEOUT','SOURCE_EXECUTION_INVALID_RESPONSE','SOURCE_EXECUTION_TRANSPORT_FAILURE','INVALID_SOURCE_EXECUTION_CONFIG','BACKPRESSURE','TRANSIENT']);
+  const message=error instanceof Error?error.message:'';
+  return {observedAt:new Date().toISOString(),ok:false,steps,code:allowed.has(message)?message:error instanceof z.ZodError?'TELEGRAM_RECORD_FORMAT_INVALID':'UNCLASSIFIED_RUNTIME_FAILURE'};
+ }
 }

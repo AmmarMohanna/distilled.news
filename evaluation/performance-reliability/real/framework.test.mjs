@@ -106,7 +106,7 @@ test('successful HTTP cannot hide wrong account/feed data or private Explore ent
  const user={id:'owner'},feed={id:'owned'};assert.equal(readViolation('account',200,{account:{id:'other'}},user,feed),'ACCOUNT_RESPONSE_MISMATCH');assert.equal(readViolation('feed',200,{briefing:{id:'other',ownerAccountId:'owner'}},user,feed),'FEED_RESPONSE_MISMATCH');assert.equal(readViolation('owned-feeds',200,{},user,feed),'OWNED_FEED_SCOPE_MISMATCH');assert.equal(readViolation('explore',200,{feeds:[{id:'private',ownerAccountId:'other',publicFeedEnabled:false}]},user,feed),'EXPLORE_VISIBILITY_MISMATCH');assert.equal(readViolation('feed',200,{briefing:{id:'owned',ownerAccountId:'owner'}},user,feed),null);assert.equal(readViolation('explore',200,{feeds:[]},user,feed),null);
 });
 
-import {observeResources} from './resource-window.mjs';
+import {observeResources,queueAgeObservation,queueSafetyStops} from './resource-window.mjs';
 test('real resource observer covers all four application queues plus the dedicated dead-letter queue',async()=>{
  const dir=temp();try{
   const m=manifest(),target={runId:m.runId,isolated:true,accountId:'a'.repeat(32),worker:new URL(m.origin).hostname.split('.')[0],databaseId:'12345678-1234-1234-1234-123456789abc',queueIds:Array.from({length:5},(_,i)=>String(i+1).repeat(32))};
@@ -122,4 +122,58 @@ test('Gmail QA setup registers distinct plus aliases through ordinary registrati
   await assert.rejects(setup(manifest(),{request:async(path,options)=>{assert.equal(path,'/api/auth/register');registered.push(options.body.email);throw Error('OFFLINE_STOP_BEFORE_SEND')}},dir,{gmailAddress:'qa.inbox@gmail.com',adminCookie:'dn_session=offline-admin',challenge:async()=> 'offline-only',mailbox:async()=>{throw Error('UNEXPECTED_MAILBOX')},authorizeAccount:async()=>{throw Error('UNEXPECTED_ADMISSION')}}),/SETUP_PARTIAL_STOP_AND_RECONCILE/);
   assert.deepEqual(registered,['qa.inbox+load0001-u0@gmail.com','qa.inbox+load0001-u1@gmail.com']);
  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('Grafana HTTP metrics preserve both installed flat k6 summaries and nested summaries',()=>{
+ const base={http_req_duration:{'p(50)':117.74115,'p(95)':500.490785,'p(99)':618.406577},http_reqs:{count:102,rate:.84999},http_req_failed:{value:0}};
+ for(const traffic of [{metrics:base},{metrics:{http_req_duration:{values:base.http_req_duration},http_reqs:{values:base.http_reqs},http_req_failed:{values:{rate:0}}}}]){
+  const metrics=metricsPayload(manifest(),{},Date.now(),traffic).resourceMetrics[0].scopeMetrics[0].metrics;
+  const values=Object.fromEntries(metrics.map(m=>[m.name,m.gauge.dataPoints[0].asDouble]));
+  assert.equal(values.distilled_campaign_http_latency_95_ms,500.490785);assert.equal(values.distilled_campaign_http_requests,102);assert.equal(values.distilled_campaign_http_error_ratio,0);
+ }
+ const empty=JSON.stringify(metricsPayload(manifest(),{},Date.now(),{metrics:{}}));assert.ok(!empty.includes('http_requests'));assert.ok(!empty.includes('http_error_ratio'));
+});
+
+test('queue fallback is a conservative native upper bound, never unknown-as-zero',()=>{
+ const now=Date.parse('2026-11-02T00:00:00Z'),pending={backlog_count:4,backlog_bytes:412,oldest_message_timestamp_ms:0};
+ const unknown=queueAgeObservation(pending,undefined,now);assert.equal(unknown.metrics.oldestPendingMs,null);assert.equal(unknown.metrics.state,'PENDING');
+ const native=queueAgeObservation({...pending,oldest_message_timestamp_ms:now-10000},undefined,now);
+ const fallback=queueAgeObservation(pending,native.receipt,now+20000);
+ assert.equal(fallback.metrics.oldestPendingMs,30000);assert.equal(fallback.metrics.ageSource,'NATIVE_RETAINED_UPPER_BOUND');assert.equal(fallback.metrics.ageIsUpperBound,true);
+ assert.equal(fallback.metrics.ageEvidenceAt,new Date(now).toISOString());
+ assert.equal(queueAgeObservation(pending,native.receipt,now+16*60000).metrics.oldestPendingMs>15*60000,true);
+ for(const invalid of [{timestampMs:now+1,observedAtMs:now},{timestampMs:now-1,observedAtMs:now+1},{timestampMs:0,observedAtMs:now}])assert.equal(queueAgeObservation(pending,invalid,now).metrics.oldestPendingMs,null);
+ assert.equal(queueAgeObservation({...pending,oldest_message_timestamp_ms:now+1},undefined,now).metrics.oldestPendingMs,null);
+ const empty=queueAgeObservation({backlog_count:0,backlog_bytes:0,oldest_message_timestamp_ms:0},undefined,now);assert.equal(empty.metrics.state,'EMPTY');assert.equal(empty.metrics.oldestPendingMs,null);
+ assert.equal(queueAgeObservation({backlog_count:0,backlog_bytes:412},undefined,now).metrics.state,'PENDING');
+ assert.equal(queueAgeObservation({},undefined,now).metrics.state,'UNKNOWN');
+});
+
+test('queue safety ages cached native readings and preserves unknown/empty distinction',()=>{
+ const now=Date.parse('2026-11-02T00:10:00Z'),stop={maxBacklog:20,oldestPendingMs:900000};
+ const resource=q=>({observedAt:new Date(now-120000).toISOString(),queues:[q]});
+ assert.deepEqual(queueSafetyStops(resource({backlog:1,bytes:100,oldestPendingMs:840000}),stop,now),['QUEUE_PENDING_AGE_LIMIT']);
+ assert.deepEqual(queueSafetyStops(resource({backlog:1,bytes:100,oldestPendingMs:null}),stop,now),['QUEUE_AGE_UNOBSERVABLE']);
+ assert.deepEqual(queueSafetyStops(resource({backlog:0,bytes:100,oldestPendingMs:null}),stop,now),['QUEUE_AGE_UNOBSERVABLE']);
+ assert.deepEqual(queueSafetyStops(resource({backlog:0,bytes:0,oldestPendingMs:null}),stop,now),[]);
+ assert.deepEqual(queueSafetyStops(resource({backlog:null,bytes:null,oldestPendingMs:null}),stop,now),['QUEUE_BACKLOG_UNOBSERVABLE']);
+ assert.deepEqual(queueSafetyStops({observedAt:new Date(now+1).toISOString(),queues:[{backlog:0,bytes:0,oldestPendingMs:null}]},stop,now),['QUEUE_OBSERVATION_TIME_UNOBSERVABLE']);
+ assert.deepEqual(queueSafetyStops({observedAt:new Date(now-420001).toISOString(),queues:[{backlog:0,bytes:0,oldestPendingMs:null}]},stop,now),['QUEUE_OBSERVATION_STALE']);
+});
+
+test('quiet outcome timing precedes expected missing-edition observations',()=>{
+ const m=manifest(),due='2026-11-02T07:00:00Z',now=Date.parse('2026-11-02T07:10:00Z');m.deadlineGraceMs=300000;
+ for(const [completedAt,expected]of [['2026-11-02T07:00:19.267Z','BY_DEADLINE'],['2026-11-02T07:06:00Z','LATE'],[undefined,'UNKNOWN']]){
+  const o=new CampaignObservation(m,{opportunities:[{id:'q',feedId:'feed',window:{start:'2026-11-02T06:34:43.719Z',end:'2026-11-02T06:55:00Z',scheduledFor:due}}]});
+  o.items.set('q',{state:'DONE',result:'QUIET',completedAt});o.visible('q','2026-11-02T07:10:00Z',false);const v=o.summary(now);
+  assert.equal(v.byDeadline,Number(expected==='BY_DEADLINE'));assert.equal(v.confirmedLate,Number(expected==='LATE'));assert.equal(v.deadlineUnknown,Number(expected==='UNKNOWN'));
+ }
+ const o=new CampaignObservation(m,{opportunities:[{id:'p',feedId:'feed',window:{start:'2026-11-02T06:34:43.719Z',end:'2026-11-02T06:55:00Z',scheduledFor:due}}]});o.items.set('p',{state:'PENDING'});o.visible('p','2026-11-02T07:10:00Z',false);assert.equal(o.summary(now).confirmedLate,1);
+});
+test('one metrics-only GraphQL retry is bounded, charged to read budget and fail-closed',async()=>{
+ for(const permanent of [false,true]){const dir=temp();try{const m=manifest(),target={runId:m.runId,isolated:true,accountId:'a'.repeat(32),worker:new URL(m.origin).hostname.split('.')[0],databaseId:'12345678-1234-1234-1234-123456789abc',queueIds:['1'.repeat(32)]};let graph=0,queues=0;
+  const fetcher=async url=>{if(url.endsWith('/graphql')){graph++;return Response.json(graph===1||permanent?{errors:[{extensions:{code:'INTERNAL_SERVER_ERROR'}}]}:{data:{viewer:{accounts:[{}]}}});}queues++;return Response.json({result:{backlog_count:0,backlog_bytes:0,oldest_message_timestamp_ms:0}})};
+  const call=observeResources(m,target,dir,{CAMPAIGN_CLOUDFLARE_TOKEN:'offline'},'2026-11-02T07:00:00Z','2026-11-02T07:01:00Z',fetcher);
+  if(permanent)await assert.rejects(call,/RESOURCE_ANALYTICS_UNAVAILABLE/);else{const r=await call;assert.equal(r.worker,null);assert.equal(r.database,null);assert.equal(r.queues[0].oldestPendingMs,null);}
+  assert.equal(graph,2);assert.equal(queues,permanent?0:1);assert.equal(JSON.parse(readFileSync(resolve(dir,'control-plane-budget.private.json'),'utf8')).requests,permanent?2:3);
+ }finally{rmSync(dir,{recursive:true,force:true});}}
 });

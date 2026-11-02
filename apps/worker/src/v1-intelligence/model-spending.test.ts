@@ -40,3 +40,13 @@ it('tracking-only mode retains old uncertain money while coordinating new provid
  await settleModelSpending(ctx.db,current.id,current.token,{costUsd:4,reported:true});await reserveModelSpending(ctx.db,{...current,id:'next',token:'next'});
  expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_authorizations').first('n')).toBe(1);
 });
+it('an explicit operation ceiling is atomic and keeps settled operations in the count',async()=>{
+ await authorizeModelSpending(ctx.db,{...grant,maxOperations:1,feedIds:['feed-a','feed-b']});
+ const outcomes=await Promise.allSettled([reserveModelSpending(ctx.db,request('a',.03)),reserveModelSpending(ctx.db,request('b',.03))]);expect(outcomes.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+ const row=await ctx.db.prepare('SELECT id,token FROM v1_model_spending_reservations').first<{id:string;token:string}>();await settleModelSpending(ctx.db,row!.id,row!.token,{costUsd:.01,reported:true});
+ await expect(reserveModelSpending(ctx.db,request(row!.id==='a'?'b':'a',.03))).rejects.toMatchObject({reason:'ACCOUNT_RESOURCE_WAIT'});
+});
+it('an explicit feed allowlist rejects another feed before reserving spending',async()=>{
+ await authorizeModelSpending(ctx.db,{...grant,feedIds:['feed-a']});await expect(reserveModelSpending(ctx.db,request('b',.03))).rejects.toMatchObject({reason:'ACCOUNT_FEED_SCOPE_DENIED'});
+ expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_model_spending_reservations').first('n')).toBe(0);
+});

@@ -1,5 +1,5 @@
 import {reserveControlPlane} from './control-budget.mjs';
-import {observeResources} from './resource-window.mjs';
+import {observeResources,queueSafetyStops} from './resource-window.mjs';
 import {readFileSync,writeFileSync,existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -71,7 +71,7 @@ try{
     const costs=await adapter.costs({manifest:m,registry,client,adminCookie,dir});
     const result=await observeOnce(m,client,dir,registry,observer,adminCookie,costs);
     if(lastResources){const r=lastResources;Object.assign(result.summary,{workerCpuMs:r.worker?.cpuTimeUs===undefined?null:r.worker.cpuTimeUs/1000,databaseRowsRead:r.database?.rowsRead??null,databaseRowsWritten:r.database?.rowsWritten??null,queueBacklog:r.queues.every(q=>q.backlog!==null)?r.queues.reduce((n,q)=>n+q.backlog,0):null});}
-    if(lastResources){for(const q of lastResources.queues){if(q.backlog>m.stop.maxBacklog)result.stop.push('QUEUE_BACKLOG_LIMIT');if(q.backlog>0&&q.oldestPendingMs===null)result.stop.push('QUEUE_AGE_UNOBSERVABLE');if(q.oldestPendingMs>m.stop.oldestPendingMs)result.stop.push('QUEUE_PENDING_AGE_LIMIT');}}
+    if(lastResources)result.stop.push(...queueSafetyStops(lastResources,m.stop));
     if(process.env.CAMPAIGN_EXPORT_METRICS==='true'){admit(m,pf,approval,'telemetry');reserveControlPlane(m,dir,'grafana-write');await exportMetrics(m,result.summary,process.env);}
     return result;
    };

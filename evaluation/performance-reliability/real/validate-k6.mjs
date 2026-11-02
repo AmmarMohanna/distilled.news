@@ -9,5 +9,5 @@ try{
  writeFileSync(resolve(dir,'k6.json'),'{}');
  writeFileSync(resolve(dir,'manifest.json'),JSON.stringify(manifest));writeFileSync(resolve(dir,'registry.json'),JSON.stringify(registry));
  const r=spawnSync(process.env.K6_BIN??'k6',['inspect','--config',resolve(dir,'k6.json'),'-e','CAMPAIGN_MANIFEST='+resolve(dir,'manifest.json'),'-e','CAMPAIGN_REGISTRY='+resolve(dir,'registry.json'),'evaluation/performance-reliability/real/users.k6.js'],{env:{...process.env,CAMPAIGN_MANIFEST:resolve(dir,'manifest.json'),CAMPAIGN_REGISTRY:resolve(dir,'registry.json')},encoding:'utf8'});
- if(r.status!==0){process.stderr.write(r.stderr??'');throw Error('K6_CONFIGURATION_INSPECTION_FAILED');}console.log('k6 configuration inspection passed; zero traffic requests.');
+ if(r.status!==0){process.stderr.write(r.stderr??'');throw Error('K6_CONFIGURATION_INSPECTION_FAILED');}const inspected=JSON.parse(r.stdout);if((inspected.options??inspected).scenarios?.users?.startVUs!==manifest.stages[0].vus)throw Error('INITIAL_REAL_USER_CONCURRENCY_MISMATCH');console.log('k6 configuration inspection passed; zero traffic requests.');
 }finally{rmSync(dir,{recursive:true,force:true});}
