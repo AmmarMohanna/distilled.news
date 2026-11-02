@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { chooseSetting, cycleLanguage, openEditSettings } from "./helpers";
+import { chooseSetting, cycleLanguage, openEditSettings, expectSignedInAppearanceControls } from "./helpers";
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
@@ -57,8 +57,7 @@ test('a signed-in feed keeps feed actions and an accessible account profile',asy
  await mock(page); await page.goto('/joud/lebanon/');
  await expect(page.locator('.experience-header .experience-leading')).toBeVisible();
  await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
- await expect(page.locator('.experience-header .language-cycle')).toHaveCount(1);
- await expect(page.locator('.experience-header .theme-toggle')).toHaveCount(1);
+ await expectSignedInAppearanceControls(page);
  await page.goto('/');
  await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
  await page.getByRole('button',{name:'Account profile',exact:true}).click();
@@ -82,7 +81,7 @@ test('login link opens a dismissible dialog over the landing page',async({page})
  await expect(page.getByRole('heading',{name:'A calmer perspective on a complex world.'})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
-test('feed pause persists and header language changes the interface',async({page})=>{
+test('feed pause persists and Settings language changes the interface',async({page})=>{
  await mock(page); await page.goto('/joud/lebanon/');
  await openEditSettings(page);
  const saved=page.waitForRequest(r=>r.url().endsWith('/api/me/briefings')&&r.method()==='POST');

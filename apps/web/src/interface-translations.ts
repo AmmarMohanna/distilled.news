@@ -1,6 +1,14 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'A calmer perspective': ['Un regard plus serein', 'رؤية أكثر هدوءًا'],
+  'on a complex world.': ['sur un monde complexe.', 'لعالم معقّد.'],
+  'Language and theme': ['Langue et thème', 'اللغة والمظهر'],
+  'Theme': ['Thème', 'المظهر'],
+  'Light': ['Clair', 'فاتح'],
+  'Dark': ['Sombre', 'داكن'],
+  '{count}/{max} characters': ['{count}/{max} caractères', '{count}/{max} حرفًا'],
+  'Use {max} characters or fewer for the feed name.': ['Utilisez au maximum {max} caractères pour le nom du fil.', 'استخدم {max} حرفًا أو أقل لاسم الخلاصة.'],
   'Choose delivery time': ['Choisir l’heure de livraison', 'اختيار وقت التسليم'],
   'Open your browser menu and choose Install app or Add to Home screen.': ['Ouvrez le menu du navigateur et choisissez Installer l’application ou Ajouter à l’écran d’accueil.', 'افتح قائمة المتصفح واختر تثبيت التطبيق أو إضافة إلى الشاشة الرئيسية.'],
   'This browser cannot offer installation right now. If the app is installed, open it from your apps.': ['Ce navigateur ne peut pas proposer l’installation pour le moment. Si l’application est installée, ouvrez-la depuis vos applications.', 'لا يمكن لهذا المتصفح عرض التثبيت الآن. إذا كان التطبيق مثبتًا، فافتحه من تطبيقاتك.'],

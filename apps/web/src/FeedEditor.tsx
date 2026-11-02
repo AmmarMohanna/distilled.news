@@ -2,6 +2,7 @@ const rhythmLabels = { 30: "Every 30 min", 60: "Every hour", 120: "Every 2 hours
 import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, Clock, Copy, Globe, Pause, Play, Plus, Search, Settings, SquarePlus, Trash2, Users, X } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
+import { FEED_TITLE_MAX_LENGTH } from "@distilled/core";
 import { preferredLanguage, useLanguage } from "./LanguageControl";
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
@@ -91,6 +92,7 @@ export function FeedEditor(props: {
 
     <form className="dialog-inner" onSubmit={event => {
       event.preventDefault();
+      if (title.trim().length > FEED_TITLE_MAX_LENGTH) { setMessage(t("Use {max} characters or fewer for the feed name.", {max: FEED_TITLE_MAX_LENGTH})); return; }
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
       catch { setMessage(t("Enter a valid time zone, such as Asia/Beirut or UTC.")); return; }
       if (checkingSource) return;
@@ -101,7 +103,7 @@ export function FeedEditor(props: {
       <div className="feed-editor-heading"><span className="feed-heading-icon"><SquarePlus size={23}/></span><h2>{t(editing ? "Edit feed settings" : "Add feed")}</h2></div>
 
       <div className="feed-details-fields">
-        <label>{t("Feed name")}<span className="voice-field"><input aria-label={t("Feed name")} placeholder={t("e.g. My news feed")} autoFocus required maxLength={120} value={title} onChange={event => setTitle(event.target.value)}/><VoiceInput language={feedLanguage} label="Record feed title" onText={text => setTitle(text.slice(0,120))}/></span></label>
+        <label>{t("Feed name")}<span className="voice-field"><input aria-label={t("Feed name")} aria-describedby="feed-title-limit" placeholder={t("e.g. My news feed")} autoFocus required maxLength={FEED_TITLE_MAX_LENGTH} value={title} onChange={event => setTitle(event.target.value)}/><VoiceInput language={feedLanguage} label="Record feed title" onText={text => setTitle(text.slice(0,FEED_TITLE_MAX_LENGTH))}/></span><small id="feed-title-limit">{t("{count}/{max} characters", {count: title.length, max: FEED_TITLE_MAX_LENGTH})}</small></label>
         <label>{t("What would you like to follow?")}<span className="voice-field"><textarea aria-label={t("What would you like to follow?")} placeholder={t("e.g. topics, keywords...")} required rows={1} value={prompt} onChange={event => setPrompt(event.target.value)}/><VoiceInput language={feedLanguage} onText={setPrompt}/></span></label>
         <div className="source-picker">
           <label htmlFor="feed-source-search">{t("Sources")}</label>

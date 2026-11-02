@@ -1,4 +1,5 @@
 import {SourceHealth} from './SourceHealth';
+import { useFeedViewer } from './useFeedViewer';
 import { sourceEvidenceLabels } from "./source-evidence-labels";
 import { SourceLogo } from "./SourceLogo";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
@@ -62,7 +63,7 @@ import {
   X
 } from "lucide-react";
 import type { BriefingConfig, BriefingEdition, BriefingEditionSection, BriefingEvidence } from "@distilled/core";
-import { personalNewsBriefing } from "@distilled/core";
+import { personalNewsBriefing, FEED_TITLE_MAX_LENGTH } from "@distilled/core";
 import {
   addSource,
   deleteBriefing,
@@ -1060,7 +1061,7 @@ function FirstRunSetupSheet(props: {
           {t("username")}<input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
         </label>
         <label>
-          {t("feed name")}<input dir="ltr" required value={title} onChange={(event) => setTitle(event.target.value)} />
+          {t("feed name")}<input dir="ltr" required maxLength={FEED_TITLE_MAX_LENGTH} value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <label>
           {t("interest profile")}<textarea
@@ -1473,21 +1474,9 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
 function FeedPage(props: { username: string; slug: string }) {
   const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
   const { language: uiLanguage, t } = useLanguage();
-  const [account, setAccount] = useState<AccountRecord | null>(null);
+  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading } = useFeedViewer(props.username, props.slug);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
-  const [ownedFeed, setOwnedFeed] = useState<BriefingConfig | null>(null);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
-  useEffect(() => {
-    let active = true;
-    getSession().then(async session => {
-      if (!active) return;
-      setAccount(session.authenticated ? session.account ?? null : null);
-      if (!session.authenticated || session.account?.username !== props.username) return;
-      const owned = await getBriefings();
-      if (active) setOwnedFeed(owned.find(feed => feed.slug === props.slug) ?? null);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, [props.username, props.slug]);
   const feedKey = `${props.username}/${props.slug}`;
   const feedIdentity = useRef(feedKey);
   const feedRequest = useRef(0);
@@ -1619,6 +1608,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const pageDir = textDirection(language);
   const canStar = Boolean(payload);
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
+  const compactFeedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language, true) : "";
   const reportEdition = selectedReport
     ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
     : undefined;
@@ -1707,7 +1697,7 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
+      header={<AppHeader account={account} loading={viewerLoading} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
@@ -1745,7 +1735,7 @@ function FeedPage(props: { username: string; slug: string }) {
             />
           </form>
         </div>
-        {feedStatusMessage&&<span className="feed-check-status"><Clock3 size={18} aria-hidden/>{feedStatusMessage}</span>}
+        {feedStatusMessage&&<span className={`feed-check-status${compactFeedStatusMessage !== feedStatusMessage ? " has-compact-label" : ""}`} role="status" aria-label={feedStatusMessage} title={feedStatusMessage}><Clock3 size={18} aria-hidden/><span className="feed-check-status-full" aria-hidden>{feedStatusMessage}</span><span className="feed-check-status-compact" aria-hidden>{compactFeedStatusMessage}</span></span>}
         {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
           key={JSON.stringify([account.id,props.username,props.slug])}
           readerId={account.id}
@@ -2584,13 +2574,14 @@ function formatCountdown(isoDate: string, nowMs: number, language: "en" | "ar" |
   return `in ${days}d`;
 }
 
-function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr"): string {
+function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr", compact = false): string {
   if (briefing.paused) return pausedFeedMessage(language);
   if (!briefing.nextBriefingAt) return "";
   const nextAt = new Date(briefing.nextBriefingAt).getTime();
   if (!Number.isFinite(nextAt)) return "";
   if (nextAt <= nowMs) return awaitingAcceptedBriefMessage(briefing.briefingCadence, language);
   const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language);
+  if (compact && countdown) return `${language === "ar" ? "التالي" : language === "fr" ? "Brief" : "Next"} ${countdown}`;
   return countdown ? nextBriefingText(briefing.briefingCadence, countdown, language) : "";
 }
 

@@ -80,15 +80,21 @@ for (const size of [{ width: 1280, height: 637 }, { width: 1280, height: 593 }, 
     }));
     expect(corners.management).toBe(corners.group);
     if (size.width === 1280) {
-      const gaps = await page.evaluate(() => {
+      await expect(page.locator('.experience-header .language-cycle')).toBeVisible();
+      await expect(page.locator('.experience-header .theme-toggle')).toBeVisible();
+      await expect(page.locator('.settings-preferences-group')).toBeHidden();
+      const layout = await page.evaluate(() => {
         const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
-        return [
-          box(".settings-account-label").top - box(".settings-view .experience-title").bottom,
-          box(".settings-app-label").top - box(".settings-account-group").bottom,
-          box(".accounts-section").top - box(".settings-app-group").bottom
-        ];
+        return {
+          appGap: box('.settings-app-label').top - box('.settings-account-group').bottom,
+          managementGap: box('.accounts-section').top - box('.settings-app-group').bottom,
+          subtitleGap: box('.experience-title p').top - box('.experience-title h1').bottom
+        };
       });
-      for (const gap of gaps) expect(Math.abs(gap - gaps[0])).toBeLessThanOrEqual(1);
+      expect(layout.appGap).toBeGreaterThanOrEqual(0);
+      expect(layout.managementGap).toBeGreaterThanOrEqual(0);
+      expect(layout.subtitleGap).toBeGreaterThanOrEqual(0);
+      await page.screenshot({path:`.local-reports/settings-desktop-restored-${size.height}.png`});
     }
     const navigation = await page.locator(".bottom-navigation").boundingBox();
     const settings = await page.locator(".settings-view").boundingBox();

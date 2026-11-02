@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
@@ -25,9 +26,18 @@ const topics = [
 ];
 const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
 export function BrandMark() { return <span className="distilled-logo" aria-hidden="true"><span className="distilled-logo-symbol"/><span className="distilled-logo-wordmark">Distilled<span className="distilled-logo-dot">.</span>News</span></span>; }
-export function AppHeader({ account, onAccount, leading, actions, contextual }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode; contextual?: boolean }) {
+export function AppHeader({ account, onAccount, leading, actions, contextual, loading = false }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode; contextual?: boolean; loading?: boolean }) {
   const { t } = useLanguage();
-  return <header className={`experience-header${account ? " has-account" : " is-guest"}${contextual && account ? " is-contextual" : ""}`}>{leading ? <div className="experience-leading">{leading}</div> : <div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div>}<div className="experience-header-actions">{(!contextual || !account) && actions}<LanguageControl/><ThemeToggle/>{account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}{contextual && account && actions}</div></header>;
+  return <header aria-busy={loading || undefined} className={`experience-header${loading ? " is-loading" : account ? " has-account" : " is-guest"}${contextual && account ? " is-contextual" : ""}`}>
+    {leading ? <div className="experience-leading">{leading}</div> : <div className="experience-brand" aria-label="Distilled.news"><BrandMark/></div>}
+    <div className="experience-header-actions" aria-hidden={loading || undefined} inert={loading || undefined} style={loading ? {visibility: 'hidden'} : undefined}>
+      {(!contextual || !account) && actions}
+      <LanguageControl/><ThemeToggle/>
+      {!account && !contextual && <AppearanceMenu/>}
+      {account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}
+      {contextual && account && actions}
+    </div>
+  </header>;
 }
 
 export function AppExperience(props: {
@@ -118,7 +128,7 @@ export function AppExperience(props: {
     </div>}
     <section className="explore-view" style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
-        <h1>{t("A calmer perspective on a complex world.")}</h1>
+        <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
       <div className={props.account ? "explore-controls" : "landing-controls"}>

@@ -13,7 +13,19 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         :path.startsWith('/api/feed/')?{briefing:feed,editions:[],viewerHasStarred:false}:{}});
     });
     await page.goto('/owner/news/');
+    await page.evaluate(() => document.fonts.ready);
     await expect(page.getByRole('heading',{name:'News',exact:true})).toBeVisible();
+    await expect(page.locator('.feed-shell .appearance-menu')).toHaveCount(0);
+    if (!owner) {
+      await expect(page.locator('.feed-shell .language-cycle')).toBeVisible();
+      await expect(page.locator('.feed-shell .theme-toggle')).toBeVisible();
+    } else if (width >= 900) {
+      await expect(page.locator('.feed-shell .language-cycle')).toBeVisible();
+      await expect(page.locator('.feed-shell .theme-toggle')).toBeVisible();
+    } else {
+      await expect(page.locator('.feed-shell .language-cycle')).toBeHidden();
+      await expect(page.locator('.feed-shell .theme-toggle')).toBeHidden();
+    }
     const check=async(enlarged=false)=>{
       const overflow=await page.locator(".experience-header").evaluate(node=>node.scrollWidth-node.clientWidth);
       if(!enlarged) expect(overflow).toBeLessThanOrEqual(1);
@@ -53,6 +65,12 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         window.dispatchEvent(new Event('dn-language'));
       },language);
       await expect(page.locator('.feed-nav-back')).toHaveText(language==='fr'?'Retour':'رجوع');
+      await expect(page.locator('html')).toHaveAttribute('lang',language);
+      await check();
+    }
+    if (!owner && width === 320) {
+      // Linux and Windows resolve the system font stack differently.
+      await page.addStyleTag({content: ':root.apple-ui { --app-font: Arial, sans-serif; }'});
       await check();
     }
     await page.evaluate(()=>{
