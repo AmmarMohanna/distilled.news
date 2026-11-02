@@ -1,0 +1,27 @@
+groups:
+  - name: distilled-briefing-quality
+    rules:
+      - alert: BriefingEvaluatorMissing
+        expr: absent(distilled_eval_last_tick_timestamp_seconds) or (time() - distilled_eval_last_tick_timestamp_seconds > 900)
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Evaluator discovery is missing or stale; review coverage is unknown"
+      - alert: BriefingEvaluatorUnknownCharge
+        expr: distilled_eval_unresolved_calls > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "An unknown provider outcome is fencing new evaluation calls"
+      - alert: BriefingEvaluatorFailedReviews
+        expr: sum(distilled_eval_jobs{status=~"review_failed|interrupted_unknown|unassessable"}) > 0
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Some briefings could not be assessed; inspect the private dashboard"
+      - alert: BriefingEvaluatorPotentialQualityIssues
+        expr: sum(distilled_eval_jobs{status="flagged"}) > 0
+        for: 10m
+        labels: {severity: info}
+        annotations:
+          summary: "AI review raised potential issues requiring human verification"
