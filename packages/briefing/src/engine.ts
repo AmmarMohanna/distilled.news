@@ -2,6 +2,9 @@ import { callJson, UsageMeter, type ModelPort } from "./model";
 import { chunkArticles, prepareArticles, selectPrior, type PrepareOptions, type PreparedArticle } from "./prepare";
 import {
   CONSOLIDATE_SYSTEM,
+  CONSOLIDATE_SYSTEM_V5,
+  EDITOR_SYSTEM_V5,
+  VERIFY_SYSTEM_V5,
   EDITOR_SYSTEM,
   EDITOR_SYSTEM_V4,
   REPAIR_SYSTEM,
@@ -18,7 +21,7 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 
 export interface EngineOptions {
   /** Legacy frozen windows retain their original paid-request bytes. */
-  promptVersion: 1 | 2 | 3 | 4;
+  promptVersion: 1 | 2 | 3 | 4 | 5;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
   maxEditorChars: number;
   /** Source text budget for one verification call; larger briefings verify in parallel batches. */
@@ -71,6 +74,11 @@ function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>, he
     const headline = text(item?.headline);
     const body = text(item?.body);
     const sources = Array.isArray(item?.sources) ? item.sources : [];
+    // A selected current-format draft with unusable citations is malformed, not
+    // an editorial omission. callJson already permits one accounted correction.
+    if (headlineOnly && headline && (!sources.length || sources.some((s) => !known.has(text(s).toUpperCase())))) {
+      throw new Error('INVALID_ARTICLE_CITATIONS: cite only the supplied article labels (S1, S2, etc.), never publisher IDs; return the complete corrected items array');
+    }
     const refs = [...new Set(sources.map((s) => text(s).toUpperCase()).filter((ref) => known.has(ref)))];
     if (!headline || (!body && !headlineOnly) || (headlineOnly && typeof item?.body !== "string") || !refs.length) continue; // uncited or empty drafts cannot be published
     const relation = RELATIONS.has(text(item.relation)) ? (text(item.relation) as ItemRelation) : "new";
@@ -129,7 +137,7 @@ async function edit(
   articles: PreparedArticle[],
   prior: PriorItem[],
   partial = false,
-  promptVersion: 1 | 2 | 3 | 4 = 2
+  promptVersion: 1 | 2 | 3 | 4 | 5 = 2
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -139,7 +147,7 @@ async function edit(
     meter,
     {
       model: models.editor,
-      system: promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
+      system: promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion }),
       maxTokens: 4000
     },
@@ -158,7 +166,7 @@ async function consolidate(
   drafts: Draft[],
   prior: PriorItem[],
   idsOfRefs: (refs: string[]) => string[],
-  promptVersion: 1 | 2 | 3 | 4
+  promptVersion: 1 | 2 | 3 | 4 | 5
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -166,7 +174,7 @@ async function consolidate(
     meter,
     {
       model: models.editor,
-      system: CONSOLIDATE_SYSTEM,
+      system: promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM,
       user: consolidateUser({
         promptVersion,
         feed: input.feed,
@@ -261,7 +269,7 @@ async function verify(
   prior: PriorItem[],
   maxChars: number,
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
-  promptVersion: 1 | 2 | 3 | 4
+  promptVersion: 1 | 2 | 3 | 4 | 5
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -275,7 +283,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
+          system: promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {

@@ -1,0 +1,128 @@
+{
+  "reviewType": "AI-assisted source/retained-draft comparison; not independent human gold",
+  "maximumApprovedUsd": 0.65,
+  "conservativeReservationsUsd": 0.628684,
+  "actualUsd": 0.10767600000000001,
+  "calls": 8,
+  "unsettled": 0,
+  "productionChanges": false,
+  "independentVariable": "Only one appended system instruction per pair; exact user/model/output-cap maintained",
+  "outcomes": {
+    "selection": "REJECT: still omits the government boycott in development case. Transfer adds an attributed warning; this does not fix the demonstrated omission.",
+    "brevity": "PROMISING_NOT_QUALIFIED: one real pair removes repeated flare body while preserving unique crash details. More independent controls required before rollout.",
+    "update": "REJECT: still omits original weight qualifier, does not explain changed figure in reader prose, and candidate updates points to a nonexisting prior-item ID.",
+    "acceptance": "No runtime prompt or model change retained. No more calls under this eight-call scope."
+  },
+  "limitations": [
+    "Small AI-assisted development/transfer evaluation, not human gold or an unseen-source holdout.",
+    "Consolidation inputs contain drafts, not full source evidence; assess findings against retained original articles offline.",
+    "No production prompt or lead-protection change. No publication, deployment, notifications or live traffic.",
+    "Real execution requires fresh approval and existing authoritative reservation/settlement; stop on uncertainty."
+  ],
+  "records": [
+    {
+      "id": "selection-development-baseline",
+      "requestHash": "7aaba7ebacbbe728319c2e7bc44bf7712c614c4f63f96a6a12d240531e4011da",
+      "fixedInputHash": "930d706c89465c38438013f4a46f255e638ee7abed36b9ac4245d430d8068978",
+      "model": "openai/gpt-4.1",
+      "items": 2,
+      "words": 80,
+      "costUsd": 0.008182,
+      "latencyMs": 1978,
+      "inputTokens": 3123,
+      "outputTokens": 242,
+      "invalidUpdateRefCount": 0
+    },
+    {
+      "id": "selection-development-candidate",
+      "requestHash": "323e98b7bbd14937a4ca1c812d405de152f97a15726b2228cd45e32f4ecdf232",
+      "fixedInputHash": "930d706c89465c38438013f4a46f255e638ee7abed36b9ac4245d430d8068978",
+      "model": "openai/gpt-4.1",
+      "items": 2,
+      "words": 80,
+      "costUsd": 0.00825,
+      "latencyMs": 1810,
+      "inputTokens": 3169,
+      "outputTokens": 239,
+      "invalidUpdateRefCount": 0
+    },
+    {
+      "id": "brevity-development-baseline",
+      "requestHash": "dbf6838f751709bd7d8def8b04defda470d08a8eb06bdf1485bafe57f1fa509f",
+      "fixedInputHash": "9fe29fcaf6c58faa5b6adaa1ff76584d889ed41d169e61df02590bd3cab2a4e1",
+      "model": "openai/gpt-4.1",
+      "items": 2,
+      "words": 55,
+      "costUsd": 0.006878,
+      "latencyMs": 1538,
+      "inputTokens": 2843,
+      "outputTokens": 149,
+      "invalidUpdateRefCount": 0
+    },
+    {
+      "id": "brevity-development-candidate",
+      "requestHash": "3cd432587e9a8302876bdabfb756b35bc5e6320d25065c5d9033ed1f977db2cf",
+      "fixedInputHash": "9fe29fcaf6c58faa5b6adaa1ff76584d889ed41d169e61df02590bd3cab2a4e1",
+      "model": "openai/gpt-4.1",
+      "items": 2,
+      "words": 38,
+      "costUsd": 0.0067,
+      "latencyMs": 1304,
+      "inputTokens": 2890,
+      "outputTokens": 115,
+      "invalidUpdateRefCount": 0
+    },
+    {
+      "id": "update-development-baseline",
+      "requestHash": "f9a23a333836d770731b88cb6b568d5b1c8e041160f77b8cdd6c95ce6f179cb9",
+      "fixedInputHash": "acaf64d2596020e1b3b542789b4b1609dfb0e2f35e1f9985c17d7ed111a26d83",
+      "model": "openai/gpt-4.1",
+      "items": 2,
+      "words": 83,
+      "costUsd": 0.03049,
+      "latencyMs": 3180,
+      "inputTokens": 13461,
+      "outputTokens": 446,
+      "invalidUpdateRefCount": 0
+    },
+    {
+      "id": "update-development-candidate",
+      "requestHash": "1b4a973caad1f1faf43658b002a014d792f457def9e33dfe372400cb739df39b",
+      "fixedInputHash": "acaf64d2596020e1b3b542789b4b1609dfb0e2f35e1f9985c17d7ed111a26d83",
+      "model": "openai/gpt-4.1",
+      "items": 2,
+      "words": 81,
+      "costUsd": 0.03056,
+      "latencyMs": 3614,
+      "inputTokens": 13508,
+      "outputTokens": 443,
+      "invalidUpdateRefCount": 1
+    },
+    {
+      "id": "selection-transfer-baseline",
+      "requestHash": "556960f83c55b01b07e3f549cacfca038252ae2040b6bf53b30318a4457460c2",
+      "fixedInputHash": "0ab0efb3e3f6049b28906aa3935c460cbbe6e52af09a7ad12eb08b3a8db84fe6",
+      "model": "openai/gpt-4.1",
+      "items": 2,
+      "words": 75,
+      "costUsd": 0.007978,
+      "latencyMs": 1921,
+      "inputTokens": 3037,
+      "outputTokens": 238,
+      "invalidUpdateRefCount": 0
+    },
+    {
+      "id": "selection-transfer-candidate",
+      "requestHash": "de3720b38f7f897da13b4ee6a1c89523f2739d9975b6c90b5e108b327079a947",
+      "fixedInputHash": "0ab0efb3e3f6049b28906aa3935c460cbbe6e52af09a7ad12eb08b3a8db84fe6",
+      "model": "openai/gpt-4.1",
+      "items": 3,
+      "words": 120,
+      "costUsd": 0.008638,
+      "latencyMs": 2303,
+      "inputTokens": 3083,
+      "outputTokens": 309,
+      "invalidUpdateRefCount": 0
+    }
+  ]
+}

@@ -107,3 +107,19 @@ Grafana queries use `distilled_campaign_*{environment="staging",profile="load",s
 Reference APIs: [Queue metrics](https://developers.cloudflare.com/api/resources/queues/methods/get_metrics/), [Queue consumer update](https://developers.cloudflare.com/api/resources/queues/subresources/consumers/methods/update/), [Workers analytics](https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-workers-metrics/), [D1 analytics](https://developers.cloudflare.com/d1/observability/metrics-analytics/).
 
 For protected CI, prefer a private bundle with `phase: "run"`; it executes setup ? plan ? campaign and always attempts owned cleanup. Standalone setup in that workflow is archived when the phase exits. Preserve the artifact encryption key securely outside Git. Restore a downloaded encrypted bundle locally with `CAMPAIGN_ARTIFACT_KEY` set and `node evaluation/performance-reliability/real/open-artifacts.mjs PATH_TO_ENCRYPTED_BUNDLE`; do not paste the key into chat or pass it as a command-line argument.
+
+## Supervised Gmail consent and plus aliases
+
+A dedicated Gmail inbox can replace the catch-all-domain requirement for local setup. Set `CAMPAIGN_QA_GMAIL` to its base Gmail address; the runner creates `localpart+RUNID-u0@gmail.com`, `localpart+RUNID-u1@gmail.com`, etc. Normal registration, email verification, login and account admission remain required. Existing `CAMPAIGN_EMAIL_DOMAIN` behavior remains supported when the Gmail option is absent.
+
+`gmail-consent.mjs PRIVATE_DIRECTORY QA_EMAIL` uses a Google Desktop client from the protected directory's `gmail-client.json`, a loopback-only callback, PKCE and random state. It requests only `gmail.readonly`, verifies mailbox identity through Gmail's profile endpoint, and stores the refresh/access tokens locally as `gmail-token.json`. Never commit that directory or print token contents. The supervised consent helper is not a public Worker endpoint or a production authentication feature.
+
+A successful consent/profile check establishes Gmail API access, not a completed registration-email round trip. It does not authorize sending email through Gmail or configure the isolated Worker's outbound mail transport. Live mailbox polling/accounting integration and a bounded authorized campaign must still be verified before launch.
+
+### Gmail mailbox reader validation
+
+The supervised reader is implemented in `gmail-mailbox.mjs` and is selected by the existing adapter when both `CAMPAIGN_GMAIL_DIRECTORY` (protected client/token directory) and `CAMPAIGN_QA_GMAIL` are configured. Registration records its start time; mailbox lookup is bound to that time, exact plus alias, run and isolated application origin. A maximum of ten matching messages is inspected, and ambiguous tokens or mismatched/stale/reset/production links are refused. Polling is bounded to twelve attempts; a timeout does not re-register the user. Existing private QA bridge behavior is unchanged when Gmail is not configured.
+
+A real read-only Gmail search was verified on November 1. Its empty field-filtered response was HTTP 204; the reader now treats that list response as no matching mail, not a successful registration. That case has a regression test. No mailbox content/token is exported in logs or telemetry. Message receipts contain a timestamp and hash, not the verification token. Access-token refresh uses the existing read-only grant without requesting additional scopes.
+
+At this checkpoint: 37 focused OAuth/mailbox/campaign contract tests passed. No registration email was sent, no account was manually verified, no paid inference was performed, and no deployment changed. Outbound sender access remains a genuine prerequisite for testing the real round trip. The operator must either securely configure the existing Outlook sender or explicitly authorize a separate QA Gmail-send integration; read-only inbox consent cannot supply sending permission.

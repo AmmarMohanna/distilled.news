@@ -12,11 +12,16 @@ it('retains blocked payment dependencies as incomplete coverage without holding 
  const db={prepare:(sql:string)=>{if(sql.includes('GROUP BY kind,state'))coverageQuery=sql;let args:any[]=[];const statement={bind:(...v:any[])=>{args=v;return statement},all:async()=>({results:sqlite.prepare(sql).all(...args)}),first:async()=>sqlite.prepare(sql).get(...args)??null};return statement}} as unknown as D1Database;
  expect(await jobsHoldingWindow(db,'feed','2026-10-27T12:00:00Z')).toBe(2);
  expect(await windowIntakeCoverage(db,'feed','2026-10-27T12:00:00Z')).toMatchObject({state:'PENDING',pendingJobs:2,blockedJobs:1,failedJobs:2,failures:expect.arrayContaining([{kind:'ACQUIRE',code:'BUDGET_EXHAUSTED',count:1}])});
+ expect(await windowIntakeCoverage(db,'feed','2026-10-27T12:00:00Z',true)).toMatchObject({state:'INCOMPLETE',pendingJobs:0,deferredJobs:2,blockedJobs:1,failedJobs:2});
+ expect(await windowIntakeCoverage(db,'feed','2026-10-27T12:00:00Z',{v3:true,now:'2026-10-27T12:05:00Z',deferAcquisition:true})).toMatchObject({state:'INCOMPLETE',pendingJobs:0,deferredJobs:2,blockedJobs:1,failedJobs:2});
+ sqlite.prepare('INSERT INTO v1_jobs VALUES(?,?,?)').run('review','source',JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'fresh'}));
+ expect(await windowIntakeCoverage(db,'feed','2026-10-27T12:00:00Z',true)).toMatchObject({state:'PENDING',pendingJobs:1,deferredJobs:2});
+ sqlite.prepare("DELETE FROM v1_jobs WHERE id='review'").run();
  sqlite.prepare("UPDATE v1_jobs SET json=json_set(json,'$.state','DONE') WHERE id IN ('active','fresh')").run();
  expect(await jobsHoldingWindow(db,'feed','2026-10-27T12:00:00Z')).toBe(0);
  expect(await windowIntakeCoverage(db,'feed','2026-10-27T12:00:00Z')).toMatchObject({state:'INCOMPLETE',pendingJobs:0,blockedJobs:1,failedJobs:2});
  expect(JSON.parse(String(sqlite.prepare("SELECT json FROM v1_jobs WHERE id='blocked'").get()!.json)).state).toBe('PENDING');
- const plan=sqlite.prepare('EXPLAIN QUERY PLAN '+coverageQuery).all('feed','2026-10-27T12:00:00Z');
+ const plan=sqlite.prepare('EXPLAIN QUERY PLAN '+coverageQuery).all('2026-10-27T12:00:00Z','feed','2026-10-27T12:00:00Z');
  expect(plan.some(row=>String(row.detail).includes('connector_intake_pending (feed_source_id=? AND <expr>=? AND <expr>=?)'))).toBe(true);
  }finally{sqlite.close()}
 });

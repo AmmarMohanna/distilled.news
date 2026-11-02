@@ -1,4 +1,5 @@
 import {randomBytes} from 'node:crypto';
+import {gmailAlias} from './gmail-oauth.mjs';
 import {existsSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {bounded,writePrivate,readRegistry,journal} from './client.mjs';
@@ -7,20 +8,21 @@ export const feedId=(run,user,feed)=>`qa_${run}_u${user}_f${feed}`;
 const assert=(ok,code)=>{if(!ok)throw Error(code);};
 /** Token retrieval is a real, isolated mailbox integration supplied by the
  * operator. Never read auth_tokens, sign cookies, or use /api/auth/setup here. */
-export async function setup(m,client,dir,{emailDomain,mailbox,challenge,authorizeAccount,browserEvidence,adminCookie}){
- assert(emailDomain&&/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(emailDomain),'AUTHORIZED_MAIL_DOMAIN_REQUIRED');
+export async function setup(m,client,dir,{emailDomain,gmailAddress,mailbox,challenge,authorizeAccount,browserEvidence,adminCookie}){
+ if(gmailAddress)gmailAlias(gmailAddress,m.runId,0);
+ else assert(emailDomain&&/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(emailDomain),'AUTHORIZED_MAIL_DOMAIN_REQUIRED');
  assert(typeof mailbox==='function'&&typeof challenge==='function'&&typeof authorizeAccount==='function'&&adminCookie,'AUTHENTICATION_INTEGRATIONS_REQUIRED');
  const path=resolve(dir,'registry.private.json');
  if(existsSync(path))throw Error('REGISTRY_EXISTS_USE_RESUME_NOT_RECREATE');
- const registry={schemaVersion:'distilled-real-registry.v1',runId:m.runId,origin:m.origin,createdAt:new Date().toISOString(),users:Array.from({length:m.users},(_,i)=>({slot:i,username:`qa${m.runId}u${i}`,email:`qa-${m.runId}-u${i}@${emailDomain}`,password:randomBytes(24).toString('base64url'),state:'NOT_SENT',feeds:[]}))};
+ const registry={schemaVersion:'distilled-real-registry.v1',runId:m.runId,origin:m.origin,createdAt:new Date().toISOString(),users:Array.from({length:m.users},(_,i)=>({slot:i,username:`qa${m.runId}u${i}`,email:gmailAddress?gmailAlias(gmailAddress,m.runId,i):`qa-${m.runId}-u${i}@${emailDomain}`,password:randomBytes(24).toString('base64url'),state:'NOT_SENT',feeds:[]}))};
  const save=()=>writePrivate(dir,'registry.private.json',registry);save();
  const results=await bounded(registry.users,m.setupConcurrency,async u=>{
   // Journal before every mutation. An interruption is reconciled through owned
   // reads; a SENT/UNKNOWN operation is never blindly replayed.
-  u.state='REGISTER_SENT';save();
+  u.state='REGISTER_SENT';u.registrationStartedAt=new Date().toISOString();save();
   await client.request('/api/auth/register',{method:'POST',body:{email:u.email,username:u.username,password:u.password,language:u.slot%2?'ar':'en',turnstileToken:await challenge(u,'register')},category:'register'});
   u.state='AWAITING_EMAIL';save();
-  const token=await mailbox({email:u.email,runId:m.runId});assert(typeof token==='string'&&token.length>0,'MAILBOX_TOKEN_REQUIRED');
+  const token=await mailbox({email:u.email,runId:m.runId,registeredAt:u.registrationStartedAt});assert(typeof token==='string'&&token.length>0,'MAILBOX_TOKEN_REQUIRED');
   const verified=await client.request('/api/auth/verify-email',{method:'POST',body:{token},category:'verify-email'});
   assert(verified.value?.account?.username===u.username&&verified.cookie,'VERIFIED_ACCOUNT_IDENTITY');u.id=verified.value.account.id;u.cookie=verified.cookie;u.state='VERIFIED';save();
   await login(client,u,challenge);save();

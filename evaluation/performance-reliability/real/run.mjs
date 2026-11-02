@@ -45,7 +45,7 @@ const adminCookie=process.env.CAMPAIGN_ADMIN_COOKIE;
 if(!/^dn_session=/.test(adminCookie??''))throw Error('REAL_ADMIN_SESSION_REQUIRED');
 const unlock=lockRun(dir),client=new ApplicationClient(m,dir);
 let child=null,restore=null;
-const opts={emailDomain:process.env.CAMPAIGN_EMAIL_DOMAIN,mailbox:adapter.mailbox,challenge:adapter.challenge,authorizeAccount:adapter.authorizeAccount,browserEvidence:adapter.browserEvidence,adminCookie};
+const opts={gmailAddress:process.env.CAMPAIGN_QA_GMAIL,emailDomain:process.env.CAMPAIGN_EMAIL_DOMAIN,mailbox:adapter.mailbox,challenge:adapter.challenge,authorizeAccount:adapter.authorizeAccount,browserEvidence:adapter.browserEvidence,adminCookie};
 try{
  if(command==='setup'){const checks=await adapter.preflight?.({manifest:m});if(checks?.ready!==true)throw Error('REAL_SETUP_INTEGRATIONS_NOT_VERIFIED');}
  journal(dir,{category:'phase-start',phase:command,revision:m.revision,manifestHash:digest(m)});

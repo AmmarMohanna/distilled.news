@@ -12,11 +12,12 @@ const intelligenceTurns=new AsyncLocalStorage<IntelligenceTurn>();
 const computationTurns=new AsyncLocalStorage<{env:Env;feedId:string}>();
 /** Only the atomic store commit holds admission. Its original snapshot and
  * every scope epoch are still checked by CAS after admission is acquired. */
-export function withCanonicalCommitTurn<T>(db:D1Database,feedId:string,run:()=>Promise<T>):Promise<T>{
+export function withCanonicalCommitTurn<T>(db:D1Database,feedId:string,run:()=>Promise<T>,publicationCommit=false):Promise<T>{
  const computation=computationTurns.getStore();
  if(!computation)return run();
  if(computation.env.DB!==db||computation.feedId!==feedId)throw new IntelligenceTurnLost();
- return withFeedWriteTurn(computation.env,feedId,run,'publication-commit');
+ if(publicationCommit)countLatency('publicationCommitPriority');
+ return withFeedWriteTurn(computation.env,feedId,run,publicationCommit?'publication-final-commit':'publication-commit');
 }
 /** Canonical stores inherit admission through nested async work. Receipt/billing
  * settlement uses its immutable intent token and deliberately bypasses this guard. */
@@ -71,14 +72,16 @@ export async function withFeedWriteTurn<T>(env:Env,feedId:string,run:()=>Promise
  const current=intelligenceTurns.getStore();
  if(current){if(current.db!==env.DB||current.feedId!==feedId)throw new IntelligenceTurnLost();await assertIntelligenceTurn(env.DB,feedId);return run();}
  const token=crypto.randomUUID(),at=Date.now();
+ // Final publication commits can pass recent waiters, never a held lock or
+ // ready work waiting ten seconds. Preparation and inference keep normal FIFO.
  // FIFO applies among recently ready deliveries. A waiter whose message is
  // sleeping/backed off must not reserve an otherwise idle Feed. Retain its
  // original age for priority when it returns, rather than resetting its place.
  const offered=env.DB.prepare(`INSERT INTO connector_feed_turn_waiters(feed_id,work_id,queued_at,expires_at) VALUES(?,?,?,?)
  ON CONFLICT(feed_id,work_id) DO UPDATE SET queued_at=CASE WHEN expires_at<=? THEN excluded.queued_at ELSE queued_at END,expires_at=excluded.expires_at`).bind(feedId,workId,at,at+WAITER_TTL_MS,at);
  const claiming=env.DB.prepare(`INSERT INTO connector_intelligence_turns(feed_id,token,lease_until)
- SELECT ?,?,? WHERE (SELECT work_id FROM connector_feed_turn_waiters WHERE feed_id=? AND expires_at>? ORDER BY queued_at,work_id LIMIT 1)=?
- ON CONFLICT(feed_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE lease_until<=? RETURNING feed_id`).bind(feedId,token,at+LEASE_MS,feedId,at+WAITER_TTL_MS-READY_MS,workId,at);
+ SELECT ?,?,? WHERE (SELECT work_id FROM connector_feed_turn_waiters WHERE feed_id=? AND expires_at>? ORDER BY CASE WHEN queued_at<=? THEN 0 WHEN work_id='publication-final-commit' THEN 1 ELSE 2 END,queued_at,work_id LIMIT 1)=?
+ ON CONFLICT(feed_id) DO UPDATE SET token=excluded.token,lease_until=excluded.lease_until WHERE lease_until<=? RETURNING feed_id`).bind(feedId,token,at+LEASE_MS,feedId,at+WAITER_TTL_MS-READY_MS,at-10000,workId,at);
  const claim=(await measureLatency('FEED_TURN_ADMISSION',()=>env.DB.batch([offered,claiming])))[1].results[0];
  if(!claim){countLatency('feedTurnBusy');throw new IntelligenceTurnBusy();}
  let lost=false,renewing:Promise<void>|undefined;

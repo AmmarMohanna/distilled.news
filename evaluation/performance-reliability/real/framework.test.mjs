@@ -105,3 +105,21 @@ test('cleanup may quiesce its scope after capacity evidence ages, but work canno
 test('successful HTTP cannot hide wrong account/feed data or private Explore entries',()=>{
  const user={id:'owner'},feed={id:'owned'};assert.equal(readViolation('account',200,{account:{id:'other'}},user,feed),'ACCOUNT_RESPONSE_MISMATCH');assert.equal(readViolation('feed',200,{briefing:{id:'other',ownerAccountId:'owner'}},user,feed),'FEED_RESPONSE_MISMATCH');assert.equal(readViolation('owned-feeds',200,{},user,feed),'OWNED_FEED_SCOPE_MISMATCH');assert.equal(readViolation('explore',200,{feeds:[{id:'private',ownerAccountId:'other',publicFeedEnabled:false}]},user,feed),'EXPLORE_VISIBILITY_MISMATCH');assert.equal(readViolation('feed',200,{briefing:{id:'owned',ownerAccountId:'owner'}},user,feed),null);assert.equal(readViolation('explore',200,{feeds:[]},user,feed),null);
 });
+
+import {observeResources} from './resource-window.mjs';
+test('real resource observer covers all four application queues plus the dedicated dead-letter queue',async()=>{
+ const dir=temp();try{
+  const m=manifest(),target={runId:m.runId,isolated:true,accountId:'a'.repeat(32),worker:new URL(m.origin).hostname.split('.')[0],databaseId:'12345678-1234-1234-1234-123456789abc',queueIds:Array.from({length:5},(_,i)=>String(i+1).repeat(32))};
+  let calls=0;const fetcher=async(url)=>{calls++;return new Response(JSON.stringify(url.endsWith('/graphql')?{data:{viewer:{accounts:[{}]}}}:{result:{backlog_count:0,backlog_bytes:0}}),{status:200})};
+  const value=await observeResources(m,target,dir,{CAMPAIGN_CLOUDFLARE_TOKEN:'offline-only'},'2026-11-01T14:00:00Z','2026-11-01T14:01:00Z',fetcher);
+  assert.equal(calls,6);assert.equal(value.queues.length,5);assert.deepEqual(value.queues.map(q=>q.queueId),target.queueIds);
+  await assert.rejects(observeResources(m,{...target,queueIds:[...target.queueIds,'9'.repeat(32)]},dir,{},'2026-11-01T14:00:00Z','2026-11-01T14:01:00Z',fetcher),/ISOLATED_RESOURCE_BINDING/);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('Gmail QA setup registers distinct plus aliases through ordinary registration without a catch-all domain',async()=>{
+ const dir=temp(),registered=[];try{
+  await assert.rejects(setup(manifest(),{request:async(path,options)=>{assert.equal(path,'/api/auth/register');registered.push(options.body.email);throw Error('OFFLINE_STOP_BEFORE_SEND')}},dir,{gmailAddress:'qa.inbox@gmail.com',adminCookie:'dn_session=offline-admin',challenge:async()=> 'offline-only',mailbox:async()=>{throw Error('UNEXPECTED_MAILBOX')},authorizeAccount:async()=>{throw Error('UNEXPECTED_ADMISSION')}}),/SETUP_PARTIAL_STOP_AND_RECONCILE/);
+  assert.deepEqual(registered,['qa.inbox+load0001-u0@gmail.com','qa.inbox+load0001-u1@gmail.com']);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
