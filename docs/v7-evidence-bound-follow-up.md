@@ -2,12 +2,14 @@
 
 ## Status
 
+**Completed first paid comparison: eight calls / $0.0121512, fully settled. REJECT item-local layout; it is removed from runtime and preserved only in the offline benchmark. See [the measured report](v7-evidence-layout-trial-2026-11-03.md). The writer qualification check remains unmeasured and off by default.**
+
 V4 stays deployed; measured V7 stays opt-in and unchanged by default. Two independently selectable experimental options are implemented within version 7, not a new complete prompt version:
 
 - `v7Experiment: 'qualifications'`: adds one compact source-clause check to the existing editor, consolidator and repair prompts. Verifier prompt and input stay unchanged.
-- `v7Experiment: 'item-local-evidence'`: changes only verifier evidence presentation. Editor/consolidator/repair and the verifier system stay unchanged.
+- Former `v7Experiment: 'item-local-evidence'`: tested verifier-presentation candidate, now rejected and removed from the runtime switch. Exact rendering survives in `benchmarks/editorial-distillation/rejected-item-evidence.ts` for reproduction.
 
-They are deliberately mutually exclusive for the first independent comparisons. No combined candidate is justified yet. No routine calls, claim extraction, provider routing, storage, accounting or publication behavior is added. No deployment or promotion is authorized.
+They were deliberately mutually exclusive for the first independent comparisons. No combined candidate is justified yet. No routine calls, claim extraction, provider routing, storage, accounting or publication behavior is added. No deployment or promotion is authorized.
 
 ## Exact-response diagnosis
 
@@ -58,9 +60,11 @@ Fix `b10e138` pins only jobs that install Chromium to `ubuntu-24.04`; all instal
 
 ## Validation record
 
-- No paid calls or new financial records in this follow-up so far; the new eight-call layout authorization request is pending.
+- Initial offline preparation made no paid calls. The later freshly authorized eight-call trial is fully recorded in the linked measured report; its count allowance is now used.
 - Native pure admission estimates for the frozen eight requests sum to **$0.1060136**; this is a reservation estimate, not charges. The higher $0.1161 planning bound and proposed $0.15 cap leave framing headroom. Fresh authorization, accounting and provider preflight are still required.
 - Exact source/case fixture checks preserve the raw editor errors, all-ok verifier outputs, and absence of repairs. Concise corrected controls are labelled separately, and the unresolved English conditional headline is not forced into an error label.
 - The full briefing suite passed **175 tests / 39 files**. Briefing and Worker TypeScript checks passed; offline request-preparation test passed. Structural tests do not demonstrate semantic improvement.
 - Reproduce request preparation without network or paid inference: `node node_modules/vitest/vitest.mjs run --config benchmarks/v7-evidence.config.ts`.
 - There are 22 mixed control cases across the two languages: six provisional errors, fourteen accurate controls, two unresolved cases. The separate retained real drafts test production-shaped multi-item evidence rather than relying only on synthetic batching.
+
+The full Project checks run for `81f8cb2` subsequently completed **successfully**, including workspace tests, build and browser tests: https://github.com/AmmarMohanna/distilled.news/actions/runs/41673354395 . The new layout trial is a negative result and the failed layout has been removed from runtime; see its linked report for actual costs and outcomes.

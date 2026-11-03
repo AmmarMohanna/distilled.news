@@ -39,8 +39,8 @@ export const REPAIR_SYSTEM_V7 = `Correct flagged briefing items using only their
 Return only JSON: {"items":[{"i":0,"headline":"...","body":"...","drop":false}]}
 Return every flagged index exactly once, preserving its identity. Use drop:true only when safe correction is impossible or nothing meaningfully new remains.`;
 
-/** Separate opt-in experiments; never silently replace the measured V7 baseline. */
-export type V7Experiment = 'qualifications' | 'item-local-evidence';
+/** Unmeasured writer check; rejected verifier layout is retained only in offline benchmarks. */
+export type V7Experiment = 'qualifications';
 export const V7_QUALIFICATION_CHECK = `Before returning a compressed or translated item, compare each amount, status and right with its supporting source clause. Keep a condition attached to the proposition it qualifies; distinguish a future or proposed action from its completion, a fixed amount from a range, and permission to redact information from authority to veto publication. Preserve these distinctions in the headline and the requested language. Omit optional detail rather than an essential qualification; no extra background or longer body is required.`;
 export function v7System(stage: 'editor' | 'consolidate' | 'verify' | 'repair', experiment?: V7Experiment): string {
   const base = {editor: EDITOR_SYSTEM_V7, consolidate: CONSOLIDATE_SYSTEM_V7, verify: VERIFY_SYSTEM_V7, repair: REPAIR_SYSTEM_V7}[stage];

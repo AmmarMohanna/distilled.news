@@ -1,1 +1,1 @@
-﻿import {defineConfig} from 'vitest/config';export default defineConfig({test:{environment:'node',include:['benchmarks/v7-evidence.prepare.test.ts'],maxWorkers:1}});
+﻿import {defineConfig} from 'vitest/config';export default defineConfig({test:{environment:'node',include:['benchmarks/v7-evidence.prepare.test.ts','benchmarks/v7-evidence.layout.test.ts'],maxWorkers:1}});

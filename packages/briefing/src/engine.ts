@@ -298,7 +298,6 @@ async function verify(
           system: promptVersion === 7 ? v7System('verify', v7Experiment) : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
           user: verifyUser({
             promptVersion,
-            itemLocalEvidence: v7Experiment === 'item-local-evidence',
             previousReviews: batch.flatMap((index, localIndex) => {
               const previous = previousReviews.get(index);
               return previous ? [{ index: localIndex, ...previous }] : [];
@@ -415,6 +414,7 @@ export async function generateBriefing(
 ): Promise<BriefingResult> {
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
   if (options.v7Experiment && options.promptVersion !== 7) throw new Error('V7_EXPERIMENT_REQUIRES_V7');
+  if (options.v7Experiment && options.v7Experiment !== 'qualifications') throw new Error('UNSUPPORTED_V7_EXPERIMENT');
   const meter = new UsageMeter();
   const started = Date.now();
   const stages: Record<string, number> = {};
