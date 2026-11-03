@@ -1,3 +1,4 @@
+import { EDITOR_SYSTEM_V7, CONSOLIDATE_SYSTEM_V7, VERIFY_SYSTEM_V7, REPAIR_SYSTEM_V7 } from './prompts-v7';
 import { auditEditorSourceAccounting } from './source-accounting';
 import { callJson, UsageMeter, type ModelPort } from "./model";
 import { chunkArticles, prepareArticles, selectPrior, type PrepareOptions, type PreparedArticle } from "./prepare";
@@ -26,7 +27,7 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 
 export interface EngineOptions {
   /** Legacy frozen windows retain their original paid-request bytes. */
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6;
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
   maxEditorChars: number;
   /** Source text budget for one verification call; larger briefings verify in parallel batches. */
@@ -142,7 +143,7 @@ async function edit(
   articles: PreparedArticle[],
   prior: PriorItem[],
   partial = false,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 = 2
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -152,7 +153,7 @@ async function edit(
     meter,
     {
       model: models.editor,
-      system: promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
+      system: promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion }),
       maxTokens: 4000
     },
@@ -172,7 +173,7 @@ async function consolidate(
   drafts: Draft[],
   prior: PriorItem[],
   idsOfRefs: (refs: string[]) => string[],
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -180,7 +181,7 @@ async function consolidate(
     meter,
     {
       model: models.editor,
-      system: promptVersion >= 6 ? CONSOLIDATE_SYSTEM_V6 : promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM,
+      system: promptVersion === 7 ? CONSOLIDATE_SYSTEM_V7 : promptVersion >= 6 ? CONSOLIDATE_SYSTEM_V6 : promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM,
       user: consolidateUser({
         promptVersion,
         feed: input.feed,
@@ -275,7 +276,7 @@ async function verify(
   prior: PriorItem[],
   maxChars: number,
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -289,7 +290,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
+          system: promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
@@ -347,7 +348,7 @@ async function repair(
   flagged: Map<number, string[]>,
   byRef: Map<string, PreparedArticle>,
   headlineOnly = false,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 = 4
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 4
 ): Promise<Map<number, { headline: string; body: string } | null>> {
   // Model-facing numbers are local to this subset; translate back mechanically.
   const indices = [...flagged.keys()];
@@ -358,7 +359,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM,
+      system: promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM,
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,

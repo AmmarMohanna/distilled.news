@@ -35,7 +35,7 @@ importance: 1 = lead story, 2 = notable, 3 = worth a line. Order items most impo
 /** New windows may use one complete headline; older frozen prompts retain their bytes. */
 export const EDITOR_SYSTEM_V4 = EDITOR_SYSTEM + "\n\nThe body is optional: return \"body\":\"\" when the headline already communicates the complete development with its necessary attribution, uncertainty and conditions. Otherwise use the body only for essential information the headline does not convey. Do not repeat the headline or invent background just to fill the body.";
 
-function describePrior(prior: PriorItem[], promptVersion: 1 | 2 | 3 | 4 | 5 | 6 = 2): string {
+function describePrior(prior: PriorItem[], promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2): string {
   if (!prior.length) return "(nothing yet: this is the reader's first briefing, or earlier ones are older than the memory window)";
   return prior.map((item) => {
     // V3 stores the first full reader claim as its legacy headline as well.
@@ -73,7 +73,7 @@ export function editorUser(input: {
   articles: PreparedArticle[];
   /** True when this call sees only part of the window; a later pass trims across all parts. */
   partial?: boolean;
-  promptVersion?: 1 | 2 | 3 | 4 | 5 | 6;
+  promptVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
 }): string {
   const { feed } = input;
   return [
@@ -102,7 +102,7 @@ OUTPUT: one JSON object, nothing else:
 {"items":[{"from":[0,3],"headline":"...","body":"...","relation":"new|update|correction","updates":"id or null","importance":1}],"cut":[{"from":[5],"why":"one short phrase"}]}
 "from" lists the draft numbers the item is built from (one number if unchanged). "cut" lists every draft you dropped for the reading budget, with the reason, so the cut can be audited.`;
 
-export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2 | 3 | 4 | 5 | 6; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
+export function consolidateUser(input: { feed: FeedSpec; promptVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7; prior: PriorItem[]; drafts: Array<{ headline: string; body: string; relation: string; updates?: string; importance: number }> }): string {
   return [
     `READER INTEREST: ${input.feed.interest}`,
     `WRITE IN: ${LANGUAGE_NAME[input.feed.language]}`,
@@ -146,7 +146,7 @@ export const VERIFY_SYSTEM = LEGACY_VERIFY_SYSTEM.replace(
 export interface PreviousReview {index: number; headline: string; body: string; issues: string[]}
 
 export function verifyUser(input: {
-  promptVersion?: 1 | 2 | 3 | 4 | 5 | 6;
+  promptVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   previousReviews?: PreviousReview[];
   windowEnd: string;
   items: Array<{ index: number; headline: string; body: string; relation: string; sources: string[]; updatesText?: string; hints: string[] }>;
