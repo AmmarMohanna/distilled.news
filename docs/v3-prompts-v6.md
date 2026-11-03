@@ -11,3 +11,5 @@ Local scripted tests establish version routing and integration, not semantic acc
 No paid inference or deployment was performed for this addition. V6 still needs controlled comparison against V4 on the frozen editorial evidence, including full-pipeline verifier/repair outcomes, under fresh applicable authorization.
 
 Validation: 137 briefing tests passed across 29 files; briefing and Worker TypeScript checks passed. The 51-case Worker window suite had 50 passes (including both V6 persistence/recovery cases) and one Miniflare synchronous proxy IPC assertion in an unchanged scheduling case. Replaying the exact scheduling cases passed (two passed, 49 deselected). The original failing log is preserved; this is not described as a clean first-pass suite. No security/assertion changes or speculative runtime fix were introduced for that dependency instability.
+
+V6 was tested in a bounded live model comparison: see [results](v3-v6-evaluation-2026-11-03.md). It is not qualified for promotion: observed recall/verbosity regressions outweigh lower cost. V4 remains the default. No deployment or reader persistence occurred.
