@@ -87,7 +87,7 @@ async function article(n=1,publishedAt='2026-10-03T12:05:00Z',acceptedAt='2026-1
 }
 const fetcher=(seen:string[])=>async(_url:unknown,init?:RequestInit)=>{
  const body=JSON.parse(init!.body as string);seen.push(JSON.stringify(body));
- const verify=body.messages[0].content.includes('meticulous fact-checker');
+ const verify=body.messages[0].content.includes('meticulous fact-checker')||body.messages[0].content.startsWith('You are an independent factual verifier.');
  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
  return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
 };
@@ -329,7 +329,7 @@ it('large V3 batches serialize feed commits and can replay paid chunks without l
  expect(edition?.engine).toBe('v3');expect(seen.length).toBeGreaterThan(2);expect(maxActive).toBe(1);
 },60000);
 
-for (const promptVersion of [undefined,2,3,4,5] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
+for (const promptVersion of [undefined,2,3,4,5,6] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
  await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end);
  expect(prepared.promptVersion).toBe(4);
  const id=await windowIdentity('feed-1',window),full='Earlier notice\nOfficials say approval is still required.';
@@ -485,7 +485,7 @@ it('an empty scheduled window with delayed collection is deferred, not falsely c
 },30000);
 
 it('novelty prompt version is explicit and default routing remains the qualified baseline',()=>{
- expect(productV3PromptVersion({})).toBe(4);expect(productV3PromptVersion({BRIEFING_PROMPT_VERSION:'4'})).toBe(4);expect(productV3PromptVersion({BRIEFING_PROMPT_VERSION:'5'})).toBe(5);
+ expect(productV3PromptVersion({})).toBe(4);expect(productV3PromptVersion({BRIEFING_PROMPT_VERSION:'4'})).toBe(4);expect(productV3PromptVersion({BRIEFING_PROMPT_VERSION:'5'})).toBe(5);expect(productV3PromptVersion({BRIEFING_PROMPT_VERSION:'6'})).toBe(6);
  expect(()=>productV3PromptVersion({BRIEFING_PROMPT_VERSION:'invalid' as '5'})).toThrow('INVALID_BRIEFING_PROMPT_VERSION');
 });
 it('freezes opt-in novelty policy for a new window without changing models or already saved work',async()=>{
@@ -558,4 +558,15 @@ it('prepared-delivery readiness rejects early, manual, V2, mismatched and stale 
   for(const [kind,value] of [['briefing_requests',request],['v3_window_inputs',input],['v3_window_results',result]])await ctx.db.prepare('INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?)').bind(kind,key,'feed-1',JSON.stringify(value)).run();
   expect(await preparedV3Delivery(ctx.db,'feed-1',key,at),mode).toBe(false);
  }
+},30000);
+
+it('freezes opt-in V6 prompts and reuses the persisted window after configuration changes',async()=>{
+ await article();env={...env,BRIEFING_PROMPT_VERSION:'6'};
+ const seen:string[]=[],transport=fetcher(seen) as typeof fetch,id=await windowIdentity('feed-1',window);
+ expect((await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,transport))?.engine).toBe('v3');
+ expect(await store.read<any>('feed-1','v3_window_inputs',id)).toMatchObject({promptVersion:6,models:{editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'}});
+ expect(seen).toHaveLength(2);expect(JSON.parse(seen[0]).messages[0].content).toContain('Your job is not to rewrite news posts');expect(JSON.parse(seen[1]).messages[0].content).toContain('You are an independent factual verifier.');
+ env={...env,BRIEFING_PROMPT_VERSION:'4'};
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:31:00Z',undefined,transport);
+ expect(seen).toHaveLength(2);expect((await store.read<any>('feed-1','v3_window_inputs',id)).promptVersion).toBe(6);
 },30000);
