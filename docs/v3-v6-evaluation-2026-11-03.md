@@ -69,3 +69,5 @@ Before further paid trials, fix only the offline evaluation contract so every mi
 The isolated k6/performance campaign is unchanged. Operational delivery results remain separate from these editorial findings.
 
 Validation after recording results: 140 briefing tests passed across 30 files; briefing TypeScript passed; `git diff --check` passed. These regressions preserve measured outcomes and audit failures; they do not independently establish factual quality.
+
+Further diagnosis: [exact source-107635 trace and English evidence review](v6-source-diagnosis-2026-11-03.md). S13 was silently absent from the raw editor response, not explicitly rejected or lost through parsing. Internal ranking/semantic confusion remains unknown. English detail support is separated from optional verbosity and fund quantity/timing errors in both versions.
