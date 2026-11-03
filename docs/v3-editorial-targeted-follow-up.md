@@ -72,3 +72,5 @@ No prompt candidate is retained in active routing, and no production, ordinary s
 ## Validation
 
 155 briefing tests passed across 34 files; briefing and Worker TypeScript checks passed. The focused Worker/D1 publication, diagnostic read-back and duplicate-delivery test passed (one executed, 51 unrelated cases deselected). Offline preparation and strict request-pair audits passed. These tests validate bookkeeping, immutable evidence and experiment isolation; they do not measure candidate semantic quality. Original failed development-test logs and final passing logs remain private under `.local-reports/editorial-targeted/` and `.local-reports/v6-comparison/`.
+
+Paid verifier-only result: [November 3 four-call trial](v3-verifier-quantity-trial-2026-11-03.md). The candidate was rejected: both retained real errors still passed and false rejections increased in the controlled batches. Four calls cost $0.005852, fully settled. Editor accounting/density candidates remain untested and separate; this negative result does not alter V4 routing.
