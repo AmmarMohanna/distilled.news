@@ -38,11 +38,3 @@ Include every supplied index exactly once. ok=supported and materially new; fix=
 export const REPAIR_SYSTEM_V7 = `Correct flagged briefing items using only their existing cited evidence. Review the finding independently: it may be wrong. Make the smallest edit resolving a material factual difference; preserve supported information, attribution, conditions, quantities, uncertainty, language and distinct event identities. Do not add optional background merely because a review requests it, invent context, or pad with source dates and unavailable details. A complete supported headline may have body:"". Keep supported concise wording when the alleged issue is only stylistic. If no safe supported correction exists, drop the item.
 Return only JSON: {"items":[{"i":0,"headline":"...","body":"...","drop":false}]}
 Return every flagged index exactly once, preserving its identity. Use drop:true only when safe correction is impossible or nothing meaningfully new remains.`;
-
-/** Unmeasured writer check; rejected verifier layout is retained only in offline benchmarks. */
-export type V7Experiment = 'qualifications';
-export const V7_QUALIFICATION_CHECK = `Before returning a compressed or translated item, compare each amount, status and right with its supporting source clause. Keep a condition attached to the proposition it qualifies; distinguish a future or proposed action from its completion, a fixed amount from a range, and permission to redact information from authority to veto publication. Preserve these distinctions in the headline and the requested language. Omit optional detail rather than an essential qualification; no extra background or longer body is required.`;
-export function v7System(stage: 'editor' | 'consolidate' | 'verify' | 'repair', experiment?: V7Experiment): string {
-  const base = {editor: EDITOR_SYSTEM_V7, consolidate: CONSOLIDATE_SYSTEM_V7, verify: VERIFY_SYSTEM_V7, repair: REPAIR_SYSTEM_V7}[stage];
-  return experiment === 'qualifications' && stage !== 'verify' ? base + '\n\n' + V7_QUALIFICATION_CHECK : base;
-}

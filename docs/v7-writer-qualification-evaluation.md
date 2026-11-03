@@ -2,6 +2,8 @@
 
 ## Current conclusion
 
+**Subsequent authorized result:** eight editor calls completed for $0.091832. No controlled gain on the target qualifications was demonstrated; the runtime option was retired and preserved offline. See [the exact measured result](v7-writer-qualification-trial-2026-11-03.md). The remainder records the original preparation and separate unexecuted verifier plan.
+
 **V7 has not yet demonstrated reliable preservation of essential factual meaning across languages.** Its retained Arabic fund and METR outputs remain real counterexamples. The existing disabled writer check is now prepared for an independent comparison, without changing its text, deployed V4, normal call count or model routing. No paid inference ran in this preparation.
 
 Offline checks establish exact input equality and source availability, not candidate output quality. A saved V7 answer is never replayed under the changed prompt and presented as a new model result. All candidate quality, latency and paid cost fields remain unmeasured until fresh authorization and actual provider execution.
