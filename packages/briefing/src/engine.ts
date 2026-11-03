@@ -1,4 +1,4 @@
-import { EDITOR_SYSTEM_V7, CONSOLIDATE_SYSTEM_V7, VERIFY_SYSTEM_V7, REPAIR_SYSTEM_V7 } from './prompts-v7';
+import { v7System, type V7Experiment } from './prompts-v7';
 import { auditEditorSourceAccounting } from './source-accounting';
 import { callJson, UsageMeter, type ModelPort } from "./model";
 import { chunkArticles, prepareArticles, selectPrior, type PrepareOptions, type PreparedArticle } from "./prepare";
@@ -28,6 +28,8 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 export interface EngineOptions {
   /** Legacy frozen windows retain their original paid-request bytes. */
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  /** Independent opt-in V7 investigation; absent preserves measured baseline. */
+  v7Experiment?: V7Experiment;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
   maxEditorChars: number;
   /** Source text budget for one verification call; larger briefings verify in parallel batches. */
@@ -143,7 +145,8 @@ async function edit(
   articles: PreparedArticle[],
   prior: PriorItem[],
   partial = false,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2,
+  v7Experiment?: V7Experiment
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -153,7 +156,7 @@ async function edit(
     meter,
     {
       model: models.editor,
-      system: promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
+      system: promptVersion === 7 ? v7System('editor', v7Experiment) : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion }),
       maxTokens: 4000
     },
@@ -173,7 +176,8 @@ async function consolidate(
   drafts: Draft[],
   prior: PriorItem[],
   idsOfRefs: (refs: string[]) => string[],
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
+  v7Experiment?: V7Experiment
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -181,7 +185,7 @@ async function consolidate(
     meter,
     {
       model: models.editor,
-      system: promptVersion === 7 ? CONSOLIDATE_SYSTEM_V7 : promptVersion >= 6 ? CONSOLIDATE_SYSTEM_V6 : promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM,
+      system: promptVersion === 7 ? v7System('consolidate', v7Experiment) : promptVersion >= 6 ? CONSOLIDATE_SYSTEM_V6 : promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM,
       user: consolidateUser({
         promptVersion,
         feed: input.feed,
@@ -276,7 +280,8 @@ async function verify(
   prior: PriorItem[],
   maxChars: number,
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
+  v7Experiment?: V7Experiment
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -290,9 +295,10 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
+          system: promptVersion === 7 ? v7System('verify', v7Experiment) : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
           user: verifyUser({
             promptVersion,
+            itemLocalEvidence: v7Experiment === 'item-local-evidence',
             previousReviews: batch.flatMap((index, localIndex) => {
               const previous = previousReviews.get(index);
               return previous ? [{ index: localIndex, ...previous }] : [];
@@ -348,7 +354,8 @@ async function repair(
   flagged: Map<number, string[]>,
   byRef: Map<string, PreparedArticle>,
   headlineOnly = false,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 4
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 4,
+  v7Experiment?: V7Experiment
 ): Promise<Map<number, { headline: string; body: string } | null>> {
   // Model-facing numbers are local to this subset; translate back mechanically.
   const indices = [...flagged.keys()];
@@ -359,7 +366,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM,
+      system: promptVersion === 7 ? v7System('repair', v7Experiment) : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM,
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,
@@ -407,6 +414,7 @@ export async function generateBriefing(
   overrides: Partial<EngineOptions> = {}
 ): Promise<BriefingResult> {
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
+  if (options.v7Experiment && options.promptVersion !== 7) throw new Error('V7_EXPERIMENT_REQUIRES_V7');
   const meter = new UsageMeter();
   const started = Date.now();
   const stages: Record<string, number> = {};
@@ -441,17 +449,17 @@ export async function generateBriefing(
   let drafts: Draft[];
   const omitted: OmittedStory[] = [];
   if (chunks.length === 1) {
-    const edited = await timed("edit", () => edit(port, meter, models, input, prepared, prior, false, options.promptVersion));
+    const edited = await timed("edit", () => edit(port, meter, models, input, prepared, prior, false, options.promptVersion, options.v7Experiment));
     drafts = edited.drafts;
     omitted.push(...edited.omitted);
     unaccounted.push(...edited.unaccounted);
   } else {
-    const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior, true, options.promptVersion))));
+    const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior, true, options.promptVersion, options.v7Experiment))));
     const merged = parts.flatMap((part) => part.drafts);
     omitted.push(...parts.flatMap((part) => part.omitted));
     unaccounted.push(...parts.flatMap((part) => part.unaccounted));
     if (merged.length > 1) {
-      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion));
+      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion, options.v7Experiment));
       drafts = consolidated.drafts;
       omitted.push(...consolidated.omitted);
     } else {
@@ -475,7 +483,7 @@ export async function generateBriefing(
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
-    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, prior, options.maxVerifyChars, previousReviews, options.promptVersion));
+    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, prior, options.maxVerifyChars, previousReviews, options.promptVersion, options.v7Experiment));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
     for (const index of todo) {
@@ -489,7 +497,7 @@ export async function generateBriefing(
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
     if (flagged.size && round < options.maxRepairs) {
-      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion));
+      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion, options.v7Experiment));
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {

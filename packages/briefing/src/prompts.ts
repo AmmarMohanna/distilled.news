@@ -145,15 +145,46 @@ export const VERIFY_SYSTEM = LEGACY_VERIFY_SYSTEM.replace(
 
 export interface PreviousReview {index: number; headline: string; body: string; issues: string[]}
 
+/** Exact evidence grouped by citation set, not by inferred topic or claim meaning. */
+function describeItemEvidence(input: Parameters<typeof verifyUser>[0]): string {
+  const byRef = new Map(input.sources.map(source => [source.ref, source]));
+  const packets = new Map<string, {items: unknown[]; evidence: unknown[]}>();
+  for (const item of input.items) {
+    const refs = [...new Set(item.sources)].sort();
+    const key = JSON.stringify(refs);
+    let packet = packets.get(key);
+    if (!packet) {
+      const evidence = refs.map(ref => {
+        const source = byRef.get(ref);
+        if (!source) throw new Error('MISSING_VERIFICATION_EVIDENCE');
+        return {ref, source: source.source, publishedAt: source.publishedAt, title: source.title, text: source.text};
+      });
+      packet = {items: [], evidence};
+      packets.set(key, packet);
+    }
+    packet.items.push({i: item.index, relation: item.relation, headline: item.headline, body: item.body,
+      cites: item.sources, earlierItem: item.updatesText, automatedHints: item.hints});
+  }
+  return 'VERIFICATION PACKETS (each item is supported only by its cited evidence; publication timestamps are metadata, not event dates):\n'
+    + JSON.stringify([...packets.values()]);
+}
+
 export function verifyUser(input: {
   promptVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   previousReviews?: PreviousReview[];
+  /** Experimental V7 layout; no evidence extraction or summarization. */
+  itemLocalEvidence?: boolean;
   windowEnd: string;
   items: Array<{ index: number; headline: string; body: string; relation: string; sources: string[]; updatesText?: string; hints: string[] }>;
   sources: PreparedArticle[];
   prior: PriorItem[];
 }): string {
-  const user = [
+  if (input.itemLocalEvidence && input.promptVersion !== 7) throw new Error('V7_EXPERIMENT_REQUIRES_V7');
+  const user = input.itemLocalEvidence ? [
+    `BRIEFING REPORTING CUTOFF: ${input.windowEnd}`,
+    `ALREADY TOLD TO THE READER:\n${describePrior(input.prior, input.promptVersion)}`,
+    describeItemEvidence(input)
+  ].join('\n') : [
     `BRIEFING REPORTING CUTOFF: ${input.windowEnd}`,
     `ALREADY TOLD TO THE READER:\n${describePrior(input.prior, input.promptVersion)}`,
     `\nSOURCES:\n${describeArticles(input.sources.map((s) => ({ ...s, similarRefs: [] })))}`,
