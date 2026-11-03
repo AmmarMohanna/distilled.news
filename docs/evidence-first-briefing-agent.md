@@ -1,4 +1,6 @@
-# Evidence-first briefing candidate � offline implementation
+> Follow-up: the authorized real comparison is complete: 39 calls, $0.2491448 settled. Candidate decision: REVISE, do not promote. See [real comparison](evidence-agent-real-comparison-2026-11-04.md). The document below records the initial offline implementation phase.
+
+# Evidence-first briefing candidate - offline implementation
 
 Status: **IMPLEMENTED, OPT-IN, NOT QUALIFIED FOR ADOPTION**. V4 remains selected; V7 and its rejected qualification experiment are preserved. Starting revision: `89bea66`; implementation commit: `49c3ee4`; branch `ghada/v3-editorial-distillation`. No deployment, real provider request, grant/hold change or notification occurred. Actual additional charges: **$0**. Mocked usage is not a financial charge or quality measurement.
 
@@ -62,7 +64,7 @@ Six English/Arabic cases include the retained Lebanon window (including S13), mu
 
 These are deterministic **editor input sizes**, not tokens, cost or full-pipeline latency. Lebanon is approximately 24% larger than V7 at this stage; the 10% full-pipeline target is therefore not assumed satisfied. Record output, verifier overhead, caching and repairs need actual measurement.
 
-Proposed finite matrix: 6 cases � 3 variants = 18 pipelines; 36 normal calls, **72 maximum**, including one possible repair/recheck pair per pipeline. No paid judge, retry or publication. Each variant receives the same original input, history, model routing, temperature from the shared port and stage output ceilings. Existing V4/V7 preprocessing differs from the new architecture and is explicitly measured, not concealed as an identical prompt-only experiment. The runner stops at four calls rather than silently extending baseline JSON retries.
+Proposed finite matrix: 6 cases x 3 variants = 18 pipelines; 36 normal calls, **72 maximum**, including one possible repair/recheck pair per pipeline. No paid judge, retry or publication. Each variant receives the same original input, history, model routing, temperature from the shared port and stage output ceilings. Existing V4/V7 preprocessing differs from the new architecture and is explicitly measured, not concealed as an identical prompt-only experiment. The runner stops at four calls rather than silently extending baseline JSON retries.
 
 **This is not paid execution approval.** Before execution: freshly check pricing, calculate worst-case exposure for all captured requests and repair bounds, establish a fresh explicit scope/expiry and use native financial admission per operation. All costs and semantic measurements remain null until observed. Stop on uncertain outcomes. No earlier authorization is reused.
 

@@ -17,7 +17,7 @@ export async function prepareComparison(corpus: any) {
             let request: ModelRequest | undefined;
             const sentinel = new Error('OFFLINE_CAPTURE');
             try {
-                await generateBriefing(structuredClone(frozen.input), { async complete(r) { request = structuredClone(r); throw sentinel; } }, MODELS, options(variant));
+                await generateBriefing(structuredClone(frozen.input), { async complete(r) { request = structuredClone(r); throw sentinel; } }, MODELS, { ...options(variant), now: () => new Date(frozen.input.windowEnd) });
             }
             catch (e) {
                 if (e !== sentinel)
@@ -51,7 +51,7 @@ export async function runComparisonCase(frozen: FrozenCase, variant: Variant, ad
             events.push(event);
             return response;
         } };
-    const start = performance.now(), result = await generateBriefing(structuredClone(frozen.input), port, MODELS, options(variant));
+    const start = performance.now(), result = await generateBriefing(structuredClone(frozen.input), port, MODELS, { ...options(variant), now: () => new Date(frozen.input.windowEnd) });
     const output = { variant, caseId: frozen.id, evidenceHash: frozen.evidenceHash, result, events, wallMs: performance.now() - start, actualPublication: false, semanticAssessment: null };
     await persist({ type: 'complete', ...output });
     return output;

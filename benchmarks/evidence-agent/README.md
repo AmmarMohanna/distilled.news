@@ -5,7 +5,7 @@ See `docs/evidence-first-briefing-agent.md` for scope, limitations and proposed 
 - `comparison.ts`: offline preparation plus an injected-native-port runner. No credentials/network provider adapter.
 - `offline-plan.json`: exact frozen inputs, requests, hashes and provisional expectations. No model results.
 - Source labels remain AI-assisted engineering expectations, not human ground truth.
-- Real calls: **0**. Additional paid charges: **$0**. Adoption: **not qualified**.
+- Initial preparation was offline. Authorized follow-up: **39 calls / $0.2491448**, zero uncertain operations. See `trial-results-2026-11-04.json`, `trial-review-2026-11-04.json`, `trial-outputs-2026-11-04.md` and `docs/evidence-agent-real-comparison-2026-11-04.md`. Adoption: **REVISE; not qualified**.
 
 Regenerate offline in PowerShell from the repository root:
 
