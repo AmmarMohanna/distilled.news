@@ -11,3 +11,5 @@ Prepare: `corepack pnpm exec vitest run --config benchmarks/editorial-distillati
 Test: `corepack pnpm --filter @distilled/briefing exec vitest run test/editorial-distillation.test.ts`.
 
 Preparation makes no network or paid requests. Frozen expected labels are never included in model inputs. Candidate quality, model latency and full-pipeline cost remain unmeasured until authorized real comparison and independent review.
+
+Targeted follow-up: see [independent accounting, density and quantity/timing tracks](../../docs/v3-editorial-targeted-follow-up.md). All candidate comparisons are prepared against frozen V4; no combined candidate or new paid execution is enabled. Rebuild requests using `corepack pnpm exec vitest run --config benchmarks/editorial-targeted.vitest.config.ts`. Generation results now expose a nonblocking `unaccounted` diagnostic; legacy result metadata remains optional.
