@@ -100,3 +100,5 @@ Fresh approval authorized 16 calls and $3 exposure for two hours, recorded at 20
 Actual new model calls: **0**. Actual new inference charges: **$0**. No new grants, reservations or settlements were written by this attempt. Existing holds, key limits and deployment configuration were unchanged. Exact prepared execution and logs are private under `.local-reports/v3-editorial-distillation/`.
 
 Required external action: securely restore sufficient authorized headroom on the existing evaluation key, or explicitly authorize a securely supplied evaluation key. Do not paste secrets into chat. No quota increase, substitute credential or untracked call was attempted. If access is restored after expiry, fresh spending approval is required. Candidate quality, factuality, comparative cost and latency remain unmeasured; V4 remains unchanged.
+
+Latest paid attempt: see [November 3 trial](v3-editorial-distillation-trial-2026-11-03.md). Twelve editors and one truncated evaluator settled for $0.232920; three calls were not sent. No complete independent verdict or candidate promotion. Earlier zero-call quota-block record remains historical evidence.
