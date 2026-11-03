@@ -1,4 +1,4 @@
-﻿import {it,expect} from 'vitest';import {readFileSync} from 'node:fs';
+import {it,expect} from 'vitest';import {readFileSync} from 'node:fs';
 import {generateBriefing} from '../src/engine';import {prepareArticles} from '../src/prepare';import type {ModelPort} from '../src/model';
 const read=(p:string)=>JSON.parse(readFileSync(new URL('../../../'+p,import.meta.url),'utf8'));
 const corpus=read('benchmarks/editorial-distillation/corpus.json');const recorded=read('benchmarks/editorial-distillation/v6-results-2026-11-03.json');
@@ -9,7 +9,7 @@ it('locates post 107635 loss in the raw V6 editor output, not preprocessing or f
  const raw=JSON.parse(calls[0].response.text);expect(raw.items).toHaveLength(3);expect(raw.items.flatMap((i:any)=>i.sources)).not.toContain('S13');expect(raw.left_out.flatMap((i:any)=>i.sources)).not.toContain('S13');expect(calls[1].response.text).toContain('"verdict":"ok"');
  let n=0;const port:ModelPort={async complete(request){const original=calls[n++];if(!original)throw Error('UNEXPECTED_CALL_NO_NETWORK');expect(request).toEqual(original.request);return original.response;}};
  const result=await generateBriefing(input,port,{editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},{promptVersion:6,maxRepairs:1,now:()=>new Date(input.windowEnd)});
- expect(n).toBe(2);const final=recorded.runs.find((r:any)=>r.label==='lebanon-roundup-ar-v6').result;expect(result.items).toEqual(final.items);expect(result.skipped).toEqual([]);expect(result.dropped).toEqual([]);expect(result.omitted.flatMap(x=>x.sourceIds)).not.toContain(target.id);expect(result.items.flatMap(x=>x.sourceIds)).not.toContain(target.id);
+ expect(n).toBe(2);const final=recorded.runs.find((r:any)=>r.label==='lebanon-roundup-ar-v6').result;expect(result.items).toEqual(final.items);expect(result.skipped).toEqual([]);expect(result.dropped).toEqual([]);expect(result.omitted.flatMap(x=>x.sourceIds)).not.toContain(target.id);expect(result.items.flatMap(x=>x.sourceIds)).not.toContain(target.id);expect(result.unaccounted).toContainEqual({ref:'S13',sourceIds:[target.id]});
 });
 it('ties the fund quantity and timing concerns to exact retained primary evidence and accepted text',()=>{
  const source=corpus.sources.find((s:any)=>s.article.id==='public-benefit-fund').article.text;

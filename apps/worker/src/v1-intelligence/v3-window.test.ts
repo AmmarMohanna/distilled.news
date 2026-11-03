@@ -570,3 +570,16 @@ it('freezes opt-in V6 prompts and reuses the persisted window after configuratio
  await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:31:00Z',undefined,transport);
  expect(seen).toHaveLength(2);expect((await store.read<any>('feed-1','v3_window_inputs',id)).promptVersion).toBe(6);
 },30000);
+it('retains diagnostic unaccounted refs without blocking publication or repeating settled work',async()=>{
+ await article(1);
+ await acceptEvidence(store,2,'The electricity authority announced a separate transmission maintenance programme affecting coastal substations next month.','publisher-1','2026-10-03T12:10:00Z','en','2026-10-03T12:05:00Z','Separate electricity decision','https://publisher.example/maintenance-2');
+ await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T12:10:00Z');
+ const id=await windowIdentity('feed-1',window),seen:string[]=[],transport=fetcher(seen) as typeof fetch,message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ const edition=await processV1Briefing(env,message,()=>window.end,undefined,transport);
+ expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);
+ const saved=await store.read<any>('feed-1','v3_window_results',id);
+ expect(saved.result.unaccounted).toHaveLength(1);expect(saved.result.unaccounted[0].ref).toBe('S2');expect(saved.result.unaccounted[0].sourceIds).toHaveLength(1);
+ expect(saved.result.omitted).toEqual([]);expect(await publicV1Edition(ctx.db,edition!.id)).toBeDefined();
+ await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,transport);
+ expect(seen).toHaveLength(2);expect((await store.read<any>('feed-1','v3_window_results',id)).result.unaccounted).toEqual(saved.result.unaccounted);
+},30000);

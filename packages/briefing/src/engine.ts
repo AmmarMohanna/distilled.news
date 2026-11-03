@@ -1,3 +1,4 @@
+import { auditEditorSourceAccounting } from './source-accounting';
 import { callJson, UsageMeter, type ModelPort } from "./model";
 import { chunkArticles, prepareArticles, selectPrior, type PrepareOptions, type PreparedArticle } from "./prepare";
 import {
@@ -21,7 +22,7 @@ import {
   type PreviousReview
 } from "./prompts";
 import { significantNumbers } from "./text";
-import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem } from "./types";
+import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
   /** Legacy frozen windows retain their original paid-request bytes. */
@@ -142,7 +143,7 @@ async function edit(
   prior: PriorItem[],
   partial = false,
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 = 2
-): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
+): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
   const idsOf = new Map(articles.map((a) => [a.ref, [a.id, ...a.alsoIds]]));
@@ -157,7 +158,8 @@ async function edit(
     },
     (raw) => ({
       drafts: parseDrafts(raw, known, priorIds, promptVersion >= 4),
-      omitted: parseLeftOut(raw, known, idsOf)
+      omitted: parseLeftOut(raw, known, idsOf),
+      unaccounted: auditEditorSourceAccounting(raw, articles)
     })
   );
 }
@@ -416,9 +418,11 @@ export async function generateBriefing(
     }
   };
   const omittedStories: OmittedStory[] = [];
+  const unaccounted: UnaccountedSource[] = [];
   const finish = (partial: Pick<BriefingResult, "status" | "items" | "skipped" | "dropped">): BriefingResult => ({
     ...partial,
     omitted: omittedStories,
+    unaccounted,
     usage: meter.usage,
     timings: { totalMs: Date.now() - started, stages }
   });
@@ -439,10 +443,12 @@ export async function generateBriefing(
     const edited = await timed("edit", () => edit(port, meter, models, input, prepared, prior, false, options.promptVersion));
     drafts = edited.drafts;
     omitted.push(...edited.omitted);
+    unaccounted.push(...edited.unaccounted);
   } else {
     const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior, true, options.promptVersion))));
     const merged = parts.flatMap((part) => part.drafts);
     omitted.push(...parts.flatMap((part) => part.omitted));
+    unaccounted.push(...parts.flatMap((part) => part.unaccounted));
     if (merged.length > 1) {
       const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion));
       drafts = consolidated.drafts;

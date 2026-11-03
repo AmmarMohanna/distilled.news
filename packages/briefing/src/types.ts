@@ -73,6 +73,13 @@ export interface OmittedStory {
   sourceIds: string[];
 }
 
+/** A prepared source absent from both editor items and explicit exclusions.
+ * This says nothing about importance, relevance, truth or whether it should be published. */
+export interface UnaccountedSource {
+  ref: string;
+  sourceIds: string[];
+}
+
 export interface BriefingResult {
   /**
    * published: at least one verified item.
@@ -86,6 +93,8 @@ export interface BriefingResult {
   dropped: DroppedItem[];
   /** Stories left out by editorial choice (not by failed verification). */
   omitted: OmittedStory[];
+  /** Diagnostic only; absent on historical results. Never blocks publication or triggers a call. */
+  unaccounted?: UnaccountedSource[];
   usage: Usage;
   timings: { totalMs: number; stages: Record<string, number> };
 }
