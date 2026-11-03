@@ -77,7 +77,7 @@ The installed bridge posts an incrementing request ID to a Node worker, waits vi
 Independent local reproduction attempts, unchanged test:
 
 - Exact case: four fresh isolated passes (initial plus three repeats); 13 other tests deselected only for these runs.
-- Entire file: **14/14 passed**, including replacement, expiry, subscription ownership, lost acknowledgement, publication guards and starvation tests.
+- Entire file: **14/14 passed**, including replacement, expiry, subscription ownership, lost acknowledgement, publication guards and starvation tests. The first PowerShell wrapper returned 1 despite this passing assertion summary, so it was not treated as a clean process result. A second full-file run captured the Node child directly: **exit 0, signal null, 14/14 passed**. The first wrapper discrepancy remains unexplained; it is not labelled as a proven application or shell root cause.
 - Local host: Windows / Node 22.17.0. CI: Ubuntu 24.04 / Node 24. This is not a matching Linux reproduction. Local Docker daemon is unavailable; no service was started or provisioned.
 - Reports: `.local-reports/v7-writer-qualification/push-*.log`; original CI job log retained privately.
 
@@ -86,3 +86,5 @@ Independent local reproduction attempts, unchanged test:
 ## Completed offline validation
 
 176 briefing tests / 40 files passed. The new request-preparation comparison passed. Briefing and Worker TypeScript checks passed. Push reproduction results above are real local runs, with all external inference and push delivery mocked; no paid call was made and no application or test assertion was weakened. The writer spending request remains pending at this report's preparation stage. A later executed result must be recorded separately, not inferred from this plan.
+
+Machine-readable CI/reproduction evidence: `benchmarks/editorial-distillation/push-ci-investigation-2026-11-03.json`. No speculative fix is claimed.
