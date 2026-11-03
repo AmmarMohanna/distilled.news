@@ -583,3 +583,25 @@ it('retains diagnostic unaccounted refs without blocking publication or repeatin
  await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,transport);
  expect(seen).toHaveLength(2);expect((await store.read<any>('feed-1','v3_window_results',id)).result.unaccounted).toEqual(saved.result.unaccounted);
 },30000);
+it('persists an opt-in evidence-agent edition through native durable operations and replays without new work',async()=>{
+ await article();const id=await windowIdentity('feed-1',window);
+ const legacy=await prepareV3Window(store,'feed-1',window,window.end);
+ const prepared={...await prepareV3Window(store,'feed-1',window,window.end,legacy.models,4,'evidence-first-v1'),id};
+ expect(legacy).not.toHaveProperty('architecture');expect(legacy.input.articles[0]).not.toHaveProperty('revision');
+ expect(prepared.fingerprint).not.toBe(legacy.fingerprint);expect(prepared.input.articles[0].revision?.evidenceId).toBeTruthy();
+ await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
+ const requests:any[]=[];
+ const provider=(async(_url:unknown,init?:RequestInit)=>{
+  const request=JSON.parse(init!.body as string);requests.push(request);const editor=requests.length===1;
+  const content=editor?{items:[{developmentId:'D1',headline:'Parliament approves banking reform; presidential approval still required',body:''}],developments:[{id:'D1',occurrence:'Parliament vote on banking reform',relation:'new',updates:null,importance:1,essentialClaims:[{id:'C1',statement:'Parliament approved legislation subject to presidential approval',conditions:['Presidential approval required'],attribution:null,uncertainty:null,temporalStatus:'completed',time:null,evidence:[{passages:['S1.B1'],quote:'The measure still requires presidential approval.'}]}]}],left_out:[]}:{results:[{i:0,verdict:'ok',issues:[]}],coverage:{status:'complete',issues:[]}};
+  return Response.json({id:`gen-evidence-${requests.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
+ }) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ const edition=await processV1Briefing(env,message,()=>window.end,undefined,provider);
+ expect(edition).toBeDefined();expect(requests).toHaveLength(2);
+ const saved=(await store.list<any>('feed-1','v3_window_results'))[0];expect(saved.result.evidenceAgent).toMatchObject({architecture:'evidence-first-v1',semanticTruthEstablished:false,acceptedDevelopmentIds:['D1']});
+ expect(saved.operationIds).toHaveLength(2);const operations=await store.list<any>('feed-1','semantic_results');expect(operations).toHaveLength(2);for(const operation of operations){expect(operation.status).toBe('SUCCEEDED');expect(operation.usage).toMatchObject({calls:1,reported:true,costUsd:0.001});}
+ const readback=await publicV1Edition(ctx.db,id);expect(readback).toBeDefined();expect(JSON.stringify(readback)).toContain('presidential approval still required');
+ const before=await store.getFeed('feed-1');await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,provider);
+ expect(requests).toHaveLength(2);expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);expect(await store.getFeed('feed-1')).toEqual(before);
+},30000);

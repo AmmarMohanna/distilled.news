@@ -2,7 +2,7 @@
 import type {UnaccountedSource} from './types';
 
 /** Reference bookkeeping only: absence is not an editorial relevance or recall verdict. */
-export function auditEditorSourceAccounting(raw: unknown, articles: PreparedArticle[]): UnaccountedSource[] {
+export function auditEditorSourceAccounting(raw: unknown, articles: Array<Pick<PreparedArticle, 'ref' | 'id' | 'alsoIds'>>): UnaccountedSource[] {
   const output = raw as {items?: unknown; left_out?: unknown} | null;
   const mentioned = new Set<string>();
   for (const list of [output?.items, output?.left_out]) {

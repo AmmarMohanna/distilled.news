@@ -1,3 +1,4 @@
+import {generateEvidenceBriefing} from './evidence-agent';
 import { EDITOR_SYSTEM_V7, CONSOLIDATE_SYSTEM_V7, VERIFY_SYSTEM_V7, REPAIR_SYSTEM_V7 } from './prompts-v7';
 import { auditEditorSourceAccounting } from './source-accounting';
 import { callJson, UsageMeter, type ModelPort } from "./model";
@@ -26,6 +27,8 @@ import { significantNumbers } from "./text";
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
+  /** Programmatic opt-in only; existing prompt versions and defaults remain unchanged. */
+  architecture?: 'evidence-first-v1';
   /** Legacy frozen windows retain their original paid-request bytes. */
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
@@ -408,6 +411,10 @@ export async function generateBriefing(
 ): Promise<BriefingResult> {
   if ('v7Experiment' in overrides && overrides.v7Experiment !== undefined) throw new Error('UNSUPPORTED_V7_EXPERIMENT');
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
+  if (options.architecture !== undefined) {
+    if (options.architecture !== 'evidence-first-v1') throw new Error('UNSUPPORTED_BRIEFING_ARCHITECTURE');
+    return generateEvidenceBriefing(input, port, models, options);
+  }
   const meter = new UsageMeter();
   const started = Date.now();
   const stages: Record<string, number> = {};
