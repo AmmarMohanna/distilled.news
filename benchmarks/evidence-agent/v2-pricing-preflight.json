@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-11-04T14:12:45.140Z",
+  "source": "https://openrouter.ai/api/v1/models",
+  "models": [
+    {
+      "id": "openai/gpt-4.1",
+      "inputUsdPerToken": 0.000002,
+      "outputUsdPerToken": 0.000008,
+      "contextTokens": 1047576
+    },
+    {
+      "id": "openai/gpt-4.1-mini",
+      "inputUsdPerToken": 4e-7,
+      "outputUsdPerToken": 0.0000016,
+      "contextTokens": 1047576
+    }
+  ]
+}
