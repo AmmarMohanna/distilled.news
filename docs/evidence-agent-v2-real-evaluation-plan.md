@@ -1,3 +1,5 @@
+> Outcome: approved follow-up stopped on the first Arabic pair after critical accepted factual errors. Four calls cost $0.0430896, all settled. See [results](evidence-agent-v2-real-evaluation-results.md). The proposal below remains the original planned scope.
+
 # Evidence-first v2: next real evaluation
 
 Prepared from `54b0572`. **Not authorized or executed.** No product prompt, model route or architecture change is proposed.

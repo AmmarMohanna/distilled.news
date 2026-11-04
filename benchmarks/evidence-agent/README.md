@@ -18,3 +18,5 @@ Remove-Item Env:FREEZE_EVIDENCE_AGENT
 Future paid execution requires a new explicit approval and fresh conservative pricing/exposure preflight. A previously approved scope or unused balance is not sufficient.
 
 Protocol fix: `docs/evidence-agent-v2-protocol-fix.md`. `v2-offline-controls.json` contains mechanically modified saved fixtures with scripted verification, not new provider evidence. V1 paid results remain unchanged.
+
+Real paired v2 follow-up: `v2-real-results-2026-11-04.json`, `v2-real-review-2026-11-04.json`, `v2-real-outputs-2026-11-04.md`. Stopped after one pair: 4 calls / $0.0430896, zero uncertain charges. Do not promote. See `docs/evidence-agent-v2-real-evaluation-results.md`.
