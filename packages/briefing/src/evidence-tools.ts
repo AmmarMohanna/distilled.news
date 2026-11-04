@@ -22,6 +22,10 @@ export interface EvidenceSource {
     digest: string;
     passages: EvidencePassage[];
 }
+export interface PassageSelection {
+    passages: string[];
+    quote?: never;
+}
 export interface PassageCitation {
     passages: string[];
     quote: string;
@@ -40,6 +44,7 @@ export interface EvidenceTools {
     source(ref: string): EvidenceSource;
     passage(id: string): EvidencePassage;
     resolve(citation: PassageCitation): EvidenceProof;
+    resolvePassages(selection: PassageSelection): EvidenceProof;
     previous(ids?: string[]): PriorItem[];
     revisions(ref: string): {
         historyLimitedToInput: true;
@@ -140,6 +145,22 @@ export async function createEvidenceTools(input: BriefingInput, limits: {
                 throw new EvidenceContractError('AMBIGUOUS_SOURCE_QUOTE');
             const s = get(parts[0].ref);
             return give({ ref: s.ref, sourceId: s.id, field: parts[0].field, start: parts[0].start + offset, end: parts[0].start + offset + c.quote.length, quote: c.quote, digest: s.digest });
+        },
+        resolvePassages(selection) {
+            if (!selection || typeof selection !== 'object' || !Array.isArray(selection.passages) || !selection.passages.length || selection.passages.length > 8)
+                throw new EvidenceContractError('INVALID_PASSAGE_SELECTION');
+            if ('quote' in selection)
+                throw new EvidenceContractError('UNEXPECTED_SOURCE_QUOTE');
+            const parts = selection.passages.map(id => {
+                const passage = byPassage.get(id);
+                if (!passage)
+                    throw new EvidenceContractError('UNKNOWN_EVIDENCE_PASSAGE');
+                return passage;
+            });
+            if (parts.some((part, index) => part.ref !== parts[0].ref || part.field !== parts[0].field || index > 0 && parts[index - 1].end !== part.start))
+                throw new EvidenceContractError('NONCONTIGUOUS_EVIDENCE');
+            const source = get(parts[0].ref);
+            return give({ ref: source.ref, sourceId: source.id, field: parts[0].field, start: parts[0].start, end: parts[parts.length - 1].end, quote: parts.map(part => part.text).join(''), digest: source.digest });
         },
         previous(selected) {
             if (!selected)

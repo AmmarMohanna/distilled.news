@@ -28,7 +28,7 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 
 export interface EngineOptions {
   /** Programmatic opt-in only; existing prompt versions and defaults remain unchanged. */
-  architecture?: 'evidence-first-v1';
+  architecture?: 'evidence-first-v1' | 'evidence-first-v2';
   /** Legacy frozen windows retain their original paid-request bytes. */
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
@@ -412,7 +412,7 @@ export async function generateBriefing(
   if ('v7Experiment' in overrides && overrides.v7Experiment !== undefined) throw new Error('UNSUPPORTED_V7_EXPERIMENT');
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
   if (options.architecture !== undefined) {
-    if (options.architecture !== 'evidence-first-v1') throw new Error('UNSUPPORTED_BRIEFING_ARCHITECTURE');
+    if (options.architecture !== 'evidence-first-v1' && options.architecture !== 'evidence-first-v2') throw new Error('UNSUPPORTED_BRIEFING_ARCHITECTURE');
     return generateEvidenceBriefing(input, port, models, options);
   }
   const meter = new UsageMeter();

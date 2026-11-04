@@ -5,8 +5,9 @@ import { freezeCase, hash, MODELS, type FrozenCase } from '../editorial-distilla
 import type { ModelPort, ModelRequest } from '../../packages/briefing/src/model';
 export const CASES = ['lebanon-roundup-en', 'lebanon-roundup-ar', 'ai-multisource-en', 'ai-multisource-ar', 'casualty-update-en', 'casualty-update-ar'];
 export const VARIANTS = ['v4', 'v7', 'evidence-first-v1'] as const;
-export type Variant = typeof VARIANTS[number];
-const options = (variant: Variant) => ({ promptVersion: variant === 'v7' ? 7 as const : 4 as const, ...(variant === 'evidence-first-v1' ? { architecture: 'evidence-first-v1' as const } : {}), maxRepairs: 1 });
+const SUPPORTED_VARIANTS = [...VARIANTS, 'evidence-first-v2'] as const;
+export type Variant = typeof SUPPORTED_VARIANTS[number];
+const options = (variant: Variant) => ({ promptVersion: variant === 'v7' ? 7 as const : 4 as const, ...(variant === 'evidence-first-v1' || variant === 'evidence-first-v2' ? { architecture: variant } : {}), maxRepairs: 1 });
 /** Pure offline preparation: captures first requests using a port that cannot perform I/O. */
 export async function prepareComparison(corpus: any) {
     const rows = [];
@@ -35,7 +36,7 @@ export async function prepareComparison(corpus: any) {
 /** Reuses caller-provided native admission/settlement; deliberately contains no network adapter or credentials.
  * Call only after a fresh approval and conservative price/exposure preflight. Budget is authoritative in admittedPort. */
 export async function runComparisonCase(frozen: FrozenCase, variant: Variant, admittedPort: ModelPort, persist: (event: unknown) => Promise<void>) {
-    if (!VARIANTS.includes(variant) || hash(frozen.input) !== frozen.evidenceHash)
+    if (!SUPPORTED_VARIANTS.includes(variant) || hash(frozen.input) !== frozen.evidenceHash)
         throw Error('INVALID_FROZEN_COMPARISON');
     let calls = 0;
     const events: unknown[] = [];

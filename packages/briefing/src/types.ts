@@ -84,7 +84,7 @@ export interface UnaccountedSource {
 
 export interface BriefingResult {
   /** Experimental audit, not an independent semantic-truth certificate. */
-  evidenceAgent?: {architecture:'evidence-first-v1';semanticTruthEstablished:false;developments:unknown[];proofs:unknown[];reviews:unknown[];diagnostics:string[];toolUsage:{reads:number;returnedChars:number};acceptedDevelopmentIds:string[]};
+  evidenceAgent?: {architecture:'evidence-first-v1'|'evidence-first-v2';recordFailures?:Array<{developmentId:string|null;reason:string;sourceIds:string[]}>;priorAliases?:Array<{ref:string;canonicalId:string}>;semanticTruthEstablished:false;developments:unknown[];proofs:unknown[];reviews:unknown[];diagnostics:string[];toolUsage:{reads:number;returnedChars:number};acceptedDevelopmentIds:string[]};
   /**
    * published: at least one verified item.
    * empty: the editor judged nothing worth the reader's time (a valid outcome).

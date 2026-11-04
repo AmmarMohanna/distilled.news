@@ -583,10 +583,11 @@ it('retains diagnostic unaccounted refs without blocking publication or repeatin
  await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,transport);
  expect(seen).toHaveLength(2);expect((await store.read<any>('feed-1','v3_window_results',id)).result.unaccounted).toEqual(saved.result.unaccounted);
 },30000);
-it('persists an opt-in evidence-agent edition through native durable operations and replays without new work',async()=>{
+it.each(['evidence-first-v1','evidence-first-v2'] as const)('persists an opt-in evidence-agent edition through native durable operations and replays without new work (%s)',async(architecture)=>{
  await article();const id=await windowIdentity('feed-1',window);
  const legacy=await prepareV3Window(store,'feed-1',window,window.end);
- const prepared={...await prepareV3Window(store,'feed-1',window,window.end,legacy.models,4,'evidence-first-v1'),id};
+ const prepared={...await prepareV3Window(store,'feed-1',window,window.end,legacy.models,4,architecture),id};
+ const other=await prepareV3Window(store,'feed-1',window,window.end,legacy.models,4,architecture==='evidence-first-v1'?'evidence-first-v2':'evidence-first-v1');expect(other.fingerprint).not.toBe(prepared.fingerprint);
  expect(legacy).not.toHaveProperty('architecture');expect(legacy.input.articles[0]).not.toHaveProperty('revision');
  expect(prepared.fingerprint).not.toBe(legacy.fingerprint);expect(prepared.input.articles[0].revision?.evidenceId).toBeTruthy();
  await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
@@ -594,14 +595,32 @@ it('persists an opt-in evidence-agent edition through native durable operations 
  const provider=(async(_url:unknown,init?:RequestInit)=>{
   const request=JSON.parse(init!.body as string);requests.push(request);const editor=requests.length===1;
   const content=editor?{items:[{developmentId:'D1',headline:'Parliament approves banking reform; presidential approval still required',body:''}],developments:[{id:'D1',occurrence:'Parliament vote on banking reform',relation:'new',updates:null,importance:1,essentialClaims:[{id:'C1',statement:'Parliament approved legislation subject to presidential approval',conditions:['Presidential approval required'],attribution:null,uncertainty:null,temporalStatus:'completed',time:null,evidence:[{passages:['S1.B1'],quote:'The measure still requires presidential approval.'}]}]}],left_out:[]}:{results:[{i:0,verdict:'ok',issues:[]}],coverage:{status:'complete',issues:[]}};
+  if(editor&&architecture==='evidence-first-v2')delete (content as any).developments[0].essentialClaims[0].evidence[0].quote;
   return Response.json({id:`gen-evidence-${requests.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
  }) as typeof fetch;
  const message={type:'v1_briefing' as const,feedId:'feed-1',window};
  const edition=await processV1Briefing(env,message,()=>window.end,undefined,provider);
  expect(edition).toBeDefined();expect(requests).toHaveLength(2);
- const saved=(await store.list<any>('feed-1','v3_window_results'))[0];expect(saved.result.evidenceAgent).toMatchObject({architecture:'evidence-first-v1',semanticTruthEstablished:false,acceptedDevelopmentIds:['D1']});
+ const saved=(await store.list<any>('feed-1','v3_window_results'))[0];expect(saved.result.evidenceAgent).toMatchObject({architecture,semanticTruthEstablished:false,acceptedDevelopmentIds:['D1']});
  expect(saved.operationIds).toHaveLength(2);const operations=await store.list<any>('feed-1','semantic_results');expect(operations).toHaveLength(2);for(const operation of operations){expect(operation.status).toBe('SUCCEEDED');expect(operation.usage).toMatchObject({calls:1,reported:true,costUsd:0.001});}
  const readback=await publicV1Edition(ctx.db,id);expect(readback).toBeDefined();expect(JSON.stringify(readback)).toContain('presidential approval still required');
  const before=await store.getFeed('feed-1');await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,provider);
  expect(requests).toHaveLength(2);expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);expect(await store.getFeed('feed-1')).toEqual(before);
+},30000);
+it('keeps v2 malformed-record evidence recoverable after partial publication without replaying accepted sources',async()=>{
+ await article(1);await article(2);const id=await windowIdentity('feed-1',window);
+ const prepared={...await prepareV3Window(store,'feed-1',window,window.end,undefined,4,'evidence-first-v2'),id};expect(prepared.input.articles).toHaveLength(2);
+ await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
+ let calls=0;
+ const provider=(async(_url:unknown,init?:RequestInit)=>{
+  const request=JSON.parse(String(init?.body)),payload=JSON.parse(request.messages[1].content);calls++;
+  const claim=(passage:string)=>({id:'C1',statement:'Presidential approval remains required',conditions:[],attribution:null,uncertainty:null,temporalStatus:'reported',time:null,evidence:[{passages:[passage]}]});
+  const content=calls===1?{items:[{developmentId:'D1',headline:'Banking reform requires presidential approval',body:''},{developmentId:'D2',headline:'Another record requiring review',body:''}],developments:[{id:'D1',occurrence:'Banking reform',relation:'new',updates:null,importance:1,essentialClaims:[claim('S1.B1')]},{id:'D2',occurrence:'Unresolved record',relation:'update',updates:null,importance:2,essentialClaims:[claim('S2.B1')]}],left_out:[]}:{results:payload.items.map((item:any)=>({i:item.i,verdict:'ok',issues:[]})),coverage:{status:'complete',issues:[]}};
+  return Response.json({id:'gen-v2-partial-'+calls,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+ }) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};const edition=await processV1Briefing(env,message,()=>window.end,undefined,provider);expect(edition?.stories).toHaveLength(1);expect(calls).toBe(2);
+ expect(edition?.evidenceRevisionIds).toEqual([prepared.input.articles[0].id]);
+ const carried=await store.carryEvidenceIds('feed-1',prepared.evidenceRevisionIds);expect([...carried]).toEqual([prepared.input.articles[1].id]);
+ const next=await prepareV3Window(store,'feed-1',{...window,start:window.end,end:'2026-10-03T13:00:00Z'},'2026-10-03T13:00:00Z',undefined,4,'evidence-first-v2');expect(next.input.articles.map(a=>a.id)).toEqual([prepared.input.articles[1].id]);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,provider);expect(calls).toBe(2);expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);
 },30000);
