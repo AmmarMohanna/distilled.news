@@ -63,6 +63,16 @@ describe('retained factual-failure regressions (offline plumbing, not model qual
     expect(mock.calls.map(c=>c.stage)).toEqual(['edit','verify']);
   });
 
+  it('does not treat a same-cutoff-day source as an older-source temporal contradiction',async()=>{
+    const sameDayArticles=articles.map(article=>article.id===fixture.sources.find(s=>s.ref==='S2')!.id?{...article,publishedAt:fixture.windowEnd}:article);
+    const sameDayInput={...input,articles:sameDayArticles};
+    const unsafe=item('anthropic-retained-today');
+    const mock=scripted({edit:[{items:[unsafe]}],verify:[{results:[{i:0,verdict:'ok',issues:[]}]}]});
+    const result=await generateBriefing(sameDayInput,mock.port,MODELS,{safetyGuard:'relative-date-v1'});
+    expect(result.items).toHaveLength(1);
+    expect(mock.calls.map(c=>c.stage)).toEqual(['edit','verify']);
+  });
+
   it('repairs a sparse subset with unchanged source owners, cutoff context and no new pipeline stage',async()=>{
     const mock=scripted({
       edit:[{items:[item('replit-concise-paraphrase'),item('anthropic-retained-today'),item('security-retained-scope')]}],
