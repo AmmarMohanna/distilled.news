@@ -29,6 +29,11 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 export interface EngineOptions {
   /** Programmatic opt-in only; existing prompt versions and defaults remain unchanged. */
   architecture?: 'evidence-first-v1' | 'evidence-first-v2';
+  /**
+   * Deterministic publication guard candidates. They are deliberately opt-in:
+   * old request bytes and the selected V4 path must remain replayable.
+   */
+  safetyGuard?: 'none' | 'relative-date-v1';
   /** Legacy frozen windows retain their original paid-request bytes. */
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   /** Input size above which articles are edited in parallel chunks and then consolidated. */
@@ -44,6 +49,7 @@ export interface EngineOptions {
 }
 
 export const DEFAULT_ENGINE: EngineOptions = {
+  safetyGuard: 'none',
   promptVersion: 4,
   maxEditorChars: 90_000,
   maxVerifyChars: 80_000,
@@ -120,6 +126,29 @@ function scriptProblem(draft: { headline: string; body: string }, language: Feed
   const sample = `${draft.headline} ${draft.body}`;
   if (language === "ar" && !/[؀-ۿ]/.test(sample)) return "item is not written in Arabic";
   if (language !== "ar" && /[؀-ۿ]/.test(sample) && !/[A-Za-z]{3}/.test(sample)) return `item is not written in ${language === "en" ? "English" : "French"}`;
+  return undefined;
+}
+
+const READER_RELATIVE_DATE = /\b(?:today|yesterday|tomorrow)\b|(?:اليوم|أمس|امس|غدًا|غدا)/iu;
+
+function utcDay(value: string): string | undefined {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString().slice(0, 10);
+}
+
+/**
+ * A source published before the reporting-cutoff day cannot, on its own,
+ * establish that a reader-facing "today" is the cutoff day. This is narrower
+ * than a semantic fact checker: it does not interpret event time, and it only
+ * intervenes when every cited source is unambiguously older.
+ */
+function relativeDateGuard(draft: Draft, byRef: Map<string, PreparedArticle>, windowEnd: string): string | undefined {
+  if (!READER_RELATIVE_DATE.test(`${draft.headline} ${draft.body}`)) return undefined;
+  const cutoffDay = utcDay(windowEnd);
+  const sourceDays = draft.refs.map((ref) => utcDay(byRef.get(ref)?.publishedAt ?? ""));
+  if (cutoffDay && sourceDays.length && sourceDays.every((day) => !!day && day < cutoffDay)) {
+    return "reader-facing relative date is unsupported: every cited source predates the reporting-cutoff day; anchor it to a supported calendar date or omit it";
+  }
   return undefined;
 }
 
@@ -488,7 +517,15 @@ export async function generateBriefing(
     const unchecked: number[] = [];
     for (const index of todo) {
       const verdict = verdicts.get(index);
+      const guardIssue = options.safetyGuard === 'relative-date-v1'
+        ? relativeDateGuard(drafts[index], byRef, input.windowEnd)
+        : undefined;
       if (!verdict) unchecked.push(index);
+      // Unlike the older numeric/script hints, this guard is a narrowly
+      // decidable temporal contradiction. An "ok" from a fallible verifier
+      // cannot publish it; use the existing repair/recheck path instead.
+      else if (guardIssue && round < options.maxRepairs) flagged.set(index, [guardIssue]);
+      else if (guardIssue) dropped.push({ headline: drafts[index].headline, reason: `still flagged after repair: ${guardIssue}`, carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
       else if (verdict.verdict === "ok") accepted.add(index);
       else if (verdict.verdict === "redundant") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "repeats what the reader was already told", carry: false, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
       else if (verdict.verdict === "drop") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "judged unsupported", carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
