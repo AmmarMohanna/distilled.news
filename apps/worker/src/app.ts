@@ -275,6 +275,10 @@ function buildManifestPayload(input: {
   };
 }
 
+function isDatabaseUnavailable(error: unknown): error is Error {
+  return error instanceof Error && /D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message);
+}
+
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -283,7 +287,7 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
     console.error(error);
-    if(error instanceof Error&&/D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message)){
+    if(isDatabaseUnavailable(error)){
       c.header('Retry-After','5');c.header('Cache-Control','no-store');
       return c.json({error:'The service is temporarily busy. Please try again shortly.',code:'DATABASE_UNAVAILABLE'},503);
     }
@@ -1477,7 +1481,16 @@ export function createApp(options: AppOptions = {}) {
   app.get("/demo", (c) => c.redirect("/", 302));
 
   app.all("*", async (c) => {
-    const routeRedirect = await maybeRedirectUsernameRoute(c, repoFor(c));
+    let routeRedirect: Response | null;
+    try {
+      routeRedirect = await maybeRedirectUsernameRoute(c, repoFor(c));
+    } catch (error) {
+      if (!c.env.ASSETS || !isDatabaseUnavailable(error)) throw error;
+      // The shell contains no account or feed data. API visibility/auth checks
+      // still fail closed; an alias lookup must not replace the UI with JSON.
+      console.warn(JSON.stringify({type:'FEED_SHELL_DATABASE_WAIT'}));
+      routeRedirect = null;
+    }
     if (routeRedirect) return routeRedirect;
     if (c.env.ASSETS) {
       const assetResponse = await c.env.ASSETS.fetch(c.req.raw);

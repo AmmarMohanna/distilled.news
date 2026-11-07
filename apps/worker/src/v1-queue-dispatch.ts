@@ -41,6 +41,7 @@ export async function pendingV1Jobs(env:Env,sourceId:string,kind:'ACQUIRE'|'REAS
  LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id
  WHERE j.feed_source_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL
  AND json_extract(j.json,'$.kind')=? AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0
+ AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING')
  AND (json_extract(j.json,'$.state')='PENDING' OR (json_extract(j.json,'$.state')='RUNNING' AND json_extract(j.json,'$.leaseUntil')<=?))
  AND (json_extract(j.json,'$.nextAttemptAt') IS NULL OR json_extract(j.json,'$.nextAttemptAt')<=?)
  AND NOT EXISTS(SELECT 1 FROM v1_queue_dispatches d WHERE d.kind=? AND d.id=j.id AND (d.lease_until>? OR d.not_before>?))
