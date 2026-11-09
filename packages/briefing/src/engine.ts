@@ -103,6 +103,9 @@ function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>, he
       throw new Error('INVALID_ARTICLE_CITATIONS: cite only the supplied article labels (S1, S2, etc.), never publisher IDs; return the complete corrected items array');
     }
     const refs = [...new Set(sources.map((s) => text(s).toUpperCase()).filter((ref) => known.has(ref)))];
+    if (headlineOnly && headline && typeof item?.body !== "string") {
+      throw new Error('INVALID_ARTICLE_BODY: return a string body for every selected item; use body:"" for a complete headline-only item');
+    }
     if (!headline || (!body && !headlineOnly) || (headlineOnly && typeof item?.body !== "string") || !refs.length) continue; // uncited or empty drafts cannot be published
     if (headlineOnly) validateRelation(item, priorIds);
     const relation = RELATIONS.has(text(item.relation)) ? (text(item.relation) as ItemRelation) : "new";

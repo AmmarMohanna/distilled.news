@@ -91,6 +91,38 @@ const fetcher=(seen:string[])=>async(_url:unknown,init?:RequestInit)=>{
  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
  return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
 };
+it('keeps unrecoverable malformed V4 generation pending, never DONE/QUIET, and reuses its settled calls',async()=>{
+ await article();const seen:any[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ const malformed=(async(_url:unknown,init?:RequestInit)=>{
+  const body=JSON.parse(String(init?.body));seen.push(body);
+  return Response.json({id:`gen-malformed-${seen.length}`,choices:[{message:{content:JSON.stringify({items:[{headline:'Banking reform approved; presidential approval remains required',sources:['S1'],relation:'new',updates:null,importance:1}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+ }) as typeof fetch;
+ await expect(processV1Briefing(env,message,()=>window.end,undefined,malformed)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(seen).toHaveLength(2);expect(seen[1].messages[1].content).toContain('INVALID_ARTICLE_BODY');
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',attempts:1,failure:'PUBLICATION_FAILED'});
+ expect(await store.read('feed-1','v3_window_results',id)).toBeUndefined();expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
+ const settled=await store.list<any>('feed-1','semantic_results');expect(settled).toHaveLength(2);expect(settled.every(r=>r.usage.reported&&r.usage.costUsd===.001)).toBe(true);
+ await expect(processV1Briefing(env,message,()=> '2026-10-03T12:32:01Z',undefined,malformed)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(seen).toHaveLength(2);expect(await store.list('feed-1','semantic_results')).toEqual(settled);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',attempts:2,failure:'PUBLICATION_FAILED'});
+});
+it('publishes a valid empty-string body after bounded correction with independent verification',async()=>{
+ await article();const seen:any[]=[],id=await windowIdentity('feed-1',window);
+ const corrected=(async(_url:unknown,init?:RequestInit)=>{
+  const body=JSON.parse(String(init?.body));seen.push(body);
+  const draft={headline:'Banking reform approved; presidential approval remains required',sources:['S1'],relation:'new',updates:null,importance:1};
+  const content=seen.length===3?{results:[{i:0,verdict:'ok'}]}:{items:[{...draft,...(seen.length===2?{body:''}:{})}]};
+  return Response.json({id:`gen-corrected-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+ }) as typeof fetch;
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,corrected);
+ expect(edition).toBeDefined();expect(seen).toHaveLength(3);expect(seen[1].messages[1].content).toContain('INVALID_ARTICLE_BODY');expect(seen[2].messages[0].content).toContain('meticulous fact-checker');
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'PUBLISHED'});
+});
+it('keeps an explicit empty V4 selection a legitimate quiet completion',async()=>{
+ await article();let calls=0;const empty=(async()=>{calls++;return Response.json({id:'gen-empty-selection',choices:[{message:{content:JSON.stringify({items:[],left_out:[{sources:['S1'],why:'No relevant new development.'}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});}) as typeof fetch;
+ expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,empty)).toBeUndefined();expect(calls).toBe(1);
+ expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'DONE',result:'QUIET',reason:'NO_SELECTED_DEVELOPMENTS'});
+});
 it.each([undefined,'clock-aligned-delivery-v2'] as const)('prepares at the early cutoff, publishes at scheduled time, and reuses verified calls on delayed delivery (policy %s)',async clockPolicy=>{
  const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z',...(clockPolicy?{clockPolicy}:{})};
  const first=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z')),message={type:'v1_briefing' as const,feedId:'feed-1',window:first};
