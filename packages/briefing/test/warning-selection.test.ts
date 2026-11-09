@@ -53,7 +53,7 @@ for (const language of ['en','ar'] as const) it(`preserves ${language} updates/c
     for(const a of prepared)expect(request.user).toContain(a.text);
     return {items:[{headline:language==='en'?'Evacuation order extended':'????? ??? ???????',body:bodies[0],sources:[ref('extension')],relation:'update',updates:'evacuation',importance:1},{headline:language==='en'?'Evacuation notice corrected':'????? ????? ???????',body:bodies[1],sources:[ref('correction')],relation:'correction',updates:'evacuation',importance:1}],left_out:[{sources:[ref('routine')],why:'routine plan'},{sources:[ref('speculation')],why:'vague off-topic speculation'},{sources:[ref('repeat')],why:'unchanged warning already told'}]};
   }],verify:[{results:[{i:0,verdict:'ok',issues:[]},{i:1,verdict:'ok',issues:[]}]}]});
-  const result=await generateBriefing({feed:{interest:'Important local public safety developments',language,windowMinutes:30},...WINDOW,articles,prior},mock.port,MODELS);
+  const result=await generateBriefing({feed:{interest:'Important local public safety developments',language,windowMinutes:30},...WINDOW,articles,prior},mock.port,MODELS,{now:()=>new Date(WINDOW.windowEnd)});
   expect(result.status).toBe('published');
   expect(result.items.map(i=>({relation:i.relation,updates:i.updatesId,body:i.body}))).toEqual([{relation:'update',updates:'evacuation',body:bodies[0]},{relation:'correction',updates:'evacuation',body:bodies[1]}]);
   expect(result.omitted.map(o=>o.sourceIds).flat().sort()).toEqual(['routine','speculation','repeat'].sort());

@@ -1,0 +1,730 @@
+{
+  "schemaVersion": 1,
+  "benchmarkId": "lebanese-human-review-2026-11-08",
+  "benchmarkHash": "8b5f072531f47055b10b8f979aa1fb27aa27cc3a1fabcb21ec33a77524a9b47f",
+  "status": "UNREVIEWED",
+  "reviewer": null,
+  "instructions": {
+    "scores": "Leave blank until human review. 1 poor, 2 weak, 3 acceptable, 4 good, 5 excellent. Use N/A only for no applicable output/body.",
+    "evidence": "Record source ID + exact quote; for repetition or relationship issues also record prior ID + quote. Distinguish full history from model-selected history.",
+    "importantNewFacts": "List independent material developments before assessing the output. Record retained/partial/missing and importance; do not penalize an item solely for being long.",
+    "noOutput": "Still review omissions when V4 is empty. Headline/body/Arabic scores may be N/A. Do not equate empty with correct.",
+    "independentReview": "Use separate reviewer files; do not overwrite another reviewer. Resolve disagreements explicitly after independent review."
+  },
+  "evidenceRowSchema": {
+    "sourceId": "string or null",
+    "sourceQuote": "exact retained source quote or null",
+    "priorId": "string or null",
+    "priorQuote": "exact prior quote or null",
+    "claim": "human-identified fact or issue",
+    "importance": "critical|important|minor|not-applicable",
+    "v4Coverage": "retained|partial|missing|not-applicable",
+    "severity": "critical|material|minor|none|uncertain",
+    "itemIndex": "zero-based integer or null",
+    "historyScope": "full|selected|both|not-applicable"
+  },
+  "cases": [
+    {
+      "caseId": "lebanon-20261106-07-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261106-08-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261106-09-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261106-10-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261106-11-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261106-12-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261106-13-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261028-0-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261028-1-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261028-2-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261028-3-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261028-4-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261028-5-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261028-6-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "lebanon-20261028-7-ar",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "robbery-control-unseen-corrective-report",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "robbery-control-reader-told-six",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    },
+    {
+      "caseId": "robbery-control-reader-already-told-three",
+      "status": "unreviewed",
+      "reviewedAt": null,
+      "sourceChecks": [],
+      "sourceCheckNotes": null,
+      "importantNewFacts": {
+        "notes": null,
+        "evidence": []
+      },
+      "redundantInformation": {
+        "notes": null,
+        "evidence": []
+      },
+      "factualFidelity": {
+        "notes": null,
+        "evidence": []
+      },
+      "relationshipIntegrity": {
+        "notes": null,
+        "evidence": []
+      },
+      "headlineQuality": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "bodyUsefulness": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "naturalArabic": {
+        "score": null,
+        "notApplicable": null,
+        "notes": null
+      },
+      "overallNotes": null
+    }
+  ]
+}

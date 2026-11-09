@@ -21,7 +21,7 @@ it('supplies the previous verdict/edit only on recheck, using local sparse-subse
 it('keeps the legacy prompt format selectable for frozen work',async()=>{
  const story='Old headline\nOld supported body.';
  const mock=scripted({edit:[(r:ModelRequest)=>{expect(r.user).toContain(story+': '+story);return {items:[{headline:'New notice',body:'The authority issued a new notice.',sources:['S1'],importance:1,relation:'new'}]};}],verify:[(r:ModelRequest)=>{expect(r.user).not.toContain('PREVIOUS REVIEW AND EDIT');return{results:[{i:0,verdict:'ok',issues:[]}]};}]});
- await generateBriefing({feed:FEED,...WINDOW,articles:[article('new','The authority issued a new notice with updated local arrangements.')],prior:[{id:'old',at:WINDOW.windowStart,headline:story,body:story}]},mock.port,MODELS,{promptVersion:1});
+ await generateBriefing({feed:FEED,...WINDOW,articles:[article('new','The authority issued a new notice with updated local arrangements.')],prior:[{id:'old',at:WINDOW.windowStart,headline:story,body:story}]},mock.port,MODELS,{promptVersion:1,now:()=>new Date(WINDOW.windowEnd)});
 });
 it('updates recheck context to the immediately preceding repair without changing the existing repair bound',async()=>{
  const original={headline:'License granted',body:'The board granted a license.',sources:['S1'],relation:'new',importance:1};

@@ -124,7 +124,7 @@ describe("generateBriefing", () => {
       edit: [{ items: [fund({ relation: "update", updates: "p1", headline: "Fund detail", body: "Subject to stockholder approval, 5% of shares will be committed." })] }],
       verify: [{ results: [{ i: 0, verdict: "ok", issues: [] }] }]
     });
-    const result = await generateBriefing({ ...base, articles: [article("a1", FUND)], prior }, port, MODELS);
+    const result = await generateBriefing({ ...base, articles: [article("a1", FUND)], prior }, port, MODELS, { now: () => new Date(base.windowEnd) });
     expect(calls[0].request.user).toContain("[p1] 2026-10-17");
     expect(result.items[0].updatesId).toBe("p1");
     expect(calls[1].request.user).toContain("earlier item it updates: Fund announced");

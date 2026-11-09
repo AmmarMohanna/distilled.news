@@ -80,6 +80,14 @@ function importanceOf(value: unknown): 1 | 2 | 3 {
   return n <= 1 ? 1 : n >= 3 ? 3 : 2;
 }
 
+function validateRelation(item: Record<string, unknown>, priorIds: Set<string>): void {
+  if (!RELATIONS.has(item.relation as string) ||
+    (item.relation === "new" ? item.updates !== null && item.updates !== undefined :
+      typeof item.updates !== "string" || !priorIds.has(item.updates))) {
+    throw new Error('INVALID_ARTICLE_RELATION: use new with updates:null, or update/correction with an exact supplied prior ID');
+  }
+}
+
 function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>, headlineOnly = false): Draft[] {
   const list = (raw as { items?: unknown })?.items;
   if (!Array.isArray(list)) throw new Error('missing "items" array');
@@ -96,8 +104,9 @@ function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>, he
     }
     const refs = [...new Set(sources.map((s) => text(s).toUpperCase()).filter((ref) => known.has(ref)))];
     if (!headline || (!body && !headlineOnly) || (headlineOnly && typeof item?.body !== "string") || !refs.length) continue; // uncited or empty drafts cannot be published
+    if (headlineOnly) validateRelation(item, priorIds);
     const relation = RELATIONS.has(text(item.relation)) ? (text(item.relation) as ItemRelation) : "new";
-    const updates = text(item.updates);
+    const updates = headlineOnly && typeof item.updates === "string" ? item.updates : text(item.updates);
     drafts.push({
       headline,
       body,
@@ -235,14 +244,15 @@ async function consolidate(
         if (!from.length || !headline || (!body && promptVersion < 4) || (promptVersion >= 4 && typeof item?.body !== "string")) continue;
         // Sources are the union of the merged drafts: the model cannot invent a citation here.
         const refs = [...new Set(from.flatMap((n: number) => drafts[n].refs))];
-        const updates = text(item.updates);
+        const updates = promptVersion >= 4 && typeof item.updates === "string" ? item.updates : text(item.updates);
+        if (promptVersion >= 4) validateRelation(item, priorIds);
         out.push({
           headline,
           body,
           relation: RELATIONS.has(text(item.relation)) ? (text(item.relation) as ItemRelation) : drafts[from[0]].relation,
           importance: importanceOf(item.importance),
           refs,
-          updatesId: priorIds.has(updates) ? updates : drafts[from[0]].updatesId
+          updatesId: priorIds.has(updates) ? updates : promptVersion >= 4 ? undefined : drafts[from[0]].updatesId
         });
         for (const n of from) used.add(n);
       }
@@ -358,6 +368,11 @@ async function verify(
             const verdict = text(row?.verdict).toLowerCase();
             if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || i >= batch.length) throw new Error('invalid verifier item index');
             if (out.has(batch[i])) throw new Error('duplicate verifier item index');
+            if (promptVersion >= 4 &&
+              (!["ok", "fix", "drop", "redundant"].includes(row?.verdict as string) ||
+                (row.issues !== undefined && (!Array.isArray(row.issues) || row.issues.some((issue) => typeof issue !== "string"))))) {
+              throw new Error('INVALID_VERIFIER_VERDICT: use an exact verdict enum and an optional array of string issues');
+            }
             if (!["ok", "fix", "drop", "redundant"].includes(verdict)) continue;
             const issues = (Array.isArray(row.issues) ? row.issues : []).map(text).filter(Boolean);
             out.set(batch[i], { verdict: verdict as Verdict["verdict"], issues });
@@ -412,11 +427,25 @@ async function repair(
       const out = new Map<number, { headline: string; body: string } | null>();
       for (const entry of list) {
         const row = entry as Record<string, unknown>;
+        // A malformed repair is not a decision to omit supported news. Keep
+        // local subset ownership exact and use the existing format correction.
+        if (promptVersion >= 4 &&
+          (typeof row?.i !== 'number' || !Number.isInteger(row.i) || row.i < 0 || row.i >= indices.length ||
+            out.has(indices[row.i]) || (row.drop !== undefined && typeof row.drop !== 'boolean'))) {
+          throw new Error('INVALID_REPAIR_ITEM: use each supplied integer index once and a boolean drop flag when present');
+        }
         const i = Number(row?.i);
         if (!Number.isInteger(i) || i < 0 || i >= indices.length) continue;
         const headline = text(row.headline);
         const body = text(row.body);
+        if (promptVersion >= 4 && row.drop !== true &&
+          (typeof row.headline !== 'string' || !headline || typeof row.body !== 'string')) {
+          throw new Error('INVALID_REPAIR_TEXT: return the repaired headline and body, or explicitly use drop:true');
+        }
         out.set(indices[i], row.drop === true || !headline || (!body && !headlineOnly) || (headlineOnly && typeof row.body !== "string") ? null : { headline, body });
+      }
+      if (promptVersion >= 4 && out.size !== indices.length) {
+        throw new Error('INCOMPLETE_REPAIR: return every supplied item index, using drop:true only for intentional omissions');
       }
       return out;
     }
@@ -556,7 +585,7 @@ export async function generateBriefing(
       const ids = d.refs.flatMap((ref) => [byRef.get(ref)!.id, ...byRef.get(ref)!.alsoIds]);
       return {
         headline: d.headline,
-        body: d.body,
+        body: options.promptVersion >= 4 && d.body === d.headline ? "" : d.body,
         relation: d.relation,
         importance: d.importance,
         sourceIds: [...new Set(ids)],
