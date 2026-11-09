@@ -1,5 +1,10 @@
 # Final V4 integration — 9 November 2026
 
+**Release-review follow-up:** the three blockers identified after this initial
+report are now fixed and verified. See the [blocker closure report](v4-release-blocker-fixes-2026-11-09.md)
+for current test counts, malformed-body Worker behavior and canonical render-time
+error localization. It supersedes the initial UI error implementation below.
+
 **Ready for integration as a V4 reliability release, not an editorial-quality
 upgrade or deployment.** Branch: `integration/v4-finalized`. No paid inference,
 new model, mandatory stage, production deployment or financial-state change.
