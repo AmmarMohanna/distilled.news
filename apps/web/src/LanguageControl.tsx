@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { interfaceTranslations } from './interface-translations';
+import {renderApiError, type UiMessage} from './api-errors';
 
 export type Language = "en" | "fr" | "ar";
 export function preferredLanguage(): Language {
@@ -279,7 +280,8 @@ const translations: Record<string, [string, string]> = {
 };
 Object.assign(translations, interfaceTranslations);
 const normalizedTranslations = new Map(Object.entries(translations).map(([key, value]) => [key.toLowerCase(), value]));
-export function translateInterface(text: string, language: Language, values?: Record<string, string | number>): string {
+export function translateInterface(text: UiMessage, language: Language, values?: Record<string, string | number>): string {
+  if (typeof text !== 'string') return renderApiError(text, language);
   const key = language === 'en' ? text : text.replace(/^Error: /, '');
   const translated = language === 'en' ? text : (translations[key] ?? normalizedTranslations.get(key.toLowerCase()))?.[language === 'fr' ? 0 : 1] ?? key;
   return values ? translated.replace(/\{(\w+)\}/g, (match, key) => String(values[key] ?? match)) : translated;
@@ -295,7 +297,7 @@ export function useLanguage() {
     document.documentElement.lang = language;
     document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
   }, [language]);
-  return { language, t: (text: string, values?: Record<string, string | number>) => translateInterface(text, language, values) };
+  return { language, t: (text: UiMessage, values?: Record<string, string | number>) => translateInterface(text, language, values) };
 }
 export function setWebsiteLanguage(next: Language) {
   localStorage.setItem("dn_language", next);

@@ -1,3 +1,4 @@
+import {toUiError, type UiMessage} from './api-errors';
 import React, { useEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
@@ -44,22 +45,22 @@ export function AppExperience(props: {
   account: AccountRecord | null; briefings: BriefingConfig[]; briefingsState?: 'loading' | 'ready' | 'error'; briefing?: BriefingConfig; health?: HealthStatus | null;
   onRetryBriefings?: () => Promise<void>;
   onAccount: () => void; onFeedSettings?: () => void; onCreate?: () => void;
-  onHelp: () => void; onResumeFeed?: (feed: BriefingConfig) => Promise<void>; error?: string; children?: React.ReactNode; initialTab?: "home" | "explore" | "settings";
+  onHelp: () => void; onResumeFeed?: (feed: BriefingConfig) => Promise<void>; error?: UiMessage; children?: React.ReactNode; initialTab?: "home" | "explore" | "settings";
 }) {
   const [tab, setTab] = useState(props.initialTab ?? "home");
   const [query, setQuery] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [resumingFeed, setResumingFeed] = useState<string | null>(null);
-  const [archiveError, setArchiveError] = useState("");
+  const [archiveError, setArchiveError] = useState<UiMessage>("");
   const [archiveStatus, setArchiveStatus] = useState("");
   const [feeds, setFeeds] = useState<Array<PublicBriefing & { viewerHasStarred?: boolean; latestUpdatedAt?: string }>>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const [starBusy, setStarBusy] = useState<string | null>(null);
   const [settingsDialog, setSettingsDialog] = useState<"install" | null>(null);
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>();
   const [notificationBusy, setNotificationBusy] = useState(false);
-  const [notificationError, setNotificationError] = useState("");
+  const [notificationError, setNotificationError] = useState<UiMessage>("");
   const [installStatus, setInstallStatus] = useState<InstallStatus>("pending");
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
@@ -80,7 +81,7 @@ export function AppExperience(props: {
           const payload = state.status === "fulfilled" ? state.value : undefined;
           return { ...feed, viewerHasStarred: payload?.viewerHasStarred, latestUpdatedAt: latestFeedUpdate(payload?.editions ?? []) };
         }));
-      } catch (cause) { if (active && version === request) { setError(cause instanceof Error ? cause.message : String(cause)); setLoading(false); } }
+      } catch (cause) { if (active && version === request) { setError(toUiError(cause)); setLoading(false); } }
     }
     const changed = () => { void load(); };
     void load();
@@ -105,20 +106,20 @@ export function AppExperience(props: {
     setNotificationEnabled(undefined);
     setNotificationError("");
     void notificationsEnabled().then(value => { if (active) setNotificationEnabled(value); })
-      .catch(cause => { if (active) { setNotificationEnabled(false); setNotificationError(cause instanceof Error ? cause.message : String(cause)); } });
+      .catch(cause => { if (active) { setNotificationEnabled(false); setNotificationError(toUiError(cause)); } });
     return () => { active = false; };
   }, [tab, props.account?.id]);
   async function toggleNotifications() {
     if (notificationEnabled === undefined || notificationBusy) return;
     setNotificationBusy(true); setNotificationError("");
     try { await setNotificationsEnabled(!notificationEnabled); setNotificationEnabled(!notificationEnabled); }
-    catch (cause) { setNotificationError(cause instanceof Error ? cause.message : String(cause)); }
+    catch (cause) { setNotificationError(toUiError(cause)); }
     finally { setNotificationBusy(false); }
   }
   return <main className={`experience product-refresh ${!props.account ? "guest-browse guest-landing landing-no-menu" : ""}`}>
     {(tab === "home" || !props.account) && <div className="ambient-lights" aria-hidden="true"/>}
     <AppHeader account={props.account} onAccount={props.onAccount}/>
-    {(props.error || error) && <p className="error" role="alert">{props.error || error}</p>}
+    {(props.error || error) && <p className="error" role="alert">{t(props.error || error)}</p>}
     {/* Keep both feed views mounted so illustrations load ahead of navigation
         and their decoded images survive tab switches. */}
     {props.account && <div className="home-view" style={tab !== "home" ? { display: "none" } : undefined}>
@@ -140,7 +141,7 @@ export function AppExperience(props: {
         {loading ? null : visibleFeeds.length ? <AdaptiveFeedGrid count={visibleFeeds.length} className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card" key={feed.id}>
           <a href={feedUrl(feed)}><FeedArt feed={props.briefings.find(owned => owned.id === feed.id) ?? feed}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span>{feed.paused && <span className="feed-card-status paused">{t("Paused")}</span>}</a>
           <FeedCardActions feed={feed} owner={props.account?.username === feed.ownerUsername} onError={setError} hideStar latestUpdatedAt={feed.latestUpdatedAt}>
-            <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${t(feed.viewerHasStarred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setStarBusy(null); } }}><Star size={16}/><span className="feed-star-count">{feed.stars}</span></button>
+            <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${t(feed.viewerHasStarred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(toUiError(cause)); } finally { setStarBusy(null); } }}><Star size={16}/><span className="feed-star-count">{feed.stars}</span></button>
           </FeedCardActions>
         </article>)}</AdaptiveFeedGrid> : query.trim() ? <p className="empty-copy" role="status">{t("No feeds match your search.")}</p> : null}
       </section>
@@ -151,7 +152,7 @@ export function AppExperience(props: {
         <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={() => setArchiveOpen(false)}><X size={22}/></button>
         <div className="archive-heading"><Archive size={26} aria-hidden/><h2>{t("Archived feeds")}</h2></div>
         <p className="archive-description">{t("Paused feeds keep their published briefings. Resume one to receive new updates.")}</p>
-        {archiveError && <p className="error" role="alert">{archiveError}</p>}
+        {archiveError && <p className="error" role="alert">{t(archiveError)}</p>}
         <p className="archive-status" role="status">{archiveStatus}</p>
         {archivedFeeds.length ? <ul className="archived-feed-list">{archivedFeeds.map(feed => <li key={feed.id}>
           <a className="archived-feed-link" href={feedUrl(feed)}><FeedArt feed={feed}/><span><strong dir="auto">{feed.title}</strong><small>{t("Paused")}</small></span></a>
@@ -159,7 +160,7 @@ export function AppExperience(props: {
             if (!props.onResumeFeed || resumingFeed) return;
             setResumingFeed(feed.id); setArchiveError(""); setArchiveStatus("");
             try { await props.onResumeFeed(feed); setArchiveStatus(t("Feed resumed.")); }
-            catch (cause) { setArchiveError(cause instanceof Error ? cause.message : t("Could not resume feed. Try again.")); }
+            catch (cause) { setArchiveError(toUiError(cause)); }
             finally { setResumingFeed(null); }
           }}><Play size={16} aria-hidden/>{t(resumingFeed === feed.id ? "Resuming…" : "Resume")}</button>
         </li>)}</ul> : ownListReady ? <div className="archive-empty"><Archive size={36} aria-hidden/><h3>{t("No archived feeds")}</h3><p>{t("Feeds you pause will appear here.")}</p></div> : <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/> }
@@ -177,7 +178,7 @@ export function accountInitials(username: string) {
   return initials.join(initials.some(letter => /\p{Script=Arabic}/u.test(letter)) ? "\u200c" : "");
 }
 
-function FeedCardActions({ feed, owner, onError, hideStar = false, children, latestUpdatedAt }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled">; owner: boolean; onError: (message: string) => void; hideStar?: boolean; children?: React.ReactNode; latestUpdatedAt?: string }) {
+function FeedCardActions({ feed, owner, onError, hideStar = false, children, latestUpdatedAt }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled">; owner: boolean; onError: (message: UiMessage) => void; hideStar?: boolean; children?: React.ReactNode; latestUpdatedAt?: string }) {
   const { t } = useLanguage();
   const menu = useRef<HTMLDetailsElement>(null);
   useVisibleFeedMenu(menu);
@@ -203,14 +204,14 @@ function FeedCardActions({ feed, owner, onError, hideStar = false, children, lat
   const url = () => window.location.origin + feedUrl(feed);
   return <div className="feed-card-actions">
     <div className="feed-card-meta">{children}
-    {!hideStar && <button type="button" aria-label={t(starred ? "Unstar" : "Star")} aria-pressed={starred} disabled={busy} onClick={async () => { setBusy(true); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !starred); setStarred(result.viewerHasStarred); setStars(result.stars); } catch (cause) { onError(String(cause)); } finally { setBusy(false); } }}><Star size={16} fill={starred ? "currentColor" : "none"}/><span className="feed-star-count">{stars}</span></button>}
+    {!hideStar && <button type="button" aria-label={t(starred ? "Unstar" : "Star")} aria-pressed={starred} disabled={busy} onClick={async () => { setBusy(true); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !starred); setStarred(result.viewerHasStarred); setStars(result.stars); } catch (cause) { onError(toUiError(cause)); } finally { setBusy(false); } }}><Star size={16} fill={starred ? "currentColor" : "none"}/><span className="feed-star-count">{stars}</span></button>}
     <FeedUpdatedAt value={hideStar ? latestUpdatedAt : updatedAt}/></div>
     <a className="feed-card-open" href={feedUrl(feed)} aria-label={`${t("Open feed")}: ${feed.title}`}><ArrowRight size={20}/></a>
     {(owner || feed.publicFeedEnabled) && <details ref={menu} className="feed-options" onKeyDown={event => { if (event.key === "Escape" && menu.current) { menu.current.open = false; menu.current.querySelector("summary")?.focus(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
       <summary aria-label={t("Feed options")}><Ellipsis size={18}/></summary>
       <div className="feed-options-popover">
         {owner && <a href={`${feedUrl(feed)}?edit=1`}><Pencil size={16}/>{t("Edit feed settings")}</a>}
-        {feed.publicFeedEnabled && <button type="button" onClick={() => { if (menu.current) menu.current.open = false; void (navigator.share ? navigator.share({ title: feed.title, url: url() }) : navigator.clipboard.writeText(url())).catch(cause => { if (cause instanceof Error && cause.name === "AbortError") return; onError(String(cause)); }); }}><Share size={16}/>{t("Share")}</button>}
+        {feed.publicFeedEnabled && <button type="button" onClick={() => { if (menu.current) menu.current.open = false; void (navigator.share ? navigator.share({ title: feed.title, url: url() }) : navigator.clipboard.writeText(url())).catch(cause => { if (cause instanceof Error && cause.name === "AbortError") return; onError(toUiError(cause)); }); }}><Share size={16}/>{t("Share")}</button>}
       </div>
     </details>}
   </div>;

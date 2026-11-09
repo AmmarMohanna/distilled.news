@@ -1,5 +1,6 @@
 import type { BriefingConfig, BriefingEdition } from "@distilled/core";
-import { preferredLanguage, translateInterface } from './LanguageControl';
+import { preferredLanguage } from './LanguageControl';
+import {ApiError, apiError} from './api-errors';
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 
 export interface SourceIngestResult {
@@ -36,16 +37,6 @@ export async function summarizeUnread(username:string,slug:string,readIds:string
 
 
 
-/** Product errors are localized; technical detail remains available as cause.
- * Never translate source content, feed names or generated briefing prose. */
-function requestError(detail: string): Error {
-  const language = preferredLanguage();
-  const translated = translateInterface(detail, language);
-  const message = language === 'en' || translated !== detail ? translated
-    : translateInterface('Could not complete the request. Try again.', language);
-  return new Error(message, {cause: new Error(detail)});
-}
-
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -57,17 +48,17 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
       },
       ...init
     });
-  } catch (cause) {
-    throw requestError(cause instanceof Error ? cause.message : String(cause));
+  } catch {
+    throw apiError(undefined);
   }
 
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
-    throw requestError(`Expected JSON from the Worker API but received ${contentType || "an unknown content type"}.`);
+    throw apiError(undefined, response);
   }
 
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw requestError(payload.error ?? `Request failed: ${response.status}`);
+  if (!response.ok) throw apiError(payload.error, response);
   return payload;
 }
 
@@ -343,16 +334,18 @@ export interface SourceAssessment {
 export interface SourceRecommendations { sources: string[]; checks?: SourceAssessment[] }
 export async function recommendSourceCandidates(title: string, description: string, onProgress?: (result:SourceRecommendations)=>void): Promise<SourceRecommendations> {
   if(!onProgress)return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });
-  const response=await fetch('/api/me/sources/recommend',{method:'POST',credentials:'include',headers:{'content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({title,description})});
-  if(!response.ok){const result=await response.json().catch(()=>({}));throw new Error(result.error??`Request failed: ${response.status}`);}
+  let response:Response;
+  try{response=await fetch('/api/me/sources/recommend',{method:'POST',credentials:'include',headers:{'content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({title,description})});}
+  catch{throw apiError(undefined);}
+  if(!response.ok){const result=await response.json().catch(()=>({}));throw apiError(result.error,response);}
   // Older deployments and deployments without assessment still return JSON.
-  if(!response.headers.get('content-type')?.includes('application/x-ndjson'))return response.json();
-  const reader=response.body?.getReader();if(!reader)throw new Error('Source recommendations unavailable');
+  if(!response.headers.get('content-type')?.includes('application/x-ndjson'))return response.json().catch(()=>{throw apiError(undefined,response);});
+  const reader=response.body?.getReader();if(!reader)throw apiError(undefined,response);
   const decoder=new TextDecoder();let pending='',complete:SourceRecommendations|undefined;
   const consume=(line:string)=>{
     if(!line.trim())return;
     const event=JSON.parse(line) as SourceRecommendations&{type:string;error?:string};
-    if(event.type==='error')throw new Error(event.error??'Source recommendations unavailable');
+    if(event.type==='error')throw apiError(event.error);
     if(!Array.isArray(event.sources))throw new Error('Invalid source recommendation response');
     if(event.type==='complete')complete={sources:event.sources,checks:event.checks};
     if(event.type==='progress'||event.type==='complete')onProgress({sources:event.sources,checks:event.checks});
@@ -360,9 +353,10 @@ export async function recommendSourceCandidates(title: string, description: stri
   try{
     for(;;){const {value,done}=await reader.read();pending+=decoder.decode(value,{stream:!done});if(pending.length>256_000)throw new Error('Source recommendation response too large');let end;while((end=pending.indexOf('\n'))>=0){consume(pending.slice(0,end));pending=pending.slice(end+1);}if(done)break;}
     consume(pending);
-    if(!complete)throw new Error('Source recommendations were interrupted. Please try again.');
+    if(!complete)throw apiError('Source recommendations were interrupted. Please try again.');
     return complete;
-  }finally{await reader.cancel().catch(()=>undefined);reader.releaseLock();}
+  }catch(cause){throw cause instanceof ApiError?cause:apiError(undefined,response);}
+  finally{await reader.cancel().catch(()=>undefined);reader.releaseLock();}
 }
 export async function assessSourceInput(title: string, description: string, source: string): Promise<SourceAssessment> {
   const payload = await requestJson<{ assessment: SourceAssessment }>("/api/me/sources/assess", { method: "POST", body: JSON.stringify({ title, description, source }) });
