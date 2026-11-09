@@ -280,7 +280,8 @@ const translations: Record<string, [string, string]> = {
 Object.assign(translations, interfaceTranslations);
 const normalizedTranslations = new Map(Object.entries(translations).map(([key, value]) => [key.toLowerCase(), value]));
 export function translateInterface(text: string, language: Language, values?: Record<string, string | number>): string {
-  const translated = language === 'en' ? text : (translations[text] ?? normalizedTranslations.get(text.toLowerCase()))?.[language === 'fr' ? 0 : 1] ?? text;
+  const key = language === 'en' ? text : text.replace(/^Error: /, '');
+  const translated = language === 'en' ? text : (translations[key] ?? normalizedTranslations.get(key.toLowerCase()))?.[language === 'fr' ? 0 : 1] ?? key;
   return values ? translated.replace(/\{(\w+)\}/g, (match, key) => String(values[key] ?? match)) : translated;
 }
 export function useLanguage() {

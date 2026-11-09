@@ -1077,18 +1077,18 @@ function FirstRunSetupSheet(props: {
             dir="ltr"
             value={sourceUrl}
             onChange={(event) => setSourceUrl(event.target.value)}
-            placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Beirut power"
+            placeholder={t("https://t.me/LebUpdate, https://x.com/NASA, or Beirut power")}
           />
         </label>
         <div className="source-examples" aria-label={t("source examples")}>
           {sourceInputExamples.map((example) => (
             <button
-              key={example.label}
+              key={t(example.label)}
               type="button"
               title={example.value}
               onClick={() => setSourceUrl(example.value)}
             >
-              {example.label}
+              {t(example.label)}
             </button>
           ))}
         </div>
@@ -1755,7 +1755,7 @@ function FeedPage(props: { username: string; slug: string }) {
           onClose={() => setSelectedReport(null)}
         />
       ) : null}
-      {error ? <FeedNotice message={error} language={language} /> : null}
+      {error ? <FeedNotice message={t(error)} language={language} /> : null}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}

@@ -1,6 +1,12 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'https://t.me/LebUpdate, https://x.com/NASA, or Beirut power': ['https://t.me/LebUpdate, https://x.com/NASA, ou électricité à Beyrouth', 'https://t.me/LebUpdate، https://x.com/NASA، أو كهرباء بيروت'],
+  'Telegram URL': ['Lien Telegram', 'رابط Telegram'],
+  'X URL': ['Lien X', 'رابط X'],
+  'Search topic': ['Rechercher un sujet', 'البحث عن موضوع'],
+  'Could not complete the request. Try again.': ['Impossible de terminer la demande. Réessayez.', 'تعذّر إكمال الطلب. حاول مجددًا.'],
+
   'A calmer perspective': ['Un regard plus serein', 'رؤية أكثر هدوءًا'],
   'on a complex world.': ['sur un monde complexe.', 'لعالم معقّد.'],
   'Language and theme': ['Langue et thème', 'اللغة والمظهر'],

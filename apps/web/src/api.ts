@@ -1,5 +1,5 @@
 import type { BriefingConfig, BriefingEdition } from "@distilled/core";
-import { preferredLanguage } from './LanguageControl';
+import { preferredLanguage, translateInterface } from './LanguageControl';
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 
 export interface SourceIngestResult {
@@ -36,23 +36,38 @@ export async function summarizeUnread(username:string,slug:string,readIds:string
 
 
 
+/** Product errors are localized; technical detail remains available as cause.
+ * Never translate source content, feed names or generated briefing prose. */
+function requestError(detail: string): Error {
+  const language = preferredLanguage();
+  const translated = translateInterface(detail, language);
+  const message = language === 'en' || translated !== detail ? translated
+    : translateInterface('Could not complete the request. Try again.', language);
+  return new Error(message, {cause: new Error(detail)});
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    credentials: "include",
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {})
-    },
-    ...init
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      credentials: "include",
+      headers: {
+        "content-type": "application/json",
+        ...(init?.headers ?? {})
+      },
+      ...init
+    });
+  } catch (cause) {
+    throw requestError(cause instanceof Error ? cause.message : String(cause));
+  }
 
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
-    throw new Error(`Expected JSON from the Worker API but received ${contentType || "an unknown content type"}.`);
+    throw requestError(`Expected JSON from the Worker API but received ${contentType || "an unknown content type"}.`);
   }
 
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new Error(payload.error ?? `Request failed: ${response.status}`);
+  if (!response.ok) throw requestError(payload.error ?? `Request failed: ${response.status}`);
   return payload;
 }
 
