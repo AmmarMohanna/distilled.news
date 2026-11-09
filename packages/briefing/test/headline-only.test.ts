@@ -22,6 +22,14 @@ it.each([undefined,null,0,false,[],{}])('corrects a missing or invalid body %j u
  const bad={...draft,body},m=scripted({edit:[{items:[bad]},{items:[draft]}],verify:[{results:[{i:0,verdict:'ok'}]}]});
  const r=await generateBriefing(input,m.port,MODELS,{promptVersion:4});expect(r.items[0].body).toBe('');expect(m.calls.map(c=>c.stage)).toEqual(['edit','edit','verify']);expect(m.calls[1].request.user).toContain('INVALID_ARTICLE_BODY');
 });
+it.each([undefined,null,'','  ',0,false,[],{}])('corrects a missing, empty or invalid headline %j instead of treating it as no news',async headline=>{
+ const m=scripted({edit:[{items:[{...draft,headline}]},{items:[draft]}],verify:[{results:[{i:0,verdict:'ok'}]}]});
+ const r=await generateBriefing(input,m.port,MODELS,{promptVersion:4});expect(r.status).toBe('published');expect(m.calls.map(c=>c.stage)).toEqual(['edit','edit','verify']);expect(m.calls[1].request.user).toContain('INVALID_ARTICLE_HEADLINE');
+});
+it('fails closed after a malformed headline persists through bounded correction',async()=>{
+ const {headline,...missing}=draft,m=scripted({edit:[{items:[draft,missing]},{items:[draft,missing]}]});
+ await expect(generateBriefing(input,m.port,MODELS,{promptVersion:4})).rejects.toBeInstanceOf(BriefingModelError);expect(m.calls.map(c=>c.stage)).toEqual(['edit','edit']);
+});
 it('rejects a mixed valid/malformed selection instead of publishing a silently reduced subset',async()=>{
  const second={...draft,headline:'The proposal remains subject to approval',body:null};
  const m=scripted({edit:[{items:[draft,second]},{items:[draft,{...second,body:''}]}],verify:[{results:[{i:0,verdict:'ok'},{i:1,verdict:'ok'}]}]});

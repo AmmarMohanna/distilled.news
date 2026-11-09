@@ -20,9 +20,9 @@ it('has Arabic and French translations for static product calls, including sourc
  for(const key of keys){expect(translateInterface(key,'ar'),key).toMatch(/[\u0600-\u06ff]/);expect(translateInterface(key,'ar'),key).not.toMatch(/\?{2}|\uFFFD/);expect(translateInterface(key,'fr'),key).not.toMatch(/\?{2}|\uFFFD/);expect(translateInterface(key,'fr'),key).toBeTruthy();}
 });
 
-it('keeps API error state canonical and safe in every locale',async()=>{
+it.each([null,{error:'Unexpected private upstream detail'}])('keeps API error payload %j canonical and safe in every locale',async payload=>{
  for(const language of ['en','ar','fr'] as const){
-  setWebsiteLanguage(language);vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:'Unexpected private upstream detail'},{status:502})));
+  setWebsiteLanguage(language);vi.stubGlobal('fetch',vi.fn(async()=>Response.json(payload,{status:502})));
   try{await getSession();throw Error('Expected failure');}catch(e){
    expect(e).toBeInstanceOf(ApiError);const state=toUiError(e);expect(state).toEqual({id:'REQUEST_FAILED',details:{status:502}});
    expect(JSON.stringify(state)).not.toContain('private');expect((e as Error).message).toBe('REQUEST_FAILED');expect((e as Error).cause).toBeUndefined();
@@ -35,17 +35,20 @@ it('uses a safe canonical fallback for network and non-JSON failures',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>new Response('private upstream detail',{status:503,headers:{'content-type':'text/plain'}})));
  await expect(getSession()).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{details:{status:503}}});
 });
-it('updates an already-displayed structured auth error across en/ar/fr immediately without another request',async()=>{
- vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const fetcher=vi.fn(async()=>Response.json({error:'verify your email before logging in'},{status:403}));vi.stubGlobal('fetch',fetcher);
+it.each([
+ {payload:{error:'verify your email before logging in'},status:403,id:'AUTH_EMAIL_VERIFICATION_REQUIRED' as const},
+ {payload:null,status:502,id:'REQUEST_FAILED' as const}
+])('updates an already-displayed $id error across en/ar/fr immediately without another request',async({payload,status,id})=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const fetcher=vi.fn(async()=>Response.json(payload,{status}));vi.stubGlobal('fetch',fetcher);
  const host=document.createElement('div'),root=createRoot(host);let stored:UiMessage='';
  function Form(){const {t}=useLanguage();const [error,setError]=React.useState<UiMessage>('');stored=error;
   return React.createElement(React.Fragment,null,React.createElement('button',{onClick:async()=>{try{await getSession();}catch(cause){setError(toUiError(cause));}}},'Trigger'),error?React.createElement('p',{role:'alert'},t(error)):null);}
  try{
   await act(async()=>{setWebsiteLanguage('en');root.render(React.createElement(Form));});
   await act(async()=>{host.querySelector('button')!.click();});
-  expect(stored).toEqual({id:'AUTH_EMAIL_VERIFICATION_REQUIRED',details:{status:403}});
+  expect(stored).toEqual({id,details:{status}});
   for(const language of ['ar','fr','en','fr','ar'] as const){
-   await act(async()=>setWebsiteLanguage(language));expect(host.querySelector('[role="alert"]')?.textContent).toBe(renderApiError({id:'AUTH_EMAIL_VERIFICATION_REQUIRED',details:{}},language));
+   await act(async()=>setWebsiteLanguage(language));expect(host.querySelector('[role="alert"]')?.textContent).toBe(renderApiError({id,details:{}},language));
    expect(document.documentElement.lang).toBe(language);expect(document.documentElement.dir).toBe(language==='ar'?'rtl':'ltr');
   }
   expect(fetcher).toHaveBeenCalledTimes(1);

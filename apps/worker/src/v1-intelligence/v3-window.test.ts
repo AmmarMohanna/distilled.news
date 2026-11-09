@@ -91,14 +91,16 @@ const fetcher=(seen:string[])=>async(_url:unknown,init?:RequestInit)=>{
  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
  return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
 };
-it('keeps unrecoverable malformed V4 generation pending, never DONE/QUIET, and reuses its settled calls',async()=>{
+it.each(['body','headline'] as const)('keeps unrecoverable malformed V4 %s pending, never DONE/QUIET, and reuses its settled calls',async field=>{
  await article();const seen:any[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
  const malformed=(async(_url:unknown,init?:RequestInit)=>{
   const body=JSON.parse(String(init?.body));seen.push(body);
-  return Response.json({id:`gen-malformed-${seen.length}`,choices:[{message:{content:JSON.stringify({items:[{headline:'Banking reform approved; presidential approval remains required',sources:['S1'],relation:'new',updates:null,importance:1}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+  const item={headline:'Banking reform approved; presidential approval remains required',body:'Presidential approval remains required.',sources:['S1'],relation:'new',updates:null,importance:1};
+  const { [field]:_missing,...malformedItem}=item;
+  return Response.json({id:`gen-malformed-${seen.length}`,choices:[{message:{content:JSON.stringify({items:[malformedItem]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
  await expect(processV1Briefing(env,message,()=>window.end,undefined,malformed)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
- expect(seen).toHaveLength(2);expect(seen[1].messages[1].content).toContain('INVALID_ARTICLE_BODY');
+ expect(seen).toHaveLength(2);expect(seen[1].messages[1].content).toContain(`INVALID_ARTICLE_${field.toUpperCase()}`);
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',attempts:1,failure:'PUBLICATION_FAILED'});
  expect(await store.read('feed-1','v3_window_results',id)).toBeUndefined();expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
  const settled=await store.list<any>('feed-1','semantic_results');expect(settled).toHaveLength(2);expect(settled.every(r=>r.usage.reported&&r.usage.costUsd===.001)).toBe(true);
@@ -341,6 +343,30 @@ it('keeps V3 briefing attempts intact while another feed operation owns the sema
  }finally{await releaseSemanticWorkLease(store,lease)}
  expect((await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch))?.engine).toBe('v3');
  expect(seen).toHaveLength(2);
+},60000);
+it('multi-chunk malformed consolidation cannot complete as quiet and reuses settled calls on retry',async()=>{
+ for(let n=1;n<=2;n++){
+  await acceptEvidence(store,n,(n===1?'Parliament approved banking legislation while presidential approval remains required. ':'Scientists discovered a meteorite beneath Antarctic ice during an expedition studying ancient asteroid material. ').repeat(1200),'publisher-'+n,'2026-10-03T12:10:00Z','en','2026-10-03T12:05:00Z',undefined,'https://publisher.example/'+n);
+  await processV1Reassessment(env,JSON.stringify(['REASSESS',`observation-${n}`,'']),'2026-10-03T12:10:00Z');
+ }
+ const seen:any[]=[],provider=(async(_url:unknown,init?:RequestInit)=>{
+  const request=JSON.parse(String(init?.body));seen.push(request);
+  const editor=request.messages[0].content.startsWith('You are the editor');
+  const ref=(request.messages[1].content.split('NEW ARTICLES')[1]??'').match(/\[(S\d+)\]/)?.[1];
+  const content=editor?{items:[{headline:ref==='S1'?'Banking legislation approved':'Meteorite discovered beneath Antarctic ice',body:'Further details reported.',sources:[ref],relation:'new',importance:2}]}:
+   {items:[{headline:'Banking legislation approved',body:null,from:[0],relation:'new',importance:2}],cut:[{from:[1],why:'Off topic'}]};
+  return Response.json({id:`gen-consolidation-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+ }) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ await expect(processV1Briefing(env,message,()=>window.end,undefined,provider)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(seen).toHaveLength(4);expect(seen.filter(r=>r.messages[0].content.startsWith('You are the editor'))).toHaveLength(2);
+ expect(seen[2].messages[0].content).toContain('senior editor');expect(seen[3].messages[1].content).toContain('INVALID_ARTICLE_BODY');
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',attempts:1,failure:'PUBLICATION_FAILED'});
+ expect(await store.read('feed-1','v3_window_results',id)).toBeUndefined();expect(await store.list('feed-1','editions')).toHaveLength(0);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
+ const settled=await store.list<any>('feed-1','semantic_results');expect(settled).toHaveLength(4);expect(settled.every(r=>r.usage.reported&&r.usage.costUsd===.001)).toBe(true);
+ await expect(processV1Briefing(env,message,()=> '2026-10-03T12:32:01Z',undefined,provider)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ expect(seen).toHaveLength(4);expect(await store.list('feed-1','semantic_results')).toEqual(settled);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',attempts:2,failure:'PUBLICATION_FAILED'});
 },60000);
 it('large V3 batches serialize feed commits and can replay paid chunks without local lock starvation',async()=>{
  for(let n=1;n<=2;n++){await acceptEvidence(store,n,(n===1?'Parliament approved banking legislation while presidential approval remains required. ':'Scientists discovered a meteorite beneath Antarctic ice during an expedition studying ancient asteroid material. ').repeat(1200),'publisher-'+n,'2026-10-03T12:10:00Z','en','2026-10-03T12:05:00Z',undefined,'https://publisher.example/'+n);await processV1Reassessment(env,JSON.stringify(['REASSESS',`observation-${n}`,'']),'2026-10-03T12:10:00Z')}

@@ -50,3 +50,8 @@ it.each(['{"type":"error","error":"Private upstream trace"}\n','Private malforme
  try{await recommendSourceCandidates('News','World',vi.fn());throw new Error('Expected failure');}
  catch(e){expect(e).toMatchObject({id:'REQUEST_FAILED'});expect(JSON.stringify(e)).not.toContain('Private');expect((e as Error).cause).toBeUndefined();}
 });
+it.each([null,[],42,'upstream error'])('handles non-object JSON error payload %j safely in both request paths',async payload=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json(payload,{status:502})));
+ await expect(recommendSources('News','World')).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{id:'REQUEST_FAILED',details:{status:502}}});
+ await expect(recommendSourceCandidates('News','World',vi.fn())).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{id:'REQUEST_FAILED',details:{status:502}}});
+});

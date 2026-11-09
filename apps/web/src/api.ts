@@ -37,6 +37,11 @@ export async function summarizeUnread(username:string,slug:string,readIds:string
 
 
 
+function errorDetail(payload: unknown): unknown {
+  return payload !== null && typeof payload === "object" && !Array.isArray(payload)
+    ? (payload as {error?: unknown}).error : undefined;
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -58,7 +63,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw apiError(payload.error, response);
+  if (!response.ok) throw apiError(errorDetail(payload), response);
   return payload;
 }
 
@@ -337,7 +342,7 @@ export async function recommendSourceCandidates(title: string, description: stri
   let response:Response;
   try{response=await fetch('/api/me/sources/recommend',{method:'POST',credentials:'include',headers:{'content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({title,description})});}
   catch{throw apiError(undefined);}
-  if(!response.ok){const result=await response.json().catch(()=>({}));throw apiError(result.error,response);}
+  if(!response.ok){const result=await response.json().catch(()=>({}));throw apiError(errorDetail(result),response);}
   // Older deployments and deployments without assessment still return JSON.
   if(!response.headers.get('content-type')?.includes('application/x-ndjson'))return response.json().catch(()=>{throw apiError(undefined,response);});
   const reader=response.body?.getReader();if(!reader)throw apiError(undefined,response);

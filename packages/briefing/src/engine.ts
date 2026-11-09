@@ -96,6 +96,9 @@ function parseDrafts(raw: unknown, known: Set<string>, priorIds: Set<string>, he
     const item = entry as Record<string, unknown>;
     const headline = text(item?.headline);
     const body = text(item?.body);
+    if (headlineOnly && !headline) {
+      throw new Error('INVALID_ARTICLE_HEADLINE: every selected item requires a nonempty string headline; return the complete corrected items array');
+    }
     const sources = Array.isArray(item?.sources) ? item.sources : [];
     // A selected current-format draft with unusable citations is malformed, not
     // an editorial omission. callJson already permits one accounted correction.
@@ -244,6 +247,13 @@ async function consolidate(
         const from = (Array.isArray(item?.from) ? item.from : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < drafts.length);
         const headline = text(item?.headline);
         const body = text(item?.body);
+        if (promptVersion >= 4) {
+          if (!headline) throw new Error('INVALID_ARTICLE_HEADLINE: every consolidated item requires a nonempty string headline');
+          if (typeof item?.body !== "string") throw new Error('INVALID_ARTICLE_BODY: every consolidated item requires a string body; use body:"" for a complete headline-only item');
+          if (!Array.isArray(item?.from) || !item.from.length || item.from.some((n) => typeof n !== "number" || !Number.isInteger(n) || n < 0 || n >= drafts.length)) {
+            throw new Error('INVALID_CONSOLIDATION_FROM: every selected item requires a nonempty array of supplied integer draft indices');
+          }
+        }
         if (!from.length || !headline || (!body && promptVersion < 4) || (promptVersion >= 4 && typeof item?.body !== "string")) continue;
         // Sources are the union of the merged drafts: the model cannot invent a citation here.
         const refs = [...new Set(from.flatMap((n: number) => drafts[n].refs))];
