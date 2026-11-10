@@ -42,7 +42,16 @@ function errorDetail(payload: unknown): unknown {
     ? (payload as {error?: unknown}).error : undefined;
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestJson<T>(path: string, init?: RequestInit, attempt = 0): Promise<T> {
+  // Only retry safe reads. Mutations must never be replayed by the client,
+  // while a short Worker/D1 reset should not turn a dashboard read into a
+  // persistent, opaque error state.
+  const retryable = (init?.method ?? "GET").toUpperCase() === "GET";
+  const retry = async () => {
+    if (!retryable || attempt >= 2) return false;
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 300 * (attempt + 1)));
+    return true;
+  };
   let response: Response;
   try {
     response = await fetch(path, {
@@ -54,7 +63,12 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
       ...init
     });
   } catch {
+    if (await retry()) return requestJson<T>(path, init, attempt + 1);
     throw apiError(undefined);
+  }
+
+  if ([503, 504].includes(response.status) && await retry()) {
+    return requestJson<T>(path, init, attempt + 1);
   }
 
   const contentType = response.headers.get("content-type") ?? "";
