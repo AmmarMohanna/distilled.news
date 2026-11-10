@@ -40,6 +40,9 @@ SOURCE_COLLECTION_BUDGET_MODE = "unlimited"
 SOURCE_PER_PROVIDER_BUDGET_USD = "15"
 SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0.25,"zyte":0.05}'
 SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":0,"linkedin_apify":15,"zyte":15}'
+# The Lebanon X feed may acknowledge expired, unknown X read outcomes without
+# replaying them. The original reservation stays recorded; only a new poll may run.
+SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS = '["briefing_e69e607f-907b-43ec-a521-ccd61234c0ff"]'
 SOURCE_EXECUTION_URL = "http://127.0.0.1:8790/v1/source-execution"
 V1_DOWNSTREAM_ENABLED = "true"
 V1_DOWNSTREAM_FEED_SOURCE_IDS = "staging-rss-source,staging-twitter-source"
