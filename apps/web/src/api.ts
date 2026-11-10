@@ -47,9 +47,9 @@ async function requestJson<T>(path: string, init?: RequestInit, attempt = 0): Pr
   // while a short Worker/D1 reset should not turn a dashboard read into a
   // persistent, opaque error state.
   const retryable = (init?.method ?? "GET").toUpperCase() === "GET";
-  const retry = async () => {
+  const retry = async (delayMs = 300 * (attempt + 1)) => {
     if (!retryable || attempt >= 2) return false;
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 300 * (attempt + 1)));
+    await new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
     return true;
   };
   let response: Response;
@@ -67,7 +67,11 @@ async function requestJson<T>(path: string, init?: RequestInit, attempt = 0): Pr
     throw apiError(undefined);
   }
 
-  if ([503, 504].includes(response.status) && await retry()) {
+  const retryAfterSeconds = Number(response.headers.get("retry-after"));
+  const retryDelayMs = Number.isSafeInteger(retryAfterSeconds) && retryAfterSeconds > 0
+    ? retryAfterSeconds * 1000
+    : undefined;
+  if ([503, 504].includes(response.status) && await retry(retryDelayMs)) {
     return requestJson<T>(path, init, attempt + 1);
   }
 
