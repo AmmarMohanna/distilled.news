@@ -126,6 +126,19 @@ if (['/reset-password', '/verify-email'].includes(window.location.pathname)) {
 
 const FEED_BATCH_SIZE = 20;
 
+// The session endpoint is a read-only bootstrap request. A just-deployed Worker
+// can briefly return a transient error while its dependencies warm up; do not
+// strand a visitor behind a permanent error screen for that one failed read.
+async function getSessionWithRetry(attempt = 0): Promise<SessionStatus> {
+  try {
+    return await getSession();
+  } catch (cause) {
+    if (attempt >= 2) throw cause;
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 300 * (attempt + 1)));
+    return getSessionWithRetry(attempt + 1);
+  }
+}
+
 const sourceInputExamples = [
   { label: "Telegram URL", value: "https://t.me/LebUpdate" },
   { label: "X URL", value: "https://x.com/NASA" },
@@ -229,8 +242,9 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   }, []);
 
   useEffect(() => {
-    getSession()
+    getSessionWithRetry()
       .then(async (nextSession) => {
+        setError("");
         setSession(nextSession);
         if (nextSession.authenticated) {
           try { await loadBriefings(); } catch { return; } // The feed state owns its retry UI.
@@ -280,7 +294,8 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   }, [selectedBriefingId, session?.authenticated]);
 
   async function refreshSession() {
-    const next = await getSession();
+    const next = await getSessionWithRetry();
+    setError("");
     setSession(next);
     return next;
   }
