@@ -3,10 +3,21 @@ import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
 // Credentials never appear in argv, a new local file, or diagnostic output.
 const env={};for(const raw of JSON.parse(readFileSync(0,'utf8')).files){if(typeof raw!=='string')throw Error('GRAFANA_SECRET_FILE_UNAVAILABLE');for(const line of raw.split(/\r?\n/)){const m=line.match(/^\s*(?:export\s+)?([A-Z][A-Z0-9_]+)\s*=\s*(.*?)\s*$/);if(m&&m[2])env[m[1]]=m[2].replace(/^(['"])(.*)\1$/,'$2')}}
 const base=(env.GRAFANA_URL??'https://giganticmantel34.grafana.net').replace(/\/$/,'');if(base!=='https://giganticmantel34.grafana.net'||!env.GRAFANA_SERVICE_ACCOUNT_TOKEN)throw Error('GRAFANA_ACCESS_UNAVAILABLE');
-async function api(path,body){const response=await fetch(base+path,{method:body?'POST':'GET',redirect:'manual',headers:{authorization:'Bearer '+env.GRAFANA_SERVICE_ACCOUNT_TOKEN,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});if(!response.ok)throw Error('GRAFANA_HTTP_'+response.status+'_'+path.split('?')[0]);return response.json()}
+async function api(path,body,method=body?'POST':'GET'){const response=await fetch(base+path,{method,redirect:'manual',headers:{authorization:'Bearer '+env.GRAFANA_SERVICE_ACCOUNT_TOKEN,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000)});if(!response.ok)throw Error('GRAFANA_HTTP_'+response.status+'_'+path.split('?')[0]);return response.json()}
 const dataSources=await api('/api/datasources');const prometheus=dataSources.find(s=>s.type==='prometheus');if(!prometheus)throw Error('PROMETHEUS_NOT_FOUND');
 const folder='distilled-staging-ops',mode=process.argv[2]??'inspect';
 const scope=expr=>expr.replace(/\b(distilled_eval_[a-z_]+)(\{)?/g,(_m,name,brace)=>name+'{review_protocol="atomic-development-review-v2"'+(brace?',':'}'));
+if(['rules','enable-rules'].includes(mode)){
+ const existing=await api('/api/v1/provisioning/alert-rules');
+ for(const spec of JSON.parse(readFileSync('ops/observability/technical-alerts.json','utf8'))){
+  const data=[{refId:'A',relativeTimeRange:{from:1800,to:0},datasourceUid:prometheus.uid,model:{refId:'A',expr:scope(spec.expression),instant:true,intervalMs:60000,maxDataPoints:43200,queryType:'instant',format:'time_series'}},{refId:'C',relativeTimeRange:{from:0,to:0},datasourceUid:'__expr__',model:{refId:'C',type:'classic_conditions',conditions:[{evaluator:{type:'gt',params:[0]},operator:{type:'and'},query:{params:['A']},reducer:{type:'last',params:[]},type:'query'}]}}];
+  const rule={uid:spec.uid,title:spec.title,folderUID:folder,ruleGroup:'distilled-technical-health',condition:'C',data,noDataState:'NoData',execErrState:'Error',for:'10m',labels:{service:'distilled',environment:'staging',severity:'warning'},annotations:{summary:spec.summary},isPaused:mode!=='enable-rules'};
+  const prior=existing.find(r=>r.uid===spec.uid);if(prior&&prior.folderUID!==folder)throw Error('RULE_SCOPE_MISMATCH');
+  await api('/api/v1/provisioning/alert-rules'+(prior?'/'+spec.uid:''),rule,prior?'PUT':'POST');
+  const preview=await api('/api/v1/eval',{data,condition:'C',now:new Date().toISOString()});
+  console.log(JSON.stringify({rule:spec.uid,paused:rule.isPaused,preview:preview.condition??preview.state??'evaluated',dataKeys:Object.keys(preview.data??{})}));
+ }
+}
 if(mode==='sync')for(const file of ['evaluation/briefing-quality/worker/observability/dashboard.json','ops/observability/deployment-dashboard.json']){
  const dashboard=JSON.parse(readFileSync(file,'utf8'));delete dashboard.__inputs;
  const rendered=JSON.parse(JSON.stringify(dashboard).replaceAll('${DS_PROMETHEUS}',prometheus.uid));

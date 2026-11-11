@@ -1,0 +1,4 @@
+[
+ {"uid":"distilled-evaluator-progress","title":"Enabled briefing evaluation is not completing","expression":"((time() - (max(last_over_time(distilled_eval_last_successful_review_timestamp_seconds[20m])) or vector(0))) > bool 1800) * ((sum(last_over_time(distilled_eval_jobs{status=~\"ready|reviewing\"}[20m])) or vector(0)) > bool 0) * ((max(last_over_time(distilled_eval_enabled[20m])) or vector(0)) > bool 0)","summary":"Evaluation work is pending but current-protocol reviews are not completing. Check accounting, budget, provider and evaluator health. This is not a news-quality verdict."},
+ {"uid":"distilled-deployment-observer","title":"Deployment-wide operations observer is unavailable","expression":"1 - (max(max_over_time(distilled_observer_up{job=\"distilled-snapshot\"}[15m])) or vector(0))","summary":"The deployment-wide observer has no successful recent sample. Application health is unknown; inspect D1 and the collector."}
+]

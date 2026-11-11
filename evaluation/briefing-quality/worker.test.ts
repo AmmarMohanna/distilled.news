@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {PROTOCOL,type Case,type Inventory,flagged,inventory,inventoryRequest,metrics,review,reviewRequest,validateCase,passages,operational} from './worker/src/protocol';
 import {recoverReviews,recoverGenerationAccounting} from './worker/src/recovery';
+import {reviewSchema} from './worker/src/schema';
 import {admission,judge,reserve,type Budget} from './worker/src/budget';
 import worker,{authorized,processJob,tick} from './worker/src/index';
 import {snapshot,discover} from './worker/src/source';
@@ -17,6 +18,7 @@ const assessment=()=>({claims:[{id:'C1',item:0,text:'The bridge opened on Monday
 const budget:Budget={dailyMicro:5_000_000,maxCalls:100,maxBytes:350000,maxTokens:6000,inputPrice:2,outputPrice:8,model:'openai/gpt-4.1'};
 
 describe('source-grounded protocol',()=>{
+ it('constrains current source/passages and empty quiet outputs in the provider schema',()=>{const c=fixture();const schema=reviewSchema(true,inventoryRequest(c).user);const variants=(schema.properties.developments as any).items.properties.evidence.items.anyOf;expect(variants[0].properties.sourceId.enum).toEqual(['S1']);expect(variants[0].properties.passageId.enum).toEqual(['P1']);expect(variants).toHaveLength(2);const quiet=reviewSchema(false,reviewRequest({...c,items:[],pipelineStatus:'quiet'},{developments:[],limitations:[]}).user);expect((quiet.properties.claims as any).maxItems).toBe(0);expect((quiet.properties.items as any).maxItems).toBe(0);expect((quiet.properties.coverage as any).items.properties.status.enum).not.toContain('covered')});
  it('resolves current-source passages without copying IDs or translating source quotes',()=>{const c=fixture();c.articles[0].text='خبر أصلي مع تفاصيل. '.repeat(200);const p=passages(c.articles[0]);expect(p.map(p=>p.text).join('')).toBe(c.articles[0].text);const raw={developments:[{id:'D',text:'A source-grounded assessment',importance:2,relation:'new',evidence:[{sourceId:'S1',passageId:'P2'}]}],limitations:[]};expect(inventory(raw,c).developments[0].evidence).toEqual([{sourceId:'A',quote:p[1].text}]);for(const evidence of [{sourceId:'S3',passageId:'P1'},{sourceId:'S1',passageId:'P999'},{sourceId:'S1',passageId:'P1',quote:'invented translation'},{sourceId:'prior-reader-id',passageId:'P1'}])expect(()=>inventory({...raw,developments:[{...raw.developments[0],evidence:[evidence]}]},c)).toThrow('FABRICATED_OR_FOREIGN_EVIDENCE')});
  it('does not declare a quiet window bad just because it selected nothing',()=>{const c={...fixture(),items:[],pipelineStatus:'quiet'},d={developments:[],limitations:[]},r={claims:[],coverage:[],items:[],findings:[],limitations:[]};expect(operational(c)).toEqual([]);expect(flagged(r,d,c)).toBe(false);expect(metrics(r,d,c).importantDevelopmentRecall.value).toBeNull()});
  it('builds output-blind inventory with uncited sources',()=>{const c=fixture(),request=inventoryRequest(c),data=JSON.parse(request.user);expect(data.articles).toHaveLength(2);expect(data.items).toBeUndefined();expect(request.user).not.toContain('Bridge opens');expect(reviewRequest(c,development()).user).toContain('Bridge opens')});
