@@ -16,8 +16,8 @@ const batch=(n=1)=>{const b=batchFixture(n);b.observations[0].publishedAtHint='2
 it('defers unchanged initial backlog without scraping, erasing its input or reporting acquisition success',async()=>{
  const b=batch();await createCandidateIntakePort(store,policy).acceptBatch(b);
  const original=await store.read('inputs','observation-1');
- expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now)).toBe(1);
- expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now)).toBe(0);
+ expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now,[jobId(1)])).toEqual(new Set([jobId(1)]));
+ expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now,[jobId(1)])).toEqual(new Set());
  expect((await store.read<DownstreamJob>('jobs',jobId(1)))!.value).toMatchObject({state:'DEFERRED',attempts:0,deferred:{reason:'INITIAL_BACKLOG',publishedAtHint:'2026-10-02T10:00:00Z',feedCreatedAt:now}});
  expect(await claimAcquisition(store,jobId(1),now)).toBeUndefined();
  expect(await store.read('inputs','observation-1')).toEqual(original);expect(await store.read('acquisition_results',jobId(1))).toBeUndefined();
@@ -44,7 +44,7 @@ it.each(['missing-date','new-date','revision','authoritative','changed-text','ex
   if(mode==='saved-result')await store.commit(await store.snapshot('feed-source-1'),[{table:'acquisition_results',id:target,itemKey:'guid-1',value:{id:'saved-content',feedId:'feed-1',candidateId:itemId('feed-source-1','guid-1'),sourceObservationId:'observation-1',representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',body:'Retained article body.',acquiredAt:now,acquisitionMethod:'direct_http'},immutable:true}]);
   if(mode==='existing-evidence')await store.commit(await store.snapshot('feed-source-1'),[{table:'evidence',id:itemId('feed-source-1','guid-1'),itemKey:'guid-1',value:{state:'ACTIVE'}}]);
  }
- expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now,1,target)).toBe(0);
+ expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now,[target])).toEqual(new Set());
  expect((await store.read<DownstreamJob>('jobs',target))!.value.state).not.toBe('DEFERRED');
 });
 it('coalesces identical verified discoveries while retaining receipts, and acquires changed text',async()=>{
@@ -74,7 +74,7 @@ it('keeps old financial operations unchanged while deferring bounded legacy back
  expect(before.results).toEqual([{operation_id:'old',headers:'uncertain',reserved:0.05}]);
  const candidate=(await store.read<CandidateRecord>('candidates',itemId('feed-source-1','guid-1')))!.value;const {firstObservationId:_,acquisitionObservationId:__,...legacy}=candidate;
  await store.commit(await store.snapshot('feed-source-1'),[{table:'candidates',id:candidate.id,itemKey:'guid-1',value:legacy}]);
- expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now)).toBe(1);
+ expect(await deferInitialAcquisitionBacklog(store,'feed-source-1',now,[jobId(1)])).toEqual(new Set([jobId(1)]));
  const after=await ctx.db.prepare('SELECT * FROM connector_provider_operations').all();
  expect(after.success).toBe(true);
  // Query duration is nondeterministic; the retained financial records must match.
@@ -84,8 +84,39 @@ it('does not let deferred backlog inflate displayed acquisition work or hold a p
  const {windowIntakeCoverage}=await import('../v1-intelligence/window-coverage');
  await createCandidateIntakePort(store,policy).acceptBatch(batch());
  expect((await windowIntakeCoverage(ctx.db,'feed-1','2026-10-03T12:30:00Z')).pendingJobs).toBe(1);
- await deferInitialAcquisitionBacklog(store,'feed-source-1',now);
+ await deferInitialAcquisitionBacklog(store,'feed-source-1',now,[jobId(1)]);
  expect(await windowIntakeCoverage(ctx.db,'feed-1','2026-10-03T12:30:00Z')).toMatchObject({state:'COMPLETE',pendingJobs:0,failedJobs:0});
  expect((await store.read<DownstreamJob>('jobs',jobId(1)))!.value.state).toBe('DEFERRED');
+});
+
+it('reviews only selected jobs in an aged source and leaves the rest for later dispatch',async()=>{
+ const port=createCandidateIntakePort(store,policy);
+ await port.acceptBatch(batch());
+ const other=batch(2);
+ other.observations[0].sourceItemKey='guid-2';
+ other.proposals[0].sourceItemKey='guid-2';
+ await port.acceptBatch(other);
+ await ctx.db.prepare(`WITH RECURSIVE jobs(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM jobs WHERE n<2000)
+  INSERT INTO v1_jobs(id,feed_source_id,json)
+  SELECT 'pending-'||n,'feed-source-1',json_object('kind','ACQUIRE','state','PENDING') FROM jobs`).run();
+ let selectionReads=0;
+ const db=new Proxy(ctx.db,{get(target,key){
+  if(key==='prepare')return (sql:string)=>{
+   const statement=target.prepare(sql);
+   if(!sql.startsWith('SELECT j.id,j.item_key,i.id observation_id'))return statement;
+   return {bind:(...args:unknown[])=>({all:async()=>{
+    const result=await statement.bind(...args).all();
+    selectionReads=result.meta.rows_read;
+    return result;
+   }})};
+  };
+  const value=Reflect.get(target,key);
+  return typeof value==='function'?value.bind(target):value;
+ }});
+ expect(await deferInitialAcquisitionBacklog(new V1IntakeStore(db),'feed-source-1',now,[jobId(1)])).toEqual(new Set([jobId(1)]));
+ expect(selectionReads).toBeGreaterThan(0);
+ expect(selectionReads).toBeLessThan(50);
+ expect((await store.read<DownstreamJob>('jobs',jobId(2)))!.value.state).toBe('PENDING');
+ console.info(JSON.stringify({backlogCandidateRows:selectionReads}));
 });
 

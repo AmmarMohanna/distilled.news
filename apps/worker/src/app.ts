@@ -275,7 +275,7 @@ function buildManifestPayload(input: {
   };
 }
 
-function isDatabaseUnavailable(error: unknown): error is Error {
+function isDatabaseUnavailable(error: unknown): boolean {
   return error instanceof Error && /D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message);
 }
 

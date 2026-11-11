@@ -302,13 +302,23 @@ export class D1Repository implements Repository {
   }
 
   async resolveUsernameAlias(username: string): Promise<{ account: AccountRecord; alias: UsernameAliasRecord } | null> {
-    const row = await first<UsernameAliasRow>(
-      this.db.prepare("SELECT * FROM username_aliases WHERE username = ?").bind(username)
+    const row = await first<AccountRow & { alias_username: string; alias_is_current: number; alias_created_at: string }>(
+      this.db.prepare(`
+        SELECT a.*, u.username AS alias_username, u.is_current AS alias_is_current, u.created_at AS alias_created_at
+        FROM username_aliases u JOIN accounts a ON a.id = u.account_id
+        WHERE u.username = ?
+      `).bind(username)
     );
     if (!row) return null;
-    const account = await this.getAccountById(row.account_id);
-    if (!account) return null;
-    return { account, alias: rowToUsernameAlias(row) };
+    return {
+      account: rowToAccount(row),
+      alias: rowToUsernameAlias({
+        username: row.alias_username,
+        account_id: row.id,
+        is_current: row.alias_is_current,
+        created_at: row.alias_created_at
+      })
+    };
   }
 
   async updateAccount(input: {

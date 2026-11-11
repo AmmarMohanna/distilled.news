@@ -9,18 +9,43 @@ import {productConnectorSource} from './connector-source';
 import {discoverPublicRssFeed} from './product-feed-discovery';
 import {pendingWindowCollections} from './connector-publication-coverage';
 
-export async function productPublicationState(env:Env,feedId:string):Promise<'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required'|'service_blocked'> {
- const pending=await env.DB.prepare("SELECT o.id FROM v1_feed_documents o WHERE o.feed_id=? AND o.kind='correction_obligations' AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.feed_id=o.feed_id AND r.kind='correction_resolutions' AND json_extract(r.json,'$.obligationId')=o.id) LIMIT 1").bind(feedId).first();
- if(pending)return 'correction_pending';
- const setup=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.state')='PENDING' AND json_extract(json,'$.reason')='MODEL_SETUP_REQUIRED' LIMIT 1").bind(feedId).first();
- if(setup)return 'setup_required';
- const request=await env.DB.prepare("SELECT id,json_extract(json,'$.state') AS state,json_extract(json,'$.result') AS result,json_extract(json,'$.reason') AS reason,json_extract(json,'$.coverage.state') AS coverage FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1").bind(feedId).first<{id:string;state:string;result?:string;reason?:string;coverage?:string}>();
- if(!request)return 'waiting';
- if(request.state==='PENDING'&&/^ACCOUNT_(?:AUTHORIZATION|RECOVERY_SCOPE|RESOURCE)/.test(request.reason??''))return 'service_blocked';
- if(request.state==='FAILED')return 'failed';
- if(request.state!=='DONE')return 'checking';
- const edition=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='editions' AND id=?").bind(feedId,request.id).first();
- return edition?'published':request.coverage==='INCOMPLETE'?'failed':request.result==='QUIET'?'quiet':'checking';
+type PublicationState='waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required'|'service_blocked';
+
+export async function productPublicationState(env:Env,feedId:string):Promise<PublicationState> {
+ // Evaluate status precedence in one snapshot and keep the latest-request seek bounded.
+ const row=await env.DB.prepare(`
+  WITH latest AS (
+   SELECT id, json_extract(json,'$.state') AS state, json_extract(json,'$.reason') AS reason,
+          json_extract(json,'$.result') AS result, json_extract(json,'$.coverage.state') AS coverage
+   FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests'
+   ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1
+  )
+  SELECT CASE
+   WHEN EXISTS(
+    SELECT 1 FROM v1_feed_documents o
+    WHERE o.feed_id=? AND o.kind='correction_obligations' AND NOT EXISTS(
+     SELECT 1 FROM v1_feed_documents r WHERE r.feed_id=o.feed_id AND r.kind='correction_resolutions'
+     AND json_extract(r.json,'$.obligationId')=o.id
+    )
+   ) THEN 'correction_pending'
+   WHEN EXISTS(
+    SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests'
+    AND json_extract(json,'$.state')='PENDING' AND json_extract(json,'$.reason')='MODEL_SETUP_REQUIRED'
+   ) THEN 'setup_required'
+   ELSE COALESCE((
+    SELECT CASE
+     WHEN state='PENDING' AND (reason GLOB 'ACCOUNT_AUTHORIZATION*' OR reason GLOB 'ACCOUNT_RECOVERY_SCOPE*' OR reason GLOB 'ACCOUNT_RESOURCE*') THEN 'service_blocked'
+     WHEN state='FAILED' THEN 'failed'
+     WHEN state IS NOT 'DONE' THEN 'checking'
+     WHEN EXISTS(SELECT 1 FROM v1_feed_documents e WHERE e.feed_id=? AND e.kind='editions' AND e.id=latest.id) THEN 'published'
+     WHEN coverage='INCOMPLETE' THEN 'failed'
+     WHEN result='QUIET' THEN 'quiet'
+     ELSE 'checking'
+    END FROM latest
+   ),'waiting')
+  END AS publication_state
+ `).bind(feedId,feedId,feedId,feedId).first<{publication_state:PublicationState}>();
+ return row?.publication_state??'waiting';
 }
 
 export interface PublicationProgress {stage:'COLLECTING'|'PROCESSING'|'PUBLISHING';collection?:{pending:number;sources:string[]};acquisition:{completed:number;total:number;failed:number;deferred?:number};review:{completed:number;total:number;failed:number};pending:number}

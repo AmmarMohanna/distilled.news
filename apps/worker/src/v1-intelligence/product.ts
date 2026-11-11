@@ -95,21 +95,26 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
 }
 
 /** Revalidates product-backed scopes before execution, preserving fail-closed DB fences. */
-export async function synchronizeV1ProductSource(db:D1Database,id:string,now:string):Promise<void> {
+export async function synchronizeV1ProductSource(db:D1Database,id:string,now:string,productOnly=false):Promise<IntakeScope|undefined> {
  // Core-only V1 deployments may have no product tables. Resolve this indexed
  // optional boundary before compiling SQL that references product state. A
  // bound source still uses the complete product/configuration/owner checks.
- if(!await db.prepare('SELECT feed_id FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first())return;
- const binding=await db.prepare(`SELECT f.json AS feed_json,CASE WHEN b.configuration=(${PRODUCT_SQL})
+ if(!productOnly&&!await db.prepare('SELECT feed_id FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first())return;
+ const binding=await db.prepare(`SELECT f.json AS feed_json,s.json AS scope_json,CASE WHEN b.configuration=(${PRODUCT_SQL})
    AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL
    AND json_extract(f.json,'$.deletedAt') IS NULL AND json_extract(f.json,'$.paused')=0
    AND json_extract(s.json,'$.feedRevision')=json_extract(f.json,'$.revision') THEN 1 ELSE 0 END AS current
    FROM v1_product_bindings b LEFT JOIN v1_feeds f ON f.id=b.feed_id
-   LEFT JOIN v1_intake_scopes s ON s.id=b.feed_source_id WHERE b.feed_source_id=?`).bind(id,id).first<{feed_json:string|null;current:number}>();if(!binding)return;
+   LEFT JOIN v1_intake_scopes s ON s.id=b.feed_source_id WHERE b.feed_source_id=?
+   ${productOnly?"AND EXISTS(SELECT 1 FROM sources p WHERE p.id=b.feed_source_id AND p.briefing_id=b.feed_id AND p.collection_owner='connector')":''}`).bind(id,id).first<{feed_json:string|null;scope_json:string|null;current:number}>();
+ if(!binding){
+  if(productOnly)throw new HandoffError('SCOPE_DENIED');
+  return;
+ }
  const feed=binding.feed_json?JSON.parse(binding.feed_json) as FeedRecord:undefined;
  if(!feed||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
- if(binding.current===1)return;
- await enrollV1Source(db,id,feed.ownerId,now);
+ if(binding.current===1&&binding.scope_json)return JSON.parse(binding.scope_json) as IntakeScope;
+ return (await enrollV1Source(db,id,feed.ownerId,now)).scope;
 }
 
 export async function isV1ProductSource(env:{DB?:D1Database;V1_DOWNSTREAM_ENABLED?:string;V1_DOWNSTREAM_FEED_SOURCE_IDS?:string},id:string):Promise<boolean> {

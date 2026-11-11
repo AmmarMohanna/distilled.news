@@ -86,7 +86,7 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
  const reviewed=unpaidOnly&&job.value.recoveryAuthorizations?.at(-1)?.reviewedRedirect;
  await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
  if(env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
-  await deferInitialAcquisitionBacklog(store,job.feedSourceId,new Date().toISOString(),1,id);
+  await deferInitialAcquisitionBacklog(store,job.feedSourceId,new Date().toISOString(),[id]);
   if((await store.read<DownstreamJob>('jobs',id))?.value.state==='DEFERRED')return 'SKIPPED' as const;
  }
  const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
@@ -135,14 +135,18 @@ export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetc
 export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<number> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
  const ids=enabledSources(env);
+ const productOnly=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&env.PRODUCT_FEEDS_ENABLED==='true';
  let sent=0;const groups:{id:string}[][]=[];
  // Share bounded transport slots across sources. Rotate the first source so
  // repeated relays with one free slot cannot always favor the same backlog.
  const offset=ids.length?Math.floor(now.getTime()/5000)%ids.length:0;
  for(const id of [...ids.slice(offset),...ids.slice(0,offset)]) {
-  try {await synchronizeV1ProductSource(env.DB,id,now.toISOString())} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
-  if(env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')await deferInitialAcquisitionBacklog(new V1IntakeStore(env.DB),id,now.toISOString());
-  groups.push(await pendingV1Jobs(env,id,'ACQUIRE',now));
+  try {await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
+  const pending=await pendingV1Jobs(env,id,'ACQUIRE',now);
+  const deferred=env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'
+   ?await deferInitialAcquisitionBacklog(new V1IntakeStore(env.DB),id,now.toISOString(),pending.map(job=>job.id))
+   :undefined;
+  groups.push(deferred?.size?pending.filter(job=>!deferred.has(job.id)):pending);
  }
  for(let round=0;round<Math.max(0,...groups.map(rows=>rows.length));round++)for(const rows of groups){
   const row=rows[round];if(row&&await enqueueV1(env,'v1_acquisition',row.id,{type:'v1_acquisition',jobId:row.id},now))sent++;

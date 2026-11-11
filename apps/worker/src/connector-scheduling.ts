@@ -93,15 +93,19 @@ export async function collectionReadyForWindow(env:Env,feedId:string,end:string,
  return pending===0;
 }
 
-async function feedEnv(env:Env,feedId:string):Promise<Env|undefined>{
- const row=await env.DB.prepare(`SELECT (SELECT json_group_array(id) FROM
+const activeFeedSources=`SELECT (SELECT json_group_array(id) FROM
    (SELECT id FROM sources WHERE briefing_id=b.id AND collection_owner='connector' AND enabled=1 ORDER BY id)) AS source_ids
    FROM briefings b JOIN accounts a ON a.id=b.owner_account_id LEFT JOIN v1_feeds f ON f.id=b.id
    WHERE b.id=? AND b.paused=0 AND a.disabled_at IS NULL
-   AND (f.id IS NULL OR json_extract(f.json,'$.ownerId')=b.owner_account_id)`).bind(feedId).first<{source_ids:string}>();
- if(!row)return;
- const ids=JSON.parse(row.source_ids) as string[];if(!ids.length)return;
+   AND (f.id IS NULL OR json_extract(f.json,'$.ownerId')=b.owner_account_id)`;
+function feedEnvFromSources(env:Env,sourceIds:string|null|undefined):Env|undefined{
+ if(!sourceIds)return;
+ const ids=JSON.parse(sourceIds) as string[];if(!ids.length)return;
  return {...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:ids.join(','),PROCESSING_QUEUE:coalescedProcessingQueue(env)};
+}
+async function feedEnv(env:Env,feedId:string):Promise<Env|undefined>{
+ const row=await env.DB.prepare(activeFeedSources).bind(feedId).first<{source_ids:string}>();
+ return feedEnvFromSources(env,row?.source_ids);
 }
 
 export async function connectorDownstreamEnv(env:Env,body:DistilledQueueMessage):Promise<Env>{
@@ -159,7 +163,7 @@ export async function continueConnectorIntake(env:Env,feedId:string,jobId:string
 export async function relayConnectorDownstream(env:Env,feedId?:string){
  if(feedId)await dispatchReadyConnectorBriefing(env,feedId);
  await dispatchV1Acquisitions(env);
- await dispatchV1Intelligence(env);
+ await dispatchV1Intelligence(env,new Date(),{skipProviderAccountingRecovery:env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'});
 }
 
 export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,dispatchToken?:string){
@@ -197,23 +201,29 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
     }
     await dispatchConnectorPolls(scoped,body.feedId);await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});
    }
-   await env.DB.batch([env.DB.prepare(`UPDATE connector_feed_schedule SET
+   // Complete and release the same generation in one write. If a newer
+   // transport token replaced it, finally releases only our processing lease.
+   released=!!await env.DB.prepare(`UPDATE connector_feed_schedule SET
     due_ms=CASE WHEN collection_epoch=? THEN ? ELSE 0 END,
     collection_due_ms=CASE WHEN collection_epoch=? THEN ? ELSE collection_due_ms END,
-    token=NULL,last_error=NULL,attempts=0 WHERE feed_id=? AND token=? AND processing_token=?`)
-    .bind(claimed.collection_epoch,Math.min(Date.now()+(scoped?60_000:300_000),nextCollection||Infinity),claimed.collection_epoch,nextCollection,body.feedId,body.token,workToken),
-    env.DB.prepare('UPDATE connector_feed_schedule SET processing_until=0,processing_token=NULL WHERE feed_id=? AND processing_token=?').bind(body.feedId,workToken)]);
-   released=true;
+    token=NULL,last_error=NULL,attempts=0,processing_until=0,processing_token=NULL
+    WHERE feed_id=? AND token=? AND processing_token=? RETURNING feed_id`)
+    .bind(claimed.collection_epoch,Math.min(Date.now()+(scoped?60_000:300_000),nextCollection||Infinity),claimed.collection_epoch,nextCollection,body.feedId,body.token,workToken).first();
   }finally{if(!released)await env.DB.prepare('UPDATE connector_feed_schedule SET processing_until=0,processing_token=NULL WHERE feed_id=? AND processing_token=?').bind(body.feedId,workToken).run();}
  }else{
   if(!Object.hasOwn(tables,body.table))throw Error('INVALID_CONNECTOR_MESSAGE');
   const table=tables[body.table];
-  const job=await env.DB.prepare(`SELECT job_id,scheduled_at,${body.table==='provider'?"json_extract(request,'$.source.family')":"'rss'"} AS family FROM ${table} WHERE job_id=? AND dispatch_token=? AND json_extract(request,'$.scope.feedId')=?`).bind(body.jobId,body.token,body.feedId).first<{family:string;scheduled_at:string}>();
+  const job=await env.DB.prepare(`SELECT scheduled_at,${body.table==='provider'?"json_extract(request,'$.source.family')":"'rss'"} AS family,
+   (${activeFeedSources}) AS source_ids,
+   EXISTS(SELECT 1 FROM connector_queue_recovery WHERE id=? AND kind='UNPAID_POLL_RECOVERY' AND feed_id=?) AS unpaid_only
+   FROM ${table} WHERE job_id=? AND dispatch_token=? AND json_extract(request,'$.scope.feedId')=?`)
+   .bind(body.feedId,unpaidPollRecoveryId(body.table,body.jobId),body.feedId,body.jobId,body.token,body.feedId)
+   .first<{family:string;scheduled_at:string;source_ids:string|null;unpaid_only:number}>();
   if(!job)return;
-  let scoped=await feedEnv(env,body.feedId);
-  const unpaidOnly=!!scoped&&!!await env.DB.prepare("SELECT 1 FROM connector_queue_recovery WHERE id=? AND kind='UNPAID_POLL_RECOVERY' AND feed_id=?").bind(unpaidPollRecoveryId(body.table,body.jobId),body.feedId).first();
-  if(scoped&&unpaidOnly)scoped=unpaidSourceRecoveryEnv(scoped);
+  let scoped=feedEnvFromSources(env,job.source_ids);
   if(!scoped){await env.DB.prepare(`UPDATE ${table} SET state='CANCELLED',dispatch_until=0,dispatch_token=NULL WHERE job_id=? AND dispatch_token=?`).bind(body.jobId,body.token).run();if(job.family==='telegram')await dispatchTelegramLane(env);return;}
+  const unpaidOnly=job.unpaid_only===1;
+  if(unpaidOnly)scoped=unpaidSourceRecoveryEnv(scoped);
   const backend=createConnectorRuntime(scoped,undefined,unpaidOnly?true:undefined);
   // Budget configuration is installed before scheduling, never by a source input.
   const pollStarted=Date.now();
@@ -224,7 +234,7 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
   // Persist continuation wakeup together with delivery release; relay failures
   // cannot strand a completed page or an eligible pending continuation.
   await env.DB.batch([release,env.DB.prepare('UPDATE connector_feed_schedule SET due_ms=MIN(due_ms,?) WHERE feed_id=? AND token IS NULL').bind(Date.now(),body.feedId)]);
-  await continueConnectorIntake(scoped,body.feedId,body.jobId,body.table);
+  if(state==='RETRY'||state==='IDLE')await continueConnectorIntake(scoped,body.feedId,body.jobId,body.table);
   // Refill this bounded lane on completion; do not wait for another Cron scan
   // or flood the other family. Live dispatch leases count against the cap.
   await dispatchConnectorPolls(scoped,body.feedId,Date.now(),2,body.table);

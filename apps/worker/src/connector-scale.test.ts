@@ -104,6 +104,20 @@ it('retry ticks skip reenrollment until collection is due, and preserve changes 
  }finally{maintenance.mockRestore();clock.mockRestore()}
 });
 
+it('releases an old control turn without completing a replacement delivery',async()=>{
+ const feedId='scale-0071';
+ await ctx.db.prepare("UPDATE connector_feed_schedule SET token='old',processing_until=0,collection_due_ms=0 WHERE feed_id=?").bind(feedId).run();
+ const maintenance=vi.spyOn(connectorRuntime,'runConnectorMaintenance').mockImplementationOnce(async()=>{
+  await ctx.db.prepare("UPDATE connector_feed_schedule SET token='replacement',due_ms=12345 WHERE feed_id=?").bind(feedId).run();
+  return {scheduled:[],outcomes:[],durationMs:0};
+ });
+ try{
+  await processConnectorMessage(env,{type:'connector_feed',feedId,token:'old'});
+  expect(await ctx.db.prepare("SELECT token,due_ms,collection_due_ms,processing_until,processing_token FROM connector_feed_schedule WHERE feed_id=?").bind(feedId).first())
+   .toEqual({token:'replacement',due_ms:12345,collection_due_ms:0,processing_until:0,processing_token:null});
+ }finally{maintenance.mockRestore();}
+});
+
 it('per-feed dispatch gives a quiet feed slots even when another has a large backlog',async()=>{
  const statements=[];
  for(let i=0;i<40;i++)for(const feed of ['scale-0001','scale-0002'])statements.push(ctx.db.prepare('INSERT INTO connector_provider_poll_jobs(job_id,request,initial_hash,provider_order,due_at) VALUES(?,?,?,?,?)').bind(`${feed}-${i}`,JSON.stringify({scope:{feedId:feed}}),'hash','[]','1970-01-01T00:00:00.000Z'));

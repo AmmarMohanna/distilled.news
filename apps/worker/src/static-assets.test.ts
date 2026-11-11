@@ -15,3 +15,24 @@ it('retains username alias redirects for ordinary feed routes',async()=>{
  const response=await createApp({repository:repo}).request('https://example.invalid/old-owner/personal/?q=news',{},{} as Env);
  expect(response.status).toBe(301);expect(response.headers.get('location')).toBe('https://example.invalid/new-owner/personal/?q=news');
 });
+
+it('serves the application shell during a database reset while the feed API reports the failure', async () => {
+  const repo = new InMemoryRepository();
+  vi.spyOn(repo, 'resolveUsernameAlias').mockRejectedValue(new Error('D1_ERROR: database was reset'));
+  const assets = {
+    fetch: vi.fn(async (request: Request) => new URL(request.url).pathname === '/'
+      ? new Response('<html>Application shell</html>', {headers: {'Content-Type': 'text/html'}})
+      : new Response(null, {status: 404}))
+  };
+  const app = createApp({repository: repo});
+  const env = {ASSETS: assets} as unknown as Env;
+  const page = await app.request('/owner/private-feed/', {}, env);
+  expect(page.status).toBe(200);
+  expect(await page.text()).toBe('<html>Application shell</html>');
+
+  const api = await app.request('/api/feed/owner/private-feed', {}, env);
+  expect(api.status).toBe(503);
+  expect(api.headers.get('Cache-Control')).toBe('no-store');
+  expect(await api.json()).toMatchObject({code: 'DATABASE_UNAVAILABLE'});
+  expect(assets.fetch).toHaveBeenCalledTimes(2);
+});

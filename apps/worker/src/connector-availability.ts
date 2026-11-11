@@ -25,8 +25,18 @@ export function sourceAvailability(env:Env,family:SourceFamily):SourceAvailabili
 
 export async function feedSourceAvailability(env:Env,feedId:string){
  const financial=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true',enforceBudgets=env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited';
- const dailyBudget=!enforceBudgets||env.SOURCE_DAILY_BUDGET_USD===undefined?undefined:await collectorBudgetStatus(env);
- const [globalRows,sourceRows]=financial&&enforceBudgets?await Promise.all([
+ const rows=await env.DB.prepare("SELECT id,title,provider,kind,source_url,input,actor_id FROM sources WHERE briefing_id=? AND collection_owner='connector' AND enabled=1 ORDER BY id").bind(feedId).all<{id:string;title:string;provider:string;kind:string;source_url:string|null;input:string|null;actor_id:string|null}>();
+ if(!rows.results.length)return [];
+ const configured=rows.results.map(row=>{
+  const source=productConnectorSource(row);
+  const availability:SourceAvailability=source?sourceAvailability(env,source.source.family):{state:'UNAVAILABLE',providers:[],reason:'UNSUPPORTED_SOURCE'};
+  return {row,source,availability};
+ });
+ const costs:Record<string,string>={x_twitterapi_io:'twitterApiIo',x_apify:'apify',google_apify:'apify',linkedin_apify:'apify',zyte:'zyte'};
+ const budgeted=financial&&enforceBudgets&&configured.some(({availability})=>
+  availability.providers.some(id=>id==='website_zyte'||Object.hasOwn(costs,id)));
+ const dailyBudget=budgeted&&env.SOURCE_DAILY_BUDGET_USD!==undefined?await collectorBudgetStatus(env):undefined;
+ const [globalRows,sourceRows]=budgeted?await Promise.all([
   env.DB.prepare("SELECT provider_id,limit_usd,reserved_usd FROM connector_provider_budgets WHERE provider_id IN ('x_twitterapi_io','x_apify','google_apify','linkedin_apify','zyte')").all<{provider_id:string;limit_usd:number;reserved_usd:number}>(),
   env.DB.prepare('SELECT feed_source_id,provider_id,reserved_usd FROM connector_source_provider_budgets WHERE feed_id=?').bind(feedId).all<{feed_source_id:string;provider_id:string;reserved_usd:number}>()
  ]):[{results:[]},{results:[]}];
@@ -35,7 +45,6 @@ export async function feedSourceAvailability(env:Env,feedId:string){
  const acquired=await env.DB.prepare(`SELECT j.feed_source_id,json_extract(j.json,'$.state') state,json_extract(j.json,'$.failureCode') failure,json_extract(j.json,'$.failureDetail') detail,COUNT(*) count
   FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE s.feed_id=? AND json_extract(j.json,'$.kind')='ACQUIRE'
   GROUP BY j.feed_source_id,state,failure,detail`).bind(feedId).all<{feed_source_id:string;state:string;failure:string|null;detail?:string|null;count:number}>();
- const costs:Record<string,string>={x_twitterapi_io:'twitterApiIo',x_apify:'apify',google_apify:'apify',linkedin_apify:'apify',zyte:'zyte'};
  // A previous success must not hide a current capacity refusal that is now
  // yielding publication with incomplete coverage. Return typed causes only.
  const capacity=financial?await env.DB.prepare(`SELECT json_extract(request,'$.scope.feedSourceId') source_id FROM connector_provider_poll_jobs
@@ -43,10 +52,8 @@ export async function feedSourceAvailability(env:Env,feedId:string){
  UNION SELECT json_extract(request,'$.scope.feedSourceId') source_id FROM connector_rss_poll_jobs
  WHERE json_extract(request,'$.scope.feedId')=? AND state='PENDING' AND last_error='BACKPRESSURE' AND COALESCE(json_type(result),'null')='null'`).bind(feedId,feedId).all<{source_id:string}>():{results:[]};
  const capacitySources=new Set(capacity.results.map(r=>r.source_id));
- const rows=await env.DB.prepare("SELECT id,title,provider,kind,source_url,input,actor_id FROM sources WHERE briefing_id=? AND collection_owner='connector' AND enabled=1 ORDER BY id").bind(feedId).all<{id:string;title:string;provider:string;kind:string;source_url:string|null;input:string|null;actor_id:string|null}>();
- return Promise.all(rows.results.map(async row=>{
-  const source=productConnectorSource(row),availability:SourceAvailability=source?sourceAvailability(env,source.source.family):{state:'UNAVAILABLE',providers:[],reason:'UNSUPPORTED_SOURCE'};
-  if(financial&&enforceBudgets&&availability.state==='AVAILABLE'){
+ return Promise.all(configured.map(async ({row,source,availability})=>{
+  if(budgeted&&availability.state==='AVAILABLE'){
    availability.providers=availability.providers.filter(id=>{
     const paidId=id==='website_zyte'?'zyte':id;if(!costs[paidId])return true;
     const grant=global.get(paidId),ceiling=ceilings[costs[paidId]],reserved=reservations.get(`${row.id}:${paidId}`)??0;
@@ -67,9 +74,9 @@ export async function feedSourceAvailability(env:Env,feedId:string){
    paidUncertain=await hasUncertainSourcePayment(env.DB,feedId,row.id,source?.source.family==='google_news'?['google_apify','zyte']:['zyte'],true);
   const historicalPaidBlock=latest?.last_error==='UNCERTAIN_PAID_SUBMISSION'&&paidUncertain===false;
   if(latest?.state==='BLOCKED'&&!historicalPaidBlock&&availability.state==='AVAILABLE'&&(enforceBudgets||latest.last_error!=='BUDGET_EXCEEDED')){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
-  const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),acquisition={completed:0,pending:0,failed:0,deferred:0,issues:acquisitionFailureIssues(acquired.results.filter(j=>j.feed_source_id===row.id&&j.state==='FAILED'))};
+  const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),failed=jobs.filter(j=>j.state==='FAILED');
+  const acquisition={completed:0,pending:0,failed:0,deferred:0,issues:acquisitionFailureIssues(failed)};
   for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(job.state==='DEFERRED')acquisition.deferred+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
-  const failed=jobs.filter(j=>j.state==='FAILED');
   const warning=acquisition.failed?failed.every(j=>j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':failed.every(j=>j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
   // Only typed errors are public. Never expose URLs, provider response text or
   // claim tokens retained in diagnostic storage.

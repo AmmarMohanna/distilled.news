@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Miniflare } from 'miniflare';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,11 +18,17 @@ describe('RSS with local Cloudflare D1/R2 bindings',()=>{
       let db=await runtime.getD1Database('DB');
       await db.exec(SOURCE_STORAGE_SCHEMA.replace(/\n/g,' '));
       let repository=sourceRepositoryFromD1(db);
-      let payloads=new R2SourcePayloadStore(await runtime.getR2Bucket('PAYLOADS'));
+      const bucket=await runtime.getR2Bucket('PAYLOADS');
+      const read=vi.fn(bucket.get.bind(bucket));
+      let payloads=new R2SourcePayloadStore({put:bucket.put.bind(bucket),get:read});
       const runs=await Promise.all(Array.from({length:8},(_,i)=>repository.allocate(scope,`run-${i}`,'config','2026-10-04T08:00:00.000Z')));
       expect(new Set(runs.map(r=>r.sequence)).size).toBe(8);
       expect(runs.map(r=>r.sequence).sort((a,b)=>a-b)).toEqual([1,2,3,4,5,6,7,8]);
-      const value=await payloads.put(scope,new TextEncoder().encode('durable'),'text/plain');
+      const bytes=new TextEncoder().encode('durable');
+      const value=await payloads.put(scope,bytes,'text/plain');
+      expect(read).not.toHaveBeenCalled();
+      expect(await payloads.put(scope,bytes,'text/plain')).toEqual(value);
+      expect(read).toHaveBeenCalledTimes(1);
       await runtime.dispose(); runtime=new Miniflare(options);
       db=await runtime.getD1Database('DB'); repository=sourceRepositoryFromD1(db);
       payloads=new R2SourcePayloadStore(await runtime.getR2Bucket('PAYLOADS'));

@@ -12,9 +12,14 @@ beforeEach(async()=>{
 });
 afterEach(async()=>ctx?.dispose());
 it('unchanged enrollment takes an indexed optional-product boundary read and one guarded product read',async()=>{
+ await ctx.db.prepare("UPDATE sources SET collection_owner='connector' WHERE id='feed-source-1'").run();
  const prior=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());let reads=0;
  const measured=new Proxy(ctx.db,{get(target,key){if(key==='prepare')return (sql:string)=>{reads++;return target.prepare(sql)};const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}});
  await synchronizeV1ProductSource(measured,'feed-source-1',testPolicy.now());expect(reads).toBe(2);
+ await expect(synchronizeV1ProductSource(measured,'feed-source-1',testPolicy.now(),true)).resolves.toEqual(prior.scope);
+ expect(reads).toBe(3);
+ await ctx.db.prepare("UPDATE sources SET collection_owner='legacy' WHERE id='feed-source-1'").run();
+ await expect(synchronizeV1ProductSource(measured,'feed-source-1',testPolicy.now(),true)).rejects.toMatchObject({code:'SCOPE_DENIED'});
  await ctx.db.prepare("UPDATE sources SET title='Changed title' WHERE id='feed-source-1'").run();
  await synchronizeV1ProductSource(measured,'feed-source-1',testPolicy.now());
  expect((await new V1IntakeStore(ctx.db).snapshot('feed-source-1')).scope.feedRevision).toBeGreaterThan(prior.scope.feedRevision);

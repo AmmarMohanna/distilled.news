@@ -20,6 +20,48 @@ it.each(['exact','foreign-result','wrong-headline'] as const)('uses the existing
   expect(fallback).toHaveBeenCalledTimes(mode==='wrong-headline'?0:1);
  }
 });
+const nnaOrigin='https://nna-leb.gov.lb';
+const nnaUrl=nnaOrigin+'/en/news/224914/minister-discusses-import-duties';
+const nnaShortUrl=nnaOrigin+'/en/news/short/224914';
+const nnaHeadline='Minister discusses import duties with local manufacturers';
+const nnaDate='2026-09-21T10:56:57.000Z';
+const nnaShell=`<link rel="canonical" href="${nnaUrl}"><meta property="og:type" content="article">
+ <meta property="og:title" content="${nnaHeadline}"><meta property="article:published_time" content="${nnaDate}">`;
+
+it.each([
+ {from:nnaShortUrl,content:body,completeness:'UNKNOWN'},
+ {from:nnaUrl,content:body,completeness:'UNKNOWN'},
+ {from:nnaShortUrl,content:prose,completeness:'PARTIAL'},
+])('uses the public publisher JSON for NNA article text ($from, $completeness)',async({from,content,completeness})=>{
+ const fallback=vi.fn(async()=>undefined);
+ const fetcher=vi.fn(async()=>Response.json({data:{data:{id:224914,slug:'minister-discusses-import-duties',
+  title:nnaHeadline,url:nnaShortUrl,content:`<p>${content}</p>`},'related-news':[{content:'Unrelated article'}]}}));
+ const acquire=createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00Z',preferFullArticle:true,
+  publicGet:async()=>({url:nnaUrl,body:nnaShell,contentType:'text/html',status:200}),fetcher,articleFallback:fallback});
+ const candidate={...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:from,
+  titleHint:nnaHeadline,publishedAtHint:'2026-10-21T09:00:00Z'}}};
+ expect(await acquire(candidate)).toMatchObject({body:content.trim(),canonicalUrl:from,publishedAt:nnaDate,
+  contentCompleteness:completeness,provenance:{stages:expect.arrayContaining(['HTTP'])}});
+ expect(fetcher).toHaveBeenCalledExactlyOnceWith(nnaOrigin+'/api/proxy/v2/en/news/224914',
+  expect.objectContaining({redirect:'manual',headers:{accept:'application/json'}}));
+ expect(fallback).not.toHaveBeenCalled();
+});
+
+it.each([
+ {id:224918},
+ {slug:'other-story'},
+ {title:'A different event reported by the same publisher'},
+ {url:'https://other.example/article'},
+])('rejects NNA JSON when publisher article identity differs (%j)',async(wrong)=>{
+ const fetcher=vi.fn(async()=>Response.json({data:{data:{id:224914,slug:'minister-discusses-import-duties',
+  title:nnaHeadline,url:nnaShortUrl,content:`<p>${body}</p>`,...wrong}}}));
+ const acquire=createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00Z',preferFullArticle:true,
+  publicGet:async()=>({url:nnaUrl,body:nnaShell,contentType:'text/html',status:200}),fetcher});
+ const candidate={...claim,input:{...claim.input,observation:{...claim.input.observation,
+  canonicalUrl:nnaShortUrl,titleHint:nnaHeadline}}};
+ await expect(acquire(candidate)).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'ARTICLE_REDIRECT_TEXT_UNAVAILABLE'}});
+ expect(fetcher).toHaveBeenCalledTimes(1);
+});
 it('extracts source-owned prose without requiring a supported URL layout or article metadata',async()=>{
  const html='<nav>Unrelated navigation</nav><main><h1>Investigation</h1><div class="article-body"><p>'+prose.repeat(3)+'</p><p>'+prose.repeat(3)+'</p></div><h2><a href="/related">Related article</a></h2><h2><a href="/another">Another article</a></h2></main>';
  expect(isWebsiteListingUrl(url)).toBe(true);

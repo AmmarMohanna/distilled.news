@@ -1,4 +1,5 @@
 import {expect,it,vi} from 'vitest';
+import {createApp} from './app';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {dispatchConnectorFeeds,dispatchConnectorPolls,processConnectorMessage,type ConnectorQueueMessage} from './connector-scheduling';
 import type {Env} from './types';
@@ -6,28 +7,36 @@ import type {Env} from './types';
 // Opt-in workload: real D1 claims, configuration, collection, R2 payloads,
 // intake receipts and checkpoints. Upstream/model services are simulated;
 // this does not prove live provider or editorial capacity.
-it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collection for 1,000 independent feeds through bounded queue consumers',async()=>{
+it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains the configured feed workload through bounded queue consumers',async()=>{
  const count=Number(process.env.CONNECTOR_LOAD_FEEDS??1000);
  const articles=Number(process.env.CONNECTOR_LOAD_ARTICLES??0);
+ const mixed=process.env.CONNECTOR_LOAD_READERS==='true';
  if(!Number.isSafeInteger(count)||count<1||count>1000)throw Error('INVALID_LOAD_FEEDS');
  if(![0,1].includes(articles))throw Error('INVALID_LOAD_ARTICLES');
  const ctx=await createIntakeDatabase({product:true}),at=new Date().toISOString();
  const ids=Array.from({length:count},(_,i)=>`load-${String(i+1).padStart(4,'0')}`);
  const sourceMessages:ConnectorQueueMessage[]=[],objects=new Map<string,Uint8Array>();
  const queryProfile=new Map<string,{calls:number;statements:number;elapsedMs:number}>();
+ let publicationStateReads=0,publicationStateRows=0;
  let activePhase='setup';
  const measure=async<T>(kind:string,statements:number,action:()=>Promise<T>):Promise<T>=>{
   const key=activePhase+':'+kind,entry=queryProfile.get(key)??{calls:0,statements:0,elapsedMs:0},started=performance.now();
   queryProfile.set(key,entry);entry.calls++;entry.statements+=statements;
   try{return await action()}finally{entry.elapsedMs+=performance.now()-started;}
  };
- const instrument=(statement:D1PreparedStatement):D1PreparedStatement=>new Proxy(statement,{get(target,key){
-  if(key==='bind')return (...values:unknown[])=>instrument(target.bind(...values));
+ const instrument=(statement:D1PreparedStatement,measurePublicationState=false):D1PreparedStatement=>new Proxy(statement,{get(target,key){
+  if(key==='bind')return (...values:unknown[])=>instrument(target.bind(...values),measurePublicationState);
+  if(key==='first'&&measurePublicationState)return ()=>measure('first',1,async()=>{
+   const result=await target.all();
+   publicationStateReads++;
+   publicationStateRows+=result.meta.rows_read;
+   return result.results[0]??null;
+  });
   if(['first','all','run','raw'].includes(String(key)))return (...args:unknown[])=>measure(String(key),1,()=>Reflect.apply(Reflect.get(target,key),target,args) as Promise<unknown>);
   const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
  }});
  const measuredDb=new Proxy(ctx.db,{get(target,key){
-  if(key==='prepare')return (sql:string)=>instrument(target.prepare(sql));
+  if(key==='prepare')return (sql:string)=>instrument(target.prepare(sql),mixed&&sql.includes('END AS publication_state'));
   if(key==='batch')return (statements:D1PreparedStatement[])=>measure('batch',statements.length,()=>target.batch(statements));
   const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
  }});
@@ -41,6 +50,29 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   PROCESSING_QUEUE:{send:async()=>{downstreamMessages++;},sendBatch:async()=>{throw Error('UNCOALESCED_BATCH');}}
  } as unknown as Env;
  const start=performance.now(),deadline=start+580_000,phaseTimes:Record<string,number>={};
+ const app=createApp();
+ const requests:Record<string,number[]>={};
+ let unexpectedResponses=0;
+ async function readFeeds(phase:string){
+  if(!mixed)return;
+  const paths=ids.flatMap(id=>['/api/auth/session','/api/feed/load-owner/'+id]);
+  let cursor=0;
+  const statuses=await Promise.allSettled(Array.from({length:8},async()=>{
+   while(cursor<paths.length){
+    if(performance.now()>=deadline)throw Error('READER_DEADLINE');
+    const path=paths[cursor++],started=performance.now();
+    const response=await app.request(path,{},env);
+    const samples=requests[path.startsWith('/api/feed/')?'feed':'session']??=[];
+    samples.push(performance.now()-started);
+    if(response.status!==200){unexpectedResponses++;continue;}
+    const body=await response.json() as {authenticated?:boolean;briefing?:{slug:string}};
+    if(path.startsWith('/api/feed/')?body.briefing?.slug!==path.split('/').at(-1):body.authenticated!==false)unexpectedResponses++;
+   }
+  }));
+  const failed=statuses.find(result=>result.status==='rejected');
+  if(failed?.status==='rejected')throw failed.reason;
+  console.info(JSON.stringify({load:'reader-wave',phase,requests:paths.length,unexpectedResponses}));
+ }
  async function drain(phase:string,bodies:ConnectorQueueMessage[]){
   activePhase=phase;
   const durations:number[]=[],started=performance.now();let cursor=0,completed=0,stopped=false;
@@ -56,8 +88,13 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   console.info(JSON.stringify({load:'source-collection',phase,messages:bodies.length,completed,durationMs:phaseTimes[phase],p95Ms:Math.round(durations[Math.floor(durations.length*.95)]??0),database}));
   const failed=workers.find(result=>result.status==='rejected');if(failed?.status==='rejected')throw failed.reason;
  }
+ async function mixedDrain(phase:string,bodies:ConnectorQueueMessage[]){
+  const results=await Promise.allSettled([drain(phase,bodies),readFeeds(phase)]);
+  for(const result of results)if(result.status==='rejected')throw result.reason;
+ }
  try{
   await ctx.db.prepare("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('load-owner','load@example.invalid','load@example.invalid','load-owner','user','unused',?,?,?)").bind(at,at,at).run();
+  if(mixed)await ctx.db.prepare("INSERT INTO username_aliases(username,account_id,is_current,created_at) VALUES('load-owner','load-owner',1,?)").bind(at).run();
   // Batch writes stay below D1's parameter ceiling.
   for(let i=0;i<ids.length;i+=50){
    await ctx.db.batch(ids.slice(i,i+50).map(id=>ctx.db.prepare("INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,created_at,updated_at) VALUES(?,'load-owner',?,'Load test','News',1,?,?)").bind(id,id,at,at)));
@@ -68,9 +105,21 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   const bytesBefore=(await ctx.db.prepare('SELECT 1 AS storage_probe').run()).meta.size_after;
   for(let i=0;i<Math.ceil(count/100);i++)await dispatchConnectorFeeds(env);
   const feedMessages=sourceMessages.splice(0);expect(feedMessages).toHaveLength(count);
-  await drain('feed',feedMessages);
+  await mixedDrain('feed',feedMessages);
+  if(mixed){
+   // Aged requests reproduce the retained-history reads on the feed route.
+   await ctx.db.prepare(`WITH RECURSIVE history(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM history WHERE n<200)
+    INSERT INTO v1_feed_documents(kind,id,feed_id,json)
+    SELECT 'briefing_requests',b.id||':retained:'||n,b.id,
+     json_object('state','DONE','result','QUIET','createdAt',strftime('%Y-%m-%dT%H:%M:%fZ',?,'-'||n||' hours'))
+    FROM v1_feeds b CROSS JOIN history`).bind(at).run();
+   await ctx.db.prepare(`INSERT INTO v1_feed_documents(kind,id,feed_id,json)
+    SELECT 'briefing_requests',id||':pending',id,
+     json_object('state','PENDING','engine','v3','createdAt',?,'window',json_object('end',?))
+    FROM v1_feeds`).bind(at,at).run();
+  }
   const polls=sourceMessages.splice(0);expect(polls).toHaveLength(count);
-  await drain('poll',polls);
+  await mixedDrain('poll',polls);
   // A shared cache miss may defer a concurrent consumer. Keep its durable job
   // and original backoff, then dispatch eligible retries through the same path.
   for(let round=0;round<8;round++){
@@ -93,10 +142,23 @@ it.skipIf(process.env.CONNECTOR_LOAD_COLLECTION!=='true')('drains actual collect
   // Expiry may legitimately refresh during a long load. Reuse must still avoid
   // one upstream fetch per feed; freshness is not extended to force a pass.
   expect(upstreamCalls).toBeLessThanOrEqual(Math.ceil((performance.now()-start)/60_000)+1);
-  await drain('duplicate',polls);expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_batches').first()).toEqual({n:count});
+  await mixedDrain('duplicate',polls);expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_batches').first()).toEqual({n:count});
+  if(mixed){
+   const reader=Object.fromEntries(Object.entries(requests).map(([name,samples])=>{
+    samples.sort((a,b)=>a-b);
+    return [name,{requests:samples.length,p95Ms:Math.round(samples[Math.ceil(samples.length*.95)-1]),p99Ms:Math.round(samples[Math.ceil(samples.length*.99)-1])}];
+   }));
+   console.info(JSON.stringify({load:'mixed-readers-complete',feeds:count,readerConcurrency:8,reader,unexpectedResponses,publicationStateReads,publicationStateRows}));
+   expect(unexpectedResponses).toBe(0);
+   expect(publicationStateReads).toBe(count*3);
+   expect(publicationStateRows).toBeLessThanOrEqual(publicationStateReads*2);
+  }
   const bytesAfter=(await ctx.db.prepare('SELECT 1 AS storage_probe').run()).meta.size_after;
   expect(Number.isFinite(bytesBefore)&&Number.isFinite(bytesAfter)).toBe(true);
-  const storage={d1BytesBefore:bytesBefore,d1BytesAfter:bytesAfter,d1GrowthBytes:bytesAfter-bytesBefore,coldBytesPerFeed:Math.round((bytesAfter-bytesBefore)/count),r2Objects:objects.size,r2Bytes:[...objects.values()].reduce((n,b)=>n+b.byteLength,0)};
+  const bytesPerFeed=Math.round((bytesAfter-bytesBefore)/count);
+  const storage={d1BytesBefore:bytesBefore,d1BytesAfter:bytesAfter,d1GrowthBytes:bytesAfter-bytesBefore,
+   ...(mixed?{bytesPerFeedIncludingFixtureHistory:bytesPerFeed}:{coldBytesPerFeed:bytesPerFeed}),
+   r2Objects:objects.size,r2Bytes:[...objects.values()].reduce((n,b)=>n+b.byteLength,0)};
   console.info(JSON.stringify({load:'source-collection-complete',feeds:count,articlesPerSnapshot:articles,queueConcurrency:8,upstreamCalls,independentReceipts:count,independentCheckpoints:count,independentCandidates:count*articles,paidCalls:0,downstreamMessages,durationMs:Math.round(performance.now()-start),phaseTimes,storage}));
  }catch(error){
   // Leave a usable capacity diagnostic even when the acceptance deadline fails.

@@ -50,6 +50,7 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
   let completed!:()=>void;
   const active=new Promise<void>(resolve=>{completed=resolve}),flights=publicFetches.get(db)??new Map<string,Promise<void>>();
   publicFetches.set(db,flights);flights.set(key,active);
+  let leaseReleased=false;
   try{
    const response=await http.get(url,headers,bounds);
    await authorize(url);
@@ -60,12 +61,14 @@ export function sharedPublicHttp(db:D1Database,bucket:R2Bucket,http:FeedHttpPort
     const objectKey=`connector-public-cache/${key}/${token}`;
     await bucket.put(objectKey,response.bytes);
     const saved=await db.prepare('UPDATE connector_public_fetch_cache SET payload_key=?,status=?,headers=?,expires_at=?,lease_until=0 WHERE cache_key=? AND token=?').bind(objectKey,response.status,JSON.stringify(response.headers),now()+Math.min(maxCacheMs,maxAge?Number(maxAge[1])*1000:60_000),key,token).run();
+    // Saving atomically releases this lease. A failed token match means it is no longer ours.
+    leaseReleased=true;
     if(saved.meta.changes===0)await bucket.delete(objectKey);
     else if(cached?.payload_key&&cached.payload_key!==objectKey)await bucket.delete(cached.payload_key);
    }
    return response;
   }finally{
-   try{await db.prepare('UPDATE connector_public_fetch_cache SET lease_until=0 WHERE cache_key=? AND token=?').bind(key,token).run();}
+   try{if(!leaseReleased)await db.prepare('UPDATE connector_public_fetch_cache SET lease_until=0 WHERE cache_key=? AND token=?').bind(key,token).run();}
    finally{if(flights.get(key)===active)flights.delete(key);completed();}
   }
  }};

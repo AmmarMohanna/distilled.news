@@ -41,9 +41,15 @@ export class V1FeedStore {
   }
   return values;
  }
- /** Follow the feed's explicit intent references; never scan retained revision bodies globally. */
- async hasSemanticIntentForObservation(feedId:string,observationId:string):Promise<boolean> {
-  const row=await this.db.prepare("SELECT 1 FROM v1_feed_documents d CROSS JOIN json_each(d.json,'$.input.evidenceRevisionIds') ref CROSS JOIN v1_revisions r ON r.id=ref.value WHERE d.feed_id=? AND d.kind='semantic_intents' AND json_extract(r.json,'$.sourceObservationId')=? LIMIT 1").bind(feedId,observationId).first();return Boolean(row);
+ /** V3 window intents contain many revision references but cannot own legacy reassessment. */
+ async hasLegacySemanticIntentForObservation(feedId:string,observationId:string):Promise<boolean> {
+  const row=await this.db.prepare(`SELECT 1 FROM v1_feed_documents d
+   CROSS JOIN json_each(d.json,'$.input.evidenceRevisionIds') ref
+   CROSS JOIN v1_revisions r ON r.id=ref.value
+   WHERE d.feed_id=? AND d.kind='semantic_intents'
+   AND json_extract(d.json,'$.input.kind') IS NOT 'V3_EDITOR_VERIFIER'
+   AND json_extract(r.json,'$.sourceObservationId')=? LIMIT 1`).bind(feedId,observationId).first();
+  return Boolean(row);
  }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
  /** Candidate-targeted carry replay. Each page reads its version and decisions in one SQL snapshot. */
@@ -172,19 +178,28 @@ export class V1FeedStore {
  }
  async commit(tx:FeedTransaction):Promise<boolean> {
   const validationStarted=Date.now();await measureLatency('GRAPH_VALIDATION',()=>tx.validateGraph());tx.metrics.validationMs+=Date.now()-validationStarted;
-  const {snapshot:s}=tx,nonce=crypto.randomUUID(),turnGuard=intelligenceTurnGuard(this.db,s.feed.id);
+  const {snapshot:s}=tx,turnGuard=intelligenceTurnGuard(this.db,s.feed.id);
   const scopeChecks=s.scopes.map(()=>`EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=?)`).join(' AND ');
   const leaseCheck=this.semanticLease?` AND EXISTS(SELECT 1 FROM v1_feed_documents l WHERE l.kind='semantic_work_leases' AND l.id=? AND l.feed_id=? AND json_extract(l.json,'$.token')=? AND json_extract(l.json,'$.leaseUntil')>((julianday('now')-2440587.5)*86400000) AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='semantic_work_releases' AND r.id=l.id AND json_extract(r.json,'$.token')=json_extract(l.json,'$.token')))`:'';
-  const args:unknown[]=[nonce,s.feed.id,s.epoch,s.feed.id,s.scopes.length,...s.scopes.flatMap(x=>[x.id,x.epoch]),...(this.semanticLease?[this.semanticLease.id,s.feed.id,this.semanticLease.token]:[]),...turnGuard.args];
-  const statements:D1PreparedStatement[]=[this.db.prepare(`INSERT INTO v1_feed_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM v1_feeds WHERE id=? AND epoch=? AND json_extract(json,'$.deletedAt') IS NULL AND json_extract(json,'$.paused')=0) AND (SELECT COUNT(*) FROM v1_intake_scopes WHERE feed_id=?)=? ${scopeChecks?'AND '+scopeChecks:''}${leaseCheck}${turnGuard.sql} THEN 1 ELSE 0 END`).bind(...args)];
+  const args:unknown[]=[s.feed.id,s.epoch,s.feed.id,s.scopes.length,...s.scopes.flatMap(x=>[x.id,x.epoch]),...(this.semanticLease?[this.semanticLease.id,s.feed.id,this.semanticLease.token]:[]),...turnGuard.args];
+  const valid=`EXISTS(SELECT 1 FROM v1_feeds WHERE id=? AND epoch=? AND json_extract(json,'$.deletedAt') IS NULL AND json_extract(json,'$.paused')=0) AND (SELECT COUNT(*) FROM v1_intake_scopes WHERE feed_id=?)=? ${scopeChecks?'AND '+scopeChecks:''}${leaseCheck}${turnGuard.sql}`;
+  // A read-only transaction needs the same atomic predicate, without writing
+  // and then deleting a guard row solely to validate it.
+  if(!tx.writes.size&&!tx.jobs.size&&!tx.modelReservations.length){
+   const current=await this.db.prepare(`SELECT 1 WHERE ${valid}`).bind(...args).first().catch(()=>{
+    throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   });
+   if(!current)await assertIntelligenceTurn(this.db,s.feed.id);
+   return Boolean(current);
+  }
+  const nonce=crypto.randomUUID();
+  const statements:D1PreparedStatement[]=[this.db.prepare(`INSERT INTO v1_feed_guards(id,valid) SELECT ?,CASE WHEN ${valid} THEN 1 ELSE 0 END`).bind(nonce,...args)];
   for(const reservation of tx.modelReservations)statements.push(...await modelSpendingStatements(this.db,reservation));
   for(const w of tx.writes.values()) statements.push(this.db.prepare(`INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?) ${mutable.has(w.kind)?'ON CONFLICT(kind,id) DO UPDATE SET json=excluded.json':'ON CONFLICT(kind,id) DO NOTHING'}`).bind(w.kind,w.id,s.feed.id,JSON.stringify(w.value)));
   for(const job of tx.jobs.values()) {
    statements.push(this.db.prepare('UPDATE v1_jobs SET json=? WHERE id=? AND feed_source_id=?').bind(JSON.stringify(job),job.id,job.feedSourceId));
    statements.push(this.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(job.feedSourceId));
   }
-  // Read-only relays still validate their snapshot atomically, but must not
-  // invalidate concurrent writers merely by checking an existing request.
   if(tx.writes.size || tx.jobs.size) statements.push(this.db.prepare('UPDATE v1_feeds SET epoch=epoch+1 WHERE id=?').bind(s.feed.id));
   statements.push(this.db.prepare('DELETE FROM v1_feed_guards WHERE id=?').bind(nonce));
   try {await this.db.batch(statements);return true} catch(error) {if(String(error).includes('v1_model_provider_admission'))throw new ModelSpendingWait('PROVIDER_RESOURCE_WAIT');if(String(error).includes('v1_model_spending_admission'))throw new ModelSpendingWait('ACCOUNT_RESOURCE_WAIT');if(String(error).includes('CHECK constraint failed: v1_feed_cas')){await assertIntelligenceTurn(this.db,s.feed.id);return false;}const text=String(error),cause=/too many subrequests|query limit/i.test(text)?'QUERY_LIMIT':/overloaded/i.test(text)?'OVERLOADED':/timeout|timed out/i.test(text)?'DATABASE_TIMEOUT':/constraint/i.test(text)?'DATABASE_CONSTRAINT':'DATABASE_BATCH_FAILED';console.error(JSON.stringify({type:'V1_FEED_BATCH_FAILED',feedId:s.feed.id,epoch:s.epoch,statements:statements.length,writes:tx.writes.size,jobs:tx.jobs.size,cause}));throw new HandoffError('TEMPORARY_UNAVAILABLE')}

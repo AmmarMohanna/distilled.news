@@ -17,6 +17,7 @@ import { dispatchDueFeedSketches, processFeedSketchJob } from "./feed-sketch-job
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch,windowIdentity} from './v1-intelligence/runtime';
+import {runProviderAccountingRecovery} from './v1-intelligence/provider-recovery';
 import {HandoffError} from '@distilled/contracts';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
@@ -317,10 +318,14 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}
   try {await dispatchDueFeedSketches(env)} catch {console.warn('Could not recover feed illustration jobs')}
   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
-    // Ten bounded queue batches can dispatch 1,000 due feeds without a
-    // population scan or doing any upstream collection in Cron.
-    for(let page=0;page<10;page++)if(await dispatchConnectorFeeds(env)<100)break;
-    await dispatchTelegramLane(env);
+    try {
+      // Ten bounded queue batches can dispatch 1,000 due feeds without a
+      // population scan or doing any upstream collection in Cron.
+      for(let page=0;page<10;page++)if(await dispatchConnectorFeeds(env)<100)break;
+      await dispatchTelegramLane(env);
+    } finally {
+      await runProviderAccountingRecovery(env);
+    }
     await expireConnectorDeliveries(env);
     if(env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true')await expireSharedPublicFetches(env.DB,env.RAW_ARCHIVE);
     // Preserve reader notifications in the indexed scheduling path.

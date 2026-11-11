@@ -23,7 +23,7 @@ export function sourceRepositoryFromD1<S extends SqlStatement>(db: {
   return new D1SourceRepository(sourceSqlFromD1(db));
 }
 export interface ObjectBucket {
-  put(key: string, value: Uint8Array, options: { onlyIf: { etagDoesNotMatch: string }; httpMetadata: { contentType: string } }): Promise<unknown>;
+  put(key: string, value: Uint8Array, options: { onlyIf: { etagDoesNotMatch: string }; httpMetadata: { contentType: string }; sha256?: string }): Promise<unknown>;
   get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
 }
 
@@ -174,10 +174,16 @@ export class R2SourcePayloadStore implements ImmutablePayloadStore {
   private async prefix(scope: SourceScope) { return 'source-payloads/' + await sha256(JSON.stringify([scope.feedId,scope.feedSourceId,scope.sourceId])) + '/'; }
   async put(scope: SourceScope, bytes: Uint8Array, contentType: string) {
     const hash = await sha256(bytes), ref = await this.prefix(scope) + hash;
-    await this.bucket.put(ref, bytes, { onlyIf: { etagDoesNotMatch: '*' }, httpMetadata: { contentType } });
-    // Verify existing objects as well as newly written ones before handing out a reference.
-    const stored = await this.get(scope, ref);
-    if (await sha256(stored) !== hash) throw new Error('PAYLOAD_INTEGRITY_FAILURE');
+    const stored = await this.bucket.put(ref, bytes, { onlyIf: { etagDoesNotMatch: '*' }, httpMetadata: { contentType }, sha256: hash });
+    const checksum = (stored as {checksums?: {sha256?: ArrayBuffer}} | null | undefined)?.checksums?.sha256;
+    if (checksum) {
+      const digest = Array.from(new Uint8Array(checksum), byte => byte.toString(16).padStart(2,'0')).join('');
+      if (digest !== hash) throw new Error('PAYLOAD_INTEGRITY_FAILURE');
+    } else {
+      // A pre-existing object or an adapter without upload checksums still
+      // requires a body read and verification before publishing its reference.
+      await this.get(scope,ref);
+    }
     return {ref,hash};
   }
   async get(scope: SourceScope, ref: string) {

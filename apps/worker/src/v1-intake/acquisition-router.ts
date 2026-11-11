@@ -11,8 +11,9 @@ import type { AcceptedAcquiredContent } from './types';
 import type {LanguageResolution} from '../v1-intelligence/language';
 import {resolvePublicationDate,helperArticleDates,type PublicationDate} from './publication-date';
 import {sameArticleUrl,scholarlyAbstractAlias} from './article-url-identity';
-import {reviewedRedirectFor,matchesReviewedRedirect} from './reviewed-redirect';
+import {articleHeadlineKey,reviewedRedirectFor,matchesReviewedRedirect} from './reviewed-redirect';
 import {nationalLiveblog} from './national-liveblog';
+import {nnaArticleBody} from './nna-article';
 import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
 
 export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
@@ -155,11 +156,12 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(!sameArticleUrl(document.url,o.canonicalUrl)){
     if(!htmlLike&&!['text/html','application/xhtml+xml'].includes(media)&&!/^\s*<(?:link|body|section|h[1-6])\b/i.test(document.body)){redirectFailure=new AcquisitionFailure('INVALID_RESULT',false,{detail:'ARTICLE_REDIRECT_IDENTITY_MISMATCH'});return {stage:'HTTP',status:'POLICY_DENIED'};}
     let redirected=extractPublicHtml(document.body,document.url);
-    const titleKey=(value:unknown)=>typeof value==='string'?value.normalize('NFKC').replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/\s+/g,' ').trim().toLowerCase():'';
-    const expected=titleKey(o.titleHint),actual=titleKey(redirected.title);
+    const expected=articleHeadlineKey(o.titleHint),actual=articleHeadlineKey(redirected.title);
     const reviewedMatch=matchesReviewedRedirect(reviewed,document.url,redirected.title);
     if(new URL(document.url).origin!==new URL(o.canonicalUrl!).origin||(!reviewedMatch&&(expected.length<20||expected!==actual))||redirected.pageKind!=='article'&&!reviewedMatch||!sameArticleUrl(redirected.canonicalUrl,document.url)){redirectFailure=new AcquisitionFailure('INVALID_RESULT',false,{detail:'ARTICLE_REDIRECT_IDENTITY_MISMATCH'});return {stage:'HTTP',status:'POLICY_DENIED'};}
     if(redirected.accessRestricted)return {stage:'HTTP',status:'AUTH_REQUIRED'};
+    const nnaBody=await nnaArticleBody(redirected,document.url,options.fetcher??fetch);
+    if(nnaBody)redirected={...redirected,body:nnaBody};
     // Same-day source-bound updates only; an old day's URL must not acquire
     // today's liveblog under its retained publication identity.
     if(redirected.body.length<200&&new URL(o.canonicalUrl!).pathname.match(/\/\d{4}\/\d{2}\/\d{2}\//)?.[0]===new URL(document.url).pathname.match(/\/\d{4}\/\d{2}\/\d{2}\//)?.[0]){
@@ -167,7 +169,8 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
     }
     // The publisher relocation is transport evidence, not a replacement input.
     // Keep original observation/citation/payment identities; retain its final URL.
-    const item=helperArticle({...redirected,url:o.canonicalUrl,canonicalUrl:o.canonicalUrl,status:200,dateMetadata:readArticleDateMetadata(document.body,document.url)},'publisher_redirect_http');
+    const short=!!nnaBody&&usableShortArticle(redirected.title,redirected.body);
+    const item=helperArticle({...redirected,...(short?{partial:true,shortTextEvidence:true}:{}),url:o.canonicalUrl,canonicalUrl:o.canonicalUrl,status:200,dateMetadata:readArticleDateMetadata(document.body,document.url)},nnaBody?'nna_public_article_json':'publisher_redirect_http');
     if(!item){
      // A verified same-publisher relocation may still be a client-rendered
      // shell (for example NNA). Reuse the authorized exact-article fallback;
@@ -207,12 +210,14 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    }
    let readablePage=extractPublicHtml(document.body,document.url);
    if(readablePage.accessRestricted)throw new AcquisitionFailure('AUTH_REQUIRED',false,{detail:'ARTICLE_ACCESS_RESTRICTED'});
+   const nnaBody=await nnaArticleBody(readablePage,document.url,options.fetcher??fetch);
+   if(nnaBody)readablePage={...readablePage,body:nnaBody};
    if(readablePage.body.length<200){const updates=await nationalLiveblog(document.body,document.url,options.fetcher??fetch);if(updates)readablePage={...readablePage,...updates};}
    if(readablePage.pageKind==='listing')throw isWebsiteListingUrl(document.url)?new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'}):new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'NO_PRIMARY_ARTICLE_TEXT'});
    const wordpressItem=extractWordpressArticle(document.body,document.url,o.canonicalUrl!);
    const short=readablePage.pageKind==='article'&&usableShortArticle(readablePage.title,readablePage.body);
    if(!wordpressItem&&['article','catalogue'].includes(readablePage.pageKind)&&readablePage.body.length>=(readablePage.pageKind==='catalogue'||short||readablePage.contentCompleteness==='PARTIAL'?80:200)){
-    const item=helperArticle({...readablePage,...(short?{partial:true,shortTextEvidence:true,resolvedUrl:document.url}:{}),status:200,url:o.canonicalUrl,dateMetadata:readArticleDateMetadata(document.body,document.url)},'readable_http');
+    const item=helperArticle({...readablePage,...(short?{partial:true,shortTextEvidence:true,resolvedUrl:document.url}:{}),status:200,url:o.canonicalUrl,dateMetadata:readArticleDateMetadata(document.body,document.url)},nnaBody?'nna_public_article_json':'readable_http');
     if(item)return fallbackSuccess(item);
    }
    // Existing extractor requires an article body and publication metadata, rather than treating 200 as extraction success.

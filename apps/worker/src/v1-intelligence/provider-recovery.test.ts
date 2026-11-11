@@ -3,7 +3,7 @@ import {createIntakeDatabase,testPolicy} from '../v1-intake/test-utils';
 import {V1FeedStore} from './store';
 import {feedFixture} from './test-utils';
 import {authorizeModelSpending,reserveModelSpending,spendingExposure} from './model-spending';
-import {recoverProviderGeneration,recoverPendingProviderGenerations} from './provider-recovery';
+import {recoverProviderGeneration,recoverPendingProviderGenerations,runProviderAccountingRecovery} from './provider-recovery';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 const model='openai/gpt-4.1-mini',reservationId='semantic_intents:unknown-operation',generationId='gen-exact-operation';
 beforeEach(async()=>{
@@ -50,7 +50,16 @@ it('scheduled metadata recovery backoffs unavailable lookups without consuming m
  expect(fetcher).toHaveBeenCalledTimes(1);
  expect(await ctx.db.prepare("SELECT COUNT(*) n FROM v1_feed_documents WHERE kind='model_provider_recovery_attempts'").first()).toMatchObject({n:1});
  expect(await spendingExposure(ctx.db,'account',testPolicy.now())).toMatchObject({heldCostUsd:.2});
- await recoverPendingProviderGenerations(ctx.db,'fixture-key',new Date(now.getTime()+180000),async()=>Response.json({data:metadata()}));
+ const transport=vi.spyOn(globalThis,'fetch').mockImplementation(async(_url,init)=>{
+  expect(init?.method).toBe('GET');
+  return Response.json({data:metadata()});
+ });
+ try {
+  await runProviderAccountingRecovery({DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',OPENROUTER_API_KEY:'fixture-key'},new Date(now.getTime()+180000));
+  expect(transport).toHaveBeenCalledTimes(1);
+ } finally {
+  transport.mockRestore();
+ }
  expect(await spendingExposure(ctx.db,'account',testPolicy.now())).toMatchObject({heldCostUsd:0,reportedCostUsd:.014});
 });
 it('foreign or mismatched receipt identity never authorizes a provider lookup',async()=>{

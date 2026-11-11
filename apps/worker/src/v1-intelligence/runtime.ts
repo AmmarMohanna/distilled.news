@@ -3,12 +3,12 @@ import {retainBacklogReview,backlogRevisionIds} from './review-admission';
 import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
 import {prepareV2EditorialPlan} from './editorial-plan-v2';
-import {preparedV3Delivery,windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
+import {pendingWindowIntakeJobs,preparedV3Delivery,windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from '../connector-intelligence-turn';
 import {withLatency,measureLatency,countLatency} from './latency';
 import {ModelSpendingWait,modelSpendingAccount} from './model-spending';
 import {llmRoute} from './provider-routing';
-import {recoverPendingProviderGenerations} from './provider-recovery';
+import {runProviderAccountingRecovery} from './provider-recovery';
 import {prepareAdaptiveEditorialPlan} from './editorial-continuation';
 import {enqueueV1,pendingV1Jobs} from '../v1-queue-dispatch';
 import {feedExistedInWindow} from '../connector-publication-window';
@@ -18,7 +18,7 @@ import type {Env,DistilledQueueMessage} from '../types';
 import {v1SourceEnabled} from '../v1-downstream-runtime';
 import {V1IntakeStore} from '../v1-intake/store';
 import {transact} from '../v1-intake/transaction';
-import type {DownstreamJob} from '../v1-intake/types';
+import type {DownstreamJob,IntakeScope} from '../v1-intake/types';
 import {canonicalJson} from '../v1-intake/canonical';
 import {V1FeedStore,feedTransact} from './store';
 import {processEvidenceIntelligence} from './engine';
@@ -85,7 +85,7 @@ export async function processV1Reassessment(env:Env,id:string,now=new Date().toI
  // Newly acquired V3 evidence needs no semantic preprocessor. Leave previously
  // started V2 operations and rematches on their original recovery path.
  if(productV3Enabled(env)){
-  const started=await new V1FeedStore(env.DB).hasSemanticIntentForObservation(scope.scope.feedId,row.value.observationId);
+  const started=await new V1FeedStore(env.DB).hasLegacySemanticIntentForObservation(scope.scope.feedId,row.value.observationId);
   if(!started)return withFeedWriteTurn(env,scope.scope.feedId,()=>feedTransact(new V1FeedStore(env.DB),scope.scope.feedId,async tx=>{const job=await intake.read<DownstreamJob>('jobs',id);if(!job||job.feedSourceId!==row.feedSourceId)throw new HandoffError('SCOPE_DENIED');tx.completeJob(job.value);return 'DONE';}),`review:${id}`);
  }
  if(editorialContract(env.V1_PUBLICATION_VALIDATION_CONTRACT)==='EVIDENCE_GROUNDED_V2'&&await withFeedWriteTurn(env,scope.scope.feedId,()=>retainBacklogReview(new V1FeedStore(env.DB),id,now),`admission:${id}`))return 'BACKLOG_RETAINED';
@@ -166,7 +166,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
  for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
-  if((await jobsHoldingWindow(env.DB,feedId,older.window.end,{v3:older.engine==='v3',now:now()})&&!await preparedV3Delivery(env.DB,feedId,older.id,Date.parse(now())))||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
+  if((await windowHasHoldingJobs(env.DB,feedId,older.window.end,{v3:older.engine==='v3',now:now()})&&!await preparedV3Delivery(env.DB,feedId,older.id,Date.parse(now())))||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
   if(job?.state==='RUNNING'&&Date.parse(job.leaseUntil)>Date.parse(now()))return undefined;
@@ -291,23 +291,37 @@ async function maintenance(feedId:string,step:string,run:()=>Promise<void>):Prom
  * for evidence observed before the window closed (or whose observation time is unknown). Evidence that
  * arrived later belongs to a later window, so continuous arrivals cannot postpone an earlier boundary, and
  * nothing is lost: that job keeps running on the ordinary queue and its Event lands in the next window. */
-export async function jobsHoldingWindow(db:Env['DB'],feedId:string,windowEnd:string,options:import('./window-coverage').IntakeDeadlineOptions={}):Promise<number> {
- if(options.v3)return (await windowIntakeCoverage(db,feedId,windowEnd,options)).pendingJobs;
+export async function windowHasHoldingJobs(db:Env['DB'],feedId:string,windowEnd:string,options:import('./window-coverage').IntakeDeadlineOptions={}):Promise<boolean> {
+ if(options.v3)return (await pendingWindowIntakeJobs(db,feedId,windowEnd,options))>0;
  // Keep both explicit reconciliation dependencies and confirmed acquisition-budget
  // waits recoverable without holding healthy-source publication. Other live work
  // retains its existing readiness and paid-operation protections.
- const row=await db.prepare("SELECT COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0 AND NOT (json_extract(j.json,'$.state')='PENDING' AND COALESCE(json_extract(j.json,'$.failureDetail'),'')='ARTICLE_PROVIDER_RECONCILIATION_WAIT') AND NOT (json_extract(j.json,'$.kind')='ACQUIRE' AND json_extract(j.json,'$.state')='PENDING' AND COALESCE(json_extract(j.json,'$.failureCode'),'')='BUDGET_EXHAUSTED') AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))").bind(feedId,windowEnd).first<{n:number}>();
- return row?.n??0;
+ const row=await db.prepare(`SELECT 1 FROM v1_jobs j
+  JOIN v1_intake_scopes s ON s.id=j.feed_source_id
+  LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id
+  WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1
+   AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS')
+   AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING')
+   AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0
+   AND NOT (json_extract(j.json,'$.state')='PENDING' AND COALESCE(json_extract(j.json,'$.failureDetail'),'')='ARTICLE_PROVIDER_RECONCILIATION_WAIT')
+   AND NOT (json_extract(j.json,'$.kind')='ACQUIRE' AND json_extract(j.json,'$.state')='PENDING' AND COALESCE(json_extract(j.json,'$.failureCode'),'')='BUDGET_EXHAUSTED')
+   AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))
+  LIMIT 1`).bind(feedId,windowEnd).first();
+ return Boolean(row);
 }
 /** Relay uses durable pending jobs and edition/window identities on the existing queue. */
-export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<number> {
+export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{skipProviderAccountingRecovery?:boolean}={}):Promise<number> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
- if(env.OPENROUTER_API_KEY)try{await recoverPendingProviderGenerations(env.DB,env.OPENROUTER_API_KEY,now)}catch{console.warn(JSON.stringify({type:'V1_PROVIDER_ACCOUNTING_RECOVERY_FAILED',reason:'RECOVERY_MAINTENANCE_FAILED'}))}
+ if(!options.skipProviderAccountingRecovery)await runProviderAccountingRecovery(env,now);
  const sourceIds=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
+ const productOnly=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&env.PRODUCT_FEEDS_ENABLED==='true';
  const feeds=new Set<string>();let sent=0;
  for(const id of sourceIds) {
-  try {await synchronizeV1ProductSource(env.DB,id,now.toISOString())} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
-  const scope=await new V1IntakeStore(env.DB).getScope(id);if(!scope?.enabled || scope.deletedAt) continue;feeds.add(scope.feedId);
+  let scope:IntakeScope|undefined;
+  try {scope=await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
+  scope??=await new V1IntakeStore(env.DB).getScope(id);
+  if(!scope?.enabled||scope.deletedAt)continue;
+  feeds.add(scope.feedId);
   const rows=await pendingV1Jobs(env,id,'REASSESS',now);
   for(const job of rows) if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++
  }
@@ -393,38 +407,68 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    console.info(JSON.stringify({type:'BRIEFING_WINDOW_PREPARATION',feedId:id,window:preparing,candidates:prepared.candidates.length,evidenceRevisions:prepared.evidenceRevisionIds.length,preparedAt:now.toISOString()}));
   });
   if(!feedExistedInWindow(feed.createdAt,window.end)||Date.parse(feed.createdAt)>Date.parse(window.start))continue;
-  // Record the observed boundary even while intake is busy. A gap is an
-  // observation made NOW, not a fabricated historical request or quiet result.
-  await maintenance(id,'SCHEDULE_OBSERVATION',async()=>{
+  // Probe exact identities before taking any write transaction. All missing
+  // records are still checked again under the existing feed CAS.
+  const observationId=JSON.stringify([id,feed.revision,window.end]);
+  const {results:boundary}=await env.DB.prepare(`
+   SELECT kind,feed_id,json_extract(json,'$.state') AS request_state FROM v1_feed_documents WHERE kind='briefing_requests' AND id=?
+   UNION ALL SELECT kind,feed_id,NULL FROM v1_feed_documents WHERE kind='editions' AND id=?
+   UNION ALL SELECT kind,feed_id,NULL FROM v1_feed_documents WHERE kind='schedule_observations' AND id=?
+  `).bind(editionId,editionId,observationId).all<{kind:string;feed_id:string;request_state:string|null}>();
+  if(boundary.some(row=>row.feed_id!==id))throw new HandoffError('SCOPE_DENIED');
+  const savedRequest=boundary.find(row=>row.kind==='briefing_requests');
+  let pending=savedRequest?.request_state==='PENDING';
+  // Record the observed boundary even while intake is busy.
+  if(!boundary.some(row=>row.kind==='schedule_observations'))await maintenance(id,'SCHEDULE_OBSERVATION',async()=>{
    await feedTransact(store,id,async tx=>{
-   const observationId=JSON.stringify([id,feed.revision,window.end]);if(await tx.read('schedule_observations',observationId))return;
-   const prior=(await tx.list<{id:string;feedRevision:number;window:PublicationWindow;createdAt:string}>('schedule_observations')).filter(o=>o.feedRevision===feed.revision&&Date.parse(o.window.end)<Date.parse(window.end)).sort((a,b)=>b.window.end.localeCompare(a.window.end))[0];
-   const missing:PublicationWindow[]=[];let cursor=window;
-   for(let i=0;prior&&Date.parse(cursor.start)>Date.parse(prior.window.end)&&i<48;i++){
-    cursor=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,new Date(Date.parse(cursor.start))):publicationWindow(feed.briefingFrequency,new Date(Date.parse(cursor.start)));
-    if(!await tx.read('briefing_requests',await windowIdentity(id,cursor)))missing.push(cursor);
+    if(await tx.read('schedule_observations',observationId))return;
+    const prior=await env.DB.prepare(`SELECT json_extract(json,'$.window.end') AS end FROM v1_feed_documents
+     WHERE feed_id=? AND kind='schedule_observations' AND json_extract(json,'$.feedRevision')=?
+     AND julianday(json_extract(json,'$.window.end'))<julianday(?)
+     ORDER BY julianday(json_extract(json,'$.window.end')) DESC,id LIMIT 1`).bind(id,feed.revision,window.end).first<{end:string}>();
+    const priorEnd=Date.parse(prior?.end??''),expected:{id:string;window:PublicationWindow}[]=[];let cursor=window;
+    for(let i=0;Date.parse(cursor.start)>priorEnd&&i<48;i++){
+     cursor=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,new Date(Date.parse(cursor.start))):publicationWindow(feed.briefingFrequency,new Date(Date.parse(cursor.start)));
+     expected.push({id:await windowIdentity(id,cursor),window:cursor});
+    }
+    await tx.preload('briefing_requests',expected.map(entry=>entry.id));
+    const missing:PublicationWindow[]=[];
+    for(const entry of expected)if(!await tx.read('briefing_requests',entry.id))missing.push(entry.window);
+    await tx.write('schedule_observations',observationId,{id:observationId,feedId:id,feedRevision:feed.revision,window,requestId:editionId,createdAt:now.toISOString(),state:'BOUNDARY_OBSERVED',schedulePolicy:feed.briefingSchedule??{briefingFrequency:feed.briefingFrequency},missingExpectedBoundaries:missing,gapScanLimit:48,gapScanTruncated:Date.parse(cursor.start)>priorEnd});
+    if(missing.length)console.warn(JSON.stringify({type:'BRIEFING_SCHEDULE_GAP',feedId:id,observedAt:now.toISOString(),missingWindowEnds:missing.map(w=>w.end)}));
+  });
+  });
+  if(!savedRequest&&!boundary.some(row=>row.kind==='editions'))pending=await feedTransact(store,id,async tx=>{
+   const existing=await tx.read<BriefingRequest>('briefing_requests',editionId);
+   if(existing)return existing.state==='PENDING';
+   if(await tx.read('editions',editionId))return false;
+   const request:BriefingRequest={id:editionId,feedId:id,window,state:'PENDING',attempts:0,createdAt:now.toISOString(),engine:productV3Enabled(env)?'v3':'v2'};
+   await tx.write('briefing_requests',editionId,request);
+   return true;
+  });
+  if(catchup&&pending){
+   let catchupSettling=true;
+   await maintenance(id,'V3_BACKLOG_CATCHUP',async()=>{
+    const superseded=await supersedeUnstartedV3Windows(store,id,editionId,now.toISOString(),isAutomaticReportingWindow);
+    catchupSettling=superseded.length===V3_CATCHUP_LIMIT;
+    if(superseded.length)console.info(JSON.stringify({type:'V3_BACKLOG_CATCHUP',feedId:id,targetWindowId:editionId,superseded:superseded.length,policy:'v3-unstarted-backlog-v1'}));
+   });
+   if(catchupSettling)continue;
+  }
+  const current=pending?await store.read<BriefingRequest>(id,'briefing_requests',editionId):undefined;
+  if(current?.state==='PENDING'){
+   const coverage=await windowIntakeCoverage(env.DB,id,window.end,{v3:current.engine==='v3',now:now.toISOString()});
+   const coverageReason=coverage.pendingJobs?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
+   const changedReason=(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason;
+   if(canonicalJson(current.coverage)!==canonicalJson(coverage)||changedReason){
+    await feedTransact(store,id,async tx=>{
+     const request=await tx.read<BriefingRequest>('briefing_requests',editionId);
+     if(request?.state!=='PENDING')return;
+     const reason=coverageReason??(request.reason==='AWAITING_INTAKE_REASSESSMENT'?undefined:request.reason);
+     await tx.write('briefing_requests',editionId,{...request,coverage,reason});
+    });
    }
-   await tx.write('schedule_observations',observationId,{id:observationId,feedId:id,feedRevision:feed.revision,window,requestId:editionId,createdAt:now.toISOString(),state:'BOUNDARY_OBSERVED',schedulePolicy:feed.briefingSchedule??{briefingFrequency:feed.briefingFrequency},missingExpectedBoundaries:missing,gapScanLimit:48,gapScanTruncated:Boolean(prior&&Date.parse(cursor.start)>Date.parse(prior.window.end))});
-   if(missing.length)console.warn(JSON.stringify({type:'BRIEFING_SCHEDULE_GAP',feedId:id,observedAt:now.toISOString(),missingWindowEnds:missing.map(w=>w.end)}));
-  });
-  });
-  if(!await store.read(id,'editions',editionId)) await feedTransact(store,id,async tx=>{
-   if(!await tx.read('briefing_requests',editionId)) await tx.write('briefing_requests',editionId,{id:editionId,feedId:id,window,state:'PENDING',attempts:0,createdAt:now.toISOString(),engine:productV3Enabled(env)?'v3':'v2'} satisfies BriefingRequest);
-  });
-  let catchupSettling=catchup;
-  if(catchup)await maintenance(id,'V3_BACKLOG_CATCHUP',async()=>{
-   const superseded=await supersedeUnstartedV3Windows(store,id,editionId,now.toISOString(),isAutomaticReportingWindow);
-   catchupSettling=superseded.length===V3_CATCHUP_LIMIT;
-   if(superseded.length)console.info(JSON.stringify({type:'V3_BACKLOG_CATCHUP',feedId:id,targetWindowId:editionId,superseded:superseded.length,policy:'v3-unstarted-backlog-v1'}));
-  });
-  if(catchupSettling)continue;
-  // Reobserving an unchanged wait is read-only: an epoch bump every minute
-  // would fence slow reassessment/publication work for other windows too.
-  // A wait label is written once on entry and cleared once on release; unchanged observations stay read-only.
-  const current=await store.read<BriefingRequest>(id,'briefing_requests',editionId);
-  const coverage=await windowIntakeCoverage(env.DB,id,window.end,{v3:current?.engine==='v3',now:now.toISOString()}),waiting=Boolean(coverage.pendingJobs);
-  const coverageReason=waiting?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
-  if(current?.state==='PENDING'&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason))await feedTransact(store,id,async tx=>{const request=await tx.read<BriefingRequest>('briefing_requests',editionId);if(request?.state!=='PENDING')return;await tx.write('briefing_requests',editionId,{...request,coverage,...(coverageReason?{reason:coverageReason}:request.reason==='AWAITING_INTAKE_REASSESSMENT'?{reason:undefined}:{})})});
+  }
   const requests=await store.pendingBriefingRequests(id);
   for(const request of orderedPendingWindows(requests,now.toISOString()).filter(r=>isAutomaticReportingWindow(r.window))) {
    if(await editorialWindowAwaitingRecovery(env.DB,id,request.window,request.reason))continue;
@@ -433,7 +477,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date()):Promise<num
    }
 
    // Each window is held only by jobs for evidence that existed when it closed.
-   if(await jobsHoldingWindow(env.DB,id,request.window.end,{v3:request.engine==='v3',now:now.toISOString()})&&!await preparedV3Delivery(env.DB,id,request.id,now.getTime()))continue;
+   if(await windowHasHoldingJobs(env.DB,id,request.window.end,{v3:request.engine==='v3',now:now.toISOString()})&&!await preparedV3Delivery(env.DB,id,request.id,now.getTime()))continue;
    const v3=request.engine==='v3'||!request.engine&&productV3Enabled(env);
    if((v3||request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!(v3?productV3Ready(env):createStoredEvidenceModel(env))){
     if(request.reason!=='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING')await tx.write('briefing_requests',request.id,{...current,reason:'MODEL_SETUP_REQUIRED'});});

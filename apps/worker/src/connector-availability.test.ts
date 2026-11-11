@@ -39,6 +39,27 @@ it('does not describe a mixed failure count as entirely authentication failures'
  const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[{feed_source_id:'rss',state:'FAILED',failure:'AUTH_REQUIRED',count:2},{feed_source_id:'rss',state:'FAILED',failure:'POLICY_DENIED',count:3}]:[{id:'rss',title:'News',provider:'rss',kind:'rss',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){return null}})};
  expect((await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed'))[0]).toMatchObject({acquisition:{failed:5},warning:'ARTICLE_ACQUISITION_FAILED'});
 });
+it('only reads paid budget ledgers when a source has a configured paid route',async()=>{
+ const queries:string[]=[];
+ const rss={id:'rss',title:'News',provider:'rss',kind:'rss_feed',source_url:'https://example.com/feed.xml',input:null,actor_id:null};
+ const x={id:'x',title:'Account',provider:'twitterapi_io',kind:'x_profile',source_url:'https://x.com/NASA',input:JSON.stringify({username:'NASA'}),actor_id:null};
+ let sources:(typeof rss|typeof x)[]=[rss];
+ const DB={prepare:(sql:string)=>{
+  queries.push(sql);
+  return {bind(){return this},async all(){return {results:sql.includes('FROM sources')?sources:[]}},
+   async first(){return sql.includes('connector_daily_provider_budgets')?{limit_usd:1,reserved_usd:1}:null}};
+ }};
+ const env={DB,SOURCE_CONNECTORS_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_DAILY_BUDGET_USD:'1',
+  SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.01}',
+  TWITTERAPI_IO_API_KEY:'fixture-only'} as unknown as Env;
+ expect(await feedSourceAvailability(env,'feed')).toMatchObject([{state:'AVAILABLE',providers:['rss_native']}]);
+ expect(queries.filter(sql=>sql.includes('provider_budgets'))).toHaveLength(0);
+ sources=[rss,x];
+ expect(await feedSourceAvailability(env,'feed')).toMatchObject([
+  {state:'AVAILABLE',providers:['rss_native']},{state:'UNAVAILABLE',reason:'BUDGET_EXHAUSTED'}
+ ]);
+ expect(queries.filter(sql=>sql.includes('provider_budgets'))).toHaveLength(3);
+});
 it('retains the provider cause behind a retry-limit warning without exposing arbitrary errors',()=>{
  expect(collectionFailureReason({last_error:'RETRY_LIMIT:RATE_LIMIT',result:null})).toBe('RATE_LIMIT');
  expect(collectionFailureReason({last_error:'RETRY_LIMIT',result:JSON.stringify({coverage:{failureReason:'RATE_LIMIT'}})})).toBe('RATE_LIMIT');
