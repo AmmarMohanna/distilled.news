@@ -10,9 +10,21 @@ groups:
       - alert: BriefingEvaluatorUnknownCharge
         expr: distilled_eval_unresolved_calls > 0
         for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "An unresolved provider charge requires accounting review; isolated charges do not block unrelated reviews"
+      - alert: BriefingEvaluatorBlocked
+        expr: distilled_eval_spending_fenced > 0
+        for: 10m
         labels: {severity: critical}
         annotations:
-          summary: "An unknown provider outcome is fencing new evaluation calls"
+          summary: "Evaluation execution has remained fenced beyond a normal review"
+      - alert: BriefingEvaluatorProgressStalled
+        expr: (sum(distilled_eval_jobs{status=~"ready|reviewing"}) > 0) and (time() - distilled_eval_last_successful_review_timestamp_seconds > 1800)
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Discovery may be alive, but current-protocol reviews are not completing"
       - alert: BriefingEvaluatorFailedReviews
         expr: sum(distilled_eval_jobs{status=~"review_failed|interrupted_unknown|unassessable"}) > 0
         for: 10m

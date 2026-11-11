@@ -1,10 +1,11 @@
 import {collectSnapshot} from './snapshot.mjs';
 import {sendMetrics} from './otlp.mjs';
+import {collectDeploymentSnapshot} from './deployment.mjs';
 
 export async function collectAndExport(env,{now=Date.now,fetcher=fetch}={}) {
   if(env.COLLECTOR_ENABLED!=='true')return {state:'DISABLED'};
   const at=now();let snapshot;
-  try{snapshot=await collectSnapshot(env.DB,env.COLLECTOR_FEED_ID,at);}
+  try{snapshot=env.COLLECTOR_SCOPE==='deployment'?await collectDeploymentSnapshot(env.DB,at):await collectSnapshot(env.DB,env.COLLECTOR_FEED_ID,at);}
   catch{return {state:'OBSERVER_FAILED',...await sendMetrics(env,{observer_up:0,projection_timestamp_seconds:at/1000},at,fetcher)};}
   const values={...snapshot.values,collector_queries:snapshot.work.queries,collector_rows_read:snapshot.work.rowsRead};
   if(snapshot.work.sqlMs!==null)values.collector_sql_duration_ms=snapshot.work.sqlMs;

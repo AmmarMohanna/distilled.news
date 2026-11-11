@@ -4,6 +4,7 @@ import {collectSnapshot,SQL} from '../apps/agentops-collector/src/snapshot.mjs';
 import worker,{collectAndExport} from '../apps/agentops-collector/src/index.mjs';
 import {metricsPayload,sendMetrics} from '../apps/agentops-collector/src/otlp.mjs';
 import {readFileSync} from 'node:fs';
+import {collectDeploymentSnapshot} from '../apps/agentops-collector/src/deployment.mjs';
 
 const at=Date.parse('2026-10-31T10:00:00Z');
 function database(overrides={}){
@@ -75,8 +76,12 @@ test('collector has no public surface and disabled configuration performs no wor
   assert.equal(worker.fetch().status,404);let n=0;
   assert.deepEqual(await collectAndExport({COLLECTOR_ENABLED:'false'},{fetcher:()=>{n++;}}),{state:'DISABLED'});assert.equal(n,0);
   const c=JSON.parse(readFileSync('apps/agentops-collector/wrangler.staging.jsonc','utf8'));
-  assert.equal(c.workers_dev,false);assert.equal(c.observability.enabled,false);assert.equal(c.vars.COLLECTOR_ENABLED,'false');
-  assert.deepEqual(c.triggers.crons,['*/15 * * * *']);assert.deepEqual(c.routes,[]);
+  assert.equal(c.workers_dev,false);assert.equal(c.observability.enabled,false);assert.equal(c.vars.COLLECTOR_ENABLED,'true');assert.equal(c.vars.COLLECTOR_SCOPE,'deployment');
+  assert.deepEqual(c.triggers.crons,['*/5 * * * *']);assert.deepEqual(c.routes,[]);
   assert.equal(c.limits.cpu_ms,100);
   assert.equal(c.d1_databases.length,1);assert.equal(c.queues,undefined);
+});
+test('deployment scope reads aggregates across feeds and exports no private identities',async()=>{
+ const queries=[];const db={prepare(sql){assert.match(sql,/^SELECT/);queries.push(sql);return {bind(){return {all:async()=>({success:true,results:[sql.includes('v1_model_active_operations')?{active:2,expired:1}:{pending:4,oldest:120,failed:3}],meta:{rows_read:8,duration:1}})}}}}};
+ const result=await collectDeploymentSnapshot(db,at);assert.equal(queries.length,2);assert.ok(queries[0].includes('INDEXED BY v1_unresolved_publication_windows'));assert.equal(result.values.deployment_scope,1);assert.equal(result.values.deployment_pending_briefings,4);assert.equal(result.values.deployment_expired_model_leases,1);const payload=JSON.stringify(metricsPayload(result.values,at));assert.ok(!payload.includes('feed_id'));assert.ok(!payload.includes('prompt'));
 });

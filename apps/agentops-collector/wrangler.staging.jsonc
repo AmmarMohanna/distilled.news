@@ -8,11 +8,12 @@
   "limits": {"cpu_ms": 100},
   "routes": [],
   "vars": {
-    "COLLECTOR_ENABLED": "false",
+    "COLLECTOR_ENABLED": "true",
+    "COLLECTOR_SCOPE": "deployment",
     "COLLECTOR_FEED_ID": "",
     "GRAFANA_OTLP_METRICS_URL": "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics"
   },
   "d1_databases": [{"binding":"DB","database_name":"distilled-news-staging","database_id":"ab259bfe-6029-4e20-8cb6-eea6b7a67459"}],
-  "triggers": {"crons": ["*/15 * * * *"]},
+  "triggers": {"crons": ["*/5 * * * *"]},
   "observability": {"enabled":false,"logs":{"enabled":false,"invocation_logs":false},"traces":{"enabled":false}}
 }

@@ -1,4 +1,5 @@
 import {type Request,check,hash} from './protocol';
+import {activeFence,captureGeneration} from './recovery';
 export interface Budget {dailyMicro:number;maxCalls:number;maxBytes:number;maxTokens:number;inputPrice:number;outputPrice:number;model:string}
 export function money(value:number){check(Number.isFinite(value)&&value>=0,'INVALID_MONEY');const result=Math.ceil(value*1e6);check(Number.isSafeInteger(result),'MONEY_OVERFLOW');return result}
 function positive(value:string,integer=false){const n=Number(value);check(Number.isFinite(n)&&n>0&&(!integer||Number.isSafeInteger(n)),'INVALID_BUDGET_CONFIG');return n}
@@ -10,13 +11,15 @@ export function usage(raw:unknown):ProviderResponse {check(raw&&typeof raw==='ob
 export async function reserve(db:D1Database,id:string,jobId:string,stage:string,request:Request,b:Budget,now:string){
  const held=admission(request,b),requestHash=await hash(request),day=now.slice(0,10);
  // One SQLite statement makes concurrent consumers share the exact same cap.
- // Unknown/reserved outcomes across ANY day fence all new sends until reconciled.
+ // Active calls remain exclusive. Explicitly isolated UNKNOWN charges remain
+ // held against the existing budget, rather than blocking unrelated work forever.
  const result=await db.prepare(`INSERT OR IGNORE INTO eval_calls(id,job_id,stage,day_utc,state,reservation_micro,request_hash,created_at)
  SELECT ?,?,?,?,'RESERVED',?,?,? WHERE
- NOT EXISTS(SELECT 1 FROM eval_calls WHERE state IN ('RESERVED','UNKNOWN','OVERAGE'))
- AND (SELECT COALESCE(SUM(COALESCE(cost_micro,reservation_micro)),0) FROM eval_calls WHERE day_utc=?) + ? <= ?
- AND (SELECT COUNT(*) FROM eval_calls WHERE day_utc=?) < ?`).bind(id,jobId,stage,day,held,requestHash,now,day,held,b.dailyMicro,day,b.maxCalls).run();
- if(!result.meta.changes){const fence=await db.prepare("SELECT id FROM eval_calls WHERE state IN ('RESERVED','UNKNOWN','OVERAGE') LIMIT 1").first();check(!fence,'UNKNOWN_PROVIDER_OUTCOME_FENCE');const duplicate=await db.prepare('SELECT id FROM eval_calls WHERE id=?').bind(id).first();check(!duplicate,'CALL_ALREADY_STARTED');throw Error('DAILY_BUDGET_EXHAUSTED')}
+ NOT EXISTS(${activeFence})
+ AND NOT EXISTS(SELECT 1 FROM eval_calls WHERE job_id=? AND stage=? AND (state IN ('RESERVED','UNKNOWN','OVERAGE') OR (state='SETTLED' AND response_key IS NULL)))
+ AND (SELECT COALESCE(SUM(COALESCE(cost_micro,reservation_micro)),0) FROM eval_calls WHERE day_utc=? OR state IN ('RESERVED','UNKNOWN')) + ? <= ?
+ AND (SELECT COUNT(*) FROM eval_calls WHERE day_utc=?) < ?`).bind(id,jobId,stage,day,held,requestHash,now,jobId,stage,day,held,b.dailyMicro,day,b.maxCalls).run();
+ if(!result.meta.changes){const fence=await db.prepare(activeFence).first();check(!fence,'UNKNOWN_PROVIDER_OUTCOME_FENCE');const duplicate=await db.prepare("SELECT id FROM eval_calls WHERE id=? OR (job_id=? AND stage=? AND (state IN ('RESERVED','UNKNOWN','OVERAGE') OR (state='SETTLED' AND response_key IS NULL))) LIMIT 1").bind(id,jobId,stage).first();check(!duplicate,'CALL_ALREADY_STARTED_OR_UNKNOWN');throw Error('DAILY_BUDGET_EXHAUSTED')}
  return held;
 }
 export async function judge(env:Env,jobId:string,stage:string,request:Request,fetcher:typeof fetch=fetch):Promise<unknown>{
@@ -27,9 +30,10 @@ export async function judge(env:Env,jobId:string,stage:string,request:Request,fe
  const held=await reserve(env.EVAL_DB,id,jobId,stage,request,b,new Date().toISOString());
  try {
   // Explicit model + provider price ceilings, no client transport retries or web tools.
-  const response=await fetcher('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{authorization:`Bearer ${env.EVALUATION_OPENROUTER_KEY}`,'content-type':'application/json'},body:JSON.stringify({model:b.model,messages:[{role:'system',content:request.system},{role:'user',content:request.user}],max_tokens:b.maxTokens,response_format:{type:'json_object'},provider:{allow_fallbacks:false,require_parameters:true,max_price:{prompt:b.inputPrice,completion:b.outputPrice}}}),signal:AbortSignal.timeout(90000)});
+  const response=await fetcher('https://openrouter.ai/api/v1/chat/completions',{method:'POST',headers:{authorization:`Bearer ${env.EVALUATION_OPENROUTER_KEY}`,'content-type':'application/json'},body:JSON.stringify({model:b.model,messages:[{role:'system',content:request.system},{role:'user',content:request.user}],max_tokens:b.maxTokens,response_format:{type:'json_object'},provider:{allow_fallbacks:false,require_parameters:true,max_price:{prompt:b.inputPrice,completion:b.outputPrice}}}),signal:AbortSignal.timeout(180000)});
   // Non-2xx bodies may be ambiguous/billed. Preserve the hold; never retry blindly.
-  check(response.ok,'PROVIDER_HTTP_FAILURE');const value=usage(await boundedJson(response,2_000_000)),cost=money(value.usage.cost);
+  await captureGeneration(env,id,response.headers.get('x-generation-id'));
+  check(response.ok,'PROVIDER_HTTP_FAILURE');const raw=await boundedJson(response,2_000_000);await captureGeneration(env,id,(raw as {id?:unknown})?.id);const value=usage(raw),cost=money(value.usage.cost);
   const key=`calls/${id}.json`;await env.EVIDENCE.put(key,JSON.stringify(value));
   const state=cost>held?'OVERAGE':'SETTLED';
   await env.EVAL_DB.prepare('UPDATE eval_calls SET state=?,cost_micro=?,response_key=?,provider_id=?,input_tokens=?,output_tokens=? WHERE id=? AND state=\'RESERVED\'').bind(state,cost,key,value.id,value.usage.prompt_tokens,value.usage.completion_tokens,id).run();

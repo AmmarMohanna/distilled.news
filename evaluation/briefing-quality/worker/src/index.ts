@@ -1,10 +1,11 @@
-import {PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,review,reviewRequest,timestamp} from './protocol';
+import {PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,review,reviewRequest,timestamp} from './protocol';
+import {activeFence,recoverReviews} from './recovery';
 import {boundedJson,budget,judge} from './budget';
-import {discover,isPublished,snapshot,type Published} from './source';
+import {discover,isEvaluable,snapshot,type Published} from './source';
 import {dashboardPage} from './page';
 import {exportGrafana} from './grafana';
 
-interface Job {id:string;edition_id:string|null;feed_id:string;language:string;window_end:string;published_at:string;status:string;snapshot_key:string|null;snapshot_hash:string|null;report_key:string|null;error:string|null;attempt_id:string|null}
+interface Job {id:string;edition_id:string|null;feed_id:string;language:string;window_end:string;published_at:string;status:string;snapshot_key:string|null;snapshot_hash:string|null;report_key:string|null;error:string|null;attempt_id:string|null;outcome:string;review_version:string}
 interface MessageBody {jobId:string}
 const time=()=>new Date().toISOString();
 const errorCode=(e:unknown)=> e instanceof Error&&/^[A-Z][A-Z0-9_]*$/.test(e.message)?e.message:'EVALUATION_FAILURE';
@@ -15,15 +16,16 @@ async function job(env:Env,id:string){return env.EVAL_DB.prepare('SELECT * FROM 
 
 export async function tick(env:Env){
  budget(env);timestamp(env.ENROLL_FROM);check(env.SOURCE_LABEL!=='unconfigured','SOURCE_NOT_CONFIGURED');
+ await recoverReviews(env);
  try{
   // Sweep immutable edition IDs repeatedly. Restarting a completed sweep catches
   // new publications whose stable IDs sort before the previous cursor.
   const after=await meta<string>(env,'discovery_cursor')??'';
   const rows=await discover(env.SOURCE_DB,env.ENROLL_FROM,after);
   for(const row of rows){
-   const id=await hash({source:env.SOURCE_LABEL,edition:row.id,feed:row.feed_id,protocol:PROTOCOL,judge:env.JUDGE_MODEL});
-   await env.EVAL_DB.prepare(`INSERT INTO eval_jobs(id,feed_id,language,window_end,published_at,status,updated_at,edition_id)
-    VALUES(?,?,?,?,?,'pending_snapshot',?,?) ON CONFLICT(id) DO UPDATE SET edition_id=excluded.edition_id`).bind(id,row.feed_id,row.language??'unknown',row.window_end??row.published_at,row.published_at,time(),row.id).run();
+   const id=await hash({source:env.SOURCE_LABEL,edition:row.id,feed:row.feed_id,protocol:JOB_IDENTITY_PROTOCOL,judge:env.JUDGE_MODEL});
+   await env.EVAL_DB.prepare(`INSERT INTO eval_jobs(id,feed_id,language,window_end,published_at,status,updated_at,edition_id,outcome,review_version)
+    VALUES(?,?,?,?,?,'pending_snapshot',?,?,?,?) ON CONFLICT(id) DO UPDATE SET edition_id=excluded.edition_id`).bind(id,row.feed_id,row.language??'unknown',row.window_end??row.published_at,row.published_at,time(),row.id,row.outcome??'published',PROTOCOL).run();
   }
   await setMeta(env,'discovery_cursor',rows.length===50?rows.at(-1)!.id:'');
   await setMeta(env,'discovery',{at:time(),status:'ok',pageSize:rows.length,sweepComplete:rows.length<50,enrollFrom:env.ENROLL_FROM,source:env.SOURCE_LABEL});
@@ -34,13 +36,13 @@ export async function tick(env:Env){
  await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='pending_snapshot',attempt_id=NULL WHERE status='collecting' AND updated_at<?").bind(cutoff).run();
  await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='interrupted_unknown',error='REVIEW_INTERRUPTED' WHERE status='reviewing' AND updated_at<?").bind(cutoff).run();
  const day=time().slice(0,10),b=budget(env);
- const totals=await env.EVAL_DB.prepare('SELECT COALESCE(SUM(COALESCE(cost_micro,reservation_micro)),0) spent,COUNT(*) calls FROM eval_calls WHERE day_utc=?').bind(day).first<{spent:number;calls:number}>();
- const blocked=await env.EVAL_DB.prepare("SELECT id FROM eval_calls WHERE state IN ('RESERVED','UNKNOWN','OVERAGE') LIMIT 1").first();
+ const totals=await env.EVAL_DB.prepare("SELECT COALESCE(SUM(CASE WHEN day_utc=? OR state IN ('RESERVED','UNKNOWN') THEN COALESCE(cost_micro,reservation_micro) ELSE 0 END),0) spent,SUM(CASE WHEN day_utc=? THEN 1 ELSE 0 END) calls FROM eval_calls").bind(day,day).first<{spent:number;calls:number}>();
+ const blocked=await env.EVAL_DB.prepare(activeFence).first();
  const canReview=env.EVALUATION_ENABLED==='true'&&!blocked&&(totals?.spent??0)<b.dailyMicro&&(totals?.calls??0)<b.maxCalls;
  // Fairness: balance completed work across language/feed groups before taking
  // the oldest pending briefing. No feed IDs enter public/Grafana metric labels.
  const pending=(await env.EVAL_DB.prepare(`SELECT j.id FROM eval_jobs j WHERE j.status='pending_snapshot' OR (?=1 AND j.status IN ('ready','budget_deferred'))
- ORDER BY (SELECT COUNT(*) FROM eval_jobs done WHERE done.language=j.language AND done.feed_id=j.feed_id AND done.status IN ('flagged','reviewed_no_findings')),j.window_end,j.id LIMIT 30`).bind(canReview?1:0).all<{id:string}>()).results;
+ ORDER BY (SELECT COUNT(*) FROM eval_jobs done WHERE done.language=j.language AND done.feed_id=j.feed_id AND done.status IN ('flagged','reviewed_no_findings')),j.window_end DESC,j.id LIMIT 30`).bind(canReview?1:0).all<{id:string}>()).results;
  for(const row of pending)await env.REVIEWS.send({jobId:row.id});
  await retain(env);
  await setMeta(env,'last_tick',{at:time(),status:'ok',enabled:env.EVALUATION_ENABLED==='true',queued:pending.length,spendingFenced:!!blocked});
@@ -56,22 +58,22 @@ export async function processJob(env:Env,id:string){
   try{
    // Compatibility with queue jobs created immediately before migration 0002.
    const editionId=value.edition_id??(value.error?.startsWith('{')?(JSON.parse(value.error) as {editionId?:string}).editionId:undefined);check(editionId,'EDITION_ID_MISSING');
-   const row:Published={id:editionId,feed_id:value.feed_id,published_at:value.published_at,language:value.language,window_end:value.window_end};
+   const row:Published={id:editionId,feed_id:value.feed_id,published_at:value.published_at,language:value.language,window_end:value.window_end,outcome:value.outcome==='quiet'?'quiet':'published'};
    const c=await snapshot(env.SOURCE_DB,row,env.SOURCE_LABEL,time()),bytes=JSON.stringify(c);
    check(new TextEncoder().encode(bytes).length<=2_000_000,'SNAPSHOT_SIZE_LIMIT');
    const key=`snapshots/${id}.json`,snapshotHash=await hash(c);await env.EVIDENCE.put(key,bytes);
    const expires=new Date(Date.now()+Number(env.RETENTION_DAYS)*86400000).toISOString();
-   await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',snapshot_key=?,snapshot_hash=?,error=NULL,expires_at=?,updated_at=?,operational_json=? WHERE id=? AND attempt_id=?").bind(key,snapshotHash,expires,time(),JSON.stringify(operational(c)),id,attempt).run();
+   await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',snapshot_key=?,snapshot_hash=?,error=NULL,expires_at=?,updated_at=?,operational_json=?,language=? WHERE id=? AND attempt_id=?").bind(key,snapshotHash,expires,time(),JSON.stringify(operational(c)),c.language,id,attempt).run();
   }catch(error){await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='unassessable',error=?,updated_at=? WHERE id=? AND attempt_id=?").bind(errorCode(error),time(),id,attempt).run();return}
   value=await job(env,id);if(!value)return;
  }
  if(env.EVALUATION_ENABLED!=='true'||!['ready','budget_deferred'].includes(value.status))return;
  const attempt=crypto.randomUUID();
- const claim=await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='reviewing',attempt_id=?,updated_at=? WHERE id=? AND status IN ('ready','budget_deferred')").bind(attempt,time(),id).run();
+ const claim=await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='reviewing',attempt_id=?,updated_at=?,review_version=? WHERE id=? AND status IN ('ready','budget_deferred')").bind(attempt,time(),PROTOCOL,id).run();
  if(!claim.meta.changes)return;
  try{
   check(value.snapshot_key,'SNAPSHOT_MISSING');const object=await env.EVIDENCE.get(value.snapshot_key);check(object&&object.size<=2_000_000,'SNAPSHOT_MISSING');
-  const c=await object.json<Case>();check(await hash(c)===value.snapshot_hash&&c.feedId===value.feed_id&&c.sourceLabel===env.SOURCE_LABEL,'SNAPSHOT_INTEGRITY_MISMATCH');check(await isPublished(env.SOURCE_DB,c.feedId,c.id),'PUBLICATION_NO_LONGER_VISIBLE');
+  const c=await object.json<Case>();check(await hash(c)===value.snapshot_hash&&c.feedId===value.feed_id&&c.sourceLabel===env.SOURCE_LABEL,'SNAPSHOT_INTEGRITY_MISMATCH');check(await isEvaluable(env.SOURCE_DB,c.feedId,c.id,c.pipelineStatus),'PUBLICATION_NO_LONGER_VISIBLE');
   const deterministic=operational(c);
   const d=inventory(await judge(env,id,'independent_developments',inventoryRequest(c)),c);
   const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol:PROTOCOL,inventoryHash,inventory:d}));
@@ -104,11 +106,13 @@ export async function authorized(request:Request,secret:string){
 }
 async function summary(env:Env){
  const groups=(await env.EVAL_DB.prepare('SELECT language,status,COUNT(*) count FROM eval_jobs GROUP BY language,status').all<{language:string;status:string;count:number}>()).results;
- const total=groups.reduce((n,r)=>n+r.count,0),reviewed=groups.filter(r=>['flagged','reviewed_no_findings'].includes(r.status)).reduce((n,r)=>n+r.count,0);
+ const total=groups.reduce((n,r)=>n+r.count,0),allReviewed=groups.filter(r=>['flagged','reviewed_no_findings'].includes(r.status)).reduce((n,r)=>n+r.count,0);
+ const progress=await env.EVAL_DB.prepare("SELECT COUNT(*) reviewed,MAX(updated_at) lastSuccessfulReview FROM eval_jobs WHERE review_version=? AND status IN ('flagged','reviewed_no_findings')").bind(PROTOCOL).first<{reviewed:number;lastSuccessfulReview:string|null}>();
+ const reviewed=progress?.reviewed??0,spendingFenced=!!await env.EVAL_DB.prepare(activeFence).first();
  const costs=(await env.EVAL_DB.prepare('SELECT day_utc,state,COUNT(*) calls,SUM(COALESCE(cost_micro,reservation_micro))/1000000.0 usd FROM eval_calls GROUP BY day_utc,state ORDER BY day_utc DESC LIMIT 100').all()).results;
  const trends=(await env.EVAL_DB.prepare(`SELECT substr(published_at,1,10) day_utc,language,COUNT(*) eligible,
  SUM(CASE WHEN status IN ('flagged','reviewed_no_findings') THEN 1 ELSE 0 END) reviewed,SUM(flagged) flagged FROM eval_jobs GROUP BY 1,2 ORDER BY 1 DESC LIMIT 90`).all()).results;
- return {protocol:PROTOCOL,source:env.SOURCE_LABEL,enabled:env.EVALUATION_ENABLED==='true',dailyBudgetUsd:Number(env.DAILY_BUDGET_USD),budgetTimezone:'UTC',eligible:total,reviewed,evaluationCoverage:total?reviewed/total:null,groups,costs,trends,discovery:await meta(env,'discovery'),lastTick:await meta(env,'last_tick'),grafana:await meta(env,'grafana'),humanCalibration:'not_measured',scientificAccuracy:'not_established'};
+ return {protocol:PROTOCOL,source:env.SOURCE_LABEL,enabled:env.EVALUATION_ENABLED==='true',dailyBudgetUsd:Number(env.DAILY_BUDGET_USD),budgetTimezone:'UTC',eligible:total,reviewed,historicalReviewed:allReviewed-reviewed,lastSuccessfulReview:progress?.lastSuccessfulReview??null,spendingFenced,evaluationCoverage:total?reviewed/total:null,groups,costs,trends,discovery:await meta(env,'discovery'),lastTick:await meta(env,'last_tick'),grafana:await meta(env,'grafana'),humanCalibration:'not_measured',scientificAccuracy:'not_established'};
 }
 async function prometheus(env:Env){
  const s=await summary(env);const lines=['# HELP distilled_eval_eligible Discovered published briefings since enrollment.','# TYPE distilled_eval_eligible gauge',`distilled_eval_eligible ${s.eligible}`,'# TYPE distilled_eval_reviewed gauge',`distilled_eval_reviewed ${s.reviewed}`];
@@ -116,12 +120,14 @@ async function prometheus(env:Env){
  const calls=await env.EVAL_DB.prepare("SELECT COUNT(*) n,COALESCE(SUM(CASE WHEN state IN ('RESERVED','UNKNOWN','OVERAGE') THEN 1 ELSE 0 END),0) unresolved,COALESCE(SUM(COALESCE(cost_micro,reservation_micro)),0)/1000000.0 usd FROM eval_calls WHERE day_utc=?").bind(time().slice(0,10)).first<{n:number;unresolved:number;usd:number}>();
  lines.push(`distilled_eval_daily_cost_or_hold_usd ${calls?.usd??0}`,`distilled_eval_daily_budget_usd ${s.dailyBudgetUsd}`,`distilled_eval_enabled ${s.enabled?1:0}`);
  const unresolved=await env.EVAL_DB.prepare("SELECT COUNT(*) n FROM eval_calls WHERE state IN ('RESERVED','UNKNOWN','OVERAGE')").first<{n:number}>();lines.push(`distilled_eval_unresolved_calls ${unresolved?.n??0}`);
+ const isolated=await env.EVAL_DB.prepare("SELECT COUNT(*) n FROM eval_call_isolations i JOIN eval_calls c ON c.id=i.call_id WHERE c.state IN ('UNKNOWN','RESERVED')").first<{n:number}>();
+ lines.push(`distilled_eval_isolated_calls ${isolated?.n??0}`,`distilled_eval_spending_fenced ${s.spendingFenced?1:0}`,`distilled_eval_historical_reviewed ${s.historicalReviewed}`,`distilled_eval_last_successful_review_timestamp_seconds ${s.lastSuccessfulReview?Math.floor(Date.parse(s.lastSuccessfulReview)/1000):0}`);
  const last=await meta<{at:string}>(env,'last_tick');lines.push(`distilled_eval_last_tick_timestamp_seconds ${last?Math.floor(Date.parse(last.at)/1000):0}`);
  const discovery=await meta<{status:string}>(env,'discovery');lines.push(`distilled_eval_discovery_success ${discovery?.status==='ok'?1:0}`);
  const partial=await env.EVAL_DB.prepare("SELECT COUNT(*) n FROM eval_jobs WHERE metrics_json IS NOT NULL AND json_extract(metrics_json,'$.importantDevelopmentRecallScope')<>'complete_retained_input'").first<{n:number}>();lines.push(`distilled_eval_partial_evidence_reviews ${partial?.n??0}`);
  for(const metric of ['claimSupport','citationCorrectness','importantDevelopmentRecall','repetition','relevance','temporalCorrectness','languageCorrectness']){
   // Report numerator AND denominator, never an undefined ratio as 100%.
-  const rows=(await env.EVAL_DB.prepare(`SELECT language,SUM(json_extract(metrics_json,'$.${metric}.numerator')) n,SUM(json_extract(metrics_json,'$.${metric}.denominator')) d FROM eval_jobs WHERE metrics_json IS NOT NULL ${metric==='importantDevelopmentRecall'?"AND json_extract(metrics_json,'$.importantDevelopmentRecallScope')='complete_retained_input'":''} GROUP BY language`).all<{language:string;n:number;d:number}>()).results;
+  const rows=(await env.EVAL_DB.prepare(`SELECT language,SUM(json_extract(metrics_json,'$.${metric}.numerator')) n,SUM(json_extract(metrics_json,'$.${metric}.denominator')) d FROM eval_jobs WHERE metrics_json IS NOT NULL AND review_version=? ${metric==='importantDevelopmentRecall'?"AND json_extract(metrics_json,'$.importantDevelopmentRecallScope')='complete_retained_input'":''} GROUP BY language`).bind(PROTOCOL).all<{language:string;n:number;d:number}>()).results;
   const name=metric.replace(/[A-Z]/g,c=>'_'+c.toLowerCase());for(const r of rows){const language=['en','ar','fr'].includes(r.language)?r.language:'other';lines.push(`distilled_eval_${name}_numerator{language="${language}"} ${r.n??0}`,`distilled_eval_${name}_denominator{language="${language}"} ${r.d??0}`)}
  }
  return new Response(lines.join('\n')+'\n',{headers:{'content-type':'text/plain; version=0.0.4','cache-control':'no-store'}});
@@ -151,7 +157,7 @@ export default {
      await env.EVAL_DB.prepare('INSERT INTO eval_annotations VALUES(?,?,?,?,?) ON CONFLICT(job_id) DO UPDATE SET disposition=excluded.disposition,note=excluded.note,reviewer=excluded.reviewer,updated_at=excluded.updated_at').bind(id,v.disposition,v.note,v.reviewer,time()).run();return json({saved:true,labelOrigin:'operator_triage_not_independent_human_gold'});
     }
     if(request.method==='POST'&&match[2]==='resume'){
-     check(!await env.EVAL_DB.prepare("SELECT id FROM eval_calls WHERE state IN ('RESERVED','UNKNOWN','OVERAGE') LIMIT 1").first(),'UNKNOWN_PROVIDER_OUTCOME_FENCE');
+     check(!await env.EVAL_DB.prepare(activeFence).first(),'UNKNOWN_PROVIDER_OUTCOME_FENCE');
      if(value.status==='unassessable'&&value.edition_id){await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='pending_snapshot',error=NULL,updated_at=? WHERE id=? AND status='unassessable'").bind(time(),id).run();await env.REVIEWS.send({jobId:id});return json({queued:true,scope:'read_only_evidence_collection'})}
      check(value.snapshot_key&&['interrupted_unknown','budget_deferred'].includes(value.status),'JOB_NOT_SAFELY_RESUMABLE');await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',error=NULL,updated_at=? WHERE id=? AND status IN ('interrupted_unknown','budget_deferred')").bind(time(),id).run();await env.REVIEWS.send({jobId:id});return json({queued:true});
     }

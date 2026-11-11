@@ -1,4 +1,4 @@
-import {check} from './protocol';
+import {check,PROTOCOL} from './protocol';
 
 /** Only fixed aggregate series cross the Grafana boundary. Never evidence,
  * feed/user IDs, URLs, prompts, findings, or arbitrary attributes. */
@@ -8,7 +8,7 @@ export function metricsPayload(exposition:string,at:number){
   if(!line||line.startsWith('#'))continue;
   const match=line.match(/^(distilled_eval_[a-z_]+)(?:\{language="(en|ar|fr|other)"(?:,status="([a-z_]+)")?\})? ([\d.e+-]+)$/);
   check(match,'METRIC_NOT_ADMITTED');const value=Number(match[4]);check(Number.isFinite(value)&&value>=0,'INVALID_METRIC_VALUE');
-  const attributes=[{key:'environment',value:{stringValue:'staging'}}];if(match[2])attributes.push({key:'language',value:{stringValue:match[2]}});if(match[3])attributes.push({key:'status',value:{stringValue:match[3]}});
+  const attributes=[{key:'environment',value:{stringValue:'staging'}},{key:'review_protocol',value:{stringValue:PROTOCOL}}];if(match[2])attributes.push({key:'language',value:{stringValue:match[2]}});if(match[3])attributes.push({key:'status',value:{stringValue:match[3]}});
   points.push({name:match[1],gauge:{dataPoints:[{timeUnixNano:String(BigInt(at)*1000000n),asDouble:value,attributes}]}});
  }
  check(points.length>0&&points.length<=200,'METRIC_LIMIT');
