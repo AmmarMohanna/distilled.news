@@ -1,5 +1,18 @@
 import {describe,it,expect} from 'vitest';
 import {discoverWebsiteArticles,isWebsiteListingUrl} from '../src/source-runtime/website-discovery';
+
+it('discovers the Al Modon politics section even when its page metadata says article',()=>{
+ const section='https://www.almodon.com/politics';
+ const first=new URL('/politics/2026/11/11/تقرير-سياسي',section).href;
+ const second=new URL('/politics/2026/11/11/خبر-محلي',section).href;
+ const html=`<meta property="og:type" content="article"><main><h1>سياسة</h1>
+  <article><h2><a href="${first}">تقرير سياسي</a></h2></article>
+  <article><h2><a href="${second}">خبر محلي</a></h2></article></main>`;
+ expect(discoverWebsiteArticles(html,section)?.articles).toEqual([
+  {url:first,title:'تقرير سياسي'},{url:second,title:'خبر محلي'},
+ ]);
+ expect(isWebsiteListingUrl(first)).toBe(false);
+});
 const url='https://publisher.example/news';
 describe('source-scoped article discovery',()=>{
  it('filters observed publisher section links while retaining their article children',()=>{
