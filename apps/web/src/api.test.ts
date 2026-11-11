@@ -26,7 +26,7 @@ it('delivers verified suggestions before a slower check finishes and handles spl
 });
 it('does not treat an interrupted recommendation stream as a complete result',async()=>{
  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({type:'progress',sources:['rss: https://fast.example/feed']})+'\n',{headers:{'content-type':'application/x-ndjson'}})));
- const progress=vi.fn();await expect(recommendSourceCandidates('Tech','AI news',progress)).rejects.toThrow('interrupted');expect(progress).toHaveBeenCalledTimes(1);
+ const progress=vi.fn();await expect(recommendSourceCandidates('Tech','AI news',progress)).rejects.toMatchObject({id:'SOURCE_RECOMMENDATIONS_INTERRUPTED'});expect(progress).toHaveBeenCalledTimes(1);
 });
 
 it('sends only the product request including selected Daily time and inferred timezone',async()=>{
@@ -41,6 +41,17 @@ it('sends only the product request including selected Daily time and inferred ti
 
 it('shows a real recommendation error without adding a source',async()=>{
  const fetcher=vi.fn(async()=>Response.json({error:'Source recommendations are not enabled on this deployment.'},{status:503}));vi.stubGlobal('fetch',fetcher);
- await expect(recommendSources('News','World')).rejects.toThrow('not enabled');
+ await expect(recommendSources('News','World')).rejects.toMatchObject({id:'SOURCE_RECOMMENDATIONS_DISABLED'});
  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it.each(['{"type":"error","error":"Private upstream trace"}\n','Private malformed upstream trace\n'])('does not expose remote recommendation-stream details',async body=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(body,{headers:{'content-type':'application/x-ndjson'}})));
+ try{await recommendSourceCandidates('News','World',vi.fn());throw new Error('Expected failure');}
+ catch(e){expect(e).toMatchObject({id:'REQUEST_FAILED'});expect(JSON.stringify(e)).not.toContain('Private');expect((e as Error).cause).toBeUndefined();}
+});
+it.each([null,[],42,'upstream error'])('handles non-object JSON error payload %j safely in both request paths',async payload=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json(payload,{status:502})));
+ await expect(recommendSources('News','World')).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{id:'REQUEST_FAILED',details:{status:502}}});
+ await expect(recommendSourceCandidates('News','World',vi.fn())).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{id:'REQUEST_FAILED',details:{status:502}}});
 });

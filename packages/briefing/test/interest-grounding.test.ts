@@ -42,7 +42,7 @@ it('replays paid verdicts and minimal repairs through the existing pipeline with
   const repaired=JSON.parse(result('targeted-repair').response.text) as {items:Array<{body:string}>};
   // Only short source refs change mechanically when replaying a subset. No model is called.
   const mock=scripted({
-    edit:[{items:cases.map(c=>({...c,sources:c.sources.map(localRef),importance:1}))}],
+    edit:[{items:cases.map(c=>({...c,relation:'new',updates:null,sources:c.sources.map(localRef),importance:1}))}],
     verify:[JSON.parse(result('verify-candidate-bad-en').response.text),JSON.parse(result('targeted-recheck').response.text)],
     repair:[JSON.parse(result('targeted-repair').response.text)]
   });

@@ -1,0 +1,73 @@
+{
+  "branch": "integration/v4-finalized",
+  "reviewedBase": "59e0158b",
+  "issues": [
+    "P1 malformed selected V4 body",
+    "P2 actionable auth error mapping",
+    "P2 render-time error localization"
+  ],
+  "newPaidInference": 0,
+  "deployment": false,
+  "campaignComparisonRowsUnchanged": 1239,
+  "fullQuarantineDocumentsUnchanged": 5,
+  "actualCampaignUsd": 4.472889622,
+  "heldCampaignUsd": 0.188534125,
+  "preservedBufferUsd": 1.25,
+  "unchangedRuntimePaths": [
+    "packages/briefing/src/model.ts",
+    "packages/briefing/src/prompts.ts",
+    "packages/briefing/src/prepare.ts",
+    "apps/worker/src/v1-intelligence/v3-window.ts",
+    "apps/worker/src/v1-intelligence/runtime.ts"
+  ],
+  "checks": {
+    "briefing": {
+      "passed": 311,
+      "files": 51
+    },
+    "web": {
+      "passed": 145,
+      "files": 25
+    },
+    "worker": {
+      "passed": 97,
+      "files": 4
+    },
+    "workerBlockerSpecific": {
+      "passed": 3
+    },
+    "exactReplayCases": 18,
+    "exactHistoricalCalls": 38,
+    "typechecks": [
+      "briefing",
+      "web",
+      "worker"
+    ],
+    "build": "PASS",
+    "browser": {
+      "loginRequests": 1,
+      "languageViewportStates": 10,
+      "locales": [
+        "en",
+        "ar",
+        "fr"
+      ],
+      "externalRequestsBlocked": true
+    }
+  },
+  "p1Outcome": {
+    "validEmptySelection": "DONE/QUIET",
+    "unrecoverableMalformedSelectedDraft": "PENDING/PUBLICATION_FAILED with typed TEMPORARY_UNAVAILABLE; no result/edition/delivery",
+    "settledCallsResentOnRetry": 0
+  },
+  "knownLimitations": [
+    "Existing semantic retention/factual/Arabic-quality limitations are unchanged.",
+    "Unknown API errors intentionally use a safe generic message; future auth contract messages require explicit mappings."
+  ],
+  "fixCommits": [
+    "7dc730ca",
+    "37511808"
+  ],
+  "engineSha256": "5db354ef8e46a56450b478d83879cfc9ca85451a59b52d27907141a5f32a1d5d",
+  "authErrorModuleSha256": "5614c45f8dd30e51f06838c6fa7e894f288bf06217f1f13ebacf12942f1354a6"
+}

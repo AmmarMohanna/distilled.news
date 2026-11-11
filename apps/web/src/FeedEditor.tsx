@@ -1,3 +1,4 @@
+import {toUiError, type UiMessage} from './api-errors';
 const rhythmLabels = { 30: "Every 30 min", 60: "Every hour", 120: "Every 2 hours", 360: "Every 6 hours", 720: "Every 12 hours", 1440: "Daily" } as const;
 import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, Clock, Copy, Globe, Pause, Play, Plus, Search, Settings, SquarePlus, Trash2, Users, X } from "lucide-react";
@@ -22,7 +23,7 @@ export function FeedEditor(props: {
   useEffect(() => {
     if (!props.feed) return;
     let active = true;
-    getSources(props.feed.id).then(items => { if (active) { setSources(items.filter(s=>s.enabled).map(s=>s.input || s.sourceUrl || s.url || s.title)); setSourcesReady(true); } }).catch(cause => { if (active) setMessage(String(cause)); });
+    getSources(props.feed.id).then(items => { if (active) { setSources(items.filter(s=>s.enabled).map(s=>s.input || s.sourceUrl || s.url || s.title)); setSourcesReady(true); } }).catch(cause => { if (active) setMessage(toUiError(cause)); });
     return () => { active = false; };
   }, [props.feed?.id]);
   const [title, setTitle] = useState(props.feed?.title ?? "");
@@ -47,7 +48,7 @@ export function FeedEditor(props: {
   const [advanced, setAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<UiMessage>("");
   const { t } = useLanguage();
   const { confirm, confirmation } = useConfirmation();
   async function findSources() {
@@ -62,13 +63,13 @@ export function FeedEditor(props: {
       const result=await recommendSourceCandidates(title.trim(), [prompt.trim(), sourceQuery.trim()].filter(Boolean).join("\n"),showRecommendations);
       if(sourceContext.current!==context)return;
       showRecommendations(result);
-      if(!result.sources.length)setMessage(t("No matching sources found. Try a broader topic or add a source link."));
+      if(!result.sources.length)setMessage("No matching sources found. Try a broader topic or add a source link.");
     }
-    catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); }
+    catch (cause) { setMessage(toUiError(cause)); }
     finally { setRecommending(false); }
   }
   async function addSource(source: string): Promise<boolean> {
-    if(checkingSource||!title.trim()||!prompt.trim()) { setMessage(t("Enter a feed name and interests before checking a source.")); return false; }
+    if(checkingSource||!title.trim()||!prompt.trim()) { setMessage("Enter a feed name and interests before checking a source."); return false; }
     if(sources.includes(source))return true;
     const context=sourceContext.current;
     const checked=sourceChecks.find(check=>check.input===source&&check.status==='accepted');
@@ -83,20 +84,20 @@ export function FeedEditor(props: {
       setSourceChecks(current=>[...current.filter(item=>item.input!==source),check]);
       if(check.status!=='accepted') { setMessage(check.reason); return false; }
       setSources(current=>current.includes(source)?current:[...current,source]); return true;
-    } catch(cause) { setMessage(cause instanceof Error?cause.message:String(cause)); return false; }
+    } catch(cause) { setMessage(toUiError(cause)); return false; }
     finally { setCheckingSource(false); }
   }
   const matchingSources = recommendations.filter(source => !sources.includes(source) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
-  async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(false); } }
+  async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(toUiError(cause)); } finally { setBusy(false); } }
   return <Dialog className="feed-editor" label={t(editing ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
 
     <form className="dialog-inner" onSubmit={event => {
       event.preventDefault();
-      if (title.trim().length > FEED_TITLE_MAX_LENGTH) { setMessage(t("Use {max} characters or fewer for the feed name.", {max: FEED_TITLE_MAX_LENGTH})); return; }
+      if (title.trim().length > FEED_TITLE_MAX_LENGTH) { setMessage({id:'FEED_NAME_TOO_LONG',details:{max:FEED_TITLE_MAX_LENGTH}}); return; }
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
-      catch { setMessage(t("Enter a valid time zone, such as Asia/Beirut or UTC.")); return; }
+      catch { setMessage("Enter a valid time zone, such as Asia/Beirut or UTC."); return; }
       if (checkingSource) return;
-      if (!sourcesReady || sources.length === 0) { setMessage(t("Add at least one source.")); return; }
+      if (!sourcesReady || sources.length === 0) { setMessage("Add at least one source."); return; }
       void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
       <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={props.onClose}><X size={20}/></button>
@@ -127,7 +128,7 @@ export function FeedEditor(props: {
       <div className="feed-preference-row"><span className="feed-preference-label" id="feed-language-label"><Globe aria-hidden="true"/>{t("Briefing language")}</span><FeedLanguageSelect value={feedLanguage} onChange={setFeedLanguage} labelId="feed-language-label"/></div>
       </div>
       </section>
-      {message && <p className="error" role="alert">{message}</p>}
+      {message && <p className="error" role="alert">{t(message)}</p>}
       {editing && props.feed && <section className="feed-actions-panel" aria-labelledby="feed-actions-title">
         <h3 id="feed-actions-title">{t("Feed actions")}</h3>
         <p>{t("Manage this feed or copy its link.")}</p>

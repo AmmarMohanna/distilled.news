@@ -36,6 +36,43 @@ describe('retained factual-failure regressions (offline plumbing, not model qual
     expect(mock.calls).toHaveLength(2);
   });
 
+  it('makes an older source-relative “today” repairable even when the verifier falsely approves it',async()=>{
+    const unsafe=item('anthropic-retained-today');
+    const corrected=item('anthropic-anchored');
+    const mock=scripted({
+      edit:[{items:[unsafe]}],
+      // This deliberately reproduces the failure mode: a normal verifier says ok.
+      verify:[{results:[{i:0,verdict:'ok',issues:[]}]},{results:[{i:0,verdict:'ok',issues:[]}]}],
+      repair:[(request:ModelRequest)=>{
+        expect(request.user).toContain('reader-facing relative date is unsupported');
+        return {items:[{i:0,...corrected,drop:false}]};
+      }]
+    });
+    const result=await generateBriefing(input,mock.port,MODELS,{safetyGuard:'relative-date-v1'});
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].body).toContain('on October 18');
+    expect(result.items[0].body).not.toMatch(/\btoday\b/i);
+    expect(mock.calls.map(c=>c.stage)).toEqual(['edit','verify','repair','verify']);
+  });
+
+  it('leaves the selected V4 route untouched until a guarded candidate qualifies',async()=>{
+    const unsafe=item('anthropic-retained-today');
+    const mock=scripted({edit:[{items:[unsafe]}],verify:[{results:[{i:0,verdict:'ok',issues:[]}]}]});
+    const result=await generateBriefing(input,mock.port,MODELS);
+    expect(result.items[0].body).toContain('announced today');
+    expect(mock.calls.map(c=>c.stage)).toEqual(['edit','verify']);
+  });
+
+  it('does not treat a same-cutoff-day source as an older-source temporal contradiction',async()=>{
+    const sameDayArticles=articles.map(article=>article.id===fixture.sources.find(s=>s.ref==='S2')!.id?{...article,publishedAt:fixture.windowEnd}:article);
+    const sameDayInput={...input,articles:sameDayArticles};
+    const unsafe=item('anthropic-retained-today');
+    const mock=scripted({edit:[{items:[unsafe]}],verify:[{results:[{i:0,verdict:'ok',issues:[]}]}]});
+    const result=await generateBriefing(sameDayInput,mock.port,MODELS,{safetyGuard:'relative-date-v1'});
+    expect(result.items).toHaveLength(1);
+    expect(mock.calls.map(c=>c.stage)).toEqual(['edit','verify']);
+  });
+
   it('repairs a sparse subset with unchanged source owners, cutoff context and no new pipeline stage',async()=>{
     const mock=scripted({
       edit:[{items:[item('replit-concise-paraphrase'),item('anthropic-retained-today'),item('security-retained-scope')]}],

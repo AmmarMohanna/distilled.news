@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "status": "AWAITING_EXPLICIT_NEW_APPROVAL_NO_PAID_REQUESTS",
+  "corpusSha256": "e12c91d69c7bc9696379c7c5580107e35a3bf349c4347e9219cbbb3baf681e63",
+  "baselineSha256": "ad48e5b7a3245ab62477e8d227ec3c9ad73ee71db492b6532fef1b972e577312",
+  "priceSnapshotSha256": "14238b699db6d2a3fec28761e02edfc6a6ba21075b89d3b4eca0997f12e1211a",
+  "stage": "development-editor-comparison",
+  "editorCalls": 12,
+  "evaluatorCalls": 4,
+  "totalCalls": 16,
+  "editorMaximumUsd": 0.8724359999999999,
+  "evaluatorMaximumUsd": 1.68,
+  "conservativeExposureUsd": 2.5524359999999997,
+  "proposedAuthorizationUsd": 3,
+  "proposedDurationHours": 2,
+  "editorModel": "openai/gpt-4.1",
+  "evaluatorModel": "anthropic/claude-sonnet-4.5",
+  "evaluatorInputCap": 120000,
+  "evaluatorOutputCap": 4000,
+  "automaticRetries": 0,
+  "repairsThisStage": 0,
+  "publication": false,
+  "deployment": false,
+  "notifications": false,
+  "guards": [
+    "Explicit approval must bind this corpus, prompts, models, ceiling and fresh expiry.",
+    "Every editor and evaluator call must pass existing authoritative native accounting admission. No tracking-only or direct unreserved calls.",
+    "Stop on unknown provider outcome, unsettled charge, exhausted budget or insufficient account/provider capacity; preserve all historical holds.",
+    "Full evidence and all three blinded drafts must fit the capped evaluator input; otherwise stop without truncating and revise the plan.",
+    "Do not rerun settled generations or silently retry malformed responses.",
+    "No finalist, transfer or repair calls are included in this approval."
+  ],
+  "nextStage": "If promising, prepare bounded reserved-transfer and paired full-V3 baseline/finalist runs with unchanged verifier/repair; seek applicable approval before paid execution.",
+  "acceptance": {
+    "materialFactualRegressions": 0,
+    "materialGroupingRegressions": 0,
+    "materialImportantRecallRegressions": 0,
+    "maximumMeasuredCostRatio": 1.1,
+    "maximumMeasuredLatencyRatio": 1.1,
+    "semanticDecision": "Meaningful supported understanding improvement with source-specific explanations; ambiguous outcomes remain unresolved, never auto-pass.",
+    "efficiencyMeasurement": "Per-case and aggregate actual end-to-end model cost and generation duration, including verification and every repair. Evaluator cost separately reported as evaluation overhead. Tiny samples do not establish p95 or statistical superiority."
+  }
+}

@@ -1,0 +1,539 @@
+{
+  "status": "INCOMPLETE_PILOT_NOT_QUALIFIED",
+  "planHash": "81f10f6e130db6daf36654a198e537c067afb5d0a77625973be6124b01e4f63d",
+  "approval": {
+    "approvedBy": "user",
+    "planHash": "81f10f6e130db6daf36654a198e537c067afb5d0a77625973be6124b01e4f63d",
+    "requestScope": "fixed-initial-and-frozen-output-dependent-builders-v1",
+    "maxExposureUsd": 1.68,
+    "questionCall": "call_2a9ddcedc6c44384a33958a4b4a0966f",
+    "answer": "Approve this bounded pilot and derived requests"
+  },
+  "all1204EarlierFinancialRowsUnchanged": true,
+  "newReservations": 5,
+  "newSettledCalls": 4,
+  "newReportedCostUsd": 0.026318000000000005,
+  "newHeldUsd": 0.010516,
+  "metrics": [
+    {
+      "arm": "v4",
+      "settledCalls": 2,
+      "reportedCostUsd": 0.011648400000000001,
+      "inputTokens": 4933,
+      "outputTokens": 633,
+      "reasoningTokens": 0,
+      "settledProviderMs": 7932,
+      "replayWallMs": 10398,
+      "heldUsd": 0,
+      "receiptMissingClientWaitMs": 0
+    },
+    {
+      "arm": "efficient",
+      "settledCalls": 2,
+      "reportedCostUsd": 0.0146696,
+      "inputTokens": 4710,
+      "outputTokens": 1573,
+      "reasoningTokens": 0,
+      "settledProviderMs": 10055,
+      "replayWallMs": 35180,
+      "heldUsd": 0.010516,
+      "receiptMissingClientWaitMs": 16352
+    }
+  ],
+  "baselineItems": [
+    {
+      "headline": "مصادر الداخلية: ثلاث عمليات سلب فقط سُجّلت في 5 تشرين الثاني",
+      "body": "أفادت مصادر وزارة الداخلية أن عدد عمليات السلب التي وقعت في 5 تشرين الثاني بلغ ثلاثًا فقط، في روضة الشهيدين عند الساعة ٨ صباحًا، وفي طريق الجديدة عند الساعة ١٢ ظهرًا، وفي خلدة عند الساعة ١٠ ليلًا، وليس ست عمليات كما نُشر سابقًا.",
+      "relation": "correction",
+      "importance": 1,
+      "sourceIds": [
+        "MTVLebanoNews/91191"
+      ],
+      "updatesId": "constructed-reader-six"
+    },
+    {
+      "headline": "تقدم آليات إسرائيلية من الخيام باتجاه نبع إبل السقي",
+      "body": "",
+      "relation": "new",
+      "importance": 2,
+      "sourceIds": [
+        "lebanonnews2/108142"
+      ]
+    },
+    {
+      "headline": "القوة الإسرائيلية التي تقدمت من كفركلا تمركزت عند أطراف دير ميماس ومنعت الدخول والخروج",
+      "body": "أفادت تقارير أن القوة الإسرائيلية التي تقدمت من كفركلا باتجاه أطراف بلدة دير ميماس تمركزت عند أطراف البلدة، ومنعت حركة الدخول والخروج، وأوقفت أحد أبناء البلدة واقتادته إلى جهة مجهولة.",
+      "relation": "update",
+      "importance": 2,
+      "sourceIds": [
+        "lebanonnews2/108143"
+      ],
+      "updatesId": "replay:baseline:lebanon-20261106-11-ar:0"
+    }
+  ],
+  "candidateEditorDraft": [
+    {
+      "id": "D1",
+      "relation": "new",
+      "prior": null,
+      "importance": 1,
+      "headline": "النائب علي عمار يطالب بتحرك رسمي ضد بيان السفارات الخمس ويدين التدخل في الشؤون اللبنانية",
+      "bodyFacts": [],
+      "facts": [
+        [
+          "F1",
+          "S1",
+          "النائب علي عمار عن بيان السفارات الخمس: قمة الإسفاف والوقاحة وتجرؤ سافر على التدخل في أدق تفاصيل الشؤون الداخلية اللبنانية... والمسؤولية الوطنية والدستورية تفرض على السلطة اللبنانية التحرك الجاد ووضع حدّ لهذه الانتهاكات التي تمس سيادة لبنان ومؤسساته",
+          "النائب علي عمار يصف بيان السفارات الخمس بأنه تدخل سافر في الشؤون اللبنانية ويدعو السلطات لتحرك رسمي لوقف هذه الانتهاكات"
+        ]
+      ]
+    },
+    {
+      "id": "D2",
+      "relation": "new",
+      "prior": null,
+      "importance": 1,
+      "headline": "مصادر الداخلية: تصحيح عدد عمليات السلب في لبنان إلى ثلاث فقط في 5 تشرين الثاني",
+      "bodyFacts": [],
+      "facts": [
+        [
+          "F2",
+          "S9",
+          "مصادر الداخلية: حصلت 3 عمليات سلب بالأمس وليس 6 كما نشر وذلك في روضة الشهيدين عند الساعة ٨ صباحاً وفي طريق الجديدة عند الساعة ١٢ ظهراً وفي خلدة في تمام الساعة 10 ليلاً",
+          "مصادر الداخلية تؤكد وقوع ثلاث عمليات سلب فقط في 5 تشرين الثاني وتحدد أماكنها وأوقاتها"
+        ]
+      ]
+    },
+    {
+      "id": "D3",
+      "relation": "new",
+      "prior": null,
+      "importance": 2,
+      "headline": "تحركات مشبوهة لعناصر سورية أو عسكرية في مخيمات شمال لبنان",
+      "bodyFacts": [],
+      "facts": [
+        [
+          "F3",
+          "S2",
+          "في تحركات بمخيمات بالشمال اللبناني بين عكار وطرابلس لسوريين أو لعسكريين سوريين ربما يحضّرون لشيء ما",
+          "رندلى جبور تشير إلى تحركات لعناصر سورية أو عسكرية في مخيمات بين عكار وطرابلس مع احتمال التحضير لحدث ما"
+        ]
+      ]
+    },
+    {
+      "id": "D4",
+      "relation": "new",
+      "prior": null,
+      "importance": 2,
+      "headline": "حادث سير في المديرج باتجاه البقاع يتسبب بإصابتين وازدحام مروري",
+      "bodyFacts": [],
+      "facts": [
+        [
+          "F4",
+          "S5",
+          "‏\"التحكّم المروريّ\": جريحان إثر حادث سير بين سيّارتين في المديرج باتّجاه البقاع سبب بازدحام مروري في المحلة",
+          "حادث سير بين سيارتين في المديرج باتجاه البقاع أدى إلى إصابتين وازدحام مروري"
+        ]
+      ]
+    },
+    {
+      "id": "D5",
+      "relation": "new",
+      "prior": null,
+      "importance": 1,
+      "headline": "تقدم آليات للجيش الإسرائيلي من الخيام باتجاه نبع إبل السقي",
+      "bodyFacts": [],
+      "facts": [
+        [
+          "F5",
+          "S8",
+          "تقدم آليات لجيش العدو من مدينة الخيام باتجاه نبع إبل السقي",
+          "تقدم آليات للجيش الإسرائيلي من الخيام باتجاه نبع إبل السقي"
+        ]
+      ]
+    },
+    {
+      "id": "D6",
+      "relation": "update",
+      "prior": "P6",
+      "importance": 1,
+      "headline": "القوة الإسرائيلية المتمركزة عند أطراف دير ميماس تمنع الدخول والخروج وتوقف أحد أبناء البلدة",
+      "bodyFacts": [],
+      "facts": [
+        [
+          "F6",
+          "S11",
+          "القوة المعادية التي تحركت من كفركلا باتجاه أطراف بلدة دير ميماس، تمركزت عند أطراف البلدة، ومنعت حركة الدخول إليها والخروج منها، فيما أوقفت أحد أبناءها واقتادته إلى جهة مجهولة",
+          "القوة الإسرائيلية تمنع الدخول والخروج من أطراف دير ميماس بعد تمركزها وتوقف أحد أبناء البلدة وتقتاده إلى جهة مجهولة"
+        ]
+      ]
+    }
+  ],
+  "originalVerifierResponse": {
+    "reviews": [
+      {
+        "developmentId": "D1",
+        "relationshipSupported": true,
+        "remainingTextSupported": true,
+        "facts": [
+          [
+            "F1",
+            true,
+            true,
+            true,
+            true,
+            [
+              "headline",
+              "S1"
+            ],
+            "النائب علي عمار يصف بيان السفارات الخمس بأنه تدخل سافر في الشؤون اللبنانية ويدعو السلطات لتحرك رسمي لوقف هذه الانتهاكات"
+          ]
+        ],
+        "removals": [],
+        "styleIssues": []
+      },
+      {
+        "developmentId": "D2",
+        "relationshipSupported": true,
+        "remainingTextSupported": true,
+        "facts": [
+          [
+            "F2",
+            true,
+            true,
+            true,
+            true,
+            [
+              "headline",
+              "S9"
+            ],
+            "مصادر الداخلية تؤكد وقوع ثلاث عمليات سلب فقط في 5 تشرين الثاني وتحدد أماكنها وأوقاتها"
+          ]
+        ],
+        "removals": [],
+        "styleIssues": []
+      },
+      {
+        "developmentId": "D3",
+        "relationshipSupported": true,
+        "remainingTextSupported": true,
+        "facts": [
+          [
+            "F3",
+            true,
+            true,
+            true,
+            true,
+            [
+              "headline",
+              "S2"
+            ],
+            "رندلى جبور تشير إلى تحركات لعناصر سورية أو عسكرية في مخيمات بين عكار وطرابلس مع احتمال التحضير لحدث ما"
+          ]
+        ],
+        "removals": [],
+        "styleIssues": []
+      },
+      {
+        "developmentId": "D4",
+        "relationshipSupported": true,
+        "remainingTextSupported": true,
+        "facts": [
+          [
+            "F4",
+            true,
+            true,
+            true,
+            true,
+            [
+              "headline",
+              "S5"
+            ],
+            "حادث سير بين سيارتين في المديرج باتجاه البقاع أدى إلى إصابتين وازدحام مروري"
+          ]
+        ],
+        "removals": [],
+        "styleIssues": []
+      },
+      {
+        "developmentId": "D5",
+        "relationshipSupported": true,
+        "remainingTextSupported": true,
+        "facts": [
+          [
+            "F5",
+            true,
+            true,
+            true,
+            true,
+            [
+              "headline",
+              "S8"
+            ],
+            "تقدم آليات للجيش الإسرائيلي من الخيام باتجاه نبع إبل السقي"
+          ]
+        ],
+        "removals": [],
+        "styleIssues": []
+      },
+      {
+        "developmentId": "D6",
+        "relationshipSupported": true,
+        "remainingTextSupported": true,
+        "facts": [
+          [
+            "F6",
+            true,
+            false,
+            true,
+            true,
+            [
+              "headline",
+              "S11"
+            ],
+            "القوة الإسرائيلية تمنع الدخول والخروج من أطراف دير ميماس بعد تمركزها وتوقف أحد أبناء البلدة وتقتاده إلى جهة مجهولة؛ هذا يطابق تقرير سابق لكنه يضيف تفاصيل التمركز والمنع"
+          ]
+        ],
+        "removals": [],
+        "styleIssues": []
+      }
+    ],
+    "missing": []
+  },
+  "protocolFailure": "INVALID_FACT_COVERAGE: every fact used a source ref S# alongside headline in coverage",
+  "diagnosticOnly": {
+    "status": "COUNTERFACTUAL_SCHEMA_NORMALIZATION_NOT_AN_ACCEPTED_OR_PUBLISHED_RESULT",
+    "removedSourceRefs": [
+      {
+        "developmentId": "D1",
+        "factId": "F1",
+        "sourceRef": "S1"
+      },
+      {
+        "developmentId": "D2",
+        "factId": "F2",
+        "sourceRef": "S9"
+      },
+      {
+        "developmentId": "D3",
+        "factId": "F3",
+        "sourceRef": "S2"
+      },
+      {
+        "developmentId": "D4",
+        "factId": "F4",
+        "sourceRef": "S5"
+      },
+      {
+        "developmentId": "D5",
+        "factId": "F5",
+        "sourceRef": "S8"
+      },
+      {
+        "developmentId": "D6",
+        "factId": "F6",
+        "sourceRef": "S11"
+      }
+    ],
+    "remainingFactStates": [
+      {
+        "factId": "F1",
+        "developmentId": "D1",
+        "state": "covered_new"
+      },
+      {
+        "factId": "F2",
+        "developmentId": "D2",
+        "state": "covered_new"
+      },
+      {
+        "factId": "F3",
+        "developmentId": "D3",
+        "state": "covered_new"
+      },
+      {
+        "factId": "F4",
+        "developmentId": "D4",
+        "state": "covered_new"
+      },
+      {
+        "factId": "F5",
+        "developmentId": "D5",
+        "state": "covered_new"
+      },
+      {
+        "factId": "F6",
+        "developmentId": "D6",
+        "state": "already_communicated"
+      }
+    ],
+    "wouldOmitRestriction": true
+  },
+  "offlineCoverageClarification": {
+    "status": "OFFLINE_UNTESTED_PROMPT_CLARIFICATION_NOT_WIRED_INTO_FROZEN_PILOT",
+    "originalRequestHash": "76f0cfdfee43981548127ce080f3a6b610d227763e96f305f8aafb95c5a26479",
+    "newRequestHash": "c27709951af43a97fb9ad91a13dc61cdc383ec26516bff404e5f53e62de9967c",
+    "requestByteIncrease": 423,
+    "vocabulary": {
+      "allItems": [
+        "headline"
+      ]
+    },
+    "newPaidCalls": 0,
+    "semanticFailuresUnchanged": true
+  },
+  "sourceAudit": {
+    "authority": "agent manual inspection of frozen sources, actual prose, supplied reader history and raw verdicts; independent human review pending",
+    "audits": [
+      {
+        "id": "novelty",
+        "severity": "material_omission",
+        "sourceUrls": [
+          "https://t.me/lebanonnews2/108143"
+        ],
+        "finding": "Candidate editor bundles new access restriction with old detention in one fact. Verifier marks the whole fact old while its reason acknowledges new positioning/access details. Protocol normalization alone would still discard the restriction. V4 retained it in this fresh run."
+      },
+      {
+        "id": "correction",
+        "severity": "relationship_error_in_unverified_draft",
+        "sourceUrls": [
+          "https://t.me/MTVLebanoNews/91191"
+        ],
+        "finding": "The explicitly supplied constructed-reader-six antecedent is present as P5. Candidate writes correction language but emits relation:new/prior:null; verifier incorrectly approves the relationship. V4 uses correction and the correct reader antecedent."
+      },
+      {
+        "id": "attribution",
+        "severity": "critical_source_fidelity_risk_in_unverified_draft",
+        "sourceUrls": [
+          "https://t.me/lebanonnews2/108139"
+        ],
+        "finding": "Candidate camp headline drops Randala Jabbour attribution and conjectural context, and adds suspicious. The source attributes a claim to Jabbour and says perhaps preparing something. Verifier incorrectly approves the stronger headline. V4 omits this weak claim. No candidate item was published."
+      },
+      {
+        "id": "traffic",
+        "severity": "draft_retention_gain_with_incomplete_scope",
+        "sourceUrls": [
+          "https://t.me/MTVLebanoNews/91188"
+        ],
+        "finding": "Candidate draft retains two injuries, location/direction and congestion that V4 omits. It omits the two-car detail while its broader fact scope/verdict claims coverage. This is an unverified draft gain, not a completed candidate success."
+      },
+      {
+        "id": "selection",
+        "severity": "editorial_density",
+        "sourceUrls": [
+          "https://t.me/lebanonnews2/108138"
+        ],
+        "finding": "Candidate leads with an attributed political condemnation/demand, adding a long quote/scope ledger. It is source-grounded commentary, not a demonstrated policy/action development. V4 omits it."
+      }
+    ]
+  },
+  "interruptedOperation": {
+    "reservationId": "editorialgain-20261105-efficient-paired-pilot-81f10f6e130d:5",
+    "bodyHash": "252e8598a8e8446dbbbe4a9cb2d7aa035873bea51ca39e755ea4ab5c8a02cca1",
+    "requestHash": "05d47f49785a40bfc7bfc9d62d78725e4b935d7f38b6a3c21a420928bb8bb1e9",
+    "caseId": "paired-deir-mimas-correction",
+    "arm": "efficient",
+    "role": "verifier",
+    "heldUsd": 0.010516,
+    "providerOutcome": {
+      "providerError": "provider unreachable: TypeError: fetch failed",
+      "rawResponseRetained": false,
+      "wallMs": 16352
+    },
+    "remoteExecutionState": "TERMINATION_UNPROVEN",
+    "nativeQuarantined": false,
+    "neverResend": true,
+    "scopeRetired": true
+  },
+  "campaign": {
+    "reservations": 1209,
+    "settled": 1204,
+    "actualUsd": 4.356616022,
+    "heldUsd": 0.188534125,
+    "unknown": 5,
+    "nativeApprovedQuarantines": 4,
+    "extraHeadroomUsd": 1,
+    "originalAuthorizationUsd": 8,
+    "internalCeilingUsd": 7.5,
+    "remainingInternalUsd": 1.9548498530000002
+  },
+  "calls": [
+    {
+      "id": "editorialgain-20261105-efficient-paired-pilot-81f10f6e130d:1",
+      "caseId": "paired-deir-mimas-correction",
+      "arm": "v4",
+      "role": "editor",
+      "requestHash": "04c4a23b99a89e718ffa52953d539c0e389bf7864f1c2f79e30873c676ef03f0",
+      "bodyHash": "51d8fdbd0aed44c59beae4a65919a32e7166b3482e2197211999a99541d88720",
+      "reservedUsd": 0.061384,
+      "costUsd": 0.010828,
+      "generationId": "gen-1794066737-jTEMKIzwEWXmbIUgHcbY",
+      "servedModel": "openai/gpt-4.1",
+      "providerMs": 6579,
+      "portWallMs": 6788,
+      "paceMs": 0,
+      "inputTokens": 3014,
+      "outputTokens": 600,
+      "reasoningTokens": 0,
+      "responseHash": "0c88514c58ea49c9759345d4d4fda6c07ca28d232f16cd0ed38c58a3eaa227b4"
+    },
+    {
+      "id": "editorialgain-20261105-efficient-paired-pilot-81f10f6e130d:2",
+      "caseId": "paired-deir-mimas-correction",
+      "arm": "v4",
+      "role": "verifier",
+      "requestHash": "ee52f9a72ec18d711f8e738eadbd2b42e8dd56f9e87c65fbaccfc6a0106a745b",
+      "bodyHash": "12542598d601a878b3e6066292250129271091dc07645b158f311a30f12071b1",
+      "reservedUsd": 0.0087324,
+      "costUsd": 0.0008204,
+      "generationId": "gen-1794066745-lcGcMFeg3vECvRS5HAzU",
+      "servedModel": "openai/gpt-4.1-mini",
+      "providerMs": 1353,
+      "portWallMs": 1482,
+      "paceMs": 0,
+      "inputTokens": 1919,
+      "outputTokens": 33,
+      "reasoningTokens": 0,
+      "responseHash": "2ce21fa16efacbd4251ce4772a9ef6351cffe02cb889a2604c800f1cea893555"
+    },
+    {
+      "id": "editorialgain-20261105-efficient-paired-pilot-81f10f6e130d:3",
+      "caseId": "paired-deir-mimas-correction",
+      "arm": "efficient",
+      "role": "editor",
+      "requestHash": "2e04cd9eec1ea3a5368b6adbda6839772d53b3044181dd904258e032e8664751",
+      "bodyHash": "b8c8908a7b456a3f183f53723c1e6c9166f06ff055decadf2569a23ed494c3d0",
+      "reservedUsd": 0.052096,
+      "costUsd": 0.012836,
+      "generationId": "gen-1794066749-o4V7um66I6XpiuADN4NP",
+      "servedModel": "openai/gpt-4.1",
+      "providerMs": 5600,
+      "portWallMs": 5747,
+      "paceMs": 909,
+      "inputTokens": 2002,
+      "outputTokens": 1104,
+      "reasoningTokens": 0,
+      "responseHash": "8a1d28af0d2dbdfef500f1bde78ab729dd14f9f5ab00db67d4c7b7a437690cee"
+    },
+    {
+      "id": "editorialgain-20261105-efficient-paired-pilot-81f10f6e130d:4",
+      "caseId": "paired-deir-mimas-correction",
+      "arm": "efficient",
+      "role": "verifier",
+      "requestHash": "76f0cfdfee43981548127ce080f3a6b610d227763e96f305f8aafb95c5a26479",
+      "bodyHash": "1a6b286b42307287d56647122d88e3c5fb5cbacb8c95e35d9257a217cad3ba96",
+      "reservedUsd": 0.0104692,
+      "costUsd": 0.0018336,
+      "generationId": "gen-1794066755-q2N2aUS7X14TndgYI8eN",
+      "servedModel": "openai/gpt-4.1-mini",
+      "providerMs": 4455,
+      "portWallMs": 5436,
+      "paceMs": 0,
+      "inputTokens": 2708,
+      "outputTokens": 469,
+      "reasoningTokens": 0,
+      "responseHash": "785b647bdc17ad3e55476ac7c636ebd034dfad3660d139a89919934fac58d56a"
+    }
+  ],
+  "decision": "Do not resume this populated scope or spend further on this candidate version. The network failure leaves one fully held unknown; independent editorial failures also require offline work. No complete paired cost/latency or quality acceptance claim."
+}

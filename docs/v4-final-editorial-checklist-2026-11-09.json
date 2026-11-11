@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "releaseBranch": "integration/v4-finalized",
+  "base": "cc450d21",
+  "researchReference": "02de7798",
+  "sourcePackSha256": "748d7aa62914db5ab74d213ab99bcbc965d01dc9c494ac70a217acfa247eb3a5",
+  "cases": [
+    {
+      "caseId": "lebanon-20261106-07-ar",
+      "sequence": "lebanon-sequence",
+      "sourcePosts": 13,
+      "controlTags": [
+        "meaningful-update",
+        "ambiguous-source",
+        "multiple-sources"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Fuel source duplicates grade labels. Preserve clear movements if selected; V4 historically loses the item. No automatic quality fix claimed."
+    },
+    {
+      "caseId": "lebanon-20261106-08-ar",
+      "sequence": "lebanon-sequence",
+      "sourcePosts": 2,
+      "controlTags": [
+        "genuine-development"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261106-09-ar",
+      "sequence": "lebanon-sequence",
+      "sourcePosts": 5,
+      "controlTags": [
+        "low-value-commentary",
+        "nonempty-quiet-selection"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Nonempty quiet-selection case, not independently adjudicated absence of relevant news."
+    },
+    {
+      "caseId": "lebanon-20261106-10-ar",
+      "sequence": "lebanon-sequence",
+      "sourcePosts": 12,
+      "controlTags": [
+        "distinct-similar-events",
+        "genuine-development"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Fatal motorcycle accident remains an observed selection omission; military locations and detention developments must stay distinct."
+    },
+    {
+      "caseId": "lebanon-20261106-11-ar",
+      "sequence": "lebanon-sequence",
+      "sourcePosts": 8,
+      "controlTags": [
+        "meaningful-update",
+        "distinct-similar-events"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261106-12-ar",
+      "sequence": "lebanon-sequence",
+      "sourcePosts": 11,
+      "controlTags": [
+        "partial-repetition",
+        "correction",
+        "attribution-modality",
+        "low-value-commentary"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Partly repeated detention post contains a new access restriction. Preserve camp attribution/modality/geography if selected. Restriction/traffic recall remains semantically unqualified."
+    },
+    {
+      "caseId": "lebanon-20261106-13-ar",
+      "sequence": "lebanon-sequence",
+      "sourcePosts": 9,
+      "controlTags": [
+        "meaningful-update",
+        "distinct-similar-events"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261028-0-ar",
+      "sequence": "lebanon-repeat-sequence",
+      "sourcePosts": 4,
+      "controlTags": [
+        "genuine-development",
+        "ambiguous-source",
+        "low-value-commentary"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261028-1-ar",
+      "sequence": "lebanon-repeat-sequence",
+      "sourcePosts": 3,
+      "controlTags": [
+        "repeated-report",
+        "genuine-development"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261028-2-ar",
+      "sequence": "lebanon-repeat-sequence",
+      "sourcePosts": 0,
+      "controlTags": [
+        "empty-text-window"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261028-3-ar",
+      "sequence": "lebanon-repeat-sequence",
+      "sourcePosts": 3,
+      "controlTags": [
+        "genuine-development",
+        "ambiguous-source"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261028-4-ar",
+      "sequence": "lebanon-repeat-sequence",
+      "sourcePosts": 4,
+      "controlTags": [
+        "within-window-duplicate",
+        "conditional-allegation"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261028-5-ar",
+      "sequence": "lebanon-repeat-sequence",
+      "sourcePosts": 2,
+      "controlTags": [
+        "genuine-development"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261028-6-ar",
+      "sequence": "lebanon-repeat-sequence",
+      "sourcePosts": 0,
+      "controlTags": [
+        "empty-text-window"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "lebanon-20261028-7-ar",
+      "sequence": "lebanon-repeat-sequence",
+      "sourcePosts": 1,
+      "controlTags": [
+        "partial-repetition",
+        "meaningful-update"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "robbery-control-unseen-corrective-report",
+      "sequence": "lebanon-relation-controls",
+      "sourcePosts": 1,
+      "controlTags": [
+        "correction",
+        "first-reader-exposure"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Review supported developments, prior-reader novelty, redundancy, attribution/conditions/dates, informative headlines, complementary bodies and natural Arabic against the unchanged source-linked pack."
+    },
+    {
+      "caseId": "robbery-control-reader-told-six",
+      "sequence": "lebanon-relation-controls",
+      "sourcePosts": 1,
+      "controlTags": [
+        "correction",
+        "controlled-reader-error"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Constructed six-count prior: a correct correction must point to constructed-reader-six. Parser validates references, not truth of relationship."
+    },
+    {
+      "caseId": "robbery-control-reader-already-told-three",
+      "sequence": "lebanon-relation-controls",
+      "sourcePosts": 1,
+      "controlTags": [
+        "repeated-report",
+        "already-communicated"
+      ],
+      "offlineFunctionalCheck": "PASS: exact retained request hashes and output; source/history identity preserved",
+      "humanReview": "PENDING_NOT_INVENTED",
+      "editorialAcceptance": "UNPROVEN_SEMANTIC_QUALITY",
+      "reviewNote": "Already communicated count/locations should remain quiet; no independent human gold."
+    }
+  ],
+  "functionalInvariants": [
+    "18 cases and 38 exact historical model requests replayed without a provider",
+    "V4 prompts, models, preparation and Worker window code unchanged",
+    "Malformed relations/verdicts/repairs use the existing bounded format correction then fail safely",
+    "Only complete exact duplicated body text is removed after verification"
+  ],
+  "semanticLimits": [
+    "No automatic guarantee of Deir Mimas/fuel/accident retention",
+    "Verifier can still approve semantically wrong relationship or attribution",
+    "Full-history antecedent absent from selected memory can still cause a wrong structurally-valid new decision",
+    "No new model outputs or independent human Arabic scores"
+  ],
+  "newInferenceCalls": 0
+}

@@ -1,4 +1,6 @@
 export interface Article {
+  /** Optional upstream revision metadata; timestamps are not inferred event times. */
+  revision?: {evidenceId:string;version:number;acceptedAt:string;observedAt?:string;contentHash?:string;sourceObservationId?:string;acquiredContentId?:string};
   /** Stable id from the caller; used for citations and idempotent bookkeeping. */
   id: string;
   source: string;
@@ -73,7 +75,16 @@ export interface OmittedStory {
   sourceIds: string[];
 }
 
+/** A prepared source absent from both editor items and explicit exclusions.
+ * This says nothing about importance, relevance, truth or whether it should be published. */
+export interface UnaccountedSource {
+  ref: string;
+  sourceIds: string[];
+}
+
 export interface BriefingResult {
+  /** Experimental audit, not an independent semantic-truth certificate. */
+  evidenceAgent?: {architecture:'evidence-first-v1'|'evidence-first-v2';recordFailures?:Array<{developmentId:string|null;reason:string;sourceIds:string[]}>;priorAliases?:Array<{ref:string;canonicalId:string}>;semanticTruthEstablished:false;developments:unknown[];proofs:unknown[];reviews:unknown[];diagnostics:string[];toolUsage:{reads:number;returnedChars:number};acceptedDevelopmentIds:string[]};
   /**
    * published: at least one verified item.
    * empty: the editor judged nothing worth the reader's time (a valid outcome).
@@ -86,6 +97,8 @@ export interface BriefingResult {
   dropped: DroppedItem[];
   /** Stories left out by editorial choice (not by failed verification). */
   omitted: OmittedStory[];
+  /** Absent on historical results. Legacy diagnostic only; the candidate carries unaccounted evidence without forcing inclusion or blocking unrelated verified items. */
+  unaccounted?: UnaccountedSource[];
   usage: Usage;
   timings: { totalMs: number; stages: Record<string, number> };
 }

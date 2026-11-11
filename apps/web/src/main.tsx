@@ -1,3 +1,4 @@
+import {toUiError, type UiMessage} from './api-errors';
 import {SourceHealth} from './SourceHealth';
 import { useFeedViewer } from './useFeedViewer';
 import { sourceEvidenceLabels } from "./source-evidence-labels";
@@ -190,7 +191,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const [sourceStatus, setSourceStatus] = useState("");
   const [sourceToggleBusyId, setSourceToggleBusyId] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [feedSettingsOpen, setFeedSettingsOpen] = useState(false);
@@ -236,7 +237,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
           if (nextSession.account?.role === "admin") setAccounts(await listAccounts());
         }
       })
-      .catch((cause) => setError(String(cause)));
+      .catch((cause) => setError(toUiError(cause)));
   }, []);
 
   useEffect(() => {
@@ -274,7 +275,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     if (!selectedBriefingId || !session?.authenticated) return;
     setScopedDataReady(false);
     loadScopedData(selectedBriefingId).catch((cause) =>
-      setError(cause instanceof Error ? cause.message : String(cause))
+      setError(toUiError(cause))
     ).finally(() => setScopedDataReady(true));
   }, [selectedBriefingId, session?.authenticated]);
 
@@ -339,7 +340,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
         if (autosaveRunRef.current === runId) {
           setAutosaveState("error");
           setStatus("");
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(toUiError(cause));
         }
       }
     }, 650);
@@ -636,7 +637,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const copy = authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
   const submitLabel = authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
@@ -686,7 +687,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           await login(email, password, turnstileToken);
           await props.onAuthenticated();
         } catch (cause) {
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(toUiError(cause));
           resetTurnstile();
         } finally {
           setSubmitting(false);
@@ -737,7 +738,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
-        {error ? <p className="auth-error" role="alert">{t(error.charAt(0).toUpperCase() + error.slice(1))}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
+        {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
       {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
       {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
@@ -846,7 +847,7 @@ function ExploreFeedsPanel() {
 function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" | "ar" | "fr" }) {
   const { t } = useLanguage();
   const [feeds, setFeeds] = useState<PublicBriefing[] | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const language = props.language ?? "en";
 
   useEffect(() => {
@@ -856,7 +857,7 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
         if (active) setFeeds(nextFeeds);
       })
       .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : String(cause));
+        if (active) setError(toUiError(cause));
       });
     return () => {
       active = false;
@@ -892,7 +893,7 @@ function VerifyEmailPage(props: { token: string }) {
   const { t } = useLanguage();
   const [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   return (
     <main className="email-verification-page">
       <section className="email-verification-panel" aria-labelledby="email-verification-title">
@@ -913,7 +914,7 @@ function VerifyEmailPage(props: { token: string }) {
                 await verifyEmail(props.token);
                 setVerified(true);
               } catch (cause) {
-                setError(cause instanceof Error ? cause.message : String(cause));
+                setError(toUiError(cause));
               } finally {
                 setBusy(false);
               }
@@ -921,7 +922,7 @@ function VerifyEmailPage(props: { token: string }) {
           >
             {t(busy ? "Verifying…" : "Verify Email")}
           </button>
-          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{t(error.charAt(0).toUpperCase() + error.slice(1))}</p> : null}</div>
+          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{t(error)}</p> : null}</div>
           <a className="email-verification-create" href="/" title={t("Create")}>{t("Create")}</a>
         </div>
         </>}
@@ -937,7 +938,7 @@ function ResetPasswordPage(props: { token: string }) {
   useEffect(() => { document.title = `${t('Reset Password')} · Distilled.News`; }, [language]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   return (
     <main className="experience product-refresh guest-browse guest-landing landing-no-menu reset-password-page" lang={language} dir={language === 'ar' ? 'rtl' : 'ltr'}>
       <AppHeader account={null} onAccount={() => {}} />
@@ -951,7 +952,7 @@ function ResetPasswordPage(props: { token: string }) {
           await resetPassword(props.token, password);
           setMessage("Password reset successfully.");
         } catch (cause) {
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(toUiError(cause));
         } finally {
           setBusy(false);
         }
@@ -1036,7 +1037,7 @@ function FirstRunSetupSheet(props: {
   const [title, setTitle] = useState(props.briefing.title);
   const [interestProfile, setInterestProfile] = useState(props.briefing.interestProfile);
   const [sourceUrl, setSourceUrl] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const usernameRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -1053,7 +1054,7 @@ function FirstRunSetupSheet(props: {
           try {
             await props.onComplete({ username, title, interestProfile, sourceUrl });
           } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
+            setError(toUiError(cause));
           }
         }}
       >
@@ -1077,18 +1078,18 @@ function FirstRunSetupSheet(props: {
             dir="ltr"
             value={sourceUrl}
             onChange={(event) => setSourceUrl(event.target.value)}
-            placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Beirut power"
+            placeholder={t("https://t.me/LebUpdate, https://x.com/NASA, or Beirut power")}
           />
         </label>
         <div className="source-examples" aria-label={t("source examples")}>
           {sourceInputExamples.map((example) => (
             <button
-              key={example.label}
+              key={t(example.label)}
               type="button"
               title={example.value}
               onClick={() => setSourceUrl(example.value)}
             >
-              {example.label}
+              {t(example.label)}
             </button>
           ))}
         </div>
@@ -1178,7 +1179,7 @@ function AccountDialog(props: {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const [busy, setBusy] = useState<"username" | "password" | "logout" | null>(null);
   const usernameFieldRef = useRef<HTMLInputElement | null>(null);
 
@@ -1213,7 +1214,7 @@ function AccountDialog(props: {
             setMessage("username saved");
             setEditingUsername(false);
           } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
+            setError(toUiError(cause));
           } finally {
             setBusy(null);
           }
@@ -1242,7 +1243,7 @@ function AccountDialog(props: {
             setMessage("password changed");
             setPasswordOpen(false);
           } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
+            setError(toUiError(cause));
           } finally {
             setBusy(null);
           }
@@ -1306,7 +1307,7 @@ function AdminAccountsSection(props: {
   const [managedAccountId, setManagedAccountId] = useState<string | null>(null);
   const [adminBriefings, setAdminBriefings] = useState<BriefingConfig[]>([]);
   const [loadingFeeds, setLoadingFeeds] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const managedAccount = props.accounts.find((account) => account.id === managedAccountId) ?? null;
 
   useEffect(() => {
@@ -1318,7 +1319,7 @@ function AdminAccountsSection(props: {
         const nextBriefings = await listAdminBriefings();
         if (!cancelled) setAdminBriefings(nextBriefings);
       } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+        if (!cancelled) setError(toUiError(cause));
       } finally {
         if (!cancelled) setLoadingFeeds(false);
       }
@@ -1395,7 +1396,7 @@ function AdminAccountDialog(props: {
   const { language, t } = useLanguage();
   const { confirm, confirmation } = useConfirmation();
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const [busy, setBusy] = useState<string | null>(null);
   const isSignedInAdmin = props.account.id === props.currentAccountId;
   const Panel = props.inline ? InlineAccountPanel : Sheet;
@@ -1421,7 +1422,7 @@ function AdminAccountDialog(props: {
       props.onBriefingsChanged(result.briefings);
       setMessage(feed.paused ? "feed resumed" : "feed paused");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(toUiError(cause));
     } finally {
       setBusy(null);
     }
@@ -1438,7 +1439,7 @@ function AdminAccountDialog(props: {
       props.onBriefingsChanged(result.briefings);
       setMessage("feed deleted");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(toUiError(cause));
     } finally {
       setBusy(null);
     }
@@ -1450,7 +1451,7 @@ function AdminAccountDialog(props: {
       <div className="managed-user-identity"><span className="profile-avatar">{accountInitials(props.account.username)}</span><h2>{props.account.username}</h2><p>{props.account.email}</p><span className={`user-role-badge ${props.account.role}`}>{t(props.account.role === "admin" ? "Admin" : "User")}</span></div>
       <div className="managed-user-stats"><span>{t("Feeds")}<strong>{props.feedCount ?? props.briefings.length}</strong></span><span>{t("Joined")}<strong>{joinedAt}</strong></span></div>
       <details className="managed-user-settings"><summary><Pencil size={20}/>{t("Account Settings")}<ChevronRight size={18}/></summary>
-        <fieldset className="account-role-options"><legend>{t("Role")}</legend>{(["user", "admin"] as const).map(role => <label key={role}><input type="radio" name={`role-${props.account.id}`} checked={props.account.role === role} disabled={busy !== null} onChange={async () => { setBusy("role"); try { await updateAccountAndRefresh({ role }, `role changed to ${role}`); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(null); } }}/>{t(role === "admin" ? "Admin" : "User")}</label>)}</fieldset>
+        <fieldset className="account-role-options"><legend>{t("Role")}</legend>{(["user", "admin"] as const).map(role => <label key={role}><input type="radio" name={`role-${props.account.id}`} checked={props.account.role === role} disabled={busy !== null} onChange={async () => { setBusy("role"); try { await updateAccountAndRefresh({ role }, `role changed to ${role}`); } catch (cause) { setError(toUiError(cause)); } finally { setBusy(null); } }}/>{t(role === "admin" ? "Admin" : "User")}</label>)}</fieldset>
       </details>
       <details className="managed-user-feeds"><summary><Newspaper size={22}/>{t("View Feeds")}<ChevronRight size={18}/></summary>
         <div className="admin-feed-list">{props.briefings.map(feed => <div key={feed.id} className="admin-feed-row"><strong title={feed.title}><bdi>{feed.title}</bdi></strong><div className="row-actions"><a className="icon-button" href={`/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`} target="_blank" rel="noopener noreferrer" aria-label={t("Open {name} in new tab", {name: feed.title})}><ExternalLink size={18}/></a><details className="feed-options"><summary aria-label={t("Options for {name}", {name: feed.title})}><MoreHorizontal size={20} aria-hidden /></summary><div className="feed-options-popover admin-feed-actions"><button type="button" aria-label={t(feed.paused ? "Resume feed" : "Pause feed")} title={t(feed.paused ? "Resume feed" : "Pause feed")} disabled={busy !== null} onClick={() => void toggleAdminBriefing(feed)}>{feed.paused ? <Play size={16}/> : <Pause size={16}/>}</button><button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy !== null} onClick={() => void removeAdminBriefing(feed)}><Trash2 size={18}/></button></div></details></div></div>)}</div>
@@ -1458,7 +1459,7 @@ function AdminAccountDialog(props: {
       <button type="button" className="managed-user-suspend" disabled={busy !== null || isSignedInAdmin} onClick={async () => {
         setBusy("disabled");
         try { await updateAccountAndRefresh({ disabled: !props.account.disabledAt }, props.account.disabledAt ? "account enabled" : "account disabled"); }
-        catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+        catch (cause) { setError(toUiError(cause)); }
         finally { setBusy(null); }
       }}><Ban size={24}/><span>{t(props.account.disabledAt ? "Enable Account" : "Suspend Account")}</span><ChevronRight size={18}/></button>
       {message ? <p className="muted">{t(message)}</p> : null}
@@ -1495,7 +1496,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
   const [query, setQuery] = useState("");
   const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
@@ -1528,7 +1529,7 @@ function FeedPage(props: { username: string; slug: string }) {
     } catch (cause) {
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       if (!silent || loadedFeed.current !== key) {
-        searchFailed.current = false; setReadState({ key, state: "failed" }); setError(cause instanceof Error ? cause.message : String(cause));
+        searchFailed.current = false; setReadState({ key, state: "failed" }); setError(toUiError(cause));
       }
     }
   }
@@ -1584,7 +1585,7 @@ function FeedPage(props: { username: string; slug: string }) {
         searchFailed.current = false; setError(""); setEditions(next); setSettledSearch({ key, text });
       }
     } catch (cause) {
-      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { searchFailed.current = true; setError(cause instanceof Error ? cause.message : String(cause)); }
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { searchFailed.current = true; setError(toUiError(cause)); }
     }
   }
 
@@ -1622,11 +1623,11 @@ function FeedPage(props: { username: string; slug: string }) {
     const url = window.location.origin + window.location.pathname;
     if (navigator.share) {
       try { await navigator.share({ title: payload?.briefing.title, url }); }
-      catch (cause) { if (!(cause instanceof DOMException && cause.name === "AbortError")) setError(t("Could not copy URL")); }
+      catch (cause) { if (!(cause instanceof DOMException && cause.name === "AbortError")) setError("Could not copy URL"); }
       return;
     }
     try { await navigator.clipboard.writeText(url); setSummaryMessage(t("URL copied")); }
-    catch { setError(t("Could not copy URL")); }
+    catch { setError("Could not copy URL"); }
   }
 
   async function loadEditionDetail(edition: BriefingEdition): Promise<BriefingEdition | null> {
@@ -1646,7 +1647,7 @@ function FeedPage(props: { username: string; slug: string }) {
       setEditionDetails((current) => new Map(current).set(edition.id, detailed));
       return detailed;
     } catch (cause) {
-      if (feedIdentity.current === key) setError(cause instanceof Error ? cause.message : String(cause));
+      if (feedIdentity.current === key) setError(toUiError(cause));
       return null;
     } finally {
       if (feedIdentity.current === key) setEditionBusyIds((current) => {
@@ -1755,7 +1756,7 @@ function FeedPage(props: { username: string; slug: string }) {
           onClose={() => setSelectedReport(null)}
         />
       ) : null}
-      {error ? <FeedNotice message={error} language={language} /> : null}
+      {error ? <FeedNotice message={t(error)} language={language} /> : null}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}

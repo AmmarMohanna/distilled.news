@@ -1,3 +1,4 @@
+import {toUiError, type UiMessage} from './api-errors';
 import {useEffect,useId,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
 import {LoaderCircle,Sparkles,X} from 'lucide-react';
@@ -9,7 +10,8 @@ export function UnreadSummary({username,slug,readIds,contentKey,readerId,hasUnre
   const resultId=useId();
   const storageKey='dn-unread-summary:'+JSON.stringify([readerId,username,slug]);
   const save=(value:string)=>{try{localStorage.setItem(storageKey,JSON.stringify({contentKey,summary:value,expires:Date.now()+86_400_000}));}catch{/* Storage is optional. */}};
-  const [summary,setSummary]=useState(''),[visible,setVisible]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [summary,setSummary]=useState(''),[visible,setVisible]=useState(false),[busy,setBusy]=useState(false);
+  const [error,setError]=useState<UiMessage>('');
   const version=useRef(0);
   useEffect(()=>{
     version.current++;setSummary('');setVisible(false);setBusy(false);setError('');
@@ -24,18 +26,18 @@ export function UnreadSummary({username,slug,readIds,contentKey,readerId,hasUnre
         const result=await summarizeUnread(username,slug,readIds);
         if(request!==version.current)return;
         if(result.status==='ready'){setSummary(result.summary);save(result.summary);return;}
-        if(result.status==='empty'){setError(t('No recent unread briefings to summarize.'));return;}
+        if(result.status==='empty'){setError('No recent unread briefings to summarize.');return;}
         await new Promise(resolve=>setTimeout(resolve,2000));
         if(request!==version.current)return;
       }
-      setError(t('Still preparing. Try again shortly.'));
-    }catch(cause){if(request===version.current)setError(cause instanceof Error?cause.message:t('Could not summarize. Try again.'));}
+      setError('Still preparing. Try again shortly.');
+    }catch(cause){if(request===version.current)setError(toUiError(cause));}
     finally{if(request===version.current)setBusy(false);}
   }
   const result=visible?<section id={resultId} className="unread-summary-section" aria-live="polite" aria-label={t('Unread summary')} aria-busy={busy}>
       <h2>{t("Summary")}</h2><div className="unread-summary-card">
       <button type="button" className="unread-summary-close" aria-label={t('Close summary')} onClick={()=>{setVisible(false);try{localStorage.removeItem(storageKey);}catch{/* Storage is optional. */}}}><X size={18} aria-hidden/></button>
-      {busy?<p role="status">{t('Summarizing…')}</p>:error?<p role="alert">{error}</p>:<p dir="auto">{summary}</p>}
+      {busy?<p role="status">{t('Summarizing…')}</p>:error?<p role="alert">{t(error)}</p>:<p dir="auto">{summary}</p>}
       </div>
     </section>:null;
   return <div className="unread-summary">

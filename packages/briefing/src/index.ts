@@ -2,3 +2,6 @@ export * from "./types";
 export * from "./model";
 export { generateBriefing, DEFAULT_ENGINE, type EngineOptions } from "./engine";
 export { prepareArticles, selectPrior, priorMemoryCutoff, type PreparedArticle } from "./prepare";
+export { auditEditorSourceAccounting } from './source-accounting';
+
+export {createEvidenceTools,type EvidenceTools,type EvidenceProof,type PassageSelection,type PassageCitation} from './evidence-tools';

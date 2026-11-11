@@ -1,0 +1,1 @@
+﻿import {defineConfig} from 'vitest/config';export default defineConfig({test:{environment:'node',include:['benchmarks/v7-writer.prepare.test.ts','benchmarks/v7-qualification.archive.test.ts'],maxWorkers:1}});
