@@ -3,6 +3,7 @@ import { refreshFeed } from "./helpers";
 const feed={id:'loading-feed',ownerUsername:'reader',slug:'news',title:'Reader News',publicFeedEnabled:true,paused:false,language:'en',briefingCadence:'daily',briefingTimezone:'UTC',stars:0};
 const edition=(id:string)=>({id,title:'Development '+id,summary:'Supported development '+id+' [1].',publishedAt:'2026-10-11T12:00:00Z',sections:[{title:'Development '+id,summary:'Supported development '+id+'.',evidence:[{messageId:'evidence-'+id,sourceTitle:'Original source',sourceUrl:'https://example.test/'+id,text:'Supported development '+id+'.',postedAt:'2026-10-11T10:00:00Z',links:[],media:[]}]}]});
 const path='/api/feed/reader/news';
+const requestFailed='Could not complete the request. Try again.';
 function gate(){let release!:()=>void;const promise=new Promise<void>(resolve=>release=resolve);return {promise,release}}
 async function mock(page:Page,handler:(route:Route)=>Promise<void>){await page.route('**/api/**',async route=>{const url=new URL(route.request().url());if(url.pathname===path)return handler(route);if(url.pathname.endsWith('/search'))return route.fulfill({json:{editions:[]}});return route.fulfill({json:url.pathname==='/api/auth/session'?{authenticated:false}:{feeds:[]}})})}
 for(const language of ['en','fr','ar'])test('initial '+language+' loading does not claim no publications',async({page})=>{
@@ -14,8 +15,8 @@ for(const language of ['en','fr','ar'])test('initial '+language+' loading does n
 });
 test('initial errors never masquerade as empty feeds or keep claiming loading',async({page})=>{
  await mock(page,route=>route.fulfill({status:503,json:{error:'Feed read temporarily failed.'}}));
- await page.goto('/reader/news/');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();await expect(page.locator('.feed-empty-state')).toHaveCount(0);await expect(page.locator('.feed-tools')).toBeVisible();
- await page.getByPlaceholder('Search briefings').press('Enter');await expect(page.getByText('Feed read temporarily failed.')).toBeVisible();
+ await page.goto('/reader/news/');await expect(page.getByText(requestFailed)).toBeVisible();await expect(page.getByText('Feed read temporarily failed.')).toHaveCount(0);await expect(page.locator('.feed-empty-state')).toHaveCount(0);await expect(page.locator('.feed-tools')).toBeVisible();
+ await page.getByPlaceholder('Search briefings').press('Enter');await expect(page.getByText(requestFailed)).toBeVisible();
 });
 test('refresh preserves read status, loaded pages and loaded sources while pending and after success',async({page})=>{
  let delay=false;const pending=gate();const editions=Array.from({length:25},(_,i)=>edition(String(i+1)));
@@ -29,7 +30,7 @@ test('refresh preserves read status, loaded pages and loaded sources while pendi
 });
 test('a failed refresh preserves previously published editions',async({page})=>{
  let failed=false;await mock(page,route=>failed?route.fulfill({status:503,json:{error:'Refresh unavailable.'}}):route.fulfill({json:{briefing:feed,editions:[edition('one')]}}));
- await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);failed=true;await refreshFeed(page);await expect(page.getByText('Refresh unavailable.')).toHaveCount(0);await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+ await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);failed=true;await refreshFeed(page);await expect(page.getByText(requestFailed)).toHaveCount(0);await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
 });
 test('concurrent focus refreshes coalesce and a later refresh retrieves newer data',async({page})=>{
  const pending=gate();let calls=0;await mock(page,async route=>{const call=++calls;if(call===2)await pending.promise;await route.fulfill({json:{briefing:feed,editions:[edition(call===2?'stale':call>=3?'latest':'initial')]}})});
@@ -88,14 +89,15 @@ test('refresh removes withdrawn prose from active search results even if search 
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
  const searched=page.waitForResponse(r=>r.url().includes('/search?q=one'));await page.getByPlaceholder('Search briefings').fill('one');await searched;
- withdrawn=true;await refreshFeed(page);await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.getByText('Search unavailable.')).toBeVisible();
+ withdrawn=true;await refreshFeed(page);await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.getByText(requestFailed)).toBeVisible();await expect(page.getByText('Search unavailable.')).toHaveCount(0);
  await expect(page.getByText('Supported development one')).toHaveCount(0);
 });
 
 test('initial read retry shows loading while its replacement response is pending',async({page})=>{
  const pending=gate();let reads=0;
- await mock(page,async route=>{if(++reads===1)return route.fulfill({status:503,json:{error:'Initial read failed.'}});await pending.promise;await route.fulfill({json:{briefing:feed,editions:[edition('recovered')]}})});
- await page.goto('/reader/news/');await expect(page.getByText('Initial read failed.')).toBeVisible();
+ // Exhaust the initial request's two automatic retries before testing manual recovery.
+ await mock(page,async route=>{if(++reads<=3)return route.fulfill({status:503,json:{error:'Initial read failed.'}});await pending.promise;await route.fulfill({json:{briefing:feed,editions:[edition('recovered')]}})});
+ await page.goto('/reader/news/');await expect(page.getByText(requestFailed)).toBeVisible();expect(reads).toBe(3);await expect(page.getByText('Initial read failed.')).toHaveCount(0);
  await refreshFeed(page);await expect(page.locator('.feed-tools')).toHaveCount(0);await expect(page.locator('.feed-empty-state')).toHaveCount(0);
  pending.release();await expect(page.locator('.news-summary')).toContainText('recovered');await expect(page.locator('.feed-tools')).toBeVisible();
 });
@@ -106,6 +108,6 @@ test('clearing a failed search restores the successful empty feed without a stal
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.feed-empty-state')).toBeVisible();
- await page.getByPlaceholder('Search briefings').fill('test');await expect(page.getByText('Search unavailable.')).toBeVisible();
- await page.getByPlaceholder('Search briefings').fill('');await expect(page.getByText('Search unavailable.')).toHaveCount(0);await expect(page.locator('.feed-empty-state')).toBeVisible();
+ await page.getByPlaceholder('Search briefings').fill('test');await expect(page.getByText(requestFailed)).toBeVisible();
+ await page.getByPlaceholder('Search briefings').fill('');await expect(page.getByText(requestFailed)).toHaveCount(0);await expect(page.locator('.feed-empty-state')).toBeVisible();
 });
