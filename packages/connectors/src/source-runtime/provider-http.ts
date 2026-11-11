@@ -75,7 +75,8 @@ export class DurableProviderHttp implements ProviderHttpPort {
   constructor(private readonly db:SqlDatabase,private readonly payloads:ImmutablePayloadStore,
     private readonly dispatch:(url:string,init:RequestInit)=>Promise<Response>,private readonly maxBytes=4_000_000,private readonly deadlineMs=60_000,
     private readonly sourceProviderLimitUsd?:number,private readonly deploymentLimits?:Readonly<Record<string,number>>,
-    private readonly dailyBudget?:DailyCollectorBudget,private readonly providerDeadlines:Readonly<Record<string,number>>={},private readonly enforceBudgetLimits=true) {
+    private readonly dailyBudget?:DailyCollectorBudget,private readonly providerDeadlines:Readonly<Record<string,number>>={},private readonly enforceBudgetLimits=true,
+    private readonly requireDispatchApproval?:()=>Promise<void>) {
     if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>22_000_000||!Number.isSafeInteger(deadlineMs)||deadlineMs<1||deadlineMs>60_000)throw new Error('INVALID_PROVIDER_LIMITS');
     if(sourceProviderLimitUsd!==undefined&&(!Number.isFinite(sourceProviderLimitUsd)||sourceProviderLimitUsd<0))throw new Error('INVALID_SOURCE_PROVIDER_BUDGET');
     if(deploymentLimits!==undefined&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.values(deploymentLimits).some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0)))throw new Error('INVALID_BUDGET');
@@ -141,6 +142,9 @@ export class DurableProviderHttp implements ProviderHttpPort {
     // transaction so two different run IDs cannot race past the read above.
     const unresolvedGuard=` AND NOT EXISTS(SELECT 1 FROM connector_provider_operations WHERE ${unresolvedProviderOperationSql} AND ((feed_id=? AND feed_source_id=?${independentGuard}) OR (provider_id=? AND feed_source_id IS NULL)))`;
     const token=crypto.randomUUID(),claimHeaders=JSON.stringify({claimToken:token,claimExpiresAt:new Date(Date.now()+(this.providerDeadlines[providerId]??this.deadlineMs)+60_000).toISOString(),...(statelessTarget?{statelessTarget}:{}),...(readOnly?{readOnlyApify:{kind:'EXISTING_RUN_READ',requestHash:hash}}:{})});
+    // Local approval can fail during a D1 reset. It must finish before the
+    // reservation becomes an in-flight provider operation.
+    await this.requireDispatchApproval?.();
     await this.db.batch([
       ...(this.dailyBudget?[this.db.prepare('INSERT INTO connector_daily_provider_budgets(day,limit_usd,reserved_usd) VALUES(?,?,0) ON CONFLICT(day) DO UPDATE SET limit_usd=excluded.limit_usd').bind(day,this.dailyBudget.limitUsd)]:[]),
       ...sourceBudget,
@@ -172,6 +176,7 @@ export class DurableProviderHttp implements ProviderHttpPort {
   private async resumeRead(scope:SourceScope,providerId:string,scoped:string,url:string,init:RequestInit,hash:string,previous:{headers:string|null}):Promise<ProviderHttpResult>{
     const old=JSON.parse(previous.headers??'{}');
     if(!old.failure&&Date.parse(old.claimExpiresAt)>Date.now())throw pendingProviderError(previous.headers);
+    await this.requireDispatchApproval?.();
     const claimHeaders=JSON.stringify({claimToken:crypto.randomUUID(),claimExpiresAt:new Date(Date.now()+(this.providerDeadlines[providerId]??this.deadlineMs)+60_000).toISOString(),readOnlyApify:{kind:'EXISTING_RUN_READ',requestHash:hash},readRecovery:{attempt:(old.readRecovery?.attempt??0)+1,priorFailure:old.failure??old.readRecovery?.priorFailure}});
     const claimed=await this.db.prepare('UPDATE connector_provider_operations SET headers=? WHERE provider_id=? AND operation_id=? AND request_hash=? AND payload_ref IS NULL AND headers IS ? RETURNING operation_id').bind(claimHeaders,providerId,scoped,hash,previous.headers).first();
     if(!claimed)throw new SourceProviderError('BACKPRESSURE');

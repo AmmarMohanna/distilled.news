@@ -13,6 +13,7 @@ import type {Env,DistilledQueueMessage} from '../types';
 import {readScheduleAudit} from './schedule-audit';
 import {livePublicationWindow} from './schedule';
 import {DeterministicSalienceScorer} from './salience';
+import * as coverageQueries from './window-coverage';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,env:Env,sent:DistilledQueueMessage[];
 beforeEach(async()=>{ctx=await createIntakeDatabase({product:true});await seedIntakeScope(new V1IntakeStore(ctx.db));store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,briefingFrequency:'HOURLY'});await seedIntelligence(store);sent=[];env={DB:ctx.db,V1_DOWNSTREAM_ENABLED:'true',V1_DOWNSTREAM_FEED_SOURCE_IDS:'feed-source-1',PROCESSING_QUEUE:{send:async(body:DistilledQueueMessage)=>{sent.push(body)}}} as unknown as Env});
 afterEach(async()=>ctx.dispose());
@@ -190,7 +191,11 @@ it('reobserving the same intake wait does not invalidate concurrent Feed work',a
  await pendingJobObservedAt('2026-10-03T12:30:00Z');
  await dispatchV1Intelligence(env,new Date('2026-10-03T13:25:00Z'));
  const before=await store.snapshot('feed-1');
- await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));
+ const aggregate=vi.spyOn(coverageQueries,'windowIntakeCoverage');
+ try{
+  await dispatchV1Intelligence(env,new Date('2026-10-03T13:26:00Z'));
+  expect(aggregate).not.toHaveBeenCalled();
+ }finally{aggregate.mockRestore();}
  expect((await store.snapshot('feed-1')).epoch).toBe(before.epoch);
  expect(await store.list('feed-1','briefing_requests')).toMatchObject([{state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'}]);
 });

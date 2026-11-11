@@ -1,16 +1,18 @@
 import { sha256 } from '@distilled/contracts';
-/** Join publication's existing outbox; a saved draft/withdrawn edition is never eligible.
- * Browser pushes coalesce eligible editions per subscription, preserving the UI sender's behavior. */
-export const ELIGIBLE_PUSH_SQL = `
- JOIN v1_feed_documents e ON e.feed_id=b.id AND e.kind='editions'
- JOIN v1_feed_documents j ON j.feed_id=e.feed_id AND j.kind='delivery_jobs' AND j.id=e.id
- JOIN v1_feed_documents p ON p.feed_id=e.feed_id AND p.kind='publication_status' AND p.id=e.id
+const verifiedPushEdition = `
  JOIN v1_feed_documents v ON v.feed_id=e.feed_id AND v.kind='fidelity_results'
    AND v.id=COALESCE(json_extract(e.json,'$.generation.verificationId'),json_extract(e.json,'$.selectionId'))
  JOIN v1_feed_documents l ON l.feed_id=e.feed_id AND l.kind='ledger_projections'
    AND l.id=json_array(e.id,'grounded-communication-ledger-v1')
  AND json_extract(p.json,'$.status')='PUBLISHED' AND json_extract(v.json,'$.passed')=1
  AND b.public_feed_enabled=1 AND a.disabled_at IS NULL`;
+/** Join publication's existing outbox; a saved draft/withdrawn edition is never eligible.
+ * Browser pushes coalesce eligible editions per subscription, preserving the UI sender's behavior. */
+export const ELIGIBLE_PUSH_SQL = `
+ JOIN v1_feed_documents e ON e.feed_id=b.id AND e.kind='editions'
+ JOIN v1_feed_documents j ON j.feed_id=e.feed_id AND j.kind='delivery_jobs' AND j.id=e.id
+ JOIN v1_feed_documents p ON p.feed_id=e.feed_id AND p.kind='publication_status' AND p.id=e.id
+ ${verifiedPushEdition}`;
 interface Subscription {endpoint:string;account_id:string;subscription_json:string;last_notified_at:string;newest:string;notification_version:string}
 export async function pushSubscriptionIdentity(s:Pick<Subscription,'endpoint'|'account_id'|'subscription_json'|'notification_version'>):Promise<string> {
  return sha256(JSON.stringify([s.endpoint,s.account_id,s.subscription_json,s.notification_version]));
@@ -40,11 +42,22 @@ export async function recordPushAcceptance(db:D1Database,s:Subscription,token:st
 /** A publication job is DONE only with durable acceptance receipts for every
  * currently eligible subscription. No subscription/configuration is not delivery. */
 export async function settlePushOutbox(db:D1Database,now:string):Promise<void> {
- const jobs=await db.prepare(`SELECT e.id,e.feed_id,b.owner_account_id,json_extract(p.json,'$.publishedAt') AS published_at
- FROM briefings b JOIN accounts a ON a.id=b.owner_account_id ${ELIGIBLE_PUSH_SQL}
- WHERE json_extract(j.json,'$.state') IN ('PENDING','RUNNING') AND json_extract(p.json,'$.publishedAt')<=?
+ // Seek publications that can still have a subscriber before touching edition
+ // history. The exact all-recipient receipt check and atomic settlement remain.
+ const jobs=await db.prepare(`WITH subscribers AS MATERIALIZED (
+  SELECT account_id,MIN(last_notified_at) AS earliest FROM push_subscriptions GROUP BY account_id
+ )
+ SELECT e.id,e.feed_id,b.owner_account_id,json_extract(p.json,'$.publishedAt') AS published_at
+ FROM subscribers s CROSS JOIN briefings b ON b.owner_account_id=s.account_id
+ JOIN accounts a ON a.id=b.owner_account_id
+ CROSS JOIN v1_feed_documents p ON p.feed_id=b.id AND p.kind='publication_status'
+  AND json_extract(p.json,'$.status')='PUBLISHED'
+  AND json_extract(p.json,'$.publishedAt')>s.earliest AND json_extract(p.json,'$.publishedAt')<=?
+ CROSS JOIN v1_feed_documents e ON e.feed_id=p.feed_id AND e.kind='editions' AND e.id=p.id
+ JOIN v1_feed_documents j ON j.feed_id=e.feed_id AND j.kind='delivery_jobs' AND j.id=e.id
+ ${verifiedPushEdition}
+ WHERE json_extract(j.json,'$.state') IN ('PENDING','RUNNING')
  AND EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='browser_push_receipts' AND r.feed_id=e.feed_id AND json_extract(r.json,'$.editionId')=e.id)
- AND EXISTS(SELECT 1 FROM push_subscriptions s WHERE s.account_id=b.owner_account_id AND s.last_notified_at<json_extract(p.json,'$.publishedAt'))
  AND NOT EXISTS(SELECT 1 FROM push_subscriptions s WHERE s.account_id=b.owner_account_id AND s.last_notified_at<json_extract(p.json,'$.publishedAt') AND NOT EXISTS(
   SELECT 1 FROM v1_feed_documents r WHERE r.kind='browser_push_receipts' AND r.feed_id=e.feed_id AND json_extract(r.json,'$.editionId')=e.id
    AND json_extract(r.json,'$.subscriptionVersion')=s.notification_version AND json_extract(r.json,'$.state')='ACCEPTED_BY_PUSH_SERVICE'))

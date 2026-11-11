@@ -72,13 +72,16 @@ describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogat
       expect(s.db.db.prepare("SELECT attempts,due_at FROM connector_rss_poll_jobs WHERE job_id='cooldown'").get()).toEqual({attempts:0,due_at:expected});at+=3600000;
     }
   });
-  it('intake waits replay the same fetched batch without consuming failure retries',async()=>{
+  it.each(['INTAKE_BUSY','TEMPORARY_UNAVAILABLE'])('intake waits replay the same fetched batch without consuming failure retries (%s)',async reason=>{
     const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp),wait=true;
-    const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{if(wait)throw new SourceHandoffWait();return accept(b)});
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{
+      if(wait)throw reason==='INTAKE_BUSY'?new SourceHandoffWait():new Error('D1_ERROR: D1 DB exceeded its CPU time limit and was reset.');
+      return accept(b);
+    });
     const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>at);
     await scheduler.schedule('waiting',input,timestamp);
     for(let i=0;i<12;i++){expect(await scheduler.runOne(120000,'waiting')).toBe('RETRY');at+=6000;}
-    expect(s.db.db.prepare("SELECT attempts,last_error FROM connector_rss_poll_jobs WHERE job_id='waiting'").get()).toEqual({attempts:0,last_error:'INTAKE_BUSY'});
+    expect(s.db.db.prepare("SELECT attempts,last_error FROM connector_rss_poll_jobs WHERE job_id='waiting'").get()).toEqual({attempts:0,last_error:reason});
     expect(s.http.get).toHaveBeenCalledTimes(1);
     wait=false;expect(await scheduler.runOne(120000,'waiting')).toBe('DONE');expect(s.http.get).toHaveBeenCalledTimes(1);
   });

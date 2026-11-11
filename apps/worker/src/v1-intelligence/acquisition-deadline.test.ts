@@ -50,6 +50,11 @@ it('keeps terminal history in publication coverage without scanning it for sched
      reads.push(result.meta.rows_read);
      return result;
     },
+    first:async()=>{
+     const result=await db.prepare(sql).bind(...args).all();
+     reads.push(result.meta.rows_read);
+     return result.results[0]??null;
+    },
    }),
   }),
  } as unknown as D1Database;
@@ -64,7 +69,7 @@ it('keeps terminal history in publication coverage without scanning it for sched
  console.info(JSON.stringify({coverageRows,schedulingRows}));
 });
 
-it('stops the legacy readiness check at the first qualifying job in a busy window',async()=>{
+it.each([false,true])('stops the readiness check at the first qualifying job in a busy window (V3=%s)',async v3=>{
  const {db}=ctx;
  await db.prepare(`WITH RECURSIVE jobs(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM jobs WHERE n<2000)
   INSERT INTO v1_jobs(id,feed_source_id,json)
@@ -80,10 +85,10 @@ it('stops the legacy readiness check at the first qualifying job in a busy windo
    },
   }),
  })} as unknown as D1Database;
- expect(await windowHasHoldingJobs(measuredDb,'feed-1',end)).toBe(true);
+ expect(await windowHasHoldingJobs(measuredDb,'feed-1',end,{v3,now:end})).toBe(true);
  const count=await db.prepare(sql.replace('SELECT 1','SELECT COUNT(*) AS n').replace('LIMIT 1',''))
   .bind('feed-1',end).all<{n:number}>();
  expect(count.results).toEqual([{n:2000}]);
  expect(reads).toBeLessThan(count.meta.rows_read/100);
- console.info(JSON.stringify({legacyCountRows:count.meta.rows_read,legacyReadinessRows:reads}));
+ console.info(JSON.stringify({v3,countRows:count.meta.rows_read,readinessRows:reads}));
 });

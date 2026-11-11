@@ -2,7 +2,7 @@ import { sha256, HandoffError } from '@distilled/contracts';
 import type { RssRequest } from './ports';
 import type { SqlDatabase } from './storage';
 import type { RssCollectionResult, RssSourceCollector } from './rss';
-import {SourceHandoffWait} from './handoff-wait';
+import {SourceHandoffWait,isSourceDatabaseUnavailable} from './handoff-wait';
 
 /** Separate schema proposal; install with the source schema only after migration coordination. */
 export const RSS_POLL_SCHEMA = `CREATE TABLE IF NOT EXISTS connector_rss_poll_jobs (
@@ -63,6 +63,7 @@ export class D1RssPollScheduler {
       return await this.finish(job,'DONE',result) ? 'DONE' : 'LEASE_LOST';
     } catch (error) {
       if(error instanceof SourceHandoffWait)return await this.retry(job,JSON.parse(job.request),job.offset,null,5000,false,error.code,true)?'RETRY':'LEASE_LOST';
+      if(isSourceDatabaseUnavailable(error))return await this.retry(job,JSON.parse(job.request),job.offset,null,5000,false,'TEMPORARY_UNAVAILABLE',true)?'RETRY':'LEASE_LOST';
       console.warn(JSON.stringify({type:'CONNECTOR_POLL_FAILURE',family:'rss',jobId:job.job_id,attempt:job.attempts,cause:error instanceof HandoffError?error.code:'INTERNAL_FAILURE'}));
       // An invalid boundary response/identity conflict must be investigated, never auto-accepted.
       if (error instanceof HandoffError && !error.retryable) return await this.finish(job,'BLOCKED',null,error.code) ? 'BLOCKED' : 'LEASE_LOST';

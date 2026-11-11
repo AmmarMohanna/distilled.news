@@ -20,7 +20,7 @@ export * from "./source-runtime/provider-scheduler";
 export * from "./source-runtime/platform-providers";
 export * from "./source-runtime/social-providers";
 export * from "./source-runtime/website-providers";
-export {SourceHandoffWait} from './source-runtime/handoff-wait';
+export {SourceHandoffWait,isSourceDatabaseUnavailable} from './source-runtime/handoff-wait';
 export {discoverWebsiteArticles,isWebsiteListingUrl} from './source-runtime/website-discovery';
 export {extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES} from './source-runtime/public-html';
 export {sameArticleUrl} from './source-runtime/article-schema';

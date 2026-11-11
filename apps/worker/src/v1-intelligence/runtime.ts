@@ -3,7 +3,7 @@ import {retainBacklogReview,backlogRevisionIds} from './review-admission';
 import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
 import {prepareV2EditorialPlan} from './editorial-plan-v2';
-import {pendingWindowIntakeJobs,preparedV3Delivery,windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
+import {preparedV3Delivery,windowHasHoldingJobs,windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from '../connector-intelligence-turn';
 import {withLatency,measureLatency,countLatency} from './latency';
 import {ModelSpendingWait,modelSpendingAccount} from './model-spending';
@@ -47,7 +47,13 @@ import {synchronizeV1ProductSource} from './product';
 import {publicationWindowSchema,livePublicationWindow,preparingLiveWindow,nextLiveBriefingAt,DELIVERY_LEAD_MS} from './schedule';
 
 export type V1BriefingMessage={type:'v1_briefing';feedId:string;window:PublicationWindow};
+export {windowHasHoldingJobs} from './window-coverage';
 const messageSchema=z.object({type:z.literal('v1_briefing'),feedId:z.string().min(1),window:publicationWindowSchema}).strict();
+const intakeWaitReason='AWAITING_INTAKE_REASSESSMENT';
+const incompleteIntakeReason='INCOMPLETE_INTAKE_COVERAGE';
+function isIntakeStatus(reason:string|undefined):boolean {
+ return !reason||reason===intakeWaitReason||reason===incompleteIntakeReason;
+}
 export interface BriefingRequest {catchup?:{policy:'v3-unstarted-backlog-v1';supersededBy:string;at:string};engine?:'v2'|'v3';v3InputId?:string;coverage?:WindowIntakeCoverage;semanticCoverage?:{unresolvedTargets:unknown[]};id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
 export const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
@@ -173,14 +179,24 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   if(job?.pendingCall){const result=await store.read<{status:string;usage?:{reported:boolean}}>(feedId,'semantic_results',job.pendingCall)??await store.read<{status:string;usage?:{reported:boolean}}>(feedId,'semantic_settlements',job.pendingCall);if(result?.status!=='SUCCEEDED'||!result.usage?.reported)continue;}
   countLatency('olderWindowPending');return undefined;
  }
- const preparedDelivery=request.engine==='v3'&&await preparedV3Delivery(env.DB,feedId,id,Date.parse(now()));
- const initialCoverage=await measureLatency('WINDOW_READINESS',()=>feedTransact(store,feedId,async tx=>{
-  const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{v3:request.engine==='v3',now:now(),deferAcquisition:preparedDelivery}),current=await tx.read<BriefingRequest>('briefing_requests',id);
-  if(current&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||coverage.pendingJobs&&current.reason!=='AWAITING_INTAKE_REASSESSMENT'))await tx.write('briefing_requests',id,{...current,coverage,...(coverage.pendingJobs?{reason:'AWAITING_INTAKE_REASSESSMENT',nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()}: {})});
-  return coverage;
- }));
- countLatency('pendingJobs',initialCoverage.pendingJobs);countLatency('failedJobs',initialCoverage.failedJobs);
- if(initialCoverage.pendingJobs){countLatency('publicationDeferred');return undefined;}
+ const readinessAt=now();
+ const holding=await measureLatency('WINDOW_READINESS',async()=>{
+  const settings={v3:request.engine==='v3',now:readinessAt};
+  if(!await windowHasHoldingJobs(env.DB,feedId,window.end,settings))return false;
+  const deferAcquisition=settings.v3&&await preparedV3Delivery(env.DB,feedId,id,Date.parse(readinessAt));
+  if(deferAcquisition&&!await windowHasHoldingJobs(env.DB,feedId,window.end,{...settings,deferAcquisition}))return false;
+  return feedTransact(store,feedId,async tx=>{
+   const current=await tx.read<BriefingRequest>('briefing_requests',id);
+   if(current?.state!=='PENDING'||!isIntakeStatus(current.reason))return true;
+   if(current.reason===intakeWaitReason&&current.coverage?.state==='PENDING')return true;
+   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{...settings,deferAcquisition});
+   if(!coverage.pendingJobs)return false;
+   await tx.write('briefing_requests',id,{...current,coverage,reason:intakeWaitReason,nextAttemptAt:new Date(Date.parse(readinessAt)+60000).toISOString()});
+   countLatency('pendingJobs',coverage.pendingJobs);countLatency('failedJobs',coverage.failedJobs);
+   return true;
+  });
+ });
+ if(holding){countLatency('publicationDeferred');return undefined;}
 
  if((required||request.engine==='v3')&&!(request.engine==='v3'?productV3Ready(env):createStoredEvidenceModel(env,fetcher))){
   await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!=='MODEL_SETUP_REQUIRED')await tx.write('briefing_requests',id,{...current,reason:'MODEL_SETUP_REQUIRED'});});
@@ -286,28 +302,6 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  * below keep being sent. Their durable state is untouched, so nothing is skipped or duplicated. */
 async function maintenance(feedId:string,step:string,run:()=>Promise<void>):Promise<void> {
  try{await run()}catch(error){console.error(JSON.stringify({type:'V1_DISPATCH_MAINTENANCE_FAILED',feedId,step,error:error instanceof Error?error.message:'UNKNOWN'}))}
-}
-/** Intake/reassessment jobs that can still change what a window contains: unfinished, non-exhausted jobs
- * for evidence observed before the window closed (or whose observation time is unknown). Evidence that
- * arrived later belongs to a later window, so continuous arrivals cannot postpone an earlier boundary, and
- * nothing is lost: that job keeps running on the ordinary queue and its Event lands in the next window. */
-export async function windowHasHoldingJobs(db:Env['DB'],feedId:string,windowEnd:string,options:import('./window-coverage').IntakeDeadlineOptions={}):Promise<boolean> {
- if(options.v3)return (await pendingWindowIntakeJobs(db,feedId,windowEnd,options))>0;
- // Keep both explicit reconciliation dependencies and confirmed acquisition-budget
- // waits recoverable without holding healthy-source publication. Other live work
- // retains its existing readiness and paid-operation protections.
- const row=await db.prepare(`SELECT 1 FROM v1_jobs j
-  JOIN v1_intake_scopes s ON s.id=j.feed_source_id
-  LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id
-  WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1
-   AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS')
-   AND json_extract(j.json,'$.state') IN ('PENDING','RUNNING')
-   AND COALESCE(json_extract(j.json,'$.exhausted'),0)=0
-   AND NOT (json_extract(j.json,'$.state')='PENDING' AND COALESCE(json_extract(j.json,'$.failureDetail'),'')='ARTICLE_PROVIDER_RECONCILIATION_WAIT')
-   AND NOT (json_extract(j.json,'$.kind')='ACQUIRE' AND json_extract(j.json,'$.state')='PENDING' AND COALESCE(json_extract(j.json,'$.failureCode'),'')='BUDGET_EXHAUSTED')
-   AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?))
-  LIMIT 1`).bind(feedId,windowEnd).first();
- return Boolean(row);
 }
 /** Relay uses durable pending jobs and edition/window identities on the existing queue. */
 export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{skipProviderAccountingRecovery?:boolean}={}):Promise<number> {
@@ -456,16 +450,18 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    if(catchupSettling)continue;
   }
   const current=pending?await store.read<BriefingRequest>(id,'briefing_requests',editionId):undefined;
-  if(current?.state==='PENDING'){
-   const coverage=await windowIntakeCoverage(env.DB,id,window.end,{v3:current.engine==='v3',now:now.toISOString()});
-   const coverageReason=coverage.pendingJobs?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
-   const changedReason=(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason;
-   if(canonicalJson(current.coverage)!==canonicalJson(coverage)||changedReason){
+  if(current?.state==='PENDING'&&isIntakeStatus(current.reason)){
+   const settings={v3:current.engine==='v3',now:now.toISOString()};
+   // Refresh the diagnostic snapshot when readiness changes. Repeated ticks
+   // only check live jobs. The final commit still recomputes exact coverage.
+   if(!current.coverage||Boolean(current.coverage.pendingJobs)!==await windowHasHoldingJobs(env.DB,id,window.end,settings)){
     await feedTransact(store,id,async tx=>{
      const request=await tx.read<BriefingRequest>('briefing_requests',editionId);
-     if(request?.state!=='PENDING')return;
-     const reason=coverageReason??(request.reason==='AWAITING_INTAKE_REASSESSMENT'?undefined:request.reason);
-     await tx.write('briefing_requests',editionId,{...request,coverage,reason});
+     if(request?.state!=='PENDING'||!isIntakeStatus(request.reason))return;
+     const coverage=await windowIntakeCoverage(env.DB,id,window.end,settings);
+     const reason=coverage.pendingJobs?intakeWaitReason:coverage.failedJobs?incompleteIntakeReason:undefined;
+     if(canonicalJson(request.coverage)!==canonicalJson(coverage)||request.reason!==reason)
+      await tx.write('briefing_requests',editionId,{...request,coverage,reason});
     });
    }
   }

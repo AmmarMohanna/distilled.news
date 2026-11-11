@@ -2,7 +2,7 @@ import { sha256, HandoffError } from '@distilled/contracts';
 import type { SqlDatabase } from './storage';
 import { FallbackSourceCollector } from './provider-collector';
 import { DEFAULT_SOURCE_ORDER, SourceProviderError, type SourceFetchRequest } from './provider-types';
-import {SourceHandoffWait} from './handoff-wait';
+import {SourceHandoffWait,isSourceDatabaseUnavailable} from './handoff-wait';
 import {D1ProviderSourceRepository} from './provider-storage';
 
 export const PROVIDER_POLL_SCHEMA=`CREATE TABLE IF NOT EXISTS connector_provider_poll_jobs(
@@ -106,6 +106,7 @@ export class D1ProviderPollScheduler {
       return await finish('DONE',result);
     }catch(error){
       if(error instanceof SourceHandoffWait)return await retry(null,request,job.offset,job.pages,5000,false,error.code,true);
+      if(isSourceDatabaseUnavailable(error))return await retry(null,request,job.offset,job.pages,5000,false,'TEMPORARY_UNAVAILABLE',true);
       console.warn(JSON.stringify({type:'CONNECTOR_POLL_FAILURE',family:'provider',jobId:job.job_id,attempt:job.attempts,cause:error instanceof HandoffError||error instanceof SourceProviderError?error.code:'INTERNAL_FAILURE'}));
       if(error instanceof SourceProviderError&&error.code==='BACKPRESSURE')return await retry(null,request,job.offset,job.pages,Math.max(5000,Date.parse(error.retryNotBefore??'')-this.now()||0),false,'BACKPRESSURE',true);
       if(error instanceof SourceProviderError)return await finish('BLOCKED',null,error.code);

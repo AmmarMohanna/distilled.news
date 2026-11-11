@@ -1,5 +1,5 @@
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
-import {DurableProviderHttp,R2SourcePayloadStore,sourceSqlFromD1,reconcileCompletedZyteResponse,type SourceScope} from '@distilled/connectors';
+import {DurableProviderHttp,R2SourcePayloadStore,sourceSqlFromD1,reconcileCompletedZyteResponse,SourceProviderError,type SourceScope} from '@distilled/connectors';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,http:DurableProviderHttp,store:R2SourcePayloadStore;
@@ -17,6 +17,18 @@ beforeEach(async()=>{
 });
 afterEach(async()=>ctx?.dispose());
 const send=(s:SourceScope,id:string,cost:number,provider='primary')=>http.request(s,id,provider,cost,url,{});
+it('leaves no paid operation when local source approval cannot finish before dispatch',async()=>{
+ const approval=vi.fn<()=>Promise<void>>().mockRejectedValueOnce(new SourceProviderError('BACKPRESSURE')).mockResolvedValue(undefined);
+ http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch,4_000_000,20_000,15,undefined,undefined,{},true,approval);
+ await expect(send(scope,'approval-wait',.25)).rejects.toMatchObject({code:'BACKPRESSURE'});
+ expect(dispatch).not.toHaveBeenCalled();
+ expect(await ctx.db.prepare('SELECT COUNT(*) n FROM connector_provider_operations').first()).toEqual({n:0});
+ expect((await send(scope,'approval-wait',.25)).status).toBe(200);
+ expect((await send(scope,'approval-wait',.25)).status).toBe(200);
+ expect(dispatch).toHaveBeenCalledOnce();
+ expect(approval).toHaveBeenCalledTimes(2);
+ expect(await reserved(scope)).toBe(.25);
+});
 it('unlimited collection bypasses aggregate caps while retaining counters and paid replay',async()=>{
  http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch,4_000_000,20_000,1,{primary:1},{limitUsd:1,timeZone:'UTC'},{},false);
  await http.configureLimit('primary',1);

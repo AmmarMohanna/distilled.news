@@ -1,8 +1,8 @@
 import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1ProviderPollScheduler,
   DurableProviderHttp,HttpSourceExecution,R2SourcePayloadStore,sourceSqlFromD1,
-  D1RssPollScheduler,RssSourceCollector,D1SourceRepository,type RssRequest,
+  D1RssPollScheduler,RssSourceCollector,D1SourceRepository,isSourceDatabaseUnavailable,SourceProviderError,type RssRequest,
   type SourceFetchRequest} from '@distilled/connectors';
-import type {CandidateIntakePort} from '@distilled/contracts';
+import {HandoffError,type CandidateIntakePort} from '@distilled/contracts';
 import {sharedPublicHttp,PUBLIC_SOURCE_MAX_BYTES} from './connector-public-cache';
 import {composeSourceExecution} from './native-source-execution';
 import {rateLimitedPublicHttp} from './connector-rate-limit';
@@ -57,6 +57,15 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   const dailyBudget=env.SOURCE_DAILY_BUDGET_USD===undefined?undefined:{limitUsd:Number(env.SOURCE_DAILY_BUDGET_USD),timeZone:env.SOURCE_BUDGET_TIME_ZONE??'UTC'};
   const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,options.paidResponseMaxBytes??4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited');
   const makeCollector=(request:SourceFetchRequest)=>{
+    const requirePaidApproval=async()=>{
+      let approved:boolean;
+      try{approved=await options.authorize(request);}
+      catch(error){
+        if(isSourceDatabaseUnavailable(error))throw new SourceProviderError('BACKPRESSURE',undefined,{detail:'SOURCE_APPROVAL_DATABASE_UNAVAILABLE'});
+        throw error;
+      }
+      if(!approved)throw new HandoffError('SCOPE_DENIED');
+    };
     const guardedDispatch:typeof fetch=async(value,init)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
       return dispatch(value,init);
@@ -86,7 +95,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return dispatch(value,{...init,redirect:'manual'})},{maxBytes:PUBLIC_SOURCE_MAX_BYTES,followSameOriginRedirects:request.source.family==='rss'||request.source.family==='website'});
     const originHttp=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?rateLimitedPublicHttp(env.DB,baseHttp,authorizeUrl):baseHttp;
     const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,originHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):originHttp;
-    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,guardedDispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited'),execution,secrets,ceilings,
+    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,dispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited',requirePaidApproval),execution,secrets,ceilings,
 
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};

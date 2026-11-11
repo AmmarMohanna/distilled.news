@@ -24,6 +24,7 @@ export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=n
  const request=JSON.parse(row.json),window=publicationWindowSchema.safeParse(request.window);if(!window.success)return false;
  if(!isAutomaticReportingWindow(window.data))return false;
  if((request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!createStoredEvidenceModel(env))return false;
- if((await windowHasHoldingJobs(env.DB,feedId,window.data.end)&&!await preparedV3Delivery(env.DB,feedId,row.id,now.getTime()))||(await pendingWindowCollections(env.DB,feedId,window.data.end,request.engine==='v3'||!request.engine&&env.BRIEFING_ENGINE==='v3',{scheduledFor:window.data.scheduledFor,now:now.getTime()})).pending)return false;
+ const v3=request.engine==='v3'||!request.engine&&env.BRIEFING_ENGINE==='v3';
+ if((await windowHasHoldingJobs(env.DB,feedId,window.data.end,{v3,now:now.toISOString()})&&!await preparedV3Delivery(env.DB,feedId,row.id,now.getTime()))||(await pendingWindowCollections(env.DB,feedId,window.data.end,v3,{scheduledFor:window.data.scheduledFor,now:now.getTime()})).pending)return false;
  return enqueueV1(env,'v1_briefing',row.id,{type:'v1_briefing',feedId,window:window.data},now);
 }

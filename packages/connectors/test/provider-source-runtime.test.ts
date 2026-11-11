@@ -114,13 +114,16 @@ describe('fallback policy and durable handoff',()=>{
     expect(JSON.parse(row.request)).toEqual(request);expect(row.last_error).toBe('UNBOUNDED_SCOPE_RETIRED');expect(JSON.parse(row.result).request.coverage.status).toBe('PARTIAL');
     expect(s.db.db.prepare("SELECT reserved_usd FROM connector_provider_budgets").get()).toEqual({reserved_usd:0.02});
   });
-  it('intake admission waits preserve the captured provider page and failure allowance',async()=>{
+  it.each(['INTAKE_BUSY','TEMPORARY_UNAVAILABLE'])('intake waits preserve the captured provider page and failure allowance (%s)',async reason=>{
     const adapter=provider('x_twitterapi_io'),s=setup([adapter]);let at=Date.parse(time),wait=true;
-    const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{if(wait)throw new SourceHandoffWait();return accept(b)});
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{
+      if(wait)throw reason==='INTAKE_BUSY'?new SourceHandoffWait():new Error('D1_ERROR: D1 DB exceeded its CPU time limit and was reset.');
+      return accept(b);
+    });
     const scheduler=new D1ProviderPollScheduler(s.db,s.collector,async()=>true,()=>at);
     await scheduler.schedule('wait',request,time,['x_twitterapi_io']);
     for(let i=0;i<12;i++){expect(await scheduler.runOne(120000,'wait')).toBe('RETRY');at+=6000;}
-    expect(s.db.db.prepare("SELECT attempts,last_error,pages FROM connector_provider_poll_jobs WHERE job_id='wait'").get()).toEqual({attempts:0,last_error:'INTAKE_BUSY',pages:0});
+    expect(s.db.db.prepare("SELECT attempts,last_error,pages FROM connector_provider_poll_jobs WHERE job_id='wait'").get()).toEqual({attempts:0,last_error:reason,pages:0});
     expect(adapter.fetch).toHaveBeenCalledTimes(1);wait=false;
     expect(await scheduler.runOne(120000,'wait')).toBe('DONE');expect(adapter.fetch).toHaveBeenCalledTimes(1);
   });
