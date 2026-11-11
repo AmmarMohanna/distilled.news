@@ -2,7 +2,7 @@ import {sha256} from '@distilled/contracts';
 import {BriefingBudgetError,BriefingModelError,openAiCompatibleModel,type ModelPort,type ModelResponse} from '@distilled/briefing';
 import type {Env} from './types';
 import {modelSpendingAccount,ModelSpendingWait,reserveModelSpending,settleModelSpending} from './v1-intelligence/model-spending';
-import {configuredBackgroundProviderLimits} from './v1-intelligence/provider-routing';
+import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {providerResponseReceipt,providerBodyReceipt,type ProviderReceipt} from './provider-receipt';
 import {modelSettlementStatement} from './v1-intelligence/model-spending';
 import {modelCapability} from './v1-intelligence/model-capacity';
@@ -28,7 +28,7 @@ export function unreadSummaryPort(env:Env,feedId:string,readerId:string,fetcher:
     const estimate=summaryTokenUpperBound(request)*capability.inputUsdPerToken+request.maxTokens*capability.outputUsdPerToken;
     try{
       const accountId=await modelSpendingAccount(db,request.model,at);
-      await reserveModelSpending(db,{id,accountId,feedId,model:request.model,token,reservedCostUsd:estimate,createdAt:at,leaseUntil:Date.now()+120_000,providerLimits:configuredBackgroundProviderLimits(env,'openrouter')});
+      await reserveModelSpending(db,{id,accountId,feedId,model:request.model,token,reservedCostUsd:estimate,createdAt:at,leaseUntil:Date.now()+120_000,providerLimits:configuredProviderLimits(env,'openrouter')});
     }catch(error){
       if(error instanceof ModelSpendingWait&&error.reason==='PROVIDER_RESOURCE_WAIT')throw new UnreadSummaryResourceWait();
       console.warn('unread-summary-admission-failed',{reason:error instanceof ModelSpendingWait?error.reason:'DATABASE_OR_CONFIGURATION_FAILURE'});

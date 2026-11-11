@@ -43,12 +43,6 @@ it('limits each sweep to three identities and eventually drains a larger expired
  expect(await isolateExpiredModelExecutions(ctx.db,policy,now)).toBe(3);
  expect(await isolateExpiredModelExecutions(ctx.db,policy,now)).toBe(0);
 });
-it('atomically prevents one feed from taking the whole provider pool',async()=>{
- const outcomes=await Promise.allSettled([0,1,2,3].map(i=>reserveModelSpending(ctx.db,{...reservation('same-'+i),providerLimits:{provider:'openrouter',maxConcurrent:3,requestsPerMinute:50,maxConcurrentPerFeed:2}})));
- expect(outcomes.filter(o=>o.status==='fulfilled')).toHaveLength(2);
- await reserveModelSpending(ctx.db,{...reservation('other','feed-b'),providerLimits:{provider:'openrouter',maxConcurrent:3,requestsPerMinute:50,maxConcurrentPerFeed:2}});
- expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_active_operations').first())?.n).toBe(3);
-});
 it('does not release projection occupancy for a foreign quarantine token or account',async()=>{
  await reserveModelSpending(ctx.db,reservation('protected'));
  await ctx.db.prepare("INSERT INTO v1_feed_documents VALUES('model_execution_quarantines','protected','feed-a',?)").bind(JSON.stringify({accountId:'foreign',reservationToken:'protected-owner'})).run();

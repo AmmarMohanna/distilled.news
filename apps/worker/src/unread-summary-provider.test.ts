@@ -35,18 +35,18 @@ it('preserves holds and returns pending when provider slots are full, without se
  expect(fetcher).not.toHaveBeenCalled();expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM v1_model_spending_reservations').first()).toEqual(before);
 });
 
-it('leaves the final provider slot for scheduled work across feeds, atomically',async()=>{
+it('uses the same configured provider capacity for summaries without a lower summary cap',async()=>{
  const local=await createIntakeDatabase({product:true});try{
   const env={DB:local.db,OPENROUTER_API_KEY:'test-only'} as Env;
   for(const id of ['feed-0','feed-1','feed-2','other-feed','fourth-feed'])await local.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind(id,JSON.stringify({revision:1})).run();
   const fetcher=vi.fn(async()=>{throw new TypeError('response lost')});
-  // Different readers and feeds cannot collectively consume the reserved slot.
+  // No summary-only reduction of the existing shared provider capacity.
   await Promise.allSettled(['reader-1','reader-2','reader-3'].map((reader,i)=>unreadSummaryPort(env,'feed-'+i,reader,fetcher).complete(unreadSummaryRequest(input))));
-  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher).toHaveBeenCalledTimes(3);
   const now=new Date().toISOString();
-  await reserveModelSpending(local.db,{id:'scheduled',accountId:'test-only-account',feedId:'other-feed',token:'scheduled',model:'openai/gpt-4.1',reservedCostUsd:.01,leaseUntil:Date.now()+60000,createdAt:now,providerLimits:{provider:'openrouter',maxConcurrent:3,requestsPerMinute:20}});
+  await expect(reserveModelSpending(local.db,{id:'scheduled',accountId:'test-only-account',feedId:'other-feed',token:'scheduled',model:'openai/gpt-4.1',reservedCostUsd:.01,leaseUntil:Date.now()+60000,createdAt:now,providerLimits:{provider:'openrouter',maxConcurrent:3,requestsPerMinute:20}})).rejects.toThrow('PROVIDER_RESOURCE_WAIT');
   await expect(unreadSummaryPort(env,'fourth-feed','fourth-reader',fetcher).complete(unreadSummaryRequest(input))).rejects.toBeInstanceOf(UnreadSummaryResourceWait);
-  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher).toHaveBeenCalledTimes(3);
   expect((await local.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first<{n:number}>())?.n).toBe(3);
  }finally{await local.dispose()}
 },30000);

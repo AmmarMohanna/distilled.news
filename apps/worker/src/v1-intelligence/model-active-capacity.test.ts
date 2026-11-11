@@ -26,15 +26,15 @@ it('backfills only genuine occupancy and uses an indexed rate window without rew
   expect(await ctx.db.prepare("SELECT id FROM v1_model_active_operations WHERE id='unsettled'").first()).toBeNull();
  }finally{await ctx.dispose()}
 },30000);
-it('retains isolation and per-feed admission during a rolling upgrade before the projection exists',async()=>{
+it('retains isolation and existing provider admission during a rolling upgrade before the projection exists',async()=>{
  const ctx=await createIntakeDatabase();try{
   for(const name of ['v1_model_active_reservation','v1_model_active_settled_insert','v1_model_active_settled_update','v1_model_active_quarantined'])await ctx.db.exec('DROP TRIGGER '+name);
   await ctx.db.exec('DROP TABLE v1_model_active_operations');
   for(const id of ['f','other'])await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind(id,JSON.stringify({revision:1})).run();
-  const r=(id:string,feedId='f',leaseUntil=0)=>({id,feedId,accountId:'test-only-account',token:id,model:'openai/gpt-4.1',reservedCostUsd:.01,createdAt:new Date().toISOString(),leaseUntil,providerLimits:{provider:'openrouter' as const,maxConcurrent:3,maxConcurrentPerFeed:2,requestsPerMinute:50}});
+  const r=(id:string,feedId='f',leaseUntil=0)=>({id,feedId,accountId:'test-only-account',token:id,model:'openai/gpt-4.1',reservedCostUsd:.01,createdAt:new Date().toISOString(),leaseUntil,providerLimits:{provider:'openrouter' as const,maxConcurrent:3,requestsPerMinute:50}});
   const old=r('old-1');await reserveModelSpending(ctx.db,old);await reserveModelSpending(ctx.db,r('old-2'));
-  await expect(reserveModelSpending(ctx.db,r('blocked'))).rejects.toThrow('PROVIDER_RESOURCE_WAIT');
   await reserveModelSpending(ctx.db,r('independent','other',Date.now()+60000));
+  await expect(reserveModelSpending(ctx.db,r('blocked'))).rejects.toThrow('PROVIDER_RESOURCE_WAIT');
   expect(await isolateExpiredModelExecutions(ctx.db,'isolate-after-5m-v1')).toBe(2);
   await expect(reserveModelSpending(ctx.db,old)).rejects.toThrow('OPERATION_EXECUTION_QUARANTINED');
   await reserveModelSpending(ctx.db,r('new-work'));

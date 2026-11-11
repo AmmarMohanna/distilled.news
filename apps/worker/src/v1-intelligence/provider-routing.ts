@@ -38,18 +38,7 @@ export function phaseTask(phase:string):LlmTask {
 export function configuredProviderLimits(env:Partial<Env>,provider:LlmRoute['provider']):import('./provider-limits').ProviderLimits{
  const maxConcurrent=Number(env.V1_PROVIDER_MAX_CONCURRENCY??3),requestsPerMinute=Number(env.V1_PROVIDER_REQUESTS_PER_MINUTE??20);
  if(!Number.isSafeInteger(maxConcurrent)||maxConcurrent<1||maxConcurrent>6||!Number.isSafeInteger(requestsPerMinute)||requestsPerMinute<1)throw Error('INVALID_PROVIDER_LIMITS');
- const perFeed=env.V1_PROVIDER_MAX_CONCURRENCY_PER_FEED;
- const maxConcurrentPerFeed=perFeed===undefined?undefined:Number(perFeed);
- if(maxConcurrentPerFeed!==undefined&&(!Number.isSafeInteger(maxConcurrentPerFeed)||maxConcurrentPerFeed<1||maxConcurrentPerFeed>maxConcurrent))throw Error('INVALID_PROVIDER_LIMITS');
- return {provider,maxConcurrent,requestsPerMinute,...(maxConcurrentPerFeed===undefined?{}:{maxConcurrentPerFeed})};
-}
-/** Optional reader-triggered work must leave one slot and one rolling-minute
- * request for the scheduled pipeline. A one-slot deployment cannot provide
- * isolation; keep its existing behavior rather than disable summaries. */
-export function configuredBackgroundProviderLimits(env:Partial<Env>,provider:LlmRoute['provider']):import('./provider-limits').ProviderLimits{
- const limits=configuredProviderLimits(env,provider);
- const maxConcurrent=Math.max(1,limits.maxConcurrent-1);
- return {...limits,maxConcurrent,requestsPerMinute:Math.max(1,limits.requestsPerMinute-1),...(limits.maxConcurrentPerFeed===undefined?{}:{maxConcurrentPerFeed:Math.min(maxConcurrent,limits.maxConcurrentPerFeed)})};
+ return {provider,maxConcurrent,requestsPerMinute};
 }
 /** Provider credentials never cross routes. Historical OpenRouter options stay byte-compatible. */
 export function modelOptionsForRoute(env:Partial<Env>,route:LlmRoute,fetcher?:typeof fetch):ModelOptions {
