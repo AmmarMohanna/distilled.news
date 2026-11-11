@@ -1,5 +1,6 @@
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts} from './novelty';
+import {completeStorySources} from './citation-coverage';
 import { EDITOR_SYSTEM_V7, CONSOLIDATE_SYSTEM_V7, VERIFY_SYSTEM_V7, REPAIR_SYSTEM_V7 } from './prompts-v7';
 import { auditEditorSourceAccounting } from './source-accounting';
 import { callJson, UsageMeter, type ModelPort } from "./model";
@@ -29,6 +30,8 @@ import { significantNumbers } from "./text";
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
+  /** Versioned source association audit for all articles in a new snapshot. */
+  citationCoverage?: boolean;
   /** Versioned by the product snapshot so retained paid requests remain unchanged. */
   noveltyGuard?: boolean;
   /** Programmatic opt-in only; existing prompt versions and defaults remain unchanged. */
@@ -564,6 +567,10 @@ export async function generateBriefing(
   // 2. Verify, repair what is repairable once, drop what is not.
   const dropped: DroppedItem[] = exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}));
   const verifierPrior=options.noveltyGuard?verificationMemory(input.prior??[],drafts,options.now()):prior;
+  if(options.citationCoverage){
+    const refs=await timed('source_coverage',()=>completeStorySources(port,meter,models.editor,drafts,prepared,options.maxEditorChars));
+    drafts=drafts.map((d,i)=>({...d,refs:refs[i]}));
+  }
   const accepted = new Set<number>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   let todo = drafts.map((_, i) => i);
