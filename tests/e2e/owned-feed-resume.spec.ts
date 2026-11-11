@@ -4,14 +4,14 @@ const existing={id:'existing',ownerAccountId:'owner',ownerUsername:'product-proo
 const added={...existing,id:'added',slug:'lebanon-news-clean-test',title:'Lebanon news clean test',publicFeedEnabled:false};
 
 async function mock(page:Page,initial=[existing]){
- const state={feeds:initial,reads:0,writes:0,sources:[] as string[],hold:undefined as Promise<void>|undefined,failNext:false};
+ const state={feeds:initial,reads:0,writes:0,sources:[] as string[],hold:undefined as Promise<void>|undefined,failReads:0};
  await page.route('**/api/**',async route=>{
   const url=new URL(route.request().url()),path=url.pathname;
   if(route.request().method()!=='GET')state.writes++;
   if(path==='/api/auth/session')return route.fulfill({json:{authenticated:true,account:{id:'owner',username:'product-proof',role:'user'}}});
   if(path==='/api/me/briefings'){
    state.reads++;if(state.hold)await state.hold;
-   if(state.failNext){state.failNext=false;return route.fulfill({status:503,json:{error:'temporarily unavailable'}});}
+   if(state.failReads>0){state.failReads--;return route.fulfill({status:503,json:{error:'temporarily unavailable'}});}
    return route.fulfill({json:{briefings:state.feeds}});
   }
   if(path==='/api/me/sources'){state.sources.push(url.searchParams.get('briefingId')!);return route.fulfill({json:{sources:[]}});}
@@ -47,16 +47,16 @@ test('an empty owned list can discover the first externally created feed',async(
 
 test('a failed background refresh preserves visible feeds and can retry on the next resume',async({page})=>{
  const state=await mock(page);await page.goto('/');await expect(cards(page).getByText(existing.title,{exact:true})).toBeVisible();
- state.failNext=true;
- const failed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/me/briefings'&&r.status()===503);
- await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await failed;
+ state.failReads=3;
+ const failed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/me/briefings'&&r.status()===503&&state.failReads===0);
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await (await failed).finished();expect(state.reads).toBe(4);
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('button',{name:'Home',exact:true}).click();
  await expect(cards(page).getByText(existing.title,{exact:true})).toBeVisible();
  await expect(page.getByRole('alert')).toHaveCount(0);
  state.feeds=[existing,added];await page.evaluate(()=>window.dispatchEvent(new Event('online')));
  await expect(cards(page).getByText(added.title,{exact:true})).toBeVisible();
- expect(state.reads).toBe(3);expect(state.writes).toBe(0);
+ expect(state.reads).toBe(5);expect(state.writes).toBe(0);
 });
 
 test('resume does not overwrite an unsaved feed draft',async({page})=>{
@@ -121,6 +121,6 @@ test('a genuinely empty owned list appears only after a successful response',asy
  await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toBeVisible();await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);release();await expect(page.getByText(/created any feeds yet/)).toBeVisible();
 });
 test('an initial owned-feed API failure is not presented as having no feeds',async({page})=>{
- const state=await mock(page);state.failNext=true;await page.goto('/');await expect(page.locator('.feed-list-state[role=alert]')).toContainText("Couldn't load your feeds");await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toHaveCount(0);
- await page.getByRole('button',{name:'Try Again',exact:true}).click();await expect(cards(page).getByText(existing.title,{exact:true})).toBeVisible();await expect(page.getByRole('alert')).toHaveCount(0);expect(state.reads).toBe(2);expect(state.writes).toBe(0);
+ const state=await mock(page);state.failReads=3;await page.goto('/');await expect(page.locator('.feed-list-state[role=alert]')).toContainText("Couldn't load your feeds");await expect(page.getByText(/created any feeds yet/)).toHaveCount(0);await expect(page.locator('.home-view').getByText(/^Loading feeds/)).toHaveCount(0);
+ await page.getByRole('button',{name:'Try Again',exact:true}).click();await expect(cards(page).getByText(existing.title,{exact:true})).toBeVisible();await expect(page.getByRole('alert')).toHaveCount(0);expect(state.reads).toBe(4);expect(state.writes).toBe(0);
 });

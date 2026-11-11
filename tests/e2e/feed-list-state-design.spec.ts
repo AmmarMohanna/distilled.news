@@ -5,7 +5,7 @@ async function setup(page:Page,width:number,dark:boolean,arabic=false){
  await page.addInitScript(({dark,arabic})=>{localStorage.setItem('dn_theme',dark?'dark':'light');localStorage.setItem('dn_language',arabic?'ar':'en');},{dark,arabic});
  let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve;});let reads=0;
  const feed={id:'existing',ownerAccountId:'owner',ownerUsername:'reader',slug:'news',title:'Lebanon news',stars:0,interestProfile:'Lebanon',publicFeedEnabled:true,paused:false,language:'en',intensity:'medium',briefingCadence:'hourly',briefingTimeOfDay:'00:00',briefingTimezone:'Asia/Beirut',updateIntervalMinutes:30,retentionDays:15};
- await page.route('**/api/**',async route=>{const path=new URL(route.request().url()).pathname;if(path==='/api/auth/session')return route.fulfill({json:{authenticated:true,account:{id:'owner',username:'reader',role:'user'}}});if(path==='/api/me/briefings'){reads++;if(reads===1){await pending;return route.fulfill({status:503,json:{error:'temporarily unavailable'}}).catch(()=>{});}return route.fulfill({json:{briefings:[feed]}});}if(path.endsWith('/sketch'))return route.fulfill({status:404});return route.fulfill({json:path==='/api/explore/feeds'?{feeds:[]}:path==='/api/me/sources'?{sources:[]}:path==='/api/me/health'?{health:{}}:{}});});
+ await page.route('**/api/**',async route=>{const path=new URL(route.request().url()).pathname;if(path==='/api/auth/session')return route.fulfill({json:{authenticated:true,account:{id:'owner',username:'reader',role:'user'}}});if(path==='/api/me/briefings'){reads++;if(reads<=3){await pending;return route.fulfill({status:503,json:{error:'temporarily unavailable'}}).catch(()=>{});}return route.fulfill({json:{briefings:[feed]}});}if(path.endsWith('/sketch'))return route.fulfill({status:404});return route.fulfill({json:path==='/api/explore/feeds'?{feeds:[]}:path==='/api/me/sources'?{sources:[]}:path==='/api/me/health'?{health:{}}:{}});});
  await page.goto('/');return {release,reads:()=>reads};
 }
 for(const width of [320,390,1280])for(const dark of [false,true])test(`branded loading and retry at ${width}px ${dark?'dark':'light'}`,async({page},info)=>{
@@ -26,7 +26,7 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`branded l
   state.release();await expect(surface).toHaveAttribute('role','alert');await expect(surface.locator('.feed-state-ring')).toHaveCount(0);const retry=surface.getByRole('button',{name:'Try Again',exact:true});await expect(retry).toBeVisible();
   await page.screenshot({path:`.local-reports/feed-loading-design/${info.project.name}-${width}-${dark?'dark':'light'}-error.png`,animations:'disabled'});
   const bounds=await retry.boundingBox();expect(bounds!.height).toBeGreaterThanOrEqual(44);expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width);
-  await retry.focus();await expect(retry).toBeFocused();await page.keyboard.press('Enter');await expect(page.locator('.personal-feed-grid')).toContainText('Lebanon news');await expect(surface).toHaveCount(0);expect(state.reads()).toBe(2);
+  await retry.focus();await expect(retry).toBeFocused();await page.keyboard.press('Enter');await expect(page.locator('.personal-feed-grid')).toContainText('Lebanon news');await expect(surface).toHaveCount(0);expect(state.reads()).toBe(4);
  }finally{state.release();}
 });
 test('Arabic enlarged loading and retry fit a narrow screen',async({page},info)=>{
