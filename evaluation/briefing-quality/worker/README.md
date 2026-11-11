@@ -1,10 +1,18 @@
 # Continuous briefing-quality evaluator
 
+November 11 repair: live reviews resumed after isolating the November 3 unresolved
+call without changing its charge or resending it. Current-source passage references,
+strict provider response schemas, QUIET-window enrollment and current-protocol
+freshness metrics are deployed. See [repair evidence](../../../docs/evaluator-grafana-repair-2026-11-11.md).
+The quality and deployment-wide Grafana dashboards are installed; the two technical
+health alerts are active with explicit user approval. AI importance judgments remain
+uncalibrated editorial assessments, not objective reader requirements.
+
 Separate Cloudflare Worker for **distilled-news-staging**. It does not deploy or
 modify the application Worker. SOURCE_DB is used exclusively by the SELECT-only
 source adapter; Cloudflare D1 bindings themselves do not enforce read-only access.
 
-Every five minutes, Cron discovers published editions since `ENROLL_FROM`, records
+Every five minutes, Cron discovers published editions and completed QUIET windows since `ENROLL_FROM`, records
 idempotent jobs in its own D1, and queues evidence collection. The queue freezes
 the complete historical V3 admission set, including uncited articles, historical
 feed interests, requested language, reporting window and actual prior reader text
@@ -43,7 +51,11 @@ not fit the configured 350 KB request ceiling is refused, never silently truncat
 Actual provider costs are retained even for malformed/truncated review outputs.
 
 Transport errors, missing usage/cost, and ambiguous outcomes preserve the reserve
-and fence new sends, including across days. There is no automatic transport retry.
+and fence the exact job/stage against new sends, including across days. Explicit
+`isolate-after-20m-v1` deployment policy releases only a stale global execution
+fence; UNKNOWN financial exposure remains charged against the existing budget.
+There is no automatic transport retry. Retained generation handles can recover
+billing via metadata GET without inventing a missing review response.
 Actual over-reservation charges are recorded and fence further work. Admission is
 a spending control; it cannot guarantee a provider never misreports or overcharges.
 Set a dedicated provider-key spending limit as an additional external control.
