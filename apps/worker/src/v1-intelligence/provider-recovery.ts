@@ -2,6 +2,7 @@ import {sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import {modelSettlementStatement} from './model-spending';
 import type {Env} from '../types';
+import {isolateExpiredModelExecutions} from './model-capacity-recovery';
 type Recovery={state:'SETTLED';costUsd:number}|{state:'WAITING';reason:string};
 // Exact canonical slugs from OpenRouter's model catalog, checked 2026-10-23.
 // Never strip arbitrary version suffixes or equate different model families.
@@ -89,8 +90,11 @@ export async function recoverPendingProviderGenerations(db:D1Database,apiKey:str
 
 /** Recovery candidates are deployment-wide. Queue-mode Cron owns this sweep;
  * a feed relay must never repeat it for every dispatched feed. */
-export async function runProviderAccountingRecovery(env:Pick<Env,'DB'|'V1_DOWNSTREAM_ENABLED'|'OPENROUTER_API_KEY'>,now=new Date()):Promise<void>{
+export async function runProviderAccountingRecovery(env:Pick<Env,'DB'|'V1_DOWNSTREAM_ENABLED'|'OPENROUTER_API_KEY'|'V1_MODEL_UNCERTAIN_EXECUTION_POLICY'>,now=new Date()):Promise<void>{
  if(env.V1_DOWNSTREAM_ENABLED!=='true'||!env.OPENROUTER_API_KEY)return;
  try{await recoverPendingProviderGenerations(env.DB,env.OPENROUTER_API_KEY,now)}
  catch{console.warn(JSON.stringify({type:'V1_PROVIDER_ACCOUNTING_RECOVERY_FAILED',reason:'RECOVERY_MAINTENANCE_FAILED'}))}
+ // Recovery failure must not suppress independent capacity maintenance.
+ try{await isolateExpiredModelExecutions(env.DB,env.V1_MODEL_UNCERTAIN_EXECUTION_POLICY,now)}
+ catch{console.warn(JSON.stringify({type:'V1_PROVIDER_CAPACITY_RECOVERY_FAILED',reason:'CAPACITY_MAINTENANCE_FAILED'}))}
 }

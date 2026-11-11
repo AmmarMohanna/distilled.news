@@ -116,6 +116,8 @@ export interface Env extends Cloudflare.Env {
   V1_RECONCILIATION_MODE?: 'CLAIMS'|'DEVELOPMENTS';
   V1_LLM_ROUTES_JSON?: string;
   V1_PROVIDER_MAX_CONCURRENCY?: string;
+  V1_PROVIDER_MAX_CONCURRENCY_PER_FEED?: string;
+  V1_MODEL_UNCERTAIN_EXECUTION_POLICY?: 'isolate-after-5m-v1';
   V1_PROVIDER_REQUESTS_PER_MINUTE?: string;
   AI?: import("./workers-ai").WorkersAiBinding;
   V1_JEV_SALIENCE_MODEL?: string;

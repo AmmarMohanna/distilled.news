@@ -17,6 +17,7 @@ import {isAutomaticReportingWindow} from './runtime';
 import {livePublicationWindow} from './schedule';
 import {readScheduleAudit} from './schedule-audit';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
+import {isolateExpiredModelExecutions} from './model-capacity-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
@@ -88,7 +89,8 @@ async function article(n=1,publishedAt='2026-10-03T12:05:00Z',acceptedAt='2026-1
 const fetcher=(seen:string[])=>async(_url:unknown,init?:RequestInit)=>{
  const body=JSON.parse(init!.body as string);seen.push(JSON.stringify(body));
  const verify=body.messages[0].content.includes('meticulous fact-checker')||body.messages[0].content.startsWith('You are an independent factual verifier.');
- const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
+ const coverage=body.messages[0].content.startsWith('You audit source coverage');
+ const content=coverage?{sources:JSON.parse(body.messages[1].content).sources.map((s:{ref:string;text:string})=>({ref:s.ref,stories:s.text.includes('Parliament approved')?[0]:[]}))}:verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
  return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
 };
 it.each(['body','headline'] as const)('keeps unrecoverable malformed V4 %s pending, never DONE/QUIET, and reuses its settled calls',async field=>{
@@ -211,6 +213,28 @@ it('keeps a settled failed V3 call from indefinitely blocking subsequent windows
  expect((await store.list('feed-1','semantic_results')).filter((r:any)=>r.failure==='SEMANTIC_PROVIDER_FAILURE')).toEqual(retained);
  await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>next.end,undefined,failed)).rejects.toThrow('INVALID_REQUEST');
  expect(calls).toBe(1);
+},30000);
+
+it('an isolated UNKNOWN V3 call fails its window without replay and carries evidence into a later edition',async()=>{
+ await article();let calls=0;
+ const failed=(async()=>{calls++;throw Error('connection lost after submission')}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,failed);
+ const retained=await store.list<any>('feed-1','semantic_results');expect(retained).toHaveLength(1);expect(retained[0].usage.reported).toBe(false);
+ const money=await ctx.db.prepare('SELECT id,json,lease_until FROM v1_model_spending_reservations').first<{id:string;json:string;lease_until:number}>();
+ expect(await isolateExpiredModelExecutions(ctx.db,'isolate-after-5m-v1',new Date(money!.lease_until+300001))).toBe(1);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:40:00Z',undefined,failed);
+ expect(calls).toBe(1);
+ expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'FAILED',failure:'V3_UNCERTAIN_CALL_ISOLATED'});
+ expect(await store.list('feed-1','semantic_results')).toEqual(retained);
+ expect(await ctx.db.prepare('SELECT json FROM v1_model_spending_reservations WHERE id=?').bind(money!.id).first()).toEqual({json:money!.json});
+ expect(await ctx.db.prepare('SELECT reported FROM v1_model_spending_settlements WHERE id=?').bind(money!.id).first()).toMatchObject({reported:0});
+ await article(2,'2026-10-03T12:35:00Z','2026-10-03T12:40:00Z');
+ const next={start:window.end,end:'2026-10-03T13:00:00Z',kind:'30M' as const},seen:string[]=[];
+ expect((await prepareV3Window(store,'feed-1',next,next.end)).evidenceRevisionIds).toContain(retained[0].input.evidenceRevisionIds[0]);
+ const edition=await processV1Briefing(env,{...message,window:next},()=>next.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(calls).toBe(1);expect(seen).toHaveLength(2);
+ expect((await store.list<any>('feed-1','semantic_results')).find(r=>r.id===retained[0].id)).toEqual(retained[0]);
 },30000);
 
 it('reuses settled editor and verifier calls after a crash before result persistence',async()=>{
@@ -638,12 +662,12 @@ it('retains diagnostic unaccounted refs without blocking publication or repeatin
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T12:10:00Z');
  const id=await windowIdentity('feed-1',window),seen:string[]=[],transport=fetcher(seen) as typeof fetch,message={type:'v1_briefing' as const,feedId:'feed-1',window};
  const edition=await processV1Briefing(env,message,()=>window.end,undefined,transport);
- expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);
+ expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(3);
  const saved=await store.read<any>('feed-1','v3_window_results',id);
  expect(saved.result.unaccounted).toHaveLength(1);expect(saved.result.unaccounted[0].ref).toBe('S2');expect(saved.result.unaccounted[0].sourceIds).toHaveLength(1);
  expect(saved.result.omitted).toEqual([]);expect(await publicV1Edition(ctx.db,edition!.id)).toBeDefined();
  await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,transport);
- expect(seen).toHaveLength(2);expect((await store.read<any>('feed-1','v3_window_results',id)).result.unaccounted).toEqual(saved.result.unaccounted);
+ expect(seen).toHaveLength(3);expect((await store.read<any>('feed-1','v3_window_results',id)).result.unaccounted).toEqual(saved.result.unaccounted);
 },30000);
 it.each(['evidence-first-v1','evidence-first-v2'] as const)('persists an opt-in evidence-agent edition through native durable operations and replays without new work (%s)',async(architecture)=>{
  await article();const id=await windowIdentity('feed-1',window);

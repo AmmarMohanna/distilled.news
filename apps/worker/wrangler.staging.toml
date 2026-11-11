@@ -54,6 +54,10 @@ V1_SEMANTIC_POLICY = "SEMANTIC"
 V1_SALIENCE_POLICY = "DETERMINISTIC"
 V1_SYNTHESIS_MODEL_ENABLED = "true"
 DISTILLED_LLM_API_GATEWAY = "openrouter"
+# Explicit operator recovery policy: isolate expired identities, retain UNKNOWN
+# financial exposure and replay fences; remote termination remains unproven.
+V1_MODEL_UNCERTAIN_EXECUTION_POLICY = "isolate-after-5m-v1"
+V1_PROVIDER_MAX_CONCURRENCY_PER_FEED = "2"
 DISTILLED_LIVE_OPENROUTER_MODEL = "openai/gpt-4.1-mini"
 V1_BROWSER_ACQUISITION_ENABLED = "false"
 DISTILLED_WEB_OPERATOR_ENABLED = "false"

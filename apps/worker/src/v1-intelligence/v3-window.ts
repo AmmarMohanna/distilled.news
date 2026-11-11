@@ -18,9 +18,10 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 
 const POLICY='v3-fixed-window-editor-verifier-v1';
-/** A sent, conclusively settled unusable response is immutable, not an admission wait. */
+/** A settled unusable response or explicitly isolated UNKNOWN call is immutable,
+ * not an admission wait. Neither case permits resending the same request. */
 export class SettledV3CallFailure extends Error {
- constructor(readonly operationId:string){super('SEMANTIC_PROVIDER_FAILURE');}
+ constructor(readonly operationId:string,reason='SEMANTIC_PROVIDER_FAILURE'){super(reason);}
 }
 export interface V3WindowInput {citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
 interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
@@ -87,6 +88,10 @@ function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,windowId
     const value=await transport.complete(request);if(!usage.reported)throw Error('SEMANTIC_OUTCOME_UNKNOWN');return {value,usage};
    },now(),()=>usage,{operationAdmission:admission});
    operations.add(result.id);
+   if(result.status!=='SUCCEEDED'&&result.usage.calls===1&&!result.usage.reported){
+    const isolated=await store.db.prepare("SELECT 1 FROM v1_feed_documents q JOIN v1_model_spending_reservations r ON r.id=q.id WHERE q.kind='model_execution_quarantines' AND q.id=? AND q.feed_id=? AND r.feed_id=q.feed_id AND json_extract(q.json,'$.accountId')=r.account_id AND json_extract(q.json,'$.reservationToken')=r.token").bind('semantic_intents:'+result.id,snapshot.feedId).first();
+    if(isolated)throw new SettledV3CallFailure(result.id,'V3_UNCERTAIN_CALL_ISOLATED');
+   }
    if(result.status==='DEFERRED'&&result.failure==='SEMANTIC_PROVIDER_FAILURE'&&result.usage.calls===1&&result.usage.reported)throw new SettledV3CallFailure(result.id);
    if(result.status!=='SUCCEEDED'||!result.value)throw new ModelSpendingWait(!result.usage.reported?'SEMANTIC_OUTCOME_UNKNOWN':result.failure??'SEMANTIC_PROVIDER_FAILURE');
    return result.value;

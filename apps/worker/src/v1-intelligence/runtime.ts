@@ -261,10 +261,10 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   if(error instanceof IntelligenceTurnBusy||error instanceof SemanticLeaseError||error instanceof SemanticContentionError)throw error;
   if(error instanceof QuietPublication){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(current)await tx.write('briefing_requests',id,{...current,coverage,...(coverage.state!=='COMPLETE'||current.semanticCoverage?.unresolvedTargets.length?{state:'DONE',result:'DEFERRED',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP',completedAt:now()}: {})})});return undefined;}
   if(error instanceof SettledV3CallFailure){
-   // The frozen call can only replay the same failed result. Keep its receipt
-   // and unresolved evidence; let subsequent windows proceed without resending it.
+   // The frozen call can only replay the same failed result. Keep its receipt,
+   // UNKNOWN finances (if isolated), and evidence for later windows. Never resend.
    await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING')await tx.write('briefing_requests',id,{...current,state:'FAILED',failure:error.message,reason:error.message});});
-   console.warn(JSON.stringify({type:'V3_SETTLED_CALL_FAILED',feedId,requestId:id,operationId:error.operationId}));
+   console.warn(JSON.stringify({type:error.message==='V3_UNCERTAIN_CALL_ISOLATED'?'V3_ISOLATED_CALL_FAILED':'V3_SETTLED_CALL_FAILED',feedId,requestId:id,operationId:error.operationId}));
    return undefined;
   }
   const waitingJob=await store.read<{state:string;failure?:string}>(feedId,'synthesis_jobs',id);
