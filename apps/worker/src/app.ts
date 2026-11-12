@@ -336,8 +336,13 @@ export function createApp(options: AppOptions = {}) {
     catch(error) {if(error instanceof HandoffError&&error.code==='SCOPE_DENIED')return c.json({error:error.code},403);return c.json({...await readBriefingOutcome(c.env.DB,input.feedId,input.window),error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},503)}
   });
   app.get('/api/v1/editions/:id',async c=>{
-    if (!await canReadPublishedEdition(c, c.req.param('id'))) return c.json({error:'not found'},404);
-    const edition=await publicV1Edition(c.env.DB,c.req.param('id'));return edition?c.json(edition):c.json({error:'not found'},404);
+    const id=c.req.param('id'),bucket=c.env.EDITION_ARTIFACTS_ENABLED==='true'?c.env.RAW_ARCHIVE:undefined;
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
+    if (!await canReadPublishedEdition(c,id)) return c.json({error:'not found'},404);
+    const edition=await publicV1Edition(c.env.DB,id,bucket);
+    if(!edition||bucket&&!await canReadPublishedEdition(c,id))return c.json({error:'not found'},404);
+    return c.json(edition);
   });
   app.get('/api/v1/editions/:id/evidence/:revisionId',async c=>{
     if (!await canReadPublishedEdition(c, c.req.param('id'))) return c.json({error:'not found'},404);
@@ -1231,13 +1236,15 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
     const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
-    return c.json({
+    const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
       sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
@@ -1245,7 +1252,9 @@ export function createApp(options: AppOptions = {}) {
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
-    });
+    };
+    if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
+    return c.json(payload);
   });
 
   app.get("/api/feed/:username/:briefingSlug/developments",async(c)=>{
@@ -1255,11 +1264,14 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.get("/api/feed/:username/:briefingSlug/editions/:editionId", async (c) => {
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0] : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
     if (!edition) return c.json({ error: "edition not found" }, 404);
+    if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
     return c.json({ edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
   });
@@ -1273,11 +1285,14 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.get("/api/feed/:username/:briefingSlug/search", async (c) => {
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
+    if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
     return c.json({
       editions: searchBriefingEditions(
         editions,
@@ -1295,6 +1310,7 @@ export function createApp(options: AppOptions = {}) {
     if(c.env.UNREAD_SUMMARY_ENABLED!=='true'||!c.env.DB||!c.env.OPENROUTER_API_KEY||c.env.BRIEFING_ENGINE!=='v3')return c.json({error:'Summaries are not configured on this deployment.'},503);
     const {readIds}=z.object({readIds:z.array(z.string().min(1).max(300)).max(1000)}).strict().parse(await c.req.json());
     const editions=c.env.PRODUCT_FEEDS_ENABLED==='true'?await publishedProductEditions(c.env,resolved.briefing):(await resolved.repo.listBriefingEditions(resolved.briefing.id,true)).filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
+    if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,resolved.briefing.id))return c.json({error:'feed not found'},404);
     let input;try{input=prepareUnreadSummary(editions,readIds,resolved.briefing.language);}catch{return c.json({error:'These briefings are too long to summarize together.'},422);}
     const task=generateUnreadSummary({db:c.env.DB,accountId:reader.id,feedId:resolved.briefing.id,input,port:unreadSummaryPort(c.env,resolved.briefing.id,reader.id),recordUsage:usage=>resolved.repo.recordLlmUsage({briefingId:resolved.briefing.id,purpose:'summary',phase:'unread_summary',outcome:'SUCCESS',model:usage.model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,estimatedCostUsd:usage.costUsd??0,reportedCostUsd:usage.costUsd,latencyMs:usage.latencyMs})});
     try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
@@ -1509,8 +1525,23 @@ export function createApp(options: AppOptions = {}) {
     return c.text("Distilled.news Worker is running. Build apps/web to serve the UI.", 200);
   });
 
+  type FeedAccess={public_feed_enabled:number;owner_account_id:string;disabled_at:string|null};
+  function usesEditionArtifacts(env:Env) {
+    return env.PRODUCT_FEEDS_ENABLED==='true'&&env.EDITION_ARTIFACTS_ENABLED==='true';
+  }
   async function canReadPublishedEdition(c: Context<{ Bindings: Env; Variables: Variables }>, id: string) {
-    const row = await c.env.DB.prepare("SELECT b.public_feed_enabled,b.owner_account_id,a.disabled_at FROM v1_feed_documents e JOIN briefings b ON b.id=e.feed_id JOIN accounts a ON a.id=b.owner_account_id WHERE e.kind='editions' AND e.id=?").bind(id).first<{public_feed_enabled:number;owner_account_id:string;disabled_at:string|null}>();
+    const row=await c.env.DB.prepare(`SELECT b.public_feed_enabled,b.owner_account_id,a.disabled_at FROM v1_feed_documents p
+      JOIN briefings b ON b.id=p.feed_id JOIN accounts a ON a.id=b.owner_account_id
+      WHERE p.kind='publication_status' AND p.id=? AND json_extract(p.json,'$.status')='PUBLISHED'`)
+      .bind(id).first<FeedAccess>();
+    return canReadFeedAccess(c,row);
+  }
+  async function canReadCurrentFeed(c: Context<{ Bindings: Env; Variables: Variables }>, id: string) {
+    const row=await c.env.DB.prepare(`SELECT b.public_feed_enabled,b.owner_account_id,a.disabled_at
+      FROM briefings b JOIN accounts a ON a.id=b.owner_account_id WHERE b.id=?`).bind(id).first<FeedAccess>();
+    return canReadFeedAccess(c,row);
+  }
+  async function canReadFeedAccess(c: Context<{ Bindings: Env; Variables: Variables }>,row:FeedAccess|null) {
     if (!row || row.disabled_at) return false;
     if (row.public_feed_enabled === 1) return true;
     const token = getCookie(c, SESSION_COOKIE);

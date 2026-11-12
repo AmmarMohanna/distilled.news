@@ -8,9 +8,14 @@ import type {DownstreamJob} from '../v1-intake/types';
 import {withIntelligenceTurn} from '../connector-intelligence-turn';
 import {V1FeedStore} from './store';
 import {feedFixture} from './test-utils';
-import {processV1Briefing,processV1Reassessment} from './runtime';
+import {processV1Briefing,processV1Reassessment,windowIdentity,type BriefingRequest} from './runtime';
 import {prepareV3Window} from './v3-window';
-import {publicV1Edition} from './public-read';
+import {publicV1Edition,publicV1Editions,withdrawV1Edition} from './public-read';
+import {CLOCK_PREPARATION_POLICY,livePublicationWindow} from './schedule';
+import {observeWindowReadiness} from './window-readiness';
+import {createApp} from '../app';
+import {createSession} from '../auth';
+import {D1Repository} from '../repository';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
@@ -18,7 +23,7 @@ const acquiredAt='2026-10-03T12:25:00Z',jobId=JSON.stringify(['ACQUIRE','observa
 const text='Parliament approved banking reform legislation after a lengthy debate. '.repeat(130)+'Presidential approval is still required; the measure has not taken effect.';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,store:V1FeedStore,intake:V1IntakeStore,env:Env;
 beforeEach(async()=>{
- ctx=await createIntakeDatabase({product:true});intake=new V1IntakeStore(ctx.db);store=new V1FeedStore(ctx.db);
+ ctx=await createIntakeDatabase({product:true,archive:true});intake=new V1IntakeStore(ctx.db);store=new V1FeedStore(ctx.db);
  await ctx.db.exec("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('owner-1','integration@example.invalid','integration@example.invalid','integration-owner','user','hash','2026-10-03','2026-10-03','2026-10-03'); INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,created_at,updated_at) VALUES('feed-1','owner-1','integration','Integration','banking reform',1,'2026-10-03','2026-10-03');");
 
  await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('feed-source-1','feed-1','Telegram','channel','telegram','telegram_channel','https://t.me/example',1,'connector',?,?,?)").bind(window.start,window.start,window.start).run();
@@ -73,15 +78,19 @@ it('still waits for unfinished pre-cutoff acquisition when a later collection pa
  expect(calls).toBe(0);expect((await store.list<any>('feed-1','briefing_requests'))[0]).toMatchObject({state:'PENDING',reason:'AWAITING_INTAKE_REASSESSMENT'});
  expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(0);
 },30000);
-it.each(['complete','continuing','budget-wait','capacity','acquisition-capacity'] as const)('publishes full acquired evidence with source-owned citations and receipts (%s)',async mode=>{
- expect(await acquire('2026-10-03T12:05:00Z')).toBe('DONE');
- await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),acquiredAt);
+it.each(['complete','continuing','budget-wait','capacity','acquisition-capacity','artifact'] as const)('publishes full acquired evidence with source-owned citations and receipts (%s)',async mode=>{
+ const schedule={durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:CLOCK_PREPARATION_POLICY} as const;
+ const reporting=mode==='artifact'?livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z')):window;
+ if(mode==='artifact')await store.registerFeed({...feedFixture,revision:2,createdAt:schedule.clockStartAt,briefingFrequency:'30M',briefingSchedule:schedule});
+ const acceptedAt=mode==='artifact'?'2026-10-03T12:24:45Z':acquiredAt;
+ expect(await acquire('2026-10-03T12:05:00Z',text,acceptedAt)).toBe('DONE');
+ await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-1','']),acceptedAt);
  if(mode==='continuing')await continuingTelegram();
  if(mode==='capacity'){await continuingTelegram();await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET result=NULL,last_error='BACKPRESSURE' WHERE job_id='later-poll'").run();}
  let waitingJob=mode==='budget-wait'||mode==='acquisition-capacity'?await separateBudgetWait():undefined;
  if(mode==='acquisition-capacity'){waitingJob={...waitingJob!,failureCode:'BACKPRESSURE',failureDetail:'HELPER_LOCAL_CAPACITY_BUSY'};await ctx.db.prepare('UPDATE v1_jobs SET json=? WHERE id=?').bind(JSON.stringify(waitingJob),waitingJob.id).run();}
  expect(await store.list('feed-1','events')).toHaveLength(0);expect(await store.list('feed-1','claim_mentions')).toHaveLength(0);
- const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ const prepared=await prepareV3Window(store,'feed-1',reporting,reporting.end);
  expect(prepared.input.articles[0].text).toBe(text);expect(text.length).toBeGreaterThan(6000);
  const calls:{model:string;prompt:string}[]=[];
  const fetcher=(async(_url,init)=>{
@@ -90,9 +99,21 @@ it.each(['complete','continuing','budget-wait','capacity','acquisition-capacity'
   const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
   return Response.json({id:`gen-integration-${calls.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
- const message={type:'v1_briefing' as const,feedId:'feed-1',window};
- const edition=await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=>mode==='capacity'||mode==='acquisition-capacity'?'2026-10-03T12:35:00Z':'2026-10-03T12:34:00Z',undefined,fetcher));
- expect(edition).toMatchObject({engine:'v3',windowStart:window.start,windowEnd:window.end});
+ const delivery='scheduledFor' in reporting?reporting.scheduledFor!:'2026-10-03T12:35:00Z';
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window:reporting};
+ if(mode==='artifact'){
+  env={...env,RAW_ARCHIVE:ctx.archive!,EDITION_ARTIFACTS_ENABLED:'true',PRODUCT_FEEDS_ENABLED:'true',ADMIN_SESSION_SECRET:'fixture-only'};
+  expect(await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=> '2026-10-03T12:29:00Z',undefined,fetcher))).toBeUndefined();
+  expect(await ctx.db.prepare('SELECT edition_id FROM v1_edition_delivery_latest').first()).toBeNull();
+  expect(calls).toHaveLength(2);
+  const requestId=await windowIdentity('feed-1',reporting);
+  const request=await store.read<BriefingRequest>('feed-1','briefing_requests',requestId);
+  await observeWindowReadiness({...env,WINDOW_READINESS_MODE:'shadow'},request!,new Date('2026-10-03T12:29:00Z'));
+  expect(await ctx.db.prepare('SELECT due_ms FROM v1_window_ready_outbox WHERE window_id=?').bind(requestId).first()).toEqual({due_ms:Date.parse(delivery)});
+ }
+ const publishAt=mode==='capacity'||mode==='acquisition-capacity'||mode==='artifact'?delivery:'2026-10-03T12:34:00Z';
+ const edition=await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=>publishAt,undefined,fetcher));
+ expect(edition).toMatchObject({engine:'v3',windowStart:reporting.start,windowEnd:reporting.end});
  expect(calls.map(c=>c.model)).toEqual(['openai/gpt-4.1','openai/gpt-4.1-mini']);
  expect(calls.every(c=>c.prompt.includes('the measure has not taken effect'))).toBe(true);
  expect(edition!.evidenceRevisionIds).toEqual([prepared.input.articles[0].id]);
@@ -113,7 +134,41 @@ it.each(['complete','continuing','budget-wait','capacity','acquisition-capacity'
  }
  expect(await withIntelligenceTurn(env,message,()=>processV1Briefing(env,message,()=> '2026-10-03T12:35:00Z',undefined,fetcher))).toEqual(edition);
  expect(calls).toHaveLength(2);
+ if(mode==='artifact')await checkEditionArtifact(edition!.id,delivery);
 },30000);
+
+async function checkEditionArtifact(editionId:string,delivery:string){
+ const db=ctx.db,bucket=ctx.archive!;
+ const ref=await db.prepare(`SELECT d.object_key,a.state,d.published_at FROM v1_edition_delivery_latest l
+  JOIN v1_edition_delivery d ON d.edition_id=l.edition_id JOIN v1_verified_archives a ON a.object_key=d.object_key
+  WHERE l.feed_id='feed-1' AND d.edition_id=?`).bind(editionId).first<{object_key:string;state:string;published_at:string}>();
+ expect(ref).toMatchObject({state:'REFERENCED',published_at:delivery});
+ expect(await store.read('feed-1','delivery_jobs',editionId)).toMatchObject({state:'PENDING'});
+ const canonical=JSON.parse(JSON.stringify(await publicV1Edition(db,editionId)));
+ const object=await bucket.get(ref!.object_key);
+ expect(await object?.json()).toEqual(canonical);
+ expect(await publicV1Editions(db,'feed-1',undefined,bucket)).toEqual([canonical]);
+ const app=createApp(),id=encodeURIComponent(editionId),route=`/api/v1/editions/${id}`;
+ await db.prepare("INSERT INTO username_aliases(username,account_id,is_current,created_at) VALUES('integration-owner','owner-1',1,?)").bind(delivery).run();
+ const feedRoute='/api/feed/integration-owner/integration';
+ const publicResponse=await app.request(route,{},env);
+ expect(publicResponse.status).toBe(200);
+ expect(publicResponse.headers.get('Cache-Control')).toBe('private, no-store');
+ expect(await publicResponse.json()).toEqual(canonical);
+ expect((await app.request(`${feedRoute}/editions/${id}`,{},env)).status).toBe(200);
+ const owner=(await new D1Repository(db).getAccountById('owner-1'))!;
+ const cookie='dn_session='+await createSession(env.ADMIN_SESSION_SECRET!,owner);
+ await db.prepare("UPDATE briefings SET public_feed_enabled=0 WHERE id='feed-1'").run();
+ for(const path of [route,feedRoute,`${feedRoute}/editions/${id}`,`${feedRoute}/search?q=banking`])
+  expect((await app.request(path,{},env)).status).toBe(404);
+ expect((await app.request(route,{headers:{cookie}},env)).status).toBe(200);
+ await bucket.put(ref!.object_key,'corrupt test fixture');
+ expect(await (await app.request(route,{headers:{cookie}},env)).json()).toEqual(canonical);
+ await withdrawV1Edition(db,editionId,'owner-1','OWNER_REQUEST',delivery);
+ expect(await db.prepare('SELECT edition_id FROM v1_edition_delivery_latest').first()).toBeNull();
+ expect((await app.request(route,{headers:{cookie}},env)).status).toBe(404);
+ expect(await publicV1Editions(db,'feed-1',undefined,bucket)).toEqual([]);
+}
 it.each(['budget','capacity'] as const)('defers an empty unavailable window without inference and retains acquisition for late discovery (%s)',async mode=>{
  expect(await runAcquisitionJob(intake,jobId,{...testPolicy,now:()=>acquiredAt},async()=>{throw new AcquisitionFailure(mode==='capacity'?'BACKPRESSURE':'BUDGET_EXHAUSTED',true,{detail:mode==='capacity'?'HELPER_LOCAL_CAPACITY_BUSY':'ARTICLE_PROVIDER_BUDGET'});})).toBe('RETRY');
  const waiting=(await intake.read<DownstreamJob>('jobs',jobId))!.value;

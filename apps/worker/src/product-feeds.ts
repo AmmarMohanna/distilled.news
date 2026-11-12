@@ -137,7 +137,7 @@ export async function approveProductSource(env:Env,repo:Repository,feed:Briefing
 /** Presentation adapter: copies immutable published prose and exact provenance.
  * It never runs editorial selection or reads current Event/Storyline state. */
 export async function publishedProductEditions(env:Env,feed:BriefingConfig,editionId?:string):Promise<BriefingEdition[]> {
- const publishedEditions=await publicV1Editions(env.DB,feed.id,editionId);
+ const publishedEditions=await publicV1Editions(env.DB,feed.id,editionId,env.EDITION_ARTIFACTS_ENABLED==='true'?env.RAW_ARCHIVE:undefined);
  const editions:BriefingEdition[]=[];
  for(const published of publishedEditions) {
   const sections=published.stories.map(story=>({title:'',summary:story.claims.map(c=>c.text).join(' '),evidence:published.citations.filter(c=>story.claims.some(claim=>claim.support.some(ref=>ref.evidenceRevisionId===c.evidenceRevisionId))).map(c=>({messageId:c.evidenceRevisionId,sourceId:c.publisherId,sourceTitle:c.title||'Source',sourceType:'channel' as const,sourceUrl:c.url,postedAt:c.publishedAt??published.createdAt,text:story.claims.flatMap(claim=>claim.support.filter(ref=>ref.evidenceRevisionId===c.evidenceRevisionId).map(ref=>ref.quote)).join('\n'),links:c.url?[c.url]:[],media:[]}))}));

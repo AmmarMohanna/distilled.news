@@ -196,6 +196,11 @@ export class V1FeedStore {
   const statements:D1PreparedStatement[]=[this.db.prepare(`INSERT INTO v1_feed_guards(id,valid) SELECT ?,CASE WHEN ${valid} THEN 1 ELSE 0 END`).bind(nonce,...args)];
   for(const reservation of tx.modelReservations)statements.push(...await modelSpendingStatements(this.db,reservation));
   for(const w of tx.writes.values()) statements.push(this.db.prepare(`INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES(?,?,?,?) ${mutable.has(w.kind)?'ON CONFLICT(kind,id) DO UPDATE SET json=excluded.json':'ON CONFLICT(kind,id) DO NOTHING'}`).bind(w.kind,w.id,s.feed.id,JSON.stringify(w.value)));
+  if(tx.editionDelivery){
+   const {id,objectKey,createdAt}=tx.editionDelivery;
+   statements.push(this.db.prepare('INSERT INTO v1_edition_delivery(edition_id,feed_id,object_key,created_at,published_at) VALUES(?,?,?,?,?)')
+    .bind(id,s.feed.id,objectKey,createdAt,createdAt));
+  }
   for(const job of tx.jobs.values()) {
    statements.push(this.db.prepare('UPDATE v1_jobs SET json=? WHERE id=? AND feed_source_id=?').bind(JSON.stringify(job),job.id,job.feedSourceId));
    statements.push(this.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(job.feedSourceId));
@@ -206,6 +211,7 @@ export class V1FeedStore {
  }
 }
 export class FeedTransaction {
+ editionDelivery?:{id:string;objectKey:string;createdAt:string};
  readonly metrics={documentReads:0,listReads:0,revisionReads:0,preloadQueries:0,validationMs:0};
  readonly modelReservations:ModelSpendingReservation[]=[];
  readonly writes=new Map<string,DocumentWrite>();readonly jobs=new Map<string,DownstreamJob>();

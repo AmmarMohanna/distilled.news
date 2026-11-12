@@ -1,6 +1,7 @@
 import type { Env } from './types';
 import {expireSourceAssessments} from './source-assessment-cache';
 import { semanticWaitRecord } from './v1-intelligence/semantic-wait-record';
+import {stageVerifiedArchive} from './verified-archives';
 
 const DAY = 86_400_000;
 const STATE_KEY = 'storage:maintenance:v1';
@@ -41,28 +42,46 @@ async function archiveVerified(bucket: R2Bucket, text: string): Promise<{ key: s
   return { key, sha256 };
 }
 
-/** Bounded, restart-safe sweep. Only unpaid wait diagnostics and expired
- * transport ownership are eligible. Paid-call identities and published support
- * never enter this cleanup path. No schema migration is needed to recover a full DB. */
-export async function runStorageMaintenance(env: Pick<Env, 'DB' | 'RAW_ARCHIVE'>, now = new Date(), options: {maxRecords?:number;budgetMs?:number} = {}) {
+/** Bounded, restart-safe sweep of unpaid wait diagnostics and expired
+ * transport ownership. Verification-enabled maintenance retains the complete
+ * diagnostic in a referenced immutable archive and keeps the compact SQL row. */
+export async function runStorageMaintenance(env: Pick<Env, 'DB' | 'RAW_ARCHIVE' | 'VERIFIED_ARCHIVE_ENABLED'>, now = new Date(), options: {maxRecords?:number;budgetMs?:number} = {}) {
   const maxRecords=options.maxRecords??50,budgetMs=options.budgetMs??20_000;
   if(!Number.isSafeInteger(maxRecords)||maxRecords<1||maxRecords>50||!Number.isSafeInteger(budgetMs)||budgetMs<1||budgetMs>20_000)throw Error('INVALID_STORAGE_MAINTENANCE_LIMITS');
   const state = await readState(env.DB);
   try{state.assessmentCacheCursor=(await expireSourceAssessments(env.RAW_ARCHIVE,now.getTime(),state.assessmentCacheCursor)).cursor;}catch{console.warn('Source assessment cache cleanup deferred');}
   const deadline = Date.now() + budgetMs;
+  const verified=env.VERIFIED_ARCHIVE_ENABLED==='true';
   let scanned = 0, archived = 0, bytesOffloaded = 0, expired = 0;
   // Keyset pagination bounds both response memory and SQL work. Each query reads
   // at most five D1 rows (each <=2 MB), even when the database is already full.
   for (let page = 0; page < 10 && scanned < maxRecords && Date.now() < deadline; page++) {
-    const rows = await env.DB.prepare("SELECT id,feed_id,json FROM v1_feed_documents WHERE kind='semantic_resource_waits' AND id>? ORDER BY id LIMIT 5")
-      .bind(state.cursor).all<Row>();
+    const rows=await env.DB.prepare(`SELECT id,feed_id,json FROM v1_feed_documents WHERE kind='semantic_resource_waits' AND id>?
+      ${verified?`AND json_extract(json,'$.status')='DEFERRED'
+        AND json_extract(json,'$.usage.calls')=0 AND json_extract(json,'$.usage.costUsd')=0
+        AND json_type(json,'$.usage.reported')='true' AND json_type(json,'$.input.state') IS NOT NULL
+        AND json_extract(json,'$.archiveSchemaVersion') IS NOT 1`:''}
+      ORDER BY id LIMIT 5`).bind(state.cursor).all<Row>();
     if (!rows.results.length) { state.cursor = ''; break; }
     for (const row of rows.results) {
       const value = JSON.parse(row.json);
       // Unknown/unreported provider outcomes retain every byte and reservation.
-      if (value.usage?.calls === 0 && value.usage?.costUsd === 0 && value.usage?.reported === true && value.status === 'DEFERRED') {
+      if (value.usage?.calls === 0 && value.usage?.costUsd === 0 && value.usage?.reported === true && value.status === 'DEFERRED' && value.archiveSchemaVersion!==1) {
         const old = Number.isFinite(Date.parse(value.createdAt)) && Date.parse(value.createdAt) < now.getTime() - 30 * DAY;
-        if (old || value.input && Object.hasOwn(value.input, 'state')) {
+        if(verified){
+          if(value.input&&Object.hasOwn(value.input,'state')){
+            const archive=await stageVerifiedArchive(env,'SEMANTIC_WAIT',row.feed_id,row.id,row.json);
+            const compact=JSON.stringify({...semanticWaitRecord(value),archiveKey:archive.objectKey,archiveSha256:archive.sha256,archiveSchemaVersion:archive.schemaVersion});
+            const replaced=env.DB.prepare(`INSERT OR REPLACE INTO v1_feed_documents(kind,id,feed_id,json)
+              SELECT kind,id,feed_id,? FROM v1_feed_documents WHERE kind='semantic_resource_waits' AND id=? AND feed_id=? AND json=?`)
+              .bind(compact,row.id,row.feed_id,row.json);
+            const reference=env.DB.prepare(`INSERT INTO v1_semantic_wait_archive_refs(wait_id,feed_id,object_key)
+              SELECT id,feed_id,? FROM v1_feed_documents WHERE kind='semantic_resource_waits' AND id=? AND feed_id=? AND json=?`)
+              .bind(archive.objectKey,row.id,row.feed_id,compact);
+            const [result]=await env.DB.batch([replaced,reference]);
+            if(result.meta.changes){archived++;bytesOffloaded+=new TextEncoder().encode(row.json).length-new TextEncoder().encode(compact).length;}
+          }
+        }else if (old || value.input && Object.hasOwn(value.input, 'state')) {
           const archive = await archiveVerified(env.RAW_ARCHIVE, row.json);
           if (old) {
             const result = await env.DB.prepare("DELETE FROM v1_feed_documents WHERE kind='semantic_resource_waits' AND id=? AND json=?")
@@ -90,16 +109,14 @@ export async function runStorageMaintenance(env: Pick<Env, 'DB' | 'RAW_ARCHIVE'>
   const cutoff = now.getTime() - DAY;
   // A token expired for a full day cannot own any live operation. Delete its
   // release with it atomically; retaining releases without leases is pointless.
-  const leases = await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE kind='semantic_work_leases' AND json_extract(json,'$.leaseUntil')<? ORDER BY json_extract(json,'$.leaseUntil'),id LIMIT 100")
-    .bind(cutoff).all<{ id: string }>();
-  for (let offset = 0; offset < leases.results.length; offset += 40) {
-    const ids = leases.results.slice(offset, offset + 40).map(r => r.id);
-    await env.DB.prepare(`DELETE FROM v1_feed_documents WHERE kind IN ('semantic_work_leases','semantic_work_releases') AND id IN (${ids.map(() => '?').join(',')})`)
-      .bind(...ids).run();
-  }
-  const outcomes = await env.DB.prepare("DELETE FROM v1_queue_outcomes WHERE rowid IN (SELECT rowid FROM v1_queue_outcomes WHERE observed_at<? LIMIT 200)")
+  const leases=await env.DB.prepare(`WITH expired AS MATERIALIZED (
+      SELECT id FROM v1_feed_documents WHERE kind='semantic_work_leases' AND json_extract(json,'$.leaseUntil')<?
+      ORDER BY json_extract(json,'$.leaseUntil'),id LIMIT 100
+    ) DELETE FROM v1_feed_documents WHERE kind IN ('semantic_work_leases','semantic_work_releases')
+      AND id IN (SELECT id FROM expired) RETURNING kind`).bind(cutoff).all<{kind:string}>();
+  const outcomes = await env.DB.prepare("DELETE FROM v1_queue_outcomes WHERE rowid IN (SELECT rowid FROM v1_queue_outcomes WHERE observed_at<? ORDER BY observed_at LIMIT 200)")
     .bind(new Date(now.getTime() - 30 * DAY).toISOString()).run();
-  const result = { scanned, archived, bytesOffloaded, expired, expiredLeases: leases.results.length, expiredQueueOutcomes: outcomes.meta.changes };
+  const result = { scanned, archived, bytesOffloaded, expired, expiredLeases: leases.results.filter(row=>row.kind==='semantic_work_leases').length, expiredQueueOutcomes: outcomes.meta.changes };
   state.archived += archived; state.bytesOffloaded += bytesOffloaded; state.expired += expired; state.updatedAt = now.toISOString();
   await saveState(env.DB, state);
   console.log(JSON.stringify({ event: 'storage_maintenance', ...result }));

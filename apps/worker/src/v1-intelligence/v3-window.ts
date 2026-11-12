@@ -16,6 +16,8 @@ import {ModelSpendingWait} from './model-spending';
 import type {PublicationWindow} from './scoring';
 import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
+import {buildEditionDeliveryPayload} from './public-read';
+import {stageVerifiedArchive} from '../verified-archives';
 
 const POLICY='v3-fixed-window-editor-verifier-v1';
 /** A sent, conclusively settled unusable response is immutable, not an admission wait. */
@@ -155,6 +157,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
     if(request?.state==='PENDING'&&(request.reason!=='AWAITING_SCHEDULED_DELIVERY'||request.nextAttemptAt!==window.scheduledFor))await tx.write('briefing_requests',id,{...request,reason:'AWAITING_SCHEDULED_DELIVERY',nextAttemptAt:window.scheduledFor});
    });return undefined;
   }
+  let stagedArtifact:{objectKey:string;createdAt:string}|null|undefined;
   return feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<BriefingEditionRecord>('editions',id);if(prior)return prior;
    const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
@@ -172,6 +175,15 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
     await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:result.status==='rejected'||coverage.state!=='COMPLETE'?'DEFERRED':'QUIET',reason:result.status==='rejected'?'V3_VERIFICATION_REJECTED':coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});return undefined;
    }
    const edition=await v3Edition(tx,id,frozen,completed,now());
+   if(env.EDITION_ARTIFACTS_ENABLED==='true'&&stagedArtifact===undefined){
+    stagedArtifact=null;
+    try{
+     const payload=await buildEditionDeliveryPayload(env.DB,edition);
+     const ref=await stageVerifiedArchive(env,'EDITION',feedId,id,JSON.stringify(payload));
+     stagedArtifact={objectKey:ref.objectKey,createdAt:edition.createdAt};
+    }catch{console.warn('Edition artifact preparation deferred');}
+   }
+   if(stagedArtifact?.createdAt===edition.createdAt)tx.editionDelivery={id,...stagedArtifact};
    await tx.write('editions',id,edition);await tx.write('publication_status',id,{id,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
    await tx.write('fidelity_results',id,{id,feedId,passed:true,protocol:POLICY,resultId:completed.id});
    await tx.write('delivery_jobs',id,{id,feedId,editionId:id,state:'PENDING',attempts:0,createdAt:edition.createdAt});

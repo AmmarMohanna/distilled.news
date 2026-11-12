@@ -4,6 +4,7 @@ import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
 import {prepareV2EditorialPlan} from './editorial-plan-v2';
 import {preparedV3Delivery,windowHasHoldingJobs,windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
+import {observeWindowReadiness} from './window-readiness';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from '../connector-intelligence-turn';
 import {withLatency,measureLatency,countLatency} from './latency';
 import {ModelSpendingWait,modelSpendingAccount} from './model-spending';
@@ -450,6 +451,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    if(catchupSettling)continue;
   }
   const current=pending?await store.read<BriefingRequest>(id,'briefing_requests',editionId):undefined;
+  if(env.WINDOW_READINESS_MODE&&current?.state==='PENDING')
+   await maintenance(id,'WINDOW_READINESS_SHADOW',()=>observeWindowReadiness(env,current,now));
   if(current?.state==='PENDING'&&isIntakeStatus(current.reason)){
    const settings={v3:current.engine==='v3',now:now.toISOString()};
    // Refresh the diagnostic snapshot when readiness changes. Repeated ticks

@@ -1,6 +1,8 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {runStorageMaintenance} from './storage-maintenance';
+import {readVerifiedArchive,sweepVerifiedArchiveOrphans} from './verified-archives';
+import {applyTestMigration} from './test-migrations';
 import {readFileSync} from 'node:fs';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 let objects:Map<string,string>;
@@ -30,6 +32,33 @@ it('archives exact payloads before compacting and preserves paid identities and 
  expect(await read('semantic_intents','paid')).toEqual({...original,id:'paid'});
  expect(await read('editions','edition')).toEqual({id:'edition',evidenceRevisionIds:['evidence-1']});
  await run();expect(bucket.put).toHaveBeenCalledTimes(1);
+});
+
+it('compacts only verified diagnostics and reclaims only unreferenced objects',async()=>{
+ await applyTestMigration(ctx.db,readFileSync(new URL('../migrations/0090_verified_edition_delivery.sql',import.meta.url),'utf8'));
+ const original=wait('eligible',{createdAt:'2026-08-01T00:00:00Z'});
+ const unknown=wait('held',{usage:{calls:1,costUsd:.02,reported:false}});
+ await insert('semantic_resource_waits',original);await insert('semantic_resource_waits',unknown);
+ const bytes=new Map<string,Uint8Array>();
+ const archive={put:vi.fn(async(key:string,value:Uint8Array)=>{bytes.set(key,value.slice());}),
+  get:vi.fn(async(key:string)=>{const data=bytes.get(key);return data?{size:data.length,arrayBuffer:async()=>data.slice().buffer}:null;}),
+  delete:vi.fn(async(key:string)=>{bytes.delete(key);})};
+ const archiveEnv={DB:ctx.db,RAW_ARCHIVE:archive as unknown as R2Bucket,VERIFIED_ARCHIVE_ENABLED:'true'};
+ archive.get.mockResolvedValueOnce(null);
+ await expect(runStorageMaintenance(archiveEnv,now)).rejects.toThrow('ARCHIVE_OBJECT_UNAVAILABLE');
+ expect(await read('semantic_resource_waits',original.id)).toEqual(original);
+ expect(await runStorageMaintenance(archiveEnv,now)).toMatchObject({scanned:1,archived:1});
+ const saved=await read('semantic_resource_waits',original.id);
+ expect(saved.input).toMatchObject({stateOmitted:true});expect(saved.input.state).toBeUndefined();
+ const manifest=await ctx.db.prepare('SELECT byte_count,state FROM v1_verified_archives WHERE object_key=?').bind(saved.archiveKey).first<{byte_count:number;state:string}>();
+ expect(manifest?.state).toBe('REFERENCED');
+ const restored=await readVerifiedArchive(archiveEnv.RAW_ARCHIVE,{objectKey:saved.archiveKey,sha256:saved.archiveSha256,bytes:manifest!.byte_count,schemaVersion:1});
+ expect(restored).toBe(JSON.stringify(original));
+ expect(await read('semantic_resource_waits',unknown.id)).toEqual(unknown);
+ await ctx.db.prepare("UPDATE v1_verified_archives SET cleanup_after_ms=0 WHERE state='WRITING'").run();
+ expect(await sweepVerifiedArchiveOrphans(archiveEnv)).toBe(1);
+ expect([...bytes.keys()]).toEqual([saved.archiveKey]);
+ expect((await runStorageMaintenance(archiveEnv,now)).scanned).toBe(0);
 });
 it.each(['write','verify'])('leaves SQL and its cursor intact when the archive %s fails',async(failure)=>{
  const original=wait();await insert('semantic_resource_waits',original);

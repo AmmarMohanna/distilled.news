@@ -1,5 +1,6 @@
 import {observeInvocation,emitAgentOps} from './agentops';
 import {runStorageMaintenance} from './storage-maintenance';
+import {sweepVerifiedArchiveOrphans} from './verified-archives';
 import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefing';
 import {recordV1QueueOutcome} from './v1-queue-dispatch';
 import {continueFeedReview} from './connector-review-continuation';
@@ -18,6 +19,7 @@ import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch,windowIdentity} from './v1-intelligence/runtime';
 import {runProviderAccountingRecovery} from './v1-intelligence/provider-recovery';
+import {consumeWindowReadinessWake,sweepWindowReadiness} from './v1-intelligence/window-readiness';
 import {HandoffError} from '@distilled/contracts';
 import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
@@ -61,6 +63,14 @@ export default {
     const reviewAdapter = createEventReviewAdapterFromEnv(env, repo);
     for (const message of batch.messages) {
       const delivery=decodeConnectorDelivery(message.body),body=delivery.body;
+      if(isRecord(body)&&body.type==='window_readiness_wake'&&typeof body.feedId==='string'&&typeof body.eventId==='string'){
+        const feedId=body.feedId,eventId=body.eventId;
+        try{
+          await consumeWindowReadinessWake(env,{type:'window_readiness_wake',feedId,eventId},()=>processConnectorMessage(env,{type:'connector_relay',feedId}));
+          message.ack();
+        }catch{message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
+        continue;
+      }
       if(isRecord(body)&&['connector_feed','connector_poll','connector_relay'].includes(String(body.type))){
         try{await (env.AGENTOPS_ENABLED==='true'?observeInvocation('queue',()=>processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token)):processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token));message.ack();}
         catch{await recordConnectorQueueFailure(env,message.id,body as ConnectorQueueMessage,message.attempts);message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
@@ -310,9 +320,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+async function runProjectionMaintenance(env:Env):Promise<void> {
+  try {await sweepWindowReadiness(env)} catch {console.warn('Could not recover window readiness delivery')}
+  if(env.VERIFIED_ARCHIVE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
+  catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
+  if(env.EDITION_ARTIFACTS_ENABLED==='true'||env.VERIFIED_ARCHIVE_ENABLED==='true')
+    try{await sweepVerifiedArchiveOrphans(env)}catch{console.warn('Could not recover verified archive cleanup')}
+}
+
 export async function runScheduledMaintenance(env: Env): Promise<void> {
-  // Reclaim transient storage before any scheduler tries to create more work.
-  if(env.STORAGE_MAINTENANCE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
+  // Retain the existing capacity-recovery path where verified maintenance is off.
+  if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED!=='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
   catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   env = await productRuntimeEnv(env);
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}
@@ -330,6 +348,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
     if(env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true')await expireSharedPublicFetches(env.DB,env.RAW_ARCHIVE);
     // Preserve reader notifications in the indexed scheduling path.
     try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+    await runProjectionMaintenance(env);
     // Keep auxiliary recovery/retention; avoid the legacy population scans below.
     const repo=new D1Repository(env.DB),now=new Date();
     await dispatchPendingOpenRouterModelDiagnostics(env,now);
@@ -347,6 +366,7 @@ export async function runScheduledMaintenance(env: Env): Promise<void> {
   try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
   try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
   try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+  await runProjectionMaintenance(env);
   const repo = new D1Repository(env.DB);
   const now = new Date();
   if(env.SOURCE_LEGACY_POLLING_ENABLED!=='false')try{await enqueueScheduledSourceAcquisitions(env,now)}catch{console.warn("Could not enqueue scheduled source acquisition")}

@@ -178,6 +178,10 @@ export interface Env extends Cloudflare.Env {
   /** "v3" switches scheduled editions to the V3 briefing engine; anything else keeps the legacy path. */
   BRIEFING_ENGINE?: string;
   V3_BACKLOG_CATCHUP_ENABLED?: string;
+  WINDOW_READINESS_MODE?: 'shadow'|'relay';
+  WINDOW_READINESS_FEED_IDS?: string;
+  EDITION_ARTIFACTS_ENABLED?: string;
+  VERIFIED_ARCHIVE_ENABLED?: string;
   /** Isolated performance deployment only. All are disabled by default. */
   AGENTOPS_CAMPAIGN_ENABLED?: string;
   AGENTOPS_CAMPAIGN_ISOLATED?: string;
@@ -274,7 +278,7 @@ export interface SourceRefreshJobMessage {
   force?: boolean;
 }
 
-export type DistilledQueueMessage = import('./feed-sketch-jobs').FeedSketchMessage | import('./connector-scheduling').ConnectorQueueMessage | {type:'v1_manual_briefing';feedId:string;requestId:string} | ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | {type:'v1_rematch';feedId:string;requestId:string} | import('./v1-intelligence/runtime').V1BriefingMessage;
+export type DistilledQueueMessage = import('./feed-sketch-jobs').FeedSketchMessage | import('./connector-scheduling').ConnectorQueueMessage | {type:'v1_manual_briefing';feedId:string;requestId:string} | ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | {type:'v1_rematch';feedId:string;requestId:string} | import('./v1-intelligence/runtime').V1BriefingMessage | import('./v1-intelligence/window-readiness').WindowReadinessWake;
 
 export interface SourceRecord {
   id: string;
