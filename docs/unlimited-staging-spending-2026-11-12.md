@@ -1,5 +1,7 @@
 # Unlimited staging spending and automatic source recovery
 
+**Later scope correction:** the user clarified “NOT ONLY THIS FEED BUT ANY FEED.” Commit `ae250318` enables `SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS='["*"]'` for all current and future staging feeds. It is pushed and deployed as application version `52cd7a7b-5df2-464b-ba36-f2c4fe762dad`. Wildcard acknowledgements identify deployment-operator authorization, preserving source/account enablement and exact feed/source isolation. Twenty-one focused tests and the full Worker TypeScript check passed. The feed-specific rollout described below is the earlier verified stage, superseded by this deployment-wide scope.
+
 The user's instruction “no more monetary limits” was applied to the staging collector and continuous evaluator. Branch commit: `fa0aa839`, pushed to `ghada/v4-reliability`.
 
 ## Deployed policy
