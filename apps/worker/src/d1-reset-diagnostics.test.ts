@@ -1,6 +1,14 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {withD1ResetDiagnostics} from './d1-reset-diagnostics';
 afterEach(()=>vi.restoreAllMocks());
+it('identifies explicit D1 overload without calling it a CPU reset or logging private errors',async()=>{
+ const failure=new Error('D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window. private-token');
+ const {db}=nativeDatabase(failure),log=vi.spyOn(console,'error').mockImplementation(()=>{});
+ await expect(withD1ResetDiagnostics(db).prepare('SELECT ?').bind('private-token').first()).rejects.toBe(failure);
+ expect(log).toHaveBeenCalledTimes(1);
+ expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({type:'D1_OVERLOADED',method:'first'});
+ expect(JSON.stringify(log.mock.calls)).not.toContain('private-token');
+});
 function nativeDatabase(failure?:Error){
  const calls:{method:string;args:unknown[]}[]=[],result={native:true};
  class Statement{

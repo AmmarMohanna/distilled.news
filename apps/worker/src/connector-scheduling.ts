@@ -161,9 +161,20 @@ export async function continueConnectorIntake(env:Env,feedId:string,jobId:string
 /** Coordination interface: feed-scoped environment + existing dispatchers.
  * Canonical intelligence/window policy stays owned by v1-intelligence/runtime. */
 export async function relayConnectorDownstream(env:Env,feedId?:string){
- if(feedId)await dispatchReadyConnectorBriefing(env,feedId);
- await dispatchV1Acquisitions(env);
- await dispatchV1Intelligence(env,new Date(),{skipProviderAccountingRecovery:env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'});
+ // Dispatch phases enqueue independent durable work. A failed phase must not
+ // prevent another lane from discovering its already accepted work. Preserve
+ // the first error after all phases so transport retry/recovery stays intact.
+ let failed=false,firstError:unknown;
+ const attempt=async(phase:string,run:()=>Promise<unknown>)=>{
+  try{await run();}catch(error){
+   if(!failed){failed=true;firstError=error;}
+   try{console.error(JSON.stringify({type:'CONNECTOR_RELAY_PHASE_FAILED',phase}));}catch{/* Logging cannot suppress dispatch or replace the first failure. */}
+  }
+ };
+ if(feedId)await attempt('BRIEFING',()=>dispatchReadyConnectorBriefing(env,feedId));
+ await attempt('ACQUISITION',()=>dispatchV1Acquisitions(env));
+ await attempt('INTELLIGENCE',()=>dispatchV1Intelligence(env,new Date(),{skipProviderAccountingRecovery:env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'}));
+ if(failed)throw firstError;
 }
 
 export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,dispatchToken?:string){

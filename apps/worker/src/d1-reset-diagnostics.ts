@@ -2,12 +2,13 @@
  * Wrappers preserve native receivers and unwrap statements before native batch. */
 const databases=new WeakMap<D1Database,D1Database>();
 const statements=new WeakMap<object,{native:D1PreparedStatement;sql:string}>();
-function reset(error:unknown):boolean{
+function failureType(error:unknown):'D1_CPU_RESET'|'D1_OVERLOADED'|undefined{
  for(let depth=0;error&&depth<4;depth++){
-  if(/\b7429\b|exceeded its CPU time limit|D1[^\n]*CPU[^\n]*reset/i.test(String(error)))return true;
+  if(/D1 DB is overloaded\. Too many resources consumed within a 10 second window\./i.test(String(error)))return 'D1_OVERLOADED';
+  if(/\b7429\b|exceeded its CPU time limit|D1[^\n]*CPU[^\n]*reset/i.test(String(error)))return 'D1_CPU_RESET';
   error=typeof error==='object'?(error as {cause?:unknown}).cause:undefined;
  }
- return false;
+ return undefined;
 }
 function structure(sql:string):string{
  // One lexical pass handles comment markers inside quoted values correctly.
@@ -17,13 +18,13 @@ function structure(sql:string):string{
 }
 async function report(error:unknown,method:string,sqls:readonly string[],started:number):Promise<void>{
  try{
-  if(!reset(error))return;
+  const type=failureType(error);if(!type)return;
   const durationMs=Math.max(0,performance.now()-started);
   const entries=await Promise.all(sqls.map(async sql=>{
    const normalized=structure(sql),digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(normalized));
    return {hash:Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join(''),sql:normalized.slice(0,160)};
   }));
-  console.error(JSON.stringify({type:'D1_CPU_RESET',method,durationMs,statementCount:entries.length,statements:entries}));
+  console.error(JSON.stringify({type,method,durationMs,statementCount:entries.length,statements:entries}));
  }catch{/* Diagnostics must never replace the original database failure. */}
 }
 function observe(method:string,sqls:readonly string[],run:()=>unknown):Promise<unknown>{

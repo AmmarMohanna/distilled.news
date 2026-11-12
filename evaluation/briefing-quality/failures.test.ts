@@ -15,6 +15,13 @@ describe('evaluator read failures',()=>{
   expect(failure.message).toBe('SOURCE_DB_TRANSIENT_FAILURE');
   expect(failureDetails(failure).providerCode).toBeNull();
  });
+ it.each([false,true])('classifies an explicit D1 overload at the source boundary (nested=%s)',async nested=>{
+  const overload=new Error('D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window.');
+  const error=nested?new Error('D1 query failed',{cause:overload}):overload;
+  const failure=await sourceRead(async()=>{throw error}).catch(e=>e);
+  expect(failure.message).toBe('SOURCE_DB_TRANSIENT_FAILURE');
+  expect(failureDetails(failure).providerCode).toBeNull();
+ });
  it('does not retry semantic errors or generic D1 query errors',async()=>{
   for(const message of ['FABRICATED_OR_FOREIGN_EVIDENCE','D1_ERROR: no such table: private','unrelated network error']){
    const failure=new Error(message);await expect(sourceRead(async()=>{throw failure})).rejects.toBe(failure);
