@@ -11,6 +11,7 @@
 - [x] Freeze eligible evidence and validate authorized historical revisions without changing old paid identities.
 - [x] Record deferred work as incomplete coverage; preserve quiet/rejected distinction and all source jobs.
 - [x] Run focused V3, coverage, scheduling, source authorization, semantic-operation tests and TypeScript; review.
-- [ ] Push and deploy staging; verify actual cutoff-policy publication and state coverage, documenting limitations.
+- [x] Push and deploy staging; verify live cutoff-policy adoption and state coverage, documenting limitations.
+- [ ] Observe completion of the first live cutoff-policy edition (generation still in progress at the rollout checkpoint).
 
 Review found and corrected the deletion/reactivation edge case: immutable revisions predating a retained tombstone cannot regain authority through a later restoration. A delayed first preparation reconstructs the revision accepted before cutoff rather than silently omitting it after a later update.
