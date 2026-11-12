@@ -200,6 +200,11 @@ it('only the final isolated publication commit has bounded priority; aged intake
  expect(await withFeedWriteTurn(env,'turn-1',async()=> 'intake','intake:recent')).toBe('intake');
 });
 
+it('isolated read-only publication keeps its feed computation scope',async()=>{
+ env.V1_PUBLICATION_PREPARATION_ISOLATED='true';
+ const store=new V1FeedStore(ctx.db);await store.registerFeed({...feedFixture,id:'turn-2'});
+ await expect(withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},()=>feedTransact(store,'turn-2',async()=> 'foreign-feed'))).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+});
 it('isolated read-only publication validates snapshots without taking another owner canonical turn',async()=>{
  env.V1_PUBLICATION_PREPARATION_ISOLATED='true';
  const owner={token:'unrelated-canonical-owner',lease_until:Date.now()+120000};

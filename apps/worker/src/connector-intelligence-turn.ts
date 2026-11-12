@@ -12,10 +12,11 @@ const intelligenceTurns=new AsyncLocalStorage<IntelligenceTurn>();
 const computationTurns=new AsyncLocalStorage<{env:Env;feedId:string}>();
 /** Only the atomic store commit holds admission. Its original snapshot and
  * every scope epoch are still checked by CAS after admission is acquired. */
-export function withCanonicalCommitTurn<T>(db:D1Database,feedId:string,run:()=>Promise<T>,publicationCommit=false):Promise<T>{
+export function withCanonicalCommitTurn<T>(db:D1Database,feedId:string,run:()=>Promise<T>,publicationCommit=false,readOnly=false):Promise<T>{
  const computation=computationTurns.getStore();
  if(!computation)return run();
  if(computation.env.DB!==db||computation.feedId!==feedId)throw new IntelligenceTurnLost();
+ if(readOnly)return run();
  if(publicationCommit)countLatency('publicationCommitPriority');
  return withFeedWriteTurn(computation.env,feedId,run,publicationCommit?'publication-final-commit':'publication-commit');
 }
