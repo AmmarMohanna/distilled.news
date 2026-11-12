@@ -103,7 +103,7 @@ notification delivery has been activated here.
 
 ### SOURCE_DB reset recovery (November 2026)
 
-The evaluator classifies a D1 deployment reset (`D1_ERROR` with code `7429`, or the explicit database-code-update reset message) only around source SELECTs. Collection returns to `pending_snapshot`; a publication visibility check returns to `ready`. The next scheduled tick retries the read. Paid transport failures, generic exceptions, semantic validation failures, UNKNOWN/RESERVED calls and settled calls without a response body do not become retryable through this classification.
+The evaluator classifies a D1 deployment reset (`D1_ERROR` with code `7429`, the explicit database-code-update reset message, or the explicit `D1 DB exceeded its CPU time limit and was reset.` message) only around source SELECTs. Collection returns to `pending_snapshot`; a publication visibility check returns to `ready`. The next scheduled tick retries the read. Paid transport failures, generic exceptions, semantic validation failures, UNKNOWN/RESERVED calls and settled calls without a response body do not become retryable through this classification.
 
 For historical `review_failed / EVALUATION_FAILURE` jobs, the existing recovery policy performs a single automatic recovery only if the retained snapshot exists and **no `eval_calls` record exists for the job**. It records the original error and status in `eval_recovery_events` before requeueing. This handles never-sent work such as the Berri 14:45 UTC failure without inventing a cause for its old generic exception. Already audited jobs are excluded. Old-protocol recovery also excludes all jobs with paid call records; a formatting change is not permission to pay for the same stage again.
 
