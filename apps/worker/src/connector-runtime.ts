@@ -74,7 +74,12 @@ export async function scheduleRecentTelegramRecheck(db:D1Database,
  // must not mutate this durable job; a new interval gets a new identity.
  if(await alreadyScheduled())return false;
  const prefix=`telegram:${request.source.channelId}:`;
- const conflicts=await db.prepare("SELECT DISTINCT item_key AS key FROM v1_jobs WHERE feed_source_id=? AND json_extract(json,'$.kind')='AUTHORITATIVE_RECHECK' AND json_extract(json,'$.state')='PENDING' AND item_key LIKE ? ORDER BY id LIMIT 3").bind(request.scope.feedSourceId,`${prefix}%`).all<{key:string}>();
+ const conflictLookup=(index:string)=>db.prepare(`SELECT DISTINCT item_key AS key FROM v1_jobs ${index} WHERE feed_source_id=? AND json_extract(json,'$.kind')='AUTHORITATIVE_RECHECK' AND json_extract(json,'$.state')='PENDING' AND item_key LIKE ? ORDER BY id LIMIT 3`).bind(request.scope.feedSourceId,`${prefix}%`).all<{key:string}>();
+ let conflicts;
+ // Stream pending conflicts in ID order instead of sorting the full backlog.
+ // Retain exact selection and compatibility with pre-index self-hosted databases.
+ try{conflicts=await conflictLookup('INDEXED BY v1_authoritative_recheck_order');}
+ catch(error){if(!/no such index: v1_authoritative_recheck_order/.test(String(error)))throw error;conflicts=await conflictLookup('');}
  const recent=conflicts.results.length?conflicts:await db.prepare(`SELECT source_item_key AS key FROM connector_item_fingerprints
    WHERE feed_id=? AND feed_source_id=? AND source_item_key LIKE ?
    ORDER BY CAST(substr(source_item_key,length(?) + 1) AS INTEGER) DESC LIMIT 3`)
