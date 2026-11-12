@@ -44,3 +44,16 @@ it('rotates to another approved source instead of draining the same source first
  expect(await continueFeedReview(env,'completed',now)).toBe(true);
  expect(env.PROCESSING_QUEUE.send).toHaveBeenCalledExactlyOnceWith({type:'v1_reassess',jobId:'other-source'});
 });
+
+it('continues a tail source without a round trip for each empty active source',async()=>{
+ const ids=Array.from({length:80},(_,i)=>`source-empty-${String(i).padStart(3,'0')}`),tail='zz-source-pending';
+ await ctx.db.batch([...ids,tail].map(id=>ctx.db.prepare('INSERT INTO v1_intake_scopes(id,feed_id,source_id,json) VALUES(?,?,?,?)').bind(id,'feed-1',id,JSON.stringify({...scopeFixture,feedSourceId:id,sourceId:id}))));
+ env.V1_DOWNSTREAM_FEED_SOURCE_IDS=['feed-source-1',...ids,tail].join(',');
+ await job('tail-review','PENDING',tail);
+ let queries=0;
+ const db=new Proxy(ctx.db,{get(target,key){if(key==='prepare')return (sql:string)=>{queries++;return target.prepare(sql)};const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}});
+ expect(await continueFeedReview({...env,DB:db},'completed',now)).toBe(true);
+ expect(env.PROCESSING_QUEUE.send).toHaveBeenCalledExactlyOnceWith({type:'v1_reassess',jobId:'tail-review'});
+ console.info(JSON.stringify({reviewContinuationQueries:queries,emptySources:80}));
+ expect(queries).toBeLessThan(8);
+});
