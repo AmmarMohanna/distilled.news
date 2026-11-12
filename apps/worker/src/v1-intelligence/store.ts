@@ -472,7 +472,11 @@ async function feedTransactNow<T>(store:V1FeedStore,id:string,run:(tx:FeedTransa
  const started=Date.now();let firstEpoch:number|undefined,lastEpoch:number|undefined,lastWrites=0;
  for(let attempt=0;attempt<12;attempt++) {
   const tx=new FeedTransaction(store,await measureLatency('DB_SNAPSHOT',()=>store.snapshot(id))),computationStarted=Date.now();firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;
-  const result=await measureLatency('TRANSACTION_COMPUTATION',()=>run(tx)),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;countLatency('casAttempts');const committed=await measureLatency('CAS_COMMIT',()=>withCanonicalCommitTurn(store.db,id,()=>store.commit(tx),publicationCommit));
+  const result=await measureLatency('TRANSACTION_COMPUTATION',()=>run(tx)),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;countLatency('casAttempts');
+  // Read-only commit already validates snapshot epochs and active owner tokens
+  // atomically. Only mutations need admission to the canonical write turn.
+  const readOnly=!tx.writes.size&&!tx.jobs.size&&!tx.modelReservations.length;
+  const committed=await measureLatency('CAS_COMMIT',()=>readOnly?store.commit(tx):withCanonicalCommitTurn(store.db,id,()=>store.commit(tx),publicationCommit));
   for(const [name,amount] of Object.entries(tx.metrics))countLatency(name,amount);
   countLatency('documentWrites',tx.writes.size);countLatency('jobWrites',tx.jobs.size);
   if(committed){

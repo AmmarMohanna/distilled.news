@@ -199,3 +199,30 @@ it('only the final isolated publication commit has bounded priority; aged intake
  await expect(withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},()=>withCanonicalCommitTurn(ctx.db,'turn-1',async()=> 'blocked',true))).rejects.toThrow('INTELLIGENCE_TURN_BUSY');
  expect(await withFeedWriteTurn(env,'turn-1',async()=> 'intake','intake:recent')).toBe('intake');
 });
+
+it('isolated read-only publication validates snapshots without taking another owner canonical turn',async()=>{
+ env.V1_PUBLICATION_PREPARATION_ISOLATED='true';
+ const owner={token:'unrelated-canonical-owner',lease_until:Date.now()+120000};
+ await ctx.db.prepare('INSERT INTO connector_intelligence_turns(feed_id,token,lease_until) VALUES(?,?,?)').bind('turn-1',owner.token,owner.lease_until).run();
+ const store=new V1FeedStore(ctx.db);let reads=0;
+ const result=await withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},()=>feedTransact(store,'turn-1',async tx=>{
+  reads++;const value=await tx.read('briefing_requests','retained-result');
+  if(reads===1)await ctx.db.prepare("UPDATE v1_feeds SET epoch=epoch+1 WHERE id='turn-1'").run();
+  return value??'retained-result-id';
+ }));
+ expect(result).toBe('retained-result-id');expect(reads).toBe(2);
+ expect(await ctx.db.prepare("SELECT token,lease_until FROM connector_intelligence_turns WHERE feed_id='turn-1'").first()).toEqual(owner);
+ // All three mutation sets still require canonical admission, even if the
+ // transaction contains no ordinary document writes.
+ for(const kind of ['document','job','reservation'] as const){
+  await expect(withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},()=>feedTransact(store,'turn-1',async tx=>{
+   if(kind==='document')await tx.write('briefing_requests','must-stay-absent',{id:'must-stay-absent',feedId:'turn-1',state:'PENDING'});
+   if(kind==='job')tx.completeJob({id:'turn-job',feedSourceId:'turn-source',feedId:'turn-1',kind:'REASSESS',state:'PENDING',attempts:0,observationId:'test-observation'});
+   if(kind==='reservation')tx.modelReservations.push({id:'must-not-charge',accountId:'test-only-account',model:'fixture',feedId:'turn-1',token:'reservation-token',reservedCostUsd:.01,leaseUntil:Date.now()+60000,createdAt:new Date().toISOString()});
+  }))).rejects.toThrow('INTELLIGENCE_TURN_BUSY');
+  expect(await ctx.db.prepare("SELECT token,lease_until FROM connector_intelligence_turns WHERE feed_id='turn-1'").first()).toEqual(owner);
+ }
+ expect(await store.read('turn-1','briefing_requests','must-stay-absent')).toBeUndefined();
+ expect(await ctx.db.prepare("SELECT state FROM (SELECT json_extract(json,'$.state') state FROM v1_jobs WHERE id='turn-job')").first()).toEqual({state:'PENDING'});
+ expect(await ctx.db.prepare("SELECT id FROM v1_model_spending_reservations WHERE id='must-not-charge'").first()).toBeNull();
+});
