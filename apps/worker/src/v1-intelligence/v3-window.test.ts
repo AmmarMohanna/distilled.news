@@ -18,6 +18,7 @@ import {livePublicationWindow} from './schedule';
 import {readScheduleAudit} from './schedule-audit';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import {isolateExpiredModelExecutions} from './model-capacity-recovery';
+import {recoverBlockedV3Request} from './v3-blocked-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
@@ -48,6 +49,34 @@ it('never refreshes stale evidence after an uncertain paid call',async()=>{
  expect(calls).toBe(1);expect(await store.list('feed-1','v3_window_inputs')).toHaveLength(1);
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',reason:'V3_FROZEN_EVIDENCE_SUPERSEDED'});
  expect(await store.list('feed-1','editions')).toHaveLength(0);
+},30000);
+it('retires a superseded started window without replay and carries the replacement evidence forward',async()=>{
+ await article();let calls=0;const failed=(async()=>{calls++;throw Error('lost after send')}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ await processV1Briefing(env,message,()=>window.end,undefined,failed);
+ const frozen=await store.read<any>('feed-1','v3_window_inputs',id),replacement=await supersedeFrozenRevision(frozen.evidenceRevisionIds[0]);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:40:00Z',undefined,failed);
+ const before=(await ctx.db.prepare('SELECT id,json FROM v1_model_spending_reservations').all()).results;
+ expect(await recoverBlockedV3Request(store,'feed-1',await store.read<any>('feed-1','briefing_requests',id),'2026-10-03T12:41:00Z')).toBe(true);
+ expect(calls).toBe(1);expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(frozen);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_FROZEN_EVIDENCE_SUPERSEDED'});
+ expect((await ctx.db.prepare('SELECT id,json FROM v1_model_spending_reservations').all()).results).toEqual(before);
+ const next={start:window.end,end:'2026-10-03T13:00:00Z',kind:'30M' as const};
+ expect((await prepareV3Window(store,'feed-1',next,next.end)).evidenceRevisionIds).toContain(replacement);
+},30000);
+it('automatically retires an isolated unknown window but leaves active unknown work pending',async()=>{
+ await article();let calls=0;const failed=(async()=>{calls++;throw Error('lost after send')}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ await processV1Briefing(env,message,()=>window.end,undefined,failed);
+ const request=await store.read<any>('feed-1','briefing_requests',id);
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:35:00Z')).toBe(false);
+ const money=await ctx.db.prepare('SELECT lease_until FROM v1_model_spending_reservations').first<{lease_until:number}>();
+ await isolateExpiredModelExecutions(ctx.db,'isolate-after-5m-v1',new Date(money!.lease_until+300001));
+ const lease=await acquireSemanticWorkLease(store,'feed-1');
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(false);
+ await releaseSemanticWorkLease(store,lease);
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(true);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_UNCERTAIN_CALL_ISOLATED'});expect(calls).toBe(1);
 },30000);
 it('preserves recovered input identity and clock delivery together without duplicate inference',async()=>{
  const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'};

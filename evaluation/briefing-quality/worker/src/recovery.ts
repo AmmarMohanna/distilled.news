@@ -11,15 +11,16 @@ export async function recoverReviews(env:Env,now=new Date()){
  await env.EVAL_DB.prepare(`INSERT INTO eval_call_isolations(call_id,policy,created_at,reason)
  SELECT id,?,?,? FROM eval_calls WHERE state IN ('RESERVED','UNKNOWN') AND created_at<=?
  ON CONFLICT(call_id) DO NOTHING`).bind(env.UNCERTAIN_REVIEW_RECOVERY,now.toISOString(),'REMOTE_TERMINATION_UNPROVEN_FINANCIAL_EXPOSURE_RETAINED',cutoff).run();
- // Only settled-invalid or never-sent jobs may start a corrected review. Unknown
- // work remains fenced at job/stage scope even when request formatting changes.
+ // Never-sent jobs may start a corrected review. Paid reviews require their
+ // original request identity and are never bulk re-paid after protocol changes.
  const rows=(await env.EVAL_DB.prepare(`SELECT j.id,j.status,j.error FROM eval_jobs j
- WHERE j.status='review_failed' AND j.review_version<>? AND j.snapshot_key IS NOT NULL
- AND NOT EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=j.id AND (c.state IN ('RESERVED','UNKNOWN','OVERAGE') OR (c.state='SETTLED' AND c.response_key IS NULL)))
+ WHERE j.status='review_failed' AND (j.review_version<>? OR j.error='EVALUATION_FAILURE') AND j.snapshot_key IS NOT NULL
+ AND NOT EXISTS(SELECT 1 FROM eval_recovery_events e WHERE e.job_id=j.id)
+ AND NOT EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=j.id)
  ORDER BY j.published_at DESC LIMIT 30`).bind(PROTOCOL).all<{id:string;status:string;error:string|null}>()).results;
  for(const row of rows)await env.EVAL_DB.batch([
   env.EVAL_DB.prepare('INSERT OR IGNORE INTO eval_recovery_events VALUES(?,?,?,?,?)').bind(row.id,row.status,row.error,now.toISOString(),PROTOCOL),
-  env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',error=NULL,updated_at=?,review_version=? WHERE id=? AND status='review_failed' AND NOT EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=eval_jobs.id AND (c.state IN ('RESERVED','UNKNOWN','OVERAGE') OR (c.state='SETTLED' AND c.response_key IS NULL)))").bind(now.toISOString(),PROTOCOL,row.id)
+  env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',error=NULL,updated_at=?,review_version=? WHERE id=? AND status='review_failed' AND NOT EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=eval_jobs.id)").bind(now.toISOString(),PROTOCOL,row.id)
  ]);
 }
 /** Provider metadata GET only. A known charge is not a recovered review body. */

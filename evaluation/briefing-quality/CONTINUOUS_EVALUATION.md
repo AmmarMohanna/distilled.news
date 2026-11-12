@@ -100,3 +100,15 @@ still requires the exact manifest approval described in `reports/PAID_RUN.md`.
 Changed evaluator code makes the old manifest's source hashes stale: generate and
 review a fresh proposal rather than bypassing that check. No new spending or
 notification delivery has been activated here.
+
+### SOURCE_DB reset recovery (November 2026)
+
+The evaluator classifies a D1 deployment reset (`D1_ERROR` with code `7429`, or the explicit database-code-update reset message) only around source SELECTs. Collection returns to `pending_snapshot`; a publication visibility check returns to `ready`. The next scheduled tick retries the read. Paid transport failures, generic exceptions, semantic validation failures, UNKNOWN/RESERVED calls and settled calls without a response body do not become retryable through this classification.
+
+For historical `review_failed / EVALUATION_FAILURE` jobs, the existing recovery policy performs a single automatic recovery only if the retained snapshot exists and **no `eval_calls` record exists for the job**. It records the original error and status in `eval_recovery_events` before requeueing. This handles never-sent work such as the Berri 14:45 UTC failure without inventing a cause for its old generic exception. Already audited jobs are excluded. Old-protocol recovery also excludes all jobs with paid call records; a formatting change is not permission to pay for the same stage again.
+
+A recovered review keeps its immutable snapshot and original request identity. Exact settled responses are read from R2. A settled stage whose request identity changes is blocked with `STAGE_REQUEST_IDENTITY_CHANGED`. The existing no-body/UNKNOWN fences remain in place. Do not bulk reset paid semantic-invalid jobs. Diagnose their retained response and original request separately.
+
+`evaluation_incomplete` logs include the job ID, execution phase, normalized error category and a recognized provider code. They deliberately omit raw exception messages, SQL, source bodies and credentials. Old `EVALUATION_FAILURE` records cannot establish their original exception retrospectively.
+
+No migration or manual live UPDATE is needed for this recovery. After deploying the evaluator, inspect the recovery audit and job status following the next scheduled tick. Deployment and live verification are separate operator actions.

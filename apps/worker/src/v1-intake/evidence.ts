@@ -59,8 +59,8 @@ export async function acceptAcquiredContent(store:V1IntakeStore,raw:AcceptedAcqu
         receipt.decision='REPLAY_CURRENT_CONTENT';receipt.resultingRevisionId=current.revision.id;
       } else {
         // Tombstones clear the current pointer but do not reset historical revision numbering.
-        const revisions=await store.list<{evidenceId:string;revision:number}>('revisions',o.feedSourceId);
-        const revision=Math.max(0,...revisions.filter(r=>r.evidenceId===id).map(r=>r.revision))+1;
+        const latest=await store.db.prepare("SELECT MAX(json_extract(json,'$.revision')) AS revision FROM v1_revisions WHERE feed_source_id=? AND json_extract(json,'$.evidenceId')=?").bind(o.feedSourceId,id).first<{revision:number|null}>();
+        const revision=Math.max(0,latest?.revision??0)+1;
         const value=evidenceRevisionSchema.parse({id:crypto.randomUUID(),evidenceId:id,feedId:o.feedId,revision,sourceObservationId:o.id,acquiredContentId:content.id,canonicalUrl:content.canonicalUrl??o.canonicalUrl,title:content.title,body:content.body,language:content.language,publishedAt:content.publishedAt,representation:content.representation,contentCompleteness:content.contentCompleteness,contentHash:hash,sourceRevision:o.sourceRevision,fetchStartSequence:o.fetchStartSequence,acceptedAt:now});
         receipt.resultingRevisionId=value.id;tx.write('revisions',value.id,value,o.sourceItemKey,true);enqueue(tx,input,'REASSESS');
       }

@@ -1,4 +1,5 @@
 import {productV3Enabled,productV3Ready,productV3Models,prepareV3Window,publishProductV3Window,SettledV3CallFailure} from './v3-window';
+import {recoverBlockedV3Request} from './v3-blocked-recovery';
 import {retainBacklogReview,backlogRevisionIds} from './review-admission';
 import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
@@ -471,6 +472,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
   }
   const requests=await store.pendingBriefingRequests(id);
   for(const request of orderedPendingWindows(requests,now.toISOString()).filter(r=>isAutomaticReportingWindow(r.window))) {
+   if(await recoverBlockedV3Request(store,id,request,now.toISOString()))continue;
    if(await editorialWindowAwaitingRecovery(env.DB,id,request.window,request.reason))continue;
    if(request.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){
     try{await modelSpendingAccount(env.DB,(request.engine==='v3'||!request.engine&&productV3Enabled(env))?productV3Models(env).editor:llmRoute(env,'editorial').identity,now.toISOString());await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){const {reason:_,...rest}=current;await tx.write('briefing_requests',request.id,rest)}})}catch(error){if(!(error instanceof ModelSpendingWait))throw error}

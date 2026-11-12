@@ -27,6 +27,10 @@ export async function judge(env:Env,jobId:string,stage:string,request:Request,fe
  const b=budget(env),requestHash=await hash(request),id=await hash({jobId,stage,requestHash,model:b.model});
  const previous=await env.EVAL_DB.prepare("SELECT state,response_key,request_hash FROM eval_calls WHERE id=?").bind(id).first<{state:string;response_key:string|null;request_hash:string}>();
  if(previous){check(previous.state==='SETTLED'&&previous.response_key&&previous.request_hash===requestHash,'CALL_ALREADY_STARTED_OR_UNKNOWN');const object=await env.EVIDENCE.get(previous.response_key);check(object,'SETTLED_RESPONSE_MISSING');check(object.size<=2_000_000,'RESPONSE_LIMIT');return parseReply(await object.json<ProviderResponse>())}
+ // A paid stage belongs to its original request, even after protocol changes.
+ const settledStage=await env.EVAL_DB.prepare("SELECT id,response_key FROM eval_calls WHERE job_id=? AND stage=? AND state='SETTLED' LIMIT 1").bind(jobId,stage).first();
+ check(!settledStage||settledStage.response_key,'CALL_ALREADY_STARTED_OR_UNKNOWN');
+ check(!settledStage,'STAGE_REQUEST_IDENTITY_CHANGED');
  check(env.EVALUATION_OPENROUTER_KEY,'EVALUATION_KEY_MISSING');
  const held=await reserve(env.EVAL_DB,id,jobId,stage,request,b,new Date().toISOString());
  try {

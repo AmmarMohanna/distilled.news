@@ -1,3 +1,4 @@
+import {errorCode,failureDetails,sourceRead} from './failures';
 import {PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,review,reviewRequest,timestamp} from './protocol';
 import {activeFenceFor,recoverReviews} from './recovery';
 import {boundedJson,budget,judge} from './budget';
@@ -8,7 +9,6 @@ import {exportGrafana} from './grafana';
 interface Job {id:string;edition_id:string|null;feed_id:string;language:string;window_end:string;published_at:string;status:string;snapshot_key:string|null;snapshot_hash:string|null;report_key:string|null;error:string|null;attempt_id:string|null;outcome:string;review_version:string}
 interface MessageBody {jobId:string}
 const time=()=>new Date().toISOString();
-const errorCode=(e:unknown)=> e instanceof Error&&/^[A-Z][A-Z0-9_]*$/.test(e.message)?e.message:'EVALUATION_FAILURE';
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
 async function setMeta(env:Env,key:string,value:unknown){await env.EVAL_DB.prepare('INSERT INTO eval_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(value)).run()}
 async function meta<T>(env:Env,key:string):Promise<T|null>{const row=await env.EVAL_DB.prepare('SELECT value FROM eval_meta WHERE key=?').bind(key).first<{value:string}>();return row?JSON.parse(row.value) as T:null}
@@ -21,7 +21,7 @@ export async function tick(env:Env){
   // Sweep immutable edition IDs repeatedly. Restarting a completed sweep catches
   // new publications whose stable IDs sort before the previous cursor.
   const after=await meta<string>(env,'discovery_cursor')??'';
-  const rows=await discover(env.SOURCE_DB,env.ENROLL_FROM,after);
+  const rows=await sourceRead(()=>discover(env.SOURCE_DB,env.ENROLL_FROM,after));
   for(const row of rows){
    const id=await hash({source:env.SOURCE_LABEL,edition:row.id,feed:row.feed_id,protocol:JOB_IDENTITY_PROTOCOL,judge:env.JUDGE_MODEL});
    await env.EVAL_DB.prepare(`INSERT INTO eval_jobs(id,feed_id,language,window_end,published_at,status,updated_at,edition_id,outcome,review_version)
@@ -59,30 +59,33 @@ export async function processJob(env:Env,id:string){
    // Compatibility with queue jobs created immediately before migration 0002.
    const editionId=value.edition_id??(value.error?.startsWith('{')?(JSON.parse(value.error) as {editionId?:string}).editionId:undefined);check(editionId,'EDITION_ID_MISSING');
    const row:Published={id:editionId,feed_id:value.feed_id,published_at:value.published_at,language:value.language,window_end:value.window_end,outcome:value.outcome==='quiet'?'quiet':'published'};
-   const c=await snapshot(env.SOURCE_DB,row,env.SOURCE_LABEL,time()),bytes=JSON.stringify(c);
+   const c=await sourceRead(()=>snapshot(env.SOURCE_DB,row,env.SOURCE_LABEL,time())),bytes=JSON.stringify(c);
    check(new TextEncoder().encode(bytes).length<=2_000_000,'SNAPSHOT_SIZE_LIMIT');
    const key=`snapshots/${id}.json`,snapshotHash=await hash(c);await env.EVIDENCE.put(key,bytes);
    const expires=new Date(Date.now()+Number(env.RETENTION_DAYS)*86400000).toISOString();
    await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',snapshot_key=?,snapshot_hash=?,error=NULL,expires_at=?,updated_at=?,operational_json=?,language=? WHERE id=? AND attempt_id=?").bind(key,snapshotHash,expires,time(),JSON.stringify(operational(c)),c.language,id,attempt).run();
-  }catch(error){await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='unassessable',error=?,updated_at=? WHERE id=? AND attempt_id=?").bind(errorCode(error),time(),id,attempt).run();return}
+  }catch(error){const code=errorCode(error);await env.EVAL_DB.prepare("UPDATE eval_jobs SET status=?,error=?,updated_at=? WHERE id=? AND attempt_id=?").bind(code==='SOURCE_DB_TRANSIENT_FAILURE'?'pending_snapshot':'unassessable',code,time(),id,attempt).run();console.log(JSON.stringify({event:'evaluation_incomplete',phase:'snapshot',jobId:id,...failureDetails(error)}));return}
   value=await job(env,id);if(!value)return;
  }
  if(env.EVALUATION_ENABLED!=='true'||!['ready','budget_deferred'].includes(value.status))return;
  const attempt=crypto.randomUUID();
  const claim=await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='reviewing',attempt_id=?,updated_at=?,review_version=? WHERE id=? AND status IN ('ready','budget_deferred')").bind(attempt,time(),PROTOCOL,id).run();
  if(!claim.meta.changes)return;
+ let phase='snapshot_read';
  try{
   check(value.snapshot_key,'SNAPSHOT_MISSING');const object=await env.EVIDENCE.get(value.snapshot_key);check(object&&object.size<=2_000_000,'SNAPSHOT_MISSING');
-  const c=await object.json<Case>();check(await hash(c)===value.snapshot_hash&&c.feedId===value.feed_id&&c.sourceLabel===env.SOURCE_LABEL,'SNAPSHOT_INTEGRITY_MISMATCH');check(await isEvaluable(env.SOURCE_DB,c.feedId,c.id,c.pipelineStatus),'PUBLICATION_NO_LONGER_VISIBLE');
+  const c=await object.json<Case>();phase='snapshot_validation';check(await hash(c)===value.snapshot_hash&&c.feedId===value.feed_id&&c.sourceLabel===env.SOURCE_LABEL,'SNAPSHOT_INTEGRITY_MISMATCH');phase='publication_read';check(await sourceRead(()=>isEvaluable(env.SOURCE_DB,c.feedId,c.id,c.pipelineStatus)),'PUBLICATION_NO_LONGER_VISIBLE');
   const deterministic=operational(c);
-  const d=inventory(await judge(env,id,'independent_developments',inventoryRequest(c)),c);
-  const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol:PROTOCOL,inventoryHash,inventory:d}));
-  const r=review(await judge(env,id,'atomic_claims_and_coverage',reviewRequest(c,d)),c,d),m=metrics(r,d,c),hasFindings=flagged(r,d,c);
+  phase='inventory_judge';const inventoryRaw=await judge(env,id,'independent_developments',inventoryRequest(c));
+  phase='inventory_validation';const d=inventory(inventoryRaw,c);
+  phase='inventory_store';const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol:PROTOCOL,inventoryHash,inventory:d}));
+  phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',reviewRequest(c,d));
+  phase='review_validation';const r=review(reviewRaw,c,d),m=metrics(r,d,c),hasFindings=flagged(r,d,c);
   const report={protocol:PROTOCOL,jobId:id,source:env.SOURCE_LABEL,model:env.JUDGE_MODEL,evidenceHash:await hash(c),inventoryHash,labelOrigin:'machine_judge_not_human',calibration:'not_measured',claimExtractionCompleteness:'not_independently_established',reviewedAt:time(),operational:deterministic,inventory:d,review:r,metrics:m,status:hasFindings?'flagged':'reviewed_no_findings'};
-  const key=`reports/${id}.json`;await env.EVIDENCE.put(key,JSON.stringify(report));
-  await env.EVAL_DB.prepare('UPDATE eval_jobs SET status=?,report_key=?,flagged=?,metrics_json=?,error=NULL,updated_at=? WHERE id=? AND attempt_id=?').bind(report.status,key,hasFindings?1:0,JSON.stringify(m),time(),id,attempt).run();
+  phase='report_store';const key=`reports/${id}.json`;await env.EVIDENCE.put(key,JSON.stringify(report));
+  phase='report_commit';await env.EVAL_DB.prepare('UPDATE eval_jobs SET status=?,report_key=?,flagged=?,metrics_json=?,error=NULL,updated_at=? WHERE id=? AND attempt_id=?').bind(report.status,key,hasFindings?1:0,JSON.stringify(m),time(),id,attempt).run();
   console.log(JSON.stringify({event:'evaluation_completed',status:report.status,language:c.language}));
- }catch(error){const code=errorCode(error),status=code==='DAILY_BUDGET_EXHAUSTED'?'budget_deferred':code==='PUBLICATION_NO_LONGER_VISIBLE'?'withdrawn':'review_failed';await env.EVAL_DB.prepare('UPDATE eval_jobs SET status=?,error=?,updated_at=? WHERE id=? AND attempt_id=?').bind(status,code,time(),id,attempt).run();console.log(JSON.stringify({event:'evaluation_incomplete',reason:code}))}
+ }catch(error){const code=errorCode(error),status=code==='SOURCE_DB_TRANSIENT_FAILURE'?'ready':code==='DAILY_BUDGET_EXHAUSTED'?'budget_deferred':code==='PUBLICATION_NO_LONGER_VISIBLE'?'withdrawn':'review_failed';await env.EVAL_DB.prepare('UPDATE eval_jobs SET status=?,error=?,updated_at=? WHERE id=? AND attempt_id=?').bind(status,code,time(),id,attempt).run();console.log(JSON.stringify({event:'evaluation_incomplete',phase,jobId:id,reason:code,...failureDetails(error)}))}
 }
 
 async function retain(env:Env){
