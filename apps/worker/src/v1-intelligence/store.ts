@@ -43,12 +43,18 @@ export class V1FeedStore {
  }
  /** V3 window intents contain many revision references but cannot own legacy reassessment. */
  async hasLegacySemanticIntentForObservation(feedId:string,observationId:string):Promise<boolean> {
-  const row=await this.db.prepare(`SELECT 1 FROM v1_feed_documents d
+  const lookup=(index:string)=>this.db.prepare(`SELECT 1 FROM v1_feed_documents d ${index}
    CROSS JOIN json_each(d.json,'$.input.evidenceRevisionIds') ref
    CROSS JOIN v1_revisions r ON r.id=ref.value
    WHERE d.feed_id=? AND d.kind='semantic_intents'
    AND json_extract(d.json,'$.input.kind') IS NOT 'V3_EDITOR_VERIFIER'
    AND json_extract(r.json,'$.sourceObservationId')=? LIMIT 1`).bind(feedId,observationId).first();
+  // Force the legacy-only seek: the general feed/kind index can otherwise
+  // parse every retained V3 input before proving there is no legacy work.
+  // Older self-hosted databases retain their exact recovery behavior.
+  let row;
+  try{row=await lookup('INDEXED BY v1_legacy_semantic_intents');}
+  catch(error){if(!/no such index: v1_legacy_semantic_intents/.test(String(error)))throw error;row=await lookup('');}
   return Boolean(row);
  }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
