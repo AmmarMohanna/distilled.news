@@ -5,6 +5,7 @@ import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
 import {prepareV2EditorialPlan} from './editorial-plan-v2';
 import {pendingWindowIntakeJobs,preparedV3Delivery,windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
+import {cutoffEditionReady} from './cutoff-edition';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from '../connector-intelligence-turn';
 import {withLatency,measureLatency,countLatency} from './latency';
 import {ModelSpendingWait,modelSpendingAccount} from './model-spending';
@@ -167,7 +168,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
  for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
-  if((await windowHasHoldingJobs(env.DB,feedId,older.window.end,{v3:older.engine==='v3',now:now()})&&!await preparedV3Delivery(env.DB,feedId,older.id,Date.parse(now())))||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
+  if((await windowHasHoldingJobs(env.DB,feedId,older.window.end,{v3:older.engine==='v3',now:now(),deferIntake:await cutoffEditionReady(env.DB,feedId,older,now())})&&!await preparedV3Delivery(env.DB,feedId,older.id,Date.parse(now())))||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
   if(job?.state==='RUNNING'&&Date.parse(job.leaseUntil)>Date.parse(now()))return undefined;
@@ -175,8 +176,9 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   countLatency('olderWindowPending');return undefined;
  }
  const preparedDelivery=request.engine==='v3'&&await preparedV3Delivery(env.DB,feedId,id,Date.parse(now()));
+ const cutoffReady=await cutoffEditionReady(env.DB,feedId,request,now());
  const initialCoverage=await measureLatency('WINDOW_READINESS',()=>feedTransact(store,feedId,async tx=>{
-  const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{v3:request.engine==='v3',now:now(),deferAcquisition:preparedDelivery}),current=await tx.read<BriefingRequest>('briefing_requests',id);
+  const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{v3:request.engine==='v3',now:now(),deferAcquisition:preparedDelivery,deferIntake:cutoffReady}),current=await tx.read<BriefingRequest>('briefing_requests',id);
   if(current&&(canonicalJson(current.coverage)!==canonicalJson(coverage)||coverage.pendingJobs&&current.reason!=='AWAITING_INTAKE_REASSESSMENT'))await tx.write('briefing_requests',id,{...current,coverage,...(coverage.pendingJobs?{reason:'AWAITING_INTAKE_REASSESSMENT',nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()}: {})});
   return coverage;
  }));
@@ -458,7 +460,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
   }
   const current=pending?await store.read<BriefingRequest>(id,'briefing_requests',editionId):undefined;
   if(current?.state==='PENDING'){
-   const coverage=await windowIntakeCoverage(env.DB,id,window.end,{v3:current.engine==='v3',now:now.toISOString()});
+   const coverage=await windowIntakeCoverage(env.DB,id,window.end,{v3:current.engine==='v3',now:now.toISOString(),deferIntake:await cutoffEditionReady(env.DB,id,current,now.toISOString())});
    const coverageReason=coverage.pendingJobs?'AWAITING_INTAKE_REASSESSMENT':coverage.failedJobs?'INCOMPLETE_INTAKE_COVERAGE':undefined;
    const changedReason=(current.reason==='AWAITING_INTAKE_REASSESSMENT'||Boolean(coverageReason))&&current.reason!==coverageReason;
    if(canonicalJson(current.coverage)!==canonicalJson(coverage)||changedReason){
@@ -479,7 +481,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    }
 
    // Each window is held only by jobs for evidence that existed when it closed.
-   if(await windowHasHoldingJobs(env.DB,id,request.window.end,{v3:request.engine==='v3',now:now.toISOString()})&&!await preparedV3Delivery(env.DB,id,request.id,now.getTime()))continue;
+   if(await windowHasHoldingJobs(env.DB,id,request.window.end,{v3:request.engine==='v3',now:now.toISOString(),deferIntake:await cutoffEditionReady(env.DB,id,request,now.toISOString())})&&!await preparedV3Delivery(env.DB,id,request.id,now.getTime()))continue;
    const v3=request.engine==='v3'||!request.engine&&productV3Enabled(env);
    if((v3||request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!(v3?productV3Ready(env):createStoredEvidenceModel(env))){
     if(request.reason!=='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING')await tx.write('briefing_requests',request.id,{...current,reason:'MODEL_SETUP_REQUIRED'});});

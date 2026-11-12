@@ -2,10 +2,10 @@
  * failedJobs includes unavailable acquisition-budget coverage without terminating
  * its recoverable job. Reconciliation dependencies retain their blockedJobs status. */
 export interface WindowIntakeCoverage {state:'COMPLETE'|'PENDING'|'INCOMPLETE';pendingJobs:number;failedJobs:number;blockedJobs?:number;deferredJobs?:number;unavailableCollections?:{id:string;title:string;count:number}[];failures:{kind:string;code:string;count:number}[]}
-/** Before verification, only confirmed capacity refusals yield at delivery.
- * Verified scheduled results can additionally defer acquisition; reassessment,
- * source ownership, immutable paid operations and publication CAS stay guarded. */
-export interface IntakeDeadlineOptions {v3?:boolean;now?:string;deferAcquisition?:boolean}
+/** Cutoff-policy callers defer unfinished intake for this edition only. Legacy
+ * snapshots retain their existing capacity/delivery rules. Jobs keep running;
+ * source ownership, paid identities and final verification remain guarded. */
+export interface IntakeDeadlineOptions {v3?:boolean;now?:string;deferAcquisition?:boolean;deferIntake?:boolean}
 export async function windowIntakeCoverage(db:D1Database,feedId:string,end:string,options:IntakeDeadlineOptions|boolean={}):Promise<WindowIntakeCoverage>{
  const settings=typeof options==='boolean'?{deferAcquisition:options}:options;
  return readWindowIntakeCoverage(db,feedId,end,settings,true);
@@ -54,6 +54,9 @@ async function readWindowIntakeCoverage(
   }else if(row.exhausted||row.state==='FAILED'||row.kind==='ACQUIRE'&&row.state==='PENDING'&&row.code==='BUDGET_EXHAUSTED'){
    failedJobs+=row.n;
    failures.push({kind:row.kind,code:row.code,count:row.n});
+  }else if(settings.v3&&settings.deferIntake){
+   deferredJobs+=row.n;
+   failures.push({kind:row.kind,code:'INTAKE_DEFERRED_AT_CUTOFF',count:row.n});
   }else if(settings.deferAcquisition&&row.kind==='ACQUIRE'){
    deferredJobs+=row.n;
    failures.push({kind:row.kind,code:'ACQUISITION_DEFERRED_AFTER_VERIFICATION',count:row.n});

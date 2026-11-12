@@ -1,4 +1,5 @@
 import {preparedV3Delivery} from './v1-intelligence/window-coverage';
+import {cutoffEditionReady} from './v1-intelligence/cutoff-edition';
 import type {Env} from './types';
 import {enqueueV1} from './v1-queue-dispatch';
 import {windowHasHoldingJobs,isAutomaticReportingWindow} from './v1-intelligence/runtime';
@@ -24,6 +25,7 @@ export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=n
  const request=JSON.parse(row.json),window=publicationWindowSchema.safeParse(request.window);if(!window.success)return false;
  if(!isAutomaticReportingWindow(window.data))return false;
  if((request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!createStoredEvidenceModel(env))return false;
- if((await windowHasHoldingJobs(env.DB,feedId,window.data.end)&&!await preparedV3Delivery(env.DB,feedId,row.id,now.getTime()))||(await pendingWindowCollections(env.DB,feedId,window.data.end,request.engine==='v3'||!request.engine&&env.BRIEFING_ENGINE==='v3',{scheduledFor:window.data.scheduledFor,now:now.getTime()})).pending)return false;
+ const cutoffReady=await cutoffEditionReady(env.DB,feedId,{...request,id:row.id,window:window.data},now.toISOString());
+ if((await windowHasHoldingJobs(env.DB,feedId,window.data.end,{v3:request.engine==='v3',now:now.toISOString(),deferIntake:cutoffReady})&&!await preparedV3Delivery(env.DB,feedId,row.id,now.getTime()))||(await pendingWindowCollections(env.DB,feedId,window.data.end,request.engine==='v3'||!request.engine&&env.BRIEFING_ENGINE==='v3',{scheduledFor:window.data.scheduledFor,now:now.getTime()})).pending)return false;
  return enqueueV1(env,'v1_briefing',row.id,{type:'v1_briefing',feedId,window:window.data},now);
 }

@@ -82,19 +82,30 @@ export class V1FeedStore {
   for(const d of decisions.sort((a,b)=>a.window_end.localeCompare(b.window_end))){if(d.carry)retry.add(d.revision_id);else retry.delete(d.revision_id);}return retry;
  }
  /** Metadata-only eligibility pass; immutable article bodies are loaded only after selection. */
- async currentEvidenceHeaders(feedId:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
+ async currentEvidenceHeaders(feedId:string,cutoff?:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
   let rows:D1Result<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>;
   try{
   rows=await this.db.prepare(`SELECT r.id,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.evidenceId') ELSE m.evidence_id END AS evidence_id,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.publishedAt') ELSE m.published_at END AS published_at,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.acceptedAt') ELSE m.accepted_at END AS accepted_at,CASE WHEN t.id IS NULL THEN json_extract(i.json,'$.observation.observedAt') ELSE t.observed_at END AS observed_at FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') LEFT JOIN v1_revision_selection_index m ON m.id=r.id AND m.feed_source_id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.sourceObservationId') ELSE m.source_observation_id END AND i.feed_source_id=r.feed_source_id LEFT JOIN v1_observation_time_index t ON t.id=i.id AND t.feed_source_id=i.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY accepted_at,r.id`).bind(feedId).all<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>();
   }catch(error){if(!/no such table.*v1_(revision_selection|observation_time)_index/.test(String(error)))throw error;
   rows=await this.db.prepare(`SELECT r.id,json_extract(r.json,'$.evidenceId') AS evidence_id,json_extract(r.json,'$.publishedAt') AS published_at,json_extract(r.json,'$.acceptedAt') AS accepted_at,json_extract(i.json,'$.observation.observedAt') AS observed_at FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>();
   }
-  return rows.results.map(r=>({revision:{id:r.id,evidenceId:r.evidence_id,publishedAt:r.published_at??undefined,acceptedAt:r.accepted_at},observedAt:r.observed_at}));
+  // Only updated-after-cutoff identities need a historical seek. Never load
+  // archival bodies or scan unrelated evidence to reconstruct the cutoff.
+  const selected=[];
+  for(const row of rows.results){
+   let r= row;
+   if(cutoff&&Date.parse(r.accepted_at)>=Date.parse(cutoff)){
+    const prior=await this.db.prepare(`SELECT r.id,json_extract(r.json,'$.evidenceId') evidence_id,json_extract(r.json,'$.publishedAt') published_at,json_extract(r.json,'$.acceptedAt') accepted_at,json_extract(i.json,'$.observation.observedAt') observed_at FROM v1_revisions current JOIN v1_revisions r ON r.feed_source_id=current.feed_source_id AND json_extract(r.json,'$.evidenceId')=json_extract(current.json,'$.evidenceId') LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE current.id=? AND julianday(json_extract(r.json,'$.acceptedAt'))<julianday(?) AND NOT EXISTS(SELECT 1 FROM v1_tombstones t WHERE t.feed_source_id=r.feed_source_id AND json_extract(t.json,'$.evidenceId')=json_extract(r.json,'$.evidenceId') AND julianday(json_extract(t.json,'$.acceptedAt'))>=julianday(json_extract(r.json,'$.acceptedAt'))) ORDER BY json_extract(r.json,'$.revision') DESC,r.id DESC LIMIT 1`).bind(r.id,cutoff).first<typeof r>();
+    if(!prior)continue;r=prior;
+   }
+   selected.push({revision:{id:r.id,evidenceId:r.evidence_id,publishedAt:r.published_at??undefined,acceptedAt:r.accepted_at},observedAt:r.observed_at});
+  }
+  return selected;
  }
- async currentEvidenceByIds(feedId:string,ids:string[]):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
+ async currentEvidenceByIds(feedId:string,ids:string[],cutoff?:string):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
   const unique=[...new Set(ids)],result:{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]=[];
   for(let offset=0;offset<unique.length;offset+=90){const page=unique.slice(offset,offset+90);
-   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND r.id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page).all<{item:string;revision:string}>();
+   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON ${cutoff?"r.feed_source_id=e.feed_source_id AND json_extract(r.json,'$.evidenceId')=e.id AND julianday(json_extract(r.json,'$.acceptedAt'))<julianday(?)":"r.id=json_extract(e.json,'$.currentRevisionId')"} WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND r.id IN (${page.map(()=>'?').join(',')})`).bind(...(cutoff?[cutoff]:[]),feedId,...page).all<{item:string;revision:string}>();
    result.push(...rows.results.map(r=>({item:JSON.parse(r.item),revision:JSON.parse(r.revision)})));
   }
   if(result.length!==unique.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');return result;

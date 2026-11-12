@@ -1,4 +1,5 @@
 import {semanticWaitRecord} from './semantic-wait-record';
+import {CUTOFF_EDITION_POLICY,cutoffSemanticAuthorized} from './cutoff-edition';
 import {recoveredPublicationResponse} from './publication-response-recovery';
 import {recoveryBinding} from './model-spending-recovery';
 import {ASYNC_MODEL_CALL_MS,ASYNC_OPERATION_LEASE_MS} from './operation-timing';
@@ -23,6 +24,9 @@ export interface SemanticOperationResult<T=unknown> {id:string;feedId:string;inp
 export class SemanticContentionError extends HandoffError {constructor(){super('TEMPORARY_UNAVAILABLE')}}
 async function assertInputs(tx:FeedTransaction,input:SemanticOperationInput):Promise<void> {
  if(tx.snapshot.feed.revision!==input.feedRevision)throw new HandoffError('SCOPE_DENIED');
+ if(input.kind==='V3_EDITOR_VERIFIER'&&(input.state as {cutoffPolicy?:string})?.cutoffPolicy===CUTOFF_EDITION_POLICY){
+  if(!await cutoffSemanticAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');return;
+ }
  const active=await tx.store.activeEvidenceRevisionIds(input.feedId);
  if(!input.evidenceRevisionIds.length || input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');
 }
