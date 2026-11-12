@@ -40,7 +40,7 @@ export async function recoverBlockedV3Request(store:V1FeedStore,feedId:string,re
      WHERE i.feed_id=? AND i.kind='semantic_intents' AND json_extract(i.json,'$.input.budgetKey')=?
      AND json_extract(i.json,'$.input.state.inputId')=? AND json_extract(result.json,'$.input.state.inputId')=json_extract(i.json,'$.input.state.inputId')
      AND json_extract(result.json,'$.status')='DEFERRED' AND json_extract(result.json,'$.usage.calls')>0
-     AND length(json_extract(result.json,'$.failure'))>0 AND json_extract(result.json,'$.failure')<>'SEMANTIC_OUTCOME_UNKNOWN' LIMIT 1`).bind(feedId,`v3:${current.id}`,frozen.fingerprint).first();
+     AND length(json_extract(result.json,'$.failure'))>0 LIMIT 1`).bind(feedId,`v3:${current.id}`,frozen.fingerprint).first();
     if(!failed)return false;
     reason='V3_SETTLED_CALL_FAILED';
    }

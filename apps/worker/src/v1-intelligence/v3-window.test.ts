@@ -79,12 +79,15 @@ it('automatically retires an isolated unknown window but leaves active unknown w
  expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(true);
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_UNCERTAIN_CALL_ISOLATED'});expect(calls).toBe(1);
 },30000);
-it('retires a failed semantic call after accounting settles without treating the charge as usable content',async()=>{
- await article();let calls=0;const failed=(async()=>{calls++;throw Error('lost after send')}) as typeof fetch;
+it.each(['SEMANTIC_PROVIDER_FAILURE','SEMANTIC_OUTCOME_UNKNOWN'])('retires a failed semantic call after accounting settles without treating the charge as usable content (%s)',async failure=>{
+ await article();let calls=0;const failed=(async()=>{calls++;throw Error(failure)}) as typeof fetch;
+ // Seed the expired-intent unknown fence before its immutable first write.
+ const original=FeedTransaction.prototype.write;
+ vi.spyOn(FeedTransaction.prototype,'write').mockImplementation(async function(this:FeedTransaction,kind,id,value){return original.call(this,kind,id,kind==='semantic_results'?{...(value as object),failure}:value)});
  const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
  await processV1Briefing(env,message,()=>window.end,undefined,failed);
  const request=await store.read<any>('feed-1','briefing_requests',id),results=await store.list<any>('feed-1','semantic_results');
- expect(request.reason).toBe('SEMANTIC_OUTCOME_UNKNOWN');expect(results).toMatchObject([{status:'DEFERRED',failure:'SEMANTIC_PROVIDER_FAILURE',usage:{reported:false}}]);
+ expect(request.reason).toBe('SEMANTIC_OUTCOME_UNKNOWN');expect(results).toMatchObject([{status:'DEFERRED',failure,usage:{reported:false}}]);
  expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:35:00Z')).toBe(false);
  const reservation=await ctx.db.prepare('SELECT id,token FROM v1_model_spending_reservations').first<{id:string;token:string}>();
  await settleModelSpending(ctx.db,reservation!.id,reservation!.token,{costUsd:.001,reported:true});

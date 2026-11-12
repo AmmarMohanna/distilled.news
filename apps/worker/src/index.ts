@@ -1,3 +1,4 @@
+import {withD1ResetDiagnostics} from './d1-reset-diagnostics';
 import {observeInvocation,emitAgentOps} from './agentops';
 import {runStorageMaintenance} from './storage-maintenance';
 import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefing';
@@ -49,11 +50,16 @@ const STALE_PROCESSING_JOB_REQUEUE_LIMIT = 25;
 const SLOW_QUEUE_JOB_MS = 10_000;
 
 export default {
-  fetch: async (request: Request, env: Env, ctx: ExecutionContext) => env.AGENTOPS_ENABLED==='true' ? observeInvocation('fetch',async()=>app.fetch(request,await productRuntimeEnv(env),ctx)) : app.fetch(request,await productRuntimeEnv(env),ctx),
+  fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
+    env={...env,DB:withD1ResetDiagnostics(env.DB)};
+    return env.AGENTOPS_ENABLED==='true' ? observeInvocation('fetch',async()=>app.fetch(request,await productRuntimeEnv(env),ctx)) : app.fetch(request,await productRuntimeEnv(env),ctx);
+  },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    env={...env,DB:withD1ResetDiagnostics(env.DB)};
     ctx.waitUntil(env.AGENTOPS_ENABLED==='true'?observeInvocation('scheduled',()=>runScheduledMaintenance(env)):runScheduledMaintenance(env));
   },
   async queue(batch: MessageBatch<DistilledQueueMessage | WebOperatorRunMessage>, env: Env): Promise<void> {
+    env={...env,DB:withD1ResetDiagnostics(env.DB)};
     env = await productRuntimeEnv(env);
     const repo = new D1Repository(env.DB);
     const agentStore = new D1AgentRuntimeStore(env.DB);
