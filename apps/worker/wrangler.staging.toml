@@ -37,7 +37,7 @@ SOURCE_ASSESSMENT_MODEL = "openai/gpt-4.1-mini"
 # Unlimited collection retains accounting and uncertain-outcome retry fences.
 SOURCE_NATIVE_EXECUTION_ENABLED = "true"
 SOURCE_COLLECTION_BUDGET_MODE = "unlimited"
-SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS = '["briefing_68867e36-7d4f-42ac-af76-fa29dd9cbbad"]'
+SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS = '["*"]'
 SOURCE_PER_PROVIDER_BUDGET_USD = "15"
 SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0.25,"zyte":0.05}'
 SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":0,"linkedin_apify":15,"zyte":15}'

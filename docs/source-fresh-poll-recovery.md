@@ -1,5 +1,7 @@
 # Opt-in automatic fresh X polling recovery
 
+November 12 staging policy: the deployment operator requested this recovery for **all current and future feeds**. Staging now uses `SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS='["*"]'`. Wildcard acknowledgement records identify deployment-operator authorization rather than claiming a separate opt-in by every feed owner. Source/account enablement, paused-feed exclusion, exact feed/source identity, cooldown, original reservations and old-request replay protection still apply. Other deployments retain their explicit configuration; the default remains disabled.
+
 On `aya-ghada-preserved-integration`, interrupted TwitterAPI.io reads no longer
 require a separate manual acknowledgement for every future failure when the
 owner has opted in through `SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS` (JSON feed IDs).
