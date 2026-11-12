@@ -18,6 +18,8 @@ SOURCE_CONNECTORS_ENABLED = "true"
 SOURCE_QUEUE_SCHEDULING_ENABLED = "true"
 # Staging-only rollout; legacy deployments keep their existing review ownership.
 V1_REVIEW_PREPARATION_ISOLATED = "true"
+# Model preparation must not hold the feed's canonical write turn.
+V1_PUBLICATION_PREPARATION_ISOLATED = "true"
 SOURCE_SHARED_PUBLIC_FETCH_ENABLED = "true"
 SOURCE_FULL_ARTICLES_ENABLED = "true"
 SOURCE_GOOGLE_RESOLUTION_ENABLED = "true"

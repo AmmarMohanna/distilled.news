@@ -29,8 +29,21 @@ export async function recoverBlockedV3Request(store:V1FeedStore,feedId:string,re
     AND json_extract(q.json,'$.accountId')=r.account_id AND json_extract(q.json,'$.reservationToken')=r.token
     WHERE i.feed_id=? AND i.kind='semantic_intents' AND json_extract(i.json,'$.input.budgetKey')=?
     AND json_extract(i.json,'$.input.state.inputId')=? LIMIT 1`).bind(feedId,`v3:${current.id}`,frozen.fingerprint).first();
-   if(!isolated)return false;
-   reason='V3_UNCERTAIN_CALL_ISOLATED';
+   if(isolated)reason='V3_UNCERTAIN_CALL_ISOLATED';
+   else{
+    // Later accounting can settle the charge without recovering usable model
+    // output. The immutable failed semantic result still cannot be published.
+    const failed=await store.db.prepare(`SELECT i.id FROM v1_feed_documents i
+     JOIN v1_model_spending_reservations r ON r.id='semantic_intents:'||i.id AND r.feed_id=i.feed_id AND r.token=json_extract(i.json,'$.token')
+     JOIN v1_model_spending_settlements s ON s.id=r.id AND s.token=r.token AND s.reported=1
+     JOIN v1_feed_documents result ON result.kind='semantic_results' AND result.id=i.id AND result.feed_id=i.feed_id
+     WHERE i.feed_id=? AND i.kind='semantic_intents' AND json_extract(i.json,'$.input.budgetKey')=?
+     AND json_extract(i.json,'$.input.state.inputId')=? AND json_extract(result.json,'$.input.state.inputId')=json_extract(i.json,'$.input.state.inputId')
+     AND json_extract(result.json,'$.status')='DEFERRED' AND json_extract(result.json,'$.usage.calls')>0
+     AND length(json_extract(result.json,'$.failure'))>0 AND json_extract(result.json,'$.failure')<>'SEMANTIC_OUTCOME_UNKNOWN' LIMIT 1`).bind(feedId,`v3:${current.id}`,frozen.fingerprint).first();
+    if(!failed)return false;
+    reason='V3_SETTLED_CALL_FAILED';
+   }
   }
   await tx.write('briefing_requests',current.id,{...current,state:'FAILED',failure:reason,reason,completedAt:at,nextAttemptAt:undefined});
   console.warn(JSON.stringify({type:'V3_BLOCKED_WINDOW_RETIRED',feedId,requestId:current.id,reason,evidenceCarriedForward:true,financialRecordsUnchanged:true}));

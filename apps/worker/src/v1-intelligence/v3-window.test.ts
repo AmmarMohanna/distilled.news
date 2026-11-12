@@ -19,6 +19,7 @@ import {readScheduleAudit} from './schedule-audit';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
 import {isolateExpiredModelExecutions} from './model-capacity-recovery';
 import {recoverBlockedV3Request} from './v3-blocked-recovery';
+import {settleModelSpending} from './model-spending';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
@@ -77,6 +78,25 @@ it('automatically retires an isolated unknown window but leaves active unknown w
  await releaseSemanticWorkLease(store,lease);
  expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(true);
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_UNCERTAIN_CALL_ISOLATED'});expect(calls).toBe(1);
+},30000);
+it('retires a failed semantic call after accounting settles without treating the charge as usable content',async()=>{
+ await article();let calls=0;const failed=(async()=>{calls++;throw Error('lost after send')}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ await processV1Briefing(env,message,()=>window.end,undefined,failed);
+ const request=await store.read<any>('feed-1','briefing_requests',id),results=await store.list<any>('feed-1','semantic_results');
+ expect(request.reason).toBe('SEMANTIC_OUTCOME_UNKNOWN');expect(results).toMatchObject([{status:'DEFERRED',failure:'SEMANTIC_PROVIDER_FAILURE',usage:{reported:false}}]);
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:35:00Z')).toBe(false);
+ const reservation=await ctx.db.prepare('SELECT id,token FROM v1_model_spending_reservations').first<{id:string;token:string}>();
+ await settleModelSpending(ctx.db,reservation!.id,reservation!.token,{costUsd:.001,reported:true});
+ const money=(await ctx.db.prepare('SELECT * FROM v1_model_spending_settlements').all()).results;
+ const lease=await acquireSemanticWorkLease(store,'feed-1');
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:40:00Z')).toBe(false);
+ await releaseSemanticWorkLease(store,lease);
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:41:00Z')).toBe(true);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_SETTLED_CALL_FAILED'});
+ expect(await store.list('feed-1','semantic_results')).toEqual(results);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect((await ctx.db.prepare('SELECT * FROM v1_model_spending_settlements').all()).results).toEqual(money);
+ expect(calls).toBe(1);
 },30000);
 it('preserves recovered input identity and clock delivery together without duplicate inference',async()=>{
  const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'};
