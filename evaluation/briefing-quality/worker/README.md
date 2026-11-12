@@ -1,5 +1,7 @@
 # Continuous briefing-quality evaluator
 
+November 12 operator policy: staging uses `SPENDING_MODE=unlimited`. It does not enforce daily dollar/call allowances or provider price ceilings. Costs and unknown reservations remain recorded; active/unknown requests and exact paid identities remain protected against replay. Dashboard/API report unlimited mode explicitly. The price variables are accounting estimates in this mode. Omitting the mode or setting `bounded` retains the self-hosting budget behavior described below, requiring `DAILY_BUDGET_USD` and `MAX_CALLS_PER_DAY`.
+
 November 11 repair: live reviews resumed after isolating the November 3 unresolved
 call without changing its charge or resending it. Current-source passage references,
 strict provider response schemas, QUIET-window enrollment and current-protocol

@@ -1,5 +1,5 @@
 import {PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,review,reviewRequest,timestamp} from './protocol';
-import {activeFence,recoverReviews} from './recovery';
+import {activeFenceFor,recoverReviews} from './recovery';
 import {boundedJson,budget,judge} from './budget';
 import {discover,isEvaluable,snapshot,type Published} from './source';
 import {dashboardPage} from './page';
@@ -36,9 +36,9 @@ export async function tick(env:Env){
  await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='pending_snapshot',attempt_id=NULL WHERE status='collecting' AND updated_at<?").bind(cutoff).run();
  await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='interrupted_unknown',error='REVIEW_INTERRUPTED' WHERE status='reviewing' AND updated_at<?").bind(cutoff).run();
  const day=time().slice(0,10),b=budget(env);
- const totals=await env.EVAL_DB.prepare("SELECT COALESCE(SUM(CASE WHEN day_utc=? OR state IN ('RESERVED','UNKNOWN') THEN COALESCE(cost_micro,reservation_micro) ELSE 0 END),0) spent,SUM(CASE WHEN day_utc=? THEN 1 ELSE 0 END) calls FROM eval_calls").bind(day,day).first<{spent:number;calls:number}>();
- const blocked=await env.EVAL_DB.prepare(activeFence).first();
- const canReview=env.EVALUATION_ENABLED==='true'&&!blocked&&(totals?.spent??0)<b.dailyMicro&&(totals?.calls??0)<b.maxCalls;
+ const totals=b.unlimited?null:await env.EVAL_DB.prepare("SELECT COALESCE(SUM(CASE WHEN day_utc=? OR state IN ('RESERVED','UNKNOWN') THEN COALESCE(cost_micro,reservation_micro) ELSE 0 END),0) spent,SUM(CASE WHEN day_utc=? THEN 1 ELSE 0 END) calls FROM eval_calls").bind(day,day).first<{spent:number;calls:number}>();
+ const blocked=await env.EVAL_DB.prepare(activeFenceFor(b.unlimited)).first();
+ const canReview=env.EVALUATION_ENABLED==='true'&&!blocked&&(b.unlimited||((totals?.spent??0)<b.dailyMicro&&(totals?.calls??0)<b.maxCalls));
  // Fairness: balance completed work across language/feed groups before taking
  // the oldest pending briefing. No feed IDs enter public/Grafana metric labels.
  const pending=(await env.EVAL_DB.prepare(`SELECT j.id FROM eval_jobs j WHERE j.status='pending_snapshot' OR (?=1 AND j.status IN ('ready','budget_deferred'))
@@ -108,17 +108,18 @@ async function summary(env:Env){
  const groups=(await env.EVAL_DB.prepare('SELECT language,status,COUNT(*) count FROM eval_jobs GROUP BY language,status').all<{language:string;status:string;count:number}>()).results;
  const total=groups.reduce((n,r)=>n+r.count,0),allReviewed=groups.filter(r=>['flagged','reviewed_no_findings'].includes(r.status)).reduce((n,r)=>n+r.count,0);
  const progress=await env.EVAL_DB.prepare("SELECT COUNT(*) reviewed,MAX(updated_at) lastSuccessfulReview FROM eval_jobs WHERE review_version=? AND status IN ('flagged','reviewed_no_findings')").bind(PROTOCOL).first<{reviewed:number;lastSuccessfulReview:string|null}>();
- const reviewed=progress?.reviewed??0,spendingFenced=!!await env.EVAL_DB.prepare(activeFence).first();
+ const reviewed=progress?.reviewed??0,spendingFenced=!!await env.EVAL_DB.prepare(activeFenceFor(env.SPENDING_MODE==='unlimited')).first();
  const costs=(await env.EVAL_DB.prepare('SELECT day_utc,state,COUNT(*) calls,SUM(COALESCE(cost_micro,reservation_micro))/1000000.0 usd FROM eval_calls GROUP BY day_utc,state ORDER BY day_utc DESC LIMIT 100').all()).results;
  const trends=(await env.EVAL_DB.prepare(`SELECT substr(published_at,1,10) day_utc,language,COUNT(*) eligible,
  SUM(CASE WHEN status IN ('flagged','reviewed_no_findings') THEN 1 ELSE 0 END) reviewed,SUM(flagged) flagged FROM eval_jobs GROUP BY 1,2 ORDER BY 1 DESC LIMIT 90`).all()).results;
- return {protocol:PROTOCOL,source:env.SOURCE_LABEL,enabled:env.EVALUATION_ENABLED==='true',dailyBudgetUsd:Number(env.DAILY_BUDGET_USD),budgetTimezone:'UTC',eligible:total,reviewed,historicalReviewed:allReviewed-reviewed,lastSuccessfulReview:progress?.lastSuccessfulReview??null,spendingFenced,evaluationCoverage:total?reviewed/total:null,groups,costs,trends,discovery:await meta(env,'discovery'),lastTick:await meta(env,'last_tick'),grafana:await meta(env,'grafana'),humanCalibration:'not_measured',scientificAccuracy:'not_established'};
+ return {protocol:PROTOCOL,source:env.SOURCE_LABEL,enabled:env.EVALUATION_ENABLED==='true',spendingMode:env.SPENDING_MODE==='unlimited'?'unlimited':'bounded',dailyBudgetUsd:env.SPENDING_MODE==='unlimited'?null:Number(env.DAILY_BUDGET_USD),budgetTimezone:'UTC',eligible:total,reviewed,historicalReviewed:allReviewed-reviewed,lastSuccessfulReview:progress?.lastSuccessfulReview??null,spendingFenced,evaluationCoverage:total?reviewed/total:null,groups,costs,trends,discovery:await meta(env,'discovery'),lastTick:await meta(env,'last_tick'),grafana:await meta(env,'grafana'),humanCalibration:'not_measured',scientificAccuracy:'not_established'};
 }
 async function prometheus(env:Env){
  const s=await summary(env);const lines=['# HELP distilled_eval_eligible Discovered published briefings since enrollment.','# TYPE distilled_eval_eligible gauge',`distilled_eval_eligible ${s.eligible}`,'# TYPE distilled_eval_reviewed gauge',`distilled_eval_reviewed ${s.reviewed}`];
  for(const r of s.groups){const language=['en','ar','fr'].includes(r.language)?r.language:'other';check(/^[a-z_]+$/.test(r.status),'INVALID_METRIC_STATUS');lines.push(`distilled_eval_jobs{language="${language}",status="${r.status}"} ${r.count}`)}
  const calls=await env.EVAL_DB.prepare("SELECT COUNT(*) n,COALESCE(SUM(CASE WHEN state IN ('RESERVED','UNKNOWN','OVERAGE') THEN 1 ELSE 0 END),0) unresolved,COALESCE(SUM(COALESCE(cost_micro,reservation_micro)),0)/1000000.0 usd FROM eval_calls WHERE day_utc=?").bind(time().slice(0,10)).first<{n:number;unresolved:number;usd:number}>();
- lines.push(`distilled_eval_daily_cost_or_hold_usd ${calls?.usd??0}`,`distilled_eval_daily_budget_usd ${s.dailyBudgetUsd}`,`distilled_eval_enabled ${s.enabled?1:0}`);
+ lines.push(`distilled_eval_daily_cost_or_hold_usd ${calls?.usd??0}`,`distilled_eval_spending_unlimited ${s.spendingMode==='unlimited'?1:0}`,`distilled_eval_enabled ${s.enabled?1:0}`);
+ if(s.dailyBudgetUsd!==null)lines.push(`distilled_eval_daily_budget_usd ${s.dailyBudgetUsd}`);
  const unresolved=await env.EVAL_DB.prepare("SELECT COUNT(*) n FROM eval_calls WHERE state IN ('RESERVED','UNKNOWN','OVERAGE')").first<{n:number}>();lines.push(`distilled_eval_unresolved_calls ${unresolved?.n??0}`);
  const isolated=await env.EVAL_DB.prepare("SELECT COUNT(*) n FROM eval_call_isolations i JOIN eval_calls c ON c.id=i.call_id WHERE c.state IN ('UNKNOWN','RESERVED')").first<{n:number}>();
  lines.push(`distilled_eval_isolated_calls ${isolated?.n??0}`,`distilled_eval_spending_fenced ${s.spendingFenced?1:0}`,`distilled_eval_historical_reviewed ${s.historicalReviewed}`,`distilled_eval_last_successful_review_timestamp_seconds ${s.lastSuccessfulReview?Math.floor(Date.parse(s.lastSuccessfulReview)/1000):0}`);
@@ -157,7 +158,7 @@ export default {
      await env.EVAL_DB.prepare('INSERT INTO eval_annotations VALUES(?,?,?,?,?) ON CONFLICT(job_id) DO UPDATE SET disposition=excluded.disposition,note=excluded.note,reviewer=excluded.reviewer,updated_at=excluded.updated_at').bind(id,v.disposition,v.note,v.reviewer,time()).run();return json({saved:true,labelOrigin:'operator_triage_not_independent_human_gold'});
     }
     if(request.method==='POST'&&match[2]==='resume'){
-     check(!await env.EVAL_DB.prepare(activeFence).first(),'UNKNOWN_PROVIDER_OUTCOME_FENCE');
+     check(!await env.EVAL_DB.prepare(activeFenceFor(env.SPENDING_MODE==='unlimited')).first(),'UNKNOWN_PROVIDER_OUTCOME_FENCE');
      if(value.status==='unassessable'&&value.edition_id){await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='pending_snapshot',error=NULL,updated_at=? WHERE id=? AND status='unassessable'").bind(time(),id).run();await env.REVIEWS.send({jobId:id});return json({queued:true,scope:'read_only_evidence_collection'})}
      check(value.snapshot_key&&['interrupted_unknown','budget_deferred'].includes(value.status),'JOB_NOT_SAFELY_RESUMABLE');await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',error=NULL,updated_at=? WHERE id=? AND status IN ('interrupted_unknown','budget_deferred')").bind(time(),id).run();await env.REVIEWS.send({jobId:id});return json({queued:true});
     }

@@ -1,7 +1,8 @@
 import {check,PROTOCOL} from './protocol';
 import {boundedJson,money} from './budget';
 /** An isolated request stays financially UNKNOWN and cannot be sent again. */
-export const activeFence=`SELECT c.id FROM eval_calls c WHERE c.state='OVERAGE' OR (c.state IN ('RESERVED','UNKNOWN') AND NOT EXISTS(SELECT 1 FROM eval_call_isolations i WHERE i.call_id=c.id)) LIMIT 1`;
+export const activeFenceFor=(unlimited=false)=>`SELECT c.id FROM eval_calls c WHERE ${unlimited?'':"c.state='OVERAGE' OR "}(c.state IN ('RESERVED','UNKNOWN') AND NOT EXISTS(SELECT 1 FROM eval_call_isolations i WHERE i.call_id=c.id)) LIMIT 1`;
+export const activeFence=activeFenceFor();
 export async function recoverReviews(env:Env,now=new Date()){
  if(env.UNCERTAIN_REVIEW_RECOVERY!=='isolate-after-20m-v1')return;
  await recoverGenerationAccounting(env).catch(()=>{});
@@ -33,7 +34,7 @@ export async function recoverGenerationAccounting(env:Env,fetcher:typeof fetch=f
   const cost=money(d.total_cost),key='accounting/'+row.id+'.json';
   await env.EVIDENCE.put(key,JSON.stringify({source:'OPENROUTER_GENERATION_METADATA',id:d.id,model:d.model,total_cost:d.total_cost,finish_reason:d.finish_reason,cancelled:d.cancelled===true}));
   await env.EVAL_DB.batch([
-   env.EVAL_DB.prepare("UPDATE eval_calls SET state=?,cost_micro=?,provider_id=? WHERE id=? AND state='UNKNOWN' AND EXISTS(SELECT 1 FROM eval_provider_receipts r WHERE r.call_id=eval_calls.id AND r.generation_id=?)").bind(cost>row.reservation_micro?'OVERAGE':'SETTLED',cost,d.id,row.id,d.id),
+   env.EVAL_DB.prepare("UPDATE eval_calls SET state=?,cost_micro=?,provider_id=? WHERE id=? AND state='UNKNOWN' AND EXISTS(SELECT 1 FROM eval_provider_receipts r WHERE r.call_id=eval_calls.id AND r.generation_id=?)").bind(cost>row.reservation_micro&&env.SPENDING_MODE!=='unlimited'?'OVERAGE':'SETTLED',cost,d.id,row.id,d.id),
    env.EVAL_DB.prepare('INSERT OR IGNORE INTO eval_accounting_recoveries VALUES(?,?,?)').bind(row.id,key,new Date().toISOString())
   ]);
  }catch{/* Missing metadata is retained as uncertainty, never a zero charge. */}

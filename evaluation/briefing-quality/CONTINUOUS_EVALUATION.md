@@ -1,5 +1,7 @@
 # Continuous evaluation
 
+**November 12 staging policy update:** the owner requested no monetary limits. The evaluator now supports `SPENDING_MODE=unlimited`, bypassing monetary and daily-call admission quotas while retaining paid-operation accounting and uncertainty protections. Earlier capped-budget descriptions below are historical/bounded-mode behavior. See the Worker README for current configuration.
+
 ## Current implementation — November 2, 2026
 
 The [separate Cloudflare Worker](worker/README.md) implements the live layer below
