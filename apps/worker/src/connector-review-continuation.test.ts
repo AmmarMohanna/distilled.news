@@ -57,3 +57,26 @@ it('continues a tail source without a round trip for each empty active source',a
  console.info(JSON.stringify({reviewContinuationQueries:queries,emptySources:80}));
  expect(queries).toBeLessThan(8);
 });
+
+async function priorityWindowFixture(){
+ await ctx.db.exec("INSERT INTO accounts(id,email,normalized_email,username,role,password_hash,email_verified_at,created_at,updated_at) VALUES('priority-owner','priority@example.invalid','priority@example.invalid','priority','user','hash','2026-10-14','2026-10-14','2026-10-14'); INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,paused,created_at,updated_at) VALUES('feed-1','priority-owner','priority','Priority','news',1,0,'2026-10-14','2026-10-14');");
+ await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('feed-1',JSON.stringify({id:'feed-1',ownerId:'priority-owner',revision:1})).run();
+ const window={start:'2026-10-15T10:30:00.000Z',end:'2026-10-15T11:00:00.000Z',kind:'30M'};
+ await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests','ready-old-window','feed-1',?)").bind(JSON.stringify({id:'ready-old-window',engine:'v3',state:'PENDING',window})).run();
+ await ctx.db.prepare("INSERT INTO v1_inputs(id,feed_source_id,json) VALUES('newer-observation','feed-source-1',?)").bind(JSON.stringify({observation:{observedAt:'2026-10-15T11:30:00Z'}})).run();
+ await job('newer-review','PENDING','feed-source-1',{observationId:'newer-observation'});
+ return window;
+}
+it('offers a ready older window the released intelligence lane before chaining newer review work',async()=>{
+ const window=await priorityWindowFixture();
+ expect(await continueFeedReview(env,'completed',now)).toBe(true);
+ expect(env.PROCESSING_QUEUE.send).toHaveBeenCalledExactlyOnceWith({type:'v1_briefing',feedId:'feed-1',window});
+ expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_jobs WHERE id='newer-review'").first<{json:string}>())!.json).state).toBe('PENDING');
+});
+it('keeps an older window blocked by unfinished evidence and continues its required review',async()=>{
+ await priorityWindowFixture();
+ await ctx.db.prepare("INSERT INTO v1_inputs(id,feed_source_id,json) VALUES('older-observation','feed-source-1',?)").bind(JSON.stringify({observation:{observedAt:'2026-10-15T10:45:00Z'}})).run();
+ await job('required-review','PENDING','feed-source-1',{observationId:'older-observation'});
+ expect(await continueFeedReview(env,'completed',now)).toBe(true);
+ expect(env.PROCESSING_QUEUE.send).toHaveBeenCalledExactlyOnceWith({type:'v1_reassess',jobId:'required-review'});
+});
