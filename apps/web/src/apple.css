@@ -370,6 +370,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-options-popover { position: absolute; inset-inline-end: 0; top: calc(100% + 6px); z-index: 15; min-width: 180px; padding: 0.375rem; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-soft); }
 :root.apple-ui.apple-ui .feed-options-popover :is(button,a) { display: flex; align-items: center; gap: 0.625rem; width: 100%; border-radius: 9px; background: transparent; text-decoration: none; font-size: 0.875rem; text-align: start; }
 :root.apple-ui.apple-ui .feed-options-popover :is(button,a):hover { background: var(--surface-quiet); }
+:root.apple-ui.apple-ui .feed-options-popover > a[href$="?edit=1"] { font-weight: 550; }
 @media (hover: hover) {
   :root.apple-ui.apple-ui :is(.language-cycle,.theme-toggle,.feed-card-actions > button,.star-vote,.feed-options > summary):hover { background: transparent; color: var(--accent); }
 }
