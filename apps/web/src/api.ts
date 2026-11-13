@@ -330,6 +330,8 @@ export async function recommendSources(title: string, description: string): Prom
 }
 
 export interface SourceAssessment {
+  freeAccessUnavailable?: boolean;
+  paidRetryMaxUsd?: number;
   evidenceQuote?: string;
   input: string;
   status: "accepted" | "rejected" | "unverified" | "unavailable";
@@ -337,6 +339,10 @@ export interface SourceAssessment {
   checkedAt: string;
 }
 export interface SourceRecommendations { sources: string[]; checks?: SourceAssessment[] }
+export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
+export function searchSourceCandidates(query:string,signal?:AbortSignal):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean}> {
+  return requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
+}
 export async function recommendSourceCandidates(title: string, description: string, onProgress?: (result:SourceRecommendations)=>void): Promise<SourceRecommendations> {
   if(!onProgress)return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });
   let response:Response;
@@ -363,8 +369,8 @@ export async function recommendSourceCandidates(title: string, description: stri
   }catch(cause){throw cause instanceof ApiError?cause:apiError(undefined,response);}
   finally{await reader.cancel().catch(()=>undefined);reader.releaseLock();}
 }
-export async function assessSourceInput(title: string, description: string, source: string): Promise<SourceAssessment> {
-  const payload = await requestJson<{ assessment: SourceAssessment }>("/api/me/sources/assess", { method: "POST", body: JSON.stringify({ title, description, source }) });
+export async function assessSourceInput(title: string, description: string, source: string,options?:{approvedRetrievalBudgetUsd?:0.10;searchQuery?:string}): Promise<SourceAssessment> {
+  const payload = await requestJson<{ assessment: SourceAssessment }>("/api/me/sources/assess", { method: "POST", body: JSON.stringify({ title, description, source,...options }) });
   return payload.assessment;
 }
 

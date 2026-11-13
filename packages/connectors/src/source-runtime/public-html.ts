@@ -1,11 +1,34 @@
 import {parse} from 'parse5';
 import {primaryTextContainer,primaryDescendants} from './primary-text';
-import {discoverWebsiteArticles} from './website-discovery';
+import {discoverWebsiteArticles,isWebsiteListingUrl} from './website-discovery';
 import {isArticleSchemaType,matchesOpaqueArticlePage,sameArticleUrl} from './article-schema';
 type Node={tagName?:string;nodeName?:string;value?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node};
 const attr=(n:Node,name:string)=>n.attrs?.find(a=>a.name===name)?.value??'';
 const excluded=new Set(['script','style','noscript','nav','header','footer','aside','form','button','svg']);
 export const PUBLIC_ARTICLE_HTML_MAX_BYTES=15_000_000;
+/** Assessment samples Wikipedia prose, not maintenance notices or navigation.
+ * Collection still retains the original page and its full extracted evidence.
+ */
+export function wikipediaArticlePassages(html:string,url:string):string[] {
+ let target:URL;try{target=new URL(url);}catch{return [];}
+ if(!/^[a-z][a-z0-9-]*\.wikipedia\.org$/i.test(target.hostname)||!target.pathname.startsWith('/wiki/')||new TextEncoder().encode(html).length>2_000_000)return [];
+ const root=parse(html) as Node,all:Node[]=[],stack=[root];
+ while(stack.length&&all.length<100000){const node=stack.pop()!;all.push(node);stack.push(...[...(node.childNodes??[])].reverse());}
+ if(stack.length)return [];
+ const bodies=all.filter(node=>attr(node,'class').split(/\s+/).includes('mw-parser-output'));
+ if(bodies.length!==1)return [];
+ const ignored=new Set(['ambox','tmbox','cmbox','ombox','fmbox','imbox','hatnote','navbox','infobox','metadata','mw-editsection','mw-message-box']);
+ const passages:string[]=[],pending=[bodies[0]];
+ while(pending.length&&passages.length<12){
+  const node=pending.pop()!;
+  if(excluded.has(node.tagName??'')||node.tagName==='table'||attr(node,'role')==='note'||attr(node,'class').split(/\s+/).some(name=>ignored.has(name)))continue;
+  if(node.tagName==='p'){
+   const value=text(node);
+   if(value.length>=80)passages.push(value.slice(0,1500));
+  }else pending.push(...[...(node.childNodes??[])].reverse());
+ }
+ return passages;
+}
 function text(root:Node,skip=true,keepHeader=false):string {
  const parts:string[]=[],stack=[root];let seen=0;
  while(stack.length&&seen++<100000){const n=stack.pop()!;if(skip&&excluded.has(n.tagName??'')&&!(keepHeader&&n.tagName==='header'))continue;if(n.nodeName==='#text')parts.push(n.value??'');else stack.push(...[...(n.childNodes??[])].reverse());}
@@ -103,7 +126,8 @@ export function extractPublicHtml(html:string,url:string){
   if(details.length===1){articleBodies.push(details[0]);articleMetadata=true;}
  }
  const unboundDescription=!articleBodies.length&&all.some(n=>attr(n,'itemprop').split(/\s+/).includes('description'));
- const primary=(!articleMetadata&&foreignArticleMetadata)||unboundDescription?undefined:primaryTextContainer(all);
+ const lovinLanding=new URL(url).hostname.replace(/^www\./,'')==='lovin.co'&&isWebsiteListingUrl(url);
+ const primary=lovinLanding||(!articleMetadata&&foreignArticleMetadata)||unboundDescription?undefined:primaryTextContainer(all);
  const content=articleBodies.length===1?articleBodies[0]:primary;
  const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n))||attr(n,'class').split(/\s+/).includes('paywall-content')&&/^preview this article\b/i.test(text(n)));
  const accessRestricted=restrictedMetadata&&(explicitPreview||!structuredBody&&!content&&!article&&all.some(n=>/(?:^|[\s_-])paywall(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))));
