@@ -29,12 +29,14 @@ export function useVisibleFeedMenu(ref: RefObject<HTMLDetailsElement | null>) {
     };
     details.addEventListener("toggle", position);
     window.addEventListener("resize", position);
+    window.addEventListener('page-magnification-change', position);
     document.addEventListener("scroll", position, true);
     window.visualViewport?.addEventListener("resize", position);
     window.visualViewport?.addEventListener("scroll", position);
     return () => {
       details.removeEventListener("toggle", position);
       window.removeEventListener("resize", position);
+      window.removeEventListener('page-magnification-change', position);
       document.removeEventListener("scroll", position, true);
       window.visualViewport?.removeEventListener("resize", position);
       window.visualViewport?.removeEventListener("scroll", position);

@@ -2995,6 +2995,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   }
 }
 
+/* Visual magnification crops inside the existing viewport; layout stays unchanged. */
+:root.apple-ui[data-page-magnified] #root { overflow: clip; }
+:root.apple-ui[data-magnification-pan], :root.apple-ui[data-magnification-pan] * { cursor: grab !important; user-select: none; }
+
 /* Feed details keep compact padding and consistent microphone alignment. */
 :root.apple-ui.apple-ui .feed-editor .feed-details-fields .voice-field {
   --feed-detail-control-height: max(44px, 2.75rem);

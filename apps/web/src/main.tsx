@@ -1,6 +1,7 @@
 import {toUiError, type UiMessage} from './api-errors';
 import {SourceHealth} from './SourceHealth';
 import { useFeedViewer } from './useFeedViewer';
+import { usePageMagnification } from './usePageMagnification';
 import { sourceEvidenceLabels } from "./source-evidence-labels";
 import { SourceLogo } from "./SourceLogo";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
@@ -156,6 +157,7 @@ declare global {
 }
 
 function App() {
+  usePageMagnification();
   const path = window.location.pathname;
   if (path === "/explore" || path === "/explore/") return <AdminPage initialTab="explore"/>;
   if (path === "/verify-email") return <VerifyEmailPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;

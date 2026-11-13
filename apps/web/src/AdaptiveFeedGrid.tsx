@@ -41,7 +41,7 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
     if (!grid || !count) return;
     const measure = () => {
       // A pinch changes the visual viewport, not the page's layout viewport.
-      if ((window.visualViewport?.scale ?? 1) > 1.01) return;
+      if ((window.visualViewport?.scale ?? 1) > 1.01 || document.documentElement.hasAttribute('data-page-magnified')) return;
       const rect = grid.getBoundingClientRect();
       if (!rect.width) return;
       const scale = grid.offsetWidth ? rect.width / grid.offsetWidth : 1;
