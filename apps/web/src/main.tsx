@@ -2,11 +2,10 @@ import {toUiError, type UiMessage} from './api-errors';
 import {SourceHealth} from './SourceHealth';
 import { useFeedViewer } from './useFeedViewer';
 import { usePageMagnification } from './usePageMagnification';
-import { sourceEvidenceLabels } from "./source-evidence-labels";
-import { SourceLogo } from "./SourceLogo";
+import { NewsBriefing } from "./NewsBriefing";
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { FeedArt } from "./FeedArt";
@@ -21,7 +20,6 @@ import {
   Mail,
   LockKeyhole,
   ArrowRight,
-  ArrowUpRight,
   Ellipsis,
   Check,
   Layers,
@@ -34,7 +32,6 @@ import {
   Compass,
   Copy,
   ExternalLink,
-  Link2,
   Gauge,
   Globe,
   Github,
@@ -1991,137 +1988,8 @@ function ReferenceParagraph(props: {
   );
 }
 
-function SourcesSheet(props: {
-  edition: BriefingEdition;
-  selectedIndex: number;
-  language: "en" | "ar" | "fr";
-  onClose: () => void;
-}) {
-  const { edition, language } = props;
-  const textDir = textDirection(language);
-  const [storyIndex, setStoryIndex] = useState(props.selectedIndex);
-  const sourcesListId = useId();
-  const moduleRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const module = moduleRef.current;
-    if (!module) return;
-    const paragraphs = module.querySelectorAll<HTMLElement>(".sources-story-summary, .sources-post-text");
-    const fit = () => paragraphs.forEach(node => {
-      const lineHeight = parseFloat(getComputedStyle(node).lineHeight);
-      const lines = Math.max(1, Math.floor(node.parentElement!.clientHeight / lineHeight));
-      node.style.setProperty("--source-lines", String(lines));
-      node.style.maxHeight = (lines * lineHeight) + "px";
-    });
-    const observer = new ResizeObserver(fit);
-    paragraphs.forEach(node => observer.observe(node.parentElement!));
-    fit();
-    return () => observer.disconnect();
-  }, [storyIndex, edition]);
-  const { t } = useLanguage();
-  useEffect(() => { setStoryIndex(props.selectedIndex); }, [props.selectedIndex]);
-  return (
-    <Sheet
-      title={sourcesLabel(language)}
-      closeLabel={closeSourcesLabel(language)}
-      icon={<Layers size={17} aria-hidden />}
-      onClose={props.onClose}
-      wide
-    >
-      <div ref={moduleRef} className="sources-module" lang={language} dir={textDir}>
-        <p className="sources-edition">
-          <strong>{formatDayHeading(editionDisplayTime(edition), language)}</strong>
-          <span>{formatClock(editionDisplayTime(edition), language)}</span>
-        </p>
-        <ol className="sources-stories">
-          {edition.sections.map((section, index) => {
-            const text = section.summary.replace(/\r\n/g, "\n");
-            const boundary = text.indexOf("\n");
-            const title = section.title.trim() || (boundary > 0 ? text.slice(0, boundary).trim() : "");
-            const body = !section.title.trim() && boundary > 0 ? text.slice(boundary + 1).trim() : title && text.startsWith(title) ? text.slice(title.length).trimStart() : text;
-            return index === storyIndex ? (
-            <li
-              key={`${section.title}:${index}`}
-              id={`${edition.id}-source-${index + 1}`}
-              className={`sources-story${index === props.selectedIndex ? " is-selected" : ""}`}
-            >
-              <div className="sources-story-brief">
-              <div className="sources-story-head">
-                <span className="sources-story-number" aria-hidden>{index + 1}</span>
-                {title ? <h3><bdi>{title}</bdi></h3> : null}
-              </div>
-              <div className="sources-summary-slot"><p className="sources-story-summary"><bdi dir={textDir}>{body}</bdi></p></div>
-              </div>
-              {section.evidence.length === 0
-                ? <p className="muted">{noReferencesLabel(language)}</p>
-                : <ul className="sources-posts" id={sourcesListId}>
-                    {section.evidence.slice(0, 1).map((entry, sourceIndex) => (
-                      <SourcePost key={`${entry.messageId}:${entry.postedAt}:${sourceIndex}`} entry={entry} language={language} />
-                    ))}
-                  </ul>}
-            </li>
-          ) : null; })}
-        </ol>
-        {(edition.sections.length > 1 || (edition.sections[storyIndex]?.evidence.length ?? 0) > 1) && <div className="sources-pagination">
-          {edition.sections.length > 1 && <div><button type="button" aria-label={t("Previous story")} disabled={storyIndex === 0} onClick={() => { setStoryIndex(i => i - 1); }}><ChevronLeft size={18}/></button><span>{storyIndex + 1} / {edition.sections.length}</span><button type="button" aria-label={t("Next story")} disabled={storyIndex === edition.sections.length - 1} onClick={() => { setStoryIndex(i => i + 1); }}><ChevronRight size={18}/></button></div>}
-        </div>}
-      </div>
-    </Sheet>
-  );
-}
-
-function sourceDisplayText(value: string): string {
-  const decoder = document.createElement("textarea");
-  for (let pass = 0; pass < 3; pass++) {
-    const next = value.replace(/&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]+);/gi, entity => { decoder.innerHTML = entity; return decoder.value; });
-    if (next === value) break;
-    value = next;
-  }
-  return value;
-}
-
-function SourcePost(props: { entry: BriefingEvidence; language: "en" | "ar" | "fr" }) {
-  const { entry, language } = props;
-  const textDir = textDirection(language);
-  const textId = useId();
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
-  const labels = sourceEvidenceLabels(entry);
-  const headline = sourceDisplayText(labels.headline);
-  const publisher = sourceDisplayText(labels.publisher);
-  const sourceText = sourceDisplayText(entry.text);
-  const hasText = sourceText.trim().length > 0;
-  const copyLabel = language === "ar" ? "\u0646\u0633\u062e \u0627\u0644\u0631\u0627\u0628\u0637" : language === "fr" ? "Copier le lien" : "Copy link";
-  const copiedLabel = language === "ar" ? "\u062a\u0645 \u0627\u0644\u0646\u0633\u062e" : language === "fr" ? "Copi\u00e9" : "Copied";
-  const failedLabel = language === "ar" ? "\u062a\u0639\u0630\u0631 \u0627\u0644\u0646\u0633\u062e" : language === "fr" ? "\u00c9chec de copie" : "Could not copy";
-  const websiteLinks = [...entry.links];
-  if (!websiteLinks.length && entry.sourceUrl) {
-    try { websiteLinks.push(new URL(entry.sourceUrl).origin); } catch { /* Keep malformed legacy URLs out of the website action. */ }
-  }
-  return (
-    <li className="sources-post">
-      {headline ? <h4 className="sources-post-title"><bdi>{headline}</bdi></h4> : null}
-      <div className="sources-post-head" dir="ltr">
-        <span className="sources-publisher-logo" aria-hidden><SourceLogo source={entry.sourceUrl || entry.links[0] || entry.sourceTitle}/></span>
-        <strong className="sources-post-source"><bdi>{publisher}</bdi></strong>
-        <time dateTime={entry.postedAt}>{formatTime(entry.postedAt, language)}</time>
-      </div>
-      {hasText ? (
-        <div className="sources-body-slot"><p id={textId} className="sources-post-text is-open" dir={textDir}><bdi dir={textDir}>{sourceText}</bdi></p></div>
-      ) : null}
-      <div className="sources-post-actions">
-        {entry.sourceUrl ? <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(entry.sourceUrl!); setCopyState("copied"); } catch { setCopyState("failed"); } }}><Copy size={16} aria-hidden /><span className="source-action-label" aria-live="polite">{copyState === "copied" ? copiedLabel : copyState === "failed" ? failedLabel : copyLabel}</span></button> : null}
-        {websiteLinks.map((link) => <a key={link} href={link} title={linkHostLabel(link, language)} target="_blank" rel="noreferrer"><Link2 size={16} aria-hidden /><span className="source-action-label">{linkHostLabel(link, language)}</span></a>)}
-        {entry.media.map((media, index) =>
-          media.url ? (
-            <a key={`${media.url}-${index}`} href={media.url} target="_blank" rel="noreferrer">
-              <ArrowUpRight size={16} aria-hidden />{mediaDisplayLabel(media, language)}
-            </a>
-          ) : (
-            <span key={`${media.fileId}-${index}`} className="muted">{mediaDisplayLabel(media, language)}</span>
-          )
-        )}
-      </div>
-    </li>
-  );
+function SourcesSheet(props: {edition: BriefingEdition; selectedIndex: number; language: "en" | "ar" | "fr"; onClose: () => void}) {
+  return <NewsBriefing {...props} mediaLabel={media => mediaDisplayLabel(media, props.language)}/>;
 }
 
 function Timestamp(props: { value: string; language: "en" | "ar" | "fr" }) {
