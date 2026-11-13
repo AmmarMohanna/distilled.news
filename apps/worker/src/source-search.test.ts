@@ -2,6 +2,24 @@ import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
 import type {Env} from './types';
 const enabled={SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
+it('requires the search words and feed topic in article evidence before checking access',async()=>{
+ const titles=['AI workforce trends','Ammar Mohanna presents an AI project','Ammar Mohanna joins a theatre production'];
+ let googleQuery='';
+ const fetcher=vi.fn<typeof fetch>(async url=>{
+  if(String(url).startsWith('https://news.google.com/')){googleQuery=new URL(String(url)).searchParams.get('q')!;return new Response('<rss><channel>'+titles.map((title,i)=>`<item><guid>${i}</guid><title>${title}</title><link>https://news.google.com/rss/articles/${i}</link><source url="https://publisher${i}.example">Publisher</source></item>`).join('')+'</channel></rss>');}
+  return new Response('Public reporting. '.repeat(20));
+ });
+ const result=await searchSourceCandidates(enabled,'AI',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News and projects about Ammar Mohanna'});
+ expect(googleQuery).toContain('Ammar Mohanna');
+ expect(result.results.map(row=>row.title)).toEqual(['Ammar Mohanna presents an AI project']);
+ expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('reports off-topic indexed articles without offering them as sources',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async()=>new Response('<rss><channel><item><guid>1</guid><title>AI workforce trends</title><link>https://news.google.com/rss/articles/1</link><source url="https://publisher.example">Publisher</source></item></channel></rss>'));
+ const result=await searchSourceCandidates(enabled,'AI',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News about Ammar Mohanna'});
+ expect(result).toMatchObject({results:[],topicMismatch:true,unavailable:false});
+ expect(fetcher).toHaveBeenCalledTimes(1);
+});
 it('returns up to thirty relevant free results instead of twelve',async()=>{
  const xml='<rss><channel>'+Array.from({length:45},(_,i)=>`<item><guid>${i}</guid><title>Subject news ${i}</title><link>https://news.google.com/rss/articles/${i}</link><source url="https://publisher${i}.example">Publisher</source></item>`).join('')+'</channel></rss>';
  const fetcher=vi.fn<typeof fetch>(async url=>new Response(String(url).startsWith('https://news.google.com/')?xml:'Public reporting. '.repeat(20)));

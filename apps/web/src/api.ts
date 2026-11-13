@@ -340,8 +340,8 @@ export interface SourceAssessment {
 }
 export interface SourceRecommendations { sources: string[]; checks?: SourceAssessment[] }
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
-export function searchSourceCandidates(query:string,signal?:AbortSignal):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean}> {
-  return requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
+export function searchSourceCandidates(query:string,signal?:AbortSignal,context?:{title:string;description:string}):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;topicMismatch?:boolean}> {
+  return context?requestJson('/api/me/sources/search',{method:'POST',body:JSON.stringify({q:query,...context}),signal}):requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
 }
 export async function recommendSourceCandidates(title: string, description: string, onProgress?: (result:SourceRecommendations)=>void): Promise<SourceRecommendations> {
   if(!onProgress)return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });

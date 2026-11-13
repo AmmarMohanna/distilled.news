@@ -8,6 +8,9 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'Suggested searches':['Recherches suggérées','عمليات بحث مقترحة'],
+  'Search sources':['Rechercher des sources','البحث عن مصادر'],
+  'No results matched this feed’s topic. Try a more specific search.':['Aucun résultat ne correspond au sujet de ce flux. Précisez votre recherche.','لا توجد نتائج تطابق موضوع هذا الموجز. جرّب بحثًا أكثر تحديدًا.'],
   "No freely accessible sources found. Try another name or a public feed URL.": ["Aucune source accessible gratuitement. Essayez un autre nom ou un lien de flux public.", "لم يتم العثور على مصادر متاحة مجانًا. جرّب اسمًا آخر أو رابط موجز عام."],
   "Checking {source}...": ["Vérification de {source}...", "جارٍ التحقق من {source}..."],
   "Already added": ["Déjà ajouté", "تمت إضافته بالفعل"],

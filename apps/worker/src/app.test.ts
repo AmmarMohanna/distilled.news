@@ -129,6 +129,17 @@ describe("worker app accounts", () => {
     expect((await app.request('/api/me/sources/search?q=aljadded',{headers},target)).status).toBe(429);
     expect(fetcher).toHaveBeenCalledTimes(30);
   });
+  it('accepts topic-scoped search in a POST body and excludes off-topic indexed articles',async()=>{
+    const fetcher=vi.fn<typeof fetch>(async()=>new Response('<rss><channel><item><guid>1</guid><title>AI workforce trends</title><link>https://news.google.com/rss/articles/1</link><source url="https://publisher.example">Publisher</source></item></channel></rss>'));
+    const app=createApp({repository:new InMemoryRepository(),fetcher}),target={...env(),SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'};
+    const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'topic@example.com',username:'topic-search',password:'password123',setupToken:'setup-token'})},target);
+    const headers={cookie:setup.headers.get('set-cookie')!.split(';')[0],'content-type':'application/json'};
+    const response=await app.request('/api/me/sources/search',{method:'POST',headers,body:JSON.stringify({q:'AI',title:'Ammar Mohanna',description:'Latest news about Ammar Mohanna'})},target);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({results:[],topicMismatch:true});
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect((await app.request('/api/me/sources/search',{method:'POST',headers,body:JSON.stringify({q:'AI',title:'Ammar'})},target)).status).toBe(400);
+  });
   it("sets up the first verified admin account and session", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });

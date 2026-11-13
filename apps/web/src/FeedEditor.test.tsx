@@ -26,6 +26,34 @@ it('translates every schedule option when language changes and preserves the sel
 vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNode;className:string})=><div className={className}>{children}</div>}));
 
 vi.mock('./api', () => ({searchSourceCandidates:vi.fn(async()=>({results:[],unavailable:false})),getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
+it('offers immediate completions without a network request until Enter selects a suggestion',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.useFakeTimers();
+ const host=document.createElement('div'),root=createRoot(host),before=vi.mocked(searchSourceCandidates).mock.calls.length;
+ try{
+  await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Georges Khabbaz',interestProfile:'Films and theater productions'}} onClose={()=>{}} onSave={async()=>{}}/>));
+  const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'geo');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  expect(host.querySelector('[role="listbox"]')?.textContent).toContain('Georges Khabbaz');
+  await act(async()=>vi.advanceTimersByTimeAsync(5000));expect(searchSourceCandidates).toHaveBeenCalledTimes(before);
+  await act(async()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true})));
+  await act(async()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})));
+  expect(searchSourceCandidates).toHaveBeenLastCalledWith('Georges Khabbaz',expect.any(AbortSignal),{title:'Georges Khabbaz',description:'Films and theater productions'});
+ }finally{await act(async()=>root.unmount());vi.useRealTimers();vi.unstubAllGlobals();}
+});
+it('explains an off-topic search without displaying unrelated sources',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ vi.mocked(searchSourceCandidates).mockResolvedValueOnce({results:[],unavailable:false,topicMismatch:true});
+ const host=document.createElement('div'),root=createRoot(host);
+ try{
+  await act(async()=>setWebsiteLanguage('en'));
+  await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Ammar Mohanna',interestProfile:'News about Ammar Mohanna'}} onClose={()=>{}} onSave={async()=>{}}/>));
+  const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'workforce');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
+  expect(host.querySelector('#feed-source-search-status')?.textContent).toContain('No results matched this feed’s topic');
+  expect(host.querySelector('.source-web-results')).toBeNull();
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
 it('searches a publisher name and assesses the selected publisher before adding it',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.useFakeTimers();
  vi.mocked(searchSourceCandidates).mockResolvedValueOnce({results:[{source:'https://www.aljadeed.tv/',title:'Al Jadeed',publisher:'www.aljadeed.tv'}],unavailable:false});
@@ -36,8 +64,9 @@ it('searches a publisher name and assesses the selected publisher before adding 
   const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'aljadded');input.dispatchEvent(new Event('input',{bubbles:true}));});
   expect(host.querySelector('.add-source-button')).toBeNull();
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
   await act(async()=>vi.advanceTimersByTimeAsync(650));
-  expect(searchSourceCandidates).toHaveBeenLastCalledWith('aljadded',expect.any(AbortSignal));
+  expect(searchSourceCandidates).toHaveBeenLastCalledWith('aljadded',expect.any(AbortSignal),{title:'Lebanon',description:'Lebanon news'});
   expect(host.querySelector('.source-web-results')?.textContent).toContain('Al Jadeed');
   await act(async()=>host.querySelector<HTMLButtonElement>('.source-web-results button')!.click());
   expect(assessSourceInput).toHaveBeenLastCalledWith('Lebanon','Lebanon news','https://www.aljadeed.tv/',expect.objectContaining({searchQuery:'aljadded'}));
@@ -53,6 +82,7 @@ it('hides blocked publishers from search results',async()=>{
   await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Georges Khabbaz',interestProfile:'Entertainment'}} onClose={()=>{}} onSave={async()=>{}}/>));
   const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'Georges Khabbaz');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
   await act(async()=>vi.advanceTimersByTimeAsync(650));
   const buttons=host.querySelectorAll<HTMLButtonElement>('.source-web-results button');
   expect(buttons).toHaveLength(1);expect(buttons[0].textContent).toContain('Another interview');expect(buttons[0].disabled).toBe(false);
@@ -70,6 +100,7 @@ it('hides an already added publisher including its www and RSS variants',async()
   await act(async()=>root.render(<FeedEditor feed={personalNewsBriefing} onClose={()=>{}} onSave={async()=>{}}/>));
   const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'publisher news');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
   await act(async()=>vi.advanceTimersByTimeAsync(180));
   expect(host.querySelectorAll('.source-web-result-choice')).toHaveLength(1);
   expect(host.querySelector('.source-web-results')?.textContent).toContain('New publisher');
@@ -86,6 +117,7 @@ it('removes a paid-only source after verification without offering a paid retry'
   await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Georges Khabbaz',interestProfile:'Entertainment'}} onClose={()=>{}} onSave={async()=>{}}/>));
   const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'Georges Khabbaz');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
   await act(async()=>vi.advanceTimersByTimeAsync(300));
   expect(host.querySelector('.source-paid-retry')).toBeNull();
   await act(async()=>host.querySelector<HTMLButtonElement>('.source-web-results button')!.click());
@@ -106,8 +138,9 @@ it('reuses a recent search without another request or typing delay',async()=>{
   const before=vi.mocked(searchSourceCandidates).mock.calls.length;
   await act(async()=>type('Georges Khabbaz'));
   await act(async()=>vi.advanceTimersByTimeAsync(179));expect(searchSourceCandidates).toHaveBeenCalledTimes(before);
-  await act(async()=>vi.advanceTimersByTimeAsync(1));expect(searchSourceCandidates).toHaveBeenCalledTimes(before+1);
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());expect(searchSourceCandidates).toHaveBeenCalledTimes(before+1);
   await act(async()=>type(''));await act(async()=>type('Georges Khabbaz'));
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
   expect(host.querySelector('.source-web-results')?.textContent).toContain('Georges Khabbaz interview');
   expect(searchSourceCandidates).toHaveBeenCalledTimes(before+1);
  }finally{await act(async()=>root.unmount());vi.useRealTimers();vi.unstubAllGlobals();}
@@ -121,7 +154,7 @@ it('ignores an old article search after the query changes to a source URL',async
   await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'World',interestProfile:'World news'}} onClose={()=>{}} onSave={async()=>{}}/>));
   const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
   const type=(value:string)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));};
-  await act(async()=>type('old article title'));await act(async()=>vi.advanceTimersByTimeAsync(650));
+  await act(async()=>type('old article title'));await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
   await act(async()=>type('https://new.example/'));
   await act(async()=>finish({results:[{source:'https://old.example/',title:'Old article',publisher:'old.example'}],unavailable:false}));
   expect(host.querySelector('.source-web-results')).toBeNull();expect(host.querySelector('.add-source-button')).not.toBeNull();

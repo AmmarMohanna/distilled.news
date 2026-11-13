@@ -12,6 +12,7 @@ import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations,verifiedSourceRecommendations,type SourceDiscoveryDiagnostic} from './source-recommendations';
 import {searchSourceCandidates} from './source-search';
+import {sourceSearchCacheQuery} from './source-search-topic';
 import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
 import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
 import {assessSource,assessSources} from './source-assessment';
@@ -950,8 +951,9 @@ export function createApp(options: AppOptions = {}) {
     return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
   });
 
-  app.get('/api/me/sources/search',async c=>{
-    const input=z.object({q:z.string().trim().min(2).max(200)}).safeParse({q:c.req.query('q')});
+  app.on(['GET','POST'],'/api/me/sources/search',async c=>{
+    const data=c.req.method==='POST'?await c.req.json().catch(()=>null):{q:c.req.query('q'),title:c.req.query('title'),description:c.req.query('description')};
+    const input=z.object({q:z.string().trim().min(2).max(200),title:z.string().trim().min(1).max(120).optional(),description:z.string().trim().min(1).max(4000).optional()}).strict().refine(value=>Boolean(value.title)===Boolean(value.description)).safeParse(data);
     if(!input.success)return c.json({error:'Enter between 2 and 200 characters to search sources.'},400);
     c.header('Cache-Control','no-store');
     try{await assertRateLimit(c.get('repo'),'source-search:'+c.get('account')!.id,'source_search',30,5*60*1000);}
@@ -959,7 +961,8 @@ export function createApp(options: AppOptions = {}) {
     let searchCache:Cache|undefined,accessCache:Cache|undefined;
     try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
     const owner=c.get('account')!.id,origin=new URL(c.req.url).origin;
-    return c.json(await cachedSourceSearch(owner,input.data.q,origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache}),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
+    const context=input.data.title&&input.data.description?{title:input.data.title,description:input.data.description}:undefined;
+    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
   });
 
   app.post("/api/me/sources/assess", async c => {
@@ -973,7 +976,7 @@ export function createApp(options: AppOptions = {}) {
     let publisherEvidence:TopicPublisherEvidence[]|undefined;
     if(input.searchQuery)try{
       const cache=typeof caches==='undefined'?undefined:await caches.open('source-search-v2-free-only');
-      const saved=await readSourceSearchCache(owner,input.searchQuery,new URL(c.req.url).origin,cache);
+      const saved=await readSourceSearchCache(owner,sourceSearchCacheQuery(input.searchQuery,{title:input.title,description:input.description}),new URL(c.req.url).origin,cache);
       const origin=new URL(prepareProductSourceInput(input.source).sourceUrl!).origin;
       const hints=(saved?.results??[]).filter(row=>row.articleUrl&&new URL(prepareProductSourceInput(row.source).sourceUrl!).origin===origin&&new URL(row.articleUrl).hostname==='news.google.com').map(row=>({publisherOrigin:origin,title:row.title,url:row.articleUrl!,excerpt:row.excerpt??''}));
       if(hints.length)publisherEvidence=hints;

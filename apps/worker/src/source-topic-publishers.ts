@@ -4,7 +4,7 @@ import type {Env} from './types';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 
 export interface TopicPublisherEvidence { publisherOrigin: string; title: string; url: string; excerpt: string; publishedAt?: string }
-type DiscoveryOptions={maxPublishers?:number;perPublisher?:number;acceptArticle?:(title:string,excerpt:string)=>boolean};
+type DiscoveryOptions={maxPublishers?:number;perPublisher?:number;acceptArticle?:(title:string,excerpt:string,publisherOrigin:string)=>boolean};
 /** Use publisher identities from actual search items, never guessed publisher URLs. */
 export function topicPublishers(xml: string, searchUrl: string,options:DiscoveryOptions={}): TopicPublisherEvidence[] {
   const result: TopicPublisherEvidence[] = [], counts = new Map<string, number>();
@@ -18,7 +18,7 @@ export function topicPublishers(xml: string, searchUrl: string,options:Discovery
       const item = normalizeRssSnapshot(`<rss><channel>${block}</channel></rss>`, searchUrl)[0];
       if (!item?.identityValid || !item.title || !item.url) continue;
       const excerpt=(item.body || item.excerpt || '').replace(/<[^>]*>/g, ' ').slice(0, 600);
-      if(options.acceptArticle&&!options.acceptArticle(item.title,excerpt))continue;
+      if(options.acceptArticle&&!options.acceptArticle(item.title,excerpt,origin))continue;
       counts.set(origin, (counts.get(origin) ?? 0) + 1);
       result.push({ publisherOrigin: origin, title: item.title, url: item.url, excerpt, publishedAt: item.publishedAt });
     } catch { /* The normal public URL policy still admits every publisher fetch separately. */ }
