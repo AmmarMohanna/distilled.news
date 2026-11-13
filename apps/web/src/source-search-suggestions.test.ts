@@ -1,12 +1,11 @@
 import {expect,it} from 'vitest';
 import {sourceSearchSuggestions} from './source-search-suggestions';
-it('completes the feed subject, recent searches and publisher aliases locally',()=>{
- expect(sourceSearchSuggestions('geo','Georges Khabbaz')).toContain('Georges Khabbaz');
- expect(sourceSearchSuggestions('aljadd','Ammar Mohanna')).toContain('Al Jadeed');
- expect(sourceSearchSuggestions('georges i','People',['Georges interview'])).toContain('Georges interview');
+it('uses only matching known publisher names as a local fallback',()=>{
+ expect(sourceSearchSuggestions('aljadd')).toContain('Al Jadeed');
+ expect(sourceSearchSuggestions('reu')).toContain('Reuters');
 });
-it('completes phrases from interests and bounds and deduplicates suggestions',()=>{
- expect(sourceSearchSuggestions('theater pro','Georges Khabbaz',[],'Films, theater productions and interviews.')).toContain('theater productions and interviews');
- expect(sourceSearchSuggestions('Geo','Georges Khabbaz',['Georges Khabbaz'])).toEqual(['Georges Khabbaz']);
- expect(sourceSearchSuggestions('g','Georges Khabbaz')).toEqual([]);
+it('does not invent person names or description fragments as completions',()=>{
+ expect(sourceSearchSuggestions('amm')).toEqual([]);
+ expect(sourceSearchSuggestions('projects')).toEqual([]);
+ expect(sourceSearchSuggestions('g')).toEqual([]);
 });

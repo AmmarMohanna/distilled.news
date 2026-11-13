@@ -13,6 +13,7 @@ import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations,verifiedSourceRecommendations,type SourceDiscoveryDiagnostic} from './source-recommendations';
 import {searchSourceCandidates} from './source-search';
 import {sourceSearchCacheQuery} from './source-search-topic';
+import {sourceQuerySuggestions} from './source-query-suggestions';
 import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
 import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
 import {assessSource,assessSources} from './source-assessment';
@@ -949,6 +950,15 @@ export function createApp(options: AppOptions = {}) {
     const source=await c.get('repo').getSource(c.req.param('sourceId'));
     if(!source||source.briefingId!==briefing.id)return c.json({error:'source not found'},404);
     return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
+  });
+
+  app.get('/api/me/sources/suggestions',async c=>{
+    const input=z.object({q:z.string().trim().min(2).max(200),language:z.enum(['en','fr','ar']).default('en')}).safeParse({q:c.req.query('q'),language:c.req.query('language')});
+    c.header('Cache-Control','no-store');
+    if(!input.success)return c.json({error:'Enter between 2 and 200 characters.'},400);
+    let cache:Cache|undefined;try{if(typeof caches!=='undefined')cache=await caches.open('source-query-suggestions-v1');}catch{}
+    try{return c.json(await sourceQuerySuggestions(input.data.q,input.data.language,c.get('account')!.id,fetcher,cache,()=>assertRateLimit(c.get('repo'),'source-suggestions:'+c.get('account')!.id,'source_suggestions',120,60_000)));}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','60');return c.json({suggestions:[],unavailable:true},429);}
   });
 
   app.on(['GET','POST'],'/api/me/sources/search',async c=>{

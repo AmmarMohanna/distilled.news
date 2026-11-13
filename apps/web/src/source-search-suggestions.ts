@@ -4,12 +4,8 @@ const publishers=[
 ];
 const key=(value:string)=>value.normalize('NFKD').toLocaleLowerCase().replace(/\p{M}/gu,'').trim();
 /** Query completions only: these are never offered as verified sources. */
-export function sourceSearchSuggestions(query:string,topic:string,recent:string[]=[],description=''){
+export function sourceSearchSuggestions(query:string){
  const term=key(query);if(term.length<2)return [];
  const matches=(value:string)=>key(value).startsWith(term)||key(value).includes(' '+term);
- const words=description.split(/\s+/).filter(Boolean);
- const phrases=words.map((_word,index)=>words.slice(index,index+7).join(' ').replace(/[.,;:]+$/,''));
- const choices=[topic,...recent,...phrases].filter(value=>value&&matches(value));
- choices.push(...publishers.filter(row=>matches(row.name)||row.aliases.some(alias=>key(alias).startsWith(term))).map(row=>row.name));
- return [...new Set(choices)].slice(0,6);
+ return publishers.filter(row=>matches(row.name)||row.aliases.some(alias=>key(alias).startsWith(term))).map(row=>row.name).slice(0,6);
 }

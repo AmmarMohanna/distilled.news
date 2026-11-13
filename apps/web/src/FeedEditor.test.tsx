@@ -2,7 +2,7 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { FeedEditor } from './FeedEditor';
-import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceCandidates } from './api';
+import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceCandidates, getSourceQuerySuggestions } from './api';
 import { personalNewsBriefing } from '@distilled/core';
 import {setWebsiteLanguage} from './LanguageControl';
 
@@ -25,19 +25,23 @@ it('translates every schedule option when language changes and preserves the sel
 
 vi.mock('./Dialog', () => ({Dialog:({children,className}:{children:React.ReactNode;className:string})=><div className={className}>{children}</div>}));
 
-vi.mock('./api', () => ({searchSourceCandidates:vi.fn(async()=>({results:[],unavailable:false})),getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
-it('offers immediate completions without a network request until Enter selects a suggestion',async()=>{
+vi.mock('./api', () => ({getSourceQuerySuggestions:vi.fn(async()=>({suggestions:[],unavailable:false})),searchSourceCandidates:vi.fn(async()=>({results:[],unavailable:false})),getSources:vi.fn(async()=>[{enabled:true,sourceUrl:'https://example.com/feed.xml'}]),recommendSourceCandidates:vi.fn(async()=>({sources:['https://example.com/feed.xml']})),assessSourceInput:vi.fn(async(_title:string,_description:string,input:string)=>({input,status:'accepted',reason:'Relevant',checkedAt:new Date().toISOString()}))}));
+it('gets query-only suggestions without a full search or description-derived text',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.useFakeTimers();
+ vi.mocked(getSourceQuerySuggestions).mockResolvedValueOnce({suggestions:['Georges Khabbaz interview'],unavailable:false});
  const host=document.createElement('div'),root=createRoot(host),before=vi.mocked(searchSourceCandidates).mock.calls.length;
  try{
   await act(async()=>root.render(<FeedEditor feed={{...personalNewsBriefing,title:'Georges Khabbaz',interestProfile:'Films and theater productions'}} onClose={()=>{}} onSave={async()=>{}}/>));
   const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'geo');input.dispatchEvent(new Event('input',{bubbles:true}));});
-  expect(host.querySelector('[role="listbox"]')?.textContent).toContain('Georges Khabbaz');
+  expect(host.querySelector('#source-query-suggestions')).toBeNull();
   await act(async()=>vi.advanceTimersByTimeAsync(5000));expect(searchSourceCandidates).toHaveBeenCalledTimes(before);
+  expect(getSourceQuerySuggestions).toHaveBeenLastCalledWith('geo','en',expect.any(AbortSignal));
+  expect(host.querySelector('#source-query-suggestions')?.textContent).toBe('Georges Khabbaz interview');
+  expect(host.querySelector('#source-query-suggestions')?.textContent).not.toContain('theater productions');
   await act(async()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true})));
   await act(async()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})));
-  expect(searchSourceCandidates).toHaveBeenLastCalledWith('Georges Khabbaz',expect.any(AbortSignal),{title:'Georges Khabbaz',description:'Films and theater productions'});
+  expect(searchSourceCandidates).toHaveBeenLastCalledWith('Georges Khabbaz interview',expect.any(AbortSignal),{title:'Georges Khabbaz',description:'Films and theater productions'});
  }finally{await act(async()=>root.unmount());vi.useRealTimers();vi.unstubAllGlobals();}
 });
 it('explains an off-topic search without displaying unrelated sources',async()=>{

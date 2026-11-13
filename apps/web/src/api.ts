@@ -340,6 +340,9 @@ export interface SourceAssessment {
 }
 export interface SourceRecommendations { sources: string[]; checks?: SourceAssessment[] }
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
+export function getSourceQuerySuggestions(query:string,language:string,signal?:AbortSignal):Promise<{suggestions:string[];unavailable:boolean}>{
+ return requestJson(`/api/me/sources/suggestions?${new URLSearchParams({q:query,language})}`,{signal});
+}
 export function searchSourceCandidates(query:string,signal?:AbortSignal,context?:{title:string;description:string}):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;topicMismatch?:boolean}> {
   return context?requestJson('/api/me/sources/search',{method:'POST',body:JSON.stringify({q:query,...context}),signal}):requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
 }

@@ -7,7 +7,7 @@ import { FEED_TITLE_MAX_LENGTH } from "@distilled/core";
 import { preferredLanguage, useLanguage } from "./LanguageControl";
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
-import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceCandidates, type SourceSearchResult, type SourceAssessment } from "./api";
+import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceCandidates, getSourceQuerySuggestions, type SourceSearchResult, type SourceAssessment } from "./api";
 import { VoiceInput } from "./VoiceInput";
 import {FeedLanguageSelect, FeedSettingsSelect} from './FeedLanguageSelect';
 import { SourceLogo } from "./SourceLogo";
@@ -19,6 +19,7 @@ export function FeedEditor(props: {
   feed?: BriefingConfig; onClose: () => void; onSave: (input: FeedInput) => Promise<void>;
   onPause?: () => Promise<void>; onCopy?: () => Promise<void>; onDelete?: () => Promise<void>;
 }) {
+  const {t,language:interfaceLanguage}=useLanguage();
   const [id] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
   const editing = Boolean(props.feed);
   const [sourcesReady, setSourcesReady] = useState(!props.feed);
@@ -41,6 +42,8 @@ export function FeedEditor(props: {
   const [submittedSearch,setSubmittedSearch]=useState<{query:string;context:string}|null>(null);
   const [suggestionsOpen,setSuggestionsOpen]=useState(false);
   const [suggestionIndex,setSuggestionIndex]=useState(-1);
+  const [liveSuggestions,setLiveSuggestions]=useState<{query:string;language:string;values:string[]}|null>(null);
+  const suggestionCache=useRef(new Map<string,string[]>());
   const [searchResults, setSearchResults] = useState<SourceSearchResult[]>([]);
   const addedPublishers=new Set(sources.map(sourcePublisherKey));
   const visibleSearchResults=searchResults.filter(result=>!addedPublishers.has(sourcePublisherKey(result.source)));
@@ -50,7 +53,21 @@ export function FeedEditor(props: {
   const sourceQueryRef = useRef(sourceQuery);
   sourceQueryRef.current = sourceQuery;
   const directSource=/^(?:https?:\/\/|(?:rss|news|x|telegram|linkedin)\s*:|(?:[\w-]+\.)+[a-z]{2,}(?:\/|$))/i.test(sourceQuery.trim());
-  const querySuggestions=directSource?[]:sourceSearchSuggestions(sourceQuery,title,[...searchCache.current.values()].map(row=>row.query).concat(searchResults.map(row=>row.title)),prompt);
+  const querySuggestions=directSource?[]:liveSuggestions?.query===sourceQuery.trim()&&liveSuggestions.language===interfaceLanguage?liveSuggestions.values:sourceSearchSuggestions(sourceQuery);
+  useEffect(()=>{
+    const query=sourceQuery.trim();
+    if(!suggestionsOpen||directSource||query.length<2||query.length>200)return;
+    const key=JSON.stringify([interfaceLanguage,query.toLocaleLowerCase()]),saved=suggestionCache.current.get(key);
+    if(saved){setLiveSuggestions({query,language:interfaceLanguage,values:saved});return;}
+    const controller=new AbortController();
+    const timer=window.setTimeout(()=>{
+      void getSourceQuerySuggestions(query,interfaceLanguage,controller.signal).then(result=>{
+        if(controller.signal.aborted)return;
+        if(!result.unavailable){if(suggestionCache.current.size>=40)suggestionCache.current.delete(suggestionCache.current.keys().next().value!);suggestionCache.current.set(key,result.suggestions);setLiveSuggestions({query,language:interfaceLanguage,values:result.suggestions});setSuggestionIndex(-1);}
+      }).catch(()=>{});
+    },150);
+    return ()=>{window.clearTimeout(timer);controller.abort();};
+  },[sourceQuery,directSource,suggestionsOpen,interfaceLanguage]);
   const queryContext=JSON.stringify([title.trim(),prompt.trim()]);
   const submitSourceSearch=(query=sourceQuery.trim())=>{if(query.length<2||query.length>200)return;if(!title.trim()||!prompt.trim()){setMessage('Enter a feed name and interests before checking a source.');return;}setSourceQuery(query);setSuggestionsOpen(false);setSuggestionIndex(-1);setSubmittedSearch({query,context:queryContext});};
   useEffect(()=>{
@@ -87,7 +104,6 @@ export function FeedEditor(props: {
   const [busy, setBusy] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [message, setMessage] = useState<UiMessage>("");
-  const { t } = useLanguage();
   const { confirm, confirmation } = useConfirmation();
   async function findSources() {
     setRecommending(true); setMessage("");
