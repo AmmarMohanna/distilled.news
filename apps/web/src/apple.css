@@ -556,6 +556,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .users-table :is(th, td):nth-child(4) { width: 10%; }
 :root.apple-ui.apple-ui .users-table :is(th, td):nth-child(5) { width: 15%; }
 :root.apple-ui.apple-ui .users-table :is(th, td):nth-child(6) { width: 5%; }
+:root.apple-ui.apple-ui .users-table .user-manage-button { position: relative; inset-inline-end: 8px; }
 :root.apple-ui.apple-ui .users-table tr.selected { background: transparent; }
 :root.apple-ui.apple-ui .users-table th button { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--muted); font-weight: 400; min-height: 24px; }
 :root.apple-ui.apple-ui .user-name-button { display: flex; gap: 8px; align-items: center; max-width: 100%; border: 0; background: transparent; padding: 0; min-height: 40px; font-weight: 500; }
