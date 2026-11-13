@@ -4,6 +4,20 @@ vi.mock("./cloudflare-container-browser",()=>({AuthenticatedBrowserContainer:cla
 import worker, { processWebOperatorRunMessage, shouldQuarantineQueueFailure } from "./index";
 import type { Env } from "./types";
 
+it.each([
+ ['v1_briefing',1],['v1_briefing',5],['v1_briefing',6],
+ ['connector_relay',1],['connector_relay',6],['refresh_source',1],['refresh_source',5]
+] as const)('preserves queue backoff when D1 failure recording also fails (%s attempt %s)',async(type,attempts)=>{
+ const statement={bind(){return this},first:async()=>{throw Error('D1_ERROR: D1 DB is overloaded')},all:async()=>{throw Error('D1_ERROR: D1 DB is overloaded')},run:async()=>{throw Error('D1_ERROR: D1 DB is overloaded')}};
+ const db={prepare:()=>statement,batch:async()=>{throw Error('D1_ERROR: D1 DB is overloaded')}};
+ const queue={send:vi.fn(),sendBatch:vi.fn()},ack=vi.fn(),retry=vi.fn();
+ const body=type==='v1_briefing'?{type,feedId:'feed-1',window:{start:'2026-10-03T00:00:00Z',end:'2026-10-03T01:00:00Z',kind:'HOURLY'}}:type==='connector_relay'?{type,feedId:'feed-1'}:{type,briefingId:'feed-1',sourceId:'source-1'};
+ const env={DB:db,V1_DOWNSTREAM_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',PROCESSING_QUEUE:queue,SOURCE_COLLECTION_QUEUE:queue,V1_PROCESSING_QUEUE:queue,V1_ACQUISITION_QUEUE:queue} as unknown as Env;
+ await expect(worker.queue({messages:[{id:'storage-failure',attempts,body,ack,retry}]} as any,env)).resolves.toBeUndefined();
+ expect(retry).toHaveBeenCalledExactlyOnceWith({delaySeconds:Math.min(300,Math.max(30,attempts*60))});
+ expect(ack).not.toHaveBeenCalled();
+});
+
 describe("queue retry classification", () => {
   it("quarantines permanent failures immediately and transient failures only after the retry ceiling", () => {
     expect(shouldQuarantineQueueFailure(new Error("Could not fetch RSS source: 404"), 1)).toBe(true);
