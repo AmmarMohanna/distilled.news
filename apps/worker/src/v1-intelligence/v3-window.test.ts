@@ -949,3 +949,12 @@ it('keeps v2 malformed-record evidence recoverable after partial publication wit
  const next=await prepareV3Window(store,'feed-1',{...window,start:window.end,end:'2026-10-03T13:00:00Z'},'2026-10-03T13:00:00Z',undefined,4,'evidence-first-v2');expect(next.input.articles.map(a=>a.id)).toEqual([prepared.input.articles[1].id]);
  await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,provider);expect(calls).toBe(2);expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);
 },30000);
+
+it('hydrates frozen V3 publication evidence in batches instead of one database request per revision',async()=>{
+ for(let n=1;n<=3;n++)await article(n);
+ const pointReads=vi.spyOn(V1FeedStore.prototype,'revision'),seen:string[]=[];
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');
+ expect(edition?.evidenceRevisionIds).toHaveLength(3);
+ expect(pointReads).not.toHaveBeenCalled();
+});
