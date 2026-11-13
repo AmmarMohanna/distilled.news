@@ -2495,7 +2495,7 @@ function searchPublishedLabel(language: "en" | "ar" | "fr"): string {
 function loadMoreLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "عرض المزيد";
   if (language === "fr") return "afficher plus";
-  return "load more";
+  return "Load More";
 }
 
 function moreCountLabel(count: number, language: "en" | "ar" | "fr"): string {

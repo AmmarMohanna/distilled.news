@@ -3039,6 +3039,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 
 /* Reader actions follow the title and owner; the header shares the app controls. */
+:root.apple-ui.apple-ui .feed-shell .news-story-toggle { display: flex; align-items: flex-start; gap: 12px; min-height: 44px; padding-block: 6px; cursor: pointer; list-style: none; }
+:root.apple-ui.apple-ui .feed-shell .news-story-toggle::-webkit-details-marker { display: none; }
+:root.apple-ui.apple-ui .feed-shell .news-story-toggle .news-headline { flex: 1; min-width: 0; margin: 0; }
+:root.apple-ui.apple-ui .feed-shell .news-story-toggle > svg { flex: 0 0 18px; margin-top: 4px; color: var(--muted); }
+:root.apple-ui.apple-ui .feed-shell .news-story-details[open] > .news-story-toggle > svg { transform: rotate(180deg); }
+:root.apple-ui.apple-ui .feed-shell .news-story-details[open] > .news-summary { margin-top: 4px; }
+:root.apple-ui.apple-ui .feed-shell .news-story-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 :root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions {
   grid-column: 2 / -1; grid-row: 3; justify-self: start; gap: 8px; margin-top: 8px;
 }
