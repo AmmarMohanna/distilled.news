@@ -1904,6 +1904,7 @@ function FeedEditionRow(props: {
         <time dateTime={editionDisplayTime(edition)}>{formatClock(editionDisplayTime(edition), language)}</time>
       </div>
       <BriefingText
+        hideBody
         summary={edition.summary}
         fallbackHeadline={headline}
         fallbackSummary={summary}
