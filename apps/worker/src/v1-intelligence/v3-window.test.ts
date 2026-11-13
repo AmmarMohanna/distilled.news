@@ -958,3 +958,49 @@ it('hydrates frozen V3 publication evidence in batches instead of one database r
  expect(edition?.evidenceRevisionIds).toHaveLength(3);
  expect(pointReads).not.toHaveBeenCalled();
 });
+
+async function missedWindowEvidence(resultParts:(id:string)=>Record<string,unknown>,resultEnd='2026-10-03T12:00:00Z'){
+ await article(1,'2026-10-03T11:40:00Z','2026-10-03T11:45:00Z','2026-10-03T11:44:00Z');
+ const revision=(await store.currentEvidence('feed-1'))[0].revision.id,oldWindow={...window,start:'2026-10-03T11:30:00Z',end:'2026-10-03T12:00:00Z'},oldId=await windowIdentity('feed-1',oldWindow);
+ await feedTransact(store,'feed-1',async tx=>{
+  await tx.write('briefing_requests',oldId,{id:oldId,feedId:'feed-1',window:oldWindow,engine:'v3',state:'DONE',result:'DEFERRED',reason:'SUPERSEDED_BY_LATER_WINDOW',attempts:0,createdAt:oldWindow.end});
+  await tx.write('v3_window_results','prior-decision',{id:'prior-decision',feedId:'feed-1',windowEnd:resultEnd,result:{status:'published',items:[],skipped:[],omitted:[],dropped:[],...resultParts(revision)}});
+ });return revision;
+}
+it.each(['skip','omit','redundant'] as const)('does not reoffer an unchanged %s source through a superseded reporting window',async kind=>{
+ const revision=await missedWindowEvidence(id=>kind==='skip'?{skipped:[{id,reason:'already known'}]}:kind==='omit'?{omitted:[{stage:'editor',sourceIds:[id],reason:'no meaningful development'}]}:{dropped:[{headline:'Old story',sourceIds:[id],reason:'redundant',carry:false}]});
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.evidenceRevisionIds).not.toContain(revision);
+ expect(prepared.input.articles).toEqual([]);
+});
+it.each(['verification','unaccounted','unpublished'] as const)('retains the explicit %s recovery despite an older reporting window',async kind=>{
+ const revision=await missedWindowEvidence(id=>kind==='verification'?{omitted:[{stage:'editor',sourceIds:[id],reason:'another development omitted'}],dropped:[{headline:'Needs verification',sourceIds:[id],reason:'not confirmed',carry:true}]}:kind==='unaccounted'?{unaccounted:[{ref:'S1',sourceIds:[id]}]}:{items:[{headline:'Verified but not delivered',sourceIds:[id]}]});
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.evidenceRevisionIds).toContain(revision);
+ expect(prepared.admissionPolicy).toBe('PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1');
+ expect(prepared.admissions).toContainEqual(expect.objectContaining({revisionId:revision,reason:kind==='verification'?'VERIFICATION_RETRY':kind==='unpublished'?'VERIFIED_UNPUBLISHED':'UNRESOLVED_WINDOW',publishedAt:'2026-10-03T11:40:00Z'}));
+});
+it('a later result cannot suppress an earlier chronological recovery input',async()=>{
+ const revision=await missedWindowEvidence(id=>({skipped:[{id,reason:'later decision'}]}),'2026-10-03T13:00:00Z');
+ expect((await prepareV3Window(store,'feed-1',window,window.end)).evidenceRevisionIds).toContain(revision);
+});
+it('a changed source revision remains eligible after its predecessor was explicitly omitted',async()=>{
+ const revision=await missedWindowEvidence(id=>({omitted:[{stage:'editor',sourceIds:[id],reason:'previous information'}]}));
+ const changed=await supersedeFrozenRevision(revision,{acceptedAt:'2026-10-03T12:10:00Z',body:'Parliament corrected the vote result and announced a new decision.',contentHash:'changed-source-content'});
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.evidenceRevisionIds).toContain(changed);expect(prepared.evidenceRevisionIds).not.toContain(revision);
+ expect(prepared.input.articles[0].publishedAt).toBe('2026-10-03T11:40:00Z');
+});
+it.each([['2026-10-03T12:00:00Z',true],['2026-10-03T12:30:00Z',false],['2026-10-03T12:30:00.001Z',false],['2026-10-03T11:59:59.999Z',true]] as const)('uses publication-time boundaries without rewriting %s to acquisition time',async(publishedAt,eligible)=>{
+ await article(1,publishedAt,'2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.input.articles.length>0).toBe(eligible);
+ if(eligible){expect(prepared.input.articles[0].publishedAt).toBe(publishedAt);expect(prepared.admissions?.[0]).toMatchObject({publishedAt,reason:publishedAt.startsWith('2026-10-03T12:')?'PUBLICATION_WINDOW':'LATE_DISCOVERY'});}
+});
+
+it('labels a changed previously communicated revision as source revision rather than discovery',async()=>{
+ await article();const seen:string[]=[],edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ const old=edition!.evidenceRevisionIds[0],changed=await supersedeFrozenRevision(old,{acceptedAt:'2026-10-03T12:40:00Z',body:'Parliament corrected its decision and announced the revised result.',contentHash:'corrected-source'});
+ const next={...window,start:window.end,end:'2026-10-03T13:00:00Z'},prepared=await prepareV3Window(store,'feed-1',next,next.end);
+ expect(prepared.admissions).toContainEqual(expect.objectContaining({revisionId:changed,reason:'SOURCE_REVISION',publishedAt:'2026-10-03T12:05:00Z'}));
+});
