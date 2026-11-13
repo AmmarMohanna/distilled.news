@@ -1004,3 +1004,17 @@ it('labels a changed previously communicated revision as source revision rather 
  const next={...window,start:window.end,end:'2026-10-03T13:00:00Z'},prepared=await prepareV3Window(store,'feed-1',next,next.end);
  expect(prepared.admissions).toContainEqual(expect.objectContaining({revisionId:changed,reason:'SOURCE_REVISION',publishedAt:'2026-10-03T12:05:00Z'}));
 });
+
+it('freezes the unusable editor chunk policy for new inputs and keeps legacy snapshots unchanged',async()=>{
+ await article();
+ const fresh=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(fresh.editorFailurePolicy).toBe('isolate-unusable-chunks-v1');
+ const {editorFailurePolicy:_,...legacy}=fresh;
+ // Store an already frozen input under the canonical window id; it must replay
+ // its original bytes rather than silently acquiring the new failure policy.
+ const id=await windowIdentity('feed-1',window);
+ const frozen={...legacy,id};
+ await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',id,frozen));
+ const seen:string[]=[];await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(frozen);
+});

@@ -1,4 +1,4 @@
-import { BriefingModelError, type Usage } from "./types";
+import { BriefingModelError, BriefingOutputError, type Usage } from "./types";
 
 export interface ModelRequest {
   model: string;
@@ -238,5 +238,5 @@ export async function callJson<T>(
       problem = error instanceof Error ? error.message : String(error);
     }
   }
-  throw new BriefingModelError(`model did not return usable JSON (${problem}); last reply began: ${lastReply.slice(0, 120)}`, true);
+  throw new BriefingOutputError(`model did not return usable JSON (${problem}); last reply began: ${lastReply.slice(0, 120)}`);
 }

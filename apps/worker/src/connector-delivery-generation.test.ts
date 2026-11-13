@@ -98,10 +98,10 @@ it('prepared scheduled V3 completion sends one deadline wake without occupying a
  const request={id,feedId:body.feedId,engine:'v3',state:'PENDING',reason:'AWAITING_SCHEDULED_DELIVERY',nextAttemptAt:scheduledFor,window:body.window};
  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests',?,?,?)").bind(id,body.feedId,JSON.stringify(request)).run();
  const wakeups:{body:unknown;options:QueueSendOptions|undefined}[]=[];
- const runtime={...env,V1_ACQUISITION_QUEUE:{send:async(body:unknown,options?:QueueSendOptions)=>{wakeups.push({body,options})}} as unknown as Queue<DistilledQueueMessage>};
- await coalescedProcessingQueue(runtime).send(body);const wire=deliveries.at(-1)!;
+ const runtime={...env,V1_PROCESSING_QUEUE:{send:async(body:unknown,options?:QueueSendOptions)=>{wakeups.push({body,options})}} as unknown as Queue<DistilledQueueMessage>};
+ await coalescedProcessingQueue(env).send(body);const wire=deliveries.at(-1)!;
  await completeConnectorDownstream(runtime,body,wire._connectorDispatchToken);
- expect(wakeups).toHaveLength(1);expect(wakeups[0].body).toEqual({type:'connector_relay',feedId:body.feedId});
+ expect(wakeups).toHaveLength(1);expect(wakeups[0].body).toEqual(body);
  expect(wakeups[0].options!.delaySeconds).toBeGreaterThanOrEqual(Math.ceil((Date.parse(scheduledFor)-Date.now())/1000));expect(wakeups[0].options!.delaySeconds).toBeLessThanOrEqual(300);
  await completeConnectorDownstream(runtime,body,wire._connectorDispatchToken);expect(wakeups).toHaveLength(1);
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM connector_work_slots WHERE lease_until>?').bind(Date.now()).first<{n:number}>())!.n).toBe(0);
@@ -113,8 +113,8 @@ it('a failed deadline wake leaves a durable Cron recovery time and no phantom ex
  const {windowIdentity}=await import('./v1-intelligence/runtime'),id=await windowIdentity(body.feedId,body.window);
  await ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('briefing_requests',?,?,?)").bind(id,body.feedId,JSON.stringify({id,engine:'v3',state:'PENDING',reason:'AWAITING_SCHEDULED_DELIVERY',nextAttemptAt:scheduledFor,window:body.window})).run();
  await ctx.db.prepare('UPDATE connector_feed_schedule SET due_ms=? WHERE feed_id=?').bind(now+3600000,body.feedId).run();
- const runtime={...env,V1_ACQUISITION_QUEUE:{send:async()=>{throw Error('queue unavailable')}} as unknown as Queue<DistilledQueueMessage>};
- await coalescedProcessingQueue(runtime).send(body);const wire=deliveries.at(-1)!;
+ const runtime={...env,V1_PROCESSING_QUEUE:{send:async()=>{throw Error('queue unavailable')}} as unknown as Queue<DistilledQueueMessage>};
+ await coalescedProcessingQueue(env).send(body);const wire=deliveries.at(-1)!;
  await expect(completeConnectorDownstream(runtime,body,wire._connectorDispatchToken)).rejects.toThrow('queue unavailable');
  expect((await ctx.db.prepare('SELECT due_ms FROM connector_feed_schedule WHERE feed_id=?').bind(body.feedId).first<{due_ms:number}>())!.due_ms).toBe(Date.parse(scheduledFor));
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM connector_work_slots WHERE lease_until>?').bind(Date.now()).first<{n:number}>())!.n).toBe(0);

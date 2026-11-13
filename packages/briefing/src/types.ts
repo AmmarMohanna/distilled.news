@@ -127,3 +127,8 @@ export class BriefingBudgetError extends Error {
     this.name = "BriefingBudgetError";
   }
 }
+
+/** Received replies exhausted JSON/schema correction, including truncation; no unknown provider outcome. */
+export class BriefingOutputError extends BriefingModelError {
+ constructor(message:string){super(message,true);}
+}

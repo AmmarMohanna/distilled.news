@@ -1,3 +1,4 @@
+import {BriefingOutputError} from './types';
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts} from './novelty';
 import {completeStorySources} from './citation-coverage';
@@ -30,6 +31,8 @@ import { significantNumbers } from "./text";
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
+  /** Frozen in new product inputs; unusable chunks carry forward while verified siblings publish. */
+  editorFailurePolicy?: 'isolate-unusable-chunks-v1';
   /** Versioned source association audit for all articles in a new snapshot. */
   citationCoverage?: boolean;
   /** Versioned by the product snapshot so retained paid requests remain unchanged. */
@@ -527,13 +530,22 @@ export async function generateBriefing(
   const chunks = chunkArticles(prepared, options.maxEditorChars);
   let drafts: Draft[];
   const omitted: OmittedStory[] = [];
+  const editorialFailures: DroppedItem[] = [];
   if (chunks.length === 1) {
     const edited = await timed("edit", () => edit(port, meter, models, input, prepared, prior, false, options.promptVersion));
     drafts = edited.drafts;
     omitted.push(...edited.omitted);
     unaccounted.push(...edited.unaccounted);
   } else {
-    const parts = await timed("edit", () => Promise.all(chunks.map((chunk) => edit(port, meter, models, input, chunk, prior, true, options.promptVersion))));
+    const parts = await timed("edit", async () => {
+      const outcomes=await Promise.allSettled(chunks.map(chunk=>edit(port,meter,models,input,chunk,prior,true,options.promptVersion)));
+      return outcomes.map((outcome,i)=>{
+        if(outcome.status==='fulfilled')return outcome.value;
+        if(options.editorFailurePolicy!=='isolate-unusable-chunks-v1'||!(outcome.reason instanceof BriefingOutputError))throw outcome.reason;
+        editorialFailures.push({headline:'Unprocessed source batch',reason:'editor output unusable after correction',carry:true,sourceIds:sourceIdsOfRefs(chunks[i].map(a=>a.ref))});
+        return {drafts:[],omitted:[],unaccounted:auditEditorSourceAccounting({},chunks[i])};
+      });
+    });
     const merged = parts.flatMap((part) => part.drafts);
     omitted.push(...parts.flatMap((part) => part.omitted));
     unaccounted.push(...parts.flatMap((part) => part.unaccounted));
@@ -562,10 +574,10 @@ export async function generateBriefing(
     exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)));
     drafts=drafts.filter((_,i)=>!redundant.has(i));
   }
-  if (!drafts.length) return finish({ status: "empty", items: [], skipped, dropped: exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)})) });
+  if (!drafts.length) return finish({ status: editorialFailures.length ? "rejected" : "empty", items: [], skipped, dropped: [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))] });
 
   // 2. Verify, repair what is repairable once, drop what is not.
-  const dropped: DroppedItem[] = exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}));
+  const dropped: DroppedItem[] = [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))];
   const verifierPrior=options.noveltyGuard?verificationMemory(input.prior??[],drafts,options.now()):prior;
   if(options.citationCoverage){
     const refs=await timed('source_coverage',()=>completeStorySources(port,meter,models.editor,drafts,prepared,options.maxEditorChars));
