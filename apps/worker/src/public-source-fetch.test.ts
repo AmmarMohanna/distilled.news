@@ -20,6 +20,7 @@ describe("public source HTTP admission", () => {
     const fetcher = (async (url: string, init: RequestInit) => {
       called.push(url);
       expect(init.redirect).toBe("manual");
+      expect(new Headers(init.headers).get('user-agent')).toBe('DistilledNewsBot/0.1 (+https://distilled.news)');
       return new Response("<html>News</html>", { headers: { "content-type": "text/html" } });
     }) as typeof fetch;
     const port = new WorkerPublicSourceFetch("https://news.example.com/section", fetcher);

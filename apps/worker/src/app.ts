@@ -2,7 +2,7 @@ import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,r
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
 import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryError} from './unread-summary';
 import {unreadSummaryPort} from './unread-summary-provider';
-import {readTopicPublishers} from './source-topic-publishers';
+import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
 import {collectorBudgetStatus} from './collector-budget';
 import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
@@ -11,7 +11,11 @@ import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-t
 import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations,verifiedSourceRecommendations,type SourceDiscoveryDiagnostic} from './source-recommendations';
+import {searchSourceCandidates} from './source-search';
+import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
+import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
 import {assessSource,assessSources} from './source-assessment';
+import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
 import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {connectorSourceHealth} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
@@ -696,8 +700,29 @@ export function createApp(options: AppOptions = {}) {
   app.use("/api/me/*", accountAuth(repoFor));
   app.use("/api/admin/*", adminAuth(repoFor));
   app.get('/api/admin/source-execution-status',async c=>{
+    const sourceUrl=c.req.query('sourceUrl');
+    if(sourceUrl){
+      const kind=c.req.query('kind')??'public_article';
+      if(sourceUrl.length>2048||!['public_article','google_feed','playwright'].includes(kind))return c.json({error:'invalid probe'},400);
+      const {sourceExecutionProbe}=await import('./source-execution-status');
+      try{return c.json(await sourceExecutionProbe(c.env,sourceUrl,kind as 'public_article'|'google_feed'|'playwright'));}
+      catch{return c.json({error:'invalid public probe URL'},400);}
+    }
     const {sourceExecutionStatus}=await import('./source-execution-status');
     return c.json(await sourceExecutionStatus(c.env));
+  });
+  app.post('/api/admin/source-execution-paid-probe',async c=>{
+    const input=z.object({probeId:z.string().regex(/^[-a-zA-Z0-9_]{1,80}$/),phase:z.enum(['homepage','article']),url:z.string().url().max(2048),authorizedMaxUsd:z.literal(0.10)}).strict().safeParse(await c.req.json());
+    if(!input.success)return c.json({error:'invalid bounded probe'},400);
+    const target=new URL(input.data.url);
+    if(target.origin!=='https://lovin.co'||target.hash||(input.data.phase==='homepage')!==(target.pathname==='/'))return c.json({error:'invalid Lovin probe target'},400);
+    const ceiling=Math.min(0.05,JSON.parse(c.env.SOURCE_OPERATION_CEILINGS_JSON??'{}').zyte??0);
+    if(!c.env.ZYTE_API_KEY||!(ceiling>0)||!(JSON.parse(c.env.SOURCE_PROVIDER_BUDGETS_JSON??'{}').zyte>0))return c.json({error:'paid probe is not configured'},503);
+    const {createSourceBackend}=await import('./source-backend');
+    const {lovinAccessProbe}=await import('./lovin-access-probe');
+    const backend=createSourceBackend(c.env,{paidResponseMaxBytes:22_000_000,authorize:async()=>false,intake:{acceptBatch:async()=>{throw Error('PROBE_ONLY');}},fetcher});
+    try{return c.json(await lovinAccessProbe(backend.paidHttp,c.env.ZYTE_API_KEY,c.get('account')!.id,input.data,ceiling));}
+    catch{return c.json({error:'Paid probe unavailable or fenced. Do not start a replacement operation.'},503);}
   });
 
   // Account identity is derived from the session, never from caller-owned tenant fields.
@@ -920,10 +945,37 @@ export function createApp(options: AppOptions = {}) {
     return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
   });
 
+  app.get('/api/me/sources/search',async c=>{
+    const input=z.object({q:z.string().trim().min(2).max(200)}).safeParse({q:c.req.query('q')});
+    if(!input.success)return c.json({error:'Enter between 2 and 200 characters to search sources.'},400);
+    c.header('Cache-Control','no-store');
+    try{await assertRateLimit(c.get('repo'),'source-search:'+c.get('account')!.id,'source_search',30,5*60*1000);}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','300');return c.json({error:'Too many source searches. Please try again shortly.'},429);}
+    let searchCache:Cache|undefined,accessCache:Cache|undefined;
+    try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
+    return c.json(await cachedSourceSearch(c.get('account')!.id,input.data.q,new URL(c.req.url).origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
+  });
+
   app.post("/api/me/sources/assess", async c => {
-    const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000),source:z.string().trim().min(1).max(500)}).strict().parse(await c.req.json());
+    const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000),source:z.string().trim().min(1).max(500),approvedRetrievalBudgetUsd:z.literal(0.10).optional(),searchQuery:z.string().trim().min(2).max(200).optional()}).strict().parse(await c.req.json());
+    if(input.approvedRetrievalBudgetUsd!==undefined)return c.json({error:'Paid source retrieval is temporarily disabled.'},503);
     if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({assessment:{input:input.source,status:'unverified',reason:'Source assessment is not enabled on this deployment.',checkedAt:new Date().toISOString()}});
-    return c.json({assessment:await assessSource(c.env,input,input.source,fetcher,{ownerAccountId:c.get('account')!.id,providerFetcher:fetcher})});
+    const owner=c.get('account')!.id;
+    const context={title:input.title,description:input.description};
+    const cached=await cachedSourceAssessment(c.env,owner,context,input.source);
+    if(cached)return c.json({assessment:cached});
+    let publisherEvidence:TopicPublisherEvidence[]|undefined;
+    if(input.searchQuery)try{
+      const cache=typeof caches==='undefined'?undefined:await caches.open('source-search-v2-free-only');
+      const saved=await readSourceSearchCache(owner,input.searchQuery,new URL(c.req.url).origin,cache);
+      const origin=new URL(prepareProductSourceInput(input.source).sourceUrl!).origin;
+      const hints=(saved?.results??[]).filter(row=>row.articleUrl&&new URL(prepareProductSourceInput(row.source).sourceUrl!).origin===origin&&new URL(row.articleUrl).hostname==='news.google.com').map(row=>({publisherOrigin:origin,title:row.title,url:row.articleUrl!,excerpt:row.excerpt??''}));
+      if(hints.length)publisherEvidence=hints;
+    }catch{/* Missing search receipts never substitute client-supplied evidence. */}
+    const assessment=await assessSource(c.env,context,input.source,fetcher,{ownerAccountId:owner,providerFetcher:fetcher},publisherEvidence);
+    if(assessment.freeAccessUnavailable)try{await rememberUnavailableSearchSource(input.source,typeof caches==='undefined'?undefined:await caches.open('source-search-free-access-v1'));}catch{}
+    await rememberSourceAssessment(c.env,owner,context,assessment);
+    return c.json({assessment});
   });
 
   app.post("/api/me/sources/recommend", async c => {

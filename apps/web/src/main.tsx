@@ -1493,6 +1493,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const payload = feedResult?.key === feedKey ? feedResult.value : null;
   const [readState, setReadState] = useState<{ key: string; state: "loading" | "loaded" | "failed" }>({ key: feedKey, state: "loading" });
   const initialLoading = !payload && (readState.key !== feedKey || readState.state === "loading");
+  const readerLoading = initialLoading || viewerLoading;
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
   const [query, setQuery] = useState("");
   const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
@@ -1602,7 +1603,10 @@ function FeedPage(props: { username: string; slug: string }) {
   const currentEditions = payload ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
   const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
-  const filteredEditions = currentEditions;
+  const filteredEditions = [
+    ...currentEditions.filter(edition => !readIds.has(edition.id)),
+    ...archivedReadEditions,
+  ];
   const visibleUnreadEditions = filteredEditions.slice(0, visibleUnreadCount);
   const hiddenUnreadCount = Math.max(0, filteredEditions.length - visibleUnreadEditions.length);
   const language = uiLanguage;
@@ -1698,14 +1702,16 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} loading={viewerLoading} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>} actions={feedActions} contextual/>}
+      header={<AppHeader account={account} loading={viewerLoading} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
+      headingFooter={feedActions}
+      headingLoading={readerLoading}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
     >
-      {initialLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
+      {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
         onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
         onSaved={async (nextAccount, nextBriefings) => {
@@ -2174,6 +2180,8 @@ function Shell(props: {
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
   headingAction?: React.ReactNode;
+  headingFooter?: React.ReactNode;
+  headingLoading?: boolean;
 }) {
   const { t } = useLanguage();
   const { language: selectedLanguage } = useLanguage();
@@ -2219,10 +2227,11 @@ function Shell(props: {
           </div>
         </div>
       </header>}
-      <div className="page-heading">
+      <div className="page-heading" aria-busy={props.headingLoading || undefined} style={props.headingLoading ? {visibility: 'hidden'} : undefined}>
         {props.feed && <div className="feed-hero-art"><FeedArt feed={props.feed}/></div>}
         <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? (props.feed ? null : getPageMeta(titleText))}</p>
+        {props.headingFooter}
         {props.description && <div className="feed-page-description">{props.description}</div>}
       </div>
       {props.children}

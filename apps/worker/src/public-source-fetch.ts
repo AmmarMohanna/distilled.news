@@ -23,7 +23,7 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     let response: Response;
     const signal = AbortSignal.timeout(60_000);
     const fetcher=this.fetcher;
-    try { response = await fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml" } }); }
+    try { response = await fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml", "user-agent": "DistilledNewsBot/0.1 (+https://distilled.news)" } }); }
     catch (error) {
       if (error instanceof PublicSourceFetchFailure) throw error;
       if (knownCloudflareSubrequestDenial(error)) throw new PublicSourcePolicyError();

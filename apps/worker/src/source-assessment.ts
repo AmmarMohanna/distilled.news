@@ -1,7 +1,7 @@
 import {campaignAssessmentFetcher} from './agentops-assessment';
 import {assessmentModelPayload} from './source-assessment-model';
 import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
-import { normalizeRssSnapshot,extractPublicHtml,discoverWebsiteArticles, type SourceFamily } from '@distilled/connectors';
+import { normalizeRssSnapshot,extractPublicHtml,wikipediaArticlePassages,discoverWebsiteArticles, type SourceFamily } from '@distilled/connectors';
 import { z } from 'zod';
 import type { Env } from './types';
 import { prepareProductSourceInput, resolveProductSourceInput } from './product-feeds';
@@ -11,6 +11,8 @@ import { PublicSourceFetchFailure, PublicSourcePolicyError } from '@distilled/ag
 import {collectVerificationEvidence,type SourceVerificationScope} from './source-verification-collector';
 import {telegramVerificationEvidence} from './telegram-verification';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
+import {readAssessmentArticles,type AssessmentArticle} from './source-assessment-http';
+import {paidAssessmentArticles} from './source-assessment-paid';
 
 export interface SourceAssessment {
   input: string;
@@ -25,6 +27,8 @@ export interface SourceAssessment {
   freshness?: 'archive';
   upstreamStatus?: number;
   retryNotBefore?: string;
+  paidRetryMaxUsd?: number;
+  freeAccessUnavailable?: boolean;
   failureCode?: 'PUBLIC_URL_POLICY_DENIED' | 'UPSTREAM_AUTOMATION_BLOCKED' | 'SOURCE_CONNECTION_FAILED' | 'SOURCE_FETCH_TIMEOUT' | 'TELEGRAM_AUTH_REQUIRED' | 'TELEGRAM_RATE_LIMIT' | 'TELEGRAM_RUNTIME_UNAVAILABLE' | 'TELEGRAM_CHANNEL_UNAVAILABLE';
 }
 const choice = z.object({ type: z.literal('choice'), choice: z.enum(['YES', 'NO', 'UNKNOWN']), confidence: z.number().min(0).max(1), probabilities: z.object({ YES: z.number().min(0).max(1), NO: z.number().min(0).max(1), UNKNOWN: z.number().min(0).max(1) }).strict() });
@@ -44,11 +48,11 @@ function topicExcerpt(text: string, context: {title:string;description:string}):
   return passages.length?passages.join(' [...] ').slice(0,500):text.slice(0,200);
 }
 /** Fetched text is evidence, never instructions or network authority. Paid checks use the shared budget. */
-export async function assessSource(env: Env, context: { title: string; description: string }, input: string, fetcher: typeof fetch = fetch, verification?:SourceVerificationScope, publisherEvidence?:TopicPublisherEvidence[]): Promise<SourceAssessment> {
+export async function assessSource(env: Env, context: { title: string; description: string }, input: string, fetcher: typeof fetch = fetch, verification?:SourceVerificationScope, publisherEvidence?:TopicPublisherEvidence[],options?:{approvedRetrievalBudgetUsd?:0.10}): Promise<SourceAssessment> {
   const base = { input, checkedAt: new Date().toISOString() };
   const result = (status: SourceAssessment['status'], reason: string, extra: Partial<SourceAssessment> = {}): SourceAssessment => ({ ...base, ...extra, status, reason });
   let plan: ReturnType<typeof prepareProductSourceInput>;
-  try { prepareProductSourceInput(input); plan = await resolveProductSourceInput(input, fetcher); }
+  try { plan=prepareProductSourceInput(input);if(options?.approvedRetrievalBudgetUsd===undefined)plan = await resolveProductSourceInput(input, fetcher); }
   catch { return result('rejected', 'This source input is unsupported or its URL failed technical safety checks.'); }
   const kind = plan.detected.kind;
   const family: SourceFamily = kind === 'rss_feed' ? 'rss' : kind === 'web_page' ? 'website' : kind === 'telegram_channel' ? 'telegram' : kind as SourceFamily;
@@ -73,6 +77,7 @@ export async function assessSource(env: Env, context: { title: string; descripti
   let evidence: string;
   let articleEvidence = '';
   const passages = new Map<string,string>();
+  const passageUrls = new Map<string,string>();
   let archiveOnly=false;
   // Google News has a native public RSS collector; paid verification must not
   // turn the free path into a budget-dependent source.
@@ -90,7 +95,13 @@ export async function assessSource(env: Env, context: { title: string; descripti
       // read the exact same query; retain its normal budget and retry fences.
       return {status:0,body:'',contentType:'',authenticationRequired:false};
     });
-    let page = collected?{status:200,body:'',contentType:'application/json',authenticationRequired:false}:await nativeRead();
+    let page = options?.approvedRetrievalBudgetUsd!==undefined&&family==='website'?{status:403,body:'',contentType:'',authenticationRequired:false}:collected?{status:200,body:'',contentType:'application/json',authenticationRequired:false}:await nativeRead();
+    let anonymousArticles:AssessmentArticle[]=[];
+    if(family==='website'&&[403,406].includes(page.status)&&!page.authenticationRequired){
+      if(options?.approvedRetrievalBudgetUsd===0.10)paidVerification=true;
+      anonymousArticles=options?.approvedRetrievalBudgetUsd===0.10&&verification?await paidAssessmentArticles(env,verification.ownerAccountId,context,url,0.10,verification.providerFetcher??fetcher):await readAssessmentArticles(env,url);
+      if(anonymousArticles.length)page={status:200,body:'',contentType:'application/json',authenticationRequired:false};
+    }
     const automationBlocked = () => kind === 'google_news' && page.status === 503 && /automated queries|unusual traffic/i.test(page.body);
     // One retry for a temporary upstream outage, never for blocked or dead feeds.
     if ([502, 503, 504].includes(page.status) && !automationBlocked()) page = await nativeRead();
@@ -102,7 +113,9 @@ export async function assessSource(env: Env, context: { title: string; descripti
     }
     if (page.status !== 200 || page.authenticationRequired) {
       if(automationBlocked())return result('unverified', 'Google News is blocking automated requests from this deployment. Retrying a different query will not fix this. Use a publisher RSS feed or configure another collector.', {kind,upstreamStatus:page.status,failureCode:'UPSTREAM_AUTOMATION_BLOCKED'});
-      const reason = page.status === 404 || page.status === 410
+      const reason = family==='website'&&[403,406].includes(page.status)
+        ? options?.approvedRetrievalBudgetUsd!==undefined?'The paid retrieval did not provide verifiable article evidence. This source has not been added.':`This source is unavailable through the free collection routes (HTTP ${page.status}) and is hidden from source search for now.`
+        : page.status === 404 || page.status === 410
         ? `This source URL is no longer available (HTTP ${page.status}). Use an updated RSS/Atom feed URL.`
         : page.status === 429
           ? 'The publisher is rate limiting this server (HTTP 429). Try again later.'
@@ -111,19 +124,19 @@ export async function assessSource(env: Env, context: { title: string; descripti
             : `The publisher returned HTTP ${page.status} instead of readable source content. Try again later or use another public feed.`;
       return result('unverified', kind === 'google_news' && page.status >= 500
         ? `Google News search is unavailable from this server (HTTP ${page.status}). Try a topic-specific publisher RSS feed or retry later.`
-        : reason, { kind, upstreamStatus: page.status });
+        : reason, { kind, upstreamStatus: page.status,...(options?.approvedRetrievalBudgetUsd===undefined&&family==='website'&&[403,406].includes(page.status)?{freeAccessUnavailable:true}:{}) });
     }
-    if (collected || kind === 'rss_feed' || kind === 'google_news' || /<(?:rss|feed)(?:\s|>)/i.test(page.body.slice(0, 1000))) {
+    if (collected || anonymousArticles.length || kind === 'rss_feed' || kind === 'google_news' || /<(?:rss|feed)(?:\s|>)/i.test(page.body.slice(0, 1000))) {
       const terms=topicWords(context);
       const score=(title?:string)=>terms.reduce((total,term)=>total+(title?.toLocaleLowerCase().includes(term)?1:0),0);
-      const readable = collected?collected.map(item=>({...item,excerpt:undefined})):normalizeRssSnapshot(page.body, url).filter(item => item.identityValid);
+      const readable = anonymousArticles.length?anonymousArticles.map(item=>({...item,excerpt:undefined})):collected?collected.map(item=>({...item,excerpt:undefined})):normalizeRssSnapshot(page.body, url).filter(item => item.identityValid);
       const dated = readable.map(item=>Date.parse(item.publishedAt??'')).filter(Number.isFinite);
       archiveOnly=dated.length>0&&Math.max(...dated)<Date.now()-365*86_400_000;
       if(archiveOnly&&!env.SOURCE_ASSESSMENT_MODEL)return result('unverified','This feed has no dated articles from the past year. Use an active topic feed.',{kind});
       const items = readable.sort((a,b)=>score(b.title)-score(a.title)).slice(0,20);
       const channel = page.body.split(/<item\b|<entry\b/i)[0];
       const metadata = plain((channel.match(/<(?:title|description|subtitle)\b[^>]*>[\s\S]*?<\/(?:title|description|subtitle)>/gi) ?? []).join(' ')).slice(0, 800);
-      items.forEach((item,index)=>passages.set(`E${index+1}`,[item.title,topicExcerpt(plain(item.body || item.excerpt || ''),context)].filter(Boolean).join(' - ')));
+      items.forEach((item,index)=>{const id=`E${index+1}`;passages.set(id,[item.title,topicExcerpt(plain(item.body || item.excerpt || ''),context)].filter(Boolean).join(' - '));if(typeof item.url==='string')passageUrls.set(id,item.url);});
       articleEvidence = [...passages].map(([id,text])=>`[${id}] ${text}`).join('\n');
       evidence = metadata + '\n' + articleEvidence;
     } else {
@@ -131,7 +144,12 @@ export async function assessSource(env: Env, context: { title: string; descripti
       const headings = page.body.match(/<(?:title|h[1-3])\b[^>]*>[\s\S]*?<\/(?:title|h[1-3])>/gi) ?? [];
       const articles = page.body.match(/<article\b[^>]*>[\s\S]*?<\/article>/gi) ?? [];
       articles.slice(0,3).forEach((article,index)=>passages.set(`E${index+1}`,plain(article).slice(0,1800)));
-      if(env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'&&family==='website'){
+      const wikiPassages=wikipediaArticlePassages(page.body,url);
+      if(wikiPassages.length){
+        passages.clear();
+        wikiPassages.forEach((passage,index)=>passages.set(`E${index+1}`,topicExcerpt(passage,context)));
+      }
+      if(env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'&&family==='website'&&!wikiPassages.length){
         const extracted=extractPublicHtml(page.body,url);
         if(extracted.pageKind==='article'&&extracted.body.length>=80)passages.set('E1',[extracted.title,topicExcerpt(extracted.body,context)].filter(Boolean).join(' - '));
         const links=discoverWebsiteArticles(page.body,url)?.articles??[];
@@ -151,7 +169,11 @@ export async function assessSource(env: Env, context: { title: string; descripti
     if(publisherEvidence?.length&&['rss_feed','web_page'].includes(kind)){
       const original=prepareProductSourceInput(input);const origin=new URL(original.sourceUrl??url).origin;
       const related=publisherEvidence.filter(item=>item.publisherOrigin===origin).slice(0,2);
-      if(related.length){const originalPassages=[...passages.values()];passages.clear();for(const item of related)passages.set('E'+(passages.size+1), 'Search-indexed article from '+item.publisherOrigin+': '+item.title+' - '+item.excerpt+' Article URL: '+item.url+(item.publishedAt?' Published: '+item.publishedAt:''));for(const text of originalPassages)passages.set('E'+(passages.size+1),text);}
+      if(related.length){
+        const originalPassages=[...passages].map(([id,text])=>({text,url:passageUrls.get(id)}));passages.clear();passageUrls.clear();
+        for(const item of related){const id='E'+(passages.size+1);passages.set(id,'Search-indexed article from '+item.publisherOrigin+': '+item.title+' - '+item.excerpt+' Article URL: '+item.url+(item.publishedAt?' Published: '+item.publishedAt:''));passageUrls.set(id,item.url);}
+        for(const item of originalPassages){const id='E'+(passages.size+1);passages.set(id,item.text);if(item.url)passageUrls.set(id,item.url);}
+      }
       if(related.length){articleEvidence=[...passages].map(([id,text])=>'['+id+'] '+text).join('\n');evidence=articleEvidence;}
     }
     if (evidence.trim().length < 80) return result('unverified', 'Not enough public headlines or posts were available to assess relevance.', { kind });
@@ -225,6 +247,7 @@ export async function assessSource(env: Env, context: { title: string; descripti
       const ids=verdict.evidenceId.split(',').map(id=>id.trim().replace(/^\[|\]$/g,'').toUpperCase());
       const quote=passages.get(ids[0]);
       if(!quote||quote.length<15||ids.length>10||ids.some(id=>!passages.has(id)||!evidence.slice(0,7000).includes(`[${id}]`)))return result('unverified','The relevance check did not cite a verifiable article passage.',extra);
+      extra.evidenceUrl=passageUrls.get(ids[0])??url;
       if(archiveOnly){
         // Classify purpose without showing the old source. Otherwise its age
         // can bias the model into inventing historical intent for a current feed.

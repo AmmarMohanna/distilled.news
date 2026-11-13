@@ -24,7 +24,7 @@ export function topicPublishers(xml: string, searchUrl: string): TopicPublisherE
 }
 
 /** Reuse configured transports and the existing owner-scoped paid collector as fallback. */
-export async function readTopicPublishers(env:Env,searchUrl:string,fetcher:typeof fetch,onTransport?:(result:{route:'worker'|'runtime';status:number})=>void,scope?:SourceVerificationScope):Promise<TopicPublisherEvidence[]> {
+export async function readTopicPublishers(env:Env,searchUrl:string,fetcher:typeof fetch,onTransport?:(result:{route:'worker'|'runtime';status:number})=>void,scope?:SourceVerificationScope,options:{preferRuntime?:boolean}={}):Promise<TopicPublisherEvidence[]> {
  const target=new URL(searchUrl);
  if(target.hostname!=='news.google.com'||target.pathname!=='/rss/search'||target.protocol!=='https:')return [];
  const paidFallback=async()=>{
@@ -48,17 +48,22 @@ export async function readTopicPublishers(env:Env,searchUrl:string,fetcher:typeo
   }
   return result;
  };
- let response;
- try{response=await new WorkerPublicSourceFetch(searchUrl,fetcher).get(searchUrl);}catch{response={status:0,body:''};}
- onTransport?.({route:'worker',status:response.status});
- if(response.status===200)return topicPublishers(response.body,searchUrl);
- if((response.status===0||response.status>=500)&&env.SOURCE_EXECUTION_SERVICE&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN){
+ const runtime=async()=>{
+ if(env.SOURCE_EXECUTION_SERVICE&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN){
   try{
    const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(url,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(url,init),true);
-   const result=await execution.execute('google_feed',{url:searchUrl},{timeoutMs:60_000});
+   const result=await execution.execute('google_feed',{url:searchUrl},{timeoutMs:options.preferRuntime?15_000:60_000});
    onTransport?.({route:'runtime',status:result&&typeof result==='object'&&'status' in result?Number(result.status)||0:0});
    if(result&&typeof result==='object'&&'status' in result&&result.status===200&&'xml' in result&&typeof result.xml==='string'&&new TextEncoder().encode(result.xml).length<=2_000_000)return topicPublishers(result.xml,searchUrl);
   }catch{/* The configured paid route retains its own durable budget and retry fences. */}
  }
+ return undefined;
+ };
+ if(options.preferRuntime){const found=await runtime();if(found)return found;}
+ let response;
+ try{response=await new WorkerPublicSourceFetch(searchUrl,fetcher).get(searchUrl);}catch{response={status:0,body:''};}
+ onTransport?.({route:'worker',status:response.status});
+ if(response.status===200)return topicPublishers(response.body,searchUrl);
+ if(!options.preferRuntime&&(response.status===0||response.status>=500)){const found=await runtime();if(found)return found;}
  return paidFallback();
 }

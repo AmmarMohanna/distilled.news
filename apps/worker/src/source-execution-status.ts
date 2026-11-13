@@ -1,4 +1,31 @@
 import type {Env} from './types';
+import {HttpSourceExecution} from '@distilled/connectors';
+import {WorkerPublicSourceFetch} from './public-source-fetch';
+import {admittedSourceExecution} from './source-execution-admission';
+/** Explicit administrator-only anonymous probe. Never starts paid providers or models. */
+export async function sourceExecutionProbe(env:Env,url:string,kind:'public_article'|'google_feed'|'playwright'){
+ new WorkerPublicSourceFetch(url);
+ const target=new URL(url);
+ if(kind==='google_feed'&&(target.hostname!=='news.google.com'||target.pathname!=='/rss/search'))throw Error('INVALID_GOOGLE_PROBE');
+ if(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_URL||!env.SOURCE_EXECUTION_TOKEN)return {state:'NOT_CONFIGURED' as const};
+ const started=Date.now();let transportStatus:number|undefined;
+ try{
+  const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(target,init)=>{
+   const response=await admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(target,init));transportStatus=response.status;return response;
+  },true);
+  const raw=await execution.execute(kind,{url},{timeoutMs:15_000});
+  const result=raw&&typeof raw==='object'?raw as Record<string,unknown>:{};
+  return {state:'RESPONDED' as const,elapsedMs:Date.now()-started,transportStatus,
+   upstreamStatus:typeof result.status==='number'?result.status:undefined,
+   errorCode:['UNAVAILABLE','INVALID_CONTENT_TYPE','BODY_TOO_LARGE','TRANSIENT','EXECUTION_FAILED','UNSUPPORTED_KIND'].includes(String(result.error))?String(result.error):undefined,
+   pageKind:['article','listing','unknown','catalogue'].includes(String(result.pageKind))?String(result.pageKind):undefined,
+   bodyCharacters:typeof result.body==='string'?result.body.length:0,
+   articleLinks:Array.isArray(result.articleLinks)?result.articleLinks.length:0,
+   xmlBytes:typeof result.xml==='string'?new TextEncoder().encode(result.xml).length:0,
+   htmlBytes:typeof result.html==='string'?new TextEncoder().encode(result.html).length:0,
+   exactUrl:result.url===url,exactCanonical:typeof result.canonicalUrl==='string'?new URL(result.canonicalUrl,url).href===url:undefined};
+ }catch(error){return {state:'FAILED' as const,elapsedMs:Date.now()-started,transportStatus,errorCode:error instanceof Error&&['SOURCE_EXECUTION_TIMEOUT','SOURCE_EXECUTION_UNAVAILABLE','SOURCE_EXECUTION_FAILED','INVALID_SOURCE_EXECUTION_CONFIG'].includes(error.message)?error.message:'EXECUTION_UNAVAILABLE'};}
+}
 /** Fixed authenticated helper route; return capacity metadata, never targets,
  * sessions, upstream exception text, credentials or arbitrary helper fields. */
 export async function sourceExecutionStatus(env:Pick<Env,'SOURCE_EXECUTION_URL'|'SOURCE_EXECUTION_TOKEN'|'SOURCE_EXECUTION_SERVICE'>){

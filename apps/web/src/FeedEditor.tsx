@@ -1,13 +1,13 @@
 import {toUiError, type UiMessage} from './api-errors';
 const rhythmLabels = { 30: "Every 30 min", 60: "Every hour", 120: "Every 2 hours", 360: "Every 6 hours", 720: "Every 12 hours", 1440: "Daily" } as const;
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, Clock, Copy, Globe, Pause, Play, Plus, Search, Settings, SquarePlus, Trash2, Users, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Clock, Copy, Globe, Pause, Play, Plus, Search, Settings, SquarePlus, Trash2, Users, X } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import { FEED_TITLE_MAX_LENGTH } from "@distilled/core";
 import { preferredLanguage, useLanguage } from "./LanguageControl";
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
-import { getSources, recommendSourceCandidates, assessSourceInput, type SourceAssessment } from "./api";
+import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceCandidates, type SourceSearchResult, type SourceAssessment } from "./api";
 import { VoiceInput } from "./VoiceInput";
 import {FeedLanguageSelect, FeedSettingsSelect} from './FeedLanguageSelect';
 import { SourceLogo } from "./SourceLogo";
@@ -36,8 +36,36 @@ export function FeedEditor(props: {
   const [timezone] = useState(() => props.feed?.briefingTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [sources, setSources] = useState<string[]>([]);
   const [sourceQuery, setSourceQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SourceSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchStatus, setSearchStatus] = useState("");
+  const searchCache=useRef(new Map<string,{at:number;result:Awaited<ReturnType<typeof searchSourceCandidates>>}>());
+  const sourceQueryRef = useRef(sourceQuery);
+  sourceQueryRef.current = sourceQuery;
+  const directSource=/^(?:https?:\/\/|(?:rss|news|x|telegram|linkedin)\s*:|(?:[\w-]+\.)+[a-z]{2,}(?:\/|$))/i.test(sourceQuery.trim());
+  useEffect(()=>{
+    const query=sourceQuery.trim();
+    setSearchResults([]);setSearchStatus("");setSearching(false);
+    if(query.length<2||query.length>200||directSource)return;
+    const cached=searchCache.current.get(query);
+    if(cached&&Date.now()-cached.at<60_000){setSearchResults(cached.result.results.filter(row=>!row.blocked));return;}
+    const controller=new AbortController();
+    setSearching(true);
+    const timer=window.setTimeout(()=>{
+      void searchSourceCandidates(query,controller.signal).then(result=>{
+        if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
+        if(!result.unavailable&&!result.accessIncomplete){if(searchCache.current.size>=20)searchCache.current.delete(searchCache.current.keys().next().value!);searchCache.current.set(query,{at:Date.now(),result});}
+        setSearchResults(result.results.filter(row=>!row.blocked));
+        setSearchStatus(result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.results.length?'':'No freely accessible sources found. Try another name or a public feed URL.');
+      }).catch(()=>{
+        if(!controller.signal.aborted)setSearchStatus('Web search is unavailable right now. You can still paste a source URL.');
+      }).finally(()=>{if(!controller.signal.aborted)setSearching(false);});
+    },300);
+    return ()=>{window.clearTimeout(timer);controller.abort();};
+  },[sourceQuery,directSource]);
   const [sourceChecks, setSourceChecks] = useState<SourceAssessment[]>([]);
   const [checkingSource, setCheckingSource] = useState(false);
+  const [checkingSourceInput, setCheckingSourceInput] = useState("");
   const sourceContext = useRef("");
   const recommendationContext = useRef("");
   sourceContext.current = JSON.stringify([title, prompt]);
@@ -77,15 +105,21 @@ export function FeedEditor(props: {
     if(recommendationContext.current===context&&recommendations.includes(source)&&age>=0&&age<5*60_000){
       setSources(current=>current.includes(source)?current:[...current,source]);return true;
     }
-    setCheckingSource(true); setMessage("");
+    setCheckingSource(true);setCheckingSourceInput(source); setMessage("");
     try {
-      const check=await assessSourceInput(title.trim(),prompt.trim(),source);
+      const searchQuery=!directSource&&sourceQuery.trim().length>=2&&sourceQuery.trim().length<=200?sourceQuery.trim():undefined;
+      const options=searchQuery?{searchQuery}:undefined;
+      const check=options?await assessSourceInput(title.trim(),prompt.trim(),source,options):await assessSourceInput(title.trim(),prompt.trim(),source);
       if(context!==sourceContext.current)return false;
       setSourceChecks(current=>[...current.filter(item=>item.input!==source),check]);
+      if(check.freeAccessUnavailable||check.paidRetryMaxUsd){
+        setSearchResults(current=>current.filter(row=>row.source!==source));
+        for(const saved of searchCache.current.values())saved.result.results=saved.result.results.filter(row=>row.source!==source);
+      }
       if(check.status!=='accepted') { setMessage(check.reason); return false; }
       setSources(current=>current.includes(source)?current:[...current,source]); return true;
     } catch(cause) { setMessage(toUiError(cause)); return false; }
-    finally { setCheckingSource(false); }
+    finally { setCheckingSource(false);setCheckingSourceInput(""); }
   }
   const matchingSources = recommendations.filter(source => !sources.includes(source) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(toUiError(cause)); } finally { setBusy(false); } }
@@ -105,13 +139,24 @@ export function FeedEditor(props: {
 
       <div className="feed-details-fields">
         <label>{t("Feed name")}<span className="voice-field"><input aria-label={t("Feed name")} aria-describedby="feed-title-limit" placeholder={t("e.g. My news feed")} autoFocus required maxLength={FEED_TITLE_MAX_LENGTH} value={title} onChange={event => setTitle(event.target.value)}/><VoiceInput language={feedLanguage} label="Record feed title" onText={text => setTitle(text.slice(0,FEED_TITLE_MAX_LENGTH))}/></span><small id="feed-title-limit">{t("{count}/{max} characters", {count: title.length, max: FEED_TITLE_MAX_LENGTH})}</small></label>
-        <label>{t("What would you like to follow?")}<span className="voice-field"><textarea aria-label={t("What would you like to follow?")} placeholder={t("e.g. topics, keywords...")} required rows={1} value={prompt} onChange={event => setPrompt(event.target.value)}/><VoiceInput language={feedLanguage} onText={setPrompt}/></span></label>
+        <label>{t("What would you like to follow?")}<span className="voice-field"><textarea aria-label={t("What would you like to follow?")} placeholder={t("e.g. topics, keywords...")} required rows={2} value={prompt} onChange={event => setPrompt(event.target.value)}/><VoiceInput language={feedLanguage} onText={setPrompt}/></span></label>
         <div className="source-picker">
           <label htmlFor="feed-source-search">{t("Sources")}</label>
-          <div className="source-search-field"><Search size={21}/><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} placeholder={t("Search sources or paste a URL")} onChange={event => setSourceQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (sourceQuery.trim()) { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery("");}); } } }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => setSourceQuery("")}><X size={18}/></button>}</div>
+          <div className="source-search-field"><Search size={21}/><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} maxLength={500} aria-describedby="feed-source-search-help feed-source-search-status" placeholder={t("Search sources or paste a URL")} onChange={event => setSourceQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (sourceQuery.trim()&&directSource) { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery("");}); } } }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => setSourceQuery("")}><X size={18}/></button>}</div>
+          <small id="feed-source-search-help">{t("Search by publisher or article title. Select a result to follow its publisher.")}</small>
+          <small id="feed-source-search-status" role="status" hidden={!searching&&!searchStatus}>{t(searching?'Searching sources...':searchStatus)}</small>
+          {checkingSource&&<small role="status">{t("Checking {source}...",{source:checkingSourceInput})}</small>}
+          {searchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{searchResults.map((result,index)=>{
+            const check=sourceChecks.find(check=>check.input===result.source);
+            const selected=sources.includes(result.source);
+            return <div className="source-web-result-row" key={`${result.source}:${index}`}>
+              <button className="source-web-result-choice" type="button" disabled={checkingSource||selected} aria-busy={checkingSourceInput===result.source} onClick={()=>void addSource(result.source).then(added=>{if(added)setSourceQuery("");})}><SourceLogo source={result.source}/><span className="source-web-result"><strong>{result.title}</strong><small>{result.publisher}</small>{result.blocked&&<small>{t("Direct access was blocked. Select to check other configured collection routes.")}{result.httpStatus?` (HTTP ${result.httpStatus})`:""}</small>}{selected&&<small>{t("Already added")}</small>}{result.excerpt&&<span>{result.excerpt}</span>}</span>{selected?<Check size={18} aria-hidden="true"/>:<Plus size={18} aria-hidden="true"/>}</button>
+              {check&&check.status!=='accepted'&&<small className="source-result-status" role="status">{t(check.reason)}</small>}
+            </div>;
+          })}</div>}
           <small>{t("Paste a website, feed, Telegram, X or LinkedIn link, or enter a news topic.")}</small>
           {matchingSources.length > 0 && <div className="source-search-results" aria-label={t("Suggested sources")}>{matchingSources.map(source => <button type="button" key={source} className={sources.includes(source) ? "selected" : ""} aria-pressed={sources.includes(source)} disabled={checkingSource} onClick={() => void addSource(source)}><span className="source-recommendation-option"><span className="source-recommendation-identity"><SourceIdentity source={source}/></span>{sourceChecks.find(check=>check.input===source)?.evidenceQuote && <q className="source-recommendation-evidence">{sourceChecks.find(check=>check.input===source)?.evidenceQuote}</q>}</span></button>)}</div>}
-          {sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" disabled={checkingSource} onClick={() => { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery(""); sourceSearchRef.current?.focus();}); }}><Plus size={24}/>{t("Add source")}</button>}
+          {directSource && sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" disabled={checkingSource} onClick={() => { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery(""); sourceSearchRef.current?.focus();}); }}><Plus size={24}/>{t("Add source")}</button>}
           <button className="source-recommend-button" type="button" disabled={recommending || checkingSource || !title.trim() || !prompt.trim()} onClick={() => void findSources()}>{t(recommending ? "Finding sources..." : "Recommend sources with AI")}</button>
         </div>
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}

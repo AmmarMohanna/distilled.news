@@ -8,6 +8,17 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  "No freely accessible sources found. Try another name or a public feed URL.": ["Aucune source accessible gratuitement. Essayez un autre nom ou un lien de flux public.", "لم يتم العثور على مصادر متاحة مجانًا. جرّب اسمًا آخر أو رابط موجز عام."],
+  "Checking {source}...": ["Vérification de {source}...", "جارٍ التحقق من {source}..."],
+  "Already added": ["Déjà ajouté", "تمت إضافته بالفعل"],
+  "Try paid retrieval for {source} (up to $0.10)": ["Essayer la collecte payante pour {source} (jusqu’à 0,10 $)", "جرّب الاسترجاع المدفوع للمصدر {source} (حتى 0.10 دولار)"],
+  "Direct access was blocked. Select to check other configured collection routes.": ["L’accès direct a été bloqué. Sélectionnez pour vérifier les autres voies de collecte configurées.", "تم حظر الوصول المباشر. اختر المصدر للتحقق من طرق الجمع الأخرى المهيأة."],
+  "This publisher is unavailable to this server. Choose another result.": ["Ce média est inaccessible depuis ce serveur. Choisissez un autre résultat.", "هذا المصدر غير متاح لهذا الخادم. اختر نتيجة أخرى."],
+  "Search by publisher or article title. Select a result to follow its publisher.": ["Recherchez un média ou un titre d’article. Sélectionnez un résultat pour suivre son média.", "ابحث باسم المصدر أو عنوان المقال. اختر نتيجة لمتابعة مصدرها."],
+  "Searching sources...": ["Recherche de sources...", "جارٍ البحث عن مصادر..."],
+  "Source search results": ["Résultats de recherche de sources", "نتائج البحث عن المصادر"],
+  "Web search is unavailable right now. You can still paste a source URL.": ["La recherche web est indisponible. Vous pouvez coller le lien d’une source.", "البحث على الويب غير متاح حاليًا. يمكنك لصق رابط المصدر."],
+  "No matching sources found. Try another name or article title.": ["Aucune source trouvée. Essayez un autre nom ou titre d’article.", "لم يتم العثور على مصادر مطابقة. جرّب اسمًا أو عنوان مقال آخر."],
   "Source collection needs attention": ["La collecte des sources n?cessite une attention", "??? ??????? ????? ??? ??????"],
   "Some sources cannot collect right now. See source details.": ["Certaines sources ne peuvent pas ?tre collect?es actuellement. Consultez les d?tails des sources.", "????? ??? ??? ??????? ??????. ???? ?????? ???????."],
   "Source details": ["D?tails des sources", "?????? ???????"],
