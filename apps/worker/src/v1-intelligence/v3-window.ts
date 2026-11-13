@@ -224,7 +224,9 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    // The edition itself is V3's reader memory. Do not fabricate canonical Events.
    await tx.write('ledger_projections',JSON.stringify([id,'grounded-communication-ledger-v1']),{id:JSON.stringify([id,'grounded-communication-ledger-v1']),feedId,editionId:id,entryIds:[],policyVersion:POLICY});
    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:'PUBLISHED',reason:undefined,completedAt:edition.createdAt});return edition;
-  },completed.result.status==='published');
+  // Artifact-enabled callbacks also stage R2 data; keep that preparation outside
+  // canonical admission until artifact staging has its own preparation phase.
+  },completed.result.status==='published',env.EDITION_ARTIFACTS_ENABLED!=='true');
  });
 }
 

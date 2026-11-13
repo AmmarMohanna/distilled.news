@@ -28,7 +28,7 @@ for(const c of fixture.cases)it(`carries the real ${c.language} warning and its 
     expect(request.user).toContain(c.input.prior[c.input.prior.length-1].body);
     return {items:[{headline:c.language==='ar'?'تصريح عن غارات مرتقبة على الجبهة اللبنانية':'Statement warns of upcoming airstrikes on the Lebanese front',body,sources:[ref(warning.url)],relation:'new',updates:null,importance:1}]};
   }],verify:[{results:[{i:0,verdict:'ok',issues:[]}]}]});
-  const result=await generateBriefing({...c.input,feed:{...c.input.feed,language:c.language as 'en'|'ar'}},mock.port,MODELS);
+  const result=await generateBriefing({...c.input,feed:{...c.input.feed,language:c.language as 'en'|'ar'}},mock.port,MODELS,{now:()=>new Date(c.input.windowEnd)});
   expect(result.status).toBe('published');
   expect(result.items[0].body).toBe(body);
   expect(result.items[0].sourceIds).toEqual([warning.id]);

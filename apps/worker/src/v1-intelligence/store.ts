@@ -463,8 +463,12 @@ export class FeedTransaction {
   }
  }
 }
-export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>,publicationCommit=false):Promise<T> {
- return serializeFeedBookkeeping(store,()=>feedTransactNow(store,id,run,publicationCommit));
+export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>,publicationCommit=false,protectSnapshot=false):Promise<T> {
+ // Protect DB-only V3 bookkeeping from repeated source-epoch CAS retries.
+ // Acquire inside the local queue, never around provider network execution.
+ return serializeFeedBookkeeping(store,()=>protectSnapshot
+  ?withCanonicalCommitTurn(store.db,id,()=>feedTransactNow(store,id,run,publicationCommit),publicationCommit)
+  :feedTransactNow(store,id,run,publicationCommit));
 }
 export async function serializeFeedBookkeeping<T>(store:V1FeedStore,run:()=>Promise<T>):Promise<T>{
  const queue=store.transactionQueue;if(!queue)return run();
