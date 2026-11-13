@@ -18,12 +18,16 @@ SOURCE_CONNECTORS_ENABLED = "true"
 SOURCE_QUEUE_SCHEDULING_ENABLED = "true"
 # Staging-only rollout; legacy deployments keep their existing review ownership.
 V1_REVIEW_PREPARATION_ISOLATED = "true"
+# Model preparation must not hold the feed's canonical write turn.
+V1_PUBLICATION_PREPARATION_ISOLATED = "true"
 SOURCE_SHARED_PUBLIC_FETCH_ENABLED = "true"
 SOURCE_FULL_ARTICLES_ENABLED = "true"
 SOURCE_GOOGLE_RESOLUTION_ENABLED = "true"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"
 BRIEFING_ENGINE = "v3"
+# Recover current reporting after outages; retain missed windows and evidence.
+V3_BACKLOG_CATCHUP_ENABLED = "true"
 # Verified R2 archival is bounded to five unpaid diagnostics per scheduled sweep.
 STORAGE_MAINTENANCE_ENABLED = "true"
 UNREAD_SUMMARY_ENABLED = "true"
@@ -37,6 +41,7 @@ SOURCE_ASSESSMENT_MODEL = "openai/gpt-4.1-mini"
 # Unlimited collection retains accounting and uncertain-outcome retry fences.
 SOURCE_NATIVE_EXECUTION_ENABLED = "true"
 SOURCE_COLLECTION_BUDGET_MODE = "unlimited"
+SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS = '["*"]'
 SOURCE_PER_PROVIDER_BUDGET_USD = "15"
 SOURCE_OPERATION_CEILINGS_JSON = '{"twitterApiIo":0.01,"apify":0.25,"zyte":0.05}'
 SOURCE_PROVIDER_BUDGETS_JSON = '{"x_twitterapi_io":15,"x_apify":15,"google_apify":0,"linkedin_apify":15,"zyte":15}'
@@ -54,6 +59,9 @@ V1_SEMANTIC_POLICY = "SEMANTIC"
 V1_SALIENCE_POLICY = "DETERMINISTIC"
 V1_SYNTHESIS_MODEL_ENABLED = "true"
 DISTILLED_LLM_API_GATEWAY = "openrouter"
+# Explicit operator recovery policy: isolate expired identities, retain UNKNOWN
+# financial exposure and replay fences; remote termination remains unproven.
+V1_MODEL_UNCERTAIN_EXECUTION_POLICY = "isolate-after-5m-v1"
 DISTILLED_LIVE_OPENROUTER_MODEL = "openai/gpt-4.1-mini"
 V1_BROWSER_ACQUISITION_ENABLED = "false"
 DISTILLED_WEB_OPERATOR_ENABLED = "false"

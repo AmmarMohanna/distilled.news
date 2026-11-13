@@ -46,3 +46,13 @@ it('retains priority for a transient provider admission wait',async()=>{
  expect(await dispatchReadyConnectorBriefing(env,'feed-1',now)).toBe(true);
  expect(send.mock.calls[0][0]).toMatchObject({type:'v1_briefing',window:{end:'2026-10-15T12:00:00Z'}});
 });
+it('uses V3 model readiness even when the retired synthesis path is disabled',async()=>{
+ const v3={...env,BRIEFING_ENGINE:'v3',V1_REAL_MODEL_REQUIRED:'true',V1_SYNTHESIS_MODEL_ENABLED:'false',OPENROUTER_API_KEY:'fixture-key'} as Env;
+ expect(await dispatchReadyConnectorBriefing(v3,'feed-1',now)).toBe(true);
+ expect(send).toHaveBeenCalledOnce();
+});
+it('does not dispatch V3 work without its configured provider credential',async()=>{
+ const v3={...env,BRIEFING_ENGINE:'v3',V1_REAL_MODEL_REQUIRED:'true',V1_SYNTHESIS_MODEL_ENABLED:'true'} as Env;
+ expect(await dispatchReadyConnectorBriefing(v3,'feed-1',now)).toBe(false);
+ expect(send).not.toHaveBeenCalled();
+});

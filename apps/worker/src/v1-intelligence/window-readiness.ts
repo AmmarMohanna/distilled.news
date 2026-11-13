@@ -3,6 +3,7 @@ import type {Env} from '../types';
 import type {BriefingRequest} from './runtime';
 import {CLOCK_PREPARATION_POLICY,CLOCK_SCHEDULE_POLICY,DELIVERY_LEAD_MS} from './schedule';
 import {preparedV3Delivery,windowHasHoldingJobs} from './window-coverage';
+import {cutoffEditionReady} from './cutoff-edition';
 
 const DAY_MS=86_400_000;
 const LEASE_MS=120_000;
@@ -87,17 +88,18 @@ export async function observeWindowReadiness(env:Env,request:BriefingRequest,now
   const collection=await pendingWindowCollections(env.DB,request.feedId,request.window.end,true,{scheduledFor:request.window.scheduledFor,now:at});
   const verified=await preparedV3Delivery(env.DB,request.feedId,request.id,Math.max(at,delivery));
   const deferAcquisition=verified&&at>=delivery;
-  const canonicalHolding=await windowHasHoldingJobs(env.DB,request.feedId,request.window.end,{v3:true,now:now.toISOString(),deferAcquisition});
-  const projectedHolding=deferAcquisition?projection.pending_review>0:projection.holding;
+  const deferIntake=await cutoffEditionReady(env.DB,request.feedId,request,now.toISOString());
+  const canonicalHolding=await windowHasHoldingJobs(env.DB,request.feedId,request.window.end,{v3:true,now:now.toISOString(),deferAcquisition,deferIntake});
+  const projectedHolding=!deferIntake&&(deferAcquisition?projection.pending_review>0:projection.holding);
   const resolved=Number(collection.pending===0);
   const matched=canonicalHolding===projectedHolding;
   // A concurrent job, request or scope change invalidates this comparison. A
   // mismatch suppresses the additional wake and leaves canonical recovery live.
   const authority=[request.id,projection.enrollment_id,projection.generation] as const;
   const confirmed=matched
-    ? await env.DB.prepare(`UPDATE v1_window_readiness SET collection_resolved=?,verified=?,generation=generation+1
-        WHERE window_id=? AND enrollment_id=? AND generation=? AND (collection_resolved<>? OR verified<>?) RETURNING generation`)
-        .bind(resolved,Number(verified),...authority,resolved,Number(verified)).first()
+    ? await env.DB.prepare(`UPDATE v1_window_readiness SET collection_resolved=?,verified=?,defer_intake=?,generation=generation+1
+        WHERE window_id=? AND enrollment_id=? AND generation=? AND (collection_resolved<>? OR verified<>? OR defer_intake<>?) RETURNING generation`)
+        .bind(resolved,Number(verified),Number(deferIntake),...authority,resolved,Number(verified),Number(deferIntake)).first()
     : await env.DB.prepare(`UPDATE v1_window_readiness SET enrollment_state='STALE',repair_after_ms=?,generation=generation+1
         WHERE window_id=? AND enrollment_id=? AND generation=? RETURNING generation`)
         .bind(at+REPAIR_DELAY_MS,...authority).first();
@@ -108,7 +110,7 @@ export async function observeWindowReadiness(env:Env,request:BriefingRequest,now
     generation:projection.generation,feedRevision:projection.feed_revision,matched,canonicalHolding,projectedHolding,
     pendingAcquisition:projection.pending_acquisition,pendingReview:projection.pending_review,
     failed:projection.failed+projection.released,blocked:projection.blocked,
-    deferred:deferAcquisition?projection.pending_acquisition-projection.released:0,
+    deferred:deferIntake?projection.pending_review+projection.pending_acquisition-projection.released:deferAcquisition?projection.pending_acquisition-projection.released:0,
     collectionResolved:Boolean(resolved),verified,scheduledFor:request.window.scheduledFor,checkedAt:now.toISOString()}));
 }
 
@@ -158,10 +160,13 @@ export async function consumeWindowReadinessWake(env:Env,wake:WindowReadinessWak
       AND EXISTS(SELECT 1 FROM v1_window_readiness w WHERE w.window_id=v1_window_ready_outbox.window_id
         AND w.generation=v1_window_ready_outbox.generation AND w.enrollment_state='ACTIVE'
         AND w.feed_id=? AND w.expires_ms>? AND w.not_before_ms<=?
-        AND w.collection_resolved=1 AND w.pending_review=0
-        AND ((w.verified=1 AND w.delivery_ms<=?) OR (w.verified=0 AND w.pending_acquisition=w.capacity_eligible
-          AND NOT EXISTS(SELECT 1 FROM v1_window_job_memberships m WHERE m.window_id=w.window_id AND m.capacity_at_ms>?))))
-    RETURNING event_id`).bind(token,at+LEASE_MS,wake.eventId,at,wake.feedId,at,at,at,at).first();
+        AND w.collection_resolved=1
+        AND (w.verified=0 OR w.delivery_ms<=?)
+        AND (w.defer_intake=1 OR (
+          w.pending_review=0 AND (w.verified=1 OR w.pending_acquisition=w.capacity_eligible
+            AND NOT EXISTS(SELECT 1 FROM v1_window_job_memberships m WHERE m.window_id=w.window_id AND m.capacity_at_ms>?))
+        ))
+      ) RETURNING event_id`).bind(token,at+LEASE_MS,wake.eventId,at,wake.feedId,at,at,at,at).first();
   if(!claim)return;
   try{
     await relay();

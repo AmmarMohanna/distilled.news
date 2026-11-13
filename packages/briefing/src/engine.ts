@@ -1,4 +1,6 @@
 import {generateEvidenceBriefing} from './evidence-agent';
+import {verificationMemory,exactPriorRepeat,redundantDrafts} from './novelty';
+import {completeStorySources} from './citation-coverage';
 import { EDITOR_SYSTEM_V7, CONSOLIDATE_SYSTEM_V7, VERIFY_SYSTEM_V7, REPAIR_SYSTEM_V7 } from './prompts-v7';
 import { auditEditorSourceAccounting } from './source-accounting';
 import { callJson, UsageMeter, type ModelPort } from "./model";
@@ -17,6 +19,7 @@ import {
   REPAIR_SYSTEM,
   VERIFY_SYSTEM,
   LEGACY_VERIFY_SYSTEM,
+  NOVELTY_RULE,
   consolidateUser,
   editorUser,
   repairUser,
@@ -27,6 +30,10 @@ import { significantNumbers } from "./text";
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
+  /** Versioned source association audit for all articles in a new snapshot. */
+  citationCoverage?: boolean;
+  /** Versioned by the product snapshot so retained paid requests remain unchanged. */
+  noveltyGuard?: boolean;
   /** Programmatic opt-in only; existing prompt versions and defaults remain unchanged. */
   architecture?: 'evidence-first-v1' | 'evidence-first-v2';
   /**
@@ -331,7 +338,8 @@ async function verify(
   prior: PriorItem[],
   maxChars: number,
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
+  noveltyGuard = false
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -345,7 +353,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM,
+          system: (promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM)+(noveltyGuard?`\n\n${NOVELTY_RULE}`:''),
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
@@ -512,7 +520,7 @@ export async function generateBriefing(
 
   const byRef = new Map(prepared.map((a) => [a.ref, a]));
   const prior = selectPrior(input.prior ?? [], prepared, options.now());
-  const priorIds = new Set(prior.map((p) => p.id));
+  const priorIds = new Set((options.noveltyGuard?input.prior??[]:prior).map((p) => p.id));
   const sourceIdsOfRefs = (refs: string[]) => [...new Set(refs.flatMap((ref) => [byRef.get(ref)!.id, ...byRef.get(ref)!.alsoIds]))];
 
   // 1. Edit: choose and write.
@@ -546,15 +554,28 @@ export async function generateBriefing(
     omittedStories.push({ stage: "safety_cap", reason: `over the safety limit of ${options.maxItems} items`, headline: d.headline, sourceIds: sourceIdsOfRefs(d.refs) });
   }
   drafts = drafts.slice(0, options.maxItems);
-  if (!drafts.length) return finish({ status: "empty", items: [], skipped, dropped: [] });
+  const exactRepeats=options.noveltyGuard?drafts.filter(d=>exactPriorRepeat(d,input.prior??[])):[];
+  if(options.noveltyGuard)drafts=drafts.filter(d=>!exactPriorRepeat(d,input.prior??[]));
+  if(options.noveltyGuard&&drafts.length){
+    const memory=verificationMemory(input.prior??[],drafts,options.now());
+    const redundant=await timed('novelty',()=>redundantDrafts(port,meter,models.editor,drafts,memory));
+    exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)));
+    drafts=drafts.filter((_,i)=>!redundant.has(i));
+  }
+  if (!drafts.length) return finish({ status: "empty", items: [], skipped, dropped: exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)})) });
 
   // 2. Verify, repair what is repairable once, drop what is not.
-  const dropped: DroppedItem[] = [];
+  const dropped: DroppedItem[] = exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}));
+  const verifierPrior=options.noveltyGuard?verificationMemory(input.prior??[],drafts,options.now()):prior;
+  if(options.citationCoverage){
+    const refs=await timed('source_coverage',()=>completeStorySources(port,meter,models.editor,drafts,prepared,options.maxEditorChars));
+    drafts=drafts.map((d,i)=>({...d,refs:refs[i]}));
+  }
   const accepted = new Set<number>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
-    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, prior, options.maxVerifyChars, previousReviews, options.promptVersion));
+    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
     for (const index of todo) {

@@ -1,4 +1,24 @@
 import {it,expect} from 'vitest';import {DatabaseSync} from 'node:sqlite';import {recoverExpiredTwitterReads} from './source-fresh-poll-recovery';import {hasUncertainSourcePayment} from './connector-paid-fence';
+it('deployment-wide opt-in covers existing and future feeds without crossing source identities or reviving disabled sources',async()=>{
+ const sql=new DatabaseSync(':memory:');try{
+  sql.exec(`CREATE TABLE accounts(id TEXT,disabled_at TEXT);CREATE TABLE briefings(id TEXT,owner_account_id TEXT,paused INTEGER);CREATE TABLE sources(id TEXT,briefing_id TEXT,enabled INTEGER);CREATE TABLE connector_provider_operations(provider_id TEXT,operation_id TEXT,request_hash TEXT,ceiling_usd REAL,status INTEGER,payload_ref TEXT,headers TEXT,feed_id TEXT,feed_source_id TEXT);INSERT INTO accounts VALUES('owner',NULL);`);
+  const add=(id:string)=>{sql.prepare('INSERT INTO briefings VALUES(?,?,0)').run(id,'owner');sql.prepare('INSERT INTO sources VALUES(?,?,1)').run(id+'-source',id);sql.prepare('INSERT INTO connector_provider_operations VALUES(?,?,?,?,?,?,?,?,?)').run('x_twitterapi_io',id+'-op',id+'-hash',.01,-1,null,JSON.stringify({claimExpiresAt:'2026-10-30T08:00:00Z'}),id,id+'-source')};
+  const db={prepare:(query:string)=>{let args:any[]=[];const stmt={bind:(...v:any[])=>{args=v;return stmt},all:async()=>({results:sql.prepare(query).all(...args)}),first:async()=>sql.prepare(query).get(...args)??null};return stmt}} as unknown as D1Database;
+  add('first');add('second');const env={DB:db,SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS:'["*"]'},now=new Date('2026-10-30T08:30:00Z');
+  expect(await recoverExpiredTwitterReads(env,'first','second-source',now)).toBe(0);
+  for(const id of ['first','second'])expect(await recoverExpiredTwitterReads(env,id,id+'-source',now)).toBe(1);
+  add('future');sql.exec("UPDATE sources SET enabled=0 WHERE id='future-source'");expect(await recoverExpiredTwitterReads(env,'future','future-source',now)).toBe(0);
+  sql.exec("UPDATE sources SET enabled=1 WHERE id='future-source'; UPDATE accounts SET disabled_at='2026-10-30'");expect(await recoverExpiredTwitterReads(env,'future','future-source',now)).toBe(0);
+  sql.exec('UPDATE accounts SET disabled_at=NULL');expect(await recoverExpiredTwitterReads(env,'future','future-source',now)).toBe(1);
+  for(const id of ['first','second','future']){
+   const row=sql.prepare('SELECT * FROM connector_provider_operations WHERE operation_id=?').get(id+'-op')!;
+   expect(row).toMatchObject({status:-1,payload_ref:null,ceiling_usd:.01,request_hash:id+'-hash'});
+   expect(JSON.parse(String(row.headers)).acknowledgement).toMatchObject({approvedBy:'deployment-operator',approvalId:'automatic-fresh-x-read-all-feeds-v1',approvalScope:'deployment_all_feeds'});
+   expect(await hasUncertainSourcePayment(db,id,id+'-source',['x_twitterapi_io'])).toBe(false);
+   expect(await recoverExpiredTwitterReads(env,id,id+'-source',now)).toBe(0);
+  }
+ }finally{sql.close()}
+});
 it('recovers only opted-in expired X reads without refunding charges or replaying original identities',async()=>{
  const sql=new DatabaseSync(':memory:');try{
  sql.exec(`CREATE TABLE accounts(id TEXT,disabled_at TEXT);CREATE TABLE briefings(id TEXT,owner_account_id TEXT,paused INTEGER);CREATE TABLE sources(id TEXT,briefing_id TEXT,enabled INTEGER);CREATE TABLE connector_provider_operations(provider_id TEXT,operation_id TEXT,request_hash TEXT,ceiling_usd REAL,status INTEGER,payload_ref TEXT,headers TEXT,feed_id TEXT,feed_source_id TEXT);INSERT INTO accounts VALUES('owner',NULL);INSERT INTO briefings VALUES('feed','owner',0);INSERT INTO sources VALUES('source','feed',1);`);

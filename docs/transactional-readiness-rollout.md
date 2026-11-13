@@ -20,7 +20,7 @@ Five recent scheduled editions across Israeli Elections and Breaking News Test h
 
 ## Deployment flags
 
-Migrations `0089` and `0090` add the projection and archive schema. Check the actual QA bindings and pending migrations before any rollout. Index creation touches retained job and diagnostic records, so capture its duration and any D1 errors. Start with flags absent, then observe a small set of feed IDs in `shadow` mode. Both projection modes leave publication authorization in the existing scheduler and commit. A comparison logs the job-holding decision, collection resolution and verified-result availability. A stable mismatch cancels its wake and makes the projection eligible for bounded reseeding.
+Migrations `0089_transactional_window_readiness.sql` and `0090_verified_edition_delivery.sql` add the projection and archive schema. `0093_cutoff_readiness_relay.sql` extends the wake-up policy to cutoff editions without changing the original migrations already applied to QA. The existing migration ledger uses full filenames, so the independently shipped Ghada indexes retain their original filenames as well. Check the actual QA bindings and pending migrations before any rollout. Index creation touches retained records, so capture its duration and any D1 errors. Start with flags absent, then observe a small set of feed IDs in `shadow` mode. Both projection modes leave publication authorization in the existing scheduler and commit. A comparison logs the job-holding decision, collection resolution and verified-result availability. A stable mismatch cancels its wake and makes the projection eligible for bounded reseeding.
 
 | Flag | Effect |
 | --- | --- |

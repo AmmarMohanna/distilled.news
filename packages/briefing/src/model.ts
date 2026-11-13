@@ -39,6 +39,9 @@ function priced(prices: PriceTable, model: string, input: number, output: number
 }
 
 interface TransportOptions {
+  /** Await durable correlation/usage capture before processing a response. */
+  onResponseHeaders?: (response: Response) => Promise<void>;
+  onResponseBody?: (payload: unknown) => Promise<void>;
   fetcher?: typeof fetch;
   timeoutMs?: number;
   retries?: number;
@@ -69,7 +72,12 @@ async function post(
         body: JSON.stringify(body),
         signal: controller.signal
       });
-      if (response.ok) return await response.json();
+      await options.onResponseHeaders?.(response);
+      if (response.ok) {
+        const payload: unknown = await response.json();
+        await options.onResponseBody?.(payload);
+        return payload;
+      }
       const detail = (await response.text().catch(() => "")).slice(0, 300);
       // 429/503 are refusals before processing; other 5xx may have been processed and billed.
       const refused = response.status === 429 || response.status === 503 || response.status < 500;

@@ -2,10 +2,9 @@
  * failedJobs includes unavailable acquisition-budget coverage without terminating
  * its recoverable job. Reconciliation dependencies retain their blockedJobs status. */
 export interface WindowIntakeCoverage {state:'COMPLETE'|'PENDING'|'INCOMPLETE';pendingJobs:number;failedJobs:number;blockedJobs?:number;deferredJobs?:number;unavailableCollections?:{id:string;title:string;count:number}[];failures:{kind:string;code:string;count:number}[]}
-/** Before verification, only confirmed capacity refusals yield at delivery.
- * Verified scheduled results can additionally defer acquisition; reassessment,
- * source ownership, immutable paid operations and publication CAS stay guarded. */
-export interface IntakeDeadlineOptions {v3?:boolean;now?:string;deferAcquisition?:boolean}
+/** Cutoff editions defer unfinished intake for their own window. Retained
+ * inputs keep the original capacity and verified-delivery exceptions. */
+export interface IntakeDeadlineOptions {v3?:boolean;now?:string;deferAcquisition?:boolean;deferIntake?:boolean}
 
 const kind="json_extract(j.json,'$.kind')";
 const state="json_extract(j.json,'$.state')";
@@ -30,6 +29,7 @@ const passedDeadline=(settings:IntakeDeadlineOptions,end:string)=>
 /** A dispatch needs one runnable job to establish that a window is held.
  * Scope, time and capacity rules match the final coverage aggregation. */
 export async function windowHasHoldingJobs(db:D1Database,feedId:string,end:string,settings:IntakeDeadlineOptions={}):Promise<boolean>{
+ if(settings.v3&&settings.deferIntake)return false;
  const afterDeadline=passedDeadline(settings,end);
  const row=await db.prepare(`SELECT 1 ${windowJobs}
   AND ${state} IN ('PENDING','RUNNING') AND ${exhausted}=0
@@ -62,6 +62,9 @@ export async function windowIntakeCoverage(db:D1Database,feedId:string,end:strin
   }else if(row.exhausted||row.state==='FAILED'||row.kind==='ACQUIRE'&&row.state==='PENDING'&&row.code==='BUDGET_EXHAUSTED'){
    failedJobs+=row.n;
    failures.push({kind:row.kind,code:row.code,count:row.n});
+  }else if(settings.v3&&settings.deferIntake){
+   deferredJobs+=row.n;
+   failures.push({kind:row.kind,code:'INTAKE_DEFERRED_AT_CUTOFF',count:row.n});
   }else if(settings.deferAcquisition&&row.kind==='ACQUIRE'){
    deferredJobs+=row.n;
    failures.push({kind:row.kind,code:'ACQUISITION_DEFERRED_AFTER_VERIFICATION',count:row.n});

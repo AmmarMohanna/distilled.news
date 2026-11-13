@@ -43,12 +43,18 @@ export class V1FeedStore {
  }
  /** V3 window intents contain many revision references but cannot own legacy reassessment. */
  async hasLegacySemanticIntentForObservation(feedId:string,observationId:string):Promise<boolean> {
-  const row=await this.db.prepare(`SELECT 1 FROM v1_feed_documents d
+  const lookup=(index:string)=>this.db.prepare(`SELECT 1 FROM v1_feed_documents d ${index}
    CROSS JOIN json_each(d.json,'$.input.evidenceRevisionIds') ref
    CROSS JOIN v1_revisions r ON r.id=ref.value
    WHERE d.feed_id=? AND d.kind='semantic_intents'
    AND json_extract(d.json,'$.input.kind') IS NOT 'V3_EDITOR_VERIFIER'
    AND json_extract(r.json,'$.sourceObservationId')=? LIMIT 1`).bind(feedId,observationId).first();
+  // Force the legacy-only seek: the general feed/kind index can otherwise
+  // parse every retained V3 input before proving there is no legacy work.
+  // Older self-hosted databases retain their exact recovery behavior.
+  let row;
+  try{row=await lookup('INDEXED BY v1_legacy_semantic_intents');}
+  catch(error){if(!/no such index: v1_legacy_semantic_intents/.test(String(error)))throw error;row=await lookup('');}
   return Boolean(row);
  }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
@@ -76,19 +82,30 @@ export class V1FeedStore {
   for(const d of decisions.sort((a,b)=>a.window_end.localeCompare(b.window_end))){if(d.carry)retry.add(d.revision_id);else retry.delete(d.revision_id);}return retry;
  }
  /** Metadata-only eligibility pass; immutable article bodies are loaded only after selection. */
- async currentEvidenceHeaders(feedId:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
+ async currentEvidenceHeaders(feedId:string,cutoff?:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
   let rows:D1Result<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>;
   try{
   rows=await this.db.prepare(`SELECT r.id,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.evidenceId') ELSE m.evidence_id END AS evidence_id,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.publishedAt') ELSE m.published_at END AS published_at,CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.acceptedAt') ELSE m.accepted_at END AS accepted_at,CASE WHEN t.id IS NULL THEN json_extract(i.json,'$.observation.observedAt') ELSE t.observed_at END AS observed_at FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') LEFT JOIN v1_revision_selection_index m ON m.id=r.id AND m.feed_source_id=r.feed_source_id LEFT JOIN v1_inputs i ON i.id=CASE WHEN m.id IS NULL THEN json_extract(r.json,'$.sourceObservationId') ELSE m.source_observation_id END AND i.feed_source_id=r.feed_source_id LEFT JOIN v1_observation_time_index t ON t.id=i.id AND t.feed_source_id=i.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY accepted_at,r.id`).bind(feedId).all<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>();
   }catch(error){if(!/no such table.*v1_(revision_selection|observation_time)_index/.test(String(error)))throw error;
   rows=await this.db.prepare(`SELECT r.id,json_extract(r.json,'$.evidenceId') AS evidence_id,json_extract(r.json,'$.publishedAt') AS published_at,json_extract(r.json,'$.acceptedAt') AS accepted_at,json_extract(i.json,'$.observation.observedAt') AS observed_at FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL ORDER BY json_extract(r.json,'$.acceptedAt'),r.id`).bind(feedId).all<{id:string;evidence_id:string;published_at:string|null;accepted_at:string;observed_at:string|null}>();
   }
-  return rows.results.map(r=>({revision:{id:r.id,evidenceId:r.evidence_id,publishedAt:r.published_at??undefined,acceptedAt:r.accepted_at},observedAt:r.observed_at}));
+  // Only updated-after-cutoff identities need a historical seek. Never load
+  // archival bodies or scan unrelated evidence to reconstruct the cutoff.
+  const selected=[];
+  for(const row of rows.results){
+   let r= row;
+   if(cutoff&&Date.parse(r.accepted_at)>=Date.parse(cutoff)){
+    const prior=await this.db.prepare(`SELECT r.id,json_extract(r.json,'$.evidenceId') evidence_id,json_extract(r.json,'$.publishedAt') published_at,json_extract(r.json,'$.acceptedAt') accepted_at,json_extract(i.json,'$.observation.observedAt') observed_at FROM v1_revisions current JOIN v1_revisions r ON r.feed_source_id=current.feed_source_id AND json_extract(r.json,'$.evidenceId')=json_extract(current.json,'$.evidenceId') LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId') AND i.feed_source_id=r.feed_source_id WHERE current.id=? AND julianday(json_extract(r.json,'$.acceptedAt'))<julianday(?) AND NOT EXISTS(SELECT 1 FROM v1_tombstones t WHERE t.feed_source_id=r.feed_source_id AND json_extract(t.json,'$.evidenceId')=json_extract(r.json,'$.evidenceId') AND julianday(json_extract(t.json,'$.acceptedAt'))>=julianday(json_extract(r.json,'$.acceptedAt'))) ORDER BY json_extract(r.json,'$.revision') DESC,r.id DESC LIMIT 1`).bind(r.id,cutoff).first<typeof r>();
+    if(!prior)continue;r=prior;
+   }
+   selected.push({revision:{id:r.id,evidenceId:r.evidence_id,publishedAt:r.published_at??undefined,acceptedAt:r.accepted_at},observedAt:r.observed_at});
+  }
+  return selected;
  }
- async currentEvidenceByIds(feedId:string,ids:string[]):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
+ async currentEvidenceByIds(feedId:string,ids:string[],cutoff?:string):Promise<{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]> {
   const unique=[...new Set(ids)],result:{item:NormalizedEvidenceItem;revision:EvidenceRevision}[]=[];
   for(let offset=0;offset<unique.length;offset+=90){const page=unique.slice(offset,offset+90);
-   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId') WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND r.id IN (${page.map(()=>'?').join(',')})`).bind(feedId,...page).all<{item:string;revision:string}>();
+   const rows=await this.db.prepare(`SELECT e.json AS item,r.json AS revision FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id JOIN v1_revisions r ON ${cutoff?"r.feed_source_id=e.feed_source_id AND json_extract(r.json,'$.evidenceId')=e.id AND julianday(json_extract(r.json,'$.acceptedAt'))<julianday(?)":"r.id=json_extract(e.json,'$.currentRevisionId')"} WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE' AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL AND r.id IN (${page.map(()=>'?').join(',')})`).bind(...(cutoff?[cutoff]:[]),feedId,...page).all<{item:string;revision:string}>();
    result.push(...rows.results.map(r=>({item:JSON.parse(r.item),revision:JSON.parse(r.revision)})));
   }
   if(result.length!==unique.length)throw new HandoffError('TEMPORARY_UNAVAILABLE');return result;
@@ -472,7 +489,11 @@ async function feedTransactNow<T>(store:V1FeedStore,id:string,run:(tx:FeedTransa
  const started=Date.now();let firstEpoch:number|undefined,lastEpoch:number|undefined,lastWrites=0;
  for(let attempt=0;attempt<12;attempt++) {
   const tx=new FeedTransaction(store,await measureLatency('DB_SNAPSHOT',()=>store.snapshot(id))),computationStarted=Date.now();firstEpoch??=tx.snapshot.epoch;lastEpoch=tx.snapshot.epoch;
-  const result=await measureLatency('TRANSACTION_COMPUTATION',()=>run(tx)),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;countLatency('casAttempts');const committed=await measureLatency('CAS_COMMIT',()=>withCanonicalCommitTurn(store.db,id,()=>store.commit(tx),publicationCommit));
+  const result=await measureLatency('TRANSACTION_COMPUTATION',()=>run(tx)),computationMs=Date.now()-computationStarted;lastWrites=tx.writes.size;countLatency('casAttempts');
+  // Read-only commit already validates snapshot epochs and active owner tokens
+  // atomically. Only mutations need admission to the canonical write turn.
+  const readOnly=!tx.writes.size&&!tx.jobs.size&&!tx.modelReservations.length;
+  const committed=await measureLatency('CAS_COMMIT',()=>withCanonicalCommitTurn(store.db,id,()=>store.commit(tx),publicationCommit,readOnly));
   for(const [name,amount] of Object.entries(tx.metrics))countLatency(name,amount);
   countLatency('documentWrites',tx.writes.size);countLatency('jobWrites',tx.jobs.size);
   if(committed){

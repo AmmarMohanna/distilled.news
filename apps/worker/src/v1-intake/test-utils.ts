@@ -15,7 +15,7 @@ export async function createIntakeDatabase(options:{product?:boolean;modelSpendi
     ...(options.archive?{r2Buckets:['RAW_ARCHIVE']}:{})});
   try {
   const db = await mf.getD1Database('DB') as unknown as D1Database;
-  for(const name of options.product?readdirSync(new URL('../../migrations/',import.meta.url)).filter(n=>n.endsWith('.sql')).sort():['0035_v1_intake_evidence.sql','0036_v1_acquisition_results.sql','0037_v1_feed_intelligence.sql','0038_v1_publication_jobs.sql','0039_v1_product_sources.sql','0041_v1_briefing_outbox.sql','0042_v1_feed_versions.sql','0050_v1_queue_dispatch.sql','0051_model_spending_authority.sql','0052_model_spending_concurrency_amendments.sql','0064_model_provider_admission.sql']) {
+  for(const name of options.product?readdirSync(new URL('../../migrations/',import.meta.url)).filter(n=>n.endsWith('.sql')).sort():['0035_v1_intake_evidence.sql','0036_v1_acquisition_results.sql','0037_v1_feed_intelligence.sql','0038_v1_publication_jobs.sql','0039_v1_product_sources.sql','0041_v1_briefing_outbox.sql','0042_v1_feed_versions.sql','0050_v1_queue_dispatch.sql','0051_model_spending_authority.sql','0052_model_spending_concurrency_amendments.sql','0064_model_provider_admission.sql','0088_model_active_capacity.sql']) {
     const path = new URL(`../../migrations/${name}`, import.meta.url);
     if (existsSync(path)) {await applyTestMigration(db,readFileSync(path,'utf8'))}
   }

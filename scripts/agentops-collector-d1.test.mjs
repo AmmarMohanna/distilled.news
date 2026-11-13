@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
 import {collectSnapshot,SQL} from '../apps/agentops-collector/src/snapshot.mjs';
+import {collectDeploymentSnapshot} from '../apps/agentops-collector/src/deployment.mjs';
 const require=createRequire(new URL('../apps/worker/package.json',import.meta.url));
 const {Miniflare}=require('miniflare');
 test('real local D1 seeks indexed cohort on young and aged feeds and never returns evidence text',{timeout:60000},async()=>{
@@ -29,4 +30,14 @@ test('real local D1 seeks indexed cohort on young and aged feeds and never retur
     assert.equal(after.values.publication_duration_ms_p95,60000);assert.ok(!JSON.stringify(after).includes('PRIVATE_CONTENT_CANARY'));
     assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM v1_feed_documents').first()).n,1002);
   }finally{await runtime.dispose();}
+});
+test('deployment aggregates include all feeds, exclude future deliveries and use unresolved history only',{timeout:30000},async()=>{
+ const runtime=new Miniflare({modules:true,script:'export default {fetch(){return new Response("ok")}}',d1Databases:['DB']});try{
+  const db=await runtime.getD1Database('DB');await db.exec('CREATE TABLE v1_feed_documents(kind TEXT,id TEXT,feed_id TEXT,json TEXT,PRIMARY KEY(kind,id)); CREATE TABLE v1_model_active_operations(id TEXT,lease_until INTEGER);');
+  await db.prepare(readFileSync('apps/worker/migrations/0074_unresolved_publication_windows.sql','utf8')).run();
+  const now=Date.parse('2026-11-11T12:00:00Z');
+  for(const [id,feed,state,scheduledFor] of [['late-a','a','PENDING','2026-11-11T11:00:00Z'],['late-b','b','PENDING','2026-11-11T11:30:00Z'],['future','c','PENDING','2026-11-11T12:30:00Z'],['failed','d','FAILED','2026-11-11T10:00:00Z'],['done','a','DONE','2026-11-11T10:00:00Z']])await db.prepare('INSERT INTO v1_feed_documents VALUES(?,?,?,?)').bind('briefing_requests',id,feed,JSON.stringify({state,window:{scheduledFor},result:state==='DONE'?'PUBLISHED':undefined})).run();
+  await db.prepare('INSERT INTO v1_model_active_operations VALUES(?,?),(?,?)').bind('live',now+1000,'expired',now-1000).run();
+  const r=await collectDeploymentSnapshot(db,now);assert.equal(r.values.deployment_pending_briefings,2);assert.equal(Math.round(r.values.deployment_oldest_pending_age_seconds),3600);assert.equal(r.values.deployment_failed_briefings,1);assert.equal(r.values.deployment_expired_model_leases,1);assert.equal(r.work.queries,2);assert.ok(r.work.rowsRead<20);
+ }finally{await runtime.dispose()}
 });

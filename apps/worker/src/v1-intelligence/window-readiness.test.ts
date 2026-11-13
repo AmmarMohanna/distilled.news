@@ -24,6 +24,7 @@ it('projects guarded intake writes, retains terminal counts and delivers the lat
     const send=vi.fn<(message:WindowReadinessWake)=>Promise<void>>().mockResolvedValue(undefined);
     const env={DB:db,WINDOW_READINESS_MODE:'shadow',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',V1_ACQUISITION_QUEUE:{send}} as unknown as Env;
     await db.prepare("INSERT INTO v1_feed_documents VALUES('briefing_requests',?,?,?)").bind(request.id,request.feedId,JSON.stringify(request)).run();
+    await db.prepare("INSERT INTO v1_feed_documents VALUES('v3_window_inputs',?,?,'{}')").bind(request.id,request.feedId).run();
     const acquire:DownstreamJob={id:'acquire',feedId:'feed-1',feedSourceId:'feed-source-1',observationId:'observation',kind:'ACQUIRE',state:'RUNNING',attempts:1,leaseToken:'owner',leaseUntil:window.scheduledFor};
     const review:DownstreamJob={...acquire,id:'review',kind:'REASSESS',state:'PENDING',attempts:0,leaseToken:undefined,leaseUntil:undefined};
     const save=(job:DownstreamJob)=>db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(job.id,job.feedSourceId,JSON.stringify(job)).run();
@@ -101,5 +102,20 @@ it('projects guarded intake writes, retains terminal counts and delivers the lat
     const canonicalCompletion=await reviewCompletion.run();
     console.info(JSON.stringify({terminalJobs:2000,canonicalCoverageRows:reads[0],projectionRows:reads[1],canonicalHoldingRows:reads[2],
       canonicalCompletionWrites:canonicalCompletion.meta.rows_written,projectedCompletionWrites:completion.meta.rows_written}));
+
+    // A newly scheduled cutoff edition can wake even while the same scope
+    // owns a pending review. The wake leaves the intake job recoverable.
+    await db.prepare("UPDATE v1_intake_scopes SET json=json_set(json,'$.enabled',1) WHERE id='feed-source-1'").run();
+    const cutoffRequest={...request,id:'cutoff-window'};
+    await db.prepare("INSERT INTO v1_feed_documents VALUES('briefing_requests',?,?,?)")
+      .bind(cutoffRequest.id,request.feedId,JSON.stringify(cutoffRequest)).run();
+    await db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.state','PENDING') WHERE id=?").bind(review.id).run();
+    await observeWindowReadiness(env,cutoffRequest,beforeDelivery);
+    const ready=await db.prepare('SELECT event_id,due_ms FROM v1_window_ready_outbox WHERE window_id=?')
+      .bind(cutoffRequest.id).first<{event_id:string;due_ms:number}>();
+    expect(ready?.due_ms).toBe(+beforeDelivery);
+    await consumeWindowReadinessWake(active,{type:'window_readiness_wake',eventId:ready!.event_id,feedId:request.feedId},relay,beforeDelivery);
+    expect(relay).toHaveBeenCalledTimes(2);
+    expect((await intake.read<DownstreamJob>('jobs',review.id))?.value.state).toBe('PENDING');
   }finally{await dispose();}
 },60_000);

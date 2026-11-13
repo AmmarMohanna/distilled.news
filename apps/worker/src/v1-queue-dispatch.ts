@@ -36,7 +36,7 @@ export async function recordV1QueueOutcome(env:Env,messageId:string,body:Record<
  * Active transport reservations are excluded before the bounded page limit. */
 export async function pendingV1Jobs(env:Env,sourceId:string,kind:'ACQUIRE'|'REASSESS',now:Date):Promise<{id:string}[]> {
  const capacity=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true';
- const rows=await env.DB.prepare(`SELECT j.id FROM v1_jobs j
+ const query=(windowIndex:string)=>env.DB.prepare(`SELECT j.id FROM v1_jobs j
  JOIN v1_intake_scopes s ON s.id=j.feed_source_id
  LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id
  WHERE j.feed_source_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL
@@ -46,7 +46,7 @@ export async function pendingV1Jobs(env:Env,sourceId:string,kind:'ACQUIRE'|'REAS
  AND (json_extract(j.json,'$.nextAttemptAt') IS NULL OR json_extract(j.json,'$.nextAttemptAt')<=?)
  AND NOT EXISTS(SELECT 1 FROM v1_queue_dispatches d WHERE d.kind=? AND d.id=j.id AND (d.lease_until>? OR d.not_before>?))
  ${capacity?`AND (SELECT COUNT(*) FROM connector_work_slots w WHERE w.feed_id=s.feed_id AND w.lane=? AND w.lease_until>?)<?`:''}
- ORDER BY CASE WHEN ?=1 THEN 0 WHEN EXISTS(SELECT 1 FROM v1_feed_documents r
+ ORDER BY CASE WHEN ?=1 THEN 0 WHEN EXISTS(SELECT 1 FROM v1_feed_documents r ${windowIndex}
  WHERE r.feed_id=s.feed_id AND r.kind='briefing_requests' AND json_extract(r.json,'$.state')='PENDING'
  AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR
  (julianday(json_extract(i.json,'$.observation.observedAt'))>=julianday(json_extract(r.json,'$.window.start')) AND
@@ -54,6 +54,11 @@ export async function pendingV1Jobs(env:Env,sourceId:string,kind:'ACQUIRE'|'REAS
  CASE WHEN ?=1 THEN 0 WHEN json_extract(i.json,'$.observation.publishedAtHint') IS NULL OR julianday(json_extract(i.json,'$.observation.publishedAtHint'))>=julianday(?,'-2 days') THEN 0 ELSE 1 END,
  json_extract(i.json,'$.observation.observedAt'),j.id LIMIT 5`)
  .bind(sourceId,kind,now.toISOString(),now.toISOString(),kind==='ACQUIRE'?'v1_acquisition':'v1_reassess',now.getTime(),now.getTime(),...(capacity?[kind==='ACQUIRE'?'acquisition':'intelligence',now.getTime(),kind==='ACQUIRE'?4:1]:[]),now.getUTCMinutes()%5===0?1:0,now.getUTCMinutes()%5===0?1:0,now.toISOString()).all<{id:string}>();
+ // The general feed/kind index reparses every retained completed request for
+ // each pending job. Preserve exact priority while seeking pending windows only.
+ let rows;
+ try{rows=await query('INDEXED BY v1_briefing_pending_window');}
+ catch(error){if(!/no such index: v1_briefing_pending_window/.test(String(error)))throw error;rows=await query('');}
  return rows.results;
 }
 

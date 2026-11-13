@@ -1,5 +1,7 @@
 import * as collectionCoverage from '../connector-publication-coverage';
 import * as campaignFault from '../agentops-campaign-fault';
+import * as providerReceipts from '../provider-receipt';
+import * as semanticSettlement from './semantic-settlement';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {applyTestMigration} from '../test-migrations';
@@ -15,11 +17,131 @@ import {prepareV3Window,publishProductV3Window,productV3PromptVersion} from './v
 import {supersedeUnstartedV3Windows} from './window-catchup';
 import {isAutomaticReportingWindow} from './runtime';
 import {livePublicationWindow} from './schedule';
+import {cutoffEvidenceAuthorized} from './cutoff-edition';
 import {readScheduleAudit} from './schedule-audit';
 import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} from './semantic-work-lease';
+import {isolateExpiredModelExecutions} from './model-capacity-recovery';
+import {recoverBlockedV3Request} from './v3-blocked-recovery';
+import {settleModelSpending} from './model-spending';
+import {recoverPendingProviderGenerations} from './provider-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
+function responseArchive(){const objects=new Map<string,string>();return {objects,bucket:{put:async(key:string,value:string)=>{if(objects.has(key))return null;objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket}}
+it('persists a complete paid response through D1 when the R2 checkpoint is temporarily unavailable',async()=>{
+ await article();const archive=responseArchive();archive.bucket.put=async()=>{throw Error('R2 temporarily unavailable')};env={...env,RAW_ARCHIVE:archive.bucket};
+ const seen:string[]=[],edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);expect(archive.objects.size).toBe(0);
+ expect((await store.list<any>('feed-1','semantic_results')).every(r=>r.status==='SUCCEEDED'&&r.usage.reported)).toBe(true);
+});
+it('retains header correlation when the provider body is lost and never reissues it',async()=>{
+ await article();env={...env,RAW_ARCHIVE:responseArchive().bucket};let calls=0;
+ const lost=(async()=>{calls++;return new Response(new ReadableStream({start(controller){controller.error(Error('connection reset during body'))}}),{headers:{'x-generation-id':'gen-test-lost'}})}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,lost);
+ const receipts=await ctx.db.prepare("SELECT json_extract(json,'$.generationId') generation FROM v1_feed_documents WHERE kind='model_provider_receipts' AND feed_id='feed-1'").all();
+ expect(receipts.results).toEqual([{generation:'gen-test-lost'}]);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,lost);expect(calls).toBe(1);
+});
+it('resumes the final source audit after D1 failure and preserves all supporting sources',async()=>{
+ await article(1);await acceptEvidence(store,2,'Another outlet reports Parliament approved banking reform legislation; presidential approval is still required.','publisher-2','2026-10-03T12:11:00Z','en','2026-10-03T12:06:00Z','Another banking report','https://other.example/report');await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T12:11:00Z');const archive=responseArchive();env={...env,RAW_ARCHIVE:archive.bucket};
+ const capture=providerReceipts.captureProviderReceipt,seen:string[]=[];let fail=true;
+ vi.spyOn(providerReceipts,'captureProviderReceipt').mockImplementation(async receipt=>{if(fail&&receipt.stage==='USAGE'&&seen.at(-1)?.includes('You audit source coverage')){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return capture(receipt)});
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(fail).toBe(false);expect(seen).toHaveLength(2);expect(archive.objects.size).toBe(2);
+ const edition=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.evidenceRevisionIds).toHaveLength(2);expect(seen).toHaveLength(3);
+},30000);
+it('recovers a checkpoint when settlement fails after the model reply',async()=>{
+ await article();env={...env,RAW_ARCHIVE:responseArchive().bucket};
+ const settle=semanticSettlement.settleSemanticOperation;let fail=true;
+ vi.spyOn(semanticSettlement,'settleSemanticOperation').mockImplementation(async(...args)=>{if(fail){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return settle(...args)});
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'PENDING',reason:'V3_RESPONSE_AWAITING_PERSISTENCE',attempts:0});
+ expect(await store.list('feed-1','semantic_results')).toHaveLength(0);
+ expect(await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch)).toBeDefined();expect(seen).toHaveLength(2);
+},30000);
+it.each([false,true])('does not let a complete checkpoint bypass subsequent source revocation (indexed accounting %s)',async indexed=>{
+ await article();env={...env,RAW_ARCHIVE:responseArchive().bucket};
+ const capture=providerReceipts.captureProviderReceipt;let fail=true;
+ vi.spyOn(providerReceipts,'captureProviderReceipt').mockImplementation(async receipt=>{if(fail){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return capture(receipt)});
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ await ctx.db.prepare("UPDATE v1_intake_scopes SET json=json_set(json,'$.enabled',0),epoch=epoch+1 WHERE id='feed-source-1'").run();
+ await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch).catch(()=>undefined);
+ expect(seen).toHaveLength(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ if(indexed)await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0071_provider_recovery_indexes.sql',import.meta.url),'utf8'));
+ const metadata=vi.fn<typeof fetch>();
+ await recoverPendingProviderGenerations(ctx.db,'test-key',new Date(Date.now()+300000),metadata,env.RAW_ARCHIVE);
+ expect(await ctx.db.prepare('SELECT reported,cost_usd FROM v1_model_spending_settlements').first()).toMatchObject({reported:1,cost_usd:.001});
+ expect(metadata).not.toHaveBeenCalled();expect(await store.list('feed-1','editions')).toHaveLength(0);
+});
+it.each(['HEADERS','USAGE'] as const)('recovers a complete paid response after D1 %s receipt failure without another provider call',async stage=>{
+ await article();const objects=new Map<string,string>();
+ env={...env,RAW_ARCHIVE:{put:async(key:string,value:string)=>{if(!objects.has(key))objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket};
+ const capture=providerReceipts.captureProviderReceipt;let fail=true;
+ vi.spyOn(providerReceipts,'captureProviderReceipt').mockImplementation(async receipt=>{if(fail&&receipt.stage===stage){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return capture(receipt)});
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch).catch(()=>undefined);
+ expect(seen).toHaveLength(1);expect(objects.size).toBe(1);
+ expect(await store.list('feed-1','semantic_results')).toHaveLength(0);
+ const edition=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);
+ expect((await store.list<any>('feed-1','semantic_results')).every(r=>r.status==='SUCCEEDED'&&r.usage.reported)).toBe(true);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:33:00Z',undefined,fetcher(seen) as typeof fetch);expect(seen).toHaveLength(2);
+},30000);
+it('publishes a cutoff edition with unfinished intake and carries evidence accepted after cutoff into the next edition',async()=>{
+ await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ await article(2,'2026-10-03T12:15:00Z','2026-10-03T12:31:00Z','2026-10-03T12:12:00Z');
+ for(const kind of ['ACQUIRE','REASSESS'])await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind('unfinished-'+kind,'feed-source-1',JSON.stringify({id:'unfinished-'+kind,kind,state:'PENDING',attempts:0,observationId:'observation-1'})).run();
+ const before=(await ctx.db.prepare("SELECT id,json FROM v1_jobs WHERE id LIKE 'unfinished-%' ORDER BY id").all()).results;
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2' as const};
+ const scheduled=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z')),id=await windowIdentity('feed-1',scheduled),seen:string[]=[];
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:40:00Z',undefined,fetcher(seen) as typeof fetch);
+ expect(edition).toBeDefined();expect(seen).toHaveLength(2);
+ const frozen=await store.read<any>('feed-1','v3_window_inputs',id);
+ expect(frozen.cutoffPolicy).toBe('READY_AT_CUTOFF_V1');expect(frozen.input.articles).toHaveLength(1);
+ expect(frozen.input.articles[0].publishedAt).toBe('2026-10-03T12:05:00Z');
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',pendingJobs:0,deferredJobs:2}});
+ expect((await ctx.db.prepare("SELECT id,json FROM v1_jobs WHERE id LIKE 'unfinished-%' ORDER BY id").all()).results).toEqual(before);
+ await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:45:00Z',undefined,fetcher(seen) as typeof fetch);expect(seen).toHaveLength(2);
+ const next=await prepareV3Window(store,'feed-1',livePublicationWindow(schedule,new Date('2026-10-03T12:55:00Z')),'2026-10-03T12:55:00Z');
+ expect(next.input.articles).toHaveLength(1);expect(next.input.articles[0].publishedAt).toBe('2026-10-03T12:15:00Z');expect(next.evidenceRevisionIds).not.toEqual(frozen.evidenceRevisionIds);
+},30000);
+it('keeps a cutoff snapshot stable when an included source revision is updated after cutoff',async()=>{
+ await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2' as const};
+ const scheduled=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z')),id=await windowIdentity('feed-1',scheduled),seen:string[]=[];
+ const provider=fetcher(seen);let replacement:string|undefined;
+ const updating=(async(url:unknown,init?:RequestInit)=>{if(!replacement){const frozen=await store.read<any>('feed-1','v3_window_inputs',id);replacement=await supersedeFrozenRevision(frozen.evidenceRevisionIds[0],{acceptedAt:'2026-10-03T12:36:00Z',body:'Parliament corrected the banking reform report.'})}return provider(url,init)}) as typeof fetch;
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:35:00Z',undefined,updating);
+ expect(edition).toBeDefined();expect(edition!.evidenceRevisionIds).not.toContain(replacement);expect(seen).toHaveLength(2);
+ const frozen=await store.read<any>('feed-1','v3_window_inputs',id);expect(frozen.cutoffPolicy).toBe('READY_AT_CUTOFF_V1');
+ const next=await prepareV3Window(store,'feed-1',livePublicationWindow(schedule,new Date('2026-10-03T12:55:00Z')),'2026-10-03T12:55:00Z');
+ expect(next.evidenceRevisionIds).toContain(replacement);
+},30000);
+it('selects the revision ready at cutoff when processing starts after a later update',async()=>{
+ await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ const original=(await store.currentEvidenceHeaders('feed-1'))[0].revision.id;
+ await supersedeFrozenRevision(original,{acceptedAt:'2026-10-03T12:26:00Z',body:'Later correction'});
+ const scheduled=livePublicationWindow({durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z'));
+ const prepared=await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:40:00Z');
+ expect(prepared.evidenceRevisionIds).toEqual([original]);
+ expect(prepared.input.articles[0].text).toContain('Presidential approval');
+});
+it('does not resurrect evidence deleted before cutoff and restored afterward',async()=>{
+ await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0092_cutoff_tombstone_lookup.sql',import.meta.url),'utf8'));
+ await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ const original=(await store.currentEvidenceHeaders('feed-1'))[0].revision;
+ const scheduled=livePublicationWindow({durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z'));
+ const before=await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:25:00Z');
+ await ctx.db.prepare('INSERT INTO v1_tombstones(id,feed_source_id,json) VALUES(?,?,?)').bind('deleted-at-cutoff','feed-source-1',JSON.stringify({evidenceId:original.evidenceId,acceptedAt:'2026-10-03T12:20:00Z'})).run();
+ await supersedeFrozenRevision(original.id,{acceptedAt:'2026-10-03T12:40:00Z'});
+ expect((await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:45:00Z')).evidenceRevisionIds).toEqual([]);
+ expect(await cutoffEvidenceAuthorized(store,before)).toBe(false);
+});
 async function supersedeFrozenRevision(id:string,changes:Record<string,unknown>={}){
  const row=await ctx.db.prepare('SELECT feed_source_id,item_key,json FROM v1_revisions WHERE id=?').bind(id).first<any>();
  const revision=JSON.parse(row.json),next={...revision,...changes,id:id+'-new',revision:revision.revision+1};
@@ -27,6 +149,59 @@ async function supersedeFrozenRevision(id:string,changes:Record<string,unknown>=
  await ctx.db.prepare("UPDATE v1_evidence SET json=json_set(json,'$.currentRevisionId',?) WHERE id=?").bind(next.id,revision.evidenceId).run();
  await ctx.db.prepare('UPDATE v1_intake_scopes SET epoch=epoch+1 WHERE id=?').bind(row.feed_source_id).run();return next.id;
 }
+it('cutoff source revocation still prevents publication and retains the paid receipt',async()=>{
+ await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ const scheduled=livePublicationWindow({durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z'));
+ const seen:string[]=[],provider=fetcher(seen);
+ const revoked=(async(url:unknown,init?:RequestInit)=>{const response=await provider(url,init);if(seen.length===1)await ctx.db.prepare("UPDATE v1_intake_scopes SET json=json_set(json,'$.enabled',0),epoch=epoch+1 WHERE id='feed-source-1'").run();return response}) as typeof fetch;
+ await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:30:00Z',undefined,revoked)).rejects.toThrow();
+ expect(seen).toHaveLength(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect(await store.list('feed-1','semantic_settlements')).toMatchObject([{usage:{reported:true,costUsd:.001}}]);
+});
+it('retains a legacy frozen scheduled input and its intake gate',async()=>{
+ await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ const scheduled=livePublicationWindow({durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z')),id=await windowIdentity('feed-1',scheduled);
+ const prepared={...await prepareV3Window(store,'feed-1',scheduled,scheduled.end,undefined,4,undefined,false),id};
+ expect(prepared.cutoffPolicy).toBeUndefined();
+ await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window:scheduled,state:'PENDING',attempts:0,createdAt:scheduled.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
+ await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('legacy-pending','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
+ const seen:string[]=[];expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:30:00Z',undefined,fetcher(seen) as typeof fetch)).toBeUndefined();
+ expect(seen).toHaveLength(0);expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(prepared);
+});
+it('dispatches scheduled cutoff preparation despite pending intake and records deferred coverage',async()=>{
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:00:00Z',clockPolicy:'clock-aligned-delivery-v2' as const};
+ await store.registerFeed({...feedFixture,revision:2,createdAt:'2026-10-03T11:00:00Z',briefingFrequency:'30M',briefingSchedule:schedule});
+ await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('dispatch-pending','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
+ const sent:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{sent.push(body)}}} as unknown as Env;
+ const at=new Date('2026-10-03T12:25:00Z'),scheduled=livePublicationWindow(schedule,at),id=await windowIdentity('feed-1',scheduled);
+ await dispatchV1Intelligence(env,at);
+ expect(sent).toContainEqual({type:'v1_briefing',feedId:'feed-1',window:scheduled});
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({coverage:{state:'INCOMPLETE',pendingJobs:0,deferredJobs:1}});
+});
+it('offers a due cutoff edition the available transport turn before unfinished review work',async()=>{
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:00:00Z',clockPolicy:'clock-aligned-delivery-v2' as const};
+ await store.registerFeed({...feedFixture,revision:2,createdAt:'2026-10-03T11:00:00Z',briefingFrequency:'30M',briefingSchedule:schedule});
+ await article();
+ await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('review-waiting','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
+ const accepted:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{if(accepted.length)return false;accepted.push(body)}}} as unknown as Env;
+ const at=new Date('2026-10-03T12:25:00Z');await dispatchV1Intelligence(env,at);
+ expect(accepted).toEqual([{type:'v1_briefing',feedId:'feed-1',window:livePublicationWindow(schedule,at)}]);
+ expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_jobs WHERE id='review-waiting'").first<{json:string}>())!.json).state).toBe('PENDING');
+});
+it.each(['v2','v3'] as const)('retains review-before-rematch transport ordering for a held legacy V2 window under %s',async engine=>{
+ await article();env={...env,BRIEFING_ENGINE:engine};
+ const revision=(await store.currentEvidenceHeaders('feed-1'))[0].revision.id,id=await windowIdentity('feed-1',window);
+ await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('legacy-review','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
+ await feedTransact(store,'feed-1',async tx=>{
+  await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,engine:'v2',state:'PENDING',attempts:0,createdAt:window.end});
+  await tx.write('rematch_requests','legacy-rematch',{id:'legacy-rematch',feedId:'feed-1',jobId:'legacy-review',evidenceRevisionId:revision,policyVersion:'semantic-rematch-continuation-v2',createdAt:window.end});
+ });
+ const accepted:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{if(accepted.length)return false;accepted.push(body)}}} as unknown as Env;
+ await dispatchV1Intelligence(env,new Date(window.end));
+ expect(accepted).toEqual([{type:'v1_reassess',jobId:'legacy-review'}]);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',engine:'v2'});
+});
 it('refreshes an unstarted stale snapshot while preserving its predecessor and reporting window',async()=>{
  await article();const id=await windowIdentity('feed-1',window),prepared={...await prepareV3Window(store,'feed-1',window,window.end),id};
  await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
@@ -48,12 +223,77 @@ it('never refreshes stale evidence after an uncertain paid call',async()=>{
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',reason:'V3_FROZEN_EVIDENCE_SUPERSEDED'});
  expect(await store.list('feed-1','editions')).toHaveLength(0);
 },30000);
+it('retires a superseded started window without replay and carries the replacement evidence forward',async()=>{
+ await article();let calls=0;const failed=(async()=>{calls++;throw Error('lost after send')}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ await processV1Briefing(env,message,()=>window.end,undefined,failed);
+ const frozen=await store.read<any>('feed-1','v3_window_inputs',id),replacement=await supersedeFrozenRevision(frozen.evidenceRevisionIds[0]);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:40:00Z',undefined,failed);
+ const before=(await ctx.db.prepare('SELECT id,json FROM v1_model_spending_reservations').all()).results;
+ expect(await recoverBlockedV3Request(store,'feed-1',await store.read<any>('feed-1','briefing_requests',id),'2026-10-03T12:41:00Z')).toBe(true);
+ expect(calls).toBe(1);expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(frozen);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_FROZEN_EVIDENCE_SUPERSEDED'});
+ expect((await ctx.db.prepare('SELECT id,json FROM v1_model_spending_reservations').all()).results).toEqual(before);
+ const next={start:window.end,end:'2026-10-03T13:00:00Z',kind:'30M' as const};
+ expect((await prepareV3Window(store,'feed-1',next,next.end)).evidenceRevisionIds).toContain(replacement);
+},30000);
+it('automatically retires an isolated unknown window but leaves active unknown work pending',async()=>{
+ await article();let calls=0;const failed=(async()=>{calls++;throw Error('lost after send')}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ await processV1Briefing(env,message,()=>window.end,undefined,failed);
+ const request=await store.read<any>('feed-1','briefing_requests',id);
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:35:00Z')).toBe(false);
+ const money=await ctx.db.prepare('SELECT lease_until FROM v1_model_spending_reservations').first<{lease_until:number}>();
+ await isolateExpiredModelExecutions(ctx.db,'isolate-after-5m-v1',new Date(money!.lease_until+300001));
+ const lease=await acquireSemanticWorkLease(store,'feed-1');
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(false);
+ await releaseSemanticWorkLease(store,lease);
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(true);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_UNCERTAIN_CALL_ISOLATED'});expect(calls).toBe(1);
+},30000);
+it.each([false,true])('recovers an orphaned legacy window only after isolation while preserving checkpoint-capable work (%s)',async checkpointed=>{
+ await article();if(checkpointed)env={...env,RAW_ARCHIVE:responseArchive().bucket};
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);let calls=0;
+ await processV1Briefing(env,message,()=>window.end,undefined,(async()=>{calls++;throw Error('lost body')}) as typeof fetch);
+ await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE kind='semantic_results'").run();
+ await feedTransact(store,'feed-1',async tx=>{const current=await tx.read<any>('briefing_requests',id);await tx.write('briefing_requests',id,{...current,reason:'INCOMPLETE_INTAKE_COVERAGE'})});
+ const request=await store.read<any>('feed-1','briefing_requests',id),money=await ctx.db.prepare('SELECT lease_until FROM v1_model_spending_reservations').first<{lease_until:number}>();
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:35:00Z')).toBe(false);
+ await isolateExpiredModelExecutions(ctx.db,'isolate-after-5m-v1',new Date(money!.lease_until+300001));
+ vi.spyOn(Date,'now').mockReturnValue(money!.lease_until+300001);
+ const before=(await ctx.db.prepare('SELECT id,json FROM v1_model_spending_reservations').all()).results;
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(!checkpointed);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:checkpointed?'PENDING':'FAILED'});
+ expect((await ctx.db.prepare('SELECT id,json FROM v1_model_spending_reservations').all()).results).toEqual(before);expect(calls).toBe(1);
+},30000);
+it.each(['SEMANTIC_PROVIDER_FAILURE','SEMANTIC_OUTCOME_UNKNOWN'])('retires a failed semantic call after accounting settles without treating the charge as usable content (%s)',async failure=>{
+ await article();let calls=0;const failed=(async()=>{calls++;throw Error(failure)}) as typeof fetch;
+ // Seed the expired-intent unknown fence before its immutable first write.
+ const original=FeedTransaction.prototype.write;
+ vi.spyOn(FeedTransaction.prototype,'write').mockImplementation(async function(this:FeedTransaction,kind,id,value){return original.call(this,kind,id,kind==='semantic_results'?{...(value as object),failure}:value)});
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ await processV1Briefing(env,message,()=>window.end,undefined,failed);
+ const request=await store.read<any>('feed-1','briefing_requests',id),results=await store.list<any>('feed-1','semantic_results');
+ expect(request.reason).toBe('SEMANTIC_OUTCOME_UNKNOWN');expect(results).toMatchObject([{status:'DEFERRED',failure,usage:{reported:false}}]);
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:35:00Z')).toBe(false);
+ const reservation=await ctx.db.prepare('SELECT id,token FROM v1_model_spending_reservations').first<{id:string;token:string}>();
+ await settleModelSpending(ctx.db,reservation!.id,reservation!.token,{costUsd:.001,reported:true});
+ const money=(await ctx.db.prepare('SELECT * FROM v1_model_spending_settlements').all()).results;
+ const lease=await acquireSemanticWorkLease(store,'feed-1');
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:40:00Z')).toBe(false);
+ await releaseSemanticWorkLease(store,lease);
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:41:00Z')).toBe(true);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_SETTLED_CALL_FAILED'});
+ expect(await store.list('feed-1','semantic_results')).toEqual(results);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ expect((await ctx.db.prepare('SELECT * FROM v1_model_spending_settlements').all()).results).toEqual(money);
+ expect(calls).toBe(1);
+},30000);
 it('preserves recovered input identity and clock delivery together without duplicate inference',async()=>{
  const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:08:00Z'};
  const first=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z'));
  await store.registerFeed({...feedFixture,revision:2,createdAt:schedule.clockStartAt,briefingFrequency:'30M',briefingSchedule:schedule});
  await article(1,'2026-10-03T12:15:00Z','2026-10-03T12:20:00Z','2026-10-03T12:19:00Z');
- const id=await windowIdentity('feed-1',first),prepared={...await prepareV3Window(store,'feed-1',first,first.end),id};
+ const id=await windowIdentity('feed-1',first),prepared={...await prepareV3Window(store,'feed-1',first,first.end,undefined,4,undefined,false),id};
  await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window:first,state:'PENDING',attempts:0,createdAt:first.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
  const replacement=await supersedeFrozenRevision(prepared.evidenceRevisionIds[0]),seen:string[]=[],provider=fetcher(seen) as typeof fetch,message={type:'v1_briefing' as const,feedId:'feed-1',window:first};
  expect(await processV1Briefing(env,message,()=> '2026-10-03T12:25:01Z',undefined,provider)).toBeUndefined();
@@ -88,7 +328,8 @@ async function article(n=1,publishedAt='2026-10-03T12:05:00Z',acceptedAt='2026-1
 const fetcher=(seen:string[])=>async(_url:unknown,init?:RequestInit)=>{
  const body=JSON.parse(init!.body as string);seen.push(JSON.stringify(body));
  const verify=body.messages[0].content.includes('meticulous fact-checker')||body.messages[0].content.startsWith('You are an independent factual verifier.');
- const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
+ const coverage=body.messages[0].content.startsWith('You audit source coverage');
+ const content=coverage?{sources:JSON.parse(body.messages[1].content).sources.map((s:{ref:string;text:string})=>({ref:s.ref,stories:s.text.includes('Parliament approved')?[0]:[]}))}:verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
  return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
 };
 it.each(['body','headline'] as const)('keeps unrecoverable malformed V4 %s pending, never DONE/QUIET, and reuses its settled calls',async field=>{
@@ -211,6 +452,28 @@ it('keeps a settled failed V3 call from indefinitely blocking subsequent windows
  expect((await store.list('feed-1','semantic_results')).filter((r:any)=>r.failure==='SEMANTIC_PROVIDER_FAILURE')).toEqual(retained);
  await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>next.end,undefined,failed)).rejects.toThrow('INVALID_REQUEST');
  expect(calls).toBe(1);
+},30000);
+
+it('an isolated UNKNOWN V3 call fails its window without replay and carries evidence into a later edition',async()=>{
+ await article();let calls=0;
+ const failed=(async()=>{calls++;throw Error('connection lost after submission')}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,failed);
+ const retained=await store.list<any>('feed-1','semantic_results');expect(retained).toHaveLength(1);expect(retained[0].usage.reported).toBe(false);
+ const money=await ctx.db.prepare('SELECT id,json,lease_until FROM v1_model_spending_reservations').first<{id:string;json:string;lease_until:number}>();
+ expect(await isolateExpiredModelExecutions(ctx.db,'isolate-after-5m-v1',new Date(money!.lease_until+300001))).toBe(1);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:40:00Z',undefined,failed);
+ expect(calls).toBe(1);
+ expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'FAILED',failure:'V3_UNCERTAIN_CALL_ISOLATED'});
+ expect(await store.list('feed-1','semantic_results')).toEqual(retained);
+ expect(await ctx.db.prepare('SELECT json FROM v1_model_spending_reservations WHERE id=?').bind(money!.id).first()).toEqual({json:money!.json});
+ expect(await ctx.db.prepare('SELECT reported FROM v1_model_spending_settlements WHERE id=?').bind(money!.id).first()).toMatchObject({reported:0});
+ await article(2,'2026-10-03T12:35:00Z','2026-10-03T12:40:00Z');
+ const next={start:window.end,end:'2026-10-03T13:00:00Z',kind:'30M' as const},seen:string[]=[];
+ expect((await prepareV3Window(store,'feed-1',next,next.end)).evidenceRevisionIds).toContain(retained[0].input.evidenceRevisionIds[0]);
+ const edition=await processV1Briefing(env,{...message,window:next},()=>next.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(calls).toBe(1);expect(seen).toHaveLength(2);
+ expect((await store.list<any>('feed-1','semantic_results')).find(r=>r.id===retained[0].id)).toEqual(retained[0]);
 },30000);
 
 it('reuses settled editor and verifier calls after a crash before result persistence',async()=>{
@@ -390,8 +653,12 @@ it('large V3 batches serialize feed commits and can replay paid chunks without l
 for (const promptVersion of [undefined,2,3,4,5,6] as const) it(`preserves frozen prompt ${promptVersion??'legacy'} and reuses settled calls after interruption`,async()=>{
  await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end);
  expect(prepared.promptVersion).toBe(4);
+ expect(prepared.noveltyGuard).toBe(true);
  const id=await windowIdentity('feed-1',window),full='Earlier notice\nOfficials say approval is still required.';
  const frozen={...prepared,id,input:{...prepared.input,prior:[{id:'previous-reader-item',at:'2026-10-03T11:30:00Z',headline:full,body:full}]}};
+ // Historical snapshots predate the independently versioned novelty policy.
+ delete frozen.noveltyGuard;
+ delete frozen.citationCoverage;
  if(promptVersion===undefined)delete frozen.promptVersion;
  else frozen.promptVersion=promptVersion;
  await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',id,frozen));
@@ -461,7 +728,7 @@ it('does not load old article bodies to prepare an unchanged current window',asy
  await article();const baseline=await prepareV3Window(store,'feed-1',window,window.end);
  for(let i=2;i<7;i++)await acceptEvidence(store,i,'Old background '+i+' '+ 'x'.repeat(10000),'publisher-1','2026-10-03T12:10:00Z','en','2026-10-01T12:00:00Z');
  const full=vi.spyOn(store,'currentEvidence');const selected=vi.spyOn(store,'currentEvidenceByIds');const actual=await prepareV3Window(store,'feed-1',window,window.end);
- expect(actual).toEqual(baseline);expect(full).not.toHaveBeenCalled();expect(selected).toHaveBeenCalledWith('feed-1',baseline.evidenceRevisionIds);
+ expect(actual).toEqual(baseline);expect(full).not.toHaveBeenCalled();expect(selected).toHaveBeenCalledWith('feed-1',baseline.evidenceRevisionIds,undefined);
 },30000);
 
 it('publishes the newest catch-up window with both ordinary and late-discovered old evidence, without replaying old windows',async()=>{
@@ -594,7 +861,7 @@ it('delivers a verified frozen window despite subsequently pending acquisition, 
  await dispatchV1Intelligence(env,new Date(closed.scheduledFor!));expect(dispatched).toContainEqual(message);
  const edition=await processV1Briefing(env,message,()=>closed.scheduledFor!,undefined,provider);
  expect(edition).toMatchObject({scheduledFor:closed.scheduledFor});expect(seen).toHaveLength(2);
- const id=await windowIdentity('feed-1',closed);expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',deferredJobs:1,failures:[{kind:'ACQUIRE',code:'ACQUISITION_DEFERRED_AFTER_VERIFICATION',count:1}]}});
+ const id=await windowIdentity('feed-1',closed);expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',deferredJobs:1,failures:[{kind:'ACQUIRE',code:'INTAKE_DEFERRED_AT_CUTOFF',count:1}]}});
  expect(JSON.parse((await ctx.db.prepare('SELECT json FROM v1_jobs WHERE id=?').bind(pending.id).first<{json:string}>())!.json)).toEqual(pending);
  await processV1Briefing(env,message,()=>closed.scheduledFor!,undefined,provider);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);expect(seen).toHaveLength(2);
 },30000);
@@ -634,12 +901,12 @@ it('retains diagnostic unaccounted refs without blocking publication or repeatin
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T12:10:00Z');
  const id=await windowIdentity('feed-1',window),seen:string[]=[],transport=fetcher(seen) as typeof fetch,message={type:'v1_briefing' as const,feedId:'feed-1',window};
  const edition=await processV1Briefing(env,message,()=>window.end,undefined,transport);
- expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);
+ expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(3);
  const saved=await store.read<any>('feed-1','v3_window_results',id);
  expect(saved.result.unaccounted).toHaveLength(1);expect(saved.result.unaccounted[0].ref).toBe('S2');expect(saved.result.unaccounted[0].sourceIds).toHaveLength(1);
  expect(saved.result.omitted).toEqual([]);expect(await publicV1Edition(ctx.db,edition!.id)).toBeDefined();
  await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,transport);
- expect(seen).toHaveLength(2);expect((await store.read<any>('feed-1','v3_window_results',id)).result.unaccounted).toEqual(saved.result.unaccounted);
+ expect(seen).toHaveLength(3);expect((await store.read<any>('feed-1','v3_window_results',id)).result.unaccounted).toEqual(saved.result.unaccounted);
 },30000);
 it.each(['evidence-first-v1','evidence-first-v2'] as const)('persists an opt-in evidence-agent edition through native durable operations and replays without new work (%s)',async(architecture)=>{
  await article();const id=await windowIdentity('feed-1',window);

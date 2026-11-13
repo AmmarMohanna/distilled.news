@@ -1,10 +1,12 @@
 import {productV3Enabled,productV3Ready,productV3Models,prepareV3Window,publishProductV3Window,SettledV3CallFailure} from './v3-window';
+import {recoverBlockedV3Request} from './v3-blocked-recovery';
 import {retainBacklogReview,backlogRevisionIds} from './review-admission';
 import {prepareV2Shortlist} from './shortlist-v2';
 import {editorialContract} from './editorial-requirements';
 import {prepareV2EditorialPlan} from './editorial-plan-v2';
-import {preparedV3Delivery,windowHasHoldingJobs,windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
+import {windowIntakeCoverage,type WindowIntakeCoverage} from './window-coverage';
 import {observeWindowReadiness} from './window-readiness';
+import {windowIntakeReadiness} from './cutoff-edition';
 import {withFeedWriteTurn,IntelligenceTurnBusy} from '../connector-intelligence-turn';
 import {withLatency,measureLatency,countLatency} from './latency';
 import {ModelSpendingWait,modelSpendingAccount} from './model-spending';
@@ -173,7 +175,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
  for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
-  if((await windowHasHoldingJobs(env.DB,feedId,older.window.end,{v3:older.engine==='v3',now:now()})&&!await preparedV3Delivery(env.DB,feedId,older.id,Date.parse(now())))||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
+  if((await windowIntakeReadiness(env.DB,feedId,older,now())).holding||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
   if(job?.state==='RUNNING'&&Date.parse(job.leaseUntil)>Date.parse(now()))return undefined;
@@ -182,15 +184,13 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  }
  const readinessAt=now();
  const holding=await measureLatency('WINDOW_READINESS',async()=>{
-  const settings={v3:request.engine==='v3',now:readinessAt};
-  if(!await windowHasHoldingJobs(env.DB,feedId,window.end,settings))return false;
-  const deferAcquisition=settings.v3&&await preparedV3Delivery(env.DB,feedId,id,Date.parse(readinessAt));
-  if(deferAcquisition&&!await windowHasHoldingJobs(env.DB,feedId,window.end,{...settings,deferAcquisition}))return false;
+  const intake=await windowIntakeReadiness(env.DB,feedId,request,readinessAt);
+  if(!intake.holding)return false;
   return feedTransact(store,feedId,async tx=>{
    const current=await tx.read<BriefingRequest>('briefing_requests',id);
    if(current?.state!=='PENDING'||!isIntakeStatus(current.reason))return true;
    if(current.reason===intakeWaitReason&&current.coverage?.state==='PENDING')return true;
-   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{...settings,deferAcquisition});
+   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,intake.settings);
    if(!coverage.pendingJobs)return false;
    await tx.write('briefing_requests',id,{...current,coverage,reason:intakeWaitReason,nextAttemptAt:new Date(Date.parse(readinessAt)+60000).toISOString()});
    countLatency('pendingJobs',coverage.pendingJobs);countLatency('failedJobs',coverage.failedJobs);
@@ -278,10 +278,10 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   if(error instanceof IntelligenceTurnBusy||error instanceof SemanticLeaseError||error instanceof SemanticContentionError)throw error;
   if(error instanceof QuietPublication){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(current)await tx.write('briefing_requests',id,{...current,coverage,...(coverage.state!=='COMPLETE'||current.semanticCoverage?.unresolvedTargets.length?{state:'DONE',result:'DEFERRED',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP',completedAt:now()}: {})})});return undefined;}
   if(error instanceof SettledV3CallFailure){
-   // The frozen call can only replay the same failed result. Keep its receipt
-   // and unresolved evidence; let subsequent windows proceed without resending it.
+   // The frozen call can only replay the same failed result. Keep its receipt,
+   // UNKNOWN finances (if isolated), and evidence for later windows. Never resend.
    await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING')await tx.write('briefing_requests',id,{...current,state:'FAILED',failure:error.message,reason:error.message});});
-   console.warn(JSON.stringify({type:'V3_SETTLED_CALL_FAILED',feedId,requestId:id,operationId:error.operationId}));
+   console.warn(JSON.stringify({type:error.message==='V3_UNCERTAIN_CALL_ISOLATED'?'V3_ISOLATED_CALL_FAILED':'V3_SETTLED_CALL_FAILED',feedId,requestId:id,operationId:error.operationId}));
    return undefined;
   }
   const waitingJob=await store.read<{state:string;failure?:string}>(feedId,'synthesis_jobs',id);
@@ -310,26 +310,35 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
  if(!options.skipProviderAccountingRecovery)await runProviderAccountingRecovery(env,now);
  const sourceIds=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
  const productOnly=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&env.PRODUCT_FEEDS_ENABLED==='true';
- const feeds=new Set<string>();let sent=0;
+ const feeds=new Set<string>(),reviewSources:{id:string;feedId:string}[]=[],reviewDispatched=new Set<string>();let sent=0;
+ const dispatchReviews=async(feedId?:string)=>{
+  for(const source of reviewSources){
+   if(feedId&&source.feedId!==feedId||reviewDispatched.has(source.id))continue;
+   const rows=await pendingV1Jobs(env,source.id,'REASSESS',now);
+   for(const job of rows)if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++;
+   reviewDispatched.add(source.id);
+  }
+ };
  for(const id of sourceIds) {
   let scope:IntakeScope|undefined;
   try {scope=await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
   scope??=await new V1IntakeStore(env.DB).getScope(id);
   if(!scope?.enabled||scope.deletedAt)continue;
   feeds.add(scope.feedId);
-  const rows=await pendingV1Jobs(env,id,'REASSESS',now);
-  for(const job of rows) if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++
+  reviewSources.push({id,feedId:scope.feedId});
  }
  const store=new V1FeedStore(env.DB);
  for(const id of feeds) {
   const feed=await store.getFeed(id);if(!feed || feed.paused || feed.deletedAt) continue;
   try {await approvedFeed(env,id)} catch(error) {if(error instanceof HandoffError && error.code==='SCOPE_DENIED') continue;throw error}
+  if(!productV3Enabled(env))await dispatchReviews(id);
   if(!productV3Enabled(env))await maintenance(id,'EXTRACTION_UPGRADE',async()=>{
    if(feed.briefingSchedule||feed.briefingFrequency!=='WEEKLY'){const upgradeWindow=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);if(await hasUnscheduledExtractionUpgrade(store,id,upgradeWindow))await feedTransact(store,id,tx=>scheduleExtractionUpgrades(tx,upgradeWindow,now.toISOString()))}
   });
   // V3 does not consume the V2 graph. Preserve explicit unfinished V2 windows,
   // but do not repeatedly replay retired graph history for V3-only feeds.
   const legacyWindow=productV3Enabled(env)?await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') AND json_extract(json,'$.engine')='v2' LIMIT 1").bind(id).first():true;
+  if(legacyWindow)await dispatchReviews(id);
   if(legacyWindow)await maintenance(id,'REMATCH_DISPATCH',async()=>{
     const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts'),publishers=new Map((await store.currentEvidence(id)).map(e=>[e.revision.id,e.item.feedSourceId]));
     const protectedIds=await protectedRematchRevisionIds(store,id);
@@ -343,7 +352,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
     for(const request of eligible){if(accepted>=2)break;considered++;if(await enqueueV1(env,'v1_rematch',request.id,{type:'v1_rematch',feedId:id,requestId:request.id},now)){sent++;accepted++;}}
     if(eligible.length)console.info(JSON.stringify({type:'V1_REMATCH_DISPATCH',feedId:id,eligible:eligible.length,considered,enqueued:accepted}));
   });
-  // Reassessment must finish first; the next bounded relay publishes its result.
+  // Legacy readiness still waits for reassessment. Cutoff editions admit their
+  // ready evidence independently and must get transport before intake refills it.
   // Historical weekly windows remain callable/reproducible, but are not a new
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
@@ -454,15 +464,15 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
   if(env.WINDOW_READINESS_MODE&&current?.state==='PENDING')
    await maintenance(id,'WINDOW_READINESS_SHADOW',()=>observeWindowReadiness(env,current,now));
   if(current?.state==='PENDING'&&isIntakeStatus(current.reason)){
-   const settings={v3:current.engine==='v3',now:now.toISOString()};
+   const intake=await windowIntakeReadiness(env.DB,id,current,now.toISOString());
    // Refresh the diagnostic snapshot when readiness changes. Repeated ticks
    // only check live jobs. The final commit still recomputes exact coverage.
-   if(!current.coverage||Boolean(current.coverage.pendingJobs)!==await windowHasHoldingJobs(env.DB,id,window.end,settings)){
+   if(!current.coverage||Boolean(current.coverage.pendingJobs)!==intake.holding){
     await feedTransact(store,id,async tx=>{
      const request=await tx.read<BriefingRequest>('briefing_requests',editionId);
      if(request?.state!=='PENDING'||!isIntakeStatus(request.reason))return;
-     const coverage=await windowIntakeCoverage(env.DB,id,window.end,settings);
-     const reason=coverage.pendingJobs?intakeWaitReason:coverage.failedJobs?incompleteIntakeReason:undefined;
+     const coverage=await windowIntakeCoverage(env.DB,id,window.end,intake.settings);
+     const reason=coverage.pendingJobs?intakeWaitReason:coverage.state==='INCOMPLETE'?incompleteIntakeReason:undefined;
      if(canonicalJson(request.coverage)!==canonicalJson(coverage)||request.reason!==reason)
       await tx.write('briefing_requests',editionId,{...request,coverage,reason});
     });
@@ -470,13 +480,14 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
   }
   const requests=await store.pendingBriefingRequests(id);
   for(const request of orderedPendingWindows(requests,now.toISOString()).filter(r=>isAutomaticReportingWindow(r.window))) {
+   if(await recoverBlockedV3Request(store,id,request,now.toISOString()))continue;
    if(await editorialWindowAwaitingRecovery(env.DB,id,request.window,request.reason))continue;
    if(request.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){
     try{await modelSpendingAccount(env.DB,(request.engine==='v3'||!request.engine&&productV3Enabled(env))?productV3Models(env).editor:llmRoute(env,'editorial').identity,now.toISOString());await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING'&&current.reason==='ACCOUNT_AUTHORIZATION_REQUIRED'){const {reason:_,...rest}=current;await tx.write('briefing_requests',request.id,rest)}})}catch(error){if(!(error instanceof ModelSpendingWait))throw error}
    }
 
    // Each window is held only by jobs for evidence that existed when it closed.
-   if(await windowHasHoldingJobs(env.DB,id,request.window.end,{v3:request.engine==='v3',now:now.toISOString()})&&!await preparedV3Delivery(env.DB,id,request.id,now.getTime()))continue;
+   if((await windowIntakeReadiness(env.DB,id,request,now.toISOString())).holding)continue;
    const v3=request.engine==='v3'||!request.engine&&productV3Enabled(env);
    if((v3||request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!(v3?productV3Ready(env):createStoredEvidenceModel(env))){
     if(request.reason!=='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING')await tx.write('briefing_requests',request.id,{...current,reason:'MODEL_SETUP_REQUIRED'});});
@@ -495,5 +506,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    break;
   }
  }
+ // Claim due publication transport before offering unfinished reviews the same
+ // feed lane. Legacy windows held by readiness leave that lane for review work.
+ await dispatchReviews();
  return sent;
 }

@@ -29,6 +29,9 @@
   ],
   "description": "AI findings are potential issues, not confirmed errors. No-data is unknown. Complete-evidence recall excludes partial cases. Human calibration is separate.",
   "panels": [
+    {"id":13,"title":"Last successful current-protocol review age (seconds)","type":"stat","gridPos":{"x":0,"y":48,"w":8,"h":6},"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"targets":[{"refId":"A","expr":"time() - distilled_eval_last_successful_review_timestamp_seconds","instant":true}],"description":"A discovery heartbeat is not successful review progress. Zero timestamp means no completed current-protocol review."},
+    {"id":14,"title":"Execution fence / isolated unknown charges","type":"timeseries","gridPos":{"x":8,"y":48,"w":8,"h":6},"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"targets":[{"refId":"A","expr":"distilled_eval_spending_fenced","legendFormat":"Execution fenced"},{"refId":"B","expr":"distilled_eval_isolated_calls","legendFormat":"Isolated; charge still unresolved"}]},
+    {"id":15,"title":"Historical-protocol reviews (excluded from current quality scores)","type":"stat","gridPos":{"x":16,"y":48,"w":8,"h":6},"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"targets":[{"refId":"A","expr":"distilled_eval_historical_reviewed","instant":true}]},
     {
       "id": 1,
       "title": "Review coverage",
