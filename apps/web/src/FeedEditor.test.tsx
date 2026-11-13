@@ -54,7 +54,8 @@ it('explains an off-topic search without displaying unrelated sources',async()=>
   const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
   await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'workforce');input.dispatchEvent(new Event('input',{bubbles:true}));});
   await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
-  expect(host.querySelector('#feed-source-search-status')?.textContent).toContain('No results matched this feed’s topic');
+  expect(host.querySelector('#feed-source-search-status')?.textContent).toContain('The results were off topic for this feed');
+  expect(host.querySelector('#feed-source-search-status')?.classList.contains('source-search-feedback')).toBe(true);
   expect(host.querySelector('.source-web-results')).toBeNull();
  }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });

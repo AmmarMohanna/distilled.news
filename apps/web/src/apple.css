@@ -3003,6 +3003,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui[data-magnification-pan], :root.apple-ui[data-magnification-pan] * { cursor: grab !important; user-select: none; }
 
 .source-query-suggestions { display: grid; border: 1px solid var(--line); border-radius: 12px; padding: 4px; background: var(--surface); }
+:root.apple-ui.apple-ui .feed-editor .source-search-feedback { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-quiet); color: var(--text); font-size: 14px; line-height: 1.5; }
 :root.apple-ui.apple-ui .source-query-suggestions > button { display: flex; align-items: center; gap: 10px; justify-content: flex-start; min-height: 42px; border: 0; background: transparent; color: var(--text); box-shadow: none; text-align: start; }
 :root.apple-ui.apple-ui .source-query-suggestions > button:is(:hover,[aria-selected="true"]) { background: var(--surface-quiet); }
 :root.apple-ui.apple-ui .source-search-submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--surface-quiet); color: var(--text); border: 1px solid var(--line); box-shadow: none; }

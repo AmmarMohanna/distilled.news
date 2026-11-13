@@ -75,7 +75,7 @@ export function FeedEditor(props: {
     setSearchResults([]);setSearchStatus("");setSearching(false);
     if(query.length<2||query.length>200||directSource||submittedSearch?.query!==query||submittedSearch.context!==queryContext)return;
     const cacheKey=JSON.stringify([query,queryContext]);
-    const status=(result:Awaited<ReturnType<typeof searchSourceCandidates>>)=>result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.topicMismatch?'No results matched this feed’s topic. Try a more specific search.':result.results.length?'':'No freely accessible sources found. Try another name or a public feed URL.';
+    const status=(result:Awaited<ReturnType<typeof searchSourceCandidates>>)=>result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.topicMismatch?'The results were off topic for this feed, so they were not shown. Try another search.':result.results.length?'':result.accessIncomplete?'No freely accessible sources found. Try another name or a public feed URL.':'No sources matched your search and this feed’s topic. Try a related search.';
     const cached=searchCache.current.get(cacheKey);
     if(cached&&Date.now()-cached.at<(cached.result.accessIncomplete?15_000:60_000)){setSearchResults(cached.result.results.filter(row=>!row.blocked));setSearchStatus(status(cached.result));return;}
     const controller=new AbortController();
@@ -177,7 +177,7 @@ export function FeedEditor(props: {
           {suggestionsOpen&&querySuggestions.length>0&&<div className="source-query-suggestions" id="source-query-suggestions" role="listbox" aria-label={t('Suggested searches')}>{querySuggestions.map((query,index)=><button type="button" role="option" id={`source-query-option-${index}`} aria-selected={suggestionIndex===index} key={query} onMouseDown={event=>event.preventDefault()} onClick={()=>submitSourceSearch(query)}><Search size={16} aria-hidden/><span>{query}</span></button>)}</div>}
           {!directSource&&sourceQuery.trim().length>=2&&<button type="button" className="source-search-submit" disabled={searching||sourceQuery.trim().length>200} onClick={()=>submitSourceSearch()}><Search size={16} aria-hidden/>{t('Search sources')}</button>}
           <small id="feed-source-search-help">{t("Search by publisher or article title. Select a result to follow its publisher.")}</small>
-          <small id="feed-source-search-status" role="status" hidden={!searching&&!searchStatus}>{t(searching?'Searching sources...':searchStatus)}</small>
+          <p id="feed-source-search-status" className={searchStatus&&!searching?'source-search-feedback':undefined} role="status" hidden={!searching&&!searchStatus}>{t(searching?'Searching sources...':searchStatus)}</p>
           {checkingSource&&<small role="status">{t("Checking {source}...",{source:checkingSourceInput})}</small>}
           {visibleSearchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{visibleSearchResults.map((result,index)=>{
             const check=sourceChecks.find(check=>check.input===result.source);

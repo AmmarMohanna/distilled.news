@@ -8,6 +8,8 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'The results were off topic for this feed, so they were not shown. Try another search.':['Les résultats ne correspondaient pas au sujet de ce flux et ont été masqués. Essayez une autre recherche.','كانت النتائج خارج موضوع هذا الموجز، لذلك لم يتم عرضها. جرّب بحثًا آخر.'],
+  'No sources matched your search and this feed’s topic. Try a related search.':['Aucune source ne correspond à votre recherche et au sujet de ce flux. Essayez une recherche liée au sujet.','لم يتم العثور على مصادر تطابق بحثك وموضوع هذا الموجز. جرّب بحثًا مرتبطًا بالموضوع.'],
   'Suggested searches':['Recherches suggérées','عمليات بحث مقترحة'],
   'Search sources':['Rechercher des sources','البحث عن مصادر'],
   'No results matched this feed’s topic. Try a more specific search.':['Aucun résultat ne correspond au sujet de ce flux. Précisez votre recherche.','لا توجد نتائج تطابق موضوع هذا الموجز. جرّب بحثًا أكثر تحديدًا.'],
