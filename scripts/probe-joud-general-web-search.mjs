@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises';
 import {createHmac} from 'node:crypto';
 if(!process.argv.includes('--authorize-max-usd=0.10'))throw Error('EXPLICIT_0_10_USD_AUTHORIZATION_REQUIRED');
-const directory='.local-reports/general-web-search-probe';await fs.mkdir(directory,{recursive:true});
-const operation={probeId:'general-web-search-2026-11-13-v1',authorizedMaxUsd:0.10};
+const retry=process.argv.includes('--approved-account-limit-retry');
+const directory='.local-reports/general-web-search-probe'+(retry?'-retry1':'');await fs.mkdir(directory,{recursive:true});
+const operation={probeId:retry?'general-web-search-2026-11-13-retry1':'general-web-search-2026-11-13-v1',authorizedMaxUsd:0.10};
 try{await fs.writeFile(directory+'/operation.json',JSON.stringify(operation,null,2),{flag:'wx'});}catch(error){if(error.code!=='EEXIST')throw error;}
 const vars=await fs.readFile('apps/worker/.dev.vars.joud','utf8');
 const secret=vars.match(/^ADMIN_SESSION_SECRET\s*=\s*(.+)$/m)?.[1]?.trim().replace(/^["']|["']$/g,'');if(!secret)throw Error('LOCAL_AUTH_UNAVAILABLE');
