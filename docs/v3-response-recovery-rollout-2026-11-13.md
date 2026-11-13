@@ -21,3 +21,5 @@ Real recovery proof: at 07:45:41 UTC, audit operation `2001fb301af58fd984c40b235
 Follow-up deployment: code `eba3e489`, staging version `1dcb1612-42f0-41b5-b63b-0e2e34ac2883`.
 
 Dispatch hardening: a due cutoff edition was being materialized only after reassessment had already claimed the feed transport turn. A red one-turn regression reproduced review winning ahead of the due briefing. Dispatch now offers pure V3 publication before unfinished review. Non-V3 and explicitly retained V2 work keep review-before-rematch ordering; two mixed V2/V3 regressions prove that compatibility. The final 23 scheduling/transport/legacy/relay tests, TypeScript and staging bundle dry run passed, and the separate review found no remaining blocker.
+
+Pinned V3 priority readiness now uses the same OPENROUTER availability check as canonical V3 execution instead of depending on the retired synthesis flag. A red regression reproduced valid V3 being declined with legacy synthesis disabled; the corrected credential cases and all 39 priority/collection/admission tests passed, with TypeScript, build and review also passing. Legacy and unmarked requests keep their original readiness check.
