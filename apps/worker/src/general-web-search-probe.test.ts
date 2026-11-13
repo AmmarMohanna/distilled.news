@@ -31,3 +31,16 @@ it('does not permit a retry for an uncertain or successful prior operation',asyn
  const env={APIFY_API_TOKEN:'secret',DB:{prepare:()=>({bind:()=>({all})})},RAW_ARCHIVE:{get:vi.fn()}};
  await expect(runGeneralWebSearchProbe(env as unknown as Parameters<typeof runGeneralWebSearchProbe>[0],dispatch,true)).rejects.toThrow('PRIOR_REJECTION_NOT_CONFIRMED');expect(dispatch).not.toHaveBeenCalled();
 });
+
+it('uses the separately approved fifty-cent operation without changing previous identities',async()=>{
+ const request=vi.fn<ProviderHttpPort['request']>(async()=>({status:200,headers:{},bytes:new Uint8Array(),json:[]}));
+ await generalWebSearchProbe({request},'secret','minimum-budget');
+ const [scope,id,provider,ceiling,url]=request.mock.calls[0];
+ expect(id).toBe('general-web-search-2026-11-13-retry2');expect(scope.sourceId).toBe(id);expect(provider).toBe('web_search_trial_20261113_retry2');expect(ceiling).toBe(0.50);expect(new URL(url).searchParams.get('maxTotalChargeUsd')).toBe('0.50');expect(request).toHaveBeenCalledTimes(1);
+});
+
+it('fences the fifty-cent retry unless the second rejection is also confirmed',async()=>{
+ const dispatch=vi.fn();
+ const env={APIFY_API_TOKEN:'secret',DB:{prepare:()=>({bind:(provider:string)=>({all:async()=>({results:[provider==='web_search_trial_20261113'?{status:403,payload_ref:'original'}:{status:-1,payload_ref:null}]})})})},RAW_ARCHIVE:{get:async()=>({json:async()=>({error:{type:'platform-feature-disabled',message:'monthly usage limit'}})})}};
+ await expect(runGeneralWebSearchProbe(env as unknown as Parameters<typeof runGeneralWebSearchProbe>[0],dispatch,'minimum-budget')).rejects.toThrow('PRIOR_REJECTION_NOT_CONFIRMED');expect(dispatch).not.toHaveBeenCalled();
+});
