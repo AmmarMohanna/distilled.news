@@ -2,6 +2,25 @@ import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
 import type {Env} from './types';
 const enabled={SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
+it('returns up to thirty relevant free results instead of twelve',async()=>{
+ const xml='<rss><channel>'+Array.from({length:45},(_,i)=>`<item><guid>${i}</guid><title>Subject news ${i}</title><link>https://news.google.com/rss/articles/${i}</link><source url="https://publisher${i}.example">Publisher</source></item>`).join('')+'</channel></rss>';
+ const fetcher=vi.fn<typeof fetch>(async url=>new Response(String(url).startsWith('https://news.google.com/')?xml:'Public reporting. '.repeat(20)));
+ expect((await searchSourceCandidates(enabled,'Subject news',fetcher)).results).toHaveLength(30);
+});
+it('reuses discovery after an incomplete access check rather than repeating the upstream search',async()=>{
+ const saved=new Map<string,Response>(),cache={match:async(key:Request)=>saved.get(key.url)?.clone(),put:async(key:Request,value:Response)=>{saved.set(key.url,value.clone());}};
+ let available=false,googleReads=0;
+ const fetcher=vi.fn<typeof fetch>(async url=>{
+  if(String(url).startsWith('https://news.google.com/')){googleReads++;return new Response('<rss><channel><item><guid>1</guid><title>Subject news</title><link>https://news.google.com/rss/articles/1</link><source url="https://publisher.example">Publisher</source></item></channel></rss>');}
+  if(!available)throw Error('temporary network failure');
+  return new Response('Public reporting. '.repeat(20));
+ });
+ const discovery={owner:'one',origin:'https://app.example',cache};
+ expect((await searchSourceCandidates(enabled,'Subject news',fetcher,undefined,discovery)).accessIncomplete).toBe(true);
+ available=true;
+ expect((await searchSourceCandidates(enabled,'subject  news',fetcher,undefined,discovery)).results).toHaveLength(1);
+ expect(googleReads).toBe(1);
+});
 it('omits relaxed search results that do not mention the complete query',async()=>{
   const titles=['From Raw Data to Graph-Native AI','Google DeepMind event at MSFEA highlights AI career paths','Man charged over Richmond Hill road rage','Ammar discusses AI','Mohanna presents a project','Ammar Mohanna presents a new project'];
   const xml='<rss><channel>'+titles.map((title,index)=>`<item><guid>${index}</guid><title>${title}</title><link>https://news.google.com/rss/articles/${index}</link><source url="https://publisher${index}.example">Publisher</source></item>`).join('')+'</channel></rss>';

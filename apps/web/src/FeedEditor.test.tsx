@@ -58,6 +58,24 @@ it('hides blocked publishers from search results',async()=>{
   expect(buttons).toHaveLength(1);expect(buttons[0].textContent).toContain('Another interview');expect(buttons[0].disabled).toBe(false);
  }finally{await act(async()=>root.unmount());vi.useRealTimers();vi.unstubAllGlobals();}
 });
+it('hides an already added publisher including its www and RSS variants',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.useFakeTimers();
+ vi.mocked(searchSourceCandidates).mockResolvedValueOnce({results:[
+  {source:'https://www.example.com/',title:'Already configured publisher',publisher:'example.com'},
+  {source:'rss: https://example.com/another-feed',title:'Same publisher RSS',publisher:'example.com'},
+  {source:'https://new.example/',title:'New publisher',publisher:'new.example'}
+ ],unavailable:false});
+ const host=document.createElement('div'),root=createRoot(host);
+ try{
+  await act(async()=>root.render(<FeedEditor feed={personalNewsBriefing} onClose={()=>{}} onSave={async()=>{}}/>));
+  const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'publisher news');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>vi.advanceTimersByTimeAsync(180));
+  expect(host.querySelectorAll('.source-web-result-choice')).toHaveLength(1);
+  expect(host.querySelector('.source-web-results')?.textContent).toContain('New publisher');
+  expect(host.querySelector('.source-web-results')?.textContent).not.toContain('Already configured');
+ }finally{await act(async()=>root.unmount());vi.useRealTimers();vi.unstubAllGlobals();}
+});
 it('removes a paid-only source after verification without offering a paid retry',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.useFakeTimers();
  vi.mocked(searchSourceCandidates).mockResolvedValueOnce({results:[{source:'https://lovin.co/',title:'Georges Khabbaz interview',publisher:'lovin.co'}],unavailable:false});
@@ -87,7 +105,7 @@ it('reuses a recent search without another request or typing delay',async()=>{
   const type=(value:string)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));};
   const before=vi.mocked(searchSourceCandidates).mock.calls.length;
   await act(async()=>type('Georges Khabbaz'));
-  await act(async()=>vi.advanceTimersByTimeAsync(299));expect(searchSourceCandidates).toHaveBeenCalledTimes(before);
+  await act(async()=>vi.advanceTimersByTimeAsync(179));expect(searchSourceCandidates).toHaveBeenCalledTimes(before);
   await act(async()=>vi.advanceTimersByTimeAsync(1));expect(searchSourceCandidates).toHaveBeenCalledTimes(before+1);
   await act(async()=>type(''));await act(async()=>type('Georges Khabbaz'));
   expect(host.querySelector('.source-web-results')?.textContent).toContain('Georges Khabbaz interview');

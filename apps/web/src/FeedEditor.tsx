@@ -11,6 +11,7 @@ import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceC
 import { VoiceInput } from "./VoiceInput";
 import {FeedLanguageSelect, FeedSettingsSelect} from './FeedLanguageSelect';
 import { SourceLogo } from "./SourceLogo";
+import {sourcePublisherKey} from './source-publisher-key';
 
 export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
 export function FeedEditor(props: {
@@ -37,6 +38,8 @@ export function FeedEditor(props: {
   const [sources, setSources] = useState<string[]>([]);
   const [sourceQuery, setSourceQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SourceSearchResult[]>([]);
+  const addedPublishers=new Set(sources.map(sourcePublisherKey));
+  const visibleSearchResults=searchResults.filter(result=>!addedPublishers.has(sourcePublisherKey(result.source)));
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
   const searchCache=useRef(new Map<string,{at:number;result:Awaited<ReturnType<typeof searchSourceCandidates>>}>());
@@ -48,19 +51,19 @@ export function FeedEditor(props: {
     setSearchResults([]);setSearchStatus("");setSearching(false);
     if(query.length<2||query.length>200||directSource)return;
     const cached=searchCache.current.get(query);
-    if(cached&&Date.now()-cached.at<60_000){setSearchResults(cached.result.results.filter(row=>!row.blocked));return;}
+    if(cached&&Date.now()-cached.at<(cached.result.accessIncomplete?15_000:60_000)){setSearchResults(cached.result.results.filter(row=>!row.blocked));return;}
     const controller=new AbortController();
     setSearching(true);
     const timer=window.setTimeout(()=>{
       void searchSourceCandidates(query,controller.signal).then(result=>{
         if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
-        if(!result.unavailable&&!result.accessIncomplete){if(searchCache.current.size>=20)searchCache.current.delete(searchCache.current.keys().next().value!);searchCache.current.set(query,{at:Date.now(),result});}
+        if(!result.unavailable&&(!result.accessIncomplete||result.results.length>0)){if(searchCache.current.size>=20)searchCache.current.delete(searchCache.current.keys().next().value!);searchCache.current.set(query,{at:Date.now(),result});}
         setSearchResults(result.results.filter(row=>!row.blocked));
         setSearchStatus(result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.results.length?'':'No freely accessible sources found. Try another name or a public feed URL.');
       }).catch(()=>{
         if(!controller.signal.aborted)setSearchStatus('Web search is unavailable right now. You can still paste a source URL.');
       }).finally(()=>{if(!controller.signal.aborted)setSearching(false);});
-    },300);
+    },180);
     return ()=>{window.clearTimeout(timer);controller.abort();};
   },[sourceQuery,directSource]);
   const [sourceChecks, setSourceChecks] = useState<SourceAssessment[]>([]);
@@ -121,7 +124,7 @@ export function FeedEditor(props: {
     } catch(cause) { setMessage(toUiError(cause)); return false; }
     finally { setCheckingSource(false);setCheckingSourceInput(""); }
   }
-  const matchingSources = recommendations.filter(source => !sources.includes(source) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
+  const matchingSources = recommendations.filter(source => !addedPublishers.has(sourcePublisherKey(source)) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(toUiError(cause)); } finally { setBusy(false); } }
   return <Dialog className="feed-editor" label={t(editing ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
 
@@ -146,7 +149,7 @@ export function FeedEditor(props: {
           <small id="feed-source-search-help">{t("Search by publisher or article title. Select a result to follow its publisher.")}</small>
           <small id="feed-source-search-status" role="status" hidden={!searching&&!searchStatus}>{t(searching?'Searching sources...':searchStatus)}</small>
           {checkingSource&&<small role="status">{t("Checking {source}...",{source:checkingSourceInput})}</small>}
-          {searchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{searchResults.map((result,index)=>{
+          {visibleSearchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{visibleSearchResults.map((result,index)=>{
             const check=sourceChecks.find(check=>check.input===result.source);
             const selected=sources.includes(result.source);
             return <div className="source-web-result-row" key={`${result.source}:${index}`}>

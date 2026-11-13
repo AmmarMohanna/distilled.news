@@ -4,6 +4,7 @@ import {readTopicPublishers} from './source-topic-publishers';
 import {prepareProductSourceInput} from './product-feeds';
 import {recommendationFetch} from './source-recommendation-fetch';
 import {freelyReadableResults} from './source-search-free';
+import {cachedSourceSearch} from './source-search-cache';
 
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
 const publishers = [
@@ -22,22 +23,29 @@ function matchesArticleQuery(query:string,title:string,excerpt?:string){
 /** Public discovery only. Selection still goes through the normal source assessment.
  * No scope is passed to readTopicPublishers: typing must never start paid collectors.
  */
-export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean}> {
+export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>}):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean}> {
+ if(normalize(query).length<2)return {results:[],unavailable:false};
+ const load=()=>discoverSourceCandidates(env,query,fetcher);
+ const found=discovery?await cachedSourceSearch(discovery.owner,query,discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
+ return {...found,...await freelyReadableResults(found.results,fetcher,accessCache)};
+}
+
+async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetch):Promise<{results:SourceSearchResult[];unavailable:boolean}> {
   const term=normalize(query);
   if(term.length<2)return {results:[],unavailable:false};
   const matches=publishers.filter(row=>row.aliases.some(alias=>normalize(alias).includes(term))).slice(0,8);
   const results:SourceSearchResult[]=matches.map(row=>({source:row.source,title:row.title,publisher:new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname}));
-  if(matches.some(row=>row.aliases.some(alias=>normalize(alias)===term)))return {...await freelyReadableResults(results,fetcher,accessCache),unavailable:false};
-  if(env.SOURCE_RECOMMENDATIONS_WEB_SEARCH!=='true')return {...await freelyReadableResults(results,fetcher,accessCache),unavailable:true};
+  if(matches.some(row=>row.aliases.some(alias=>normalize(alias)===term)))return {results,unavailable:false};
+  if(env.SOURCE_RECOMMENDATIONS_WEB_SEARCH!=='true')return {results,unavailable:true};
   const plan=prepareProductSourceInput('news: '+query);
   let available=false;
-  const evidence=await readTopicPublishers(env,plan.sourceUrl!,recommendationFetch(fetcher,15_000),result=>{available=result.status===200;},undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'});
+  const evidence=await readTopicPublishers(env,plan.sourceUrl!,recommendationFetch(fetcher,15_000),result=>{if(result.status===200)available=true;},undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true',raceRoutes:true,maxPublishers:40,perPublisher:3,acceptArticle:(title,excerpt)=>matchesArticleQuery(query,title,excerpt)});
   for(const item of evidence){
     if(!matchesArticleQuery(query,item.title,item.excerpt))continue;
-    if(results.length>=24)break;
+    if(results.length>=60)break;
     if(results.some(result=>result.articleUrl===item.url))continue;
     try{prepareProductSourceInput(item.publisherOrigin+'/');}catch{continue;}
     results.push({source:item.publisherOrigin+'/',title:item.title,publisher:new URL(item.publisherOrigin).hostname,articleUrl:item.url,excerpt:item.excerpt});
   }
-  return {...await freelyReadableResults(results,fetcher,accessCache),unavailable:!available};
+  return {results,unavailable:!available};
 }

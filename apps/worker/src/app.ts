@@ -958,7 +958,8 @@ export function createApp(options: AppOptions = {}) {
     catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','300');return c.json({error:'Too many source searches. Please try again shortly.'},429);}
     let searchCache:Cache|undefined,accessCache:Cache|undefined;
     try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
-    return c.json(await cachedSourceSearch(c.get('account')!.id,input.data.q,new URL(c.req.url).origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
+    const owner=c.get('account')!.id,origin=new URL(c.req.url).origin;
+    return c.json(await cachedSourceSearch(owner,input.data.q,origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache}),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
   });
 
   app.post("/api/me/sources/assess", async c => {
