@@ -27,12 +27,12 @@ function matchesArticleQuery(query:string,title:string,excerpt?:string){
  */
 export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;topicMismatch?:boolean}> {
  if(normalize(query).length<2)return {results:[],unavailable:false};
- const load=()=>discoverSourceCandidates(env,query,fetcher,context);
+ const load=()=>discoverSourceCandidates(env,query,fetcher,context,discovery?.cache);
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
  return {...found,...await freelyReadableResults(found.results,fetcher,accessCache)};
 }
 
-async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetch,context?:SearchTopic):Promise<{results:SourceSearchResult[];unavailable:boolean;topicMismatch?:boolean}> {
+async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetch,context?:SearchTopic,directoryCache?:Pick<Cache,'match'|'put'>):Promise<{results:SourceSearchResult[];unavailable:boolean;topicMismatch?:boolean}> {
   const term=normalize(query);
   if(term.length<2)return {results:[],unavailable:false};
   const matches=publishers.filter(row=>row.aliases.some(alias=>normalize(alias).includes(term))).slice(0,8);
@@ -48,12 +48,12 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   let offTopic=0;
   const queryMatches=(title:string,excerpt:string,publisherOrigin?:string)=>matchesArticleQuery(query,title,excerpt)||(publisherOrigin!==undefined&&publisherHosts.has(new URL(publisherOrigin).hostname.replace(/^www\./,'')));
   if(env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'){
-    const web=await readWebSearch(scopedQuery,fetcher);
+    const web=await readWebSearch(scopedQuery,fetcher,directoryCache);
     available=web.available;
     for(const item of web.items){
-      if(topic&&!topic.matches(item.title+' '+item.excerpt)){offTopic++;continue;}
       const url=new URL(item.url);
       if(!queryMatches(item.title,item.excerpt+' '+url.hostname.replace(/\./g,' '),url.origin))continue;
+      if(topic&&!topic.matches(item.title+' '+item.excerpt)){offTopic++;continue;}
       // Keep the actual readable page: institutional homepages may fail even
       // when the indexed profile/article itself is publicly readable.
       results.push({source:item.url,title:item.title,publisher:url.hostname,articleUrl:item.url,excerpt:item.excerpt});

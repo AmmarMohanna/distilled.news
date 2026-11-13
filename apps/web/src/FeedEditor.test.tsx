@@ -112,6 +112,21 @@ it('hides an already added publisher including its www and RSS variants',async()
   expect(host.querySelector('.source-web-results')?.textContent).not.toContain('Already configured');
  }finally{await act(async()=>root.unmount());vi.useRealTimers();vi.unstubAllGlobals();}
 });
+it('explains when all returned sources are hidden because they are already configured',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ vi.mocked(searchSourceCandidates).mockResolvedValueOnce({results:[{source:'https://www.example.com/',title:'Configured publisher',publisher:'example.com'}],unavailable:false});
+ const host=document.createElement('div'),root=createRoot(host);
+ try{
+  await act(async()=>setWebsiteLanguage('en'));
+  await act(async()=>root.render(<FeedEditor feed={personalNewsBriefing} onClose={()=>{}} onSave={async()=>{}}/>));
+  const input=host.querySelector<HTMLInputElement>('#feed-source-search')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'example publisher');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
+  expect(host.querySelector('.source-web-results')).toBeNull();
+  expect(host.querySelector('#feed-source-search-status')?.textContent).toContain('All matching sources are already added');
+  expect(host.querySelector<HTMLElement>('#feed-source-search-status')?.hidden).toBe(false);
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
 it('removes a paid-only source after verification without offering a paid retry',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.useFakeTimers();
  vi.mocked(searchSourceCandidates).mockResolvedValueOnce({results:[{source:'https://lovin.co/',title:'Georges Khabbaz interview',publisher:'lovin.co'}],unavailable:false});

@@ -49,6 +49,7 @@ export function FeedEditor(props: {
   const visibleSearchResults=searchResults.filter(result=>!addedPublishers.has(sourcePublisherKey(result.source)));
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
+  const searchFeedback=searchStatus||(!searching&&searchResults.length>0&&visibleSearchResults.length===0?'All matching sources are already added to this feed.':'');
   const searchCache=useRef(new Map<string,{at:number;query:string;result:Awaited<ReturnType<typeof searchSourceCandidates>>}>());
   const sourceQueryRef = useRef(sourceQuery);
   sourceQueryRef.current = sourceQuery;
@@ -176,7 +177,7 @@ export function FeedEditor(props: {
           }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => {setSourceQuery('');setSubmittedSearch(null);setSuggestionsOpen(false);}}><X size={18}/></button>}</div>
           {suggestionsOpen&&querySuggestions.length>0&&<div className="source-query-suggestions" id="source-query-suggestions" role="listbox" aria-label={t('Suggested searches')}>{querySuggestions.map((query,index)=><button type="button" role="option" id={`source-query-option-${index}`} aria-selected={suggestionIndex===index} key={query} onMouseDown={event=>event.preventDefault()} onClick={()=>submitSourceSearch(query)}><Search size={16} aria-hidden/><span>{query}</span></button>)}</div>}
           <small id="feed-source-search-help">{t("Search by publisher, person or article title. Select a result to follow its source.")}</small>
-          <p id="feed-source-search-status" className={searchStatus&&!searching?'source-search-feedback':undefined} role="status" hidden={!searching&&!searchStatus}>{t(searching?'Searching sources...':searchStatus)}</p>
+          <p id="feed-source-search-status" className={searchFeedback&&!searching?'source-search-feedback':undefined} role="status" hidden={!searching&&!searchFeedback}>{t(searching?'Searching sources...':searchFeedback)}</p>
           {checkingSource&&<small role="status">{t("Checking {source}...",{source:checkingSourceInput})}</small>}
           {visibleSearchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{visibleSearchResults.map((result,index)=>{
             const check=sourceChecks.find(check=>check.input===result.source);
