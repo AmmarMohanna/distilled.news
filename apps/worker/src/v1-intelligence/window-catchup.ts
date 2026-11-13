@@ -39,7 +39,7 @@ export async function supersedeUnstartedV3Windows(store:V1FeedStore,feedId:strin
   const frozen=await store.db.prepare(`SELECT 1 WHERE EXISTS(SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind IN ('v3_window_inputs','v3_window_results','synthesis_jobs','editions') AND id=?)
    OR EXISTS(SELECT 1 FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.budgetKey')=?)`).bind(feedId,targetId,feedId,`v3:${targetId}`).first();
   if(frozen)return [];
-  const rows=await store.db.prepare(`SELECT r.id FROM v1_feed_documents r
+  const query=(index:string)=>store.db.prepare(`SELECT r.id FROM v1_feed_documents r
    WHERE r.feed_id=? AND r.kind='briefing_requests' AND json_extract(r.json,'$.state')='PENDING'
    AND json_extract(r.json,'$.engine')='v3' AND json_extract(r.json,'$.window.end')<?
    AND json_extract(r.json,'$.window.kind') IN ('30M','HOURLY','DAILY')
@@ -47,11 +47,17 @@ export async function supersedeUnstartedV3Windows(store:V1FeedStore,feedId:strin
    AND COALESCE(json_extract(r.json,'$.reason'),'') NOT IN ('SEMANTIC_OUTCOME_UNKNOWN','V3_FROZEN_EVIDENCE_SUPERSEDED')
    AND json_extract(r.json,'$.blocked') IS NULL
    AND NOT EXISTS(SELECT 1 FROM v1_feed_documents d WHERE d.feed_id=r.feed_id AND d.kind IN ('synthesis_jobs','editions','v3_window_results') AND (d.id=r.id OR d.id=json_extract(r.json,'$.v3InputId')))
-   AND NOT EXISTS(SELECT 1 FROM v1_feed_documents i WHERE i.feed_id=r.feed_id AND i.kind='semantic_intents'
+   AND NOT EXISTS(SELECT 1 FROM v1_feed_documents i ${index} WHERE i.feed_id=r.feed_id AND i.kind='semantic_intents'
     AND json_extract(i.json,'$.input.budgetKey') IN ('v3:'||r.id,'editorial:'||json_extract(r.json,'$.window.start')||':'||json_extract(r.json,'$.window.end')))
    AND NOT EXISTS(SELECT 1 FROM v1_feed_documents p WHERE p.feed_id=r.feed_id AND p.kind='editorial_plans'
     AND json_extract(p.json,'$.window.start')=json_extract(r.json,'$.window.start') AND json_extract(p.json,'$.window.end')=json_extract(r.json,'$.window.end'))
    ORDER BY json_extract(r.json,'$.window.end'),r.id LIMIT ?`).bind(feedId,target.window.end,new Date(Date.parse(now)-V3_CATCHUP_GRACE_MS).toISOString(),V3_CATCHUP_LIMIT).all<{id:string}>();
+  // SQLite can prefer the general feed/kind index and parse every retained
+  // model input for each candidate. Seek the exact immutable paid window key.
+  // Older self-hosted schemas retain the original eligibility behavior.
+  let rows;
+  try{rows=await query('INDEXED BY v1_semantic_intent_budget')}
+  catch(error){if(!/no such index: v1_semantic_intent_budget/.test(String(error)))throw error;rows=await query('')}
   await tx.preload('briefing_requests',rows.results.map(r=>r.id));
   const settled:string[]=[];
   for(const {id}of rows.results){

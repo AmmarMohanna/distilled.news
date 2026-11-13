@@ -101,3 +101,32 @@ it('the database fence rejects a stale runtime intent and rolls back its financi
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first())!.n).toBe(0);
  expect(await store.read('feed-1','briefing_requests',old.id)).toMatchObject({state:'DONE',result:'DEFERRED'});
 });
+
+it('catch-up eligibility reads only matching paid window identities amid retained model history',async()=>{
+ const old=await pending('2026-10-03T12:00:00Z'),target=await pending(now);
+ for(let offset=0;offset<240;offset+=40)await ctx.db.batch(Array.from({length:40},(_,n)=>{
+  const id=`history-${offset+n}`;
+  return ctx.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('semantic_intents',?,'feed-1',?)")
+   .bind(id,JSON.stringify({id,feedId:'feed-1',input:{kind:'V3_EDITOR_VERIFIER',budgetKey:`v3:unrelated-${id}`,state:{sourceText:'x'.repeat(6000)}}}));
+ }));
+ const prepare=ctx.db.prepare.bind(ctx.db),reads:number[]=[];
+ const measuredDb={batch:ctx.db.batch.bind(ctx.db),prepare:(sql:string)=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('SELECT r.id FROM v1_feed_documents r'))return statement;
+  return {bind:(...args:unknown[])=>{
+   const bound=statement.bind(...args);
+   return {all:async()=>{const result=await bound.all();reads.push(result.meta.rows_read);return result}} as D1PreparedStatement;
+  }} as D1PreparedStatement;
+ }} as D1Database;
+ expect(await supersedeUnstartedV3Windows(new V1FeedStore(measuredDb),'feed-1',target.id,now,isAutomaticReportingWindow)).toEqual([old.id]);
+ expect(reads.length).toBeGreaterThan(0);
+ expect(Math.max(...reads)).toBeLessThan(40);
+});
+
+it('retains paid-window protection when the optional lookup index is absent',async()=>{
+ const old=await pending('2026-10-03T11:00:00Z'),paid=await pending('2026-10-03T12:00:00Z'),target=await pending(now);
+ await feedTransact(store,'feed-1',tx=>tx.write('semantic_intents','paid-window',{id:'paid-window',feedId:'feed-1',input:{kind:'V3_EDITOR_VERIFIER',budgetKey:`v3:${paid.id}`}}));
+ await ctx.db.prepare('DROP INDEX v1_semantic_intent_budget').run();
+ expect(await supersedeUnstartedV3Windows(store,'feed-1',target.id,now,isAutomaticReportingWindow)).toEqual([old.id]);
+ expect(await store.read('feed-1','briefing_requests',paid.id)).toEqual(paid);
+});
