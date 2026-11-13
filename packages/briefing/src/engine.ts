@@ -3,7 +3,7 @@ import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts} from './novelty';
 import {completeStorySources} from './citation-coverage';
 import { EDITOR_SYSTEM_V7, CONSOLIDATE_SYSTEM_V7, VERIFY_SYSTEM_V7, REPAIR_SYSTEM_V7 } from './prompts-v7';
-import { auditEditorSourceAccounting } from './source-accounting';
+import { auditEditorSourceAccounting,assertCompleteEditorAccounting,buildSourceDecisions } from './source-accounting';
 import { callJson, UsageMeter, type ModelPort } from "./model";
 import { chunkArticles, prepareArticles, selectPrior, type PrepareOptions, type PreparedArticle } from "./prepare";
 import {
@@ -31,6 +31,8 @@ import { significantNumbers } from "./text";
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
+  /** Frozen only in new product snapshots; legacy paid requests retain their bytes. */
+  editorAccountingPolicy?:'complete-source-decisions-v1';
   /** Frozen in new product inputs; unusable chunks carry forward while verified siblings publish. */
   editorFailurePolicy?: 'isolate-unusable-chunks-v1';
   /** Versioned source association audit for all articles in a new snapshot. */
@@ -200,7 +202,8 @@ async function edit(
   articles: PreparedArticle[],
   prior: PriorItem[],
   partial = false,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2,
+  accountingPolicy?:EngineOptions['editorAccountingPolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -211,14 +214,15 @@ async function edit(
     {
       model: models.editor,
       system: promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
-      user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion }),
-      maxTokens: 4000
+      user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
+        ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):''),
+      maxTokens: accountingPolicy==='complete-source-decisions-v1'?Math.max(4000,articles.length*48):4000
     },
-    (raw) => ({
-      drafts: parseDrafts(raw, known, priorIds, promptVersion >= 4),
-      omitted: parseLeftOut(raw, known, idsOf),
-      unaccounted: auditEditorSourceAccounting(raw, articles)
-    })
+    (raw) => {
+      const drafts=parseDrafts(raw,known,priorIds,promptVersion>=4);
+      if(accountingPolicy==='complete-source-decisions-v1')assertCompleteEditorAccounting(raw,articles);
+      return {drafts,omitted:parseLeftOut(raw,known,idsOf),unaccounted:auditEditorSourceAccounting(raw,articles)};
+    }
   );
 }
 
@@ -514,6 +518,7 @@ export async function generateBriefing(
     ...partial,
     omitted: omittedStories,
     unaccounted,
+    ...(options.editorAccountingPolicy?{sourceDecisions:buildSourceDecisions(input.articles.map(a=>a.id),prepared,{...partial,omitted:omittedStories})}:{}),
     usage: meter.usage,
     timings: { totalMs: Date.now() - started, stages }
   });
@@ -527,18 +532,26 @@ export async function generateBriefing(
   const sourceIdsOfRefs = (refs: string[]) => [...new Set(refs.flatMap((ref) => [byRef.get(ref)!.id, ...byRef.get(ref)!.alsoIds]))];
 
   // 1. Edit: choose and write.
+  const editorialFailures: DroppedItem[] = [];
+  const editChunk=async(chunk:PreparedArticle[],partial:boolean)=>{
+    try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy)}
+    catch(error){
+      if(!options.editorAccountingPolicy||options.editorFailurePolicy!=='isolate-unusable-chunks-v1'||!(error instanceof BriefingOutputError)||!partial&&!/EDITOR_ACCOUNTING/.test(error.message))throw error;
+      editorialFailures.push({headline:'Unprocessed source batch',reason:'editor output unusable after correction: '+error.message.split('; last reply began:')[0],carry:true,sourceIds:sourceIdsOfRefs(chunk.map(a=>a.ref))});
+      return {drafts:[],omitted:[],unaccounted:auditEditorSourceAccounting({},chunk)};
+    }
+  };
   const chunks = chunkArticles(prepared, options.maxEditorChars);
   let drafts: Draft[];
   const omitted: OmittedStory[] = [];
-  const editorialFailures: DroppedItem[] = [];
   if (chunks.length === 1) {
-    const edited = await timed("edit", () => edit(port, meter, models, input, prepared, prior, false, options.promptVersion));
+    const edited = await timed("edit", () => editChunk(prepared,false));
     drafts = edited.drafts;
     omitted.push(...edited.omitted);
     unaccounted.push(...edited.unaccounted);
   } else {
     const parts = await timed("edit", async () => {
-      const outcomes=await Promise.allSettled(chunks.map(chunk=>edit(port,meter,models,input,chunk,prior,true,options.promptVersion)));
+      const outcomes=await Promise.allSettled(chunks.map(chunk=>editChunk(chunk,true)));
       return outcomes.map((outcome,i)=>{
         if(outcome.status==='fulfilled')return outcome.value;
         if(options.editorFailurePolicy!=='isolate-unusable-chunks-v1'||!(outcome.reason instanceof BriefingOutputError))throw outcome.reason;

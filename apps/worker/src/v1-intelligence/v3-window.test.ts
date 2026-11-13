@@ -1009,7 +1009,7 @@ it('freezes the unusable editor chunk policy for new inputs and keeps legacy sna
  await article();
  const fresh=await prepareV3Window(store,'feed-1',window,window.end);
  expect(fresh.editorFailurePolicy).toBe('isolate-unusable-chunks-v1');
- const {editorFailurePolicy:_,...legacy}=fresh;
+ const {editorFailurePolicy:_,editorAccountingPolicy:__,...legacy}=fresh;
  // Store an already frozen input under the canonical window id; it must replay
  // its original bytes rather than silently acquiring the new failure policy.
  const id=await windowIdentity('feed-1',window);
@@ -1017,4 +1017,30 @@ it('freezes the unusable editor chunk policy for new inputs and keeps legacy sna
  await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',id,frozen));
  const seen:string[]=[];await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
  expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(frozen);
+});
+
+it('freezes complete accounting in new inputs and persists every source decision through duplicate delivery',async()=>{
+ await article();
+ const fresh=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(fresh.editorAccountingPolicy).toBe('complete-source-decisions-v1');
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ const edition=await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition).toBeDefined();
+ const id=await windowIdentity('feed-1',window),snapshot=await store.read<any>('feed-1','v3_window_inputs',id),saved=await store.read<any>('feed-1','v3_window_results',id);
+ expect(snapshot.editorAccountingPolicy).toBe('complete-source-decisions-v1');
+ expect(saved.result.sourceDecisions).toHaveLength(snapshot.input.articles.length);
+ expect(saved.result.sourceDecisions[0].outcomes).toContainEqual(expect.objectContaining({stage:'final',decision:'selected'}));
+ expect(seen[0]).toContain('SOURCE ACCOUNTING CONTRACT');
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(seen).toHaveLength(2);expect(await store.read('feed-1','v3_window_results',id)).toEqual(saved);
+});
+
+it('reports exhausted accounting as an accounting deferral rather than a quiet or verifier decision',async()=>{
+ await article();const seen:string[]=[],provider=(async(_url:unknown,init?:RequestInit)=>{seen.push(String(init?.body));return Response.json({id:`gen-accounting-${seen.length}`,choices:[{message:{content:'{"items":[]}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10,cost:.001}})}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ expect(await processV1Briefing(env,message,()=>window.end,undefined,provider)).toBeUndefined();
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'DEFERRED',reason:'V3_EDITOR_ACCOUNTING_INCOMPLETE'});
+ const saved=await store.read<any>('feed-1','v3_window_results',id);
+ expect(saved.result.status).toBe('rejected');expect(saved.result.sourceDecisions[0].outcomes[0].decision).toBe('deferred');expect(saved.result.dropped[0].carry).toBe(true);expect(seen).toHaveLength(2);
+ await processV1Briefing(env,message,()=>window.end,undefined,provider);expect(seen).toHaveLength(2);
 });
