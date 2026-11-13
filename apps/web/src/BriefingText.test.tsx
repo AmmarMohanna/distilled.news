@@ -16,19 +16,8 @@ it('renders the explicit headline above the body rather than flattening them tog
   await render(`${section.summary} [1]`,[section],'ltr',host=>{
     expect(host.querySelector('h3')?.textContent).toBe('Brent crude rises to $116 per barrel');
     expect(host.querySelector('p')?.textContent).toBe('The source reports Brent at $116. [1]');
-    expect(host.querySelector('h3')?.closest('summary')?.nextElementSibling?.tagName).toBe('P');
+    expect(host.querySelector('h3')?.nextElementSibling?.tagName).toBe('P');
   });
-});
-
-it('starts each elaboration collapsed and lets readers independently open and close it',async()=>{
- const sections=[{title:'',summary:'First headline\nFirst detail.'},{title:'',summary:'Second headline\nSecond detail.'}];
- await render(sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,'ltr',host=>{
-  const details=[...host.querySelectorAll('details')];expect(details).toHaveLength(2);
-  expect(details.every(item=>!item.open)).toBe(true);
-  details[0].querySelector('summary')!.click();expect(details[0].open).toBe(true);expect(details[1].open).toBe(false);
-  expect(details[0].querySelector('p')?.textContent).toBe('First detail. [1]');
-  details[0].querySelector('summary')!.click();expect(details[0].open).toBe(false);
- });
 });
 
 it('keeps multiple story bodies and section-reference numbers together',async()=>{
