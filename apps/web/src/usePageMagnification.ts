@@ -72,12 +72,22 @@ export function installPageMagnification(){
     if(view.x!==before.x||view.y!==before.y)event.preventDefault();
   };
   const resize=()=>{view=magnifyAt(view,view.scale,pointer,innerWidth,innerHeight);paint();};
+  const browserZoom=(event:Event)=>{
+    const scale=(event as CustomEvent<unknown>).detail;
+    if(typeof scale!=='number'||!Number.isFinite(scale))return;
+    view=magnifyAt(view,Math.max(1,Math.min(4,scale)),pointer,innerWidth,innerHeight);paint();
+  };
+  window.addEventListener('distilled:browser-zoom',browserZoom);
+  html.setAttribute('data-distilled-magnification-ready','');
+  window.dispatchEvent(new Event('distilled:magnification-ready'));
   window.addEventListener('keydown',keydown,{capture:true});window.addEventListener('keyup',keyup);
   window.addEventListener('pointermove',move,{capture:true});window.addEventListener('pointerdown',down,{capture:true});
   window.addEventListener('pointerup',stop);window.addEventListener('pointercancel',stop);window.addEventListener('blur',stop);
   window.addEventListener('click',click,true);
   window.addEventListener('wheel',wheel,{passive:false});window.addEventListener('resize',resize);
   return ()=>{
+    window.removeEventListener('distilled:browser-zoom',browserZoom);
+    html.removeAttribute('data-distilled-magnification-ready');
     window.removeEventListener('keydown',keydown,true);window.removeEventListener('keyup',keyup);
     window.removeEventListener('pointermove',move,true);window.removeEventListener('pointerdown',down,true);
     window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop);window.removeEventListener('blur',stop);

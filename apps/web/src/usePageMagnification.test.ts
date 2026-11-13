@@ -30,3 +30,15 @@ it('does not intercept native pinch wheel events or unrelated shortcuts',()=>{
   expect(pinch.defaultPrevented).toBe(false);
   expect(key('f').defaultPrevented).toBe(false);
 });
+it('accepts bounded extension magnification and removes its bridge on cleanup',()=>{
+  setup();
+  expect(document.documentElement.hasAttribute('data-distilled-magnification-ready')).toBe(true);
+  window.dispatchEvent(new CustomEvent('distilled:browser-zoom',{detail:1.75}));
+  expect(document.getElementById('root')!.style.transform).toContain('scale(1.75)');
+  window.dispatchEvent(new CustomEvent('distilled:browser-zoom',{detail:NaN}));
+  expect(document.getElementById('root')!.style.transform).toContain('scale(1.75)');
+  window.dispatchEvent(new CustomEvent('distilled:browser-zoom',{detail:100}));
+  expect(document.getElementById('root')!.style.transform).toContain('scale(4)');
+  cleanup?.();cleanup=undefined;
+  expect(document.documentElement.hasAttribute('data-distilled-magnification-ready')).toBe(false);
+});
