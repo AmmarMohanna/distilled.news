@@ -35,15 +35,13 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   const titleBounds=await page.locator('.page-heading h1').boundingBox();
   const authorBounds=await page.locator('.page-heading > p').boundingBox();
   const toolsBounds=await page.locator('.feed-tools').boundingBox();
+  const actions = page.locator(".page-heading .feed-header-actions");
+  const actionBounds=await actions.boundingBox();
   expect(titleBounds!.y-artBounds!.y-artBounds!.height).toBeLessThanOrEqual(8);
   expect(authorBounds!.y-titleBounds!.y-titleBounds!.height).toBeLessThanOrEqual(8);
-  expect(toolsBounds!.y-authorBounds!.y-authorBounds!.height).toBeLessThanOrEqual(28);
-  const headerButtons=page.locator('.experience-header-actions > .language-cycle:visible, .experience-header-actions > .theme-toggle:visible, .experience-header-actions .feed-header-actions > button:visible');
-  const controlBounds=await headerButtons.evaluateAll(nodes=>nodes.map(node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));
-  const sameRow=controlBounds.every(box=>Math.abs(box.y-controlBounds[0].y)<2);
-  if(sameRow) { const gaps=controlBounds.slice(1).map((box,index)=>box.x-controlBounds[index].x-controlBounds[index].width);expect(Math.max(...gaps)-Math.min(...gaps)).toBeLessThan(2); }
-  for(const box of controlBounds)expect(box.height).toBeGreaterThanOrEqual(44);
-  const actions = page.locator(".feed-header-actions");
+  expect(actionBounds!.y).toBeGreaterThanOrEqual(authorBounds!.y+authorBounds!.height);
+  expect(toolsBounds!.y-actionBounds!.y-actionBounds!.height).toBeGreaterThanOrEqual(0);
+  expect(toolsBounds!.y-actionBounds!.y-actionBounds!.height).toBeLessThanOrEqual(28);
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
   await expect(actions.getByRole("button", { name: /Star/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Brief now/i })).toHaveCount(0);

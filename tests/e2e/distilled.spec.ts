@@ -320,7 +320,7 @@ test("arabic feed keeps public chrome localized and summary stable when opening 
   await expect(page.getByText("Search briefings")).toHaveCount(0);
 });
 
-test("feed pages twenty editions and preserves read status without hiding them", async ({ page }) => {
+test("feed pages twenty editions with unread editions first and keeps read editions accessible", async ({ page }) => {
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -344,9 +344,9 @@ test("feed pages twenty editions and preserves read status without hiding them",
   await expect(page.getByRole("button", { name: "load more" })).toBeVisible();
 
   await visibleUnread.first().getByRole("button", { name: /mark .* read/i }).click();
-  await expect(visibleUnread).toHaveCount(19);
-  await expect(page.locator('.news-item.is-read')).toHaveCount(1);
-  await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
+  await expect(visibleUnread).toHaveCount(20);
+  await expect(visibleUnread.last()).toContainText("Published briefing item 21.");
+  await expect(page.getByText("Published briefing item 1.", { exact: true })).toHaveCount(0);
 
   // A background status refresh can leave the debounced payload reconciliation
   // pending while the reader loads another page. Advancing that callback must
@@ -362,8 +362,11 @@ test("feed pages twenty editions and preserves read status without hiding them",
   await page.getByRole("button", { name: "load more" }).click();
   await page.clock.runFor(50);
   await expect(page.getByText("Published briefing item 25.")).toBeVisible();
+  await expect(page.locator(".news-item").last()).toHaveClass(/is-read/);
+  await expect(page.locator(".news-item").last()).toContainText("Published briefing item 1.");
   await page.clock.runFor(300);
   await expect(page.getByText("Published briefing item 25.")).toBeVisible();
+  await expect(page.locator(".news-item.is-read")).toHaveCount(1);
 });
 
 test("admin setup keeps account settings tucked behind subtle controls", async ({ page }) => {

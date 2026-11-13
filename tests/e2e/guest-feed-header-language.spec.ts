@@ -16,12 +16,14 @@ for(const width of [320,390,600]) {
     await page.locator('.curated-feed-grid .topic-card > a').first().click();
     await expect(page.locator('.feed-nav-back')).toBeVisible();
     await expect(page.locator('.experience-header')).toHaveClass(/is-guest/);
-    await expect(page.locator('.experience-header .language-cycle')).toBeVisible();
+    const appearance=page.locator('.experience-header .appearance-menu > summary');
+    const panel=page.locator('.experience-header .appearance-menu-panel');
+    await expect(appearance).toBeVisible();
+    await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
+    await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
     await page.evaluate(()=>document.fonts.ready);
     const selectors=['.experience-header','.feed-nav-back','.experience-header-actions',
-      '.experience-header .feed-header-actions > button:first-child',
-      '.experience-header .feed-header-actions > button:last-child',
-      '.experience-header .language-cycle','.experience-header .theme-toggle',
+      '.experience-header .appearance-menu > summary',
       '.experience-header a[href="/login"]'];
     const bounds=()=>Promise.all(selectors.map(selector=>page.locator(selector).boundingBox()));
     const settled=()=>page.locator('.experience-header').evaluate(async node=>{
@@ -29,8 +31,10 @@ for(const width of [320,390,600]) {
     });
     await settled();
     const initial=await bounds();
+    await appearance.click();
+    await expect(panel).toBeVisible();
     for(const language of ['fr','ar','en']){
-      await page.locator('.experience-header .language-cycle').click();
+      await panel.getByRole('button').first().click();
       await expect(page.locator('html')).toHaveAttribute('lang',language);
       await settled();
       expect(await bounds()).toEqual(initial);
@@ -39,5 +43,8 @@ for(const width of [320,390,600]) {
       const login=page.locator('.experience-header a[href="/login"]');
       expect(await login.evaluate(node=>node.scrollWidth<=node.clientWidth)).toBe(true);
     }
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+    await expect(appearance).toBeFocused();
   });
 }
