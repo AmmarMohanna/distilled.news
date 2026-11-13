@@ -39,7 +39,6 @@ export function useDesktopZoomLayout(){
       for(const [rule,query] of originals)rule.media.mediaText=query;
       originals.clear();root.removeAttribute('data-desktop-zoom');
       root.style.removeProperty('--desktop-zoom-width');active=false;
-      root.style.removeProperty('--desktop-zoom-height');
     };
     const measure=()=>{
       const current=view();
@@ -62,7 +61,6 @@ export function useDesktopZoomLayout(){
           try{visit(sheet.cssRules);}catch{/* Inaccessible styles retain their native behavior. */}
         }
         root.style.setProperty('--desktop-zoom-width',`${baseline.width}px`);
-        root.style.setProperty('--desktop-zoom-height',`${baseline.height}px`);
         root.setAttribute('data-desktop-zoom','');active=true;
       }else{
         if(active)restore();

@@ -41,47 +41,41 @@ export function AdaptiveFeedGrid({ children, className, count }: { children: Rea
     if (!grid || !count) return;
     const measure = () => {
       // A pinch changes the visual viewport, not the page's layout viewport.
-      const retained = document.documentElement.hasAttribute('data-desktop-zoom');
-      if ((window.visualViewport?.scale ?? 1) > 1.01 || (retained && grid.dataset.zoomFit === 'true')) return;
-      if (!retained) delete grid.dataset.zoomFit;
-      // A grid first mounted after zoom (navigation/reload) still needs one fit.
-      const layoutWidth = retained ? parseFloat(document.documentElement.style.getPropertyValue('--desktop-zoom-width')) : window.innerWidth;
-      const layoutHeight = retained ? parseFloat(document.documentElement.style.getPropertyValue('--desktop-zoom-height')) : window.innerHeight;
+      if ((window.visualViewport?.scale ?? 1) > 1.01 || document.documentElement.hasAttribute('data-desktop-zoom')) return;
       const rect = grid.getBoundingClientRect();
       if (!rect.width) return;
       const scale = grid.offsetWidth ? rect.width / grid.offsetWidth : 1;
       const viewport = grid.closest<HTMLElement>('.screen-page-viewport');
       const navigation = document.querySelector('.bottom-navigation')?.getBoundingClientRect();
-      const viewportBottom = retained ? layoutHeight : viewport?.getBoundingClientRect().bottom ?? layoutHeight;
-      const visualBottom = !retained && window.visualViewport ? window.visualViewport.offsetTop + window.visualViewport.height : layoutHeight;
-      const navigationTop = layoutWidth < 900 && navigation && navigation.height > 0 ? navigation.top : layoutHeight;
-      const bottom = Math.min(layoutHeight, viewportBottom, visualBottom, navigationTop);
+      const viewportBottom = viewport?.getBoundingClientRect().bottom ?? window.innerHeight;
+      const visualBottom = window.visualViewport ? window.visualViewport.offsetTop + window.visualViewport.height : window.innerHeight;
+      const navigationTop = window.innerWidth < 900 && navigation && navigation.height > 0 ? navigation.top : window.innerHeight;
+      const bottom = Math.min(window.innerHeight, viewportBottom, visualBottom, navigationTop);
       const top = rect.top + (viewport?.scrollTop ?? window.scrollY) * scale;
-      const layout = feedGridLayout(count, grid.clientWidth, Math.max(0, (bottom - top) / scale), layoutWidth >= 900);
+      const layout = feedGridLayout(count, grid.clientWidth, Math.max(0, (bottom - top) / scale), window.innerWidth >= 900);
       grid.dataset.layout = 'list';
       // The sidebar changes column width, never the artwork or type scale.
       grid.dataset.size = 'compact';
       grid.dataset.density = layout.compact ? 'tight' : 'regular';
       const fold = Math.max(0, (bottom - top) / scale);
-      const preferredHeight = layoutWidth >= 900 ? 132 : 120;
+      const preferredHeight = window.innerWidth >= 900 ? 132 : 120;
       const targetRows = Math.max(1, Math.ceil((fold - 8 + layout.gap) / (preferredHeight + layout.gap)));
       const targetHeight = (fold - 8 - (targetRows - 1) * layout.gap) / targetRows;
       grid.dataset.fit = targetHeight < preferredHeight ? 'compact' : 'regular';
       grid.style.setProperty('--feed-columns', String(layout.columns));
       grid.style.setProperty('--feed-grid-gap', layout.gap + 'px');
-      grid.style.setProperty('--feed-art-size', (layoutWidth >= 900 ? 72 : 56) + 'px');
+      grid.style.setProperty('--feed-art-size', (window.innerWidth >= 900 ? 72 : 56) + 'px');
       const cards = Array.from(grid.children).filter((node): node is HTMLElement => node instanceof HTMLElement);
       const natural = Math.max(0, ...cards.map(card => {
         const css = getComputedStyle(card);
         const heightOf = (selector: string) => (card.querySelector(selector)?.getBoundingClientRect().height ?? 0) / scale;
         const gap = parseFloat(css.rowGap) || 0;
         const copy = heightOf('.feed-card-identity') + heightOf('.feed-updated-at') + gap;
-        const controls = layoutWidth <= 400 ? 88 + gap : 44;
+        const controls = window.innerWidth <= 400 ? 88 + gap : 44;
         return Math.max(copy, heightOf('.topic-art'), controls) + parseFloat(css.paddingTop) + parseFloat(css.paddingBottom) + parseFloat(css.borderTopWidth) + parseFloat(css.borderBottomWidth);
       }));
       const height = fitFeedRowHeight(Math.max(0, fold - 8), layout.gap, natural, preferredHeight);
       grid.style.setProperty('--feed-row-height', height + 'px');
-      if (retained) grid.dataset.zoomFit = 'true';
       // Keep a continuous page: row spacing never depends on the screen fold.
     };
     measure();
