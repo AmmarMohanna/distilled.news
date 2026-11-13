@@ -69,7 +69,7 @@ export default {
       const delivery=decodeConnectorDelivery(message.body),body=delivery.body;
       if(isRecord(body)&&['connector_feed','connector_poll','connector_relay'].includes(String(body.type))){
         try{await (env.AGENTOPS_ENABLED==='true'?observeInvocation('queue',()=>processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token)):processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token));message.ack();}
-        catch{await recordConnectorQueueFailure(env,message.id,body as ConnectorQueueMessage,message.attempts);message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
+        catch{message.retry({delaySeconds:retryDelaySeconds(message.attempts)});await tryQueueBookkeeping('CONNECTOR_FAILURE',()=>recordConnectorQueueFailure(env,message.id,body as ConnectorQueueMessage,message.attempts));}
         continue;
       }
       const startedAt = Date.now();
@@ -125,19 +125,21 @@ export default {
         if(error instanceof IntelligenceTurnBusy||env.V1_REVIEW_PREPARATION_ISOLATED==='true'&&(error instanceof SemanticLeaseError||error instanceof SemanticContentionError)){
           // Capacity waits retain canonical identity and rotate only their
           // transport generation. Cron is crash recovery, not the normal wakeup.
-          if(await deferConnectorDownstream(env,body as DistilledQueueMessage,delivery.token))message.ack();
+          let deferred=false;
+          if(!await tryQueueBookkeeping('DEFER_DOWNSTREAM',async()=>{deferred=await deferConnectorDownstream(env,body as DistilledQueueMessage,delivery.token)})){message.retry({delaySeconds:retryDelaySeconds(message.attempts)});continue;}
+          if(deferred)message.ack();
           else if(message.attempts<MAX_QUEUE_ATTEMPTS)message.retry({delaySeconds:1});
-          else {if(isRecord(body))await recordV1QueueOutcome(env,message.id,body,message.attempts,'FEED_TURN_BUSY');message.ack();}
+          else {message.ack();if(isRecord(body))await tryQueueBookkeeping('BUSY_OUTCOME',()=>recordV1QueueOutcome(env,message.id,body,message.attempts,'FEED_TURN_BUSY'));}
           continue;
         }
         if(isRecord(body) && typeof body.type==='string' && body.type.startsWith('v1_')) {
-          await recordV1QueueOutcome(env,message.id,body,message.attempts,error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE');
           if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') message.ack();
           else if(message.attempts<MAX_QUEUE_ATTEMPTS) message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
           else if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
-            await env.DB.prepare('INSERT INTO connector_queue_recovery(id,kind,job_id,attempts,reason,observed_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET attempts=excluded.attempts').bind(message.id,String(body.type),'jobId' in body?String(body.jobId):null,message.attempts,'DOWNSTREAM_DELIVERY_EXHAUSTED',new Date().toISOString()).run();
             message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
+            await tryQueueBookkeeping('DOWNSTREAM_RECOVERY',()=>env.DB.prepare('INSERT INTO connector_queue_recovery(id,kind,job_id,attempts,reason,observed_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET attempts=excluded.attempts').bind(message.id,String(body.type),'jobId' in body?String(body.jobId):null,message.attempts,'DOWNSTREAM_DELIVERY_EXHAUSTED',new Date().toISOString()).run());
           }else message.ack();
+          await tryQueueBookkeeping('V1_OUTCOME',()=>recordV1QueueOutcome(env,message.id,body,message.attempts,error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'));
           console.warn('V1 queue work deferred or terminal',{bodyType,bodyId,messageId:message.id,attempts:message.attempts,durationMs:Date.now()-startedAt,code:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'});continue;
         }
         // Contention is not a failed attempt. The completed job drains the next
@@ -145,21 +147,21 @@ export default {
         if(error instanceof ProcessingLeaseBusy){message.ack();continue}
         const errorMessage = error instanceof Error ? error.message : String(error);
         const shouldQuarantine = shouldQuarantineQueueFailure(error, message.attempts);
-        await recordQueueFailure(repo,agentStore,body,errorMessage,shouldQuarantine);
-        console.error(shouldQuarantine ? "Quarantined queue job" : "Retrying queue job", {
+        if(!shouldQuarantine)message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
+        const recorded=await tryQueueBookkeeping('LEGACY_FAILURE',()=>recordQueueFailure(repo,agentStore,body,errorMessage,shouldQuarantine));
+        console.error(shouldQuarantine&&recorded ? "Quarantined queue job" : "Retrying queue job", {
           messageId: message.id,
           attempts: message.attempts,
           bodyType,
           bodyId,
           durationMs: Date.now() - startedAt,
           permanent: isPermanentQueueError(error),
-          quarantined: shouldQuarantine,
+          quarantined: shouldQuarantine&&recorded,
           error: errorMessage
         });
         if (shouldQuarantine) {
-          message.ack();
-        } else {
-          message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
+          // A failed state update cannot truthfully pause/quarantine the job.
+          if(recorded)message.ack();else message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
         }
       }finally{
         if(env.AGENTOPS_ENABLED==='true')emitAgentOps('queue',latencyOutcome==='SUCCEEDED'?'ok':'error',performance.now()-monotonicStart);
@@ -169,6 +171,11 @@ export default {
     }
   }
 };
+
+/** Retry control must survive the same storage failure being diagnosed. */
+async function tryQueueBookkeeping(step:string,run:()=>Promise<unknown>):Promise<boolean>{
+ try{await run();return true}catch{console.warn(JSON.stringify({type:'QUEUE_BOOKKEEPING_UNAVAILABLE',step}));return false}
+}
 
 async function processDistilledQueueMessage(
   repo: Repository,
