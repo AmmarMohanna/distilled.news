@@ -7,3 +7,9 @@ The submitted request includes the current title and interests in an authenticat
 Search/discovery caches remain owner-scoped and now include the topic context. Changing the topic hides previous results; caches for another topic cannot supply article evidence to assessment. Existing blocked-source filtering and already-added publisher filtering remain in place. Searches with only off-topic indexed evidence show an explanation rather than source choices.
 
 Suggestion requests have a 1.5-second deadline, a separate per-owner rate limit and owner-scoped caches. The public suggestion endpoint can become unavailable; failure does not fall back to copying feed descriptions. A new submitted web search can still wait for its upstream Google transport; cached searches retain the faster reuse introduced earlier. Existing Cloudflare request/cache/database usage applies; autocomplete introduces no paid provider or inference operation.
+
+## Institutional pages and general discovery
+
+Joud enables `SOURCE_RECOMMENDATIONS_WEB_HTML=true`. For queries naming AUB, the public MSFEA researcher directory supplies actual profile links and their associated researcher cards. Names and URLs are extracted from that first-party page; no individual profile URL is guessed or hardcoded. The search words and feed topic still gate each candidate. The discovered profile URL is retained as the source, so an institutional homepage error does not hide a readable profile. Source admission remains a separate check and is not implied by discovery.
+
+Google News remains the retained fallback outside supported directories. Tested anonymous general-search endpoints were blocked or did not return usable results, so they are not used as an extra slow step. This is not a complete general web index; a supported search API would be needed for dependable broad coverage. Discovery cache version 5 invalidates earlier news-only empty responses.

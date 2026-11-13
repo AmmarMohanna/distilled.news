@@ -6,6 +6,7 @@ import {recommendationFetch} from './source-recommendation-fetch';
 import {freelyReadableResults} from './source-search-free';
 import {cachedSourceSearch} from './source-search-cache';
 import {topicSearchGate,sourceSearchCacheQuery,type SearchTopic} from './source-search-topic';
+import {readWebSearch} from './source-web-search';
 
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
 const publishers = [
@@ -46,6 +47,19 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   let available=false;
   let offTopic=0;
   const queryMatches=(title:string,excerpt:string,publisherOrigin?:string)=>matchesArticleQuery(query,title,excerpt)||(publisherOrigin!==undefined&&publisherHosts.has(new URL(publisherOrigin).hostname.replace(/^www\./,'')));
+  if(env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'){
+    const web=await readWebSearch(scopedQuery,fetcher);
+    available=web.available;
+    for(const item of web.items){
+      if(topic&&!topic.matches(item.title+' '+item.excerpt)){offTopic++;continue;}
+      const url=new URL(item.url);
+      if(!queryMatches(item.title,item.excerpt+' '+url.hostname.replace(/\./g,' '),url.origin))continue;
+      // Keep the actual readable page: institutional homepages may fail even
+      // when the indexed profile/article itself is publicly readable.
+      results.push({source:item.url,title:item.title,publisher:url.hostname,articleUrl:item.url,excerpt:item.excerpt});
+    }
+    if(results.length)return {results,unavailable:false};
+  }
   const evidence=await readTopicPublishers(env,plan.sourceUrl!,recommendationFetch(fetcher,15_000),result=>{if(result.status===200)available=true;},undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true',raceRoutes:true,maxPublishers:40,perPublisher:3,acceptArticle:(title,excerpt,origin)=>{if(topic&&!topic.matches(title+' '+excerpt)){offTopic++;return false;}return queryMatches(title,excerpt,origin);}});
   for(const item of evidence){
     if(!queryMatches(item.title,item.excerpt,item.publisherOrigin))continue;
