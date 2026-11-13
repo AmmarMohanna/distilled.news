@@ -2,6 +2,14 @@ import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
 import type {Env} from './types';
 const enabled={SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
+it('omits relaxed search results that do not mention the complete query',async()=>{
+  const titles=['From Raw Data to Graph-Native AI','Google DeepMind event at MSFEA highlights AI career paths','Man charged over Richmond Hill road rage','Ammar discusses AI','Mohanna presents a project','Ammar Mohanna presents a new project'];
+  const xml='<rss><channel>'+titles.map((title,index)=>`<item><guid>${index}</guid><title>${title}</title><link>https://news.google.com/rss/articles/${index}</link><source url="https://publisher${index}.example">Publisher</source></item>`).join('')+'</channel></rss>';
+  const fetcher=vi.fn<typeof fetch>(async url=>String(url).startsWith('https://news.google.com/')?new Response(xml):new Response('Public source reporting. '.repeat(8)));
+  const result=await searchSourceCandidates(enabled,'Ammar Mohanna',fetcher);
+  expect(result.results.map(row=>row.title)).toEqual(['Ammar Mohanna presents a new project']);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
 it.each(['aljadded','Al Jadeed','الجديد'])('finds Al Jadeed by %s without inference or a paid request',async query=>{
   const fetcher=vi.fn<typeof fetch>(async()=>new Response('<html><p>'+('Public source reporting. '.repeat(8))+'</p></html>',{headers:{'content-type':'text/html'}}));
   const result=await searchSourceCandidates(enabled,query,fetcher);

@@ -11,6 +11,13 @@ const publishers = [
   ...sourceCatalog.map(([url,description])=>({source:`rss: ${url}`,title:description.split(':')[0],aliases:[description.split(':')[0],description,new URL(url).hostname]})),
 ];
 const normalize=(value:string)=>value.normalize('NFKC').toLocaleLowerCase().replace(/[\p{M}\p{P}\p{Z}\p{S}]/gu,'');
+const searchWords=(value:string)=>value.normalize('NFKD').toLocaleLowerCase().replace(/\p{M}/gu,'').match(/[\p{L}\p{N}]+/gu)??[];
+
+// An upstream engine may relax a rare name into unrelated popular articles.
+function matchesArticleQuery(query:string,title:string,excerpt?:string){
+  const words=new Set(searchWords(title+' '+(excerpt??'')));
+  return searchWords(query).every(word=>words.has(word));
+}
 
 /** Public discovery only. Selection still goes through the normal source assessment.
  * No scope is passed to readTopicPublishers: typing must never start paid collectors.
@@ -26,6 +33,7 @@ export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof
   let available=false;
   const evidence=await readTopicPublishers(env,plan.sourceUrl!,recommendationFetch(fetcher,15_000),result=>{available=result.status===200;},undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'});
   for(const item of evidence){
+    if(!matchesArticleQuery(query,item.title,item.excerpt))continue;
     if(results.length>=24)break;
     if(results.some(result=>result.articleUrl===item.url))continue;
     try{prepareProductSourceInput(item.publisherOrigin+'/');}catch{continue;}
