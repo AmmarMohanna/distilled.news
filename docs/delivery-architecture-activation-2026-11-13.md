@@ -34,3 +34,9 @@ Private evidence is retained in ignored local reports: the managed worktree's `r
 ## Rollback
 
 Remove the readiness mode to stop additional enrollment and relay sends; queued wakes recheck the mode. Set edition artifacts off to return reads to canonical projection. Preserve verified objects and all canonical publication, evidence and financial records. Diagnostic archival compaction was outside this activation and remains separately controlled.
+
+## Final release verification
+
+Code commit `1b9b0c68` was pushed to `ghada/v4-transactional-briefing-recovery` and deployed as staging Worker version `7b73743f-4d4e-4cbe-a3b7-5341edee9ec7`. The live Worker settings API confirmed both flags enabled and no readiness feed allowlist. Public feed access returned 200, private feed access returned 404, and the temporary fixture row count was zero.
+
+The next real edition, `ba4e30e40d8775ec1a7291d221a4319e033cadc992b486e094ac9a9938d48b6e`, recorded publication at 23:30:35.301 Beirut for its 23:30 schedule. Its automatically attached R2 artifact is 1,377 bytes in REFERENCED state. This is one successful scheduled publication sample, not a production-wide latency guarantee. The final live proof was captured at 21:41:02 UTC.
