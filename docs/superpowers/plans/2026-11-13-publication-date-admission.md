@@ -25,5 +25,5 @@ Verified but unpublished sources must survive; future results cannot suppress ea
 
 ### Task 3: Live proof and deployment
 - [x] Compare real staging candidates and publication dates using read-only preparation; preserve all financial records.
-- [ ] Obtain a separate code review, commit, push and deploy the existing staging target.
-- [ ] Verify live reads and new-policy input behavior; record measured effects and remaining uncertainty.
+- [x] Obtain a separate code review, commit, push and deploy the existing staging target.
+- [x] Verify live reads and new-policy input behavior; record measured effects and remaining uncertainty.
