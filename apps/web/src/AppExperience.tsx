@@ -247,7 +247,7 @@ function SidebarNavigation({ active, onNavigate }: { active?: string; onNavigate
     try { localStorage.setItem("dn-sidebar-collapsed", String(!current)); } catch {}
     return !current;
   });
-  return <nav className={`bottom-navigation collapsible-navigation${collapsed ? " is-collapsed" : ""}`} aria-label={t("Main navigation")} onPointerEnter={event => { if (event.pointerType === "mouse" && (window.matchMedia("(min-width: 900px)").matches || document.documentElement.hasAttribute('data-desktop-zoom'))) setHovered(true); }} onPointerLeave={() => setHovered(false)}>
+  return <nav className={`bottom-navigation collapsible-navigation${collapsed ? " is-collapsed" : ""}`} aria-label={t("Main navigation")} onPointerEnter={event => { if (event.pointerType === "mouse" && window.matchMedia("(min-width: 900px)").matches) setHovered(true); }} onPointerLeave={() => setHovered(false)}>
     <div className="sidebar-top">
       <div className="sidebar-brand" aria-label="Distilled.news"><BrandMark/></div>
       <button type="button" className="sidebar-toggle" aria-label={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} title={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} aria-expanded={!collapsed} aria-pressed={!unpinned} onClick={toggle}><PanelLeft size={22}/></button>
