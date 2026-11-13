@@ -179,6 +179,29 @@ it('dispatches scheduled cutoff preparation despite pending intake and records d
  expect(sent).toContainEqual({type:'v1_briefing',feedId:'feed-1',window:scheduled});
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({coverage:{state:'INCOMPLETE',pendingJobs:0,deferredJobs:1}});
 });
+it('offers a due cutoff edition the available transport turn before unfinished review work',async()=>{
+ const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T12:00:00Z',clockPolicy:'clock-aligned-delivery-v2' as const};
+ await store.registerFeed({...feedFixture,revision:2,createdAt:'2026-10-03T11:00:00Z',briefingFrequency:'30M',briefingSchedule:schedule});
+ await article();
+ await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('review-waiting','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
+ const accepted:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{if(accepted.length)return false;accepted.push(body)}}} as unknown as Env;
+ const at=new Date('2026-10-03T12:25:00Z');await dispatchV1Intelligence(env,at);
+ expect(accepted).toEqual([{type:'v1_briefing',feedId:'feed-1',window:livePublicationWindow(schedule,at)}]);
+ expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_jobs WHERE id='review-waiting'").first<{json:string}>())!.json).state).toBe('PENDING');
+});
+it.each(['v2','v3'] as const)('retains review-before-rematch transport ordering for a held legacy V2 window under %s',async engine=>{
+ await article();env={...env,BRIEFING_ENGINE:engine};
+ const revision=(await store.currentEvidenceHeaders('feed-1'))[0].revision.id,id=await windowIdentity('feed-1',window);
+ await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('legacy-review','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
+ await feedTransact(store,'feed-1',async tx=>{
+  await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,engine:'v2',state:'PENDING',attempts:0,createdAt:window.end});
+  await tx.write('rematch_requests','legacy-rematch',{id:'legacy-rematch',feedId:'feed-1',jobId:'legacy-review',evidenceRevisionId:revision,policyVersion:'semantic-rematch-continuation-v2',createdAt:window.end});
+ });
+ const accepted:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{if(accepted.length)return false;accepted.push(body)}}} as unknown as Env;
+ await dispatchV1Intelligence(env,new Date(window.end));
+ expect(accepted).toEqual([{type:'v1_reassess',jobId:'legacy-review'}]);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',engine:'v2'});
+});
 it('refreshes an unstarted stale snapshot while preserving its predecessor and reporting window',async()=>{
  await article();const id=await windowIdentity('feed-1',window),prepared={...await prepareV3Window(store,'feed-1',window,window.end),id};
  await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});

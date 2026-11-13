@@ -318,26 +318,35 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
  if(!options.skipProviderAccountingRecovery)await runProviderAccountingRecovery(env,now);
  const sourceIds=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
  const productOnly=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&env.PRODUCT_FEEDS_ENABLED==='true';
- const feeds=new Set<string>();let sent=0;
+ const feeds=new Set<string>(),reviewSources:{id:string;feedId:string}[]=[],reviewDispatched=new Set<string>();let sent=0;
+ const dispatchReviews=async(feedId?:string)=>{
+  for(const source of reviewSources){
+   if(feedId&&source.feedId!==feedId||reviewDispatched.has(source.id))continue;
+   const rows=await pendingV1Jobs(env,source.id,'REASSESS',now);
+   for(const job of rows)if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++;
+   reviewDispatched.add(source.id);
+  }
+ };
  for(const id of sourceIds) {
   let scope:IntakeScope|undefined;
   try {scope=await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
   scope??=await new V1IntakeStore(env.DB).getScope(id);
   if(!scope?.enabled||scope.deletedAt)continue;
   feeds.add(scope.feedId);
-  const rows=await pendingV1Jobs(env,id,'REASSESS',now);
-  for(const job of rows) if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++
+  reviewSources.push({id,feedId:scope.feedId});
  }
  const store=new V1FeedStore(env.DB);
  for(const id of feeds) {
   const feed=await store.getFeed(id);if(!feed || feed.paused || feed.deletedAt) continue;
   try {await approvedFeed(env,id)} catch(error) {if(error instanceof HandoffError && error.code==='SCOPE_DENIED') continue;throw error}
+  if(!productV3Enabled(env))await dispatchReviews(id);
   if(!productV3Enabled(env))await maintenance(id,'EXTRACTION_UPGRADE',async()=>{
    if(feed.briefingSchedule||feed.briefingFrequency!=='WEEKLY'){const upgradeWindow=feed.briefingSchedule?livePublicationWindow(feed.briefingSchedule,now):publicationWindow(feed.briefingFrequency,now);if(await hasUnscheduledExtractionUpgrade(store,id,upgradeWindow))await feedTransact(store,id,tx=>scheduleExtractionUpgrades(tx,upgradeWindow,now.toISOString()))}
   });
   // V3 does not consume the V2 graph. Preserve explicit unfinished V2 windows,
   // but do not repeatedly replay retired graph history for V3-only feeds.
   const legacyWindow=productV3Enabled(env)?await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND (json_extract(json,'$.state') IS NOT 'DONE' OR json_extract(json,'$.result')='DEFERRED') AND json_extract(json,'$.engine')='v2' LIMIT 1").bind(id).first():true;
+  if(legacyWindow)await dispatchReviews(id);
   if(legacyWindow)await maintenance(id,'REMATCH_DISPATCH',async()=>{
     const rematches=await store.list<RematchRequest>(id,'rematch_requests'),attempts=await store.list<RematchAttempt>(id,'rematch_attempts'),publishers=new Map((await store.currentEvidence(id)).map(e=>[e.revision.id,e.item.feedSourceId]));
     const protectedIds=await protectedRematchRevisionIds(store,id);
@@ -351,7 +360,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
     for(const request of eligible){if(accepted>=2)break;considered++;if(await enqueueV1(env,'v1_rematch',request.id,{type:'v1_rematch',feedId:id,requestId:request.id},now)){sent++;accepted++;}}
     if(eligible.length)console.info(JSON.stringify({type:'V1_REMATCH_DISPATCH',feedId:id,eligible:eligible.length,considered,enqueued:accepted}));
   });
-  // Reassessment must finish first; the next bounded relay publishes its result.
+  // Legacy readiness still waits for reassessment. Cutoff editions admit their
+  // ready evidence independently and must get transport before intake refills it.
   // Historical weekly windows remain callable/reproducible, but are not a new
   // live scheduling option. Existing UTC schedules remain unchanged otherwise.
   if(!feed.briefingSchedule && feed.briefingFrequency==='WEEKLY') continue;
@@ -500,5 +510,8 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    break;
   }
  }
+ // Claim due publication transport before offering unfinished reviews the same
+ // feed lane. Legacy windows held by readiness leave that lane for review work.
+ await dispatchReviews();
  return sent;
 }
