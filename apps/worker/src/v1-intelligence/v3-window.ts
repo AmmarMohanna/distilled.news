@@ -6,7 +6,8 @@ import type {Env} from '../types';
 import {canonicalJson} from '../v1-intake/canonical';
 import {captureProviderReceipt,providerBodyReceipt,providerResponseReceipt} from '../provider-receipt';
 import {V1FeedStore,feedTransact,type FeedTransaction} from './store';
-import {durableSemanticOperation} from './semantic-operations';
+import {durableSemanticOperation,type SemanticIntent} from './semantic-operations';
+import {saveV3Response,recoverV3Response,ResponseCheckpointPending,type ResponseCheckpoint} from './v3-response-checkpoint';
 import {withSemanticWorkLease} from './semantic-work-lease';
 import {admitModelOperation,modelCapability} from './model-capacity';
 import {configuredProviderLimits} from './provider-routing';
@@ -77,18 +78,26 @@ function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,windowId
    const admission=admitModelOperation(request.model,state,{type:'object',properties:{},required:[],additionalProperties:false},modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON),request.maxTokens);
    admission.providerLimits=configuredProviderLimits(env,'openrouter');
    let usage={calls:1,costUsd:admission.reservationCostUsd,reported:false,tokensIn:0,tokensOut:0};
+   let intent:SemanticIntent|undefined,responseCheckpoint:ResponseCheckpoint|undefined,checkpointBookkeepingFailed=false;
    const transport=openAiCompatibleModel({url:'https://openrouter.ai/api/v1/chat/completions',apiKey:env.OPENROUTER_API_KEY!,retries:0,reportCost:true,prices:{},fetcher:async(url,init)=>{
-    const response=await fetcher(url,init),header=providerResponseReceipt(response,'OPENROUTER',request.model);await captureProviderReceipt(header);
+    const response=await fetcher(url,init),header=providerResponseReceipt(response,'OPENROUTER',request.model);
     if(response.ok){
-     const reader=response.body?.getReader();if(!reader)throw Error('SEMANTIC_PROVIDER_BODY_MISSING');let raw='',bytes=0;const decoder=new TextDecoder();try{for(;;){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>2_000_000)throw Error('SEMANTIC_PROVIDER_RESPONSE_TOO_LARGE');raw+=decoder.decode(part.value,{stream:true})}raw+=decoder.decode()}finally{await reader.cancel().catch(()=>{})}
-     const body=JSON.parse(raw) as {id?:string;usage?:{cost?:number;prompt_tokens?:number;completion_tokens?:number}};const receipt=providerBodyReceipt(header,body.id);await captureProviderReceipt({...receipt,stage:'GENERATION'});
-     const cost=body.usage?.cost;if(typeof cost==='number'&&Number.isFinite(cost)&&cost>=0){usage={calls:1,costUsd:cost,reported:true,tokensIn:body.usage?.prompt_tokens??0,tokensOut:body.usage?.completion_tokens??0};await captureProviderReceipt({...receipt,stage:'USAGE',reportedCostUsd:cost,inputTokens:usage.tokensIn,outputTokens:usage.tokensOut})}
+     // Save correlation concurrently, but a D1 refusal must not prevent reading
+     // and checkpointing the complete body. Keep handles for genuinely lost bodies.
+     let headerError:unknown;const headerSaved=captureProviderReceipt(header).catch(error=>{headerError=error});
+     const reader=response.body?.getReader();if(!reader){await headerSaved;throw Error('SEMANTIC_PROVIDER_BODY_MISSING')}let raw='',bytes=0;const decoder=new TextDecoder();try{for(;;){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>2_000_000)throw Error('SEMANTIC_PROVIDER_RESPONSE_TOO_LARGE');raw+=decoder.decode(part.value,{stream:true})}raw+=decoder.decode()}catch(error){await headerSaved;throw error}finally{await reader.cancel().catch(()=>{})}
+     if(env.RAW_ARCHIVE&&intent)try{responseCheckpoint=await saveV3Response(env.RAW_ARCHIVE,intent,raw,header)}catch(error){if(error instanceof Error&&/^SEMANTIC_RESPONSE_CHECKPOINT_/.test(error.message))throw error;console.warn(JSON.stringify({type:'V3_RESPONSE_CHECKPOINT_WRITE_UNAVAILABLE',operationId:intent.id}));}
+     try{
+      await headerSaved;if(headerError)throw headerError;
+      const body=JSON.parse(raw) as {id?:string;usage?:{cost?:number;prompt_tokens?:number;completion_tokens?:number}};const receipt=providerBodyReceipt(header,body.id);await captureProviderReceipt({...receipt,stage:'GENERATION'});
+      const cost=body.usage?.cost;if(typeof cost==='number'&&Number.isFinite(cost)&&cost>=0){usage={calls:1,costUsd:cost,reported:true,tokensIn:body.usage?.prompt_tokens??0,tokensOut:body.usage?.completion_tokens??0};await captureProviderReceipt({...receipt,stage:'USAGE',reportedCostUsd:cost,inputTokens:usage.tokensIn,outputTokens:usage.tokensOut})}
+     }catch(error){if(responseCheckpoint&&!(error instanceof Error&&/^SEMANTIC_PROVIDER_(RECEIPT|MODEL|RESPONSE)/.test(error.message))){checkpointBookkeepingFailed=true;throw new ResponseCheckpointPending()}throw error}
      return new Response(raw,{status:response.status,headers:response.headers});
-    }return response;
+    }await captureProviderReceipt(header);return response;
    }});
-   const result=await durableSemanticOperation(store,{feedId:snapshot.feedId,feedRevision:snapshot.feedRevision,evidenceRevisionIds:snapshot.evidenceRevisionIds,kind:'V3_EDITOR_VERIFIER',policyVersion:POLICY,model:request.model,budgetKey:`v3:${windowId}`,state:{inputId:snapshot.fingerprint,...(snapshot.cutoffPolicy?{cutoffPolicy:snapshot.cutoffPolicy,cutoffInputId:snapshot.id}:{}),request:state}},async()=>{
-    const value=await transport.complete(request);if(!usage.reported)throw Error('SEMANTIC_OUTCOME_UNKNOWN');return {value,usage};
-   },now(),()=>usage,{operationAdmission:admission});
+   const result=await durableSemanticOperation(store,{feedId:snapshot.feedId,feedRevision:snapshot.feedRevision,evidenceRevisionIds:snapshot.evidenceRevisionIds,kind:'V3_EDITOR_VERIFIER',policyVersion:POLICY,model:request.model,budgetKey:`v3:${windowId}`,state:{inputId:snapshot.fingerprint,...(snapshot.cutoffPolicy?{cutoffPolicy:snapshot.cutoffPolicy,cutoffInputId:snapshot.id}:{}),request:state}},async ownedIntent=>{
+    intent=ownedIntent;let value;try{value=await transport.complete(request)}catch(error){if(checkpointBookkeepingFailed)throw new ResponseCheckpointPending();throw error}if(!usage.reported)throw Error('SEMANTIC_OUTCOME_UNKNOWN');return {value,usage,responseCheckpoint};
+   },now(),()=>usage,{operationAdmission:admission,...(env.RAW_ARCHIVE?{recoverResponse:(owned:SemanticIntent)=>recoverV3Response(env.RAW_ARCHIVE,owned)}:{})});
    operations.add(result.id);
    if(result.status!=='SUCCEEDED'&&result.usage.calls===1&&!result.usage.reported){
     const isolated=await store.db.prepare("SELECT 1 FROM v1_feed_documents q JOIN v1_model_spending_reservations r ON r.id=q.id WHERE q.kind='model_execution_quarantines' AND q.id=? AND q.feed_id=? AND r.feed_id=q.feed_id AND json_extract(q.json,'$.accountId')=r.account_id AND json_extract(q.json,'$.reservationToken')=r.token").bind('semantic_intents:'+result.id,snapshot.feedId).first();

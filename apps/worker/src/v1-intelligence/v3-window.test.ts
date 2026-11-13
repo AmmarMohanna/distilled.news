@@ -1,5 +1,7 @@
 import * as collectionCoverage from '../connector-publication-coverage';
 import * as campaignFault from '../agentops-campaign-fault';
+import * as providerReceipts from '../provider-receipt';
+import * as semanticSettlement from './semantic-settlement';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {applyTestMigration} from '../test-migrations';
@@ -21,9 +23,75 @@ import {acquireSemanticWorkLease,releaseSemanticWorkLease,SemanticLeaseError} fr
 import {isolateExpiredModelExecutions} from './model-capacity-recovery';
 import {recoverBlockedV3Request} from './v3-blocked-recovery';
 import {settleModelSpending} from './model-spending';
+import {recoverPendingProviderGenerations} from './provider-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
+function responseArchive(){const objects=new Map<string,string>();return {objects,bucket:{put:async(key:string,value:string)=>{if(objects.has(key))return null;objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket}}
+it('persists a complete paid response through D1 when the R2 checkpoint is temporarily unavailable',async()=>{
+ await article();const archive=responseArchive();archive.bucket.put=async()=>{throw Error('R2 temporarily unavailable')};env={...env,RAW_ARCHIVE:archive.bucket};
+ const seen:string[]=[],edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);expect(archive.objects.size).toBe(0);
+ expect((await store.list<any>('feed-1','semantic_results')).every(r=>r.status==='SUCCEEDED'&&r.usage.reported)).toBe(true);
+});
+it('retains header correlation when the provider body is lost and never reissues it',async()=>{
+ await article();env={...env,RAW_ARCHIVE:responseArchive().bucket};let calls=0;
+ const lost=(async()=>{calls++;return new Response(new ReadableStream({start(controller){controller.error(Error('connection reset during body'))}}),{headers:{'x-generation-id':'gen-test-lost'}})}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,lost);
+ const receipts=await ctx.db.prepare("SELECT json_extract(json,'$.generationId') generation FROM v1_feed_documents WHERE kind='model_provider_receipts' AND feed_id='feed-1'").all();
+ expect(receipts.results).toEqual([{generation:'gen-test-lost'}]);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,lost);expect(calls).toBe(1);
+});
+it('resumes the final source audit after D1 failure and preserves all supporting sources',async()=>{
+ await article(1);await acceptEvidence(store,2,'Another outlet reports Parliament approved banking reform legislation; presidential approval is still required.','publisher-2','2026-10-03T12:11:00Z','en','2026-10-03T12:06:00Z','Another banking report','https://other.example/report');await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T12:11:00Z');const archive=responseArchive();env={...env,RAW_ARCHIVE:archive.bucket};
+ const capture=providerReceipts.captureProviderReceipt,seen:string[]=[];let fail=true;
+ vi.spyOn(providerReceipts,'captureProviderReceipt').mockImplementation(async receipt=>{if(fail&&receipt.stage==='USAGE'&&seen.at(-1)?.includes('You audit source coverage')){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return capture(receipt)});
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(fail).toBe(false);expect(seen).toHaveLength(2);expect(archive.objects.size).toBe(2);
+ const edition=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.evidenceRevisionIds).toHaveLength(2);expect(seen).toHaveLength(3);
+},30000);
+it('recovers a checkpoint when settlement fails after the model reply',async()=>{
+ await article();env={...env,RAW_ARCHIVE:responseArchive().bucket};
+ const settle=semanticSettlement.settleSemanticOperation;let fail=true;
+ vi.spyOn(semanticSettlement,'settleSemanticOperation').mockImplementation(async(...args)=>{if(fail){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return settle(...args)});
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'PENDING',reason:'V3_RESPONSE_AWAITING_PERSISTENCE',attempts:0});
+ expect(await store.list('feed-1','semantic_results')).toHaveLength(0);
+ expect(await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch)).toBeDefined();expect(seen).toHaveLength(2);
+},30000);
+it.each([false,true])('does not let a complete checkpoint bypass subsequent source revocation (indexed accounting %s)',async indexed=>{
+ await article();env={...env,RAW_ARCHIVE:responseArchive().bucket};
+ const capture=providerReceipts.captureProviderReceipt;let fail=true;
+ vi.spyOn(providerReceipts,'captureProviderReceipt').mockImplementation(async receipt=>{if(fail){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return capture(receipt)});
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ await ctx.db.prepare("UPDATE v1_intake_scopes SET json=json_set(json,'$.enabled',0),epoch=epoch+1 WHERE id='feed-source-1'").run();
+ await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch).catch(()=>undefined);
+ expect(seen).toHaveLength(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
+ if(indexed)await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0071_provider_recovery_indexes.sql',import.meta.url),'utf8'));
+ const metadata=vi.fn<typeof fetch>();
+ await recoverPendingProviderGenerations(ctx.db,'test-key',new Date(Date.now()+300000),metadata,env.RAW_ARCHIVE);
+ expect(await ctx.db.prepare('SELECT reported,cost_usd FROM v1_model_spending_settlements').first()).toMatchObject({reported:1,cost_usd:.001});
+ expect(metadata).not.toHaveBeenCalled();expect(await store.list('feed-1','editions')).toHaveLength(0);
+});
+it.each(['HEADERS','USAGE'] as const)('recovers a complete paid response after D1 %s receipt failure without another provider call',async stage=>{
+ await article();const objects=new Map<string,string>();
+ env={...env,RAW_ARCHIVE:{put:async(key:string,value:string)=>{if(!objects.has(key))objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket};
+ const capture=providerReceipts.captureProviderReceipt;let fail=true;
+ vi.spyOn(providerReceipts,'captureProviderReceipt').mockImplementation(async receipt=>{if(fail&&receipt.stage===stage){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return capture(receipt)});
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch).catch(()=>undefined);
+ expect(seen).toHaveLength(1);expect(objects.size).toBe(1);
+ expect(await store.list('feed-1','semantic_results')).toHaveLength(0);
+ const edition=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(2);
+ expect((await store.list<any>('feed-1','semantic_results')).every(r=>r.status==='SUCCEEDED'&&r.usage.reported)).toBe(true);
+ await processV1Briefing(env,message,()=> '2026-10-03T12:33:00Z',undefined,fetcher(seen) as typeof fetch);expect(seen).toHaveLength(2);
+},30000);
 it('publishes a cutoff edition with unfinished intake and carries evidence accepted after cutoff into the next edition',async()=>{
  await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
  await article(2,'2026-10-03T12:15:00Z','2026-10-03T12:31:00Z','2026-10-03T12:12:00Z');

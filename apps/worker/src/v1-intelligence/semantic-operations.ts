@@ -1,3 +1,4 @@
+import {ResponseCheckpointPending,V3_RESPONSE_CHECKPOINT_POLICY,type ResponseCheckpoint} from './v3-response-checkpoint';
 import {semanticWaitRecord} from './semantic-wait-record';
 import {CUTOFF_EDITION_POLICY,cutoffSemanticAuthorized} from './cutoff-edition';
 import {recoveredPublicationResponse} from './publication-response-recovery';
@@ -19,8 +20,8 @@ export interface SemanticOperationInput {feedId:string;feedRevision:number;evide
 export interface SemanticValidationDiagnostic {stage:'OUTPUT_SCHEMA'|'CONSTRUCTION_BINDING'|'EDITORIAL_BINDING';response:Record<string,unknown>;rawResponse?:string;responseOmitted?:boolean;rejection:{name:string;code?:string;mechanicalIssues?:import('./construction-diagnostics').ConstructionIssue[];binding?:{invariant:string;path:(string|number)[]};issues?:{code:string;path:(string|number)[];missing?:string[];unknown?:string[];duplicates?:string[]}[]}}
 /** Unvalidated output is retained for audit only, never accepted as semantic state. */
 export class SemanticValidationError extends Error {constructor(readonly diagnostic:SemanticValidationDiagnostic,code:'SEMANTIC_CONSTRUCTION_REJECTED'|'SEMANTIC_EDITORIAL_REJECTED'='SEMANTIC_CONSTRUCTION_REJECTED'){super(code)}}
-export interface SemanticIntent {id:string;feedId:string;input:SemanticOperationInput;token:string;leaseUntil:number;reservedCostUsd:number;createdAt:string;compatibilityHash?:string}
-export interface SemanticOperationResult<T=unknown> {id:string;feedId:string;input:SemanticOperationInput;status:'SUCCEEDED'|'DEFERRED';value?:T;failure?:string;validationDiagnostic?:SemanticValidationDiagnostic;providerDiagnostic?:ProviderDiagnostic;usage:ExperimentUsage;latencyMs:number;createdAt:string}
+export interface SemanticIntent {responseCheckpointPolicy?:typeof V3_RESPONSE_CHECKPOINT_POLICY;id:string;feedId:string;input:SemanticOperationInput;token:string;leaseUntil:number;reservedCostUsd:number;createdAt:string;compatibilityHash?:string}
+export interface SemanticOperationResult<T=unknown> {responseCheckpoint?:ResponseCheckpoint;id:string;feedId:string;input:SemanticOperationInput;status:'SUCCEEDED'|'DEFERRED';value?:T;failure?:string;validationDiagnostic?:SemanticValidationDiagnostic;providerDiagnostic?:ProviderDiagnostic;usage:ExperimentUsage;latencyMs:number;createdAt:string}
 export class SemanticContentionError extends HandoffError {constructor(){super('TEMPORARY_UNAVAILABLE')}}
 async function assertInputs(tx:FeedTransaction,input:SemanticOperationInput):Promise<void> {
  if(tx.snapshot.feed.revision!==input.feedRevision)throw new HandoffError('SCOPE_DENIED');
@@ -45,7 +46,7 @@ export async function durableSemanticOperation<T>(...args:Parameters<typeof runS
   return result;
  }));
 }
-async function runSemanticOperation<T>(store:V1FeedStore,input:SemanticOperationInput,run:()=>Promise<{value:T;usage:ExperimentUsage}>,now:string,reportedUsage?:()=>ExperimentUsage,options:{preserveStartedEditorialScope?:boolean;lane?:BudgetLane;reuseContext?:unknown;reservationCostUsd?:number;operationAdmission?:{providerLimits?:import('./provider-limits').ProviderLimits;fits:boolean;reason?:string;reservationCostUsd:number}}={}):Promise<SemanticOperationResult<T>> {
+async function runSemanticOperation<T>(store:V1FeedStore,input:SemanticOperationInput,run:(intent:SemanticIntent)=>Promise<{value:T;usage:ExperimentUsage;responseCheckpoint?:ResponseCheckpoint}>,now:string,reportedUsage?:()=>ExperimentUsage,options:{recoverResponse?:(intent:SemanticIntent)=>Promise<{value:T;usage:ExperimentUsage;responseCheckpoint?:ResponseCheckpoint}|undefined>;preserveStartedEditorialScope?:boolean;lane?:BudgetLane;reuseContext?:unknown;reservationCostUsd?:number;operationAdmission?:{providerLimits?:import('./provider-limits').ProviderLimits;fits:boolean;reason?:string;reservationCostUsd:number}}={}):Promise<SemanticOperationResult<T>> {
  if(store.semanticLease)await renewSemanticWorkLease(store,store.semanticLease);
  const reservation=options.operationAdmission?.reservationCostUsd??options.reservationCostUsd;
  if(reservation!==undefined&&(!Number.isFinite(reservation)||reservation<0))throw new HandoffError('INVALID_REQUEST');
@@ -57,6 +58,8 @@ async function runSemanticOperation<T>(store:V1FeedStore,input:SemanticOperation
  const legacyDenial=isSemanticProcessing(input)?await store.read<SemanticOperationResult>(input.feedId,'semantic_results',originalId):undefined;
  const recoverDenied=legacyDenial?.usage.calls===0&&legacyDenial.usage.reported&&legacyDenial.failure==='SEMANTIC_BUDGET_EXHAUSTED'&&!await store.read(input.feedId,'semantic_intents',originalId);
  const id=recoverDenied?await sha256(canonicalJson({unpaidOperationId:originalId,recoveryPolicy:'semantic-cost-admission-v1'})):originalId;
+ const recoveryIntent=options.recoverResponse&&!await store.read(input.feedId,'semantic_results',id)?await store.read<SemanticIntent>(input.feedId,'semantic_intents',id):undefined;
+ const recovered=recoveryIntent?await options.recoverResponse!(recoveryIntent):undefined;
  const compatibilityHash=options.reuseContext===undefined?undefined:await sha256(canonicalJson({question:semanticQuestion(input),context:options.reuseContext}));
  const acquired=await measureLatency('SPENDING_RESERVATION',()=>feedTransact(store,input.feedId,async tx=>{
   await assertInputs(tx,input);
@@ -67,7 +70,7 @@ async function runSemanticOperation<T>(store:V1FeedStore,input:SemanticOperation
   if(isSemanticProcessing(input)){const reuse=await findSemanticReuse<T>(tx,input,compatibilityHash);if(reuse)return {result:reuse}}
   const intent=await tx.read<SemanticIntent>('semantic_intents',id);
   const deferred=(failure:string,usage:ExperimentUsage):SemanticOperationResult<T>=>({id,feedId:input.feedId,input,status:'DEFERRED',failure,usage,latencyMs:0,createdAt:now});
-  if(intent){if(intent.leaseUntil>Date.now())throw new SemanticContentionError();const result=deferred('SEMANTIC_OUTCOME_UNKNOWN',{calls:1,costUsd:intent.reservedCostUsd,reported:false});await tx.write('semantic_results',id,result);return {result}}
+  if(intent){if(recovered&&intent.token===recoveryIntent?.token)return {intent,recovered};if(intent.leaseUntil>Date.now())throw new SemanticContentionError();const result=deferred('SEMANTIC_OUTCOME_UNKNOWN',{calls:1,costUsd:intent.reservedCostUsd,reported:false});await tx.write('semantic_results',id,result);return {result}}
   if(store.semanticLease?.executionDeadlineMs!==undefined&&Date.now()+ASYNC_MODEL_CALL_MS>store.semanticLease.executionDeadlineMs){
    const result=deferred('SEMANTIC_EXECUTION_YIELD',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);
    if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...semanticWaitRecord(result),id:waitId,operationId:id,category:'EXECUTION_CONTINUATION'});
@@ -87,15 +90,15 @@ async function runSemanticOperation<T>(store:V1FeedStore,input:SemanticOperation
   }
   if(reservation===undefined){const result=deferred('SEMANTIC_COST_ESTIMATE_REQUIRED',{calls:0,costUsd:0,reported:true}),waitId=JSON.stringify([id,result.failure]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...semanticWaitRecord(result),id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'});return {result}}
   const accountId=await modelSpendingAccount(store.db,input.model,now,store.spendingAccountId),recovery=recoveryBinding(input,store.semanticLease?.workId);
-  const value:SemanticIntent={id,feedId:input.feedId,input,token,leaseUntil:Date.now()+ASYNC_OPERATION_LEASE_MS,reservedCostUsd:reservation,createdAt:now,...(compatibilityHash?{compatibilityHash}:{})};tx.modelReservations.push({id:'semantic_intents:'+id,accountId,model:input.model,feedId:input.feedId,token,reservedCostUsd:reservation,...(options.operationAdmission?.providerLimits?{providerLimits:options.operationAdmission.providerLimits}:{}),leaseUntil:value.leaseUntil,createdAt:now,...(recovery?{recovery}:{})});await tx.write('semantic_intents',id,value);return {intent:value};
+  const value:SemanticIntent={...(options.recoverResponse&&input.kind==='V3_EDITOR_VERIFIER'?{responseCheckpointPolicy:V3_RESPONSE_CHECKPOINT_POLICY}:{}),id,feedId:input.feedId,input,token,leaseUntil:Date.now()+ASYNC_OPERATION_LEASE_MS,reservedCostUsd:reservation,createdAt:now,...(compatibilityHash?{compatibilityHash}:{})};tx.modelReservations.push({id:'semantic_intents:'+id,accountId,model:input.model,feedId:input.feedId,token,reservedCostUsd:reservation,...(options.operationAdmission?.providerLimits?{providerLimits:options.operationAdmission.providerLimits}:{}),leaseUntil:value.leaseUntil,createdAt:now,...(recovery?{recovery}:{})});await tx.write('semantic_intents',id,value);return {intent:value};
  }).catch(async error=>{
   if(!(error instanceof ModelSpendingWait))throw error;
   const result:SemanticOperationResult<T>={id,feedId:input.feedId,input,status:'DEFERRED',failure:error.reason,usage:{calls:0,costUsd:0,reported:true},latencyMs:0,createdAt:now};
   await feedTransact(store,input.feedId,async tx=>{const waitId=JSON.stringify([id,error.reason]);if(!await tx.read('semantic_resource_waits',waitId))await tx.write('semantic_resource_waits',waitId,{...semanticWaitRecord(result),id:waitId,operationId:id,category:'ACCOUNT_AUTHORIZATION'})});return {result};
  }));
  if(acquired.result){if(acquired.result.id!==id)console.info(JSON.stringify({type:acquired.result.status==='SUCCEEDED'?'V1_SEMANTIC_RESULT_REUSED':acquired.result.usage.reported?'V1_SEMANTIC_REJECTED_RESULT_REUSED':'V1_SEMANTIC_UNKNOWN_FENCE',feedId:input.feedId,stage:input.kind,operationId:id,retainedOperationId:acquired.result.id}));return acquired.result;}
- const started=Date.now();let value:T|undefined,failure:string|undefined,validationDiagnostic:SemanticValidationDiagnostic|undefined,providerDiagnostic:ProviderDiagnostic|undefined,usage:ExperimentUsage={calls:1,costUsd:acquired.intent!.reservedCostUsd,reported:false};
- try {countLatency('newProviderCalls');const outcome=await measureLatency(input.kind,()=>withProviderReceiptSink(async receipt=>{
+ const started=Date.now();let responseCheckpoint:ResponseCheckpoint|undefined;let value:T|undefined,failure:string|undefined,validationDiagnostic:SemanticValidationDiagnostic|undefined,providerDiagnostic:ProviderDiagnostic|undefined,usage:ExperimentUsage={calls:1,costUsd:acquired.intent!.reservedCostUsd,reported:false};
+ try {countLatency(acquired.recovered?'checkpointResponseRecoveries':'newProviderCalls');const outcome=acquired.recovered??await measureLatency(input.kind,()=>withProviderReceiptSink(async receipt=>{
   if(receipt.model!==input.model)throw Error('SEMANTIC_PROVIDER_RECEIPT_MODEL_MISMATCH');
   const receiptId=JSON.stringify(['semantic_intents:'+id,receipt.stage]),record={...receipt,id:receiptId,reservationId:'semantic_intents:'+id,feedId:input.feedId,createdAt:new Date().toISOString()};
   const statements=[store.db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) SELECT 'model_provider_receipts',?,?,? WHERE EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_intents' AND id=? AND feed_id=? AND json_extract(json,'$.token')=?) ON CONFLICT(kind,id) DO NOTHING").bind(receiptId,input.feedId,JSON.stringify(record),id,input.feedId,acquired.intent!.token)];
@@ -103,14 +106,15 @@ async function runSemanticOperation<T>(store:V1FeedStore,input:SemanticOperation
   await store.db.batch(statements);
   const saved=await store.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='model_provider_receipts' AND id=? AND feed_id=?").bind(receiptId,input.feedId).first<{json:string}>();
   if(!saved||JSON.parse(saved.json).generationId!==receipt.generationId||JSON.parse(saved.json).reportedCostUsd!==receipt.reportedCostUsd)throw Error('SEMANTIC_PROVIDER_RECEIPT_OWNER_MISMATCH');
- },run));usage=outcome.usage;if(usage.calls!==1||!Number.isFinite(usage.costUsd)||usage.costUsd<0)throw Error('SEMANTIC_INVALID_USAGE');if(usage.reported&&usage.costUsd>acquired.intent!.reservedCostUsd)console.warn(JSON.stringify({type:'V1_MODEL_COST_ESTIMATE_EXCEEDED',feedId:input.feedId,operationId:id,reservedCostUsd:reservation,reportedCostUsd:usage.costUsd}));value=outcome.value}
- catch(error){if(error instanceof ProviderRequestError)providerDiagnostic=error.providerDiagnostic;if(error instanceof SemanticValidationError)validationDiagnostic=new TextEncoder().encode(JSON.stringify(error.diagnostic)).length<=16384?error.diagnostic:{...error.diagnostic,response:{},responseOmitted:true};const reported=reportedUsage?.();if(reported?.reported && Number.isFinite(reported.costUsd) && reported.costUsd>=0)usage=reported;failure=error instanceof Error && /^(SEMANTIC_|EXPERIMENT_|INVALID_EXPERIMENT_)/.test(error.message)?error.message:'SEMANTIC_PROVIDER_FAILURE'}
- const receipt:SemanticOperationResult<T>={id,feedId:input.feedId,input,status:failure?'DEFERRED':'SUCCEEDED',value:failure?undefined:value,failure,...(validationDiagnostic?{validationDiagnostic}:{}),...(providerDiagnostic?{providerDiagnostic}:{}),usage,latencyMs:Date.now()-started,createdAt:now};
- await measureLatency('SPENDING_SETTLEMENT',()=>settleSemanticOperation(store,acquired.intent!,receipt));
+ },()=>run(acquired.intent!)));responseCheckpoint=outcome.responseCheckpoint;usage=outcome.usage;if(usage.calls!==1||!Number.isFinite(usage.costUsd)||usage.costUsd<0)throw Error('SEMANTIC_INVALID_USAGE');if(usage.reported&&usage.costUsd>acquired.intent!.reservedCostUsd)console.warn(JSON.stringify({type:'V1_MODEL_COST_ESTIMATE_EXCEEDED',feedId:input.feedId,operationId:id,reservedCostUsd:reservation,reportedCostUsd:usage.costUsd}));value=outcome.value}
+ catch(error){if(error instanceof ResponseCheckpointPending)throw error;if(error instanceof ProviderRequestError)providerDiagnostic=error.providerDiagnostic;if(error instanceof SemanticValidationError)validationDiagnostic=new TextEncoder().encode(JSON.stringify(error.diagnostic)).length<=16384?error.diagnostic:{...error.diagnostic,response:{},responseOmitted:true};const reported=reportedUsage?.();if(reported?.reported && Number.isFinite(reported.costUsd) && reported.costUsd>=0)usage=reported;failure=error instanceof Error && /^(SEMANTIC_|EXPERIMENT_|INVALID_EXPERIMENT_)/.test(error.message)?error.message:'SEMANTIC_PROVIDER_FAILURE'}
+ const receipt:SemanticOperationResult<T>={id,feedId:input.feedId,input,...(responseCheckpoint?{responseCheckpoint}:{}),status:failure?'DEFERRED':'SUCCEEDED',value:failure?undefined:value,failure,...(validationDiagnostic?{validationDiagnostic}:{}),...(providerDiagnostic?{providerDiagnostic}:{}),usage,latencyMs:Date.now()-started,createdAt:now};
+ try{await measureLatency('SPENDING_SETTLEMENT',()=>settleSemanticOperation(store,acquired.intent!,receipt));
  recordModelReceipt(receipt.id,receipt.usage,receipt.latencyMs);
- return measureLatency('RESULT_COMMIT',()=>feedTransact(store,input.feedId,async tx=>{
+ return await measureLatency('RESULT_COMMIT',()=>feedTransact(store,input.feedId,async tx=>{
   await assertInputs(tx,input);const saved=await tx.read<SemanticOperationResult<T>>('semantic_results',id);if(saved)return saved;
-  const intent=await tx.read<SemanticIntent>('semantic_intents',id);if(intent?.token!==token)throw new HandoffError('SCOPE_DENIED');
+  const intent=await tx.read<SemanticIntent>('semantic_intents',id);if(intent?.token!==acquired.intent!.token)throw new HandoffError('SCOPE_DENIED');
   await tx.write('semantic_results',id,receipt);return receipt;
  }));
+ }catch(error){if(responseCheckpoint&&!(error instanceof HandoffError&&error.code==='SCOPE_DENIED'))throw new ResponseCheckpointPending();throw error}
 }

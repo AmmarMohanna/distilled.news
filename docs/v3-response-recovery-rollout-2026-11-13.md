@@ -1,0 +1,11 @@
+# V3 paid-response recovery rollout — 2026-11-13
+
+The final source-coverage audit could return HTTP 200 and confirmed usage while its result never became a durable semantic success. The provider wrapper awaited D1 receipt writes before returning the body; live Worker logs show recurring D1 overload exceptions. The old expired-intent path then correctly fenced the unresolved paid request, but the complete response was no longer recoverable and the window failed.
+
+The fix preserves complete OpenRouter response bodies in the existing private R2 bucket, bound to the immutable operation ID, intent token, input hash, feed and model. Header correlation writes run concurrently and cannot stop body consumption. A complete checkpoint can resume the existing operation without another provider call; the ordinary source authorization, billing settlement, result commit, JSON validation, all-source attribution and factual verification still apply.
+
+Transient bookkeeping failures with a saved response now wait for persistence without consuming draft-failure attempts. An R2 write outage falls back to ordinary D1 persistence with the response still in memory. R2 read and body-stream interruptions yield safely. The deployment-wide accounting sweep can settle confirmed checkpoint usage independently of source revocation or malformed model content, without accepting that content for publication. New recovery metadata is outside paid input identity; historical UNKNOWN records without complete output remain fenced.
+
+No model routing, monetary limit, article limit or source limit was added. No migration is required. This does not claim that D1 overload itself has disappeared, nor that billing metadata can reconstruct missing text.
+
+Validation: initial receipt-write failure regressions failed before the implementation. Header-loss, R2 write/read failures and revoked-source accounting regressions also failed before their fixes. Full Worker suite: 120 passed across V3, semantic operations, response checkpoints and provider recovery. Additional indexed/fallback accounting and recovery-scaling checks passed. Briefing engine: 339 passed. Worker TypeScript, staging bundle dry run and separate code review passed. Tests do not establish real factual accuracy; live publication is checked separately below.
