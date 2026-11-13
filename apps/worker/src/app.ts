@@ -718,6 +718,13 @@ export function createApp(options: AppOptions = {}) {
     const {sourceExecutionStatus}=await import('./source-execution-status');
     return c.json(await sourceExecutionStatus(c.env));
   });
+  app.post('/api/admin/general-web-search-probe',async c=>{
+    const input=z.object({probeId:z.literal('general-web-search-2026-11-13-v1'),authorizedMaxUsd:z.literal(0.10)}).strict().safeParse(await c.req.json());
+    if(!input.success)return c.json({error:'invalid bounded probe'},400);
+    const {runGeneralWebSearchProbe}=await import('./general-web-search-probe');
+    try{return c.json(await runGeneralWebSearchProbe(c.env,fetcher));}
+    catch{return c.json({error:'Probe unavailable or fenced. Do not start a replacement paid operation.'},503);}
+  });
   app.post('/api/admin/source-execution-paid-probe',async c=>{
     const input=z.object({probeId:z.string().regex(/^[-a-zA-Z0-9_]{1,80}$/),phase:z.enum(['homepage','article']),url:z.string().url().max(2048),authorizedMaxUsd:z.literal(0.10)}).strict().safeParse(await c.req.json());
     if(!input.success)return c.json({error:'invalid bounded probe'},400);
