@@ -228,6 +228,21 @@ it('automatically retires an isolated unknown window but leaves active unknown w
  expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(true);
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'FAILED',failure:'V3_UNCERTAIN_CALL_ISOLATED'});expect(calls).toBe(1);
 },30000);
+it.each([false,true])('recovers an orphaned legacy window only after isolation while preserving checkpoint-capable work (%s)',async checkpointed=>{
+ await article();if(checkpointed)env={...env,RAW_ARCHIVE:responseArchive().bucket};
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);let calls=0;
+ await processV1Briefing(env,message,()=>window.end,undefined,(async()=>{calls++;throw Error('lost body')}) as typeof fetch);
+ await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE kind='semantic_results'").run();
+ await feedTransact(store,'feed-1',async tx=>{const current=await tx.read<any>('briefing_requests',id);await tx.write('briefing_requests',id,{...current,reason:'INCOMPLETE_INTAKE_COVERAGE'})});
+ const request=await store.read<any>('feed-1','briefing_requests',id),money=await ctx.db.prepare('SELECT lease_until FROM v1_model_spending_reservations').first<{lease_until:number}>();
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:35:00Z')).toBe(false);
+ await isolateExpiredModelExecutions(ctx.db,'isolate-after-5m-v1',new Date(money!.lease_until+300001));
+ vi.spyOn(Date,'now').mockReturnValue(money!.lease_until+300001);
+ const before=(await ctx.db.prepare('SELECT id,json FROM v1_model_spending_reservations').all()).results;
+ expect(await recoverBlockedV3Request(store,'feed-1',request,'2026-10-03T12:45:00Z')).toBe(!checkpointed);
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:checkpointed?'PENDING':'FAILED'});
+ expect((await ctx.db.prepare('SELECT id,json FROM v1_model_spending_reservations').all()).results).toEqual(before);expect(calls).toBe(1);
+},30000);
 it.each(['SEMANTIC_PROVIDER_FAILURE','SEMANTIC_OUTCOME_UNKNOWN'])('retires a failed semantic call after accounting settles without treating the charge as usable content (%s)',async failure=>{
  await article();let calls=0;const failed=(async()=>{calls++;throw Error(failure)}) as typeof fetch;
  // Seed the expired-intent unknown fence before its immutable first write.
