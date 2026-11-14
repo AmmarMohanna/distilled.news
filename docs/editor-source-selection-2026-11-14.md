@@ -37,3 +37,9 @@ The full briefing suite passed 363 tests before adding the one recorded-evidence
 ## Rollback and limits
 
 Restore the previous deployment for new inputs if qualification regresses. Preserve frozen input policy flags, model identities, receipts and published reader memory. The change does not skip verification, auto-publish uncertain claims, narrow source evidence using a keyword filter, or claim to resolve every editorial judgment and database-delay issue.
+
+## Staging release
+
+Implementation commit `0f052975` was pushed and deployed on 2026-11-14. Staging Worker version: `04755aea-e329-4987-835e-5654086c2254`. The post-deployment check at 10:22:55 UTC returned public feed HTTP 200 and private feed HTTP 404. Readiness remains `relay`, edition artifacts remain enabled, and source collection budget mode remains `unlimited`; no feed allowlist is installed.
+
+The latest public edition at that check was scheduled for 10:00 UTC and published at 10:00:06 UTC. It and the two preceding inputs were frozen before this release and correctly retain their legacy citation-audit policy. This check establishes successful deployment, delivery configuration and visibility enforcement; it does not claim a post-release scheduled edition has completed. Real-model qualification of the new source policy is recorded above.
