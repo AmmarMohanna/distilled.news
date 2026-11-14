@@ -1,0 +1,59 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      pnpm-nonmajor:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+  - package-ecosystem: npm
+    directory: /evaluation/acquisition-benchmark/node
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      benchmark-node-nonmajor:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      action-nonmajor:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: /apps/worker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+  - package-ecosystem: pip
+    directory: /evaluation/acquisition-benchmark
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      benchmark-python:
+        patterns: ['*']
+  - package-ecosystem: pip
+    directory: /scripts
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      optional-python:
+        patterns: ['*']
