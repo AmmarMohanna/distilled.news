@@ -138,3 +138,16 @@ describe('D1/R2 spending and recovery',()=>{
  },20000);
 
 });
+
+describe('production telemetry isolation',()=>{
+ it('separates production evaluation series without changing the staging default',async()=>{
+  const exposition='distilled_eval_reviewed 1';
+  expect(JSON.stringify(metricsPayload(exposition,1000))).toContain('staging');
+  const payload=metricsPayload(exposition,1000,'production');
+  expect(JSON.stringify(payload)).not.toContain('staging');
+  expect(payload.resourceMetrics[0].resource.attributes[0].value.stringValue).toBe('distilled-news-production-quality');
+  let sent='';
+  await exportGrafana({DEPLOYMENT_ENVIRONMENT:'production',GRAFANA_EXPORT_ENABLED:'true',GRAFANA_OTLP_AUTH:'test',GRAFANA_OTLP_METRICS_URL:'https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics'} as Env,exposition,async(_url,init)=>{sent=String(init?.body);return Response.json({})});
+  expect(sent).toContain('production');expect(sent).not.toContain('staging');
+ });
+});
