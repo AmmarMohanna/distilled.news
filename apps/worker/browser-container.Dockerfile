@@ -28,7 +28,9 @@ RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
 # Preserve the deployed Node dependency layer; Python is copied in separately.
 FROM mcr.microsoft.com/playwright:v1.61.0-noble
 WORKDIR /app
-RUN corepack enable
+# Share Corepack's pinned pnpm cache with the non-root runtime account.
+ENV COREPACK_HOME=/opt/corepack
+RUN mkdir -p /opt/corepack && corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/package.json
@@ -42,6 +44,7 @@ COPY packages/core/package.json ./packages/core/package.json
 # workspace's pinned tsx/Playwright versions. No browser state is copied into
 # or written by the image.
 RUN pnpm install --filter @distilled/browser-bridge... --prod --frozen-lockfile
+RUN chmod -R a+rX /opt/corepack
 
 # Keep expensive Python layers stable across TypeScript and fixture edits.
 COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use
@@ -70,5 +73,8 @@ ENV DISTILLED_BROWSER_USE_HOME=/home/pwuser
 ENV ANONYMIZED_TELEMETRY=false
 ENV BROWSER_USE_CLOUD_SYNC=false
 ENV NODE_ENV=production
+# The Playwright noble base includes pwuser (UID 1001), matching the isolated
+# browser child UID/GID. No permission escalation is needed at runtime.
+USER pwuser
 EXPOSE 8080
 CMD ["pnpm", "--filter", "@distilled/browser-bridge", "exec", "tsx", "src/server.ts"]
