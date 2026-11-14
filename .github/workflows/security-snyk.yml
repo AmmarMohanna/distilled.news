@@ -1,0 +1,56 @@
+name: Security - Snyk (opt-in)
+on:
+  push:
+    branches: [main, ghada/DevSecOps, ghada/devsecops-security-automation]
+  schedule:
+    - cron: '17 7 * * 4'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snyk:
+    # This job is visibly SKIPPED until the owner enables SNYK_ENABLED.
+    # Never execute a secret-bearing job on untrusted pull_request code.
+    if: ${{ github.event_name != 'pull_request' && vars.SNYK_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reject missing Snyk token when enabled
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "::error::SNYK_ENABLED=true but SNYK_TOKEN secret is missing"
+            exit 2
+          fi
+      - name: Install frozen dependencies without project lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install pinned Snyk CLI
+        run: npm install -g snyk@1.1308.4
+      - name: Test dependency manifests (fail on high or critical)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --all-projects --fail-fast --severity-threshold=high --json-file-output=snyk-results.json
+      - name: Upload vulnerability report, never credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-dependency-findings
+          path: snyk-results.json
+          if-no-files-found: warn
+          retention-days: 7

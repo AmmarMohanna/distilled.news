@@ -1,0 +1,40 @@
+name: Security - Gitleaks history
+on:
+  pull_request:
+  push:
+    branches: [main, ghada/DevSecOps, ghada/devsecops-security-automation]
+  schedule:
+    - cron: '53 6 * * 3'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: security-gitleaks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  git-history:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Fetch history, not just latest files
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan all locally fetched refs with redaction
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/repo" -w /repo \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git --no-banner --redact=100 --log-level warn \
+            --log-opts="--all" --report-format sarif \
+            --report-path /repo/gitleaks-redacted.sarif /repo
+      - name: Publish redacted secret alerts
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@v4.39.3
+        with:
+          sarif_file: gitleaks-redacted.sarif
+          category: gitleaks-history
+      # Deliberately do not upload raw secrets or raw Git content as artifacts.
