@@ -314,21 +314,26 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
  const dispatchReviews=async(feedId?:string)=>{
   for(const source of reviewSources){
    if(feedId&&source.feedId!==feedId||reviewDispatched.has(source.id))continue;
-   const rows=await pendingV1Jobs(env,source.id,'REASSESS',now);
-   for(const job of rows)if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++;
    reviewDispatched.add(source.id);
+   await maintenance(source.feedId,'REVIEW_DISPATCH',async()=>{
+    const rows=await pendingV1Jobs(env,source.id,'REASSESS',now);
+    for(const job of rows)if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++;
+   });
   }
  };
  for(const id of sourceIds) {
   let scope:IntakeScope|undefined;
-  try {scope=await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
-  scope??=await new V1IntakeStore(env.DB).getScope(id);
+  await maintenance(id,'SOURCE_SCOPE_LOOKUP',async()=>{
+   try {scope=await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) return;throw error}
+   scope??=await new V1IntakeStore(env.DB).getScope(id);
+  });
   if(!scope?.enabled||scope.deletedAt)continue;
   feeds.add(scope.feedId);
   reviewSources.push({id,feedId:scope.feedId});
  }
  const store=new V1FeedStore(env.DB);
  for(const id of feeds) {
+  try {
   const feed=await store.getFeed(id);if(!feed || feed.paused || feed.deletedAt) continue;
   try {await approvedFeed(env,id)} catch(error) {if(error instanceof HandoffError && error.code==='SCOPE_DENIED') continue;throw error}
   if(!productV3Enabled(env))await dispatchReviews(id);
@@ -504,6 +509,9 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    // feed's publication turn. Do not enqueue the next window alongside it.
    if(!await enqueueV1(env,'v1_briefing',request.id,{type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage,now))break;sent++;
    break;
+  }
+  }catch(error){
+   console.error(JSON.stringify({type:'V1_FEED_DISPATCH_FAILED',feedId:id,error:error instanceof Error?error.message:'UNKNOWN'}));
   }
  }
  // Claim due publication transport before offering unfinished reviews the same
