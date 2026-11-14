@@ -1,4 +1,9 @@
--- Keep paused-window recovery off completed history.
+-- Keep the scheduler health check and paused recovery off completed history.
+CREATE INDEX v1_briefing_model_wait_since ON v1_feed_documents(
+  COALESCE(json_extract(json,'$.providerWaitSince'),json_extract(json,'$.createdAt')),feed_id,id
+) WHERE kind='briefing_requests' AND json_extract(json,'$.state')='PENDING'
+ AND json_extract(json,'$.engine')='v3' AND json_extract(json,'$.reason')='PROVIDER_RESOURCE_WAIT';
+
 CREATE INDEX v1_briefing_pending_v3_close ON v1_feed_documents(
   json_extract(json,'$.window.end'),feed_id,id
 ) WHERE kind='briefing_requests' AND json_extract(json,'$.state')='PENDING'

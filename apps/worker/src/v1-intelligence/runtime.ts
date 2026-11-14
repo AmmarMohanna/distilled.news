@@ -57,7 +57,7 @@ const incompleteIntakeReason='INCOMPLETE_INTAKE_COVERAGE';
 function isIntakeStatus(reason:string|undefined):boolean {
  return !reason||reason===intakeWaitReason||reason===incompleteIntakeReason;
 }
-export interface BriefingRequest {catchup?:{policy:'v3-unstarted-backlog-v1';supersededBy:string;at:string};engine?:'v2'|'v3';v3InputId?:string;coverage?:WindowIntakeCoverage;semanticCoverage?:{unresolvedTargets:unknown[]};id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
+export interface BriefingRequest {providerWaitSince?:string;catchup?:{policy:'v3-unstarted-backlog-v1';supersededBy:string;at:string};engine?:'v2'|'v3';v3InputId?:string;coverage?:WindowIntakeCoverage;semanticCoverage?:{unresolvedTargets:unknown[]};id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
 export const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
@@ -285,7 +285,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
    return undefined;
   }
   const waitingJob=await store.read<{state:string;failure?:string}>(feedId,'synthesis_jobs',id);
-  if(error instanceof ModelSpendingWait||waitingJob?.state==='PENDING'&&waitingJob.failure&&/ACCOUNT_|PROVIDER_RESOURCE|PROVIDER_LIMIT|AUTHORIZATION|EXECUTION_YIELD|MODEL_UNQUALIFIED|MODEL_BINDING|MODEL_CONTEXT|PAID_RESULT_AWAITING/.test(waitingJob.failure)){const reason=error instanceof ModelSpendingWait?error.reason:waitingJob!.failure!;await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!==reason)await tx.write('briefing_requests',id,{...current,reason,nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()})});return undefined;}
+  if(error instanceof ModelSpendingWait||waitingJob?.state==='PENDING'&&waitingJob.failure&&/ACCOUNT_|PROVIDER_RESOURCE|PROVIDER_LIMIT|AUTHORIZATION|EXECUTION_YIELD|MODEL_UNQUALIFIED|MODEL_BINDING|MODEL_CONTEXT|PAID_RESULT_AWAITING/.test(waitingJob.failure)){const reason=error instanceof ModelSpendingWait?error.reason:waitingJob!.failure!;await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!==reason){const at=now();await tx.write('briefing_requests',id,{...current,reason,providerWaitSince:reason==='PROVIDER_RESOURCE_WAIT'?at:undefined,nextAttemptAt:new Date(Date.parse(at)+60000).toISOString()})}});return undefined;}
   console.error(JSON.stringify({type:'V1_BRIEFING_ATTEMPT_FAILED',feedId,requestId:id,stage:failureStage,error:error instanceof Error?error.message.slice(0,300):'UNKNOWN'}));
   // The publication lease owns contention; concurrent deliveries cannot consume
   // retry attempts while that lease is live or reopen a completed edition.
