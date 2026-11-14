@@ -28,6 +28,28 @@ import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
 function responseArchive(){const objects=new Map<string,string>();return {objects,bucket:{put:async(key:string,value:string)=>{if(objects.has(key))return null;objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket}}
+it('attaches the verified edition artifact when publication retries a CAS conflict',async()=>{
+ await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0090_verified_edition_delivery.sql',import.meta.url),'utf8'));
+ await article();
+ const objects=new Map<string,string|Uint8Array>();
+ const bucket={put:async(key:string,value:string|Uint8Array)=>{objects.set(key,value);return {key};},get:async(key:string)=>{
+  const data=objects.get(key);
+  return typeof data==='string'?{text:async()=>data}:data?{size:data.length,arrayBuffer:async()=>data.slice().buffer}:null;
+ }} as unknown as R2Bucket;
+ const original=V1FeedStore.prototype.commit;
+ let conflicts=0,clock=Date.parse(window.end);
+ const commit=vi.spyOn(V1FeedStore.prototype,'commit').mockImplementation(async function(this:V1FeedStore,tx){
+  if(tx.editionDelivery&&conflicts===0){conflicts++;clock+=1000;return false;}
+  return original.call(this,tx);
+ });
+ try{
+  const edition=await processV1Briefing({...env,RAW_ARCHIVE:bucket,EDITION_ARTIFACTS_ENABLED:'true'},{type:'v1_briefing',feedId:'feed-1',window},()=>new Date(clock).toISOString(),undefined,fetcher([]) as typeof fetch);
+  expect(conflicts).toBe(1);
+  const row=await ctx.db.prepare('SELECT published_at,object_key FROM v1_edition_delivery WHERE edition_id=?').bind(edition?.id).first<{published_at:string;object_key:string}>();
+  expect(row?.published_at).toBe(edition?.createdAt);
+  expect(row&&objects.get(row.object_key)).toBeInstanceOf(Uint8Array);
+ }finally{commit.mockRestore();}
+},30000);
 it('persists a complete paid response through D1 when the R2 checkpoint is temporarily unavailable',async()=>{
  await article();const archive=responseArchive();archive.bucket.put=async()=>{throw Error('R2 temporarily unavailable')};env={...env,RAW_ARCHIVE:archive.bucket};
  const seen:string[]=[],edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);

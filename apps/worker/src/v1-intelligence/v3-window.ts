@@ -175,10 +175,21 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
     if(request?.state==='PENDING'&&(request.reason!=='AWAITING_SCHEDULED_DELIVERY'||request.nextAttemptAt!==window.scheduledFor))await tx.write('briefing_requests',id,{...request,reason:'AWAITING_SCHEDULED_DELIVERY',nextAttemptAt:window.scheduledFor});
    });return undefined;
   }
-  let stagedArtifact:{objectKey:string;createdAt:string}|null|undefined;
+  // Stage outside the commit loop. The CAS still validates scope, result and
+  // coverage; an uncommitted object can only be removed by orphan maintenance.
+  const edition=completed.result.status==='published'
+   ?await v3Edition(ref=>store.revision(feedId,ref),id,frozen,completed,now()):undefined;
+  let stagedArtifact:{objectKey:string;createdAt:string}|undefined;
+  if(edition&&env.EDITION_ARTIFACTS_ENABLED==='true'){
+   try{
+    const payload=await buildEditionDeliveryPayload(env.DB,edition);
+    const ref=await stageVerifiedArchive(env,'EDITION',feedId,id,JSON.stringify(payload));
+    stagedArtifact={objectKey:ref.objectKey,createdAt:edition.createdAt};
+   }catch{console.warn('Edition artifact preparation deferred');}
+  }
   return feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<BriefingEditionRecord>('editions',id);if(prior)return prior;
-   const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
+   const request=await tx.read<BriefingRequest>('briefing_requests',id);if(!request||request.state!=='PENDING'||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
    const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{v3:true,now:now(),deferIntake:frozen.cutoffPolicy===CUTOFF_EDITION_POLICY,deferAcquisition:completed.result.status==='published'&&Boolean(window.scheduledFor)&&Date.parse(now())>=Date.parse(window.scheduledFor!)});if(coverage.pendingJobs)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
     const collection=await pendingWindowCollections(env.DB,feedId,window.end,true,{scheduledFor:window.scheduledFor,now:Date.parse(now())});
@@ -193,16 +204,8 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    if(result.status!=='published'){
     await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:result.status==='rejected'||coverage.state!=='COMPLETE'?'DEFERRED':'QUIET',reason:result.status==='rejected'?'V3_VERIFICATION_REJECTED':coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});return undefined;
    }
-   const edition=await v3Edition(tx,id,frozen,completed,now());
-   if(env.EDITION_ARTIFACTS_ENABLED==='true'&&stagedArtifact===undefined){
-    stagedArtifact=null;
-    try{
-     const payload=await buildEditionDeliveryPayload(env.DB,edition);
-     const ref=await stageVerifiedArchive(env,'EDITION',feedId,id,JSON.stringify(payload));
-     stagedArtifact={objectKey:ref.objectKey,createdAt:edition.createdAt};
-    }catch{console.warn('Edition artifact preparation deferred');}
-   }
-   if(stagedArtifact?.createdAt===edition.createdAt)tx.editionDelivery={id,...stagedArtifact};
+   if(!edition)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   if(stagedArtifact)tx.editionDelivery={id,...stagedArtifact};
    await tx.write('editions',id,edition);await tx.write('publication_status',id,{id,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
    await tx.write('fidelity_results',id,{id,feedId,passed:true,protocol:POLICY,resultId:completed.id});
    await tx.write('delivery_jobs',id,{id,feedId,editionId:id,state:'PENDING',attempts:0,createdAt:edition.createdAt});
@@ -213,8 +216,8 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
  });
 }
 
-async function v3Edition(tx:FeedTransaction,id:string,input:V3WindowInput,saved:V3WindowResult,now:string):Promise<BriefingEditionRecord>{
- const revisions=new Map<string,EvidenceRevision>();for(const ref of input.evidenceRevisionIds){const r=await tx.revision(ref);if(!r)throw new HandoffError('SCOPE_DENIED');revisions.set(ref,r)}
+async function v3Edition(revision:(id:string)=>Promise<EvidenceRevision|undefined>,id:string,input:V3WindowInput,saved:V3WindowResult,now:string):Promise<BriefingEditionRecord>{
+ const revisions=new Map<string,EvidenceRevision>();for(const ref of input.evidenceRevisionIds){const r=await revision(ref);if(!r)throw new HandoffError('SCOPE_DENIED');revisions.set(ref,r)}
  const stories=saved.result.items.map((item,i)=>({candidateId:`${id}:${i}`,claims:[{id:`${id}:${i}:text`,text:`${item.headline}\n${item.body}`,support:item.sourceIds.map(ref=>{const r=revisions.get(ref);if(!r)throw new HandoffError('SCOPE_DENIED');return {evidenceRevisionId:ref,quote:r.body??r.title??''}})}]}));
  return {engine:'v3',id,...(input.id!==id?{v3InputId:input.id}:{}),feedId:input.feedId,feedRevision:input.feedRevision,windowStart:input.input.windowStart,windowEnd:input.input.windowEnd,...(input.scheduledFor?{scheduledFor:input.scheduledFor}:{}),language:input.input.feed.language,selectionId:id,selectedCandidateIds:stories.map(s=>s.candidateId),eventVersionIds:[],storylineVersionIds:[],evidenceRevisionIds:[...new Set(stories.flatMap(s=>s.claims.flatMap(c=>c.support.map(r=>r.evidenceRevisionId))))].sort(),stories,generation:{model:`${input.models.editor};${input.models.verifier}`,provider:'OPENROUTER',promptVersion:POLICY,routerVersion:POLICY,tokensIn:saved.result.usage.inputTokens,tokensOut:saved.result.usage.outputTokens,cost:saved.result.usage.costUsd??0,latencyMs:saved.result.timings.totalMs,usageConfirmed:true,verificationId:id},selectionPolicyVersion:POLICY,groundingPolicyVersion:POLICY,createdAt:now};
 }
@@ -228,5 +231,5 @@ export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditi
  if(input.cutoffPolicy){if(!await cutoffEvidenceAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');}
  else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}
  for(const id of saved.operationIds){const operation=await tx.read<{status:string;usage:{reported:boolean};input:{state:{inputId:string}}}>('semantic_results',id);if(operation?.status!=='SUCCEEDED'||!operation.usage.reported||operation.input.state.inputId!==input.fingerprint)throw new HandoffError('SCOPE_DENIED')}
- if(!saved.operationIds.length||canonicalJson(edition)!==canonicalJson(await v3Edition(tx,edition.id,input,saved,edition.createdAt)))throw new HandoffError('SCOPE_DENIED');
+ if(!saved.operationIds.length||canonicalJson(edition)!==canonicalJson(await v3Edition(ref=>tx.revision(ref),edition.id,input,saved,edition.createdAt)))throw new HandoffError('SCOPE_DENIED');
 }
