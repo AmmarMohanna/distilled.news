@@ -716,20 +716,6 @@ export function createApp(options: AppOptions = {}) {
     const {sourceExecutionStatus}=await import('./source-execution-status');
     return c.json(await sourceExecutionStatus(c.env));
   });
-  app.post('/api/admin/source-execution-paid-probe',async c=>{
-    const input=z.object({probeId:z.string().regex(/^[-a-zA-Z0-9_]{1,80}$/),phase:z.enum(['homepage','article']),url:z.string().url().max(2048),authorizedMaxUsd:z.literal(0.10)}).strict().safeParse(await c.req.json());
-    if(!input.success)return c.json({error:'invalid bounded probe'},400);
-    const target=new URL(input.data.url);
-    if(target.origin!=='https://lovin.co'||target.hash||(input.data.phase==='homepage')!==(target.pathname==='/'))return c.json({error:'invalid Lovin probe target'},400);
-    const ceiling=Math.min(0.05,JSON.parse(c.env.SOURCE_OPERATION_CEILINGS_JSON??'{}').zyte??0);
-    if(!c.env.ZYTE_API_KEY||!(ceiling>0)||!(JSON.parse(c.env.SOURCE_PROVIDER_BUDGETS_JSON??'{}').zyte>0))return c.json({error:'paid probe is not configured'},503);
-    const {createSourceBackend}=await import('./source-backend');
-    const {lovinAccessProbe}=await import('./lovin-access-probe');
-    const backend=createSourceBackend(c.env,{paidResponseMaxBytes:22_000_000,authorize:async()=>false,intake:{acceptBatch:async()=>{throw Error('PROBE_ONLY');}},fetcher});
-    try{return c.json(await lovinAccessProbe(backend.paidHttp,c.env.ZYTE_API_KEY,c.get('account')!.id,input.data,ceiling));}
-    catch{return c.json({error:'Paid probe unavailable or fenced. Do not start a replacement operation.'},503);}
-  });
-
   // Account identity is derived from the session, never from caller-owned tenant fields.
   app.post("/api/me/acquisitions", async (c) => {
     if (!c.env.WEB_OPERATOR_RUNTIME_TOKEN) return c.json({error:"acquisition_unconfigured"},503);
@@ -962,8 +948,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.post("/api/me/sources/assess", async c => {
-    const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000),source:z.string().trim().min(1).max(500),approvedRetrievalBudgetUsd:z.literal(0.10).optional(),searchQuery:z.string().trim().min(2).max(200).optional()}).strict().parse(await c.req.json());
-    if(input.approvedRetrievalBudgetUsd!==undefined)return c.json({error:'Paid source retrieval is temporarily disabled.'},503);
+    const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000),source:z.string().trim().min(1).max(500),searchQuery:z.string().trim().min(2).max(200).optional()}).strict().parse(await c.req.json());
     if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({assessment:{input:input.source,status:'unverified',reason:'Source assessment is not enabled on this deployment.',checkedAt:new Date().toISOString()}});
     const owner=c.get('account')!.id;
     const context={title:input.title,description:input.description};

@@ -86,20 +86,10 @@ describe("worker app accounts", () => {
     const target={...env(),SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_PAID_VERIFICATION_ENABLED:'true',OPENROUTER_API_KEY:'test',ZYTE_API_KEY:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0.05}'};
     const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'retrieval@example.com',username:'retrieval-budget',password:'password123',setupToken:'setup-token'})},target);
     const headers={cookie:setup.headers.get('set-cookie')!.split(';')[0],'content-type':'application/json'},body={title:'Georges Khabbaz',description:'Film and theater',source:'https://lovin.co/'};
-    for(const approvedRetrievalBudgetUsd of [0.01,0.20])expect((await app.request('/api/me/sources/assess',{method:'POST',headers,body:JSON.stringify({...body,approvedRetrievalBudgetUsd})},target)).status).toBe(400);
-    expect((await app.request('/api/me/sources/assess',{method:'POST',headers,body:JSON.stringify({...body,source:'rss: https://lovin.co/feed/',approvedRetrievalBudgetUsd:0.10})},target)).status).toBe(503);
-    expect((await app.request('/api/me/sources/assess',{method:'POST',headers,body:JSON.stringify({...body,approvedRetrievalBudgetUsd:0.10})},target)).status).toBe(503);
+    for(const approvedRetrievalBudgetUsd of [0.01,0.10,0.20])expect((await app.request('/api/me/sources/assess',{method:'POST',headers,body:JSON.stringify({...body,approvedRetrievalBudgetUsd})},target)).status).toBe(400);
     const response=await app.request('/api/me/sources/assess',{method:'POST',headers,body:JSON.stringify(body)},target);
     expect(await response.json()).toMatchObject({assessment:{status:'unverified',freeAccessUnavailable:true}});
     expect(fetcher.mock.calls.every(([url])=>String(url)==='https://lovin.co/')).toBe(true);
-  });
-  it('requires administrator authorization, explicit budget and Lovin target before any paid probe',async()=>{
-    const fetcher=vi.fn<typeof fetch>(),app=createApp({repository:new InMemoryRepository(),fetcher}),target=env();
-    expect((await app.request('/api/admin/source-execution-paid-probe',{method:'POST'},target)).status).toBe(401);
-    const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'probe@example.com',username:'paid-probe',password:'password123',setupToken:'setup-token'})},target);
-    const headers={cookie:setup.headers.get('set-cookie')!.split(';')[0],'content-type':'application/json'};
-    for(const input of [{probeId:'fixed',phase:'homepage',url:'https://lovin.co/'},{probeId:'fixed',phase:'homepage',url:'https://foreign.example/',authorizedMaxUsd:0.10},{probeId:'fixed',phase:'third',url:'https://lovin.co/',authorizedMaxUsd:0.10}])expect((await app.request('/api/admin/source-execution-paid-probe',{method:'POST',headers,body:JSON.stringify(input)},target)).status).toBe(400);
-    expect(fetcher).not.toHaveBeenCalled();
   });
   it('reuses an owner-scoped accepted assessment without repeating source or model requests',async()=>{
     const fetcher=vi.fn<typeof fetch>(),repo=new InMemoryRepository(),app=createApp({repository:repo,fetcher});

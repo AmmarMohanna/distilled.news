@@ -342,7 +342,6 @@ export async function recommendSources(title: string, description: string): Prom
 
 export interface SourceAssessment {
   freeAccessUnavailable?: boolean;
-  paidRetryMaxUsd?: number;
   evidenceQuote?: string;
   input: string;
   status: "accepted" | "rejected" | "unverified" | "unavailable";
@@ -380,7 +379,7 @@ export async function recommendSourceCandidates(title: string, description: stri
   }catch(cause){throw cause instanceof ApiError?cause:apiError(undefined,response);}
   finally{await reader.cancel().catch(()=>undefined);reader.releaseLock();}
 }
-export async function assessSourceInput(title: string, description: string, source: string,options?:{approvedRetrievalBudgetUsd?:0.10;searchQuery?:string}): Promise<SourceAssessment> {
+export async function assessSourceInput(title: string, description: string, source: string,options?:{searchQuery?:string}): Promise<SourceAssessment> {
   const payload = await requestJson<{ assessment: SourceAssessment }>("/api/me/sources/assess", { method: "POST", body: JSON.stringify({ title, description, source,...options }) });
   return payload.assessment;
 }

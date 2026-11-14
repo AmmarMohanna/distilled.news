@@ -12,7 +12,6 @@ import {collectVerificationEvidence,type SourceVerificationScope} from './source
 import {telegramVerificationEvidence} from './telegram-verification';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
 import {readAssessmentArticles,type AssessmentArticle} from './source-assessment-http';
-import {paidAssessmentArticles} from './source-assessment-paid';
 
 export interface SourceAssessment {
   input: string;
@@ -27,7 +26,6 @@ export interface SourceAssessment {
   freshness?: 'archive';
   upstreamStatus?: number;
   retryNotBefore?: string;
-  paidRetryMaxUsd?: number;
   freeAccessUnavailable?: boolean;
   failureCode?: 'PUBLIC_URL_POLICY_DENIED' | 'UPSTREAM_AUTOMATION_BLOCKED' | 'SOURCE_CONNECTION_FAILED' | 'SOURCE_FETCH_TIMEOUT' | 'TELEGRAM_AUTH_REQUIRED' | 'TELEGRAM_RATE_LIMIT' | 'TELEGRAM_RUNTIME_UNAVAILABLE' | 'TELEGRAM_CHANNEL_UNAVAILABLE';
 }
@@ -48,11 +46,11 @@ function topicExcerpt(text: string, context: {title:string;description:string}):
   return passages.length?passages.join(' [...] ').slice(0,500):text.slice(0,200);
 }
 /** Fetched text is evidence, never instructions or network authority. Paid checks use the shared budget. */
-export async function assessSource(env: Env, context: { title: string; description: string }, input: string, fetcher: typeof fetch = fetch, verification?:SourceVerificationScope, publisherEvidence?:TopicPublisherEvidence[],options?:{approvedRetrievalBudgetUsd?:0.10}): Promise<SourceAssessment> {
+export async function assessSource(env: Env, context: { title: string; description: string }, input: string, fetcher: typeof fetch = fetch, verification?:SourceVerificationScope, publisherEvidence?:TopicPublisherEvidence[]): Promise<SourceAssessment> {
   const base = { input, checkedAt: new Date().toISOString() };
   const result = (status: SourceAssessment['status'], reason: string, extra: Partial<SourceAssessment> = {}): SourceAssessment => ({ ...base, ...extra, status, reason });
   let plan: ReturnType<typeof prepareProductSourceInput>;
-  try { plan=prepareProductSourceInput(input);if(options?.approvedRetrievalBudgetUsd===undefined)plan = await resolveProductSourceInput(input, fetcher); }
+  try { plan = await resolveProductSourceInput(input, fetcher); }
   catch { return result('rejected', 'This source input is unsupported or its URL failed technical safety checks.'); }
   const kind = plan.detected.kind;
   const family: SourceFamily = kind === 'rss_feed' ? 'rss' : kind === 'web_page' ? 'website' : kind === 'telegram_channel' ? 'telegram' : kind as SourceFamily;
@@ -95,11 +93,10 @@ export async function assessSource(env: Env, context: { title: string; descripti
       // read the exact same query; retain its normal budget and retry fences.
       return {status:0,body:'',contentType:'',authenticationRequired:false};
     });
-    let page = options?.approvedRetrievalBudgetUsd!==undefined&&family==='website'?{status:403,body:'',contentType:'',authenticationRequired:false}:collected?{status:200,body:'',contentType:'application/json',authenticationRequired:false}:await nativeRead();
+    let page = collected?{status:200,body:'',contentType:'application/json',authenticationRequired:false}:await nativeRead();
     let anonymousArticles:AssessmentArticle[]=[];
     if(family==='website'&&[403,406].includes(page.status)&&!page.authenticationRequired){
-      if(options?.approvedRetrievalBudgetUsd===0.10)paidVerification=true;
-      anonymousArticles=options?.approvedRetrievalBudgetUsd===0.10&&verification?await paidAssessmentArticles(env,verification.ownerAccountId,context,url,0.10,verification.providerFetcher??fetcher):await readAssessmentArticles(env,url);
+      anonymousArticles=await readAssessmentArticles(env,url);
       if(anonymousArticles.length)page={status:200,body:'',contentType:'application/json',authenticationRequired:false};
     }
     const automationBlocked = () => kind === 'google_news' && page.status === 503 && /automated queries|unusual traffic/i.test(page.body);
@@ -114,7 +111,7 @@ export async function assessSource(env: Env, context: { title: string; descripti
     if (page.status !== 200 || page.authenticationRequired) {
       if(automationBlocked())return result('unverified', 'Google News is blocking automated requests from this deployment. Retrying a different query will not fix this. Use a publisher RSS feed or configure another collector.', {kind,upstreamStatus:page.status,failureCode:'UPSTREAM_AUTOMATION_BLOCKED'});
       const reason = family==='website'&&[403,406].includes(page.status)
-        ? options?.approvedRetrievalBudgetUsd!==undefined?'The paid retrieval did not provide verifiable article evidence. This source has not been added.':`This source is unavailable through the free collection routes (HTTP ${page.status}) and is hidden from source search for now.`
+        ? `This source is unavailable through the free collection routes (HTTP ${page.status}) and is hidden from source search for now.`
         : page.status === 404 || page.status === 410
         ? `This source URL is no longer available (HTTP ${page.status}). Use an updated RSS/Atom feed URL.`
         : page.status === 429
@@ -124,7 +121,7 @@ export async function assessSource(env: Env, context: { title: string; descripti
             : `The publisher returned HTTP ${page.status} instead of readable source content. Try again later or use another public feed.`;
       return result('unverified', kind === 'google_news' && page.status >= 500
         ? `Google News search is unavailable from this server (HTTP ${page.status}). Try a topic-specific publisher RSS feed or retry later.`
-        : reason, { kind, upstreamStatus: page.status,...(options?.approvedRetrievalBudgetUsd===undefined&&family==='website'&&[403,406].includes(page.status)?{freeAccessUnavailable:true}:{}) });
+        : reason, { kind, upstreamStatus: page.status,...(family==='website'&&[403,406].includes(page.status)?{freeAccessUnavailable:true}:{}) });
     }
     if (collected || anonymousArticles.length || kind === 'rss_feed' || kind === 'google_news' || /<(?:rss|feed)(?:\s|>)/i.test(page.body.slice(0, 1000))) {
       const terms=topicWords(context);

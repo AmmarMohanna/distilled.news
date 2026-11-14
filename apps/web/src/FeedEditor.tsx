@@ -112,7 +112,7 @@ export function FeedEditor(props: {
       const check=options?await assessSourceInput(title.trim(),prompt.trim(),source,options):await assessSourceInput(title.trim(),prompt.trim(),source);
       if(context!==sourceContext.current)return false;
       setSourceChecks(current=>[...current.filter(item=>item.input!==source),check]);
-      if(check.freeAccessUnavailable||check.paidRetryMaxUsd){
+      if(check.freeAccessUnavailable){
         setSearchResults(current=>current.filter(row=>row.source!==source));
         for(const saved of searchCache.current.values())saved.result.results=saved.result.results.filter(row=>row.source!==source);
       }

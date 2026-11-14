@@ -71,7 +71,7 @@ it('removes a paid-only source after verification without offering a paid retry'
   await act(async()=>vi.advanceTimersByTimeAsync(300));
   expect(host.querySelector('.source-paid-retry')).toBeNull();
   await act(async()=>host.querySelector<HTMLButtonElement>('.source-web-results button')!.click());
-  expect(vi.mocked(assessSourceInput).mock.lastCall?.[3]?.approvedRetrievalBudgetUsd).toBeUndefined();
+  expect(vi.mocked(assessSourceInput).mock.lastCall?.[3]).not.toHaveProperty('approvedRetrievalBudgetUsd');
   expect(host.querySelector('.source-paid-retry')).toBeNull();
   expect(host.querySelector('.source-web-results')).toBeNull();
   expect(host.querySelector('.selected-sources')?.textContent).not.toContain('lovin.co');
