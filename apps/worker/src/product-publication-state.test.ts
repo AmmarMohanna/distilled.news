@@ -7,6 +7,9 @@ it('does not call pending publication failed solely because a source has incompl
  const db={prepare:(sql:string)=>{let args:any[]=[];const statement={bind:(...v:any[])=>{args=v;return statement},first:async()=>sqlite.prepare(sql).get(...args)??null};return statement}} as unknown as D1Database;
  expect(await productPublicationState({DB:db} as Env,'feed')).toBe('checking');
  sqlite.prepare('UPDATE v1_feed_documents SET json=?').run(JSON.stringify({...row,state:'DONE',result:'QUIET'}));expect(await productPublicationState({DB:db} as Env,'feed')).toBe('failed');
+ const empty={...row,state:'DONE',result:'DEFERRED',reason:'INCOMPLETE_INTAKE_COVERAGE',coverage:{state:'INCOMPLETE',failedJobs:1,pendingJobs:0,failures:[{kind:'ACQUIRE',code:'EXTRACTION_FAILED',count:1}]}};
+ sqlite.prepare('UPDATE v1_feed_documents SET json=?').run(JSON.stringify(empty));expect(await productPublicationState({DB:db} as Env,'feed')).toBe('partial');
+ sqlite.prepare('UPDATE v1_feed_documents SET json=?').run(JSON.stringify({...empty,coverage:{...empty.coverage,blockedJobs:1}}));expect(await productPublicationState({DB:db} as Env,'feed')).toBe('failed');
  sqlite.prepare('UPDATE v1_feed_documents SET json=?').run(JSON.stringify({...row,state:'FAILED'}));expect(await productPublicationState({DB:db} as Env,'feed')).toBe('failed');
  }finally{sqlite.close()}
 });

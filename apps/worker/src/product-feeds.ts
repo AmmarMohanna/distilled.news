@@ -9,14 +9,17 @@ import {productConnectorSource} from './connector-source';
 import {discoverPublicRssFeed} from './product-feed-discovery';
 import {pendingWindowCollections} from './connector-publication-coverage';
 
-type PublicationState='waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required'|'service_blocked';
+type PublicationState='waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required'|'service_blocked'|'partial';
 
 export async function productPublicationState(env:Env,feedId:string):Promise<PublicationState> {
  // Evaluate status precedence in one snapshot and keep the latest-request seek bounded.
  const row=await env.DB.prepare(`
   WITH latest AS (
    SELECT id, json_extract(json,'$.state') AS state, json_extract(json,'$.reason') AS reason,
-          json_extract(json,'$.result') AS result, json_extract(json,'$.coverage.state') AS coverage
+          json_extract(json,'$.result') AS result, json_extract(json,'$.coverage.state') AS coverage,
+          json_extract(json,'$.coverage.failedJobs') AS failed_jobs,
+          json_extract(json,'$.coverage.failures') AS coverage_failures,
+          COALESCE(json_extract(json,'$.coverage.pendingJobs'),0)+COALESCE(json_extract(json,'$.coverage.deferredJobs'),0)+COALESCE(json_extract(json,'$.coverage.blockedJobs'),0) AS unresolved
    FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests'
    ORDER BY json_extract(json,'$.createdAt') DESC,id DESC LIMIT 1
   )
@@ -38,6 +41,10 @@ export async function productPublicationState(env:Env,feedId:string):Promise<Pub
      WHEN state='FAILED' THEN 'failed'
      WHEN state IS NOT 'DONE' THEN 'checking'
      WHEN EXISTS(SELECT 1 FROM v1_feed_documents e WHERE e.feed_id=? AND e.kind='editions' AND e.id=latest.id) THEN 'published'
+     WHEN coverage='INCOMPLETE' AND result='DEFERRED' AND reason='INCOMPLETE_INTAKE_COVERAGE'
+      AND unresolved=0 AND failed_jobs=1 AND json_array_length(coverage_failures)=1
+      AND json_extract(coverage_failures,'$[0].kind')='ACQUIRE'
+      AND json_extract(coverage_failures,'$[0].code') NOT IN ('BUDGET_EXHAUSTED','ACQUISITION_BACKPRESSURE_AT_DEADLINE') THEN 'partial'
      WHEN coverage='INCOMPLETE' THEN 'failed'
      WHEN result='QUIET' THEN 'quiet'
      ELSE 'checking'

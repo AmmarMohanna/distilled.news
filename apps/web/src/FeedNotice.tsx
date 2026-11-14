@@ -3,9 +3,9 @@ import React from 'react';
 import { TriangleAlert } from 'lucide-react';
 type Language='en'|'ar'|'fr';
 const text={
- en:{unavailable:'feed unavailable',correction:'Correction pending',delayed:'Briefing delayed',pending:'A correction to an earlier briefing is pending.',available:'Published briefings remain available.',failed:'The latest briefing could not be completed.'},
- ar:{unavailable:'الموجز غير متاح',correction:'تصحيح قيد الانتظار',delayed:'الموجز متأخر',pending:'هناك تصحيح لموجز سابق قيد الانتظار.',available:'لا تزال الموجزات المنشورة متاحة.',failed:'تعذّر إكمال الموجز الأخير.'},
- fr:{unavailable:'fil indisponible',correction:'Correction en attente',delayed:'Brief en retard',pending:'Une correction à un brief précédent est en attente.',available:'Les briefs publiés restent disponibles.',failed:'Le dernier brief n’a pas pu être terminé.'}
+ en:{partial:'No new developments in the sources we could check. One article could not be retrieved.',unavailable:'feed unavailable',correction:'Correction pending',delayed:'Briefing delayed',pending:'A correction to an earlier briefing is pending.',available:'Published briefings remain available.',failed:'The latest briefing could not be completed.'},
+ ar:{partial:'لا مستجدات في المصادر التي تمكّنا من التحقق منها. تعذّر جلب مقال واحد.',unavailable:'الموجز غير متاح',correction:'تصحيح قيد الانتظار',delayed:'الموجز متأخر',pending:'هناك تصحيح لموجز سابق قيد الانتظار.',available:'لا تزال الموجزات المنشورة متاحة.',failed:'تعذّر إكمال الموجز الأخير.'},
+ fr:{partial:'Aucun fait nouveau dans les sources consultées. Un article n’a pas pu être récupéré.',unavailable:'fil indisponible',correction:'Correction en attente',delayed:'Brief en retard',pending:'Une correction à un brief précédent est en attente.',available:'Les briefs publiés restent disponibles.',failed:'Le dernier brief n’a pas pu être terminé.'}
 };
 export function FeedNotice(props:{message:string;language:Language;heading?:string;severity?:'error'|'warning'}){
  const warning=props.severity==='warning';
@@ -15,6 +15,7 @@ export function FeedNotice(props:{message:string;language:Language;heading?:stri
 }
 export function FeedPublicationNotice(props:{publicationState?:string;hasPublishedEditions:boolean;language:Language}){
  const labels=text[props.language];
+ if(props.publicationState==='partial')return <p className="feed-publication-status" role="status">{labels.partial}</p>;
  if(props.publicationState!=='correction_pending'&&props.publicationState!=='failed')return null;
  if(props.publicationState==='failed')return <p className="feed-publication-status" role="status"><TriangleAlert size={16} aria-hidden="true"/><span>{labels.delayed}{props.hasPublishedEditions?`. ${labels.available}`:''}</span></p>;
  const correction=props.publicationState==='correction_pending';
