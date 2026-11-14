@@ -7,8 +7,9 @@ export async function completeStorySources(port:ModelPort,meter:UsageMeter,model
  if(!drafts.length)return [];
  if(articles.length===1)return coverage.map(refs=>[...refs]);
  if(drafts.length===1&&articles.every(a=>coverage[0].has(a.ref)))return coverage.map(refs=>[...refs]);
- // Sequential bounded chunks avoid multiplying provider concurrency for citation work.
- for(const chunk of chunkArticles(articles,maxChars)){
+ // Independent chunks use the ModelPort's existing provider/account admission.
+ // Fold in input order so out-of-order replies do not reorder citations.
+ const audits=await Promise.allSettled(chunkArticles(articles,maxChars).map(async chunk=>{
   const known=new Set(chunk.map(a=>a.ref));
   const decisions=await callJson(port,meter,{
    model,
@@ -25,7 +26,10 @@ export async function completeStorySources(port:ModelPort,meter:UsageMeter,model
    }
    return rows as {ref:string;stories:number[]}[];
   });
-  for(const row of decisions)for(const i of row.stories)coverage[i].add(row.ref);
- }
+  return decisions;
+ }));
+ // Drain complete callJson chains, including corrective retries, before failure.
+ for(const audit of audits)if(audit.status==='rejected')throw audit.reason;
+ for(const audit of audits)if(audit.status==='fulfilled')for(const row of audit.value)for(const i of row.stories)coverage[i].add(row.ref);
  return coverage.map(refs=>[...refs]);
 }

@@ -1,3 +1,4 @@
+import {readEvidenceWindowDecisions} from './evidence-window-decisions';
 import type {BriefingResult} from '@distilled/briefing';
 import {validateV3Edition} from './v3-window';
 import {assertIntelligenceTurn,intelligenceTurnGuard,withCanonicalCommitTurn} from '../connector-intelligence-turn';
@@ -58,28 +59,13 @@ export class V1FeedStore {
   return Boolean(row);
  }
  async list<T>(feedId:string,kind:DocumentKind):Promise<T[]> {const rows=await this.db.prepare('SELECT json FROM v1_feed_documents WHERE feed_id=? AND kind=? ORDER BY id').bind(feedId,kind).all<{json:string}>();return rows.results.map(r=>JSON.parse(r.json))}
- /** Candidate-targeted carry replay. Each page reads its version and decisions in one SQL snapshot. */
+ /** Legacy retry lookup retains its original fold and positive-candidate seek. */
  async carryEvidenceIds(feedId:string,ids:string[]):Promise<Set<string>> {
-  const wanted=[...new Set(ids)];if(!wanted.length)return new Set();let indexed=true,generation:number|undefined;
-  const retry=new Set<string>(),decisions:{revision_id:string;window_end:string;carry:number}[]=[];
-  for(let offset=0;offset<wanted.length;offset+=90){
-   let rows:D1Result<{marker:number;revision_id:string|null;window_end:string|null;carry:number|null;ready:number|null;version:number|null}>;
-   try{rows=await this.db.prepare(`WITH carry_state AS MATERIALIZED (
-    SELECT COALESCE(s.ready,0) ready,COALESCE(s.version,0) version FROM (SELECT ? feed_id) f LEFT JOIN v3_carry_index_state s ON s.feed_id=f.feed_id
-   ), candidates AS MATERIALIZED (
-    SELECT requested.value revision_id FROM json_each(?) requested WHERE (SELECT ready FROM carry_state)=1 AND EXISTS(
-     SELECT 1 FROM v3_carry_decisions p WHERE p.feed_id=? AND p.revision_id=requested.value AND p.carry=1)
-   ) SELECT 1 marker,NULL revision_id,NULL window_end,NULL carry,NULL result_id,ready,version FROM carry_state
-   UNION ALL SELECT 0,d.revision_id,d.window_end,d.carry,d.result_id,NULL,NULL FROM candidates c CROSS JOIN v3_carry_decisions d ON d.feed_id=? AND d.revision_id=c.revision_id
-   ORDER BY marker DESC,result_id`).bind(feedId,JSON.stringify(wanted.slice(offset,offset+90)),feedId,feedId).all();}
-   catch(error){if(!/no such table.*v3_carry_(index_state|decisions)/.test(String(error)))throw error;indexed=false;break;}
-   const state=rows.results[0];if(!state||state.marker!==1)throw new HandoffError('TEMPORARY_UNAVAILABLE');
-   if(state.ready!==1){indexed=false;break;}if(generation!==undefined&&state.version!==generation)throw new HandoffError('TEMPORARY_UNAVAILABLE');generation=state.version!;
-   for(const row of rows.results.slice(1))decisions.push({revision_id:row.revision_id!,window_end:row.window_end!,carry:row.carry!});
-  }
-  if(!indexed){const results=await this.list<{windowEnd:string;result:Pick<BriefingResult,'items'|'skipped'|'omitted'|'dropped'>}>(feedId,'v3_window_results');for(const p of results.sort((a,b)=>a.windowEnd.localeCompare(b.windowEnd))){for(const id of [...p.result.items.flatMap(i=>i.sourceIds),...p.result.skipped.map(s=>s.id),...p.result.omitted.flatMap(o=>o.sourceIds),...p.result.dropped.flatMap(d=>d.sourceIds)])retry.delete(id);for(const d of p.result.dropped.filter(d=>d.carry))for(const id of d.sourceIds)retry.add(id)}return new Set(wanted.filter(id=>retry.has(id)));}
-  // One revision belongs to one page; stable sorting retains original binary result-ID tie order.
-  for(const d of decisions.sort((a,b)=>a.window_end.localeCompare(b.window_end))){if(d.carry)retry.add(d.revision_id);else retry.delete(d.revision_id);}return retry;
+  return (await readEvidenceWindowDecisions(this,feedId,ids,undefined,false)).retry;
+ }
+ /** Earlier explicit decisions, scoped to this reporting boundary. */
+ async evidenceWindowDecisions(feedId:string,ids:string[],through:string){
+  return readEvidenceWindowDecisions(this,feedId,ids,through);
  }
  /** Metadata-only eligibility pass; immutable article bodies are loaded only after selection. */
  async currentEvidenceHeaders(feedId:string,cutoff?:string):Promise<{revision:Pick<EvidenceRevision,'id'|'evidenceId'|'publishedAt'|'acceptedAt'>;observedAt:string|null}[]> {
@@ -133,6 +119,18 @@ export class V1FeedStore {
    const rows=await this.db.prepare(`SELECT r.id,json_extract(r.json,'$.evidenceId') AS evidence_id FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(feedId,...chunk).all<{id:string;evidence_id:string}>();
    countLatency('publicationHistoryIdentityRows',rows.results.length);
    for(const row of rows.results)values.set(row.id,row.evidence_id);
+  }
+  return values;
+ }
+ /** Load immutable revisions in bounded batches, scoped to the owning feed. */
+ async loadRevisions(feedId:string,ids:string[],onBatch?:()=>void):Promise<Map<string,EvidenceRevision>> {
+  const values=new Map<string,EvidenceRevision>();
+  for(let offset=0;offset<ids.length;offset+=90){
+   const batch=ids.slice(offset,offset+90);
+   onBatch?.();
+   const rows=await this.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${batch.map(()=>'?').join(',')})`)
+    .bind(feedId,...batch).all<{id:string;json:string}>();
+   for(const row of rows.results)values.set(row.id,JSON.parse(row.json) as EvidenceRevision);
   }
   return values;
  }
@@ -372,12 +370,8 @@ export class FeedTransaction {
   * A foreign/missing revision stays absent just as with store.revision(). */
  async preloadRevisions(ids:string[]):Promise<void> {
   const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
-  for(let offset=0;offset<missing.length;offset+=90){
-   this.metrics.preloadQueries++;
-   const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>();
-   const values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));
-   for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)));
-  }
+  const values=await this.store.loadRevisions(this.snapshot.feed.id,missing,()=>this.metrics.preloadQueries++);
+  for(const id of missing)this.revisions.set(id,Promise.resolve(values.get(id)));
  }
  async write(kind:DocumentKind,id:string,value:unknown) {
   if(!value || typeof value!=='object' || !('id' in value) || value.id!==id) throw new HandoffError('SCOPE_DENIED');
@@ -477,8 +471,12 @@ export class FeedTransaction {
   }
  }
 }
-export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>,publicationCommit=false):Promise<T> {
- return serializeFeedBookkeeping(store,()=>feedTransactNow(store,id,run,publicationCommit));
+export async function feedTransact<T>(store:V1FeedStore,id:string,run:(tx:FeedTransaction)=>Promise<T>,publicationCommit=false,protectSnapshot=false):Promise<T> {
+ // Protect DB-only V3 bookkeeping from repeated source-epoch CAS retries.
+ // Acquire inside the local queue, never around provider network execution.
+ return serializeFeedBookkeeping(store,()=>protectSnapshot
+  ?withCanonicalCommitTurn(store.db,id,()=>feedTransactNow(store,id,run,publicationCommit),publicationCommit)
+  :feedTransactNow(store,id,run,publicationCommit));
 }
 export async function serializeFeedBookkeeping<T>(store:V1FeedStore,run:()=>Promise<T>):Promise<T>{
  const queue=store.transactionQueue;if(!queue)return run();

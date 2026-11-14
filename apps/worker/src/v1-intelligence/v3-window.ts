@@ -21,14 +21,17 @@ import type {BriefingRequest} from './runtime';
 import {buildEditionDeliveryPayload} from './public-read';
 import {stageVerifiedArchive} from '../verified-archives';
 
+export const V3_ADMISSION_POLICY='PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1' as const;
+export type V3AdmissionReason='PUBLICATION_WINDOW'|'LATE_DISCOVERY'|'SOURCE_REVISION'|'VERIFICATION_RETRY'|'EDITORIAL_OVERFLOW'|'VERIFIED_UNPUBLISHED'|'UNRESOLVED_WINDOW';
+export interface V3EvidenceAdmission {revisionId:string;reason:V3AdmissionReason;publishedAt:string|null;originWindowEnd?:string}
 const POLICY='v3-fixed-window-editor-verifier-v1';
 /** A settled unusable response or explicitly isolated UNKNOWN call is immutable,
  * not an admission wait. Neither case permits resending the same request. */
 export class SettledV3CallFailure extends Error {
  constructor(readonly operationId:string,reason='SEMANTIC_PROVIDER_FAILURE'){super(reason);}
 }
-export interface V3WindowInput {cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
-interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
+export interface V3WindowInput {noveltyPolicy?:'occurrence-aware-v1';editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2';editorSourcePolicy?:'all-supporting-sources-v1';editorFailurePolicy?:'isolate-unusable-chunks-v1';admissionPolicy?:typeof V3_ADMISSION_POLICY;admissions?:V3EvidenceAdmission[];cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
+export interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
 export const productV3Enabled=(env:Pick<Env,'BRIEFING_ENGINE'>)=>env.BRIEFING_ENGINE==='v3';
 export const productV3Ready=(env:Env)=>Boolean(env.OPENROUTER_API_KEY);
 export function productV3PromptVersion(env:Pick<Env,'BRIEFING_PROMPT_VERSION'>):4|5|6 {
@@ -50,28 +53,41 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const cutoffPolicy=freezeAtCutoff&&atScheduledCutoff(window,now)?CUTOFF_EDITION_POLICY:undefined;
  const evidence=await store.currentEvidenceHeaders(feedId,cutoffPolicy?window.end:undefined);
  const previousEvidenceIds=evidence.length?new Set((await store.revisionEvidenceIds(feedId,[...previouslyUsed])).values()):new Set<string>();
- const retryIds=await store.carryEvidenceIds(feedId,evidence.map(e=>e.revision.id));
+ const decisions=await store.evidenceWindowDecisions(feedId,evidence.map(e=>e.revision.id),window.start);
+ const retryIds=decisions.retry,unpublished=new Set([...decisions.selected].filter(id=>!previouslyUsed.has(id)));
  const observedAt=new Map(evidence.map(e=>[e.revision.id,e.observedAt]));
  const beforeClose=(r:Pick<EvidenceRevision,'id'|'acceptedAt'>)=>Date.parse(observedAt.get(r.id)??r.acceptedAt)<Date.parse(window.end)&&(!cutoffPolicy||Date.parse(r.acceptedAt)<Date.parse(window.end));
- const eligibleIn=(r:Pick<EvidenceRevision,'id'|'publishedAt'|'acceptedAt'|'evidenceId'>,reporting:PublicationWindow)=>{
+ const admissionReason=(r:Pick<EvidenceRevision,'id'|'publishedAt'|'acceptedAt'|'evidenceId'>,reporting:PublicationWindow):V3AdmissionReason|undefined=>{
   const eligibility=newsWindowEligibility([r],reporting,feed.createdAt);
-  const revised=previousEvidenceIds.has(r.evidenceId)&&Date.parse(r.acceptedAt)>=Date.parse(reporting.start);
-  return eligibility==='IN_WINDOW'||eligibility==='LATE_DISCOVERY'||eligibility!=='AFTER_WINDOW'&&(revised||retryIds.has(r.id));
+  if(eligibility==='AFTER_WINDOW')return undefined;
+  if(retryIds.has(r.id))return decisions.overflow.has(r.id)?'EDITORIAL_OVERFLOW':'VERIFICATION_RETRY';
+  if(unpublished.has(r.id))return 'VERIFIED_UNPUBLISHED';
+  if(eligibility==='IN_WINDOW')return 'PUBLICATION_WINDOW';
+  if(previousEvidenceIds.has(r.evidenceId)&&Date.parse(r.acceptedAt)>=Date.parse(reporting.start))return 'SOURCE_REVISION';
+  if(eligibility==='LATE_DISCOVERY')return 'LATE_DISCOVERY';
  };
- const active=evidence.filter(({revision:r})=>beforeClose(r)&&(!previouslyUsed.has(r.id)||retryIds.has(r.id))&&eligibleIn(r,window));
  const pending=(await store.unresolvedPublicationWindows(feedId)).filter(r=>Date.parse(r.window.end)<=Date.parse(window.start)&&Date.parse(r.window.start)>=Date.parse(feed.createdAt));
- const carried=evidence.filter(({revision:r})=>!active.some(a=>a.revision.id===r.id)&&!previouslyUsed.has(r.id)&&beforeClose(r)&&pending.some(p=>eligibleIn(r,p.window)));
- active.push(...carried);active.sort((a,b)=>a.revision.id.localeCompare(b.revision.id));
+ const admissions:V3EvidenceAdmission[]=[],active:typeof evidence=[];
+ for(const entry of evidence){
+  const r=entry.revision;
+  if(!beforeClose(r)||((previouslyUsed.has(r.id)||decisions.resolved.has(r.id))&&!retryIds.has(r.id)))continue;
+  let reason=admissionReason(r,window),originWindowEnd:string|undefined;
+  if(!reason){const missed=pending.find(p=>admissionReason(r,p.window));if(missed){reason='UNRESOLVED_WINDOW';originWindowEnd=missed.window.end;}}
+  if(!reason)continue;
+  active.push(entry);admissions.push({revisionId:r.id,reason,publishedAt:r.publishedAt??null,...(originWindowEnd?{originWindowEnd}:{})});
+ }
+ active.sort((a,b)=>a.revision.id.localeCompare(b.revision.id));admissions.sort((a,b)=>a.revisionId.localeCompare(b.revisionId));
  const hydrated=new Map((await store.currentEvidenceByIds(feedId,active.map(e=>e.revision.id),cutoffPolicy?window.end:undefined)).map(e=>[e.revision.id,e]));
  const selected=active.map(e=>{const full=hydrated.get(e.revision.id);if(!full)throw new HandoffError('TEMPORARY_UNAVAILABLE');return full});
  const input:BriefingInput={feed:{interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:selected.map(({item,revision:r})=>({...(architecture?{revision:{evidenceId:r.evidenceId,version:r.revision,acceptedAt:r.acceptedAt,observedAt:observedAt.get(r.id)??undefined,contentHash:r.contentHash,sourceObservationId:r.sourceObservationId,acquiredContentId:r.acquiredContentId}}:{}),id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.representation==='LISTING_RESULT'?'[Source content: catalogue/listing snapshot. Descriptions, ratings and review excerpts are not full linked reviews. Do not infer a product release or news event date from this page timestamp.]\n'+(r.body??r.title??''):r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
- const value={...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:true,noveltyGuard:true,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
+ const value={editorAccountingPolicy:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1' as const,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }
 
 /** Uses the product account ledger, rate limits, immutable operation identities,
  * provider receipt recovery and uncertain-charge fences. No V3 spend ledger. */
-function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,windowId:string,now:()=>string,fetcher:typeof fetch,operations:Set<string>):ModelPort&{drain():Promise<void>}{
+/** Shared by the runtime and staging qualification; no separate billing transport. */
+export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,windowId:string,now:()=>string,fetcher:typeof fetch,operations:Set<string>):ModelPort&{drain():Promise<void>}{
  let active=0;const waiting:Array<()=>void>=[];const limit=configuredProviderLimits(env,'openrouter').maxConcurrent;
  const complete=async(request:ModelRequest)=>{
   if(active>=limit)await new Promise<void>(resolve=>waiting.push(resolve));active++;
@@ -161,7 +177,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   const frozen=snapshot;
   let saved=await store.read<V3WindowResult>(feedId,'v3_window_results',frozen.id);
   if(!saved){const operations=new Set<string>(),port=durableV3Port(store,env,frozen,id,now,fetcher,operations);let result:BriefingResult;
-   try{result=await generateBriefing(frozen.input,port,frozen.models,{citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(window.end),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}})}finally{await port.drain()}
+   try{result=await generateBriefing(frozen.input,port,frozen.models,{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(window.end),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}})}finally{await port.drain()}
    saved={id:frozen.id,feedId,inputId:frozen.fingerprint,windowEnd:window.end,result,operationIds:[...operations].sort()};
    await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,saved!));
   }
@@ -177,14 +193,15 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   }
   // Stage outside the commit loop. The CAS still validates scope, result and
   // coverage; an uncommitted object can only be removed by orphan maintenance.
-  const edition=completed.result.status==='published'
-   ?await v3Edition(ref=>store.revision(feedId,ref),id,frozen,completed,now()):undefined;
+  let stagedEdition:BriefingEditionRecord|undefined;
   let stagedArtifact:{objectKey:string;createdAt:string}|undefined;
-  if(edition&&env.EDITION_ARTIFACTS_ENABLED==='true'){
+  if(completed.result.status==='published'&&env.EDITION_ARTIFACTS_ENABLED==='true'){
+   const revisions=await store.loadRevisions(feedId,[...new Set(frozen.evidenceRevisionIds)]);
+   stagedEdition=await v3Edition(async ref=>revisions.get(ref),id,frozen,completed,now());
    try{
-    const payload=await buildEditionDeliveryPayload(env.DB,edition);
+    const payload=await buildEditionDeliveryPayload(env.DB,stagedEdition);
     const ref=await stageVerifiedArchive(env,'EDITION',feedId,id,JSON.stringify(payload));
-    stagedArtifact={objectKey:ref.objectKey,createdAt:edition.createdAt};
+    stagedArtifact={objectKey:ref.objectKey,createdAt:stagedEdition.createdAt};
    }catch{console.warn('Edition artifact preparation deferred');}
   }
   return feedTransact(store,feedId,async tx=>{
@@ -202,9 +219,10 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    else{const active=await store.activeEvidenceRevisionIds(feedId);if(frozen.evidenceRevisionIds.some(r=>!active.has(r)))throw new HandoffError('SCOPE_DENIED');}
    const result=completed.result;
    if(result.status!=='published'){
-    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:result.status==='rejected'||coverage.state!=='COMPLETE'?'DEFERRED':'QUIET',reason:result.status==='rejected'?'V3_VERIFICATION_REJECTED':coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});return undefined;
+    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:result.status==='rejected'||coverage.state!=='COMPLETE'?'DEFERRED':'QUIET',reason:result.status==='rejected'?(result.dropped.some(d=>/EDITOR_ACCOUNTING/.test(d.reason))?'V3_EDITOR_ACCOUNTING_INCOMPLETE':'V3_VERIFICATION_REJECTED'):coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});return undefined;
    }
-   if(!edition)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+   await tx.preloadRevisions(frozen.evidenceRevisionIds);
+   const edition=stagedEdition??await v3Edition(ref=>tx.revision(ref),id,frozen,completed,now());
    if(stagedArtifact)tx.editionDelivery={id,...stagedArtifact};
    await tx.write('editions',id,edition);await tx.write('publication_status',id,{id,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
    await tx.write('fidelity_results',id,{id,feedId,passed:true,protocol:POLICY,resultId:completed.id});
@@ -212,7 +230,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    // The edition itself is V3's reader memory. Do not fabricate canonical Events.
    await tx.write('ledger_projections',JSON.stringify([id,'grounded-communication-ledger-v1']),{id:JSON.stringify([id,'grounded-communication-ledger-v1']),feedId,editionId:id,entryIds:[],policyVersion:POLICY});
    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:'PUBLISHED',reason:undefined,completedAt:edition.createdAt});return edition;
-  },completed.result.status==='published');
+  },completed.result.status==='published',true);
  });
 }
 
@@ -231,5 +249,6 @@ export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditi
  if(input.cutoffPolicy){if(!await cutoffEvidenceAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');}
  else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}
  for(const id of saved.operationIds){const operation=await tx.read<{status:string;usage:{reported:boolean};input:{state:{inputId:string}}}>('semantic_results',id);if(operation?.status!=='SUCCEEDED'||!operation.usage.reported||operation.input.state.inputId!==input.fingerprint)throw new HandoffError('SCOPE_DENIED')}
+ await tx.preloadRevisions(input.evidenceRevisionIds);
  if(!saved.operationIds.length||canonicalJson(edition)!==canonicalJson(await v3Edition(ref=>tx.revision(ref),edition.id,input,saved,edition.createdAt)))throw new HandoffError('SCOPE_DENIED');
 }

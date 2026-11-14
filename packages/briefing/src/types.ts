@@ -82,7 +82,16 @@ export interface UnaccountedSource {
   sourceIds: string[];
 }
 
+export interface SourceDecision {
+  sourceId:string;
+  preparedRef?:string;
+  duplicateOf?:string;
+  outcomes:Array<{stage:'preparation'|'editor'|'consolidation'|'safety_cap'|'final';decision:'selected'|'omitted'|'deferred'|'skipped'|'duplicate'|'unresolved';reason:string;headline?:string}>;
+}
+
 export interface BriefingResult {
+  /** Per-input provenance, not a certificate of editorial correctness. New accounting policy only. */
+  sourceDecisions?:SourceDecision[];
   /** Experimental audit, not an independent semantic-truth certificate. */
   evidenceAgent?: {architecture:'evidence-first-v1'|'evidence-first-v2';recordFailures?:Array<{developmentId:string|null;reason:string;sourceIds:string[]}>;priorAliases?:Array<{ref:string;canonicalId:string}>;semanticTruthEstablished:false;developments:unknown[];proofs:unknown[];reviews:unknown[];diagnostics:string[];toolUsage:{reads:number;returnedChars:number};acceptedDevelopmentIds:string[]};
   /**
@@ -126,4 +135,9 @@ export class BriefingBudgetError extends Error {
     super(message);
     this.name = "BriefingBudgetError";
   }
+}
+
+/** Received replies exhausted JSON/schema correction, including truncation; no unknown provider outcome. */
+export class BriefingOutputError extends BriefingModelError {
+ constructor(message:string){super(message,true);}
 }

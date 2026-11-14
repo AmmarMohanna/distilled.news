@@ -52,3 +52,76 @@ it('rejects a mixed carry snapshot when a result commits between candidate selec
  const db=new Proxy(ctx.db,{get(t,k){if(k==='prepare')return (sql:string)=>{const wrap=(statement:D1PreparedStatement):D1PreparedStatement=>new Proxy(statement,{get(s,key){if(key==='bind')return (...params:any[])=>wrap(s.bind(...params));if(key==='all'&&sql.startsWith('WITH carry_state'))return async()=>{const rows=await s.all();if(!changed){changed=true;await insert(ctx.db,result('after','2026-10-02T00:00:00Z',{skipped:[{id:'a'}],dropped:[{sourceIds:['b'],carry:true}]}));}return rows;};const value=Reflect.get(s,key);return typeof value==='function'?value.bind(s):value;}});return wrap(t.prepare(sql))};const value=Reflect.get(t,k);return typeof value==='function'?value.bind(t):value;}});
  await expect(new V1FeedStore(db).carryEvidenceIds('feed-1',['a',...Array.from({length:89},(_,i)=>'padding-'+i),'b'])).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});expect(await new V1FeedStore(ctx.db).carryEvidenceIds('feed-1',['a','b'])).toEqual(new Set(['b']));
  }finally{await ctx.dispose()}});
+
+it.each([false,true])('admission decisions preserve chronology, unresolved selection and retry precedence (indexed=%s)',async indexed=>{
+ const ctx=await createIntakeDatabase();try{
+  if(indexed)await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0080_v3_carry_index.sql',import.meta.url),'utf8'));
+  const store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await store.registerFeed({...feedFixture,id:'foreign'});
+  await insert(ctx.db,result('first','2026-10-01T00:00:00Z',{dropped:[{sourceIds:['retry','skip'],carry:true}]}));
+  await insert(ctx.db,result('decision','2026-10-02T00:00:00Z',{items:[{sourceIds:['selected','selected-and-omitted']}],skipped:[{id:'skip'}],omitted:[{sourceIds:['omit','both','selected-and-omitted']}],dropped:[{sourceIds:['drop'],carry:false},{sourceIds:['both'],carry:true}],unaccounted:[{sourceIds:['unknown']}]}));
+  await insert(ctx.db,result('future','2026-10-03T00:00:00Z',{skipped:[{id:'retry'}]}));
+  await insert(ctx.db,result('foreign-negative','2026-10-02T00:00:00Z',{skipped:[{id:'retry'}]}),'foreign');
+  const actual=await store.evidenceWindowDecisions('feed-1',['retry','skip','omit','drop','both','selected','selected-and-omitted','unknown'],'2026-10-02T00:00:00Z');
+  expect(actual).toEqual({retry:new Set(['retry','both']),resolved:new Set(['skip','omit','drop']),selected:new Set(['selected','selected-and-omitted']),overflow:new Set()});
+  expect((await store.evidenceWindowDecisions('feed-1',['retry'],'2026-10-03T00:00:00Z')).resolved).toEqual(new Set(['retry']));
+ }finally{await ctx.dispose()}
+});
+it('admission decisions fail safely when their indexed generation changes between pages',async()=>{
+ const ctx=await createIntakeDatabase();try{
+  await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0080_v3_carry_index.sql',import.meta.url),'utf8'));
+  const store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await insert(ctx.db,result('initial','2026-10-01T00:00:00Z',{skipped:[{id:'a'}]}));let changed=false;
+  const db=new Proxy(ctx.db,{get(t,k){if(k==='prepare')return (sql:string)=>{const wrap=(s:D1PreparedStatement):D1PreparedStatement=>new Proxy(s,{get(statement,key){if(key==='bind')return(...args:any[])=>wrap(statement.bind(...args));if(key==='all'&&sql.startsWith('WITH carry_state'))return async()=>{const rows=await statement.all();if(!changed){changed=true;await insert(ctx.db,result('concurrent','2026-10-02T00:00:00Z',{dropped:[{sourceIds:['b'],carry:true}]}));}return rows};const value=Reflect.get(statement,key);return typeof value==='function'?value.bind(statement):value}});return wrap(t.prepare(sql))};const value=Reflect.get(t,k);return typeof value==='function'?value.bind(t):value}});
+  await expect(new V1FeedStore(db).evidenceWindowDecisions('feed-1',['a',...Array.from({length:89},(_,i)=>'padding-'+i),'b'],'2026-10-03T00:00:00Z')).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ }finally{await ctx.dispose()}
+});
+
+it.each([false,true])('retains unaccounted duplicates and editorial overflow instead of treating them as declined (indexed=%s)',async indexed=>{
+ const ctx=await createIntakeDatabase();try{
+  if(indexed)await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0080_v3_carry_index.sql',import.meta.url),'utf8'));
+  const store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);
+  await insert(ctx.db,result('mechanical','2026-10-01T00:00:00Z',{skipped:[{id:'unaccounted-duplicate',reason:'duplicate_of_other_article'},{id:'legacy-duplicate',reason:'duplicate_of_other_article'}],unaccounted:[{sourceIds:['unaccounted-duplicate']}],omitted:[{stage:'safety_cap',sourceIds:['overflow'],reason:'exceeded an old output cap'}]}));
+  const state=await store.evidenceWindowDecisions('feed-1',['unaccounted-duplicate','legacy-duplicate','overflow'],'2026-10-02T00:00:00Z');
+  expect(state.resolved).toEqual(new Set());expect(state.retry).toContain('overflow');
+ }finally{await ctx.dispose()}
+});
+it.each([false,true])('an invalid historical reporting date cannot resolve an earlier source (indexed=%s)',async indexed=>{
+ const ctx=await createIntakeDatabase();try{
+  if(indexed)await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0080_v3_carry_index.sql',import.meta.url),'utf8'));
+  const store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await insert(ctx.db,result('bad-date','invalid',{skipped:[{id:'source',reason:'legacy'}]}));
+  expect((await store.evidenceWindowDecisions('feed-1',['source'],'2026-10-02T00:00:00Z')).resolved.size).toBe(0);
+ }finally{await ctx.dispose()}
+});
+
+it.each([false,true])('missing consolidation decisions preserve a prior retry and retain unresolved evidence (indexed=%s)',async indexed=>{
+ const ctx=await createIntakeDatabase();try{
+  if(indexed)await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0080_v3_carry_index.sql',import.meta.url),'utf8'));
+  const store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);
+  await insert(ctx.db,result('retry','2026-10-01T00:00:00Z',{dropped:[{sourceIds:['retry-source'],carry:true}]}));
+  await insert(ctx.db,result('missing','2026-10-02T00:00:00Z',{omitted:[{stage:'consolidation',sourceIds:['retry-source','unresolved'],reason:'dropped by consolidation without a reason'}]}));
+  const state=await store.evidenceWindowDecisions('feed-1',['retry-source','unresolved'],'2026-10-03T00:00:00Z');
+  expect(state.retry).toEqual(new Set(['retry-source']));expect(state.resolved.size).toBe(0);
+ }finally{await ctx.dispose()}
+});
+
+it('does not multiply a shared result scan when candidates span additional pages',async()=>{
+ const ctx=await createIntakeDatabase();try{
+  await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0080_v3_carry_index.sql',import.meta.url),'utf8'));
+  const store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);
+  const refs=Array.from({length:1200},(_,i)=>'source-'+i);await insert(ctx.db,result('shared-result','2026-10-01T00:00:00Z',{omitted:[{stage:'editor',sourceIds:refs,reason:'unchanged background'}]}));let reads=0;
+  const wrap=(s:D1PreparedStatement):D1PreparedStatement=>new Proxy(s,{get(t,k){if(k==='bind')return(...params:any[])=>wrap(t.bind(...params));if(k==='all'||k==='first')return async(column?:string)=>{const r=await t.all();reads+=r.meta.rows_read;return k==='all'?r:r.results.length?(column===undefined?r.results[0]:(r.results[0] as any)[column]):null};const v=Reflect.get(t,k);return typeof v==='function'?v.bind(t):v}});
+  const tracked=new V1FeedStore({prepare(sql:string){return wrap(ctx.db.prepare(sql))}} as D1Database);
+  expect((await tracked.evidenceWindowDecisions('feed-1',refs.slice(0,90),'2026-10-02T00:00:00Z')).resolved.size).toBe(90);const onePage=reads;reads=0;
+  expect((await tracked.evidenceWindowDecisions('feed-1',refs.slice(0,181),'2026-10-02T00:00:00Z')).resolved.size).toBe(181);
+  // Candidate work scales with 181/90, plus a small number of page/version markers.
+  // Re-reading the 1,200-reference result per page exceeded this bound before the fix.
+  expect(reads).toBeLessThanOrEqual(onePage*181/90+12);
+ }finally{await ctx.dispose()}
+});
+
+it('rejects a decision snapshot if history changes during compact result metadata reads',async()=>{
+ const ctx=await createIntakeDatabase();try{
+  await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0080_v3_carry_index.sql',import.meta.url),'utf8'));const store=new V1FeedStore(ctx.db);await store.registerFeed(feedFixture);await insert(ctx.db,result('old','2026-10-01T00:00:00Z',{skipped:[{id:'source'}]}));let changed=false;
+  const db=new Proxy(ctx.db,{get(t,k){if(k==='prepare')return (sql:string)=>{const wrap=(s:D1PreparedStatement):D1PreparedStatement=>new Proxy(s,{get(statement,key){if(key==='bind')return(...args:any[])=>wrap(statement.bind(...args));if(key==='all'&&sql.startsWith('SELECT r.id,r.feed_id,'))return async()=>{const rows=await statement.all();if(!changed){changed=true;await insert(ctx.db,result('new','2026-10-02T00:00:00Z',{dropped:[{sourceIds:['source'],carry:true}]}));}return rows};const value=Reflect.get(statement,key);return typeof value==='function'?value.bind(statement):value}});return wrap(t.prepare(sql))};const value=Reflect.get(t,k);return typeof value==='function'?value.bind(t):value}});
+  await expect(new V1FeedStore(db).evidenceWindowDecisions('feed-1',['source'],'2026-10-03T00:00:00Z')).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
+ }finally{await ctx.dispose()}
+});

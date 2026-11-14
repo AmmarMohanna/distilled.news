@@ -231,3 +231,23 @@ it('isolated read-only publication validates snapshots without taking another ow
  expect(await ctx.db.prepare("SELECT state FROM (SELECT json_extract(json,'$.state') state FROM v1_jobs WHERE id='turn-job')").first()).toEqual({state:'PENDING'});
  expect(await ctx.db.prepare("SELECT id FROM v1_model_spending_reservations WHERE id='must-not-charge'").first()).toBeNull();
 });
+
+it('protects short publication bookkeeping snapshots and releases admission before provider work',async()=>{
+ env.V1_PUBLICATION_PREPARATION_ISOLATED='true';
+ let resume!:()=>void,entered!:()=>void,computations=0;
+ const ready=new Promise<void>(resolve=>{entered=resolve});
+ const publication=withIntelligenceTurn(env,{type:'v1_briefing',feedId:'turn-1',window},()=>feedTransact(new V1FeedStore(ctx.db),'turn-1',async tx=>{
+  computations++;
+  if(computations===1){entered();await new Promise<void>(resolve=>{resume=resolve});}
+  await tx.write('briefing_requests','protected-window',{id:'protected-window',feedId:'turn-1',state:'PENDING'});
+ },false,true));
+ await ready;
+ let blocked=false;
+ try{await withFeedWriteTurn(env,'turn-1',async()=>{await ctx.db.prepare("UPDATE v1_feeds SET epoch=epoch+1 WHERE id='turn-1'").run()},'intake-after-bookkeeping')}
+ catch(error){blocked=error instanceof Error&&error.message==='INTELLIGENCE_TURN_BUSY'}
+ finally{resume();await publication}
+ expect(blocked).toBe(true);expect(computations).toBe(1);
+ // Same intake work can run as soon as DB-only bookkeeping has completed.
+ expect(await withFeedWriteTurn(env,'turn-1',async()=> 'promoted','intake-after-bookkeeping')).toBe('promoted');
+ expect(await new V1FeedStore(ctx.db).read('turn-1','briefing_requests','protected-window')).toMatchObject({state:'PENDING'});
+});

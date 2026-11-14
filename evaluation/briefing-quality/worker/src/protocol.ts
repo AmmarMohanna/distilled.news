@@ -1,4 +1,5 @@
-export const PROTOCOL='atomic-development-review-v2';
+export const LEGACY_PROTOCOL='atomic-development-review-v2';
+export const PROTOCOL='atomic-development-review-v3';
 // Stable enrollment identity: a new review format must not duplicate every job.
 export const JOB_IDENTITY_PROTOCOL='atomic-development-review-v1';
 export interface Article {id:string;feedId:string;text:string|null;title?:string;publishedAt?:string;completeness:'complete'|'partial'|'missing'|'unknown'}
@@ -9,11 +10,11 @@ export interface Evidence {sourceId:string;quote:string}
 export interface Development {id:string;text:string;importance:1|2|3;relation:'new'|'update'|'correction'|'already_reported';evidence:Evidence[]}
 export interface Inventory {developments:Development[];limitations:string[]}
 export interface Claim {id:string;item:number;text:string;support:'supported'|'contradicted'|'unsupported'|'uncertain';citationSupport:'supported'|'unsupported'|'uncertain'|'missing';evidence:Evidence[];explanation:string}
-export interface Coverage {developmentId:string;status:'covered'|'omitted'|'uncertain'|'already_reported';items:number[];explanation:string}
+export interface Coverage {priorIds?:string[];developmentId:string;status:'covered'|'omitted'|'uncertain'|'already_reported';items:number[];explanation:string}
 export interface ItemReview {item:number;relevance:'relevant'|'irrelevant'|'uncertain';repetition:'novel'|'necessary_update'|'repeated'|'uncertain';temporal:'correct'|'incorrect'|'uncertain';language:'correct'|'incorrect'|'uncertain';explanation:string}
 export interface Finding {category:'factual'|'citation'|'coverage'|'relevance'|'repetition'|'temporal'|'language';severity:'warning'|'error';item:number|null;explanation:string;evidence:Evidence[]}
 export interface Review {claims:Claim[];coverage:Coverage[];items:ItemReview[];findings:Finding[];limitations:string[]}
-export interface Request {system:string;user:string}
+export interface Request {system:string;user:string;schemaPolicy?:'source-inventory-v3'|'inventory-grounding-v1'|'grounded-review-v3'}
 export function check(condition:unknown,message:string):asserts condition {if(!condition)throw Error(message)}
 const record=(x:unknown):Record<string,unknown>=>{check(x!==null&&typeof x==='object'&&!Array.isArray(x),'OBJECT_REQUIRED');return x as Record<string,unknown>};
 const array=(x:unknown):unknown[]=>{check(Array.isArray(x),'ARRAY_REQUIRED');return x};
@@ -50,7 +51,7 @@ export function inventory(raw:unknown,c:Case):Inventory {
  const v=record(raw),ids=new Set<string>();const developments=array(v.developments).map(x=>{const d=record(x),id=text(d.id);check(!ids.has(id),'DUPLICATE_DEVELOPMENT');ids.add(id);check([1,2,3].includes(d.importance as number),'INVALID_IMPORTANCE');return {id,text:text(d.text),importance:d.importance as 1|2|3,relation:label(d.relation,['new','update','correction','already_reported']) as Development['relation'],evidence:refs(d.evidence,c)}});
  return {developments,limitations:strings(v.limitations)};
 }
-export function review(raw:unknown,c:Case,expected:Inventory):Review {
+export function review(raw:unknown,c:Case,expected:Inventory,groundedPolicy=false):Review {
  const v=record(raw),claimIds=new Set<string>();
  const claims=array(v.claims).map(x=>{const r=record(x),index=item(r.item,c),id=text(r.id);check(!claimIds.has(id),'DUPLICATE_CLAIM');claimIds.add(id);
   const support=label(r.support,['supported','contradicted','unsupported','uncertain']) as Claim['support'],citationSupport=label(r.citationSupport,['supported','unsupported','uncertain','missing']) as Claim['citationSupport'];
@@ -59,7 +60,7 @@ export function review(raw:unknown,c:Case,expected:Inventory):Review {
   if(!c.evidenceComplete||c.articles.some(a=>a.completeness!=='complete'))check(support!=='unsupported','MISSING_EVIDENCE_REQUIRES_UNCERTAIN');
   return {id,item:index,text:text(r.text),support,citationSupport,evidence,explanation:text(r.explanation)};
  });
- const developmentIds=new Set<string>();const coverage=array(v.coverage).map(x=>{const r=record(x),id=text(r.developmentId),d=expected.developments.find(d=>d.id===id);check(d&&!developmentIds.has(id),'UNKNOWN_OR_DUPLICATE_DEVELOPMENT');developmentIds.add(id);const status=label(r.status,['covered','omitted','uncertain','already_reported']) as Coverage['status'],items=array(r.items).map(i=>item(i,c));check(status!=='covered'||items.length>0,'COVERAGE_WITHOUT_ITEM');check(status!=='already_reported'||d.relation==='already_reported','NEW_DEVELOPMENT_HIDDEN_AS_OLD');return {developmentId:id,status,items,explanation:text(r.explanation)}});
+ const developmentIds=new Set<string>();const coverage=array(v.coverage).map(x=>{const r=record(x),id=text(r.developmentId),d=expected.developments.find(d=>d.id===id);check(d&&!developmentIds.has(id),'UNKNOWN_OR_DUPLICATE_DEVELOPMENT');developmentIds.add(id);const status=label(r.status,['covered','omitted','uncertain','already_reported']) as Coverage['status'],items=array(r.items).map(i=>item(i,c));check(status!=='covered'||items.length>0,'COVERAGE_WITHOUT_ITEM');const priorIds=groundedPolicy?strings(r.priorIds):undefined;if(priorIds)check(priorIds.every(id=>c.prior.some(p=>p.id===id)),'UNKNOWN_PRIOR_MATCH');check(status!=='already_reported'||(groundedPolicy?!!priorIds?.length:d.relation==='already_reported'),'NEW_DEVELOPMENT_HIDDEN_AS_OLD');return {developmentId:id,status,items,explanation:text(r.explanation),...(priorIds?{priorIds}:{})}});
  check(developmentIds.size===expected.developments.length,'MISSING_DEVELOPMENT_ASSESSMENT');
  const seen=new Set<number>();const items=array(v.items).map(x=>{const r=record(x),index=item(r.item,c);check(!seen.has(index),'DUPLICATE_ITEM');seen.add(index);return {item:index,relevance:label(r.relevance,['relevant','irrelevant','uncertain']) as ItemReview['relevance'],repetition:label(r.repetition,['novel','necessary_update','repeated','uncertain']) as ItemReview['repetition'],temporal:label(r.temporal,['correct','incorrect','uncertain']) as ItemReview['temporal'],language:label(r.language,['correct','incorrect','uncertain']) as ItemReview['language'],explanation:text(r.explanation)}});
  check(seen.size===c.items.length,'MISSING_ITEM_JUDGMENT');

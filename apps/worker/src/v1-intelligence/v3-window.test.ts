@@ -70,6 +70,10 @@ it('resumes the final source audit after D1 failure and preserves all supporting
  const capture=providerReceipts.captureProviderReceipt,seen:string[]=[];let fail=true;
  vi.spyOn(providerReceipts,'captureProviderReceipt').mockImplementation(async receipt=>{if(fail&&receipt.stage==='USAGE'&&seen.at(-1)?.includes('You audit source coverage')){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return capture(receipt)});
  const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ // This regression owns a retained pre-policy window, including its original audit path.
+ const legacyId=await windowIdentity('feed-1',window),freshLegacy=await prepareV3Window(store,'feed-1',window,window.end);
+ const {editorSourcePolicy:_source,editorAccountingPolicy:_accounting,editorFailurePolicy:_failure,...legacyInput}=freshLegacy;
+ await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',legacyId,{...legacyInput,id:legacyId,citationCoverage:true}));
  await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
  expect(fail).toBe(false);expect(seen).toHaveLength(2);expect(archive.objects.size).toBe(2);
  const edition=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch);
@@ -680,10 +684,12 @@ for (const promptVersion of [undefined,2,3,4,5,6] as const) it(`preserves frozen
  await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end);
  expect(prepared.promptVersion).toBe(4);
  expect(prepared.noveltyGuard).toBe(true);
+ expect(prepared.noveltyPolicy).toBe('occurrence-aware-v1');
  const id=await windowIdentity('feed-1',window),full='Earlier notice\nOfficials say approval is still required.';
  const frozen={...prepared,id,input:{...prepared.input,prior:[{id:'previous-reader-item',at:'2026-10-03T11:30:00Z',headline:full,body:full}]}};
  // Historical snapshots predate the independently versioned novelty policy.
  delete frozen.noveltyGuard;
+ delete frozen.noveltyPolicy;
  delete frozen.citationCoverage;
  if(promptVersion===undefined)delete frozen.promptVersion;
  else frozen.promptVersion=promptVersion;
@@ -926,6 +932,10 @@ it('retains diagnostic unaccounted refs without blocking publication or repeatin
  await acceptEvidence(store,2,'The electricity authority announced a separate transmission maintenance programme affecting coastal substations next month.','publisher-1','2026-10-03T12:10:00Z','en','2026-10-03T12:05:00Z','Separate electricity decision','https://publisher.example/maintenance-2');
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T12:10:00Z');
  const id=await windowIdentity('feed-1',window),seen:string[]=[],transport=fetcher(seen) as typeof fetch,message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ // This regression owns a retained pre-policy window, including its original audit path.
+ const legacyId=await windowIdentity('feed-1',window),freshLegacy=await prepareV3Window(store,'feed-1',window,window.end);
+ const {editorSourcePolicy:_source,editorAccountingPolicy:_accounting,editorFailurePolicy:_failure,...legacyInput}=freshLegacy;
+ await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',legacyId,{...legacyInput,id:legacyId,citationCoverage:true}));
  const edition=await processV1Briefing(env,message,()=>window.end,undefined,transport);
  expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(3);
  const saved=await store.read<any>('feed-1','v3_window_results',id);
@@ -975,3 +985,101 @@ it('keeps v2 malformed-record evidence recoverable after partial publication wit
  const next=await prepareV3Window(store,'feed-1',{...window,start:window.end,end:'2026-10-03T13:00:00Z'},'2026-10-03T13:00:00Z',undefined,4,'evidence-first-v2');expect(next.input.articles.map(a=>a.id)).toEqual([prepared.input.articles[1].id]);
  await processV1Briefing(env,message,()=> '2026-10-03T12:31:00Z',undefined,provider);expect(calls).toBe(2);expect(await store.list('feed-1','editions')).toHaveLength(1);expect(await store.list('feed-1','delivery_jobs')).toHaveLength(1);
 },30000);
+
+it('hydrates frozen V3 publication evidence in batches instead of one database request per revision',async()=>{
+ for(let n=1;n<=3;n++)await article(n);
+ const pointReads=vi.spyOn(V1FeedStore.prototype,'revision'),seen:string[]=[];
+ const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition?.engine).toBe('v3');
+ expect(edition?.evidenceRevisionIds).toHaveLength(3);
+ expect(pointReads).not.toHaveBeenCalled();
+});
+
+async function missedWindowEvidence(resultParts:(id:string)=>Record<string,unknown>,resultEnd='2026-10-03T12:00:00Z'){
+ await article(1,'2026-10-03T11:40:00Z','2026-10-03T11:45:00Z','2026-10-03T11:44:00Z');
+ const revision=(await store.currentEvidence('feed-1'))[0].revision.id,oldWindow={...window,start:'2026-10-03T11:30:00Z',end:'2026-10-03T12:00:00Z'},oldId=await windowIdentity('feed-1',oldWindow);
+ await feedTransact(store,'feed-1',async tx=>{
+  await tx.write('briefing_requests',oldId,{id:oldId,feedId:'feed-1',window:oldWindow,engine:'v3',state:'DONE',result:'DEFERRED',reason:'SUPERSEDED_BY_LATER_WINDOW',attempts:0,createdAt:oldWindow.end});
+  await tx.write('v3_window_results','prior-decision',{id:'prior-decision',feedId:'feed-1',windowEnd:resultEnd,result:{status:'published',items:[],skipped:[],omitted:[],dropped:[],...resultParts(revision)}});
+ });return revision;
+}
+it.each(['skip','omit','redundant'] as const)('does not reoffer an unchanged %s source through a superseded reporting window',async kind=>{
+ const revision=await missedWindowEvidence(id=>kind==='skip'?{skipped:[{id,reason:'already known'}]}:kind==='omit'?{omitted:[{stage:'editor',sourceIds:[id],reason:'no meaningful development'}]}:{dropped:[{headline:'Old story',sourceIds:[id],reason:'redundant',carry:false}]});
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.evidenceRevisionIds).not.toContain(revision);
+ expect(prepared.input.articles).toEqual([]);
+});
+it.each(['verification','unaccounted','unpublished'] as const)('retains the explicit %s recovery despite an older reporting window',async kind=>{
+ const revision=await missedWindowEvidence(id=>kind==='verification'?{omitted:[{stage:'editor',sourceIds:[id],reason:'another development omitted'}],dropped:[{headline:'Needs verification',sourceIds:[id],reason:'not confirmed',carry:true}]}:kind==='unaccounted'?{unaccounted:[{ref:'S1',sourceIds:[id]}]}:{items:[{headline:'Verified but not delivered',sourceIds:[id]}]});
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.evidenceRevisionIds).toContain(revision);
+ expect(prepared.admissionPolicy).toBe('PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1');
+ expect(prepared.admissions).toContainEqual(expect.objectContaining({revisionId:revision,reason:kind==='verification'?'VERIFICATION_RETRY':kind==='unpublished'?'VERIFIED_UNPUBLISHED':'UNRESOLVED_WINDOW',publishedAt:'2026-10-03T11:40:00Z'}));
+});
+it('a later result cannot suppress an earlier chronological recovery input',async()=>{
+ const revision=await missedWindowEvidence(id=>({skipped:[{id,reason:'later decision'}]}),'2026-10-03T13:00:00Z');
+ expect((await prepareV3Window(store,'feed-1',window,window.end)).evidenceRevisionIds).toContain(revision);
+});
+it('a changed source revision remains eligible after its predecessor was explicitly omitted',async()=>{
+ const revision=await missedWindowEvidence(id=>({omitted:[{stage:'editor',sourceIds:[id],reason:'previous information'}]}));
+ const changed=await supersedeFrozenRevision(revision,{acceptedAt:'2026-10-03T12:10:00Z',body:'Parliament corrected the vote result and announced a new decision.',contentHash:'changed-source-content'});
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.evidenceRevisionIds).toContain(changed);expect(prepared.evidenceRevisionIds).not.toContain(revision);
+ expect(prepared.input.articles[0].publishedAt).toBe('2026-10-03T11:40:00Z');
+});
+it.each([['2026-10-03T12:00:00Z',true],['2026-10-03T12:30:00Z',false],['2026-10-03T12:30:00.001Z',false],['2026-10-03T11:59:59.999Z',true]] as const)('uses publication-time boundaries without rewriting %s to acquisition time',async(publishedAt,eligible)=>{
+ await article(1,publishedAt,'2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(prepared.input.articles.length>0).toBe(eligible);
+ if(eligible){expect(prepared.input.articles[0].publishedAt).toBe(publishedAt);expect(prepared.admissions?.[0]).toMatchObject({publishedAt,reason:publishedAt.startsWith('2026-10-03T12:')?'PUBLICATION_WINDOW':'LATE_DISCOVERY'});}
+});
+
+it('labels a changed previously communicated revision as source revision rather than discovery',async()=>{
+ await article();const seen:string[]=[],edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ const old=edition!.evidenceRevisionIds[0],changed=await supersedeFrozenRevision(old,{acceptedAt:'2026-10-03T12:40:00Z',body:'Parliament corrected its decision and announced the revised result.',contentHash:'corrected-source'});
+ const next={...window,start:window.end,end:'2026-10-03T13:00:00Z'},prepared=await prepareV3Window(store,'feed-1',next,next.end);
+ expect(prepared.admissions).toContainEqual(expect.objectContaining({revisionId:changed,reason:'SOURCE_REVISION',publishedAt:'2026-10-03T12:05:00Z'}));
+});
+
+it('freezes the unusable editor chunk policy for new inputs and keeps legacy snapshots unchanged',async()=>{
+ await article();
+ const fresh=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(fresh.editorFailurePolicy).toBe('isolate-unusable-chunks-v1');
+ const {editorFailurePolicy:_,editorAccountingPolicy:__,editorSourcePolicy:___,...legacyFields}=fresh;
+ const legacy={...legacyFields,citationCoverage:true};
+ // Store an already frozen input under the canonical window id; it must replay
+ // its original bytes rather than silently acquiring the new failure policy.
+ const id=await windowIdentity('feed-1',window);
+ const frozen={...legacy,id};
+ await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',id,frozen));
+ const seen:string[]=[];await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(frozen);
+});
+
+it('freezes complete accounting in new inputs and persists every source decision through duplicate delivery',async()=>{
+ await article();
+ const fresh=await prepareV3Window(store,'feed-1',window,window.end);
+ expect(fresh.editorAccountingPolicy).toBe('complete-source-decisions-v2');
+ expect(fresh.editorSourcePolicy).toBe('all-supporting-sources-v1');expect(fresh.citationCoverage).toBe(false);
+ const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ const edition=await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(edition).toBeDefined();
+ const id=await windowIdentity('feed-1',window),snapshot=await store.read<any>('feed-1','v3_window_inputs',id),saved=await store.read<any>('feed-1','v3_window_results',id);
+ expect(snapshot.editorAccountingPolicy).toBe('complete-source-decisions-v2');
+ expect(snapshot.editorSourcePolicy).toBe('all-supporting-sources-v1');expect(snapshot.citationCoverage).toBe(false);
+ expect(saved.result.sourceDecisions).toHaveLength(snapshot.input.articles.length);
+ expect(saved.result.sourceDecisions[0].outcomes).toContainEqual(expect.objectContaining({stage:'final',decision:'selected'}));
+ expect(seen[0]).toContain('SOURCE ACCOUNTING CONTRACT');
+ await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
+ expect(seen).toHaveLength(2);expect(await store.read('feed-1','v3_window_results',id)).toEqual(saved);
+});
+
+it('reports exhausted accounting as an accounting deferral rather than a quiet or verifier decision',async()=>{
+ await article();const seen:string[]=[],provider=(async(_url:unknown,init?:RequestInit)=>{seen.push(String(init?.body));return Response.json({id:`gen-accounting-${seen.length}`,choices:[{message:{content:'{"items":[]}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10,cost:.001}})}) as typeof fetch;
+ const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
+ expect(await processV1Briefing(env,message,()=>window.end,undefined,provider)).toBeUndefined();
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'DEFERRED',reason:'V3_EDITOR_ACCOUNTING_INCOMPLETE'});
+ const saved=await store.read<any>('feed-1','v3_window_results',id);
+ expect(saved.result.status).toBe('rejected');expect(saved.result.sourceDecisions[0].outcomes[0].decision).toBe('deferred');expect(saved.result.dropped[0].carry).toBe(true);expect(seen).toHaveLength(2);
+ await processV1Briefing(env,message,()=>window.end,undefined,provider);expect(seen).toHaveLength(2);
+});

@@ -27,3 +27,36 @@ it('requires coverage for every source and rejects fabricated references',async(
   await expect(completeStorySources(port,new UsageMeter(),'test',drafts,articles,10000)).rejects.toThrow();
  }
 });
+
+it('audits independent chunks concurrently and preserves citation order when replies arrive out of order',async()=>{
+ const articles=prepareArticles([article('a','First outlet reports the cabinet decision on the airport terminal.'),article('b','Second outlet confirms the same cabinet decision about the terminal.'),article('c','Third outlet reports the decision to approve the airport terminal.')],{nearDuplicate:1.01}).prepared;
+ const pending:{ref:string;resolve:(value:any)=>void}[]=[];
+ const port={complete:(request:any)=>new Promise<any>(resolve=>{const {sources}=JSON.parse(request.user);pending.push({ref:sources[0].ref,resolve});})};
+ const work=completeStorySources(port,new UsageMeter(),'test',[{headline:'Cabinet approves terminal',body:'',refs:['S1']}],articles,1);
+ await Promise.resolve();
+ // Release every started call even when this assertion fails, avoiding hung tests.
+ const count=pending.length;
+ for(const call of [...pending].reverse())call.resolve({text:JSON.stringify({sources:[{ref:call.ref,stories:[0]}]}),inputTokens:1,outputTokens:1});
+ expect(count).toBe(3);
+ expect(await work).toEqual([['S1','S2','S3']]);
+});
+
+it('waits for sibling corrective replies before reporting a failed concurrent audit',async()=>{
+ const articles=prepareArticles([article('a','Cabinet approves a new terminal and work starts in June.'),article('b','A second outlet reports approval of the terminal by the cabinet.')],{nearDuplicate:1.01}).prepared;
+ let releaseFirst!:(value:any)=>void,releaseRetry!:(value:any)=>void,secondCalls=0;
+ const port={complete:(request:any)=>{
+  const ref=JSON.parse(request.user.split('\n\nYour previous reply')[0]).sources[0].ref;
+  if(ref==='S1')return Promise.resolve({text:'{"sources":[]}',inputTokens:1,outputTokens:1});
+  secondCalls++;
+  return new Promise<any>(resolve=>{if(secondCalls===1)releaseFirst=resolve;else releaseRetry=resolve});
+ }};
+ let finished=false;
+ const work=completeStorySources(port,new UsageMeter(),'test',[{headline:'Cabinet approves terminal',body:'',refs:['S1']}],articles,1).then(()=>{finished=true},()=>{finished=true});
+ for(let i=0;i<20;i++)await Promise.resolve();
+ const beforeSibling=finished;
+ releaseFirst({text:'{"sources":[]}',inputTokens:1,outputTokens:1});
+ for(let i=0;i<20;i++)await Promise.resolve();
+ const beforeCorrection=finished;
+ releaseRetry({text:'{"sources":[{"ref":"S2","stories":[0]}]}',inputTokens:1,outputTokens:1});
+ await work;expect(beforeSibling).toBe(false);expect(beforeCorrection).toBe(false);expect(finished).toBe(true);
+});

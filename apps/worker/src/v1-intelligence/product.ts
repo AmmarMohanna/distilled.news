@@ -1,3 +1,4 @@
+import {sourceIdentityName} from '../source-display';
 import {HandoffError,sha256} from '@distilled/contracts';
 import {canonicalJson} from '../v1-intake/canonical';
 import type {IntakeScope} from '../v1-intake/types';
@@ -75,7 +76,7 @@ export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:
   const feed:FeedRecord=unchanged && binding?.configuration===row.json && existingScope?.enabled?existingFeed:{id:p.feedId,ownerId,...definition,revision:existingFeed?existingFeed.revision+1:1,createdAt:existingFeed?.createdAt??p.createdAt,updatedAt:now};
   const scope:IntakeScope={feedId:p.feedId,feedSourceId:id,sourceId,feedRevision:feed.revision,enabled:true,restrictions:{}};
   const family=definitionSource.source.family as CanonicalSource['type'];
-  const source:CanonicalSource=catalog?JSON.parse(catalog.json):{id:sourceId,type:family,displayName:family==='telegram'?definitionSource.source.locator:new URL(url).hostname,canonicalUrl:url,connectorType:family,verificationStatus:'VERIFIED',createdAt:now};
+  const source:CanonicalSource=catalog?JSON.parse(catalog.json):{id:sourceId,type:family,displayName:sourceIdentityName(new URL(url).hostname,url)??new URL(url).hostname,canonicalUrl:url,connectorType:family,verificationStatus:'VERIFIED',createdAt:now};
   if(feed===existingFeed && canonicalJson(existingScope)===canonicalJson(scope)) return {feed,scope,source};
   const guard=crypto.randomUUID();
   const sourceCheck=priorScope?'EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=?)':'NOT EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=?)';

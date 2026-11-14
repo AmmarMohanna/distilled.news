@@ -28,6 +28,10 @@ PRODUCT_FEEDS_ENABLED = "true"
 BRIEFING_ENGINE = "v3"
 # Recover current reporting after outages; retain missed windows and evidence.
 V3_BACKLOG_CATCHUP_ENABLED = "true"
+# Readiness relay for all eligible clock-scheduled V3 staging feeds.
+WINDOW_READINESS_MODE = "relay"
+# Verified private R2 payloads; live D1 permissions and withdrawal checks remain.
+EDITION_ARTIFACTS_ENABLED = "true"
 # Verified R2 archival is bounded to five unpaid diagnostics per scheduled sweep.
 STORAGE_MAINTENANCE_ENABLED = "true"
 UNREAD_SUMMARY_ENABLED = "true"
