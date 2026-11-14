@@ -79,6 +79,8 @@ it('projects guarded intake writes, retains terminal counts and delivers the lat
     const wake=send.mock.calls[0][0];
     const redelivery=new Date(+delivery+120_000);
     await sweepWindowReadiness(active,redelivery);
+    expect(send).toHaveBeenCalledOnce();
+    await sweepWindowReadiness(active,new Date(+delivery+600_000));
     expect(send.mock.calls.map(([message])=>message.eventId)).toEqual([wake.eventId,wake.eventId]);
     await consumeWindowReadinessWake(active,wake,relay,delivery);
     await consumeWindowReadinessWake(active,wake,relay,redelivery);
@@ -117,5 +119,8 @@ it('projects guarded intake writes, retains terminal counts and delivers the lat
     await consumeWindowReadinessWake(active,{type:'window_readiness_wake',eventId:ready!.event_id,feedId:request.feedId},relay,beforeDelivery);
     expect(relay).toHaveBeenCalledTimes(2);
     expect((await intake.read<DownstreamJob>('jobs',review.id))?.value.state).toBe('PENDING');
+    await sweepWindowReadiness({...env,WINDOW_READINESS_MODE:undefined},new Date(+delivery+86_400_001));
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM v1_window_readiness').first()).toEqual({n:0});
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM v1_window_ready_outbox').first()).toEqual({n:0});
   }finally{await dispose();}
 },60_000);
