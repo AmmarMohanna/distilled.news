@@ -1,4 +1,4 @@
-name: Security - Gitleaks history
+name: Security - Gitleaks history and change gate
 on:
   pull_request:
   push:
@@ -12,29 +12,74 @@ concurrency:
   group: security-gitleaks-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  git-history:
+  change-gate:
+    name: Reject new committed secrets
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     permissions:
       contents: read
       security-events: write
     steps:
-      - name: Fetch history, not just latest files
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Scan all locally fetched refs with redaction
+      - name: Find the reviewable commit range
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]] || [[ "$BASE_SHA" =~ ^0+$ ]] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA="$(git merge-base HEAD "origin/$DEFAULT_BRANCH")"
+          fi
+          git rev-list "$BASE_SHA..HEAD" > /tmp/security-change-commits
+          echo "$BASE_SHA..HEAD" > /tmp/security-commit-range
+          echo "Scanning $(wc -l < /tmp/security-change-commits) newly introduced commits"
+      - name: Scan introduced commits and redact all matched secret values
+        if: ${{ hashFiles('.github/workflows/security-gitleaks.yml') != '' }}
+        run: |
+          set -euo pipefail
+          range="$(cat /tmp/security-commit-range)"
+          docker run --rm -v "${{ github.workspace }}:/repo" -w /repo \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git --no-banner --redact=100 --log-level warn \
+            --log-opts="$range" --report-format sarif \
+            --report-path /repo/gitleaks-changes-redacted.sarif /repo
+      - name: Upload redacted change findings
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@v4.39.3
+        with:
+          sarif_file: gitleaks-changes-redacted.sarif
+          category: gitleaks-new-commits
+
+  historical-audit:
+    name: Review all retained historical secret exposures
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Full history audit (never suppress findings to pass)
         run: |
           docker run --rm -v "${{ github.workspace }}:/repo" -w /repo \
             ghcr.io/gitleaks/gitleaks:v8.30.1 \
             git --no-banner --redact=100 --log-level warn \
             --log-opts="--all" --report-format sarif \
-            --report-path /repo/gitleaks-redacted.sarif /repo
-      - name: Publish redacted secret alerts
-        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+            --report-path /repo/gitleaks-history-redacted.sarif /repo
+      - name: Upload redacted historical findings
+        if: always()
         uses: github/codeql-action/upload-sarif@v4.39.3
         with:
-          sarif_file: gitleaks-redacted.sarif
+          sarif_file: gitleaks-history-redacted.sarif
           category: gitleaks-history
-      # Deliberately do not upload raw secrets or raw Git content as artifacts.
+# Historical findings remain exposed and fail their scheduled/manual audit.
+# No baseline, secrets in logs, raw artifact, allowlist or permission escalation.
