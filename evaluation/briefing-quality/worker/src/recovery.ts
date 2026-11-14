@@ -11,6 +11,18 @@ export async function recoverReviews(env:Env,now=new Date()){
  await env.EVAL_DB.prepare(`INSERT INTO eval_call_isolations(call_id,policy,created_at,reason)
  SELECT id,?,?,? FROM eval_calls WHERE state IN ('RESERVED','UNKNOWN') AND created_at<=?
  ON CONFLICT(call_id) DO NOTHING`).bind(env.UNCERTAIN_REVIEW_RECOVERY,now.toISOString(),'REMOTE_TERMINATION_UNPROVEN_FINANCIAL_EXPOSURE_RETAINED',cutoff).run();
+ // Received incomplete coverage may take one separately identified correction.
+ // Existing stages replay settled bodies; any unknown or missing body prevents recovery.
+ const incomplete=(await env.EVAL_DB.prepare(`SELECT j.id,j.status,j.error FROM eval_jobs j
+ WHERE j.status='review_failed' AND j.error='MISSING_DEVELOPMENT_ASSESSMENT' AND j.review_version=? AND j.snapshot_key IS NOT NULL
+ AND NOT EXISTS(SELECT 1 FROM eval_recovery_events e WHERE e.job_id=j.id)
+ AND EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=j.id AND c.stage='atomic_claims_and_coverage' AND c.state='SETTLED' AND c.response_key IS NOT NULL)
+ AND NOT EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=j.id AND (c.state<>'SETTLED' OR c.response_key IS NULL OR c.stage='atomic_claims_and_coverage_completeness_v1'))
+ ORDER BY j.published_at DESC LIMIT 30`).bind(PROTOCOL).all<{id:string;status:string;error:string}>()).results;
+ for(const row of incomplete)await env.EVAL_DB.batch([
+  env.EVAL_DB.prepare('INSERT OR IGNORE INTO eval_recovery_events VALUES(?,?,?,?,?)').bind(row.id,row.status,row.error,now.toISOString(),PROTOCOL+'-completeness-v1'),
+  env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',error=NULL,updated_at=? WHERE id=? AND status='review_failed' AND error='MISSING_DEVELOPMENT_ASSESSMENT' AND NOT EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=eval_jobs.id AND (c.state<>'SETTLED' OR c.response_key IS NULL OR c.stage='atomic_claims_and_coverage_completeness_v1'))").bind(now.toISOString(),row.id)
+ ]);
  // Never-sent jobs may start a corrected review. Paid reviews require their
  // original request identity and are never bulk re-paid after protocol changes.
  const rows=(await env.EVAL_DB.prepare(`SELECT j.id,j.status,j.error FROM eval_jobs j

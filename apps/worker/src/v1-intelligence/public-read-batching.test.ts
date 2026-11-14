@@ -97,3 +97,10 @@ it('publication status from another feed cannot authorize an edition',async()=>{
  await document('editions','foreign-status',feed.id,edition('foreign-status',[]));await document('publication_status','foreign-status','other-feed',{id:'foreign-status',status:'PUBLISHED'});
  await expect(publicV1Edition(ctx.db,'foreign-status')).rejects.toMatchObject({code:'SCOPE_DENIED'});
 });
+
+it('uses the approved source display name without changing citation identity or extra per-source reads',async()=>{
+ await ctx.db.prepare('INSERT INTO v1_source_catalog(id,json) VALUES(?,?)').bind('reader-source',JSON.stringify({displayName:'@VerifiedWire'})).run();
+ const editions=await publishedProductEditions({DB:ctx.db} as Env,feed,'edition-18');
+ expect(editions[0].sections[0].evidence.map(e=>e.sourceTitle)).toEqual(['@VerifiedWire','@VerifiedWire']);
+ expect(editions[0].sections[0].evidence.map(e=>e.sourceId)).toEqual(['publisher-0','publisher-1']);
+});

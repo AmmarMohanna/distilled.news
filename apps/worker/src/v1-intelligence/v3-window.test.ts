@@ -658,10 +658,12 @@ for (const promptVersion of [undefined,2,3,4,5,6] as const) it(`preserves frozen
  await article();const prepared=await prepareV3Window(store,'feed-1',window,window.end);
  expect(prepared.promptVersion).toBe(4);
  expect(prepared.noveltyGuard).toBe(true);
+ expect(prepared.noveltyPolicy).toBe('occurrence-aware-v1');
  const id=await windowIdentity('feed-1',window),full='Earlier notice\nOfficials say approval is still required.';
  const frozen={...prepared,id,input:{...prepared.input,prior:[{id:'previous-reader-item',at:'2026-10-03T11:30:00Z',headline:full,body:full}]}};
  // Historical snapshots predate the independently versioned novelty policy.
  delete frozen.noveltyGuard;
+ delete frozen.noveltyPolicy;
  delete frozen.citationCoverage;
  if(promptVersion===undefined)delete frozen.promptVersion;
  else frozen.promptVersion=promptVersion;

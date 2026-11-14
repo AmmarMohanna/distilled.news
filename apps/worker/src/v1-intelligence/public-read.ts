@@ -5,8 +5,8 @@ import {projectEditionLedger} from './ledger';
 import {readVerifiedArchive} from '../verified-archives';
 export interface PublicationStatus {id:string;feedId:string;status:'PUBLISHED'|'WITHDRAWN';publishedAt:string;withdrawnAt?:string;reason?:string}
 interface EditionRow {id:string;feed_id:string;edition:string;feed:string|null;status:string|null;status_feed_id:string|null;configuration:string|null}
-interface CitationRow {id:string;revision_id:string;revision_feed_id:string;observation_id:string|null;observation_feed_id:string|null;title:string|null;url:string|null;publisher_id:string|null;source_id:string|null;published_at:string|null}
-interface Citation {evidenceRevisionId:string;title:string|undefined;url:string|undefined;publisherId:string;publishedAt:string|undefined}
+interface CitationRow {publisher_name:string|null;id:string;revision_id:string;revision_feed_id:string;observation_id:string|null;observation_feed_id:string|null;title:string|null;url:string|null;publisher_id:string|null;source_id:string|null;published_at:string|null}
+interface Citation {publisherName?:string;evidenceRevisionId:string;title:string|undefined;url:string|undefined;publisherId:string;publishedAt:string|undefined}
 interface EditionProjection {edition:BriefingEditionRecord;publishedAt:string;title:string}
 const READ_BATCH_IDS=80; // Below D1's 100 bound-parameter limit, including Feed identity.
 const READ_BATCH_STATEMENTS=8;
@@ -57,9 +57,10 @@ async function projectEditionPayloads(db:D1Database,records:EditionProjection[])
   i.id AS observation_id,json_extract(i.json,'$.observation.feedId') AS observation_feed_id,
   json_extract(r.json,'$.title') AS title,json_extract(r.json,'$.canonicalUrl') AS url,
   json_extract(i.json,'$.observation.publisherId') AS publisher_id,json_extract(i.json,'$.observation.sourceId') AS source_id,
-  json_extract(r.json,'$.publishedAt') AS published_at
+  json_extract(r.json,'$.publishedAt') AS published_at,json_extract(c.json,'$.displayName') AS publisher_name
   FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id
   LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId')
+  LEFT JOIN v1_source_catalog c ON c.id=s.source_id
   WHERE s.feed_id=? AND r.id IN (${part.map(()=>'?').join(',')})`).bind(feedId,...part)));
  const byRevision=new Map(evidence.map(row=>[row.id,row]));
  return records.map(({edition,publishedAt,title})=>{
@@ -68,7 +69,7 @@ async function projectEditionPayloads(db:D1Database,records:EditionProjection[])
    if(!ref || ref.revision_id!==id || ref.revision_feed_id!==feedId || !ref.observation_id || ref.observation_feed_id!==feedId)throw new HandoffError('SCOPE_DENIED');
    const publisherId=ref.publisher_id??ref.source_id;
    if(typeof publisherId!=='string')throw new HandoffError('SCOPE_DENIED');
-   return {evidenceRevisionId:id,title:ref.title??undefined,url:ref.url??undefined,publisherId,publishedAt:ref.published_at??undefined};
+   return {...(ref.publisher_name?{publisherName:ref.publisher_name}:{}),evidenceRevisionId:id,title:ref.title??undefined,url:ref.url??undefined,publisherId,publishedAt:ref.published_at??undefined};
   });
   // A persisted claim cannot gain support outside its edition's permitted set.
   if(edition.stories.some(story=>story.claims.some(claim=>claim.support.some(ref=>!byRevision.has(ref.evidenceRevisionId) || !edition.evidenceRevisionIds.includes(ref.evidenceRevisionId)))))throw new HandoffError('SCOPE_DENIED');

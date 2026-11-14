@@ -1,6 +1,6 @@
 import {BriefingOutputError} from './types';
 import {generateEvidenceBriefing} from './evidence-agent';
-import {verificationMemory,exactPriorRepeat,redundantDrafts} from './novelty';
+import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OCCURRENCE_RULE} from './novelty';
 import {completeStorySources} from './citation-coverage';
 import { EDITOR_SYSTEM_V7, CONSOLIDATE_SYSTEM_V7, VERIFY_SYSTEM_V7, REPAIR_SYSTEM_V7 } from './prompts-v7';
 import { auditEditorSourceAccounting,assertCompleteEditorAccounting,buildSourceDecisions } from './source-accounting';
@@ -41,6 +41,8 @@ export interface EngineOptions {
   citationCoverage?: boolean;
   /** Versioned by the product snapshot so retained paid requests remain unchanged. */
   noveltyGuard?: boolean;
+  /** New snapshots compare cited occurrence evidence and timestamped reader memory. */
+  noveltyPolicy?:'occurrence-aware-v1';
   /** Programmatic opt-in only; existing prompt versions and defaults remain unchanged. */
   architecture?: 'evidence-first-v1' | 'evidence-first-v2';
   /**
@@ -93,6 +95,8 @@ function importanceOf(value: unknown): 1 | 2 | 3 {
   const n = Math.round(Number(value));
   return n <= 1 ? 1 : n >= 3 ? 3 : 2;
 }
+
+const OCCURRENCE_PROSE = '\n\nFor these occurrence-aware editions, return body:"" when the headline communicates the supported development. Do not add a sentence repeating that headline, counting sources, or saying that casualty figures, dates, causes or further details were not supplied. Preserve necessary attribution and uncertainty in the headline or essential body. Source publication metadata alone never establishes event date. This is a prose instruction, not permission to remove an essential qualification or relax factual verification.';
 
 function validateRelation(item: Record<string, unknown>, priorIds: Set<string>): void {
   if (!RELATIONS.has(item.relation as string) ||
@@ -206,7 +210,8 @@ async function edit(
   partial = false,
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2,
   accountingPolicy?:EngineOptions['editorAccountingPolicy'],
-  sourcePolicy?:EngineOptions['editorSourcePolicy']
+  sourcePolicy?:EngineOptions['editorSourcePolicy'],
+  noveltyPolicy?:EngineOptions['noveltyPolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -216,9 +221,9 @@ async function edit(
     meter,
     {
       model: models.editor,
-      system: promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
+      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:''),
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
-        ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):''),
+        ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: accountingPolicy?Math.max(4000,articles.length*48):4000
     },
     (raw) => {
@@ -238,7 +243,8 @@ async function consolidate(
   prior: PriorItem[],
   idsOfRefs: (refs: string[]) => string[],
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
-  sourcePolicy?:EngineOptions['editorSourcePolicy']
+  sourcePolicy?:EngineOptions['editorSourcePolicy'],
+  noveltyPolicy?:EngineOptions['noveltyPolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -246,13 +252,13 @@ async function consolidate(
     meter,
     {
       model: models.editor,
-      system: promptVersion === 7 ? CONSOLIDATE_SYSTEM_V7 : promptVersion >= 6 ? CONSOLIDATE_SYSTEM_V6 : promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM,
+      system: (promptVersion === 7 ? CONSOLIDATE_SYSTEM_V7 : promptVersion >= 6 ? CONSOLIDATE_SYSTEM_V6 : promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:''),
       user: consolidateUser({
         promptVersion,
         feed: input.feed,
         prior,
         drafts: drafts.map((d) => ({ headline: d.headline, body: d.body, relation: d.relation, updates: d.updatesId, importance: d.importance }))
-      })+(sourcePolicy?'\n\nPreserve every draft supporting the same development in the merged item: list ALL corresponding draft indices in from, including shorter or translated reports. Citations are the union of those drafts. Do not cut a supporting duplicate just to retain one representative outlet. A short supporting fragment can add a citation without adding a sentence. Preserve the supported wording of the fuller report and do not narrate that reports exist, details may be available elsewhere, or that something may have been discussed merely to describe a fragment. Do not turn preparation notes into reader text. Keep different occurrences and proposals separate.':''),
+      })+(sourcePolicy?'\n\nPreserve every draft supporting the same development in the merged item: list ALL corresponding draft indices in from, including shorter or translated reports. Citations are the union of those drafts. Do not cut a supporting duplicate just to retain one representative outlet. A short supporting fragment can add a citation without adding a sentence. Preserve the supported wording of the fuller report and do not narrate that reports exist, details may be available elsewhere, or that something may have been discussed merely to describe a fragment. Do not turn preparation notes into reader text. Keep different occurrences and proposals separate.':'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: 4000
     },
     (raw) => {
@@ -351,7 +357,8 @@ async function verify(
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
   noveltyGuard = false,
-  sourcePolicy?:EngineOptions['editorSourcePolicy']
+  sourcePolicy?:EngineOptions['editorSourcePolicy'],
+  noveltyPolicy?:EngineOptions['noveltyPolicy']
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -365,7 +372,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: (promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM)+(noveltyGuard?`\n\n${NOVELTY_RULE}`:''),
+          system: (promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM)+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:''),
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
@@ -388,7 +395,7 @@ async function verify(
                 hints: hintsFor(d, byRef, input.feed)
               };
             })
-          })+(sourcePolicy?'\n\nCheck EACH cited source: it must directly support this same central occurrence, decision or statement, rather than just share a topic or entity. Translations and shorter reports qualify even without every supplementary detail. Flag unrelated or conflicting citations with their exact labels; do not approve an item with unsupported citations. Check all factual claims against the cited evidence as usual.':''),
+          })+(sourcePolicy?'\n\nCheck EACH cited source: it must directly support this same central occurrence, decision or statement, rather than just share a topic or entity. Translations and shorter reports qualify even without every supplementary detail. Flag unrelated or conflicting citations with their exact labels; do not approve an item with unsupported citations. Check all factual claims against the cited evidence as usual.':'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
           maxTokens: 3000
         },
         (raw) => {
@@ -428,7 +435,8 @@ async function repair(
   flagged: Map<number, string[]>,
   byRef: Map<string, PreparedArticle>,
   headlineOnly = false,
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 4
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 4,
+  noveltyPolicy?:EngineOptions['noveltyPolicy']
 ): Promise<Map<number, { headline: string; body: string } | null>> {
   // Model-facing numbers are local to this subset; translate back mechanically.
   const indices = [...flagged.keys()];
@@ -451,7 +459,7 @@ async function repair(
           sources: drafts[index].refs,
           issues: flagged.get(index)!
         }))
-      }),
+      })+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: 3000
     },
     (raw) => {
@@ -540,7 +548,7 @@ export async function generateBriefing(
   // 1. Edit: choose and write.
   const editorialFailures: DroppedItem[] = [];
   const editChunk=async(chunk:PreparedArticle[],partial:boolean)=>{
-    try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy)}
+    try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy,options.noveltyPolicy)}
     catch(error){
       if(!options.editorAccountingPolicy||options.editorFailurePolicy!=='isolate-unusable-chunks-v1'||!(error instanceof BriefingOutputError)||!partial&&!/EDITOR_ACCOUNTING/.test(error.message))throw error;
       editorialFailures.push({headline:'Unprocessed source batch',reason:'editor output unusable after correction: '+error.message.split('; last reply began:')[0],carry:true,sourceIds:sourceIdsOfRefs(chunk.map(a=>a.ref))});
@@ -569,7 +577,7 @@ export async function generateBriefing(
     omitted.push(...parts.flatMap((part) => part.omitted));
     unaccounted.push(...parts.flatMap((part) => part.unaccounted));
     if (merged.length > 1) {
-      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion,options.editorSourcePolicy));
+      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion,options.editorSourcePolicy,options.noveltyPolicy));
       drafts = consolidated.drafts;
       omitted.push(...consolidated.omitted);
     } else {
@@ -585,18 +593,28 @@ export async function generateBriefing(
     omittedStories.push({ stage: "safety_cap", reason: `over the safety limit of ${options.maxItems} items`, headline: d.headline, sourceIds: sourceIdsOfRefs(d.refs) });
   }
   drafts = drafts.slice(0, options.maxItems);
-  const exactRepeats=options.noveltyGuard?drafts.filter(d=>exactPriorRepeat(d,input.prior??[])):[];
-  if(options.noveltyGuard)drafts=drafts.filter(d=>!exactPriorRepeat(d,input.prior??[]));
+  const repeatReasons=new Map<Draft,string>();
+  const exactRepeats=options.noveltyGuard&&!options.noveltyPolicy?drafts.filter(d=>exactPriorRepeat(d,input.prior??[])):[];
+  if(options.noveltyGuard&&!options.noveltyPolicy)drafts=drafts.filter(d=>!exactPriorRepeat(d,input.prior??[]));
   if(options.noveltyGuard&&drafts.length){
     const memory=verificationMemory(input.prior??[],drafts,options.now());
-    const redundant=await timed('novelty',()=>redundantDrafts(port,meter,models.editor,drafts,memory));
+    const redundant=options.noveltyPolicy?await timed('novelty',async()=>{
+      // Reuse evidence-size batching; every draft and its complete cited evidence is retained.
+      const decisions=(await Promise.all(batchesBySourceSize(drafts.map((_,i)=>i),drafts,byRef,options.maxVerifyChars).map(async batch=>{
+        const selected=batch.map(i=>drafts[i]);
+        const rows=await occurrenceNovelty(port,meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd);
+        return rows.map(row=>({...row,i:batch[row.i]}));
+      }))).flat();
+      for(const d of decisions)if(d.redundant)repeatReasons.set(drafts[d.i],`Same occurrence already covered in ${d.priorIds.join(', ')}: ${d.sameOccurrence}`);
+      return new Set(decisions.filter(d=>d.redundant).map(d=>d.i));
+    }):await timed('novelty',()=>redundantDrafts(port,meter,models.editor,drafts,memory));
     exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)));
     drafts=drafts.filter((_,i)=>!redundant.has(i));
   }
-  if (!drafts.length) return finish({ status: editorialFailures.length ? "rejected" : "empty", items: [], skipped, dropped: [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))] });
+  if (!drafts.length) return finish({ status: editorialFailures.length ? "rejected" : "empty", items: [], skipped, dropped: [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:repeatReasons.get(d)??'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))] });
 
   // 2. Verify, repair what is repairable once, drop what is not.
-  const dropped: DroppedItem[] = [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))];
+  const dropped: DroppedItem[] = [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:repeatReasons.get(d)??'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))];
   const verifierPrior=options.noveltyGuard?verificationMemory(input.prior??[],drafts,options.now()):prior;
   if(options.citationCoverage){
     const refs=await timed('source_coverage',()=>completeStorySources(port,meter,models.editor,drafts,prepared,options.maxEditorChars));
@@ -606,7 +624,7 @@ export async function generateBriefing(
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
-    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy));
+    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy,options.noveltyPolicy));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
     for (const index of todo) {
@@ -628,7 +646,7 @@ export async function generateBriefing(
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
     if (flagged.size && round < options.maxRepairs) {
-      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion));
+      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion,options.noveltyPolicy));
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {

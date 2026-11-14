@@ -1,5 +1,6 @@
+import {completeReview} from './complete-review';
 import {errorCode,failureDetails,sourceRead} from './failures';
-import {PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,review,reviewRequest,timestamp} from './protocol';
+import {PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,reviewRequest,timestamp} from './protocol';
 import {activeFenceFor,recoverReviews} from './recovery';
 import {boundedJson,budget,judge} from './budget';
 import {discover,isEvaluable,snapshot,type Published} from './source';
@@ -80,7 +81,7 @@ export async function processJob(env:Env,id:string){
   phase='inventory_validation';const d=inventory(inventoryRaw,c);
   phase='inventory_store';const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol:PROTOCOL,inventoryHash,inventory:d}));
   phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',reviewRequest(c,d));
-  phase='review_validation';const r=review(reviewRaw,c,d),m=metrics(r,d,c),hasFindings=flagged(r,d,c);
+  phase='review_validation';const r=await completeReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_completeness_v1',request)),m=metrics(r,d,c),hasFindings=flagged(r,d,c);
   const report={protocol:PROTOCOL,jobId:id,source:env.SOURCE_LABEL,model:env.JUDGE_MODEL,evidenceHash:await hash(c),inventoryHash,labelOrigin:'machine_judge_not_human',calibration:'not_measured',claimExtractionCompleteness:'not_independently_established',reviewedAt:time(),operational:deterministic,inventory:d,review:r,metrics:m,status:hasFindings?'flagged':'reviewed_no_findings'};
   phase='report_store';const key=`reports/${id}.json`;await env.EVIDENCE.put(key,JSON.stringify(report));
   phase='report_commit';await env.EVAL_DB.prepare('UPDATE eval_jobs SET status=?,report_key=?,flagged=?,metrics_json=?,error=NULL,updated_at=? WHERE id=? AND attempt_id=?').bind(report.status,key,hasFindings?1:0,JSON.stringify(m),time(),id,attempt).run();

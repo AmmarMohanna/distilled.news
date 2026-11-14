@@ -1,0 +1,131 @@
+{
+  "policy": "occurrence-aware-v1",
+  "modelRouting": "openai/gpt-4.1 editor; openai/gpt-4.1-mini verifier",
+  "scope": "small curated retained public-source cases; not general quality certification",
+  "cases": [
+    {
+      "case": "new-qantara-shelling",
+      "notPublished": true,
+      "sources": [
+        {
+          "id": "17ecad2a-11f0-4e00-bab0-e45b15f69bb9",
+          "url": "https://x.com/i/status/2121545975273574416",
+          "publishedAt": "2026-11-14T10:09:11.000Z",
+          "sha256": "697aff29bc48879e4e5630ecef8e95e9835a0c550a2fbd5d192103bba123584e"
+        },
+        {
+          "id": "1dd29f01-444b-4b75-be5a-cdf8404145fe",
+          "url": "https://x.com/i/status/2121541330337960430",
+          "publishedAt": "2026-11-14T09:50:44.000Z",
+          "sha256": "5d32d416244a06d473618e485895fbdb4899c5338639614669d919e061a3e286"
+        },
+        {
+          "id": "3225350b-5a48-416c-8479-0bc63b17bf47",
+          "url": "https://x.com/i/status/2121544315516178809",
+          "publishedAt": "2026-11-14T10:02:35.000Z",
+          "sha256": "fda6cd55f3532ef3ad102de36803b20249fc775be9e13ed729d835fc44a86cb7"
+        }
+      ],
+      "expectedIncluded": [
+        "1dd29f01-444b-4b75-be5a-cdf8404145fe",
+        "3225350b-5a48-416c-8479-0bc63b17bf47",
+        "17ecad2a-11f0-4e00-bab0-e45b15f69bb9"
+      ],
+      "expectedExcluded": [],
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Explosion reported in the town of Qantara, southern Lebanon",
+            "body": "",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "1dd29f01-444b-4b75-be5a-cdf8404145fe",
+              "3225350b-5a48-416c-8479-0bc63b17bf47"
+            ]
+          },
+          {
+            "headline": "Artillery shelling reported on Mansouri, outskirts of Majdal Zoun, and Wadi Zibqin",
+            "body": "",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "17ecad2a-11f0-4e00-bab0-e45b15f69bb9"
+            ]
+          }
+        ],
+        "dropped": [],
+        "omitted": [],
+        "usage": {
+          "calls": 3,
+          "inputTokens": 9358,
+          "outputTokens": 208,
+          "costUsd": 0.0149704
+        }
+      },
+      "operationIds": [
+        "cb22fe09b914e9b6c9b6e900779be6f51386c2c8a77959b4785986d1b7f87c4d",
+        "e14c0d7bd52ed22da83d6bc2f912972594f2415452761eb5a72c49ba409db059",
+        "697a86c3c1e7fe5cd226ab85d5d564d023cad0c816c45634a60415bc9cb9fd9f"
+      ]
+    },
+    {
+      "case": "same-depot-and-imf-controls",
+      "notPublished": true,
+      "sources": [
+        {
+          "id": "53fe93d8-ac93-4aaf-9782-7c4361644637",
+          "url": "https://www.naharnet.com/stories/en/323778-army-seizes-arms-depot-in-beirut-southern-suburbs",
+          "publishedAt": "2026-11-14T10:38:40.000Z",
+          "sha256": "7092422d78f33eb3e367c8295c9aae1b0e4caf3d15f3bbc19dec12cd95696165"
+        },
+        {
+          "id": "a5bde03b-1f26-4310-a516-59de976aa9ba",
+          "url": "https://www.naharnet.com/stories/en/323779-imf-says-more-work-needed-on-lebanon-reforms",
+          "publishedAt": "2026-11-14T10:41:23.000Z",
+          "sha256": "30966753d515212a9fb97ae2e9cb224d883427107c0973045786c98d7ca438c2"
+        }
+      ],
+      "expectedIncluded": [],
+      "expectedExcluded": [
+        "53fe93d8-ac93-4aaf-9782-7c4361644637",
+        "a5bde03b-1f26-4310-a516-59de976aa9ba"
+      ],
+      "result": {
+        "status": "empty",
+        "items": [],
+        "dropped": [
+          {
+            "headline": "IMF says further work needed on Lebanon's banking sector reforms to reach agreement",
+            "reason": "Same occurrence already covered in 5e218ee316ceebb127019a8e81e91ecffcad8781dcb13951c624f901c71d17cb:5e218ee316ceebb127019a8e81e91ecffcad8781dcb13951c624f901c71d17cb:0: Both report the IMF stating that progress was made but further work is needed to reach an agreement on Lebanon's banking sector reforms, with Finance Minister Jaber expressing hope for an agreement in 2027 or earlier. The new draft adds background and more detail, but does not report a new development or outcome.",
+            "carry": false,
+            "sourceIds": [
+              "a5bde03b-1f26-4310-a516-59de976aa9ba"
+            ]
+          },
+          {
+            "headline": "Lebanese Army seizes large arms cache in Beirut southern suburbs, arrests one",
+            "reason": "Same occurrence already covered in 6049d04eb101e4a2f012ce9c11caf2d998a8303fdc34b2806bfe2cc3f9ce3171:6049d04eb101e4a2f012ce9c11caf2d998a8303fdc34b2806bfe2cc3f9ce3171:0: Both report the Lebanese Army raiding a warehouse in the Mashrafieh area of southern Beirut, seizing a large cache of weapons and ammunition, and arresting one Lebanese national. The new draft is a rewording of the same incident.",
+            "carry": false,
+            "sourceIds": [
+              "53fe93d8-ac93-4aaf-9782-7c4361644637"
+            ]
+          }
+        ],
+        "omitted": [],
+        "usage": {
+          "calls": 3,
+          "inputTokens": 15017,
+          "outputTokens": 680,
+          "costUsd": 0.027985999999999997
+        }
+      },
+      "operationIds": [
+        "7e7c7f6ca9e5085f1a07191738db43baf6816bd6f5bde9b000821a80912561b6",
+        "7efc098d9189630c03282fc8fd505d88359cb971ef7a1e1c4602da7547f3e260",
+        "df50062d9da5d8cb372d811a792b8c292e7bf1d80223c8e92e11c2d34beb73b2"
+      ]
+    }
+  ]
+}

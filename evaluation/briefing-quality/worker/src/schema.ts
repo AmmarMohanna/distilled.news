@@ -14,6 +14,12 @@ export function reviewSchema(inventory:boolean,input?:string){
   items:array(object({item:integer,relevance:label(['relevant','irrelevant','uncertain']),repetition:label(['novel','necessary_update','repeated','uncertain']),temporal:label(['correct','incorrect','uncertain']),language:label(['correct','incorrect','uncertain']),explanation:string})),
   findings:array(object({category:label(['factual','citation','coverage','relevance','repetition','temporal','language']),severity:label(['warning','error']),item:{type:['integer','null'],minimum:0},explanation:string,evidence})),limitations:array(string)
  });
+ if(!inventory&&Array.isArray(packet?.independentInventory?.developments)){
+  const ids=packet.independentInventory.developments.map((d:{id:string})=>d.id);
+  const coverage=result.properties.coverage as {items:{properties:Record<string,unknown>}};
+  Object.assign(coverage,{minItems:ids.length,maxItems:ids.length});
+  if(ids.length)coverage.items.properties.developmentId=label(ids);
+ }
  if(!inventory&&Array.isArray(packet?.case?.items)&&packet.case.items.length===0){
   Object.assign(result.properties.claims as object,{maxItems:0});Object.assign(result.properties.items as object,{maxItems:0});
   const coverage=result.properties.coverage as {items:{properties:Record<string,unknown>}};
