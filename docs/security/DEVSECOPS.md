@@ -1,74 +1,75 @@
-# Distilled.news DevSecOps security automation
+# Distilled.news — DevSecOps implementation and verification
 
-Status: **configured on isolated branch; real security CI started and initial Trivy findings verified** (2026-11-14). No production deployment or app behavior change was made. Source branch: `ghada/DevSecOps`.
+**Evidence date:** 14 November 2026. **Branch:** `ghada/devsecops-security-automation`. **Draft PR:** [#11](https://github.com/AmmarMohanna/distilled.news/pull/11), based on `ghada/DevSecOps`. **No production deployment, cloud changes, history rewrites, or paid services.** The code is **not yet security-cleared for merge**: container-image vulnerabilities and historical credential triage remain open, and unrelated application checks are not fully passing.
 
-## Baseline (reviewed source branch)
-The six existing workflows (`project-checks.yml`, `acquisition-benchmark.yml`, `briefing-evaluation.yml`, and three `performance-*.yml` workflows) implement project tests, benchmarks and manually approved performance campaigns, not the six requested DevSecOps scans. No CodeQL/Semgrep/Trivy/Snyk/Gitleaks workflow or Dependabot file was present in `.github`. Existing repository-level CodeQL default setup, Dependabot alerts/security updates, secret push protection, branch rules and Snyk account state cannot be read using this integration; check GitHub Settings before enabling enforcement.
+## Baseline
 
-## Scanners and execution
+The existing six `.github/workflows/` workflows provide project checks, offline acquisition and editorial evaluations, and performance campaigns, not dedicated DevSecOps scanners. The source consists of a pnpm TypeScript/JavaScript monorepo (Cloudflare Worker, React/Vite, shared packages), Python evaluation/scripts, and a real Playwright/browser-use Dockerfile. Repository-level GitHub Advanced Security settings, existing default CodeQL setup, branch protections, and Dependabot alert settings require owner confirmation.
 
-| Practice | File | Scope / trigger | Gate | Verification at initial commit |
-|---|---|---|---|---|
-| CodeQL | `.github/workflows/security-codeql.yml` | JavaScript/TypeScript, Python and Actions; PRs, selected pushes, weekly (on default), manual | CodeQL query suite `security-extended` publishes to code scanning; branch protections required for PR blocking | Workflow configured; actual analysis/upload unverified |
-| Semgrep CE | `.github/workflows/security-semgrep.yml` | `apps/`, `packages/`, `scripts/`, `evaluation/`, `.github/workflows/`; PRs and selected pushes | `p/default` and `p/security-audit` full SARIF; `ERROR`-severity gate; nonzero on scanner errors | Configured; actual execution unverified |
-| Dependabot | `.github/dependabot.yml` | pnpm workspace, separate benchmark npm lockfile, GitHub Actions, browser Dockerfile, benchmark and optional script Python deps; weekly | Review/test PRs; major npm upgrades excluded from *version updates* | Configured; inactive until on default branch |
-| Snyk | `.github/workflows/security-snyk.yml` | Dependency manifest auto-discovery; push/schedule/manual only if `SNYK_ENABLED=true` | Requires `SNYK_TOKEN`; fails on missing token when enabled or high/critical finding | Explicitly skipped unless enabled; no token/account verification |
-| Trivy | `.github/workflows/security-trivy.yml` | Filesystem, lockfiles and recognized misconfig/IaC; PRs, selected pushes, weekly (default), manual. Actual browser image only on manual opt-in build | Full SARIF + fail HIGH/CRITICAL; no ignore list | Configured; actual scans unverified. Image scanning NOT performed yet |
-| Gitleaks | `.github/workflows/security-gitleaks.yml` | Fetched Git history via `--all`; PRs, selected pushes, weekly (default), manual | Any secret detection fails, SARIF redacted 100%; no baselines | Configured; actual history scan unverified |
+## Six practices: implemented and verified
 
-Triggers for selected pushes: `main`, `ghada/DevSecOps`, `ghada/devsecops-security-automation`; PRs are scanned across base branches. Schedules execute only from the **default branch** after merge. Security scanning is separate from `project-checks.yml`. PRs from forks have read-only credentials and do not receive Snyk secrets; SARIF uploads are skipped on forks where privilege may be unavailable.
+| Practice | Files / trigger | Verification and current disposition |
+|---|---|---|
+| **CodeQL** | `.github/workflows/security-codeql.yml`; PRs, selected branches, weekly on default branch, dispatch; JavaScript/TypeScript, Python, Actions; `security-extended` | **PASS** all three language jobs, [run 43639889306](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889306). Check default vs advanced setup with owner before merge. |
+| **Semgrep CE** | `.github/workflows/security-semgrep.yml`; PRs and selected pushes; `p/default` + `p/security-audit`, source, scripts, evaluations and Actions. Full SARIF retained; ERROR gate | **PASS** [run 43639889181](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889181): 518 rules on 1,417 files, 115 total findings for review; 176 ERROR rules, **0 ERROR findings**. The 115 reported results are **not all adjudicated false positives**. Static SQL fixture queries were made literal/bound or strictly identifier-validated; narrow inline explanations exist for audited static identifiers. |
+| **Dependabot** | `.github/dependabot.yml`; weekly npm/pnpm workspace, nested npm, GitHub Actions, Docker, Python | File/configuration committed, **version-update PR creation unverified** until merged into default branch `main`. Owner must separately check dependency graph, Dependabot alerts and security updates. |
+| **Snyk** | `.github/workflows/security-snyk.yml`; optional push, weekly and dispatch | **Skipped intentionally** without owner-approved service, Actions secret `SNYK_TOKEN`, and repo variable `SNYK_ENABLED=true`. No account or token created, no scan claimed. |
+| **Trivy** | `.github/workflows/security-trivy.yml` filesystem/dependencies/IaC on PRs and selected pushes; optional manual image; additional `.github/workflows/security-container-validation.yml` builds and scans actual browser image on affected changes | **Filesystem PASS** [run 43639889172](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889172), no HIGH/CRITICAL after fixes. **Image FAIL as designed**, [run 43639889177](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889177); build, non-root runtime, Corepack and local `/health` passed; image has outstanding critical/high vulnerabilities below. |
+| **Gitleaks** | `.github/workflows/security-gitleaks.yml`; redacted commit-range gate on PRs/pushes, full fetched-ref history audit scheduled or manually dispatched | **New-commit gate PASS**, [run 43639889231](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889231). Earlier **full-history audit FAIL** [run 43635708917](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635708917), 107 **untriaged potential historical secrets** in redacted SARIF. Passing a new-commit gate does not verify historical credentials safe. |
 
-The repository contains a real `apps/worker/browser-container.Dockerfile`, built with a large Playwright/Python runtime. The *opt-in* Trivy image job builds it with `docker build` locally on a GitHub-hosted runner and never pushes or deploys. A successful filesystem scan is **not** an image scan. Dockerfile misconfiguration recognition depends on Trivy supporting the nonstandard `*.Dockerfile` name; verify scan coverage in logs.
+The security CI workflows are isolated from existing application checks. No broad scanner exemptions, blanket `continue-on-error`, or vulnerability baselines were added to fabricate success. Fork pull requests do not receive Snyk secrets. Code Scanning SARIF uploads are conditional where fork privileges are inadequate. Scheduled workflows only execute from the GitHub default branch.
 
-## Local reproduction
-Use a clean checkout with full history. Match tool versions used in workflow files, and protect local secrets in files and output.
+## Applied fixes and exact affected files
+
+- `packages/connectors/package.json`, `pnpm-lock.yaml`: exact `fast-xml-parser` **5.3.0 → 5.11.2**, frozen lockfile regenerated by verified one-time CI job [43638779024](https://github.com/AmmarMohanna/distilled.news/actions/runs/43638779024). The write-privileged temporary workflow was subsequently **deleted**.
+- `evaluation/acquisition-benchmark/scripts/replay_rss_pilot.py`, `evaluation/acquisition-benchmark/pyproject.toml`, `evaluation/acquisition-benchmark/constraints.txt`: secure XML parser `defusedxml==0.7.1`.
+- `evaluation/performance-reliability/real/artifact-crypto.mjs`, `scripts/verify-d1-backup.mjs`: explicit **16-byte AES-GCM authentication tag length**, preserving existing wire format.
+- `scripts/benchmark-active-evidence-ids.py`, `scripts/benchmark-shortlist-policy.py`, `scripts/check_ai_source_integration_migrations.py`, `scripts/extract-shortlist-profile.py`: static SQLite statements for value queries, parameterized values, and constrained/quoted fixture schema identifiers.
+- `packages/briefing/test/occurrence-novelty.test.ts`: six fake model-port replies now provide required `inputTokens` and `outputTokens` fields; no model prompts or production behavior altered.
+- `apps/worker/browser-container.Dockerfile`: switch final image to existing non-root Playwright `pwuser` (UID/GID 1001), with shared readable Corepack cache. Confirmed build and health smoke check; image has an unresolved vulnerability backlog.
+- Added `.github/workflows/security-container-validation.yml` for build, startup, full image SARIF, and severity gate. Updated Gitleaks to distinguish newly introduced leaks from historical backlog.
+
+## Confirmed findings and merge blockers
+
+### Critical
+- **6 critical advisories in installed Python image dependencies** and **2 critical advisories in installed Node.js image dependencies**, as reported by Trivy. Full rule/CVE details are in [image scan 43639889177](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889177), not hidden. **Owner must validate reachable components, select compatible patched dependency/base versions, and rerun the exact image build/startup+Trivy gate.**
+- The original `fast-xml-parser` 5.3.0 critical CVE-2026-25896 is remediated in the 5.11.2 lockfile (verified Trivy filesystem PASS).
+
+### High
+- **99 high-severity image findings**: 7 Ubuntu OS, 47 Node.js dependencies, 45 Python dependencies, in the real Playwright/browser-use image scan. Some may be transitive or lack a safe compatible upgrade; no blanket risk acceptance or ignore is included.
+- Original `fast-xml-parser` high CVE-2026-25128, CVE-2026-26278, CVE-2026-33036 and HIGH non-root Dockerfile DS-0002 are no longer reported by filesystem scan after package fix and non-root user change.
+- **Historical Gitleaks:** 107 candidate secret matches are *not* 107 confirmed active credentials. They require restricted review, deduplication and classification; any genuine credential must be revoked/rotated with its owner, sessions inspected and replacement stored in GitHub Secrets/Cloudflare secret storage. Do not disclose values in logs/PR/comments or rewrite shared history without explicit approval.
+
+### Medium and low
+- Semgrep's full report contains 115 findings of varying reported priorities, not individually triaged; consult SARIF before determining false positives, risk, and dispositions. No ungrounded zero medium/low claim.
+- The Trivy filesystem HIGH/CRITICAL gate passed; this **does not** imply Python image dependencies or all medium/low findings are clean.
+
+## Current CI and limitations
+
+- [CodeQL](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889306) PASS all languages.
+- [Semgrep](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889181) PASS ERROR gate, SARIF holds 115 review findings.
+- [Trivy filesystem](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889172) PASS HIGH/CRITICAL.
+- [Gitleaks change gate](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889231) PASS; historical audit still FAIL as above.
+- [Container build/health/image vulnerability scan](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889177) BUILD/HEALTH PASS, IMAGE VULNERABILITY GATE FAIL (8 CRITICAL/99 HIGH). No production image was deployed.
+- [Acquisition benchmark Python 3.12 and 3.14](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639507274) PASS; [offline briefing evaluation](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639507326) PASS.
+- [Existing Project checks](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889197): full pipeline still running when documentation was prepared; V3 correctness fixture previously fails independently of security edits. Earlier base-branch [Project checks](https://github.com/AmmarMohanna/distilled.news/actions/runs/43633029197) also failed. Do not infer project green from the narrower security jobs.
+
+GitHub settings that cannot be changed through this connection: CodeQL default-vs-advanced setup, dependency graph/Dependabot alerts/security updates, secret push protection, branch rules and required status checks. Snyk specifically requires approved account/service and `SNYK_TOKEN` secret plus `SNYK_ENABLED=true` variable. No paid service was authorized.
+
+**Merge decision:** Keep [PR #11](https://github.com/AmmarMohanna/distilled.news/pull/11) **draft**. Secure the real image and triage/rotate historical credentials, validate outstanding app checks, then require owner approval of residual risk with a documented expiry and test evidence. This is a real, reproducible DevSecOps bonus contribution, but a numerical bonus grade is not established by CI alone.
+
+## Reproduce locally
+
+Use a clean checkout at the recorded SHA and the pinned tool versions (Trivy v0.76.2, Semgrep CE image 1.185.0, Gitleaks image v8.30.1). Do not expose secrets in reports.
 
 ```bash
-# CodeQL: use official CodeQL CLI or inspect the GitHub code-scanning job; v4.39.3 action.
-docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.185.0 scan --config p/default --config p/security-audit --metrics off apps packages scripts evaluation .github/workflows
-# Requires current Trivy 0.76.2 and its vulnerability DB:
+pnpm install --frozen-lockfile
+pnpm -r typecheck
+docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.185.0 scan --config p/default --config p/security-audit --severity ERROR --error --metrics off apps packages scripts evaluation .github/workflows
 trivy fs --scanners vuln,misconfig --severity HIGH,CRITICAL --exit-code 1 .
-# Requires Docker and full local git history; output is redacted:
 docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.30.1 git --no-banner --redact=100 --log-opts="--all" /repo
-# Optional Snyk (after installing pinned CLI and configuring SNYK_TOKEN):
-snyk test --all-projects --fail-fast --severity-threshold=high
-# Optional: build and scan the real image (no push):
 docker build -f apps/worker/browser-container.Dockerfile -t distilled-browser-security:local .
 trivy image --scanners vuln,misconfig --severity HIGH,CRITICAL --exit-code 1 distilled-browser-security:local
 ```
 
-## Findings and dispositions
-**First verified results (Trivy filesystem, run 43635684801):** 4 package CVEs in `pnpm-lock.yaml` (`fast-xml-parser` 5.3.0): CRITICAL CVE-2026-25896 and HIGH CVE-2026-25128, CVE-2026-26278, CVE-2026-33036. Trivy additionally reported HIGH DS-0002 for no explicit non-root `USER` in `apps/worker/browser-container.Dockerfile`. **5 findings total: 1 CRITICAL, 4 HIGH; no MEDIUM or LOW found in this scan.** Gate correctly failed, retaining evidence. Trivy recognized the nonstandard Dockerfile and detected npm/pnpm lockfiles. Python dependency coverage was **not confirmed** in this run: Trivy identified two language-specific lockfiles (npm + pnpm). Do not claim Python package coverage from this report. Exact transitive dependency chain/reachability and Docker runtime implications require triage; no automatic dependency or Dockerfile edits were made. This is not a clean bill of health. When runs complete, triage SARIF and job logs by rule/CVE, affected package/path, direct vs transitive reachability, evidence, exploitability, suggested fix, and status (open/mitigated/false positive/accepted with owner and expiration). Do not mark a category as zero until evidence supports it. A failing check is meaningful; do not add blanket `continue-on-error`, baselines, or ignores to obtain green.
-
-If Gitleaks finds a credible credential: **revoke or rotate it immediately with the credential owner**, inspect usage, invalidate related tokens/sessions and replace via secure secret storage. Treat historical exposure as exposure even after file deletion. Never paste leaked values into issues/comments, upload unredacted artifacts, or rewrite history without owner approval. For placeholders, review exact evidence and narrowly scope any documented allowlist.
-
-## Required settings and blockers
-1. The repository owner (admin permissions required; connected account currently has push but not admin) must inspect **Settings → Advanced Security**: whether CodeQL *default setup* is running, and if so switch to **advanced setup** to avoid duplication; verify code scanning/SARIF and secret scanning/push protection are available. This public repository is eligible for code scanning, but the exact account settings were not visible.
-2. Enable **Dependabot alerts**, **Dependabot security updates**, and the dependency graph in repository security settings if desired. Version-update configuration only becomes active after merging `dependabot.yml` into `main`; it does not itself enable alerts. Review grouped PRs through existing tests; no automatic major npm version upgrades are proposed. Manual advisories involving major releases need explicit review.
-3. Optional Snyk: create/configure an account on an approved tier **only with owner approval**; add repository Actions secret `SNYK_TOKEN` and repository variable `SNYK_ENABLED=true`. Without the variable, the job is visibly skipped; with variable but no token it fails. There is no subscription change or paid service provisioned here. Pin/upgrade CLI deliberately.
-4. Require successful `Security - ...` checks through branch protection/rulesets after the actual workflows are validated. Adding a workflow alone does not make checks required. Ensure GitHub Actions and `security-events: write` are permitted on this repository.
-5. Scheduled scans and Dependabot cannot be proven on a feature branch; CodeQL upload, full history scanning, Semgrep ruleset fetching, external vulnerability DB access and container builds must be verified through actual GitHub Actions runs.
-
-## Run evidence
-- Initial scan evidence:
-- Trivy [43635684801](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684801) **failed as designed** on 1 CRITICAL + 4 HIGH findings; opt-in image scan skipped.
-- CodeQL [43635684813](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684813): Python and GitHub Actions language jobs completed successfully; JS/TS still running at evidence review.
-- Semgrep [43635684823](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684823): executing at evidence review.
-- Gitleaks [43635708917](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635708917): full fetched Git history scan completed and **failed with 107 candidate secret matches**; 100% redacted SARIF successfully uploaded to GitHub Code Scanning. These are untriaged candidate detections, **not 107 verified active secrets**. Do not disclose or export raw values. Urgently review the results in restricted GitHub security views; rotate/revoke any real exposed credential, investigate prior usage, and document per-finding dispositions privately. Scanner remains enforced (no allowlists or suppression introduced).
-- Snyk [43635684832](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684832): **skipped** because not enabled (expected).
-- Existing app-check [43635684688](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684688): `verify` job failed on six pre-existing TypeScript test mock errors in `packages/briefing/test/occurrence-novelty.test.ts` (missing `inputTokens`/`outputTokens` in `ModelResponse`); no app source or test files modified in this security-only commit.
-
-Previous app-check run on source branch (was in progress when audited): https://github.com/AmmarMohanna/distilled.news/actions/runs/43632264473
-- New security CI: https://github.com/AmmarMohanna/distilled.news/actions (look for `Security - ...` workflows and filter by `ghada/devsecops-security-automation`).
-- Record exact future run IDs, outcomes, scanner versions, covered manifests and finding counts here after checking logs; **do not** infer passing runs from committed YAML.
-
-## Bonus engineering contribution
-This adds independent static analysis, complementary rules, lockfile/supply-chain updates, credential detection, optional credential-backed Snyk and actual image-scanning capability. It supports the EECE 503N/798S DevSecOps engineering bonus with auditable implementation and reproducibility. **No score or full-credit claim can be justified until scanners have demonstrably run and the course rubric is applied.**
-
-Official documentation:
-- https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configuring-advanced-setup-for-code-scanning
-- https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-version-updates
-- https://semgrep.dev/docs/semgrep-ci/sample-ci-configs
-- https://github.com/aquasecurity/trivy-action
-- https://github.com/gitleaks/gitleaks
-- https://docs.snyk.io/developer-tools/snyk-cli/commands/test
+See [GitHub CodeQL](https://docs.github.com/en/code-security), [Dependabot](https://docs.github.com/en/code-security/dependabot), [Semgrep](https://semgrep.dev/docs/), [Trivy](https://trivy.dev/latest/), [Gitleaks](https://github.com/gitleaks/gitleaks), and [Snyk CLI](https://docs.snyk.io/developer-tools/snyk-cli) for scanner behavior and updates.
