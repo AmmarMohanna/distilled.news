@@ -16,8 +16,9 @@ it('shows the briefing headline, full elaboration, publisher, source date and nu
   expect(host.querySelector('h2')?.textContent).toBe('News Briefing');expect(host.querySelector('h3')?.textContent).toBe('First headline');
   expect(host.querySelector('.news-briefing-description')?.textContent).toContain('First explanation.');
   expect(host.querySelector('.news-briefing-publisher')?.textContent).toBe('ABC');expect(host.querySelector('time')?.textContent).toBe('Oct 25, 2026');
-  expect([...host.querySelectorAll('.news-briefing-references button')].map(button=>button.textContent)).toEqual(['[1]','[2]']);
-  expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://abc.example/article');expect(host.textContent).toContain('Full original source evidence.');
+  expect([...host.querySelectorAll('.news-briefing-references button')].map(button=>button.textContent)).toEqual(['1','2']);
+  expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://abc.example/article');expect(host.textContent).not.toContain('Full original source evidence.');
+  expect(host.querySelector('details,.news-briefing-description svg')).toBeNull();
  });
 });
 it('navigates all references and supporting sources, copying the same article used by Read full article',async()=>{

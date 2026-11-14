@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react';
-import {BookOpen,CalendarDays,ChevronLeft,ChevronRight,ExternalLink,FileText,Link2,X} from 'lucide-react';
+import {BookOpen,CalendarDays,ChevronLeft,ChevronRight,ExternalLink,Link2,X} from 'lucide-react';
 import type {BriefingEdition,BriefingEvidence} from '@distilled/core';
 import {Dialog} from './Dialog';
 import {SourceLogo} from './SourceLogo';
@@ -37,18 +37,16 @@ export function NewsBriefing(props:{edition:BriefingEdition;selectedIndex:number
  const links=[...new Set((entry?(entry.links.length?entry.links:[entry.sourceUrl]):[]).flatMap(value=>{const url=publicUrl(value);return url?[url]:[];}))];
  const articleUrl=links[0];
  const date=entry&&Number.isFinite(Date.parse(entry.postedAt))?new Date(entry.postedAt):undefined;
- const sourceText=entry?display(entry.text):'';
  return <Dialog label={labels.title} className="news-briefing-dialog" onClose={props.onClose}>
   <section className="news-briefing-card" lang={language} dir={rtl?'rtl':'ltr'}>
-   <header className="news-briefing-header"><div><BookOpen size={25} aria-hidden="true"/><h2>{labels.title}</h2></div><button type="button" aria-label={labels.close} onClick={props.onClose}><X size={21} aria-hidden="true"/></button></header>
+   <header className="news-briefing-header"><div><BookOpen size={20} aria-hidden="true"/><h2>{labels.title}</h2></div><button type="button" aria-label={labels.close} onClick={props.onClose}><X size={20} aria-hidden="true"/></button></header>
    <h3 className="news-briefing-headline" dir="auto">{display(heading)}</h3>
    <div className="news-briefing-meta">
     {entry?<span className="news-briefing-publisher"><SourceLogo key={entry.sourceId+sourceIndex} source={articleUrl??entry.sourceUrl??entry.sourceTitle}/><strong dir="auto">{publisher}</strong></span>:null}
-    {date?<span className="news-briefing-date"><CalendarDays size={22} aria-hidden="true"/><time dateTime={entry!.postedAt}>{new Intl.DateTimeFormat(language==='en'?'en-US':language,{month:'short',day:'numeric',year:'numeric'}).format(date)}</time></span>:null}
-    <nav className="news-briefing-references" aria-label={labels.reference}>{edition.sections.map((_,index)=><button key={index} type="button" aria-label={`${labels.reference} ${index+1}`} aria-pressed={storyIndex===index} onClick={()=>setSelection({story:index,source:0})}>[{index+1}]</button>)}</nav>
+    {date?<span className="news-briefing-date"><CalendarDays size={18} aria-hidden="true"/><time dateTime={entry!.postedAt}>{new Intl.DateTimeFormat(language==='en'?'en-US':language,{month:'short',day:'numeric',year:'numeric'}).format(date)}</time></span>:null}
+    <nav className="news-briefing-references" aria-label={labels.reference}>{edition.sections.map((_,index)=><button key={index} type="button" aria-label={`${labels.reference} ${index+1}`} aria-pressed={storyIndex===index} onClick={()=>setSelection({story:index,source:0})}>{index+1}</button>)}</nav>
    </div>
-   <div className="news-briefing-description"><FileText size={27} aria-hidden="true"/><p dir="auto">{display(body)}</p></div>
-   {entry&&sourceText.trim()&&sourceText.trim()!==display(body).trim()?<details className="news-briefing-source-text"><summary>{labels.text}</summary><p dir="auto">{sourceText}</p></details>:null}
+   <div className="news-briefing-description"><p dir="auto">{display(body)}</p></div>
    {!entry?<p className="news-briefing-empty">{labels.noSources}</p>:null}
    {(links.length>1||Boolean(entry?.media.length))?<div className="news-briefing-related">
     {links.slice(1).map(link=><a key={link} href={link} target="_blank" rel="noopener noreferrer"><Link2 size={15} aria-hidden="true"/>{new URL(link).hostname.replace(/^www\./,'')}</a>)}
@@ -65,8 +63,8 @@ export function NewsBriefing(props:{edition:BriefingEdition;selectedIndex:number
       <button type="button" className="news-briefing-copy" onClick={async()=>{
        try{await navigator.clipboard.writeText(articleUrl);setCopied({url:articleUrl,status:'copied'});}
        catch{setCopied({url:articleUrl,status:'failed'});}
-      }}><Link2 size={20} aria-hidden="true"/><span aria-live="polite">{copied?.url===articleUrl?(copied.status==='copied'?labels.copied:labels.failed):labels.copy}</span></button>
-      <a className="news-briefing-read" href={articleUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={20} aria-hidden="true"/>{labels.read}</a>
+      }}><Link2 size={18} aria-hidden="true"/><span aria-live="polite">{copied?.url===articleUrl?(copied.status==='copied'?labels.copied:labels.failed):labels.copy}</span></button>
+      <a className="news-briefing-read" href={articleUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={18} aria-hidden="true"/>{labels.read}</a>
      </>:null}
     </div>
    </footer>
