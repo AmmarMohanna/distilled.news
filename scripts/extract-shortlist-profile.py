@@ -84,7 +84,12 @@ try:
     for sql in indexes:
         db.execute(sql)
     db.commit()
-    counts = {table: db.execute('SELECT count(*) FROM ' + table).fetchone()[0] for table in sorted(tables)}
+    counts = {}
+    for table in sorted(tables):
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
+            raise RuntimeError("INVALID_PROFILE_TABLE")
+        # 'tables' is a closed set of literals; the identifier is quoted and validated.
+        counts[table] = db.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query -- fixed allowlist
     print(json.dumps({'scope': 'local retained-export profiling fixture; not a replacement backup',
                       'sqlSha256': digest, 'tables': counts, 'ownedScopes': len(scopes),
                       'bytes': target.stat().st_size, 'elapsedSeconds': time.monotonic() - started,

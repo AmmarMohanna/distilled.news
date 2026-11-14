@@ -12,6 +12,7 @@ dependencies = [
   "httpcore==1.0.9",
   "zstandard==0.25.0",
   "PyYAML==6.0.3",
+  "defusedxml==0.7.1",
 ]
 
 [project.optional-dependencies]

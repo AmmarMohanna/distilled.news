@@ -13,7 +13,7 @@ await mkdir(output,{recursive:true});
 await writeFile(path.join(output,'backup.key'),key,{mode:0o600});
 await writeFile(path.join(output,'backup.encrypted'),Buffer.concat([iv,cipher.getAuthTag(),encrypted]),{mode:0o600});
 const stored=await readFile(path.join(output,'backup.encrypted'));
-const decipher=createDecipheriv('aes-256-gcm',await readFile(path.join(output,'backup.key')),stored.subarray(0,12));
+const decipher=createDecipheriv('aes-256-gcm',await readFile(path.join(output,'backup.key')),stored.subarray(0,12),{authTagLength:16});
 decipher.setAuthTag(stored.subarray(12,28));
 const restored=Buffer.concat([decipher.update(stored.subarray(28)),decipher.final()]);
 if(!restored.equals(sql))throw new Error('BACKUP_CONTENT_MISMATCH');

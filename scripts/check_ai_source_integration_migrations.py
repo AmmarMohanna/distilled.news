@@ -11,6 +11,7 @@ from collections import Counter
 from contextlib import closing
 from hashlib import sha256
 import json
+import re
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -113,10 +114,18 @@ def apply(db, migrations):
     return pending
 
 
+def sql_identifier(name):
+    """Quote a SQLite identifier after strict validation; values are always bound separately."""
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        raise ValueError("INVALID_FIXTURE_IDENTIFIER")
+    return f'"{name}"'
+
+
 def insert(db, table, values):
-    columns = ",".join(values)
+    # Fixture-only, in-memory schema; never accept external SQL identifiers.
+    columns = ",".join(sql_identifier(name) for name in values)
     slots = ",".join("?" for _ in values)
-    db.execute(f"INSERT INTO {table}({columns}) VALUES({slots})", tuple(values.values()))
+    db.execute(f"INSERT INTO {sql_identifier(table)}({columns}) VALUES({slots})", tuple(values.values()))  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query -- identifiers strictly validated and values bound
 
 
 def json_text(value):
@@ -229,14 +238,17 @@ def snapshot(db):
     result = {}
     for table in PRESERVE:
         if table_exists(db, table):
-            columns = [row[1] for row in db.execute(f"PRAGMA table_info({table})")]
-            result[table] = (columns, db.execute(f"SELECT {','.join(columns)} FROM {table} ORDER BY rowid").fetchall())
+            columns = [row[1] for row in db.execute(f"PRAGMA table_info({sql_identifier(table)})")]  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query -- fixed PRESERVE table names
+            selected = ",".join(sql_identifier(column) for column in columns)
+            rows = db.execute(f"SELECT {selected} FROM {sql_identifier(table)} ORDER BY rowid").fetchall()  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query -- quoted schema metadata
+            result[table] = (columns, rows)
     return result
 
 
 def verify_preserved(db, before):
     for table, (columns, rows) in before.items():
-        current = db.execute(f"SELECT {','.join(columns)} FROM {table} ORDER BY rowid").fetchall()
+        selected = ",".join(sql_identifier(column) for column in columns)
+        current = db.execute(f"SELECT {selected} FROM {sql_identifier(table)} ORDER BY rowid").fetchall()  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query -- validated snapshot identifiers
         require(current == rows, f"Upgrade changed existing {table} data")
     expected_amendments = len(before.get("v1_model_spending_concurrency_amendments", ([], []))[1])
     require(db.execute("SELECT COUNT(*) FROM v1_model_spending_authorizations").fetchone() == (1,),
@@ -286,7 +298,9 @@ def scenario(label, initial, candidate):
             for table in ("v1_model_spending_authorizations", "v1_model_spending_reservations",
                           "v1_model_spending_settlements", "v1_model_spending_concurrency_amendments",
                           "connector_provider_operations", "connector_provider_budgets"):
-                require(db.execute(f"SELECT COUNT(*) FROM {table}").fetchone() == (0,),
+                # Names are from the fixed literal tuple, never external input.
+                query = f"SELECT COUNT(*) FROM {sql_identifier(table)}"  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query -- validated literal names
+                require(db.execute(query).fetchone() == (0,),
                         f"Fresh migration created financial authority/data: {table}")
         require(apply(db, candidate) == [], f"{label}: migration replay was not a no-op")
         require(db.execute("SELECT name FROM d1_migrations ORDER BY id").fetchall() == tracked,
