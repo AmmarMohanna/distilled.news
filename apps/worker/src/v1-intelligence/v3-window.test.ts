@@ -48,6 +48,10 @@ it('resumes the final source audit after D1 failure and preserves all supporting
  const capture=providerReceipts.captureProviderReceipt,seen:string[]=[];let fail=true;
  vi.spyOn(providerReceipts,'captureProviderReceipt').mockImplementation(async receipt=>{if(fail&&receipt.stage==='USAGE'&&seen.at(-1)?.includes('You audit source coverage')){fail=false;throw Error('D1_ERROR: D1 DB is overloaded')}return capture(receipt)});
  const message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ // This regression owns a retained pre-policy window, including its original audit path.
+ const legacyId=await windowIdentity('feed-1',window),freshLegacy=await prepareV3Window(store,'feed-1',window,window.end);
+ const {editorSourcePolicy:_source,editorAccountingPolicy:_accounting,editorFailurePolicy:_failure,...legacyInput}=freshLegacy;
+ await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',legacyId,{...legacyInput,id:legacyId,citationCoverage:true}));
  await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
  expect(fail).toBe(false);expect(seen).toHaveLength(2);expect(archive.objects.size).toBe(2);
  const edition=await processV1Briefing(env,message,()=> '2026-10-03T12:32:00Z',undefined,fetcher(seen) as typeof fetch);
@@ -900,6 +904,10 @@ it('retains diagnostic unaccounted refs without blocking publication or repeatin
  await acceptEvidence(store,2,'The electricity authority announced a separate transmission maintenance programme affecting coastal substations next month.','publisher-1','2026-10-03T12:10:00Z','en','2026-10-03T12:05:00Z','Separate electricity decision','https://publisher.example/maintenance-2');
  await processV1Reassessment(env,JSON.stringify(['REASSESS','observation-2','']),'2026-10-03T12:10:00Z');
  const id=await windowIdentity('feed-1',window),seen:string[]=[],transport=fetcher(seen) as typeof fetch,message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ // This regression owns a retained pre-policy window, including its original audit path.
+ const legacyId=await windowIdentity('feed-1',window),freshLegacy=await prepareV3Window(store,'feed-1',window,window.end);
+ const {editorSourcePolicy:_source,editorAccountingPolicy:_accounting,editorFailurePolicy:_failure,...legacyInput}=freshLegacy;
+ await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',legacyId,{...legacyInput,id:legacyId,citationCoverage:true}));
  const edition=await processV1Briefing(env,message,()=>window.end,undefined,transport);
  expect(edition?.engine).toBe('v3');expect(seen).toHaveLength(3);
  const saved=await store.read<any>('feed-1','v3_window_results',id);
@@ -1009,7 +1017,8 @@ it('freezes the unusable editor chunk policy for new inputs and keeps legacy sna
  await article();
  const fresh=await prepareV3Window(store,'feed-1',window,window.end);
  expect(fresh.editorFailurePolicy).toBe('isolate-unusable-chunks-v1');
- const {editorFailurePolicy:_,editorAccountingPolicy:__,...legacy}=fresh;
+ const {editorFailurePolicy:_,editorAccountingPolicy:__,editorSourcePolicy:___,...legacyFields}=fresh;
+ const legacy={...legacyFields,citationCoverage:true};
  // Store an already frozen input under the canonical window id; it must replay
  // its original bytes rather than silently acquiring the new failure policy.
  const id=await windowIdentity('feed-1',window);
@@ -1022,12 +1031,14 @@ it('freezes the unusable editor chunk policy for new inputs and keeps legacy sna
 it('freezes complete accounting in new inputs and persists every source decision through duplicate delivery',async()=>{
  await article();
  const fresh=await prepareV3Window(store,'feed-1',window,window.end);
- expect(fresh.editorAccountingPolicy).toBe('complete-source-decisions-v1');
+ expect(fresh.editorAccountingPolicy).toBe('complete-source-decisions-v2');
+ expect(fresh.editorSourcePolicy).toBe('all-supporting-sources-v1');expect(fresh.citationCoverage).toBe(false);
  const seen:string[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window};
  const edition=await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
  expect(edition).toBeDefined();
  const id=await windowIdentity('feed-1',window),snapshot=await store.read<any>('feed-1','v3_window_inputs',id),saved=await store.read<any>('feed-1','v3_window_results',id);
- expect(snapshot.editorAccountingPolicy).toBe('complete-source-decisions-v1');
+ expect(snapshot.editorAccountingPolicy).toBe('complete-source-decisions-v2');
+ expect(snapshot.editorSourcePolicy).toBe('all-supporting-sources-v1');expect(snapshot.citationCoverage).toBe(false);
  expect(saved.result.sourceDecisions).toHaveLength(snapshot.input.articles.length);
  expect(saved.result.sourceDecisions[0].outcomes).toContainEqual(expect.objectContaining({stage:'final',decision:'selected'}));
  expect(seen[0]).toContain('SOURCE ACCOUNTING CONTRACT');

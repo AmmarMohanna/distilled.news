@@ -30,7 +30,7 @@ const POLICY='v3-fixed-window-editor-verifier-v1';
 export class SettledV3CallFailure extends Error {
  constructor(readonly operationId:string,reason='SEMANTIC_PROVIDER_FAILURE'){super(reason);}
 }
-export interface V3WindowInput {editorAccountingPolicy?:'complete-source-decisions-v1';editorFailurePolicy?:'isolate-unusable-chunks-v1';admissionPolicy?:typeof V3_ADMISSION_POLICY;admissions?:V3EvidenceAdmission[];cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
+export interface V3WindowInput {editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2';editorSourcePolicy?:'all-supporting-sources-v1';editorFailurePolicy?:'isolate-unusable-chunks-v1';admissionPolicy?:typeof V3_ADMISSION_POLICY;admissions?:V3EvidenceAdmission[];cutoffPolicy?:typeof CUTOFF_EDITION_POLICY;citationCoverage?:boolean;noveltyGuard?:boolean;architecture?:'evidence-first-v1'|'evidence-first-v2';scheduledFor?:string;promptVersion?:1|2|3|4|5|6;id:string;fingerprint:string;feedId:string;feedRevision:number;input:BriefingInput;models:BriefingModels;evidenceRevisionIds:string[];recovery?:{priorInputId:string;recoveredAt:string;reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}}
 export interface V3WindowResult {id:string;feedId:string;inputId:string;windowEnd:string;result:BriefingResult;operationIds:string[]}
 export const productV3Enabled=(env:Pick<Env,'BRIEFING_ENGINE'>)=>env.BRIEFING_ENGINE==='v3';
 export const productV3Ready=(env:Env)=>Boolean(env.OPENROUTER_API_KEY);
@@ -80,13 +80,14 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  const hydrated=new Map((await store.currentEvidenceByIds(feedId,active.map(e=>e.revision.id),cutoffPolicy?window.end:undefined)).map(e=>[e.revision.id,e]));
  const selected=active.map(e=>{const full=hydrated.get(e.revision.id);if(!full)throw new HandoffError('TEMPORARY_UNAVAILABLE');return full});
  const input:BriefingInput={feed:{interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:selected.map(({item,revision:r})=>({...(architecture?{revision:{evidenceId:r.evidenceId,version:r.revision,acceptedAt:r.acceptedAt,observedAt:observedAt.get(r.id)??undefined,contentHash:r.contentHash,sourceObservationId:r.sourceObservationId,acquiredContentId:r.acquiredContentId}}:{}),id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.representation==='LISTING_RESULT'?'[Source content: catalogue/listing snapshot. Descriptions, ratings and review excerpts are not full linked reviews. Do not infer a product release or news event date from this page timestamp.]\n'+(r.body??r.title??''):r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
- const value={editorAccountingPolicy:'complete-source-decisions-v1' as const,editorFailurePolicy:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:true,noveltyGuard:true,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
+ const value={editorAccountingPolicy:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }
 
 /** Uses the product account ledger, rate limits, immutable operation identities,
  * provider receipt recovery and uncertain-charge fences. No V3 spend ledger. */
-function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,windowId:string,now:()=>string,fetcher:typeof fetch,operations:Set<string>):ModelPort&{drain():Promise<void>}{
+/** Shared by the runtime and staging qualification; no separate billing transport. */
+export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,windowId:string,now:()=>string,fetcher:typeof fetch,operations:Set<string>):ModelPort&{drain():Promise<void>}{
  let active=0;const waiting:Array<()=>void>=[];const limit=configuredProviderLimits(env,'openrouter').maxConcurrent;
  const complete=async(request:ModelRequest)=>{
   if(active>=limit)await new Promise<void>(resolve=>waiting.push(resolve));active++;
@@ -176,7 +177,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   const frozen=snapshot;
   let saved=await store.read<V3WindowResult>(feedId,'v3_window_results',frozen.id);
   if(!saved){const operations=new Set<string>(),port=durableV3Port(store,env,frozen,id,now,fetcher,operations);let result:BriefingResult;
-   try{result=await generateBriefing(frozen.input,port,frozen.models,{editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(window.end),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}})}finally{await port.drain()}
+   try{result=await generateBriefing(frozen.input,port,frozen.models,{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(window.end),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}})}finally{await port.drain()}
    saved={id:frozen.id,feedId,inputId:frozen.fingerprint,windowEnd:window.end,result,operationIds:[...operations].sort()};
    await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,saved!));
   }

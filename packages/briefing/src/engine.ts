@@ -32,7 +32,9 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 
 export interface EngineOptions {
   /** Frozen only in new product snapshots; legacy paid requests retain their bytes. */
-  editorAccountingPolicy?:'complete-source-decisions-v1';
+  editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2';
+  /** Select complete citations while editing; no separate full-input coverage call. */
+  editorSourcePolicy?:'all-supporting-sources-v1';
   /** Frozen in new product inputs; unusable chunks carry forward while verified siblings publish. */
   editorFailurePolicy?: 'isolate-unusable-chunks-v1';
   /** Versioned source association audit for all articles in a new snapshot. */
@@ -203,7 +205,8 @@ async function edit(
   prior: PriorItem[],
   partial = false,
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 2,
-  accountingPolicy?:EngineOptions['editorAccountingPolicy']
+  accountingPolicy?:EngineOptions['editorAccountingPolicy'],
+  sourcePolicy?:EngineOptions['editorSourcePolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -215,12 +218,12 @@ async function edit(
       model: models.editor,
       system: promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM,
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
-        ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):''),
-      maxTokens: accountingPolicy==='complete-source-decisions-v1'?Math.max(4000,articles.length*48):4000
+        ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):''),
+      maxTokens: accountingPolicy?Math.max(4000,articles.length*48):4000
     },
     (raw) => {
       const drafts=parseDrafts(raw,known,priorIds,promptVersion>=4);
-      if(accountingPolicy==='complete-source-decisions-v1')assertCompleteEditorAccounting(raw,articles);
+      if(accountingPolicy)assertCompleteEditorAccounting(raw,articles,accountingPolicy==='complete-source-decisions-v2');
       return {drafts,omitted:parseLeftOut(raw,known,idsOf),unaccounted:auditEditorSourceAccounting(raw,articles)};
     }
   );
@@ -234,7 +237,8 @@ async function consolidate(
   drafts: Draft[],
   prior: PriorItem[],
   idsOfRefs: (refs: string[]) => string[],
-  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7
+  promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
+  sourcePolicy?:EngineOptions['editorSourcePolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
   return callJson(
@@ -248,7 +252,7 @@ async function consolidate(
         feed: input.feed,
         prior,
         drafts: drafts.map((d) => ({ headline: d.headline, body: d.body, relation: d.relation, updates: d.updatesId, importance: d.importance }))
-      }),
+      })+(sourcePolicy?'\n\nPreserve every draft supporting the same development in the merged item: list ALL corresponding draft indices in from, including shorter or translated reports. Citations are the union of those drafts. Do not cut a supporting duplicate just to retain one representative outlet. A short supporting fragment can add a citation without adding a sentence. Preserve the supported wording of the fuller report and do not narrate that reports exist, details may be available elsewhere, or that something may have been discussed merely to describe a fragment. Do not turn preparation notes into reader text. Keep different occurrences and proposals separate.':''),
       maxTokens: 4000
     },
     (raw) => {
@@ -346,7 +350,8 @@ async function verify(
   maxChars: number,
   previousReviews: Map<number, Omit<PreviousReview, "index">>,
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
-  noveltyGuard = false
+  noveltyGuard = false,
+  sourcePolicy?:EngineOptions['editorSourcePolicy']
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -383,7 +388,7 @@ async function verify(
                 hints: hintsFor(d, byRef, input.feed)
               };
             })
-          }),
+          })+(sourcePolicy?'\n\nCheck EACH cited source: it must directly support this same central occurrence, decision or statement, rather than just share a topic or entity. Translations and shorter reports qualify even without every supplementary detail. Flag unrelated or conflicting citations with their exact labels; do not approve an item with unsupported citations. Check all factual claims against the cited evidence as usual.':''),
           maxTokens: 3000
         },
         (raw) => {
@@ -497,6 +502,7 @@ export async function generateBriefing(
 ): Promise<BriefingResult> {
   if ('v7Experiment' in overrides && overrides.v7Experiment !== undefined) throw new Error('UNSUPPORTED_V7_EXPERIMENT');
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
+  if(options.editorSourcePolicy&&options.citationCoverage)throw Error('CONFLICTING_SOURCE_POLICIES');
   if (options.architecture !== undefined) {
     if (options.architecture !== 'evidence-first-v1' && options.architecture !== 'evidence-first-v2') throw new Error('UNSUPPORTED_BRIEFING_ARCHITECTURE');
     return generateEvidenceBriefing(input, port, models, options);
@@ -534,7 +540,7 @@ export async function generateBriefing(
   // 1. Edit: choose and write.
   const editorialFailures: DroppedItem[] = [];
   const editChunk=async(chunk:PreparedArticle[],partial:boolean)=>{
-    try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy)}
+    try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy)}
     catch(error){
       if(!options.editorAccountingPolicy||options.editorFailurePolicy!=='isolate-unusable-chunks-v1'||!(error instanceof BriefingOutputError)||!partial&&!/EDITOR_ACCOUNTING/.test(error.message))throw error;
       editorialFailures.push({headline:'Unprocessed source batch',reason:'editor output unusable after correction: '+error.message.split('; last reply began:')[0],carry:true,sourceIds:sourceIdsOfRefs(chunk.map(a=>a.ref))});
@@ -563,7 +569,7 @@ export async function generateBriefing(
     omitted.push(...parts.flatMap((part) => part.omitted));
     unaccounted.push(...parts.flatMap((part) => part.unaccounted));
     if (merged.length > 1) {
-      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion));
+      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion,options.editorSourcePolicy));
       drafts = consolidated.drafts;
       omitted.push(...consolidated.omitted);
     } else {
@@ -600,7 +606,7 @@ export async function generateBriefing(
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
-    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard));
+    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
     for (const index of todo) {

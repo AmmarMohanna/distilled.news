@@ -19,7 +19,7 @@ export function auditEditorSourceAccounting(raw: unknown, articles: Array<Pick<P
 }
 
 /** Require explicit editorial choices without inventing their semantic reasons. */
-export function assertCompleteEditorAccounting(raw:unknown,articles:Array<Pick<PreparedArticle,'ref'>>):void {
+export function assertCompleteEditorAccounting(raw:unknown,articles:Array<Pick<PreparedArticle,'ref'>>,allowConcise=false):void {
  const output=raw as {items?:any[];left_out?:any[]},known=new Set(articles.map(a=>a.ref)),selected=new Set<string>(),omitted=new Set<string>();
  const refs=(row:any)=>{
   if(!Array.isArray(row?.sources)||!row.sources.length||row.sources.some((r:unknown)=>typeof r!=='string'||!known.has(r.trim().toUpperCase())))throw Error('INVALID_EDITOR_ACCOUNTING: use supplied article labels only');
@@ -29,7 +29,7 @@ export function assertCompleteEditorAccounting(raw:unknown,articles:Array<Pick<P
  if(output.left_out!==undefined&&!Array.isArray(output.left_out))throw Error('INVALID_EDITOR_ACCOUNTING: left_out must be an array');
  for(const row of output.left_out??[]){
   if(typeof row?.why!=='string'||!row.why.trim())throw Error('INCOMPLETE_EDITOR_ACCOUNTING: each exclusion requires its actual reason');
-  if(/^(?:off[ -]?topic|irrelevant|routine|not relevant|not important|low[ -]value|duplicate|redundant|no news|outside scope)[.!]?$/i.test(row.why.trim()))throw Error('INCOMPLETE_EDITOR_ACCOUNTING: bare labels are not explanations; identify the unrelated topic/location, unchanged fact, or absent new decision in the source');
+  if(!allowConcise&&/^(?:off[ -]?topic|irrelevant|routine|not relevant|not important|low[ -]value|duplicate|redundant|no news|outside scope)[.!]?$/i.test(row.why.trim()))throw Error('INCOMPLETE_EDITOR_ACCOUNTING: bare labels are not explanations; identify the unrelated topic/location, unchanged fact, or absent new decision in the source');
   for(const ref of refs(row)){
    if(selected.has(ref)||omitted.has(ref))throw Error('CONFLICTING_EDITOR_ACCOUNTING: a source cannot be both selected and excluded or excluded twice');
    omitted.add(ref);
