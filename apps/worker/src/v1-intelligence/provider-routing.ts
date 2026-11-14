@@ -35,10 +35,10 @@ export function phaseTask(phase:string):LlmTask {
  if(phase.includes('RELATION'))return 'relation';return 'construction';
 }
 
-export function configuredProviderLimits(env:Partial<Env>,provider:LlmRoute['provider']):import('./provider-limits').ProviderLimits{
+export function configuredProviderLimits(env:Partial<Env>,provider:LlmRoute['provider'],lane:'briefing'|'interactive'='briefing'):import('./provider-limits').ProviderLimits{
  const maxConcurrent=Number(env.V1_PROVIDER_MAX_CONCURRENCY??3),requestsPerMinute=Number(env.V1_PROVIDER_REQUESTS_PER_MINUTE??20);
  if(!Number.isSafeInteger(maxConcurrent)||maxConcurrent<1||maxConcurrent>6||!Number.isSafeInteger(requestsPerMinute)||requestsPerMinute<1)throw Error('INVALID_PROVIDER_LIMITS');
- return {provider,maxConcurrent,requestsPerMinute};
+ return {provider,maxConcurrent:lane==='interactive'?Math.max(0,maxConcurrent-1):maxConcurrent,requestsPerMinute:lane==='interactive'?Math.max(0,requestsPerMinute-1):requestsPerMinute};
 }
 /** Provider credentials never cross routes. Historical OpenRouter options stay byte-compatible. */
 export function modelOptionsForRoute(env:Partial<Env>,route:LlmRoute,fetcher?:typeof fetch):ModelOptions {

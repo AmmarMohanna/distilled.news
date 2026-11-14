@@ -4,6 +4,7 @@ export interface ProviderLimits {provider:'cloudflare'|'workers_ai'|'openrouter'
  * Includes legacy reservations conservatively; expiry never proves remote completion. */
 export async function providerLimitStatements(db:D1Database,r:{id:string;model:string;feedId:string;createdAt:string;providerLimits?:ProviderLimits},options?:{accountingSince:string}):Promise<D1PreparedStatement[]>{
  const limits=r.providerLimits;if(!limits)return [];
+ if(limits.maxConcurrent===0||limits.requestsPerMinute===0)throw new ModelSpendingWait('PROVIDER_RESOURCE_WAIT');
  if(!['cloudflare','workers_ai','openrouter'].includes(limits.provider)||!Number.isSafeInteger(limits.maxConcurrent)||limits.maxConcurrent<1||limits.maxConcurrent>6||!Number.isSafeInteger(limits.requestsPerMinute)||limits.requestsPerMinute<1)throw Error('INVALID_PROVIDER_LIMITS');
  if((r.model.startsWith('cloudflare:')?'cloudflare':r.model.startsWith('workers_ai:')?'workers_ai':'openrouter')!==limits.provider)throw Error('PROVIDER_RESERVATION_IDENTITY_MISMATCH');
  if(!await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='v1_model_provider_guards'").first())throw new ModelSpendingWait('PROVIDER_LIMIT_MIGRATION_REQUIRED');
