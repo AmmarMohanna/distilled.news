@@ -19,6 +19,7 @@ import { dispatchDueFeedSketches, processFeedSketchJob } from "./feed-sketch-job
 import {runConnectorMaintenance} from './connector-runtime';
 import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch,windowIdentity} from './v1-intelligence/runtime';
+import {runModelPublicationMaintenance} from './v1-intelligence/model-publication-maintenance';
 import {runProviderAccountingRecovery} from './v1-intelligence/provider-recovery';
 import {consumeWindowReadinessWake,sweepWindowReadiness} from './v1-intelligence/window-readiness';
 import {HandoffError} from '@distilled/contracts';
@@ -336,6 +337,7 @@ async function runProjectionMaintenance(env:Env):Promise<void> {
 
 export async function runScheduledMaintenance(env: Env): Promise<void> {
   // Retain the existing capacity-recovery path where verified maintenance is off.
+  await runModelPublicationMaintenance(env);
   if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED!=='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
   catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   env = await productRuntimeEnv(env);
