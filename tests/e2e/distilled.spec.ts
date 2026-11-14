@@ -100,6 +100,7 @@ const arabicEdition = {
 
 const feedEditions = Array.from({ length: 25 }, (_, index) => ({
   ...edition,
+  title: `Published briefing item ${index + 1}.`,
   id: `edition_${index + 1}`,
   summary: `Published briefing item ${index + 1}.`,
   windowStart: new Date(Date.UTC(2026, 5, 16, 7, 0 - index, 0)).toISOString(),
@@ -262,22 +263,23 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByRole("button", { name: /explore/i })).toHaveCount(0);
   expect(sessionRequests).toBeGreaterThan(0);
   await expect(page.getByPlaceholder("Search briefings")).toBeVisible();
-  await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
+  await expect(page.locator(".news-headline")).toHaveText("Verified updates");
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
-  await expect(page.getByText("A third operational note stays in the full brief").first()).toBeVisible();
+  await expect(page.locator(".news-summary")).toHaveCount(0);
   await expect(page.locator(".brief-synthesis-text")).toHaveCount(0);
-  await page.getByRole("button", { name: "Source 1" }).first().click();
-  const reportDialog = page.getByRole("dialog", { name: "Sources" });
+  await page.locator(".news-sources").first().click();
+  const reportDialog = page.getByRole("dialog", { name: "News Briefing" });
   await expect(reportDialog).toBeVisible();
-  await expect(reportDialog.getByText("Beirut Local")).toBeVisible();
-  await expectCopiedSource(page, item.evidence[0].sourceUrl);
-  await expect(reportDialog.locator(".sources-posts a[href]").first()).toHaveAttribute("href", item.evidence[0].links[0]);
+  await expect(reportDialog.locator('.news-briefing-publisher')).toContainText("t.me");
+  await expect(reportDialog.locator('.news-briefing-description')).toContainText("A third operational note stays in the full brief");
+  await expectCopiedSource(page, item.evidence[0].links[0]);
+  await expect(reportDialog.locator(".news-briefing-read")).toHaveAttribute("href", item.evidence[0].links[0]);
   await page.getByRole("button", { name: "Close", exact: true }).click();
 
   await page.getByPlaceholder("Search briefings").fill("power supply");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
+  await expect(page.locator(".news-headline")).toHaveText("Infrastructure");
 
   expect(sessionRequests).toBeGreaterThan(0);
 });
@@ -308,12 +310,12 @@ test("arabic feed keeps public chrome localized and summary stable when opening 
   await expect(page.getByRole("button", { name: /استكشاف/ })).toHaveCount(0);
   await expect(page.getByPlaceholder("ابحث في الموجز المنشور")).toBeVisible();
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
-  await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
+  await expect(page.locator(".news-headline")).toHaveText(arabicEdition.title);
 
-  await page.getByRole("button", { name: "المصدر 1" }).first().click();
-  await expect(page.getByRole("dialog", { name: "المصادر" })).toBeVisible();
+  await page.locator(".news-sources").first().click();
+  await expect(page.getByRole("dialog", { name: "موجز الأخبار" })).toBeVisible();
   await page.getByRole("button", { name: "إغلاق", exact: true }).click();
-  await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
+  await expect(page.locator(".news-headline")).toHaveText(arabicEdition.title);
   await expect(page.locator(".news-item").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);
@@ -341,7 +343,7 @@ test("feed pages twenty editions with unread editions first and keeps read editi
   await expect(visibleUnread).toHaveCount(20);
   await expect(page.getByText("Published briefing item 20.")).toBeVisible();
   await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "load more" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load More" })).toBeVisible();
 
   await visibleUnread.first().getByRole("button", { name: /mark .* read/i }).click();
   await expect(visibleUnread).toHaveCount(20);
@@ -359,7 +361,7 @@ test("feed pages twenty editions with unread editions first and keeps read editi
     page.evaluate(() => window.dispatchEvent(new Event("focus")))
   ]);
   await page.clock.runFor(50);
-  await page.getByRole("button", { name: "load more" }).click();
+  await page.getByRole("button", { name: "Load More" }).click();
   await page.clock.runFor(50);
   await expect(page.getByText("Published briefing item 25.")).toBeVisible();
   await expect(page.locator(".news-item").last()).toHaveClass(/is-read/);

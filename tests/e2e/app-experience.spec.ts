@@ -28,8 +28,8 @@ test('home has one creation entry and no decorative globe or briefing card',asyn
  await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(1);
  await page.getByRole('button',{name:'Create feed',exact:true}).click();
  const dialog=page.getByRole('dialog');
- await expect(dialog.getByRole('textbox')).toHaveCount(3);
- await expect(dialog.getByRole('combobox')).toHaveCount(0);
+ await expect(dialog.getByRole('textbox')).toHaveCount(2);
+ await expect(dialog.getByRole('combobox', {name:'Sources',exact:true})).toHaveCount(1);
  await page.keyboard.press('Escape');
  await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
