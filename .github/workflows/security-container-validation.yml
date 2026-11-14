@@ -1,0 +1,87 @@
+name: Security - Browser container build and startup
+on:
+  pull_request:
+    paths:
+      - apps/worker/browser-container.Dockerfile
+      - packages/browser-bridge/**
+      - pnpm-lock.yaml
+      - .github/workflows/security-container-validation.yml
+  push:
+    branches: [main, ghada/DevSecOps, ghada/devsecops-security-automation]
+    paths:
+      - apps/worker/browser-container.Dockerfile
+      - packages/browser-bridge/**
+      - pnpm-lock.yaml
+      - .github/workflows/security-container-validation.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: security-browser-image-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build the actual browser image locally
+        run: docker build -f apps/worker/browser-container.Dockerfile -t distilled-browser-security:ci .
+      - name: Verify non-root account and Corepack are usable
+        run: |
+          docker run --rm --entrypoint sh distilled-browser-security:ci -c 'test "$(id -u)" -eq 1001 && test "$(id -g)" -eq 1001 && pnpm --version | grep -Fx 10.12.1'
+      - name: Launch local bridge and check health (no outside traffic)
+        run: |
+          set -euo pipefail
+          id="$(docker run -d -p 127.0.0.1:18789:8789 -e BROWSER_BRIDGE_INTERNAL_TRANSPORT=true -e BROWSER_BRIDGE_HOST=0.0.0.0 -e BROWSER_BRIDGE_TLS_TERMINATED=true distilled-browser-security:ci)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18789/health >/dev/null 2>&1; then exit 0; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' "$id")" != "true" ]; then
+              echo "::error::Browser bridge exited before health check"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Browser bridge did not become healthy in bounded smoke test"
+          exit 1
+      - name: Report full image vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: distilled-browser-security:ci
+          scan-type: image
+          version: v0.76.2
+          scanners: vuln,misconfig
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          format: sarif
+          output: browser-image.sarif
+          exit-code: '0'
+      - name: Publish image code scanning results
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: github/codeql-action/upload-sarif@v4.39.3
+        with:
+          sarif_file: browser-image.sarif
+          category: trivy-browser-image
+      - name: Retain non-secret findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-container-sarif
+          path: browser-image.sarif
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Fail on high/critical image vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: distilled-browser-security:ci
+          scan-type: image
+          version: v0.76.2
+          scanners: vuln,misconfig
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: '1'
