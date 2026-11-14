@@ -16,6 +16,11 @@ export function initialAcquisitionBacklog(o:SourceObservation,feedCreatedAt:stri
   !/\b(?:correct(?:ed|ion)?|updat(?:e|ed)|retract(?:ed|ion)?|erratum|rectificatif)\b|mise\s+à\s+jour|تصحيح|تحديث|سحب/iu.test(o.titleHint??'');
 }
 
+export function initialBacklogDeferral(o:SourceObservation,feedCreatedAt:string,at:string):DownstreamJob['deferred']{
+ if(!initialAcquisitionBacklog(o,feedCreatedAt))return undefined;
+ return {reason:'INITIAL_BACKLOG',policy:'initial-acquisition-backlog-v1',at,feedCreatedAt,publishedAtHint:o.publishedAtHint!};
+}
+
 /** Defer only unchanged, unversioned initial discoveries that V3 already
  * excludes as pre-subscription backlog. Preserve inputs, payloads, job identity,
  * attempts and financial records. No evidence is fabricated and nothing is
@@ -58,14 +63,15 @@ export async function deferInitialAcquisitionBacklog(store:V1IntakeStore,sourceI
    const job=await tx.read<DownstreamJob>('jobs',row.id),input=await tx.read<AcceptedInput>('inputs',row.observation_id),candidate=await tx.read<CandidateRecord>('candidates',itemId(sourceId,row.item_key));
    if(!job||job.state!=='PENDING'||!input||!candidate)continue;
    const retain=()=>tx.write('jobs',job.id,{...job,backlogReview:{policy:'initial-acquisition-backlog-v1',at:now,result:'RETAINED'}},row.item_key);
-   if(job.recoveryAuthorizations?.length||!initialAcquisitionBacklog(input.observation,feed.created_at)||await tx.read('evidence',candidate.id)||await tx.read('acquisition_results',job.id)){retain();continue;}
+   const deferral=initialBacklogDeferral(input.observation,feed.created_at,now);
+   if(job.attempts>0||job.resourceWaits||job.resumeAttempts||job.leaseToken||job.recoveryAuthorizations?.length||!deferral||await tx.read('evidence',candidate.id)||await tx.read('acquisition_results',job.id)){retain();continue;}
    const firstId=candidate.firstObservationId??row.first_id??undefined;
    const first=firstId?await tx.read<AcceptedInput>('inputs',firstId):undefined;
    if(!first||acquisitionDiscoveryIdentity(first.observation)!==acquisitionDiscoveryIdentity(input.observation)){retain();continue;}
    // Store the original pointer once. Later polling runs can coalesce onto this
    // deferred job; any changed discovery still creates its own runnable job.
    tx.write('candidates',candidate.id,{...candidate,firstObservationId:firstId,acquisitionObservationId:candidate.acquisitionObservationId??job.observationId},row.item_key);
-   tx.write('jobs',job.id,{...job,state:'DEFERRED',deferred:{reason:'INITIAL_BACKLOG',policy:'initial-acquisition-backlog-v1',at:now,feedCreatedAt:feed.created_at,publishedAtHint:input.observation.publishedAtHint!}},row.item_key);
+   tx.write('jobs',job.id,{...job,state:'DEFERRED',deferred:deferral},row.item_key);
    deferred.add(job.id);
   }
   return deferred;

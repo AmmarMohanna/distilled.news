@@ -1,12 +1,51 @@
 import {expect,it,vi} from 'vitest';
-import {extractPublicHtml,isWebsiteListingUrl} from '@distilled/connectors';
+import {extractPublicHtml,isWebsiteListingUrl,SourceProviderError} from '@distilled/connectors';
+import {hashContent} from '@distilled/contracts';
 import {createCandidateAcquisitionRouter} from './acquisition-router';
-import type {AcquisitionClaim} from './acquisition';
+import {AcquisitionFailure,type AcquisitionClaim} from './acquisition';
 const url='https://publisher.example/topic/resource/2026/report/';
 const prose='Officials published a detailed investigation describing the affected systems, the evidence collected and the conditions under which the incident occurred. ';
 const body=prose.repeat(6);
 const claim={job:{id:'job'},candidate:{id:'candidate'},input:{observation:{id:'obs',feedId:'feed',feedSourceId:'source',sourceId:'publisher',canonicalUrl:url,representation:'ARTICLE_EXCERPT',contentCompleteness:'PARTIAL'}}} as AcquisitionClaim;
 const router=(text:string,contentType='text/html')=>createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00.000Z',preferFullArticle:true,publicGet:async()=>({url,body:text,contentType,status:200})});
+
+it.each([
+ {failure:'UNCERTAIN_PAID_SUBMISSION',expected:'PARTIAL'},
+ {failure:'EXTRACTION_FAILED',expected:'PARTIAL'},
+ {failure:'EXTRACTION_FAILED',headlineOnly:true},
+ {failure:'EXTRACTION_FAILED',metadataOnly:true},
+ {failure:'EXTRACTION_FAILED',differentPayload:true},
+ {failure:'EXTRACTION_FAILED',listing:true},
+ {failure:'AUTH_REQUIRED'},
+ {failure:'POLICY_DENIED'},
+ {failure:'INVALID_RESULT'},
+] as const)('reuses only verified publisher prose after full-page acquisition fails (%j)',async scenario=>{
+ const {failure}=scenario;
+ const title='metadataOnly' in scenario?'برنامج تنفيذ الاختبارات الخطية':'Council releases the investigation';
+ const body='headlineOnly' in scenario?`${title}. ${title}. Read more at https://publisher.example/notice`:
+  'metadataOnly' in scenario?`${title} ‏اللغة ‏ Ar News Type:&nbsp; Army News Image:&nbsp; Date:&nbsp; الجمعة, نوفمبر 13, 2026 - 14:00`:prose;
+ const representation='listing' in scenario?'LISTING_RESULT':'ARTICLE_EXCERPT';
+ const ref=`source-payloads/${'a'.repeat(64)}/${'b'.repeat(64)}`;
+ const publishedAt='2026-10-25T07:38:42.000Z';
+ const observation={...claim.input.observation,operation:'UPSERT' as const,representation,suppliedPayloadRef:ref,publishedAtHint:publishedAt,
+  contentHash:await hashContent({representation,title,body})};
+ const input={observation,proposal:{observationId:'obs',connectorType:'rss',url,suppliedPayloadRef:ref}} as AcquisitionClaim['input'];
+ const readPayload=vi.fn(async()=>({title,body:'differentPayload' in scenario?`${body} Changed.`:body}));
+ const articleFallback=vi.fn(async()=>{
+  if(failure==='UNCERTAIN_PAID_SUBMISSION')throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
+  throw new AcquisitionFailure(failure,false,{detail:'test',...(failure==='EXTRACTION_FAILED'?{httpStatus:500}:{})});
+ });
+ const acquire=createCandidateAcquisitionRouter({now:()=> '2026-10-27T12:00:00.000Z',preferFullArticle:true,
+  publicGet:async()=>({url,body:'<html><body></body></html>',contentType:'text/html',status:500}),articleFallback,readPayload});
+ const result=acquire({...claim,input});
+ if('expected' in scenario)await expect(result).resolves.toMatchObject({title,body,publishedAt,canonicalUrl:url,
+  representation:'ARTICLE_EXCERPT',contentCompleteness:scenario.expected,acquisitionProvider:'rss_supplied_excerpt',
+  quality:{extractionComplete:false},provenance:{rawPayloadRef:ref}});
+ else await expect(result).rejects.toMatchObject({code:failure});
+ expect(articleFallback).toHaveBeenCalledTimes(1);
+ if(['AUTH_REQUIRED','POLICY_DENIED','INVALID_RESULT'].includes(failure)||'listing' in scenario)expect(readPayload).not.toHaveBeenCalled();
+});
+
 it.each(['exact','foreign-result','wrong-headline'] as const)('uses the existing fallback for a verified publisher relocation with a client-rendered body (%s)',async mode=>{
  const target='https://publisher.example/news/224932/original-story',headline='Minister discusses media cooperation with the ambassador';
  const candidate={...claim,input:{...claim.input,observation:{...claim.input.observation,titleHint:headline}}};

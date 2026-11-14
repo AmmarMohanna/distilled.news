@@ -5,17 +5,17 @@ import {
 } from '@distilled/contracts';
 import { itemId, V1IntakeStore } from './store';
 import { canonicalJson, canonicalRequest } from './canonical';
-import {acquisitionDiscoveryIdentity} from './acquisition-backlog';
+import {acquisitionDiscoveryIdentity,initialBacklogDeferral} from './acquisition-backlog';
 import { IntakeTransaction, transact } from './transaction';
 import { currentEvidence, observationOrdering, representationDowngrade, validateQueryRestrictions } from './policy';
 import type { AcceptedInput, CandidateRecord, DownstreamJob, IntakePolicy } from './types';
 
-export function enqueue(tx:IntakeTransaction,input:AcceptedInput,kind:DownstreamJob['kind'],conflictId?:string,unpaidOnly?:true) {
+export function enqueue(tx:IntakeTransaction,input:AcceptedInput,kind:DownstreamJob['kind'],conflictId?:string,unpaidOnly?:true,deferred?:DownstreamJob['deferred']) {
   const o=input.observation,id=JSON.stringify([kind,o.id,conflictId??'']);
-  const job:DownstreamJob={...(unpaidOnly?{unpaidOnly}:{}),id,feedId:o.feedId,feedSourceId:o.feedSourceId,observationId:o.id,kind,state:'PENDING',attempts:0,enqueuedAt:new Date().toISOString(),...(conflictId?{conflictId}:{})};
+  const job:DownstreamJob={...(unpaidOnly?{unpaidOnly}:{}),id,feedId:o.feedId,feedSourceId:o.feedSourceId,observationId:o.id,kind,state:deferred?'DEFERRED':'PENDING',attempts:0,enqueuedAt:new Date().toISOString(),...(conflictId?{conflictId}:{}),...(deferred?{deferred}:{})};
   tx.write('jobs',id,job,o.sourceItemKey,true);
 }
-async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:IntakePolicy,prior?:IntakeReceipt):Promise<IntakeReceipt> {
+async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:IntakePolicy,prior?:IntakeReceipt,feedCreatedAt?:string):Promise<IntakeReceipt> {
   const o=input.observation,now=timestampSchema.parse(policy.now());
   const id=itemId(o.feedSourceId,o.sourceItemKey),candidate=await tx.read<CandidateRecord>('candidates',id);
   const receipt:IntakeReceipt={id:prior?.id??crypto.randomUUID(),observationId:o.id,feedId:o.feedId,feedSourceId:o.feedSourceId,sourceItemKey:o.sourceItemKey,decision:'ACCEPTED',reasonCode:candidate?'ACCEPTED_NEW_OBSERVATION':'ACCEPTED_NEW_ITEM',checkpointResolution:'RESOLVED',decidedAt:now,intakePolicyVersion:policy.version};
@@ -72,7 +72,13 @@ async function decideIntake(tx:IntakeTransaction,input:AcceptedInput,policy:Inta
           // not need another scraper job while the original work is unresolved.
           // This does not establish or advance canonical evidence ordering.
           set('REPLAY','REPLAY_IDENTICAL');
-        }else{enqueue(tx,input,'ACQUIRE',undefined,policy.unpaidOnly);acquisitionObservationId=o.id;}
+        }else{
+          // Only a first discovery can be classified here. Changed content and
+          // observations reopened by an authoritative check keep their path.
+          const deferred=!candidate&&!current&&!prior&&feedCreatedAt?initialBacklogDeferral(o,feedCreatedAt,now):undefined;
+          enqueue(tx,input,'ACQUIRE',undefined,policy.unpaidOnly,deferred);
+          acquisitionObservationId=o.id;
+        }
       }
       // Pending acquisition does not establish accepted canonical evidence ordering.
       const latest=candidate?await tx.read<AcceptedInput>('inputs',candidate.latestObservationId):undefined;
@@ -114,13 +120,16 @@ export function createCandidateIntakePort(store:V1IntakeStore,policy:IntakePolic
         const existing=await tx.read<{canonical:string}>('handoffs',key);
         if(existing && existing.canonical!==canonical) throw new HandoffError('IDEMPOTENCY_CONFLICT');
         if(!existing) tx.write('handoffs',key,{canonical},undefined,true);
+        const feed=policy.deferInitialBacklog&&!existing?await store.db.prepare(
+          "SELECT json_extract(json,'$.createdAt') AS createdAt FROM v1_feeds WHERE id=? AND json_extract(json,'$.paused')=0 AND json_extract(json,'$.deletedAt') IS NULL"
+        ).bind(request.coverage.feedId).first<{createdAt:string}>():undefined;
         const receipts:IntakeReceipt[]=[];
         for(const o of request.observations) {
           const value:AcceptedInput={observation:o,proposal:request.proposals.find(p=>p.observationId===o.id)},stored=await tx.read<AcceptedInput>('inputs',o.id);
           if(stored && canonicalJson(stored)!==canonicalJson(value)) throw new HandoffError('IDEMPOTENCY_CONFLICT');
           if(!stored) tx.write('inputs',o.id,value,o.sourceItemKey,true);
           const prior=await tx.read<IntakeReceipt>('intake_receipts',o.id);
-          receipts.push(prior??await decideIntake(tx,value,policy));
+          receipts.push(prior??await decideIntake(tx,value,policy,undefined,feed?.createdAt));
         }
         return validateHandoffResponse(request,{contractVersion:request.contractVersion,handoffId:request.handoffId,durable:true,receipts});
       });

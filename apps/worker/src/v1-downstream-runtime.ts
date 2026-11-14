@@ -75,7 +75,10 @@ export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:
  for(let offset=0;offset<supplied.length;offset+=4)await Promise.all(supplied.slice(offset,offset+4).map(o=>policy.verifySuppliedContent(o)));
  try{return await withFeedWriteTurn(env,parsed.data.coverage.feedId,async()=>{
   await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
-  return createCandidateIntakePort(new V1IntakeStore(env.DB),{...policy,expectedFeedRevision,unpaidOnly}).acceptBatch(parsed.data);
+  return createCandidateIntakePort(new V1IntakeStore(env.DB),{
+   ...policy,expectedFeedRevision,unpaidOnly,
+   ...(env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?{deferInitialBacklog:true as const}:{}),
+  }).acceptBatch(parsed.data);
  },'handoff:'+parsed.data.handoffId);}catch(error){if(error instanceof IntelligenceTurnBusy)throw new SourceHandoffWait();throw error;}
 }
 const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();

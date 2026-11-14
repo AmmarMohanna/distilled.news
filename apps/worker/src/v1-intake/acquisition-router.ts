@@ -8,15 +8,15 @@ import { WorkerPublicSourceFetch } from '../public-source-fetch';
 import { AcquisitionFailure, type AcquisitionClaim } from './acquisition';
 import { acquiredSchema } from './evidence';
 import type { AcceptedAcquiredContent } from './types';
-import type {LanguageResolution} from '../v1-intelligence/language';
 import {resolvePublicationDate,helperArticleDates,type PublicationDate} from './publication-date';
 import {sameArticleUrl,scholarlyAbstractAlias} from './article-url-identity';
 import {articleHeadlineKey,reviewedRedirectFor,matchesReviewedRedirect} from './reviewed-redirect';
 import {nationalLiveblog} from './national-liveblog';
 import {nnaArticleBody} from './nna-article';
 import {discoverWebsiteArticles,isWebsiteListingUrl,extractWordpressArticle,extractPublicHtml,PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,readArticleDateMetadata,unreadableArticleReason} from '@distilled/connectors';
+import {canUseRetainedRssExcerpt,permitsRetainedRssExcerpt,retainedRssExcerpt,type SuppliedPayload} from './retained-rss-excerpt';
 
-export interface SuppliedPayload {title?:string;body:string;language?:string;languageResolution?:LanguageResolution;publishedAt?:string}
+export type {SuppliedPayload} from './retained-rss-excerpt';
 export interface CandidateAcquisitionOptions {
  now():string;
  readPayload?(claim:AcquisitionClaim):Promise<SuppliedPayload|undefined>;
@@ -286,6 +286,16 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    if(!parsed.success) throw new AcquisitionFailure('INVALID_RESULT',false,{detail:'ACQUIRED_CONTENT_SCHEMA'});
    return parsed.data;
   } catch(error) {
+   const useExcerpt=error instanceof AcquisitionFailure?permitsRetainedRssExcerpt(error.code,error.diagnostic?.httpStatus):
+    error instanceof SourceProviderError?error.code==='UNCERTAIN_PAID_SUBMISSION'||error.code==='RESULT_LOST':
+    error instanceof PublicSourceFetchFailure&&error.category==='BODY_BUDGET_EXCEEDED';
+   if(useExcerpt&&options.preferFullArticle&&options.readPayload&&canUseRetainedRssExcerpt(claim.input)){
+    // If the archive cannot prove this excerpt, keep the original acquisition
+    // failure and its retry rules, including the uncertain paid-operation fence.
+    const payload=await options.readPayload(claim).catch(()=>undefined);
+    const excerpt=payload&&await retainedRssExcerpt(claim.input,claim.candidate.id,options.now(),payload);
+    if(excerpt)return excerpt;
+   }
    if(error instanceof AcquisitionFailure) throw error;
    if(error instanceof SourceProviderError){
     if(error.code==='RESULT_LOST')throw new AcquisitionFailure('EXTRACTION_FAILED',false,{detail:'PAID_ARTICLE_RESPONSE_LOST'});
