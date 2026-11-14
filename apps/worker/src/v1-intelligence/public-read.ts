@@ -1,3 +1,4 @@
+import {genericSourceName,sourceIdentityName} from '../source-display';
 import {HandoffError} from '@distilled/contracts';
 import {V1FeedStore} from './store';
 import type {BriefingEditionRecord} from './publication';
@@ -5,7 +6,7 @@ import {projectEditionLedger} from './ledger';
 import {readVerifiedArchive} from '../verified-archives';
 export interface PublicationStatus {id:string;feedId:string;status:'PUBLISHED'|'WITHDRAWN';publishedAt:string;withdrawnAt?:string;reason?:string}
 interface EditionRow {id:string;feed_id:string;edition:string;feed:string|null;status:string|null;status_feed_id:string|null;configuration:string|null}
-interface CitationRow {publisher_name:string|null;id:string;revision_id:string;revision_feed_id:string;observation_id:string|null;observation_feed_id:string|null;title:string|null;url:string|null;publisher_id:string|null;source_id:string|null;published_at:string|null}
+interface CitationRow {publisher_url:string|null;publisher_name:string|null;id:string;revision_id:string;revision_feed_id:string;observation_id:string|null;observation_feed_id:string|null;title:string|null;url:string|null;publisher_id:string|null;source_id:string|null;published_at:string|null}
 interface Citation {publisherName?:string;evidenceRevisionId:string;title:string|undefined;url:string|undefined;publisherId:string;publishedAt:string|undefined}
 interface EditionProjection {edition:BriefingEditionRecord;publishedAt:string;title:string}
 const READ_BATCH_IDS=80; // Below D1's 100 bound-parameter limit, including Feed identity.
@@ -57,7 +58,7 @@ async function projectEditionPayloads(db:D1Database,records:EditionProjection[])
   i.id AS observation_id,json_extract(i.json,'$.observation.feedId') AS observation_feed_id,
   json_extract(r.json,'$.title') AS title,json_extract(r.json,'$.canonicalUrl') AS url,
   json_extract(i.json,'$.observation.publisherId') AS publisher_id,json_extract(i.json,'$.observation.sourceId') AS source_id,
-  json_extract(r.json,'$.publishedAt') AS published_at,json_extract(c.json,'$.displayName') AS publisher_name
+  json_extract(r.json,'$.publishedAt') AS published_at,json_extract(c.json,'$.displayName') AS publisher_name,json_extract(c.json,'$.canonicalUrl') AS publisher_url
   FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id
   LEFT JOIN v1_inputs i ON i.id=json_extract(r.json,'$.sourceObservationId')
   LEFT JOIN v1_source_catalog c ON c.id=s.source_id
@@ -69,7 +70,7 @@ async function projectEditionPayloads(db:D1Database,records:EditionProjection[])
    if(!ref || ref.revision_id!==id || ref.revision_feed_id!==feedId || !ref.observation_id || ref.observation_feed_id!==feedId)throw new HandoffError('SCOPE_DENIED');
    const publisherId=ref.publisher_id??ref.source_id;
    if(typeof publisherId!=='string')throw new HandoffError('SCOPE_DENIED');
-   return {...(ref.publisher_name?{publisherName:ref.publisher_name}:{}),evidenceRevisionId:id,title:ref.title??undefined,url:ref.url??undefined,publisherId,publishedAt:ref.published_at??undefined};
+   return {...((sourceIdentityName(ref.publisher_name,ref.publisher_url)??ref.publisher_name)?{publisherName:sourceIdentityName(ref.publisher_name,ref.publisher_url)??ref.publisher_name!}:{}),evidenceRevisionId:id,title:ref.title??undefined,url:ref.url??undefined,publisherId,publishedAt:ref.published_at??undefined};
   });
   // A persisted claim cannot gain support outside its edition's permitted set.
   if(edition.stories.some(story=>story.claims.some(claim=>claim.support.some(ref=>!byRevision.has(ref.evidenceRevisionId) || !edition.evidenceRevisionIds.includes(ref.evidenceRevisionId)))))throw new HandoffError('SCOPE_DENIED');
@@ -88,6 +89,20 @@ export async function buildEditionDeliveryPayload(db:D1Database,edition:Briefing
  return (await projectEditionPayloads(db,[{edition,title:version.title,publishedAt:edition.createdAt}]))[0];
 }
 
+/** Repair generic historical presentation labels without modifying immutable artifacts. */
+export async function hydrateCitationNames(db:D1Database,editions:PublishedEdition[]):Promise<PublishedEdition[]>{
+ if(!editions.length)return editions;const feedId=editions[0].feedId;
+ if(editions.some(e=>e.feedId!==feedId))throw new HandoffError('SCOPE_DENIED');
+ const ids=[...new Set(editions.flatMap(e=>e.citations.filter(c=>genericSourceName(c.publisherName)).map(c=>c.evidenceRevisionId)))];if(!ids.length)return editions;
+ try{
+  const rows=await batches<{id:string;name:string|null;url:string|null}>(db,chunks(ids).map(part=>db.prepare(`SELECT r.id,json_extract(c.json,'$.displayName') AS name,json_extract(c.json,'$.canonicalUrl') AS url
+   FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id JOIN v1_source_catalog c ON c.id=s.source_id
+   WHERE s.feed_id=? AND json_extract(r.json,'$.feedId')=? AND r.id IN (${part.map(()=>'?').join(',')})`).bind(feedId,feedId,...part)));
+  const names=new Map(rows.flatMap(row=>{const name=sourceIdentityName(row.name,row.url);return name?[[row.id,name] as const]:[]}));
+  return editions.map(e=>({...e,citations:e.citations.map(c=>genericSourceName(c.publisherName)&&names.has(c.evidenceRevisionId)?{...c,publisherName:names.get(c.evidenceRevisionId)}:c)}));
+ }catch{return editions} // Optional display enrichment cannot break an already verified artifact.
+}
+
 async function readDeliveryRow(bucket:R2Bucket,row:DeliveryRow):Promise<PublishedEdition> {
  const text=await readVerifiedArchive(bucket,{objectKey:row.object_key,sha256:row.sha256,bytes:row.byte_count,schemaVersion:row.schema_version});
  const edition=JSON.parse(text) as PublishedEdition;
@@ -100,7 +115,7 @@ async function editionDeliveryPayload(db:D1Database,bucket:R2Bucket,id:string,fe
   FROM v1_visible_edition_delivery d JOIN v1_verified_archives a ON a.object_key=d.object_key AND a.state='REFERENCED'
   WHERE d.edition_id=? AND (? IS NULL OR d.feed_id=?)`).bind(id,feedId??null,feedId??null).first<DeliveryRow>();
  if(!row)return undefined;
- const edition=await readDeliveryRow(bucket,row);
+ const [edition]=await hydrateCitationNames(db,[await readDeliveryRow(bucket,row)]);
  const stillPublished=await db.prepare('SELECT 1 FROM v1_visible_edition_delivery WHERE edition_id=? AND feed_id=? AND object_key=?')
   .bind(id,row.feed_id,row.object_key).first();
  return stillPublished?edition:undefined;
@@ -128,6 +143,7 @@ async function mixedPublishedEditions(db:D1Database,bucket:R2Bucket,feedId:strin
   WHERE e.kind='editions' AND e.feed_id=? AND e.id IN (${part.map(()=>'?').join(',')})`).bind(feedId,...part)));
  const output=new Map((await projectPublishedRows(db,legacy)).map(edition=>[edition.id,edition]));
  if(fromArchive.size){
+  for(const edition of await hydrateCitationNames(db,[...fromArchive.values()]))fromArchive.set(edition.id,edition);
   const visible=await db.prepare(`SELECT edition_id FROM v1_visible_edition_delivery WHERE feed_id=? AND edition_id IN (${[...fromArchive].map(()=>'?').join(',')})`)
    .bind(feedId,...fromArchive.keys()).all<{edition_id:string}>();
   for(const row of visible.results)output.set(row.edition_id,fromArchive.get(row.edition_id)!);

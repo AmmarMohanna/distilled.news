@@ -1,6 +1,6 @@
 import {afterAll,beforeAll,expect,it} from 'vitest';
 import {createIntakeDatabase} from '../v1-intake/test-utils';
-import {publicV1Edition,publicV1Evidence} from './public-read';
+import {publicV1Edition,publicV1Evidence,hydrateCitationNames} from './public-read';
 import {publishedProductEditions} from '../product-feeds';
 import type {BriefingConfig} from '@distilled/core';
 import type {Env} from '../types';
@@ -103,4 +103,18 @@ it('uses the approved source display name without changing citation identity or 
  const editions=await publishedProductEditions({DB:ctx.db} as Env,feed,'edition-18');
  expect(editions[0].sections[0].evidence.map(e=>e.sourceTitle)).toEqual(['@VerifiedWire','@VerifiedWire']);
  expect(editions[0].sections[0].evidence.map(e=>e.sourceId)).toEqual(['publisher-0','publisher-1']);
+});
+
+it('repairs generic archived labels through one scoped batch without rewriting claims or identities',async()=>{
+ await ctx.db.prepare('INSERT INTO v1_source_catalog(id,json) VALUES(?,?)').bind('archive-label-source',JSON.stringify({displayName:'x.com',canonicalUrl:'https://x.com/Annahar'})).run();
+ await ctx.db.prepare('INSERT INTO v1_intake_scopes(id,feed_id,source_id,json) VALUES(?,?,?,?)').bind('archive-label-scope',feed.id,'archive-label-source',JSON.stringify({feedId:feed.id})).run();
+ await ctx.db.prepare('INSERT INTO v1_revisions(id,feed_source_id,json) VALUES(?,?,?)').bind('archive-label-revision','archive-label-scope',JSON.stringify({id:'archive-label-revision',feedId:feed.id,sourceObservationId:'archive-label-observation',canonicalUrl:'https://x.com/i/status/123'})).run();
+ await ctx.db.prepare('INSERT INTO v1_inputs(id,feed_source_id,json) VALUES(?,?,?)').bind('archive-label-observation','archive-label-scope',JSON.stringify({observation:{feedId:feed.id,publisherId:'x:169196848',sourceId:'archive-label-source'}})).run();
+ await publish('archive-label-edition',['archive-label-revision']);
+ const current=(await publicV1Edition(ctx.db,'archive-label-edition'))!;
+ const archived={...current,citations:current.citations.map(c=>({...c,publisherName:'x.com'}))},original=JSON.stringify(archived);
+ queries=0;const [fixed]=await hydrateCitationNames(measured(),[archived]);
+ expect(fixed.citations.map(c=>c.publisherName)).toEqual(['@Annahar']);expect(fixed.citations.map(c=>c.evidenceRevisionId)).toEqual(current.citations.map(c=>c.evidenceRevisionId));expect(fixed.stories).toEqual(current.stories);expect(JSON.stringify(archived)).toBe(original);expect(queries).toBe(1);
+ queries=0;await hydrateCitationNames(measured(),[fixed]);expect(queries).toBe(0);
+ const [foreign]=await hydrateCitationNames(ctx.db,[{...archived,feedId:'other-feed'}]);expect(foreign.citations.every(c=>c.publisherName==='x.com')).toBe(true);
 });

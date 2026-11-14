@@ -1,0 +1,461 @@
+{
+  "at": "2026-11-14T14:42:38.748Z",
+  "qualificationOnly": true,
+  "notPublished": true,
+  "jobId": "53c27ff3786ddb048cb3d45a1a529875fa257cccc3112759c60372cc3b26640e",
+  "originalJobId": "c2b7f55c8ffbd61e2ec438ad0f3da29ae679245b8f59fec192abca030eff26b2",
+  "snapshotHash": "7a4270547830ad4e751d2bde3060d8daf65ac413b7284a98d5dec031a8375b01",
+  "adversarial": {
+    "results": [
+      {
+        "developmentId": "D1",
+        "support": "supported",
+        "explanation": "The cited evidence quotes local farmers stating 'we lost our season' and indicates that frost struck farmers in West Bekaa, confirming every substantive clause of the development."
+      },
+      {
+        "developmentId": "D2",
+        "support": "unsupported",
+        "explanation": "The evidence contains a politician's criticism of how authorities handled detainee cases in Bsharri and Batroun but does not establish the detainees' affiliation, their statements, nor their motives as described in the development."
+      },
+      {
+        "developmentId": "D3",
+        "support": "unsupported",
+        "explanation": "The evidence refers to union support and anticipated escalation in the transportation sector but does not substantiate that drivers working via smart apps have actually started road blockades in Martyrs' Square, nor that transportation in the city center is currently impacted."
+      },
+      {
+        "developmentId": "D4",
+        "support": "supported",
+        "explanation": "The evidence directly cites Samir Geagea criticizing the handling of detainee cases in Bsharri and Batroun, fulfilling every substantive aspect of the development."
+      },
+      {
+        "developmentId": "D5",
+        "support": "supported",
+        "explanation": "The evidence quotes Hamdan sending a decisive message to the authorities stating 'the army is a red line,' which supports the claim regarding his emphasis on the military's position and political debate."
+      }
+    ],
+    "limitations": [
+      "Evidence is limited to provided quotations and does not include linked content or broader context.",
+      "Determinations do not account for general background knowledge or uncited material."
+    ]
+  },
+  "proposed": {
+    "developments": [
+      {
+        "id": "D1",
+        "text": "Wide union support for the land transport sector in Lebanon is reported, with expectations of imminent street escalation.",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "ac5fe810-bdc7-4cd7-b38e-e97ab263fe45",
+            "quote": "دعم نقابي واسع للنقل البري... والشارع أمام تصعيد مرتقب\nhttps://t.co/hn46BP7aFX https://t.co/e1QkW8CSGm"
+          }
+        ]
+      },
+      {
+        "id": "D2",
+        "text": "Freezing temperatures have caused losses for farmers in western Bekaa, with one source quoting a farmer saying, 'We lost our season.'",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "2c8dc5e0-c4cd-417c-b733-ce1275526a1c",
+            "quote": "\"خسرنا موسمنا\"... الصقيع يضرب مزارعي البقاع الغربي\nhttps://t.co/KRSZDpogbj https://t.co/HNljSASKpS"
+          }
+        ]
+      },
+      {
+        "id": "D3",
+        "text": "Samir Geagea, head of the Lebanese Forces party, has criticized the handling of the cases of detainees from Bsharri and Batroun.",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "19ac3d7c-f540-433c-8b40-ac72cc389963",
+            "quote": "RT @redtvlebanon: \"لا تضحكوا على الناس!\"... رئيس حزب القوات اللبنانية #سمير_جعجع يهاجم طريقة التعاطي مع ملف موقوفي #بشرّي و #البترون\n#redtv…"
+          }
+        ]
+      },
+      {
+        "id": "D4",
+        "text": "Hamdan delivered a firm message to authorities, describing the army as a 'red line.'",
+        "importance": 1,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "6af5c696-c05b-464a-8195-24453ef007ac",
+            "quote": "\"الجيش خط أحمر\"... حمدان يوجّه رسالة حاسمة إلى السلطة\nhttps://t.co/1oAIeCuOWb https://t.co/HzZPtIk3rW"
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "Some original article bodies are incomplete, missing, changed or unlabelled; quality cannot be certified against unavailable evidence."
+    ]
+  },
+  "grounding": {
+    "results": [
+      {
+        "developmentId": "D1",
+        "support": "supported",
+        "explanation": "The quoted evidence directly refers to wide union support for the land transport sector and mentions expectations of imminent escalation in the streets, establishing all substantive clauses."
+      },
+      {
+        "developmentId": "D2",
+        "support": "supported",
+        "explanation": "The evidence quote explicitly links freezing ('الصقيع') with losses to farmers ('مزارعي البقاع الغربي') and cites a farmer saying 'We lost our season,' supporting each element of the development."
+      },
+      {
+        "developmentId": "D3",
+        "support": "supported",
+        "explanation": "The quoted evidence explicitly attributes criticism of the handling of the cases of detainees from Bsharri and Batroun to Samir Geagea, head of the Lebanese Forces party, covering all substantive clauses."
+      },
+      {
+        "developmentId": "D4",
+        "support": "supported",
+        "explanation": "The evidence directly references Hamdan sending a firm message to authorities and calling the army a 'red line,' covering each part of the development."
+      }
+    ],
+    "limitations": []
+  },
+  "accepted": {
+    "developments": [
+      {
+        "id": "D1",
+        "text": "Wide union support for the land transport sector in Lebanon is reported, with expectations of imminent street escalation.",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "ac5fe810-bdc7-4cd7-b38e-e97ab263fe45",
+            "quote": "دعم نقابي واسع للنقل البري... والشارع أمام تصعيد مرتقب\nhttps://t.co/hn46BP7aFX https://t.co/e1QkW8CSGm"
+          }
+        ]
+      },
+      {
+        "id": "D2",
+        "text": "Freezing temperatures have caused losses for farmers in western Bekaa, with one source quoting a farmer saying, 'We lost our season.'",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "2c8dc5e0-c4cd-417c-b733-ce1275526a1c",
+            "quote": "\"خسرنا موسمنا\"... الصقيع يضرب مزارعي البقاع الغربي\nhttps://t.co/KRSZDpogbj https://t.co/HNljSASKpS"
+          }
+        ]
+      },
+      {
+        "id": "D3",
+        "text": "Samir Geagea, head of the Lebanese Forces party, has criticized the handling of the cases of detainees from Bsharri and Batroun.",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "19ac3d7c-f540-433c-8b40-ac72cc389963",
+            "quote": "RT @redtvlebanon: \"لا تضحكوا على الناس!\"... رئيس حزب القوات اللبنانية #سمير_جعجع يهاجم طريقة التعاطي مع ملف موقوفي #بشرّي و #البترون\n#redtv…"
+          }
+        ]
+      },
+      {
+        "id": "D4",
+        "text": "Hamdan delivered a firm message to authorities, describing the army as a 'red line.'",
+        "importance": 1,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "6af5c696-c05b-464a-8195-24453ef007ac",
+            "quote": "\"الجيش خط أحمر\"... حمدان يوجّه رسالة حاسمة إلى السلطة\nhttps://t.co/1oAIeCuOWb https://t.co/HzZPtIk3rW"
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "Some original article bodies are incomplete, missing, changed or unlabelled; quality cannot be certified against unavailable evidence."
+    ]
+  },
+  "review": {
+    "claims": [
+      {
+        "id": "C1",
+        "item": 0,
+        "text": "Frost has destroyed crops in Lebanon's West Bekaa region.",
+        "support": "supported",
+        "citationSupport": "supported",
+        "evidence": [
+          {
+            "sourceId": "2c8dc5e0-c4cd-417c-b733-ce1275526a1c",
+            "quote": "\"خسرنا موسمنا\"... الصقيع يضرب مزارعي البقاع الغربي\nhttps://t.co/KRSZDpogbj https://t.co/HNljSASKpS"
+          }
+        ],
+        "explanation": "S7 P1 states that frost struck the farmers of West Bekaa and includes the phrase 'We lost our season,' indicating crop loss."
+      },
+      {
+        "id": "C2",
+        "item": 1,
+        "text": "There is widespread union support for the land transport sector in Lebanon, with escalation expected.",
+        "support": "supported",
+        "citationSupport": "supported",
+        "evidence": [
+          {
+            "sourceId": "ac5fe810-bdc7-4cd7-b38e-e97ab263fe45",
+            "quote": "دعم نقابي واسع للنقل البري... والشارع أمام تصعيد مرتقب\nhttps://t.co/hn46BP7aFX https://t.co/e1QkW8CSGm"
+          }
+        ],
+        "explanation": "S16 P1 says, 'دعم نقابي واسع للنقل البري... والشارع أمام تصعيد مرتقب,' meaning broad union support for land transport and potential for escalation."
+      }
+    ],
+    "coverage": [
+      {
+        "developmentId": "D1",
+        "status": "covered",
+        "items": [
+          1
+        ],
+        "explanation": "Reader item 1 matches the inventory's description of union support for the land transport sector and expected escalation.",
+        "priorIds": []
+      },
+      {
+        "developmentId": "D2",
+        "status": "covered",
+        "items": [
+          0
+        ],
+        "explanation": "Reader item 0 directly reports frost destroying crops in West Bekaa, as described in the inventory.",
+        "priorIds": []
+      },
+      {
+        "developmentId": "D3",
+        "status": "omitted",
+        "items": [],
+        "explanation": "No reader item addresses Samir Geagea's criticism of handling of Bsharri and Batroun detainee cases.",
+        "priorIds": []
+      },
+      {
+        "developmentId": "D4",
+        "status": "omitted",
+        "items": [],
+        "explanation": "Hamdan's message describing the army as a 'red line' is not mentioned in any reader item.",
+        "priorIds": []
+      }
+    ],
+    "items": [
+      {
+        "item": 0,
+        "relevance": "relevant",
+        "repetition": "novel",
+        "temporal": "correct",
+        "language": "correct",
+        "explanation": "The item concerns a sudden frost event affecting farmers in West Bekaa, directly relevant and novel, with no indication it repeats prior items. The event's timing and language are appropriate."
+      },
+      {
+        "item": 1,
+        "relevance": "relevant",
+        "repetition": "novel",
+        "temporal": "correct",
+        "language": "correct",
+        "explanation": "The item reports current widespread union action in the land transport sector, which is timely, relevant, and presented in correct language."
+      }
+    ],
+    "findings": [
+      {
+        "category": "coverage",
+        "severity": "warning",
+        "item": null,
+        "explanation": "Potential omission of grounded development D3: Samir Geagea, head of the Lebanese Forces party, has criticized the handling of the cases of detainees from Bsharri and Batroun.",
+        "evidence": [
+          {
+            "sourceId": "19ac3d7c-f540-433c-8b40-ac72cc389963",
+            "quote": "RT @redtvlebanon: \"لا تضحكوا على الناس!\"... رئيس حزب القوات اللبنانية #سمير_جعجع يهاجم طريقة التعاطي مع ملف موقوفي #بشرّي و #البترون\n#redtv…"
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "Some original article bodies are incomplete, missing, changed or unlabelled; quality cannot be certified against unavailable evidence."
+    ]
+  },
+  "metrics": {
+    "claimSupport": {
+      "numerator": 2,
+      "denominator": 2,
+      "value": 1
+    },
+    "citationCorrectness": {
+      "numerator": 2,
+      "denominator": 2,
+      "value": 1
+    },
+    "importantDevelopmentRecall": {
+      "numerator": 2,
+      "denominator": 3,
+      "value": 0.6666666666666666
+    },
+    "importantDevelopmentRecallScope": "partial_retained_input_only",
+    "repetition": {
+      "numerator": 0,
+      "denominator": 2,
+      "value": 0
+    },
+    "relevance": {
+      "numerator": 2,
+      "denominator": 2,
+      "value": 1
+    },
+    "temporalCorrectness": {
+      "numerator": 2,
+      "denominator": 2,
+      "value": 1
+    },
+    "languageCorrectness": {
+      "numerator": 2,
+      "denominator": 2,
+      "value": 1
+    },
+    "uncertainClaims": 0,
+    "uncertainDevelopments": 0,
+    "judgeClaimCount": 2,
+    "claimExtractionCompleteness": "not_independently_established",
+    "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+  },
+  "calls": [
+    {
+      "id": "929807834ae23bdbe0f0700b332ceeccf1f4f92c6d17493cf2f28bbe7642de29",
+      "stage": "inventory_grounding_adversarial_v1",
+      "state": "SETTLED",
+      "cost_micro": 4018,
+      "input_tokens": 797,
+      "output_tokens": 303
+    },
+    {
+      "id": "95d63b7118f89ebc23986c4016fb65088b7cf85658fba37562996e1f9e57f5e7",
+      "stage": "independent_developments",
+      "state": "SETTLED",
+      "cost_micro": 11214,
+      "input_tokens": 4535,
+      "output_tokens": 268
+    },
+    {
+      "id": "489ae74c652d348ee17433ca728e63df181de9a5269f3a7e32eb8317c5391f9f",
+      "stage": "inventory_grounding_v1",
+      "state": "SETTLED",
+      "cost_micro": 2964,
+      "input_tokens": 654,
+      "output_tokens": 207
+    },
+    {
+      "id": "c93d47be061f586817319a13ee6bb85093468b3ff8bfe1646e14802c43f8a39d",
+      "stage": "atomic_claims_and_coverage",
+      "state": "SETTLED",
+      "cost_micro": 21558,
+      "input_tokens": 28979,
+      "output_tokens": 610
+    },
+    {
+      "id": "fe1b98af3246ba0b5a3056dedca7240ebade20960cd997c62795bc868c3d5b8b",
+      "stage": "atomic_claims_and_coverage_bound_findings_v1",
+      "state": "SETTLED",
+      "cost_micro": 63764,
+      "input_tokens": 29034,
+      "output_tokens": 712
+    }
+  ],
+  "protocol": "atomic-development-review-v3",
+  "sourceEdition": "35eb28391f8066077f9de8a7514af0d6a5c33997268f9e739c2339141c722d19",
+  "sources": [
+    {
+      "id": "2c8dc5e0-c4cd-417c-b733-ce1275526a1c",
+      "publishedAt": "2026-11-14T12:46:29.000Z",
+      "sha256": "03027381e610246d2a254c98c9dc9259b69d3efdce38c5eb820457dfb29c032a"
+    },
+    {
+      "id": "19ac3d7c-f540-433c-8b40-ac72cc389963",
+      "publishedAt": "2026-11-14T12:26:24.000Z",
+      "sha256": "17404fe4a21b6ea51ba651f2965f779b2349797bd57e3420e859348209cd6b67"
+    },
+    {
+      "id": "ac5fe810-bdc7-4cd7-b38e-e97ab263fe45",
+      "publishedAt": "2026-11-14T12:23:56.000Z",
+      "sha256": "aeee571e73bc50429444fc1abe935376df472036d905467f722c7d186cbc0868"
+    },
+    {
+      "id": "6af5c696-c05b-464a-8195-24453ef007ac",
+      "publishedAt": "2026-11-14T12:39:01.000Z",
+      "sha256": "04828d477fa32723c291ed8137b31858fb501d147cfdf9423e49bc6e8731eb13"
+    }
+  ],
+  "originalInventory": {
+    "developments": [
+      {
+        "id": "D1",
+        "text": "A major frost event has devastated crops in the West Bekaa region, with local farmers declaring their seasonal harvest lost.",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "2c8dc5e0-c4cd-417c-b733-ce1275526a1c",
+            "quote": "\"خسرنا موسمنا\"... الصقيع يضرب مزارعي البقاع الغربي\nhttps://t.co/KRSZDpogbj https://t.co/HNljSASKpS"
+          }
+        ]
+      },
+      {
+        "id": "D2",
+        "text": "Hezbollah members detained in the Bsharri-Batroun area state they were conducting reconnaissance for the defense of Shiite-majority towns in case of internal conflict, according to their statements to investigators.",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "19ac3d7c-f540-433c-8b40-ac72cc389963",
+            "quote": "RT @redtvlebanon: \"لا تضحكوا على الناس!\"... رئيس حزب القوات اللبنانية #سمير_جعجع يهاجم طريقة التعاطي مع ملف موقوفي #بشرّي و #البترون\n#redtv…"
+          }
+        ]
+      },
+      {
+        "id": "D3",
+        "text": "Public drivers working via smart apps have started road blockades in Martyrs' Square, Beirut, impacting city center transportation.",
+        "importance": 2,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "ac5fe810-bdc7-4cd7-b38e-e97ab263fe45",
+            "quote": "دعم نقابي واسع للنقل البري... والشارع أمام تصعيد مرتقب\nhttps://t.co/hn46BP7aFX https://t.co/e1QkW8CSGm"
+          }
+        ]
+      },
+      {
+        "id": "D4",
+        "text": "A Lebanese political leader, Samir Geagea, has strongly criticized the government's approach to handling detainee cases in Bsharri and Batroun, indicating political tension regarding recent security detentions.",
+        "importance": 1,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "19ac3d7c-f540-433c-8b40-ac72cc389963",
+            "quote": "RT @redtvlebanon: \"لا تضحكوا على الناس!\"... رئيس حزب القوات اللبنانية #سمير_جعجع يهاجم طريقة التعاطي مع ملف موقوفي #بشرّي و #البترون\n#redtv…"
+          }
+        ]
+      },
+      {
+        "id": "D5",
+        "text": "A public figure named Hamdan sent a decisive message to authorities emphasizing the Lebanese army's role as a red line, highlighting ongoing political debate about the military's position.",
+        "importance": 1,
+        "relation": "new",
+        "evidence": [
+          {
+            "sourceId": "6af5c696-c05b-464a-8195-24453ef007ac",
+            "quote": "\"الجيش خط أحمر\"... حمدان يوجّه رسالة حاسمة إلى السلطة\nhttps://t.co/1oAIeCuOWb https://t.co/HzZPtIk3rW"
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "Some original article bodies are incomplete, missing, changed or unlabelled; quality cannot be certified against unavailable evidence.",
+      "Evidence coverage for electricity, banking, and government decisions is incomplete for this time window; further updates may exist in unprovided sources.",
+      "Several articles are only headlines, lacking detail needed for full assessment of context or impact."
+    ]
+  },
+  "limitations": [
+    "Small retained public-source case; not a general calibration or semantic truth certificate.",
+    "Importance remains a subjective machine judgment.",
+    "The qualification includes a superseded initial review and the final separately identified bound-findings review; unchanged source stages were replayed, not repaid.",
+    "No qualification score enters current aggregate metrics."
+  ]
+}

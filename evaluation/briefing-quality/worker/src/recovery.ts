@@ -1,4 +1,4 @@
-import {check,PROTOCOL} from './protocol';
+import {check,PROTOCOL,LEGACY_PROTOCOL} from './protocol';
 import {boundedJson,money} from './budget';
 /** An isolated request stays financially UNKNOWN and cannot be sent again. */
 export const activeFenceFor=(unlimited=false)=>`SELECT c.id FROM eval_calls c WHERE ${unlimited?'':"c.state='OVERAGE' OR "}(c.state IN ('RESERVED','UNKNOWN') AND NOT EXISTS(SELECT 1 FROM eval_call_isolations i WHERE i.call_id=c.id)) LIMIT 1`;
@@ -14,11 +14,11 @@ export async function recoverReviews(env:Env,now=new Date()){
  // Received incomplete coverage may take one separately identified correction.
  // Existing stages replay settled bodies; any unknown or missing body prevents recovery.
  const incomplete=(await env.EVAL_DB.prepare(`SELECT j.id,j.status,j.error FROM eval_jobs j
- WHERE j.status='review_failed' AND j.error='MISSING_DEVELOPMENT_ASSESSMENT' AND j.review_version=? AND j.snapshot_key IS NOT NULL
+ WHERE j.status='review_failed' AND j.error='MISSING_DEVELOPMENT_ASSESSMENT' AND j.review_version IN (?,?) AND j.snapshot_key IS NOT NULL
  AND NOT EXISTS(SELECT 1 FROM eval_recovery_events e WHERE e.job_id=j.id)
  AND EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=j.id AND c.stage='atomic_claims_and_coverage' AND c.state='SETTLED' AND c.response_key IS NOT NULL)
  AND NOT EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=j.id AND (c.state<>'SETTLED' OR c.response_key IS NULL OR c.stage='atomic_claims_and_coverage_completeness_v1'))
- ORDER BY j.published_at DESC LIMIT 30`).bind(PROTOCOL).all<{id:string;status:string;error:string}>()).results;
+ ORDER BY j.published_at DESC LIMIT 30`).bind(PROTOCOL,LEGACY_PROTOCOL).all<{id:string;status:string;error:string}>()).results;
  for(const row of incomplete)await env.EVAL_DB.batch([
   env.EVAL_DB.prepare('INSERT OR IGNORE INTO eval_recovery_events VALUES(?,?,?,?,?)').bind(row.id,row.status,row.error,now.toISOString(),PROTOCOL+'-completeness-v1'),
   env.EVAL_DB.prepare("UPDATE eval_jobs SET status='ready',error=NULL,updated_at=? WHERE id=? AND status='review_failed' AND error='MISSING_DEVELOPMENT_ASSESSMENT' AND NOT EXISTS(SELECT 1 FROM eval_calls c WHERE c.job_id=eval_jobs.id AND (c.state<>'SETTLED' OR c.response_key IS NULL OR c.stage='atomic_claims_and_coverage_completeness_v1'))").bind(now.toISOString(),row.id)

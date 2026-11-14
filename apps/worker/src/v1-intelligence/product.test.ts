@@ -30,6 +30,7 @@ it('only a selected source can be enrolled; configuration and canonical publishe
  await expect(enrollV1Source(ctx.db,'feed-source-1','other-owner',testPolicy.now())).rejects.toMatchObject({code:'SCOPE_DENIED'});
  const enrolled=await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now());
  expect(enrolled.scope.enabled).toBe(true);expect(enrolled.source.canonicalUrl).toContain('feeds.bbci.co.uk');
+ expect(enrolled.source.displayName).toBe('feeds.bbci.co.uk');expect(enrolled.source.displayName).not.toBe('News RSS');
  expect(await enrollV1Source(ctx.db,'feed-source-1','owner-1',testPolicy.now())).toEqual(enrolled);
 });
 it('owner-approved live interval configuration persists timezone and fences old work',async()=>{

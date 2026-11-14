@@ -27,3 +27,8 @@ export function reviewSchema(inventory:boolean,input?:string){
  }
  return result;
 }
+
+export function groundingSchema(input:string){const packet=JSON.parse(input),ids=packet.developments.map((d:{developmentId:string})=>d.developmentId);return object({results:{...array(object({developmentId:label(ids),support:label(['supported','unsupported','uncertain']),explanation:string})),minItems:ids.length,maxItems:ids.length},limitations:array(string)})}
+export function groundedReviewSchema(input:string){const s=reviewSchema(false,input),packet=JSON.parse(input),priorIds=packet.case.prior.map((p:{id:string})=>p.id);const coverage=s.properties.coverage as any;coverage.items.properties.priorIds=priorIds.length?array(label(priorIds)):{...array(string),maxItems:0};coverage.items.required.push('priorIds');const findings=s.properties.findings as any;findings.items.properties.category=label(['factual','citation','relevance','repetition','temporal','language']);if(packet.case.items.length){findings.items.properties.item={type:'integer',minimum:0,maximum:packet.case.items.length-1}}else{findings.maxItems=0}return s}
+
+export function sourceInventorySchema(input:string){const s=reviewSchema(true,input);const developments=s.properties.developments as any;developments.items.properties.relation=label(['new','update','correction']);return s}

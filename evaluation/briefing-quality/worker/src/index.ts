@@ -1,6 +1,7 @@
+import {groundedInventoryRequest,groundingRequest,parseGrounding,groundedInventory,groundedReviewRequest,groundedReview,groundedMetrics,type Grounding} from './grounding';
 import {completeReview} from './complete-review';
 import {errorCode,failureDetails,sourceRead} from './failures';
-import {PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,reviewRequest,timestamp} from './protocol';
+import {PROTOCOL,LEGACY_PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,reviewRequest,timestamp} from './protocol';
 import {activeFenceFor,recoverReviews} from './recovery';
 import {boundedJson,budget,judge} from './budget';
 import {discover,isEvaluable,snapshot,type Published} from './source';
@@ -69,20 +70,24 @@ export async function processJob(env:Env,id:string){
   value=await job(env,id);if(!value)return;
  }
  if(env.EVALUATION_ENABLED!=='true'||!['ready','budget_deferred'].includes(value.status))return;
+ const paid=value.review_version===PROTOCOL?null:await env.EVAL_DB.prepare('SELECT 1 FROM eval_calls WHERE job_id=? LIMIT 1').bind(id).first();
+ const protocol=value.review_version===PROTOCOL||!paid?PROTOCOL:LEGACY_PROTOCOL,grounded=protocol===PROTOCOL;
  const attempt=crypto.randomUUID();
- const claim=await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='reviewing',attempt_id=?,updated_at=?,review_version=? WHERE id=? AND status IN ('ready','budget_deferred')").bind(attempt,time(),PROTOCOL,id).run();
+ const claim=await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='reviewing',attempt_id=?,updated_at=?,review_version=? WHERE id=? AND status IN ('ready','budget_deferred')").bind(attempt,time(),protocol,id).run();
  if(!claim.meta.changes)return;
  let phase='snapshot_read';
  try{
   check(value.snapshot_key,'SNAPSHOT_MISSING');const object=await env.EVIDENCE.get(value.snapshot_key);check(object&&object.size<=2_000_000,'SNAPSHOT_MISSING');
   const c=await object.json<Case>();phase='snapshot_validation';check(await hash(c)===value.snapshot_hash&&c.feedId===value.feed_id&&c.sourceLabel===env.SOURCE_LABEL,'SNAPSHOT_INTEGRITY_MISMATCH');phase='publication_read';check(await sourceRead(()=>isEvaluable(env.SOURCE_DB,c.feedId,c.id,c.pipelineStatus)),'PUBLICATION_NO_LONGER_VISIBLE');
   const deterministic=operational(c);
-  phase='inventory_judge';const inventoryRaw=await judge(env,id,'independent_developments',inventoryRequest(c));
-  phase='inventory_validation';const d=inventory(inventoryRaw,c);
-  phase='inventory_store';const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol:PROTOCOL,inventoryHash,inventory:d}));
-  phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',reviewRequest(c,d));
-  phase='review_validation';const r=await completeReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_completeness_v1',request)),m=metrics(r,d,c),hasFindings=flagged(r,d,c);
-  const report={protocol:PROTOCOL,jobId:id,source:env.SOURCE_LABEL,model:env.JUDGE_MODEL,evidenceHash:await hash(c),inventoryHash,labelOrigin:'machine_judge_not_human',calibration:'not_measured',claimExtractionCompleteness:'not_independently_established',reviewedAt:time(),operational:deterministic,inventory:d,review:r,metrics:m,status:hasFindings?'flagged':'reviewed_no_findings'};
+  phase='inventory_judge';const inventoryRaw=await judge(env,id,'independent_developments',(grounded?groundedInventoryRequest(c):inventoryRequest(c)));
+  phase='inventory_validation';const proposed=inventory(inventoryRaw,c);check(!grounded||!proposed.developments.some(d=>d.relation==='already_reported'),'INVENTORY_CANNOT_CLAIM_READER_COVERAGE');let grounding:Grounding|undefined;
+  if(grounded&&proposed.developments.length){phase='inventory_grounding';grounding=parseGrounding(await judge(env,id,'inventory_grounding_v1',groundingRequest(c,proposed)),proposed)}
+  const d=grounding?groundedInventory(proposed,grounding):proposed;
+  phase='inventory_store';const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol,inventoryHash,inventory:d,...(grounding?{proposedInventory:proposed,grounding}:{})}));
+  phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',(grounded?groundedReviewRequest(c,d):reviewRequest(c,d)));
+  phase='review_validation';const r=await completeReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_completeness_v1',request),grounded?{request:groundedReviewRequest(c,d),validate:raw=>groundedReview(raw,c,d)}:undefined),m=grounded?groundedMetrics(r,d,c):metrics(r,d,c),hasFindings=flagged(r,d,c);
+  const report={protocol,jobId:id,source:env.SOURCE_LABEL,model:env.JUDGE_MODEL,evidenceHash:await hash(c),inventoryHash,labelOrigin:'machine_judge_not_human',calibration:'not_measured',claimExtractionCompleteness:'not_independently_established',reviewedAt:time(),operational:deterministic,inventory:d,...(grounding?{proposedInventory:proposed,inventoryGrounding:grounding}:{}),review:r,metrics:{...m,...(grounded?{inventoryGroundingPolicy:'current-evidence-entailment-v1'}:{})},status:hasFindings?'flagged':'reviewed_no_findings'};
   phase='report_store';const key=`reports/${id}.json`;await env.EVIDENCE.put(key,JSON.stringify(report));
   phase='report_commit';await env.EVAL_DB.prepare('UPDATE eval_jobs SET status=?,report_key=?,flagged=?,metrics_json=?,error=NULL,updated_at=? WHERE id=? AND attempt_id=?').bind(report.status,key,hasFindings?1:0,JSON.stringify(m),time(),id,attempt).run();
   console.log(JSON.stringify({event:'evaluation_completed',status:report.status,language:c.language}));
@@ -151,8 +156,8 @@ export default {
    if(request.method==='GET'&&url.pathname==='/api/summary')return json(await summary(env));
    if(request.method==='GET'&&url.pathname==='/api/jobs'){
     const before=url.searchParams.get('before')??'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';check(/^[a-f0-9]{64}$/.test(before),'INVALID_CURSOR');
-    const rows=(await env.EVAL_DB.prepare('SELECT j.id,j.feed_id,j.language,j.window_end,j.status,j.error,j.flagged,j.metrics_json,j.operational_json,a.disposition FROM eval_jobs j LEFT JOIN eval_annotations a ON a.job_id=j.id WHERE j.id<? ORDER BY j.id DESC LIMIT 50').bind(before).all()).results;
-    return json({jobs:rows,next:rows.length===50?rows.at(-1)!.id:null});
+    const rows=(await env.EVAL_DB.prepare('SELECT j.id,j.feed_id,j.language,j.window_end,j.status,j.error,j.flagged,j.metrics_json,j.operational_json,j.review_version,a.disposition FROM eval_jobs j LEFT JOIN eval_annotations a ON a.job_id=j.id WHERE j.id<? ORDER BY j.id DESC LIMIT 50').bind(before).all()).results;
+    return json({protocol:PROTOCOL,jobs:rows,next:rows.length===50?rows.at(-1)!.id:null});
    }
    const match=url.pathname.match(/^\/api\/jobs\/([a-f0-9]{64})(?:\/(annotation|resume))?$/);
    if(match){const id=match[1],value=await job(env,id);if(!value)return json({error:'Not found'},404);
