@@ -24,10 +24,10 @@ test('refresh preserves read status, loaded pages and loaded sources while pendi
  await mock(page,async route=>{if(delay)await pending.promise;await route.fulfill({json:{briefing:feed,editions}})});
  await page.goto('/reader/news/');const unread=page.locator('.news-item:not(.is-read)');await expect(unread).toHaveCount(20);
  await unread.first().getByRole('button',{name:/mark .* read/i}).click();await page.getByRole('button',{name:'Load More',exact:true}).click();await expect(unread).toHaveCount(24);
- await unread.first().getByRole('button',{name:/^Sources/}).click();await expect(page.locator('.news-briefing-card')).toHaveCount(1);await page.getByRole('button',{name:'Close',exact:true}).click();
+ await unread.first().getByRole('button',{name:'Source 1',exact:true}).click();await expect(page.locator('.news-briefing-card')).toHaveCount(1);await page.getByRole('button',{name:'Close',exact:true}).click();
  delay=true;await refreshFeed(page);await expect(unread).toHaveCount(24);
  const refreshed=page.waitForResponse(r=>new URL(r.url()).pathname===path);pending.release();await refreshed;await expect(unread).toHaveCount(24);await expect(page.locator('.news-item.is-read')).toHaveCount(1);await expect(page.locator('.news-item')).toHaveCount(25);
- await unread.first().getByRole('button',{name:/^Sources/}).click();await expect(page.locator('.news-briefing-card')).toHaveCount(1);
+ await unread.first().getByRole('button',{name:'Source 1',exact:true}).click();await expect(page.locator('.news-briefing-card')).toHaveCount(1);
 });
 test('a failed refresh preserves previously published editions',async({page})=>{
  let failed=false;await mock(page,route=>failed?route.fulfill({status:503,json:{error:'Refresh unavailable.'}}):route.fulfill({json:{briefing:feed,editions:[edition('one')]}}));
@@ -76,7 +76,7 @@ test('a late detail response cannot reopen a withdrawn edition after refresh',as
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
  await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(1);
- const detail=page.waitForRequest(r=>new URL(r.url()).pathname.endsWith('/editions/one'));await page.getByRole('button',{name:/^Sources/}).click();await detail;
+ const detail=page.waitForRequest(r=>new URL(r.url()).pathname.endsWith('/editions/one'));await page.getByRole('button',{name:'Source 1',exact:true}).click();await detail;
  withdrawn=true;await refreshFeed(page);await expect(page.locator('.news-item')).toHaveCount(0);
  const finished=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/editions/one'));pending.release();await finished;
  await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.locator('.news-briefing-card')).toHaveCount(0);

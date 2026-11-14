@@ -87,10 +87,12 @@ test("published headlines open retained briefing evidence and preserve read-only
     return route.fulfill({ json: data });
   });
   await page.goto("/admin/personal-briefing/");
-  await expect(page.locator(".news-headline")).toHaveText("Research model");
+  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
   await expect(page.locator(".news-summary")).toHaveCount(0);
+  await expect(page.locator(".news-sources")).toHaveCount(0);
+  await expect(page.locator(".briefing-reference")).toHaveText("[1]");
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
-  await page.locator(".news-sources").click();
+  await page.locator(".briefing-reference").click();
   const report = page.getByRole("dialog", { name: "News Briefing" });
   await expect(report.locator('.news-briefing-description')).toContainText("Acme released an updated research model [1].");
   await expectCopiedSource(page, sourceUrl);
@@ -99,9 +101,9 @@ test("published headlines open retained briefing evidence and preserve read-only
   const readsBefore = feedReads;
   await refreshFeed(page);
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);
-  await expect(page.locator(".news-headline")).toHaveText("Research model");
+  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
   expect(manualRequests).toBe(0);
   await page.reload();
-  await expect(page.locator(".news-headline")).toHaveText("Research model");
+  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
   await expect(page.locator(".news-summary")).toHaveCount(0);
 });

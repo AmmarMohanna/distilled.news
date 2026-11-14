@@ -56,7 +56,7 @@ test('dark reader text, metadata, citations and actions meet contrast thresholds
   await page.goto('/owner/news/');
   await expect(page.locator('.news-headline')).toBeVisible();
   expect(await contrast(page.locator('.news-headline'))).toBeGreaterThanOrEqual(7);
-  expect(await contrast(page.locator('.news-sources'))).toBeGreaterThanOrEqual(4.5);
+  expect(await contrast(page.locator('.briefing-reference'))).toBeGreaterThanOrEqual(4.5);
   await expect(page.locator('.news-summary,.inline-reference')).toHaveCount(0);
   expect(await contrast(page.locator('.feed-header-actions > button').first())).toBeGreaterThanOrEqual(4.5);
   expect(await contrast(page.locator('.news-head time'))).toBeGreaterThanOrEqual(4.5);

@@ -1902,6 +1902,8 @@ function FeedEditionRow(props: {
   const narrative = normalizeSummary(edition.summary);
   const summary = headline && narrative.startsWith(headline) ? narrative.slice(headline.length).trimStart() : narrative;
   const referenceCount = Math.max(props.detailEdition?.sections.length ?? 0, edition.sections.length, highestReferenceNumber(edition.summary));
+  const citedNumbers = [...new Set(referenceTextParts(edition.summary).flatMap(part => part.kind === 'reference' && part.value > 0 ? [part.value] : []))];
+  const referenceNumbers = citedNumbers.length ? citedNumbers : Array.from({length: referenceCount}, (_, index) => index + 1);
   const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
@@ -1916,6 +1918,14 @@ function FeedEditionRow(props: {
         fallbackSummary={summary}
         sections={edition.sections}
         direction={textDir}
+        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : [sectionIndex + 1]).map(number => <button
+          key={number}
+          type="button"
+          className="briefing-reference"
+          aria-label={referenceButtonLabel(number, language)}
+          aria-busy={props.isLoading}
+          onClick={() => props.onOpenReport(number - 1)}
+        ><bdi dir="ltr">[{number}]</bdi></button>)}
         renderBody={text=><ReferenceParagraph
           className="news-summary"
           text={text}
@@ -1926,13 +1936,7 @@ function FeedEditionRow(props: {
         />}
       />
       <div className="news-foot">
-        {referenceCount > 0 ? (
-          <button type="button" className="news-sources" aria-busy={props.isLoading} onClick={() => props.onOpenReport(0)}>
-            <span>{sourcesLabel(language)}</span>
-            <span className="news-sources-count">{referenceCount}</span>
-            {textDirection(language) === "rtl" ? <ChevronLeft size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
-          </button>
-        ) : <span />}
+        <span />
         <button
           type="button"
           className="read-button"
