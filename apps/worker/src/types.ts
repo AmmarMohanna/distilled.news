@@ -180,6 +180,7 @@ export interface Env extends Cloudflare.Env {
   /** "v3" switches scheduled editions to the V3 briefing engine; anything else keeps the legacy path. */
   BRIEFING_ENGINE?: string;
   V3_BACKLOG_CATCHUP_ENABLED?: string;
+  CUTOFF_EDITIONS_ENABLED?: string;
   WINDOW_READINESS_MODE?: 'shadow'|'relay';
   WINDOW_READINESS_FEED_IDS?: string;
   EDITION_ARTIFACTS_ENABLED?: string;

@@ -24,6 +24,7 @@ Migrations `0089_transactional_window_readiness.sql` and `0090_verified_edition_
 
 | Flag | Effect |
 | --- | --- |
+| `CUTOFF_EDITIONS_ENABLED=true` | Opts new, unstarted clock-scheduled V3 windows into cutoff editions. Off by default; frozen inputs retain their original policy. |
 | `WINDOW_READINESS_MODE=shadow` | Enrolls open clock-scheduled V3 windows, maintains counters and compares with the current job check. Outbox events stay in D1. |
 | `WINDOW_READINESS_MODE=relay` | Delivers due, current-generation events through the configured acquisition queue. Transport acceptance and consumption are separately leased. The existing relay handles replay. |
 | `WINDOW_READINESS_FEED_IDS` | Restricts enrollment and relay to a comma-separated cohort. Use explicit feed IDs for the initial comparison. |

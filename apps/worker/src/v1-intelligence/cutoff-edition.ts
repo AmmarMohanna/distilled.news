@@ -14,10 +14,11 @@ export function atScheduledCutoff(window:PublicationWindow,now:string):boolean{
 /** Existing frozen/paid inputs retain their original contract. Only unstarted
  * scheduled V3 work can adopt the cutoff policy. This is a readiness hint;
  * final source authorization and publication validation remain authoritative. */
-export async function cutoffEditionReady(db:D1Database,feedId:string,request:ScheduledRequest,now:string):Promise<boolean>{
+export async function cutoffEditionReady(db:D1Database,feedId:string,request:ScheduledRequest,now:string,allowNew=false):Promise<boolean>{
  if(request.engine!=='v3'||!atScheduledCutoff(request.window,now))return false;
  const row=await db.prepare("SELECT json_extract(json,'$.cutoffPolicy') policy FROM v1_feed_documents WHERE kind='v3_window_inputs' AND id=? AND feed_id=?").bind(request.v3InputId??request.id,feedId).first<{policy:string|null}>();
  if(row)return row.policy===CUTOFF_EDITION_POLICY;
+ if(!allowNew)return false;
  const started=await db.prepare(`SELECT 1 WHERE EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='semantic_intents' AND feed_id=? AND json_extract(json,'$.input.budgetKey')=?)
  OR EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='v3_window_results' AND feed_id=? AND id=?)`).bind(feedId,`v3:${request.id}`,feedId,request.v3InputId??request.id).first();
  return !started;
@@ -25,11 +26,11 @@ export async function cutoffEditionReady(db:D1Database,feedId:string,request:Sch
 
 /** Probe unresolved jobs before looking up frozen inputs or results. Keep the
  * same policy at dispatch, queue consumption and diagnostic refresh. */
-export async function windowIntakeReadiness(db:D1Database,feedId:string,request:ScheduledRequest,now:string,v3=request.engine==='v3'){
+export async function windowIntakeReadiness(db:D1Database,feedId:string,request:ScheduledRequest,now:string,v3=request.engine==='v3',allowNew=false){
  const settings={v3,now};
  const {end}=request.window;
  if(!await windowHasHoldingJobs(db,feedId,end,settings))return {holding:false,settings};
- if(v3&&await cutoffEditionReady(db,feedId,request,now))return {holding:false,settings:{...settings,deferIntake:true}};
+ if(v3&&await cutoffEditionReady(db,feedId,request,now,allowNew))return {holding:false,settings:{...settings,deferIntake:true}};
  if(v3&&await preparedV3Delivery(db,feedId,request.id,Date.parse(now))){
   const verified={...settings,deferAcquisition:true};
   return {holding:await windowHasHoldingJobs(db,feedId,end,verified),settings:verified};

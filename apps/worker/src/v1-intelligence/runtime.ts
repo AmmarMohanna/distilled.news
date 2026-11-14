@@ -175,7 +175,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
  for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
-  if((await windowIntakeReadiness(env.DB,feedId,older,now())).holding||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
+  if((await windowIntakeReadiness(env.DB,feedId,older,now(),undefined,env.CUTOFF_EDITIONS_ENABLED==='true')).holding||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
   if(job?.state==='RUNNING'&&Date.parse(job.leaseUntil)>Date.parse(now()))return undefined;
@@ -184,7 +184,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  }
  const readinessAt=now();
  const holding=await measureLatency('WINDOW_READINESS',async()=>{
-  const intake=await windowIntakeReadiness(env.DB,feedId,request,readinessAt);
+  const intake=await windowIntakeReadiness(env.DB,feedId,request,readinessAt,undefined,env.CUTOFF_EDITIONS_ENABLED==='true');
   if(!intake.holding)return false;
   return feedTransact(store,feedId,async tx=>{
    const current=await tx.read<BriefingRequest>('briefing_requests',id);
@@ -469,7 +469,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
   if(env.WINDOW_READINESS_MODE&&current?.state==='PENDING')
    await maintenance(id,'WINDOW_READINESS_SHADOW',()=>observeWindowReadiness(env,current,now));
   if(current?.state==='PENDING'&&isIntakeStatus(current.reason)){
-   const intake=await windowIntakeReadiness(env.DB,id,current,now.toISOString());
+   const intake=await windowIntakeReadiness(env.DB,id,current,now.toISOString(),undefined,env.CUTOFF_EDITIONS_ENABLED==='true');
    // Refresh the diagnostic snapshot when readiness changes. Repeated ticks
    // only check live jobs. The final commit still recomputes exact coverage.
    if(!current.coverage||Boolean(current.coverage.pendingJobs)!==intake.holding){
@@ -492,7 +492,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    }
 
    // Each window is held only by jobs for evidence that existed when it closed.
-   if((await windowIntakeReadiness(env.DB,id,request,now.toISOString())).holding)continue;
+   if((await windowIntakeReadiness(env.DB,id,request,now.toISOString(),undefined,env.CUTOFF_EDITIONS_ENABLED==='true')).holding)continue;
    const v3=request.engine==='v3'||!request.engine&&productV3Enabled(env);
    if((v3||request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!(v3?productV3Ready(env):createStoredEvidenceModel(env))){
     if(request.reason!=='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING')await tx.write('briefing_requests',request.id,{...current,reason:'MODEL_SETUP_REQUIRED'});});

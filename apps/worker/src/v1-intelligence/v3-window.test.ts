@@ -99,7 +99,11 @@ it('publishes a cutoff edition with unfinished intake and carries evidence accep
  const before=(await ctx.db.prepare("SELECT id,json FROM v1_jobs WHERE id LIKE 'unfinished-%' ORDER BY id").all()).results;
  const schedule={durationMinutes:30 as const,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2' as const};
  const scheduled=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z')),id=await windowIdentity('feed-1',scheduled),seen:string[]=[];
- const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:40:00Z',undefined,fetcher(seen) as typeof fetch);
+ const message={type:'v1_briefing',feedId:'feed-1',window:scheduled} as const;
+ expect(await processV1Briefing(env,message,()=> '2026-10-03T12:40:00Z',undefined,fetcher(seen) as typeof fetch)).toBeUndefined();
+ expect(seen).toHaveLength(0);
+ expect(await store.read('feed-1','v3_window_inputs',id)).toBeUndefined();
+ const edition=await processV1Briefing({...env,CUTOFF_EDITIONS_ENABLED:'true'},{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:40:00Z',undefined,fetcher(seen) as typeof fetch);
  expect(edition).toBeDefined();expect(seen).toHaveLength(2);
  const frozen=await store.read<any>('feed-1','v3_window_inputs',id);
  expect(frozen.cutoffPolicy).toBe('READY_AT_CUTOFF_V1');expect(frozen.input.articles).toHaveLength(1);
@@ -107,7 +111,7 @@ it('publishes a cutoff edition with unfinished intake and carries evidence accep
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'PUBLISHED',coverage:{state:'INCOMPLETE',pendingJobs:0,deferredJobs:2}});
  expect((await ctx.db.prepare("SELECT id,json FROM v1_jobs WHERE id LIKE 'unfinished-%' ORDER BY id").all()).results).toEqual(before);
  await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:45:00Z',undefined,fetcher(seen) as typeof fetch);expect(seen).toHaveLength(2);
- const next=await prepareV3Window(store,'feed-1',livePublicationWindow(schedule,new Date('2026-10-03T12:55:00Z')),'2026-10-03T12:55:00Z');
+ const next=await prepareV3Window(store,'feed-1',livePublicationWindow(schedule,new Date('2026-10-03T12:55:00Z')),'2026-10-03T12:55:00Z',undefined,4,undefined,true);
  expect(next.input.articles).toHaveLength(1);expect(next.input.articles[0].publishedAt).toBe('2026-10-03T12:15:00Z');expect(next.evidenceRevisionIds).not.toEqual(frozen.evidenceRevisionIds);
 },30000);
 it('keeps a cutoff snapshot stable when an included source revision is updated after cutoff',async()=>{
@@ -116,10 +120,10 @@ it('keeps a cutoff snapshot stable when an included source revision is updated a
  const scheduled=livePublicationWindow(schedule,new Date('2026-10-03T12:25:00Z')),id=await windowIdentity('feed-1',scheduled),seen:string[]=[];
  const provider=fetcher(seen);let replacement:string|undefined;
  const updating=(async(url:unknown,init?:RequestInit)=>{if(!replacement){const frozen=await store.read<any>('feed-1','v3_window_inputs',id);replacement=await supersedeFrozenRevision(frozen.evidenceRevisionIds[0],{acceptedAt:'2026-10-03T12:36:00Z',body:'Parliament corrected the banking reform report.'})}return provider(url,init)}) as typeof fetch;
- const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:35:00Z',undefined,updating);
+ const edition=await processV1Briefing({...env,CUTOFF_EDITIONS_ENABLED:'true'},{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:35:00Z',undefined,updating);
  expect(edition).toBeDefined();expect(edition!.evidenceRevisionIds).not.toContain(replacement);expect(seen).toHaveLength(2);
  const frozen=await store.read<any>('feed-1','v3_window_inputs',id);expect(frozen.cutoffPolicy).toBe('READY_AT_CUTOFF_V1');
- const next=await prepareV3Window(store,'feed-1',livePublicationWindow(schedule,new Date('2026-10-03T12:55:00Z')),'2026-10-03T12:55:00Z');
+ const next=await prepareV3Window(store,'feed-1',livePublicationWindow(schedule,new Date('2026-10-03T12:55:00Z')),'2026-10-03T12:55:00Z',undefined,4,undefined,true);
  expect(next.evidenceRevisionIds).toContain(replacement);
 },30000);
 it('selects the revision ready at cutoff when processing starts after a later update',async()=>{
@@ -127,7 +131,7 @@ it('selects the revision ready at cutoff when processing starts after a later up
  const original=(await store.currentEvidenceHeaders('feed-1'))[0].revision.id;
  await supersedeFrozenRevision(original,{acceptedAt:'2026-10-03T12:26:00Z',body:'Later correction'});
  const scheduled=livePublicationWindow({durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z'));
- const prepared=await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:40:00Z');
+ const prepared=await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:40:00Z',undefined,4,undefined,true);
  expect(prepared.evidenceRevisionIds).toEqual([original]);
  expect(prepared.input.articles[0].text).toContain('Presidential approval');
 });
@@ -136,10 +140,10 @@ it('does not resurrect evidence deleted before cutoff and restored afterward',as
  await article(1,'2026-10-03T12:05:00Z','2026-10-03T12:10:00Z','2026-10-03T12:09:00Z');
  const original=(await store.currentEvidenceHeaders('feed-1'))[0].revision;
  const scheduled=livePublicationWindow({durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z'));
- const before=await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:25:00Z');
+ const before=await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:25:00Z',undefined,4,undefined,true);
  await ctx.db.prepare('INSERT INTO v1_tombstones(id,feed_source_id,json) VALUES(?,?,?)').bind('deleted-at-cutoff','feed-source-1',JSON.stringify({evidenceId:original.evidenceId,acceptedAt:'2026-10-03T12:20:00Z'})).run();
  await supersedeFrozenRevision(original.id,{acceptedAt:'2026-10-03T12:40:00Z'});
- expect((await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:45:00Z')).evidenceRevisionIds).toEqual([]);
+ expect((await prepareV3Window(store,'feed-1',scheduled,'2026-10-03T12:45:00Z',undefined,4,undefined,true)).evidenceRevisionIds).toEqual([]);
  expect(await cutoffEvidenceAuthorized(store,before)).toBe(false);
 });
 async function supersedeFrozenRevision(id:string,changes:Record<string,unknown>={}){
@@ -154,7 +158,7 @@ it('cutoff source revocation still prevents publication and retains the paid rec
  const scheduled=livePublicationWindow({durationMinutes:30,timezone:'UTC',clockStartAt:'2026-10-03T11:00:00Z',clockPolicy:'clock-aligned-delivery-v2'},new Date('2026-10-03T12:25:00Z'));
  const seen:string[]=[],provider=fetcher(seen);
  const revoked=(async(url:unknown,init?:RequestInit)=>{const response=await provider(url,init);if(seen.length===1)await ctx.db.prepare("UPDATE v1_intake_scopes SET json=json_set(json,'$.enabled',0),epoch=epoch+1 WHERE id='feed-source-1'").run();return response}) as typeof fetch;
- await expect(processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:30:00Z',undefined,revoked)).rejects.toThrow();
+ await expect(processV1Briefing({...env,CUTOFF_EDITIONS_ENABLED:'true'},{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:30:00Z',undefined,revoked)).rejects.toThrow();
  expect(seen).toHaveLength(1);expect(await store.list('feed-1','editions')).toHaveLength(0);
  expect(await store.list('feed-1','semantic_settlements')).toMatchObject([{usage:{reported:true,costUsd:.001}}]);
 });
@@ -165,7 +169,7 @@ it('retains a legacy frozen scheduled input and its intake gate',async()=>{
  expect(prepared.cutoffPolicy).toBeUndefined();
  await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window:scheduled,state:'PENDING',attempts:0,createdAt:scheduled.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
  await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('legacy-pending','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
- const seen:string[]=[];expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:30:00Z',undefined,fetcher(seen) as typeof fetch)).toBeUndefined();
+ const seen:string[]=[];expect(await processV1Briefing({...env,CUTOFF_EDITIONS_ENABLED:'true'},{type:'v1_briefing',feedId:'feed-1',window:scheduled},()=> '2026-10-03T12:30:00Z',undefined,fetcher(seen) as typeof fetch)).toBeUndefined();
  expect(seen).toHaveLength(0);expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(prepared);
 });
 it('dispatches scheduled cutoff preparation despite pending intake and records deferred coverage',async()=>{
@@ -175,7 +179,7 @@ it('dispatches scheduled cutoff preparation despite pending intake and records d
  await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('dispatch-pending','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
  const sent:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{sent.push(body)}}} as unknown as Env;
  const at=new Date('2026-10-03T12:25:00Z'),scheduled=livePublicationWindow(schedule,at),id=await windowIdentity('feed-1',scheduled);
- await dispatchV1Intelligence(env,at);
+ await dispatchV1Intelligence({...env,CUTOFF_EDITIONS_ENABLED:'true'},at);
  expect(sent).toContainEqual({type:'v1_briefing',feedId:'feed-1',window:scheduled});
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({coverage:{state:'INCOMPLETE',pendingJobs:0,deferredJobs:1}});
 });
@@ -185,7 +189,7 @@ it('offers a due cutoff edition the available transport turn before unfinished r
  await article();
  await ctx.db.prepare("INSERT INTO v1_jobs(id,feed_source_id,json) VALUES('review-waiting','feed-source-1',?)").bind(JSON.stringify({kind:'REASSESS',state:'PENDING',observationId:'observation-1'})).run();
  const accepted:any[]=[];env={...env,PROCESSING_QUEUE:{send:async(body:unknown)=>{if(accepted.length)return false;accepted.push(body)}}} as unknown as Env;
- const at=new Date('2026-10-03T12:25:00Z');await dispatchV1Intelligence(env,at);
+ const at=new Date('2026-10-03T12:25:00Z');await dispatchV1Intelligence({...env,CUTOFF_EDITIONS_ENABLED:'true'},at);
  expect(accepted).toEqual([{type:'v1_briefing',feedId:'feed-1',window:livePublicationWindow(schedule,at)}]);
  expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_jobs WHERE id='review-waiting'").first<{json:string}>())!.json).state).toBe('PENDING');
 });
