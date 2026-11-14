@@ -295,11 +295,16 @@ def scenario(label, initial, candidate):
         if initial:
             verify_preserved(db, before)
         else:
-            for table in ("v1_model_spending_authorizations", "v1_model_spending_reservations",
-                          "v1_model_spending_settlements", "v1_model_spending_concurrency_amendments",
-                          "connector_provider_operations", "connector_provider_budgets"):
-                # Names are from the fixed literal tuple, never external input.
-                query = f"SELECT COUNT(*) FROM {sql_identifier(table)}"  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query -- validated literal names
+            # Closed set of literal SQL statements: no dynamic identifiers or values.
+            empty_financial_queries = {
+                "v1_model_spending_authorizations": "SELECT COUNT(*) FROM v1_model_spending_authorizations",
+                "v1_model_spending_reservations": "SELECT COUNT(*) FROM v1_model_spending_reservations",
+                "v1_model_spending_settlements": "SELECT COUNT(*) FROM v1_model_spending_settlements",
+                "v1_model_spending_concurrency_amendments": "SELECT COUNT(*) FROM v1_model_spending_concurrency_amendments",
+                "connector_provider_operations": "SELECT COUNT(*) FROM connector_provider_operations",
+                "connector_provider_budgets": "SELECT COUNT(*) FROM connector_provider_budgets",
+            }
+            for table, query in empty_financial_queries.items():
                 require(db.execute(query).fetchone() == (0,),
                         f"Fresh migration created financial authority/data: {table}")
         require(apply(db, candidate) == [], f"{label}: migration replay was not a no-op")
