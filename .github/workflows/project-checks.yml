@@ -29,7 +29,7 @@ jobs:
           python-version: '3.14'
       - run: pnpm install --frozen-lockfile
       - name: Configure HTTPS Ubuntu mirrors for browser dependencies
-        run: sudo python3 scripts/configure-ci-apt.py
+        run: sudo --preserve-env=GITHUB_ACTIONS python3 scripts/configure-ci-apt.py
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm -r typecheck
       - run: pnpm exec tsc -p tsconfig.e2e.json
@@ -58,7 +58,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Configure HTTPS Ubuntu mirrors for browser dependencies
-        run: sudo python3 scripts/configure-ci-apt.py
+        run: sudo --preserve-env=GITHUB_ACTIONS python3 scripts/configure-ci-apt.py
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec tsc -p tsconfig.e2e.json
       - run: pnpm --filter @distilled/web build
@@ -138,7 +138,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Configure HTTPS Ubuntu mirrors for browser dependencies
         if: matrix.group == 'browser'
-        run: sudo python3 scripts/configure-ci-apt.py
+        run: sudo --preserve-env=GITHUB_ACTIONS python3 scripts/configure-ci-apt.py
       - run: pnpm exec playwright install --with-deps chromium
         if: matrix.group == 'browser'
       - run: node evaluation/performance-reliability/run-correctness-fixtures.mjs "${{ matrix.group }}"
