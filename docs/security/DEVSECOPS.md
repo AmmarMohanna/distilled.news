@@ -1,6 +1,6 @@
 # Distilled.news DevSecOps security automation
 
-Status: **configured on isolated branch; CI/security findings require actual workflow runs** (2026-11-14). No production deployment or app behavior change was made. Source branch: `ghada/DevSecOps`.
+Status: **configured on isolated branch; real security CI started and initial Trivy findings verified** (2026-11-14). No production deployment or app behavior change was made. Source branch: `ghada/DevSecOps`.
 
 ## Baseline (reviewed source branch)
 The six existing workflows (`project-checks.yml`, `acquisition-benchmark.yml`, `briefing-evaluation.yml`, and three `performance-*.yml` workflows) implement project tests, benchmarks and manually approved performance campaigns, not the six requested DevSecOps scans. No CodeQL/Semgrep/Trivy/Snyk/Gitleaks workflow or Dependabot file was present in `.github`. Existing repository-level CodeQL default setup, Dependabot alerts/security updates, secret push protection, branch rules and Snyk account state cannot be read using this integration; check GitHub Settings before enabling enforcement.
@@ -38,7 +38,7 @@ trivy image --scanners vuln,misconfig --severity HIGH,CRITICAL --exit-code 1 dis
 ```
 
 ## Findings and dispositions
-At configuration time **no scanner has been executed successfully against this full repository** through this integration. Therefore there are **no confirmed Critical, High, Medium or Low scanner findings** to report, and no clean bill of health. When runs complete, triage SARIF and job logs by rule/CVE, affected package/path, direct vs transitive reachability, evidence, exploitability, suggested fix, and status (open/mitigated/false positive/accepted with owner and expiration). Do not mark a category as zero until evidence supports it. A failing check is meaningful; do not add blanket `continue-on-error`, baselines, or ignores to obtain green.
+**First verified results (Trivy filesystem, run 43635684801):** 4 package CVEs in `pnpm-lock.yaml` (`fast-xml-parser` 5.3.0): CRITICAL CVE-2026-25896 and HIGH CVE-2026-25128, CVE-2026-26278, CVE-2026-33036. Trivy additionally reported HIGH DS-0002 for no explicit non-root `USER` in `apps/worker/browser-container.Dockerfile`. **5 findings total: 1 CRITICAL, 4 HIGH; no MEDIUM or LOW found in this scan.** Gate correctly failed, retaining evidence. Trivy recognized the nonstandard Dockerfile and detected npm/pnpm lockfiles. Python dependency coverage was **not confirmed** in this run: Trivy identified two language-specific lockfiles (npm + pnpm). Do not claim Python package coverage from this report. Exact transitive dependency chain/reachability and Docker runtime implications require triage; no automatic dependency or Dockerfile edits were made. This is not a clean bill of health. When runs complete, triage SARIF and job logs by rule/CVE, affected package/path, direct vs transitive reachability, evidence, exploitability, suggested fix, and status (open/mitigated/false positive/accepted with owner and expiration). Do not mark a category as zero until evidence supports it. A failing check is meaningful; do not add blanket `continue-on-error`, baselines, or ignores to obtain green.
 
 If Gitleaks finds a credible credential: **revoke or rotate it immediately with the credential owner**, inspect usage, invalidate related tokens/sessions and replace via secure secret storage. Treat historical exposure as exposure even after file deletion. Never paste leaked values into issues/comments, upload unredacted artifacts, or rewrite history without owner approval. For placeholders, review exact evidence and narrowly scope any documented allowlist.
 
@@ -50,7 +50,15 @@ If Gitleaks finds a credible credential: **revoke or rotate it immediately with 
 5. Scheduled scans and Dependabot cannot be proven on a feature branch; CodeQL upload, full history scanning, Semgrep ruleset fetching, external vulnerability DB access and container builds must be verified through actual GitHub Actions runs.
 
 ## Run evidence
-- Previous app-check run on source branch (was in progress when audited): https://github.com/AmmarMohanna/distilled.news/actions/runs/43632264473
+- Initial scan evidence:
+- Trivy [43635684801](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684801) **failed as designed** on 1 CRITICAL + 4 HIGH findings; opt-in image scan skipped.
+- CodeQL [43635684813](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684813): Python and GitHub Actions language jobs completed successfully; JS/TS still running at evidence review.
+- Semgrep [43635684823](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684823): executing at evidence review.
+- Gitleaks [43635684810](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684810): scanning full history at evidence review; findings not yet confirmed.
+- Snyk [43635684832](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684832): **skipped** because not enabled (expected).
+- Existing app-check [43635684688](https://github.com/AmmarMohanna/distilled.news/actions/runs/43635684688): `verify` job failed on six pre-existing TypeScript test mock errors in `packages/briefing/test/occurrence-novelty.test.ts` (missing `inputTokens`/`outputTokens` in `ModelResponse`); no app source or test files modified in this security-only commit.
+
+Previous app-check run on source branch (was in progress when audited): https://github.com/AmmarMohanna/distilled.news/actions/runs/43632264473
 - New security CI: https://github.com/AmmarMohanna/distilled.news/actions (look for `Security - ...` workflows and filter by `ghada/devsecops-security-automation`).
 - Record exact future run IDs, outcomes, scanner versions, covered manifests and finding counts here after checking logs; **do not** infer passing runs from committed YAML.
 
