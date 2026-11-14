@@ -197,7 +197,6 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   const [feedSettingsOpen, setFeedSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
-  const [scopedDataReady, setScopedDataReady] = useState(false);
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const selectedBriefingIdRef = useRef<string | null>(null);
   const briefingsRef = useRef<BriefingConfig[]>([]);
@@ -234,7 +233,6 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
         setSession(nextSession);
         if (nextSession.authenticated) {
           try { await loadBriefings(); } catch { return; } // The feed state owns its retry UI.
-          if (nextSession.account?.role === "admin") setAccounts(await listAccounts());
         }
       })
       .catch((cause) => setError(toUiError(cause)));
@@ -270,14 +268,6 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
       window.removeEventListener("pageshow", update);
     };
   }, [account?.id, creationOpen, feedSettingsOpen, accountDialogOpen, busyAction, autosaveState]);
-
-  useEffect(() => {
-    if (!selectedBriefingId || !session?.authenticated) return;
-    setScopedDataReady(false);
-    loadScopedData(selectedBriefingId).catch((cause) =>
-      setError(toUiError(cause))
-    ).finally(() => setScopedDataReady(true));
-  }, [selectedBriefingId, session?.authenticated]);
 
   async function refreshSession() {
     const next = await getSession();
@@ -402,15 +392,6 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     />
   ) : null;
 
-  const onboardingOpen = Boolean(
-    account &&
-      briefing &&
-      scopedDataReady &&
-      sources.length === 0 &&
-      !onboardingDismissed &&
-      isFirstRunBriefing(briefing)
-  );
-
   async function dismissOnboarding() {
     if (account) localStorage.setItem(onboardingStorageKey(account.id), "1");
     setOnboardingDismissed(true);
@@ -492,7 +473,6 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
                 const next = await getSession();
                 if (next.authenticated) {
                   await loadBriefings();
-                  if (next.account?.role === "admin") setAccounts(await listAccounts());
                   setCreationOpen(createAfterLogin);
                   setAuthOpen(false);
                   setCreateAfterLogin(false);
@@ -1301,6 +1281,10 @@ function AdminAccountsSection(props: {
   onAccountsChanged: (accounts: AccountWithStats[]) => void;
 }) {
   const { t } = useLanguage();
+  const onAccountsChanged = props.onAccountsChanged;
+  const [accountsError, setAccountsError] = useState<UiMessage>("");
+  const [accountLoad, setAccountLoad] = useState(0);
+  const [accountsReady, setAccountsReady] = useState(false);
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("all");
   const [sortAscending, setSortAscending] = useState(true);
@@ -1311,6 +1295,16 @@ function AdminAccountsSection(props: {
   const managedAccount = props.accounts.find((account) => account.id === managedAccountId) ?? null;
 
   useEffect(() => {
+    let active = true;
+    setAccountsError("");
+    void listAccounts()
+      .then(accounts => { if (active) { onAccountsChanged(accounts); setAccountsReady(true); } })
+      .catch(cause => { if (active) setAccountsError(toUiError(cause)); });
+    return () => { active = false; };
+  }, [accountLoad, onAccountsChanged]);
+
+  useEffect(() => {
+    if (!accountsReady) return;
     let cancelled = false;
     async function loadAdminBriefings() {
       setLoadingFeeds(true);
@@ -1328,7 +1322,7 @@ function AdminAccountsSection(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.accounts]);
+  }, [accountsReady, props.accounts]);
 
   useEffect(() => {
     if (managedAccountId && !props.accounts.some((account) => account.id === managedAccountId)) {
@@ -1357,6 +1351,7 @@ function AdminAccountsSection(props: {
         <div className="user-management-heading"><h1>{t("User Management")}</h1><p>{t("Manage registered users and their feeds.")}</p></div>
         <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><span id="users-role-filter-label" className="sr-only">{t("Filter users by role")}</span><FeedSettingsSelect kind="role" value={role} onChange={setRole} labelId="users-role-filter-label" options={[{value:'all',label:t('All Roles')},{value:'admin',label:t('Admin')},{value:'user',label:t('User')}]}/></span><div className="users-counts"><span>{props.accounts.length} {t("users")}</span><span>{props.accounts.reduce((total, account) => total + feedCountFor(account), 0)} {t("feeds")}</span></div></div>
 
+        {accountsError ? <div role="alert"><p className="error">{t(accountsError)}</p><button type="button" className="feed-state-retry" onClick={() => setAccountLoad(current => current + 1)}>{t("Try Again")}</button></div> : null}
         {error ? <p className="error">{t(error)}</p> : null}
         <div className="users-table-scroll"><table className="users-table"><thead><tr><th><button type="button" onClick={() => setSortAscending(value => !value)}>{t("Name")} <ChevronDown size={14} style={{ transform: sortAscending ? "none" : "rotate(180deg)" }}/></button></th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Feeds")}</th><th>{t("Status")}</th><th><span className="sr-only">{t("Actions")}</span></th></tr></thead><tbody>{visibleAccounts.map(account => <tr key={account.id} className={account.id === managedAccountId ? "selected" : ""}>
           <td><button className="user-name-button" type="button" style={{ background: "transparent" }} aria-label={t("View {name}", {name: account.username})} onClick={() => setManagedAccountId(account.id)}><span className={`user-row-avatar ${account.role === "admin" ? "admin" : ""}`}>{accountInitials(account.username)}</span><span>{account.username}</span></button></td><td title={account.email}>{account.email}</td><td><span className={`user-role-badge ${account.role}`}>{t(account.role === "admin" ? "Admin" : "User")}</span></td><td>{feedCountFor(account)}</td><td><span className={`user-status ${account.disabledAt ? "suspended" : ""}`}>{t(account.disabledAt ? "Suspended" : account.emailVerifiedAt ? "Verified" : "Pending")}</span></td><td>{!managedAccount && <button type="button" className="user-manage-button" aria-label={`manage ${account.username}`} onClick={() => setManagedAccountId(account.id)}><MoreHorizontal size={20} aria-hidden /></button>}</td>
@@ -1481,6 +1476,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const feedKey = `${props.username}/${props.slug}`;
   const feedIdentity = useRef(feedKey);
   const feedRequest = useRef(0);
+  const feedRead = useRef<AbortController | null>(null);
   const searchRequest = useRef(0);
   const latestQuery = useRef("");
   const searchFailed = useRef(false);
@@ -1508,11 +1504,18 @@ function FeedPage(props: { username: string; slug: string }) {
   const [editionDetails, setEditionDetails] = useState<Map<string, BriefingEdition>>(() => new Map());
 
   async function refresh(silent = false) {
+    if (silent && feedRead.current) return;
+    feedRead.current?.abort();
+    const read = new AbortController();
+    feedRead.current = read;
     const key = feedKey, request = ++feedRequest.current;
     if (!silent || loadedFeed.current !== key) { searchFailed.current = false; setError(""); setSummaryMessage(""); }
     if (loadedFeed.current !== key) setReadState({ key, state: "loading" });
     try {
-      const next = await getFeed(props.username, props.slug);
+      const next = await getFeed(props.username, props.slug, {
+        signal: read.signal,
+        retryInitialRead: loadedFeed.current !== key,
+      });
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       loadedFeed.current = key;
       visibleEditionIds.current = new Set(next.editions.map(edition => edition.id));
@@ -1532,6 +1535,8 @@ function FeedPage(props: { username: string; slug: string }) {
       if (!silent || loadedFeed.current !== key) {
         searchFailed.current = false; setReadState({ key, state: "failed" }); setError(toUiError(cause));
       }
+    } finally {
+      if (feedRead.current === read) feedRead.current = null;
     }
   }
 
@@ -1541,7 +1546,11 @@ function FeedPage(props: { username: string; slug: string }) {
     setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
     visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
     void refresh();
-    return () => { feedRequest.current++; searchRequest.current++; };
+    return () => {
+      feedRead.current?.abort();
+      feedRead.current = null;
+      feedRequest.current++; searchRequest.current++;
+    };
   }, [props.username, props.slug]);
 
   useEffect(() => {

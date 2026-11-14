@@ -288,8 +288,19 @@ export async function deleteAdminBriefing(
   );
 }
 
-export async function getFeed(username: string, slug: string): Promise<FeedPayload> {
-  return requestJson<FeedPayload>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`);
+export async function getFeed(username: string, slug: string, options?: { signal: AbortSignal; retryInitialRead: boolean }): Promise<FeedPayload> {
+  const path = `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`;
+  const signal = options?.signal;
+  try {
+    return await requestJson<FeedPayload>(path, { signal });
+  } catch (cause) {
+    if (!options?.retryInitialRead || signal?.aborted || !(cause instanceof ApiError)) throw cause;
+    const { status, retryAfterSeconds } = cause.uiMessage.details;
+    if ((status !== undefined && ![502, 503, 504].includes(status)) || retryAfterSeconds) throw cause;
+    await new Promise(resolve => setTimeout(resolve, 700 + Math.random() * 300));
+    if (signal?.aborted) throw cause;
+    return requestJson<FeedPayload>(path, { signal });
+  }
 }
 
 export async function getFeedEdition(username: string, slug: string, editionId: string): Promise<BriefingEdition> {

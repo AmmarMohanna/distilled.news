@@ -56,6 +56,7 @@ export function AppExperience(props: {
   const [feeds, setFeeds] = useState<Array<PublicBriefing & { viewerHasStarred?: boolean; latestUpdatedAt?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<UiMessage>("");
+  const [exploreError, setExploreError] = useState<UiMessage>("");
   const [starBusy, setStarBusy] = useState<string | null>(null);
   const [settingsDialog, setSettingsDialog] = useState<"install" | null>(null);
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>();
@@ -71,17 +72,19 @@ export function AppExperience(props: {
     let version = 0;
     async function load() {
       const request = ++version;
+      setLoading(true);
+      setExploreError("");
       try {
         const result = await getExploreFeeds();
         if (!active || version !== request) return;
-        setFeeds(result); setLoading(false); setError("");
+        setFeeds(result); setLoading(false);
         const states = await Promise.allSettled(result.map(feed => getFeed(feed.ownerUsername, feed.slug)));
         if (active && version === request) setFeeds(result.map((feed, index) => {
           const state = states[index];
           const payload = state.status === "fulfilled" ? state.value : undefined;
           return { ...feed, viewerHasStarred: payload?.viewerHasStarred, latestUpdatedAt: latestFeedUpdate(payload?.editions ?? []) };
         }));
-      } catch (cause) { if (active && version === request) { setError(toUiError(cause)); setLoading(false); } }
+      } catch (cause) { if (active && version === request) { setExploreError(toUiError(cause)); setLoading(false); } }
     }
     const changed = () => { void load(); };
     void load();
@@ -137,13 +140,17 @@ export function AppExperience(props: {
         <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
       </div>
       <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")}>
+        {exploreError && <div role="alert">
+          <p className="error">{t(exploreError)}</p>
+          <button type="button" className="feed-state-retry" onClick={() => window.dispatchEvent(new Event(EXPLORE_CHANGED_EVENT))}>{t("Try Again")}</button>
+        </div>}
 
-        {loading ? null : visibleFeeds.length ? <AdaptiveFeedGrid count={visibleFeeds.length} className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card" key={feed.id}>
+        {visibleFeeds.length ? <AdaptiveFeedGrid count={visibleFeeds.length} className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card" key={feed.id}>
           <a href={feedUrl(feed)}><FeedArt feed={props.briefings.find(owned => owned.id === feed.id) ?? feed}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span>{feed.paused && <span className="feed-card-status paused">{t("Paused")}</span>}</a>
           <FeedCardActions feed={feed} owner={props.account?.username === feed.ownerUsername} onError={setError} hideStar latestUpdatedAt={feed.latestUpdatedAt}>
             <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${t(feed.viewerHasStarred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(toUiError(cause)); } finally { setStarBusy(null); } }}><Star size={16}/><span className="feed-star-count">{feed.stars}</span></button>
           </FeedCardActions>
-        </article>)}</AdaptiveFeedGrid> : query.trim() ? <p className="empty-copy" role="status">{t("No feeds match your search.")}</p> : null}
+        </article>)}</AdaptiveFeedGrid> : !loading && !exploreError && query.trim() ? <p className="empty-copy" role="status">{t("No feeds match your search.")}</p> : null}
       </section>
     </section>
     {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label settings-account-label">{t("Account")}</p><div className="settings-group settings-account-group">{setting(<User/>, "Profile", props.onAccount)}<button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Notifications")} aria-checked={notificationEnabled ?? false} disabled={notificationBusy || notificationEnabled === undefined} onClick={() => void toggleNotifications()}><Bell/><span>{t("Notifications")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div>{notificationError && <p className="error" role="alert">{t(notificationError)}</p>}<p className="settings-group-label settings-preferences-label">{t("Preferences")}</p><div className="settings-group settings-preferences-group"><div className="setting-row setting-language" role="group" aria-label={t("Language")}><Globe/><span>{t("Language")}</span><span className="language-segments">{(["en", "fr", "ar"] as const).map(code => <button key={code} type="button" lang={code} aria-pressed={language === code} onClick={() => setWebsiteLanguage(code)} aria-label={languageNames[code]}><span className="language-name">{languageNames[code]}</span><span className="language-code" aria-hidden="true">{code.toUpperCase()}</span></button>)}</span></div><button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Dark mode")} aria-checked={theme === "dark"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><Moon/><span>{t("Dark mode")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div><p className="settings-group-label settings-app-label">{t("App")}</p><div className="settings-group settings-app-group">{setting(<Smartphone/>, "Install app", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
