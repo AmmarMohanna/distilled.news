@@ -12,6 +12,8 @@ import {readV1QueueAudit} from './v1-queue-dispatch';
 import {readScheduleAudit} from './v1-intelligence/schedule-audit';
 import {sourceRecommendations,verifiedSourceRecommendations,type SourceDiscoveryDiagnostic} from './source-recommendations';
 import {searchSourceCandidates} from './source-search';
+import {sourceSearchCacheQuery} from './source-search-topic';
+import {sourceQuerySuggestions} from './source-query-suggestions';
 import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
 import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
 import {assessSource,assessSources} from './source-assessment';
@@ -716,6 +718,17 @@ export function createApp(options: AppOptions = {}) {
     const {sourceExecutionStatus}=await import('./source-execution-status');
     return c.json(await sourceExecutionStatus(c.env));
   });
+  app.post('/api/admin/general-web-search-probe',async c=>{
+    const input=z.union([
+      z.object({probeId:z.enum(['general-web-search-2026-11-13-v1','general-web-search-2026-11-13-retry1']),authorizedMaxUsd:z.literal(0.10)}).strict(),
+      z.object({probeId:z.literal('general-web-search-2026-11-13-retry2'),authorizedMaxUsd:z.literal(0.50)}).strict()
+    ]).safeParse(await c.req.json());
+    if(!input.success)return c.json({error:'invalid bounded probe'},400);
+    const {runGeneralWebSearchProbe}=await import('./general-web-search-probe');
+    try{return c.json(await runGeneralWebSearchProbe(c.env,fetcher,input.data.probeId==='general-web-search-2026-11-13-retry2'?'minimum-budget':input.data.probeId==='general-web-search-2026-11-13-retry1'));}
+    catch{return c.json({error:'Probe unavailable or fenced. Do not start a replacement paid operation.'},503);}
+  });
+
   // Account identity is derived from the session, never from caller-owned tenant fields.
   app.post("/api/me/acquisitions", async (c) => {
     if (!c.env.WEB_OPERATOR_RUNTIME_TOKEN) return c.json({error:"acquisition_unconfigured"},503);
@@ -936,15 +949,27 @@ export function createApp(options: AppOptions = {}) {
     return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
   });
 
-  app.get('/api/me/sources/search',async c=>{
-    const input=z.object({q:z.string().trim().min(2).max(200)}).safeParse({q:c.req.query('q')});
+  app.get('/api/me/sources/suggestions',async c=>{
+    const input=z.object({q:z.string().trim().min(2).max(200),language:z.enum(['en','fr','ar']).default('en')}).safeParse({q:c.req.query('q'),language:c.req.query('language')});
+    c.header('Cache-Control','no-store');
+    if(!input.success)return c.json({error:'Enter between 2 and 200 characters.'},400);
+    let cache:Cache|undefined;try{if(typeof caches!=='undefined')cache=await caches.open('source-query-suggestions-v1');}catch{}
+    try{return c.json(await sourceQuerySuggestions(input.data.q,input.data.language,c.get('account')!.id,fetcher,cache,()=>assertRateLimit(c.get('repo'),'source-suggestions:'+c.get('account')!.id,'source_suggestions',120,60_000)));}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','60');return c.json({suggestions:[],unavailable:true},429);}
+  });
+
+  app.on(['GET','POST'],'/api/me/sources/search',async c=>{
+    const data=c.req.method==='POST'?await c.req.json().catch(()=>null):{q:c.req.query('q'),title:c.req.query('title'),description:c.req.query('description')};
+    const input=z.object({q:z.string().trim().min(2).max(200),title:z.string().trim().min(1).max(120).optional(),description:z.string().trim().min(1).max(4000).optional()}).strict().refine(value=>Boolean(value.title)===Boolean(value.description)).safeParse(data);
     if(!input.success)return c.json({error:'Enter between 2 and 200 characters to search sources.'},400);
     c.header('Cache-Control','no-store');
     try{await assertRateLimit(c.get('repo'),'source-search:'+c.get('account')!.id,'source_search',30,5*60*1000);}
     catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','300');return c.json({error:'Too many source searches. Please try again shortly.'},429);}
     let searchCache:Cache|undefined,accessCache:Cache|undefined;
     try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
-    return c.json(await cachedSourceSearch(c.get('account')!.id,input.data.q,new URL(c.req.url).origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
+    const owner=c.get('account')!.id,origin=new URL(c.req.url).origin;
+    const context=input.data.title&&input.data.description?{title:input.data.title,description:input.data.description}:undefined;
+    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
   });
 
   app.post("/api/me/sources/assess", async c => {
@@ -957,7 +982,7 @@ export function createApp(options: AppOptions = {}) {
     let publisherEvidence:TopicPublisherEvidence[]|undefined;
     if(input.searchQuery)try{
       const cache=typeof caches==='undefined'?undefined:await caches.open('source-search-v2-free-only');
-      const saved=await readSourceSearchCache(owner,input.searchQuery,new URL(c.req.url).origin,cache);
+      const saved=await readSourceSearchCache(owner,sourceSearchCacheQuery(input.searchQuery,{title:input.title,description:input.description}),new URL(c.req.url).origin,cache);
       const origin=new URL(prepareProductSourceInput(input.source).sourceUrl!).origin;
       const hints=(saved?.results??[]).filter(row=>row.articleUrl&&new URL(prepareProductSourceInput(row.source).sourceUrl!).origin===origin&&new URL(row.articleUrl).hostname==='news.google.com').map(row=>({publisherOrigin:origin,title:row.title,url:row.articleUrl!,excerpt:row.excerpt??''}));
       if(hints.length)publisherEvidence=hints;

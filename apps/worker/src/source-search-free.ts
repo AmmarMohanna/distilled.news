@@ -32,5 +32,5 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
   let pending=checks.get(result.source);if(!pending){pending=check(result.source).catch(()=>{incomplete=true;return false;});checks.set(result.source,pending);}
   return {result,readable:await pending};
  }));
- return {results:tested.filter(value=>value.readable).map(value=>value.result).slice(0,12),accessIncomplete:incomplete};
+ return {results:tested.filter(value=>value.readable).map(value=>value.result).slice(0,30),accessIncomplete:incomplete};
 }

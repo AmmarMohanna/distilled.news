@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {expect,it,vi} from 'vitest';
 import {BriefingText} from './BriefingText';
 
-async function render(summary:string,sections:Array<{title:string;summary:string}>,direction:'ltr'|'rtl',check:(host:HTMLDivElement)=>void,fallback:{fallbackHeadline?:string;fallbackSummary?:string}={}){
+async function render(summary:string,sections:Array<{title:string;summary:string}>,direction:'ltr'|'rtl',check:(host:HTMLDivElement)=>void,fallback:{fallbackHeadline?:string;fallbackSummary?:string;hideBody?:boolean}={}){
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
   const host=document.createElement('div'),root=createRoot(host);
   try{await act(async()=>root.render(<BriefingText summary={summary} sections={sections} direction={direction}
@@ -18,6 +18,18 @@ it('renders the explicit headline above the body rather than flattening them tog
     expect(host.querySelector('p')?.textContent).toBe('The source reports Brent at $116. [1]');
     expect(host.querySelector('h3')?.nextElementSibling?.tagName).toBe('P');
   });
+});
+
+it('can show only the retained headlines without adding expansion controls or changing source text',async()=>{
+ const sections=[{title:'',summary:'First headline\nFirst explanation.'},{title:'',summary:'Second headline\nSecond explanation.'}];
+ await render(sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,'ltr',host=>{
+  expect([...host.querySelectorAll('h3')].map(h=>h.textContent)).toEqual(['First headline','Second headline']);
+  expect(host.querySelector('p,details,button')).toBeNull();expect(host.textContent).not.toContain('explanation');
+ },{hideBody:true});
+ expect(sections[0].summary).toBe('First headline\nFirst explanation.');
+ await render('Legacy headline\nLegacy explanation.',[],'rtl',host=>{
+  expect(host.querySelector('h3')?.textContent).toBe('Legacy headline');expect(host.querySelector('h3')?.getAttribute('dir')).toBe('rtl');expect(host.querySelector('p')).toBeNull();
+ },{hideBody:true,fallbackHeadline:'Legacy headline',fallbackSummary:'Legacy explanation.'});
 });
 
 it('keeps multiple story bodies and section-reference numbers together',async()=>{

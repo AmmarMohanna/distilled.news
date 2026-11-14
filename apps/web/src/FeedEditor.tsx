@@ -7,16 +7,19 @@ import { FEED_TITLE_MAX_LENGTH } from "@distilled/core";
 import { preferredLanguage, useLanguage } from "./LanguageControl";
 import { Dialog } from "./Dialog";
 import { useConfirmation } from "./useConfirmation";
-import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceCandidates, type SourceSearchResult, type SourceAssessment } from "./api";
+import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceCandidates, getSourceQuerySuggestions, type SourceSearchResult, type SourceAssessment } from "./api";
 import { VoiceInput } from "./VoiceInput";
 import {FeedLanguageSelect, FeedSettingsSelect} from './FeedLanguageSelect';
 import { SourceLogo } from "./SourceLogo";
+import {sourcePublisherKey} from './source-publisher-key';
+import {sourceSearchSuggestions} from './source-search-suggestions';
 
 export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
 export function FeedEditor(props: {
   feed?: BriefingConfig; onClose: () => void; onSave: (input: FeedInput) => Promise<void>;
   onPause?: () => Promise<void>; onCopy?: () => Promise<void>; onDelete?: () => Promise<void>;
 }) {
+  const {t,language:interfaceLanguage}=useLanguage();
   const [id] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
   const editing = Boolean(props.feed);
   const [sourcesReady, setSourcesReady] = useState(!props.feed);
@@ -36,33 +39,58 @@ export function FeedEditor(props: {
   const [timezone] = useState(() => props.feed?.briefingTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [sources, setSources] = useState<string[]>([]);
   const [sourceQuery, setSourceQuery] = useState("");
+  const [submittedSearch,setSubmittedSearch]=useState<{query:string;context:string}|null>(null);
+  const [suggestionsOpen,setSuggestionsOpen]=useState(false);
+  const [suggestionIndex,setSuggestionIndex]=useState(-1);
+  const [liveSuggestions,setLiveSuggestions]=useState<{query:string;language:string;values:string[]}|null>(null);
+  const suggestionCache=useRef(new Map<string,string[]>());
   const [searchResults, setSearchResults] = useState<SourceSearchResult[]>([]);
+  const addedPublishers=new Set(sources.map(sourcePublisherKey));
+  const visibleSearchResults=searchResults.filter(result=>!addedPublishers.has(sourcePublisherKey(result.source)));
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
-  const searchCache=useRef(new Map<string,{at:number;result:Awaited<ReturnType<typeof searchSourceCandidates>>}>());
+  const searchFeedback=searchStatus||(!searching&&searchResults.length>0&&visibleSearchResults.length===0?'All matching sources are already added to this feed.':'');
+  const searchCache=useRef(new Map<string,{at:number;query:string;result:Awaited<ReturnType<typeof searchSourceCandidates>>}>());
   const sourceQueryRef = useRef(sourceQuery);
   sourceQueryRef.current = sourceQuery;
   const directSource=/^(?:https?:\/\/|(?:rss|news|x|telegram|linkedin)\s*:|(?:[\w-]+\.)+[a-z]{2,}(?:\/|$))/i.test(sourceQuery.trim());
+  const querySuggestions=directSource?[]:liveSuggestions?.query===sourceQuery.trim()&&liveSuggestions.language===interfaceLanguage?liveSuggestions.values:sourceSearchSuggestions(sourceQuery);
+  useEffect(()=>{
+    const query=sourceQuery.trim();
+    if(!suggestionsOpen||directSource||query.length<2||query.length>200)return;
+    const key=JSON.stringify([interfaceLanguage,query.toLocaleLowerCase()]),saved=suggestionCache.current.get(key);
+    if(saved){setLiveSuggestions({query,language:interfaceLanguage,values:saved});return;}
+    const controller=new AbortController();
+    const timer=window.setTimeout(()=>{
+      void getSourceQuerySuggestions(query,interfaceLanguage,controller.signal).then(result=>{
+        if(controller.signal.aborted)return;
+        if(!result.unavailable){if(suggestionCache.current.size>=40)suggestionCache.current.delete(suggestionCache.current.keys().next().value!);suggestionCache.current.set(key,result.suggestions);setLiveSuggestions({query,language:interfaceLanguage,values:result.suggestions});setSuggestionIndex(-1);}
+      }).catch(()=>{});
+    },150);
+    return ()=>{window.clearTimeout(timer);controller.abort();};
+  },[sourceQuery,directSource,suggestionsOpen,interfaceLanguage]);
+  const queryContext=JSON.stringify([title.trim(),prompt.trim()]);
+  const submitSourceSearch=(query=sourceQuery.trim())=>{if(query.length<2||query.length>200)return;if(!title.trim()||!prompt.trim()){setMessage('Enter a feed name and interests before checking a source.');return;}setSourceQuery(query);setSuggestionsOpen(false);setSuggestionIndex(-1);setSubmittedSearch({query,context:queryContext});};
   useEffect(()=>{
     const query=sourceQuery.trim();
     setSearchResults([]);setSearchStatus("");setSearching(false);
-    if(query.length<2||query.length>200||directSource)return;
-    const cached=searchCache.current.get(query);
-    if(cached&&Date.now()-cached.at<60_000){setSearchResults(cached.result.results.filter(row=>!row.blocked));return;}
+    if(query.length<2||query.length>200||directSource||submittedSearch?.query!==query||submittedSearch.context!==queryContext)return;
+    const cacheKey=JSON.stringify([query,queryContext]);
+    const status=(result:Awaited<ReturnType<typeof searchSourceCandidates>>)=>result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.topicMismatch?'The results were off topic for this feed, so they were not shown. Try another search.':result.results.length?'':result.accessIncomplete?'No freely accessible sources found. Try another name or a public feed URL.':'No sources matched your search and this feed’s topic. Try a related search.';
+    const cached=searchCache.current.get(cacheKey);
+    if(cached&&Date.now()-cached.at<(cached.result.accessIncomplete?15_000:60_000)){setSearchResults(cached.result.results.filter(row=>!row.blocked));setSearchStatus(status(cached.result));return;}
     const controller=new AbortController();
     setSearching(true);
-    const timer=window.setTimeout(()=>{
-      void searchSourceCandidates(query,controller.signal).then(result=>{
+      void searchSourceCandidates(query,controller.signal,{title:title.trim(),description:prompt.trim()}).then(result=>{
         if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
-        if(!result.unavailable&&!result.accessIncomplete){if(searchCache.current.size>=20)searchCache.current.delete(searchCache.current.keys().next().value!);searchCache.current.set(query,{at:Date.now(),result});}
+        if(!result.unavailable&&(!result.accessIncomplete||result.results.length>0)){if(searchCache.current.size>=20)searchCache.current.delete(searchCache.current.keys().next().value!);searchCache.current.set(cacheKey,{at:Date.now(),query,result});}
         setSearchResults(result.results.filter(row=>!row.blocked));
-        setSearchStatus(result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.results.length?'':'No freely accessible sources found. Try another name or a public feed URL.');
+        setSearchStatus(status(result));
       }).catch(()=>{
         if(!controller.signal.aborted)setSearchStatus('Web search is unavailable right now. You can still paste a source URL.');
       }).finally(()=>{if(!controller.signal.aborted)setSearching(false);});
-    },300);
-    return ()=>{window.clearTimeout(timer);controller.abort();};
-  },[sourceQuery,directSource]);
+    return ()=>{controller.abort();};
+  },[sourceQuery,directSource,submittedSearch,queryContext]);
   const [sourceChecks, setSourceChecks] = useState<SourceAssessment[]>([]);
   const [checkingSource, setCheckingSource] = useState(false);
   const [checkingSourceInput, setCheckingSourceInput] = useState("");
@@ -77,7 +105,6 @@ export function FeedEditor(props: {
   const [busy, setBusy] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [message, setMessage] = useState<UiMessage>("");
-  const { t } = useLanguage();
   const { confirm, confirmation } = useConfirmation();
   async function findSources() {
     setRecommending(true); setMessage("");
@@ -112,8 +139,9 @@ export function FeedEditor(props: {
       const check=options?await assessSourceInput(title.trim(),prompt.trim(),source,options):await assessSourceInput(title.trim(),prompt.trim(),source);
       if(context!==sourceContext.current)return false;
       setSourceChecks(current=>[...current.filter(item=>item.input!==source),check]);
-      if(check.freeAccessUnavailable){
+      if(check.freeAccessUnavailable||check.status==='rejected'){
         setSearchResults(current=>current.filter(row=>row.source!==source));
+        setRecommendations(current=>current.filter(item=>item!==source));
         for(const saved of searchCache.current.values())saved.result.results=saved.result.results.filter(row=>row.source!==source);
       }
       if(check.status!=='accepted') { setMessage(check.reason); return false; }
@@ -121,7 +149,7 @@ export function FeedEditor(props: {
     } catch(cause) { setMessage(toUiError(cause)); return false; }
     finally { setCheckingSource(false);setCheckingSourceInput(""); }
   }
-  const matchingSources = recommendations.filter(source => !sources.includes(source) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
+  const matchingSources = recommendations.filter(source => !addedPublishers.has(sourcePublisherKey(source)) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(toUiError(cause)); } finally { setBusy(false); } }
   return <Dialog className="feed-editor" label={t(editing ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
 
@@ -142,11 +170,16 @@ export function FeedEditor(props: {
         <label>{t("What would you like to follow?")}<span className="voice-field"><textarea aria-label={t("What would you like to follow?")} placeholder={t("e.g. topics, keywords...")} required rows={2} value={prompt} onChange={event => setPrompt(event.target.value)}/><VoiceInput language={feedLanguage} onText={setPrompt}/></span></label>
         <div className="source-picker">
           <label htmlFor="feed-source-search">{t("Sources")}</label>
-          <div className="source-search-field"><Search size={21}/><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} maxLength={500} aria-describedby="feed-source-search-help feed-source-search-status" placeholder={t("Search sources or paste a URL")} onChange={event => setSourceQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); if (sourceQuery.trim()&&directSource) { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery("");}); } } }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => setSourceQuery("")}><X size={18}/></button>}</div>
-          <small id="feed-source-search-help">{t("Search by publisher or article title. Select a result to follow its publisher.")}</small>
-          <small id="feed-source-search-status" role="status" hidden={!searching&&!searchStatus}>{t(searching?'Searching sources...':searchStatus)}</small>
+          <div className="source-search-field"><button type="button" className="source-search-submit" aria-label={t("Search sources")} title={t("Search sources")} disabled={directSource||searching||sourceQuery.trim().length<2||sourceQuery.trim().length>200} onClick={()=>submitSourceSearch()}><Search size={21} aria-hidden/></button><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} maxLength={500} role="combobox" aria-autocomplete="list" aria-expanded={suggestionsOpen&&querySuggestions.length>0} aria-controls="source-query-suggestions" aria-activedescendant={suggestionsOpen&&suggestionIndex>=0?`source-query-option-${suggestionIndex}`:undefined} aria-describedby="feed-source-search-help feed-source-search-status" placeholder={t("Search sources or paste a URL")} onChange={event => {setSourceQuery(event.target.value);setSubmittedSearch(null);setSuggestionsOpen(true);setSuggestionIndex(-1);}} onKeyDown={event => {
+            if((event.key==='ArrowDown'||event.key==='ArrowUp')&&querySuggestions.length){event.preventDefault();setSuggestionsOpen(true);setSuggestionIndex(index=>index<0?(event.key==='ArrowDown'?0:querySuggestions.length-1):(index+(event.key==='ArrowDown'?1:-1)+querySuggestions.length)%querySuggestions.length);}
+            if(event.key==='Escape'){setSuggestionsOpen(false);setSuggestionIndex(-1);}
+            if(event.key==='Enter'){event.preventDefault();if(sourceQuery.trim()&&directSource){void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery('');});}else submitSourceSearch(suggestionsOpen&&suggestionIndex>=0?querySuggestions[suggestionIndex]:sourceQuery.trim());}
+          }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => {setSourceQuery('');setSubmittedSearch(null);setSuggestionsOpen(false);}}><X size={18}/></button>}</div>
+          {suggestionsOpen&&querySuggestions.length>0&&<div className="source-query-suggestions" id="source-query-suggestions" role="listbox" aria-label={t('Suggested searches')}>{querySuggestions.map((query,index)=><button type="button" role="option" id={`source-query-option-${index}`} aria-selected={suggestionIndex===index} key={query} onMouseDown={event=>event.preventDefault()} onClick={()=>submitSourceSearch(query)}><Search size={16} aria-hidden/><span>{query}</span></button>)}</div>}
+          <small id="feed-source-search-help">{t("Search by publisher, person or article title. Select a result to follow its source.")}</small>
+          <p id="feed-source-search-status" className={searchFeedback&&!searching?'source-search-feedback':undefined} role="status" hidden={!searching&&!searchFeedback}>{t(searching?'Searching sources...':searchFeedback)}</p>
           {checkingSource&&<small role="status">{t("Checking {source}...",{source:checkingSourceInput})}</small>}
-          {searchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{searchResults.map((result,index)=>{
+          {visibleSearchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{visibleSearchResults.map((result,index)=>{
             const check=sourceChecks.find(check=>check.input===result.source);
             const selected=sources.includes(result.source);
             return <div className="source-web-result-row" key={`${result.source}:${index}`}>
