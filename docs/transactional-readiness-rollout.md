@@ -28,7 +28,7 @@ Migrations `0089_transactional_window_readiness.sql` and `0090_verified_edition_
 | `WINDOW_READINESS_MODE=relay` | Delivers due, current-generation events through the configured acquisition queue. Transport acceptance and consumption are separately leased. The existing relay handles replay. |
 | `WINDOW_READINESS_FEED_IDS` | Restricts enrollment and relay to a comma-separated cohort. Use explicit feed IDs for the initial comparison. |
 | `EDITION_ARTIFACTS_ENABLED=true` | Stages and verifies private R2 edition projections. The canonical D1 commit attaches the reference, latest pointer, publication status and delivery job. Legacy editions and unavailable artifacts still read through D1. |
-| `VERIFIED_ARCHIVE_ENABLED=true` | Uses indexed pages of eligible unpaid diagnostics and manifest verification. Cleanup checks exact references before deleting an abandoned object. |
+| `VERIFIED_ARCHIVE_ENABLED=true` | With `STORAGE_MAINTENANCE_ENABLED=true`, uses indexed pages of eligible unpaid diagnostics and manifest verification. Cleanup checks exact references before deleting an abandoned object. |
 
 The projection seeds once per eligible window and retains up to two current windows per feed. Repeat reads depend on the window row and currently unresolved capacity waits. Seeding and final canonical coverage can still examine retained jobs. Review writes gain work while a window is enrolled. An expired window stops receiving job updates. [D1 transaction semantics](https://developers.cloudflare.com/d1/worker-api/d1-database/) [Queues delivery guarantees](https://developers.cloudflare.com/queues/reference/delivery-guarantees/)
 

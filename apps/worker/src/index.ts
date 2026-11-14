@@ -329,18 +329,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 async function runProjectionMaintenance(env:Env):Promise<void> {
   try {await sweepWindowReadiness(env)} catch {console.warn('Could not recover window readiness delivery')}
-  if(env.VERIFIED_ARCHIVE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
-  catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   if(env.EDITION_ARTIFACTS_ENABLED==='true'||env.VERIFIED_ARCHIVE_ENABLED==='true')
     try{await sweepVerifiedArchiveOrphans(env)}catch{console.warn('Could not recover verified archive cleanup')}
 }
 
 export async function runScheduledMaintenance(env: Env): Promise<void> {
-  // Retain the existing capacity-recovery path where verified maintenance is off.
-  await runModelPublicationMaintenance(env);
-  if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED!=='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
+  if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
   catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   env = await productRuntimeEnv(env);
+  await runModelPublicationMaintenance(env);
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}
   try {await dispatchDueFeedSketches(env)} catch {console.warn('Could not recover feed illustration jobs')}
   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
