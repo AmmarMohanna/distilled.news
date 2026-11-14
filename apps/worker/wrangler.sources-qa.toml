@@ -8,6 +8,12 @@ preview_urls = false
 routes = []
 
 [vars]
+BRIEFING_ENGINE = "v3"
+V1_MODEL_UNCERTAIN_EXECUTION_POLICY = "isolate-after-5m-v1"
+V1_PROVIDER_MAX_CONCURRENCY = "6"
+V1_PROVIDER_REQUESTS_PER_MINUTE = "60"
+SOURCE_ASSESSMENT_SHARED_MODEL_CAPACITY_ENABLED = "true"
+SOURCE_ASSESSMENT_MODEL = "openai/gpt-4.1-mini"
 STAGING_ASSETS_PREFIX = "staging-assets/905fe696899a08e0e9a0521efed549416f3f3fe7/"
 PUBLIC_API_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
 PUBLIC_WEB_BASE_URL = "https://distilled-news-sources-qa.distillednews-platform.workers.dev"
