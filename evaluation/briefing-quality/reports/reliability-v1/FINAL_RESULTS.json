@@ -1,0 +1,4915 @@
+{
+  "status": "executed_with_reported_missingness",
+  "freeze": {
+    "frozenAt": "2026-11-14T21:40:40.287Z",
+    "protocolSha256": "058c587625e0406d181b9f702961ab6dd63935828f2c7dd0c4c3abdb5f1a3cb4",
+    "baseRevision": "c41d33b04d24b72efa7c7edf7ede0c9ad721f38f",
+    "authorization": "User explicitly requested executing available real model experiments on this research branch; no deployment or production changes."
+  },
+  "synthetic": {
+    "models": {
+      "anthropic--claude-sonnet-4.5": {
+        "planned": 42,
+        "attempted": 42,
+        "completed": 37,
+        "failedReports": [
+          {
+            "id": "2bfcf2b8f5516569cfc215fe",
+            "category": "coverage",
+            "language": "en",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 36476
+          },
+          {
+            "id": "74a96be31203effe18619527",
+            "category": "factual",
+            "language": "fr",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 27460
+          },
+          {
+            "id": "84306197174ddf966c9f9abd",
+            "category": "coverage",
+            "language": "fr",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 21291
+          },
+          {
+            "id": "99f3f015890dcbe563909c06",
+            "category": "coverage",
+            "language": "ar",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 22903
+          }
+        ],
+        "incompleteWithoutReport": [
+          "abd6ebe4d587cf7a0ed668f8"
+        ],
+        "notAttempted": [],
+        "knownCorrectControls": 21,
+        "falseAlertControls": 1,
+        "injectedFaultsCompleted": 16,
+        "targetFaultsDetected": 13,
+        "missed": [
+          {
+            "id": "44e9ffb48742cc0db6199afb",
+            "category": "temporal",
+            "language": "en",
+            "predicted": {
+              "factual": true,
+              "citation": true,
+              "coverage": false,
+              "relevance": false,
+              "repetition": false,
+              "temporal": false,
+              "language": false
+            },
+            "alert": true
+          },
+          {
+            "id": "aa25f764aebf2e5615036ce8",
+            "category": "temporal",
+            "language": "fr",
+            "predicted": {
+              "factual": true,
+              "citation": true,
+              "coverage": false,
+              "relevance": false,
+              "repetition": false,
+              "temporal": false,
+              "language": false
+            },
+            "alert": true
+          },
+          {
+            "id": "c54aa8bb07ec864ec745cd0b",
+            "category": "temporal",
+            "language": "ar",
+            "predicted": {
+              "factual": true,
+              "citation": true,
+              "coverage": false,
+              "relevance": false,
+              "repetition": false,
+              "temporal": false,
+              "language": false
+            },
+            "alert": true
+          }
+        ],
+        "targetRecallCompleted": 0.8125,
+        "targetRecallFailureAdjustedLower": 0.6190476190476191,
+        "targetRecallFailureAdjustedUpper": 0.8571428571428571,
+        "byCategory": {
+          "factual": {
+            "TP": 2,
+            "FP": 1,
+            "TN": 20,
+            "FN": 0,
+            "precision": 0.6666666666666666,
+            "recall": 1.0,
+            "f1": 0.8,
+            "falsePositiveRate": 0.047619047619047616,
+            "falseNegativeRate": 0.0
+          },
+          "citation": {
+            "TP": 2,
+            "FP": 1,
+            "TN": 20,
+            "FN": 0,
+            "precision": 0.6666666666666666,
+            "recall": 1.0,
+            "f1": 0.8,
+            "falsePositiveRate": 0.047619047619047616,
+            "falseNegativeRate": 0.0
+          },
+          "coverage": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 21,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "relevance": {
+            "TP": 3,
+            "FP": 0,
+            "TN": 21,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "repetition": {
+            "TP": 3,
+            "FP": 0,
+            "TN": 21,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "temporal": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 21,
+            "FN": 3,
+            "precision": null,
+            "recall": 0.0,
+            "f1": 0.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 1.0
+          },
+          "language": {
+            "TP": 3,
+            "FP": 0,
+            "TN": 21,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          }
+        },
+        "byLanguage": {
+          "en": {
+            "completed": 12,
+            "categories": {
+              "factual": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 1,
+                "precision": null,
+                "recall": 0.0,
+                "f1": 0.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 1.0
+              },
+              "language": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              }
+            }
+          },
+          "ar": {
+            "completed": 13,
+            "categories": {
+              "factual": {
+                "TP": 1,
+                "FP": 1,
+                "TN": 6,
+                "FN": 0,
+                "precision": 0.5,
+                "recall": 1.0,
+                "f1": 0.6666666666666666,
+                "falsePositiveRate": 0.14285714285714285,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 1,
+                "FP": 1,
+                "TN": 6,
+                "FN": 0,
+                "precision": 0.5,
+                "recall": 1.0,
+                "f1": 0.6666666666666666,
+                "falsePositiveRate": 0.14285714285714285,
+                "falseNegativeRate": 0.0
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 1,
+                "precision": null,
+                "recall": 0.0,
+                "f1": 0.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 1.0
+              },
+              "language": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              }
+            }
+          },
+          "fr": {
+            "completed": 12,
+            "categories": {
+              "factual": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "citation": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 1,
+                "precision": null,
+                "recall": 0.0,
+                "f1": 0.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 1.0
+              },
+              "language": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              }
+            }
+          }
+        },
+        "calls": 126,
+        "callStates": {
+          "SETTLED": 125,
+          "RESERVED": 1
+        },
+        "costUsd": 1.09135,
+        "unresolvedReservationUsd": 0.126543,
+        "ledgerErrors": [],
+        "latencyCompletedMs": {
+          "n": 37,
+          "p50": 21833.0,
+          "p95": 35483.59999999998
+        },
+        "errorsDetected": {
+          "repetition": 3,
+          "language": 3,
+          "citation": 2,
+          "factual": 2,
+          "relevance": 3
+        },
+        "anyFaultDetection": {
+          "TP": 16,
+          "FP": 1,
+          "TN": 20,
+          "FN": 0,
+          "precision": 0.9411764705882353,
+          "recall": 1.0,
+          "f1": 0.9696969696969697
+        },
+        "uncertainAssessments": {
+          "claims": 0,
+          "coverage": 0,
+          "items": 1
+        },
+        "attemptedTargetFailuresByCategory": {
+          "coverage": 3,
+          "factual": 1,
+          "citation": 1
+        },
+        "unavailableCorrectControls": 0
+      },
+      "openai--gpt-4.1": {
+        "planned": 42,
+        "attempted": 42,
+        "completed": 37,
+        "failedReports": [
+          {
+            "id": "06beeaee5eba909949908e6d",
+            "category": null,
+            "language": "ar",
+            "phase": "inventory_grounding_v1",
+            "error": "Error: database or disk is full",
+            "latencyMs": 16575
+          },
+          {
+            "id": "0d700743cc41b0019ddd4eab",
+            "category": "repetition",
+            "language": "ar",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 18098
+          },
+          {
+            "id": "2bfcf2b8f5516569cfc215fe",
+            "category": "coverage",
+            "language": "en",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 12031
+          },
+          {
+            "id": "84306197174ddf966c9f9abd",
+            "category": "coverage",
+            "language": "fr",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 23321
+          },
+          {
+            "id": "99f3f015890dcbe563909c06",
+            "category": "coverage",
+            "language": "ar",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 6517
+          }
+        ],
+        "incompleteWithoutReport": [],
+        "notAttempted": [],
+        "knownCorrectControls": 20,
+        "falseAlertControls": 0,
+        "injectedFaultsCompleted": 17,
+        "targetFaultsDetected": 14,
+        "missed": [
+          {
+            "id": "1c5fd870604a84fefd53d9ee",
+            "category": "language",
+            "language": "en",
+            "predicted": {
+              "factual": false,
+              "citation": false,
+              "coverage": false,
+              "relevance": false,
+              "repetition": false,
+              "temporal": false,
+              "language": false
+            },
+            "alert": false
+          },
+          {
+            "id": "3b50f6c71d289dcdb130af6f",
+            "category": "language",
+            "language": "ar",
+            "predicted": {
+              "factual": false,
+              "citation": false,
+              "coverage": false,
+              "relevance": false,
+              "repetition": false,
+              "temporal": false,
+              "language": false
+            },
+            "alert": false
+          },
+          {
+            "id": "4c74987b0446540882d73698",
+            "category": "language",
+            "language": "fr",
+            "predicted": {
+              "factual": false,
+              "citation": false,
+              "coverage": false,
+              "relevance": false,
+              "repetition": false,
+              "temporal": false,
+              "language": false
+            },
+            "alert": false
+          }
+        ],
+        "targetRecallCompleted": 0.8235294117647058,
+        "targetRecallFailureAdjustedLower": 0.6666666666666666,
+        "targetRecallFailureAdjustedUpper": 0.8571428571428571,
+        "byCategory": {
+          "factual": {
+            "TP": 3,
+            "FP": 0,
+            "TN": 20,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "citation": {
+            "TP": 3,
+            "FP": 0,
+            "TN": 20,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "coverage": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 20,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "relevance": {
+            "TP": 3,
+            "FP": 0,
+            "TN": 20,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "repetition": {
+            "TP": 2,
+            "FP": 0,
+            "TN": 20,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "temporal": {
+            "TP": 3,
+            "FP": 0,
+            "TN": 20,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "language": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 20,
+            "FN": 3,
+            "precision": null,
+            "recall": 0.0,
+            "f1": 0.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 1.0
+          }
+        },
+        "byLanguage": {
+          "en": {
+            "completed": 13,
+            "categories": {
+              "factual": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "temporal": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 1,
+                "precision": null,
+                "recall": 0.0,
+                "f1": 0.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 1.0
+              }
+            }
+          },
+          "ar": {
+            "completed": 11,
+            "categories": {
+              "factual": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 6,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 6,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 6,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 6,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 6,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 6,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 6,
+                "FN": 1,
+                "precision": null,
+                "recall": 0.0,
+                "f1": 0.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 1.0
+              }
+            }
+          },
+          "fr": {
+            "completed": 13,
+            "categories": {
+              "factual": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "temporal": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 1,
+                "precision": null,
+                "recall": 0.0,
+                "f1": 0.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 1.0
+              }
+            }
+          }
+        },
+        "calls": 125,
+        "callStates": {
+          "SETTLED": 124,
+          "RESERVED": 1
+        },
+        "costUsd": 0.37162,
+        "unresolvedReservationUsd": 0.059956,
+        "ledgerErrors": [],
+        "latencyCompletedMs": {
+          "n": 37,
+          "p50": 10153.0,
+          "p95": 31898.399999999947
+        },
+        "errorsDetected": {
+          "citation": 3,
+          "temporal": 3,
+          "factual": 3,
+          "repetition": 2,
+          "relevance": 3
+        },
+        "anyFaultDetection": {
+          "TP": 14,
+          "FP": 0,
+          "TN": 20,
+          "FN": 3,
+          "precision": 1.0,
+          "recall": 0.8235294117647058,
+          "f1": 0.9032258064516129
+        },
+        "uncertainAssessments": {
+          "claims": 0,
+          "coverage": 0,
+          "items": 1
+        },
+        "attemptedTargetFailuresByCategory": {
+          "coverage": 3,
+          "repetition": 1
+        },
+        "unavailableCorrectControls": 1
+      }
+    },
+    "jointlyCompletedCases": 35,
+    "disagreements": [
+      {
+        "id": "1c5fd870604a84fefd53d9ee",
+        "language": "en",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": 1
+        },
+        "eventGroup": "bank",
+        "categories": [
+          "language"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": true
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": false
+        }
+      },
+      {
+        "id": "265f3fb5925ebe0637986d20",
+        "language": "ar",
+        "expected": {
+          "factual": null,
+          "citation": 1,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": null
+        },
+        "eventGroup": "library",
+        "categories": [
+          "factual"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "3b50f6c71d289dcdb130af6f",
+        "language": "ar",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": 1
+        },
+        "eventGroup": "bank",
+        "categories": [
+          "language"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": true
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": false
+        }
+      },
+      {
+        "id": "44e9ffb48742cc0db6199afb",
+        "language": "en",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": 1,
+          "language": null
+        },
+        "eventGroup": "cabinet",
+        "categories": [
+          "coverage",
+          "temporal"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": true,
+            "relevance": false,
+            "repetition": false,
+            "temporal": true,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "4c74987b0446540882d73698",
+        "language": "fr",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": 1
+        },
+        "eventGroup": "bank",
+        "categories": [
+          "language"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": true
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": false
+        }
+      },
+      {
+        "id": "4fd0bc06365cd28a33c832b7",
+        "language": "ar",
+        "expected": {
+          "factual": 0,
+          "citation": 0,
+          "coverage": 0,
+          "relevance": 0,
+          "repetition": 0,
+          "temporal": 0,
+          "language": 0
+        },
+        "eventGroup": "library",
+        "categories": [
+          "factual",
+          "citation"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": false
+        }
+      },
+      {
+        "id": "78bd0ee7ccce025c950bf4f9",
+        "language": "fr",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": 1,
+          "temporal": null,
+          "language": null
+        },
+        "eventGroup": "bridge",
+        "categories": [
+          "relevance"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": true,
+            "relevance": true,
+            "repetition": true,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": true,
+            "relevance": false,
+            "repetition": true,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "7d5d367906771d49dc409c47",
+        "language": "en",
+        "expected": {
+          "factual": 1,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": null
+        },
+        "eventGroup": "clinic",
+        "categories": [
+          "citation"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "aa25f764aebf2e5615036ce8",
+        "language": "fr",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": 1,
+          "language": null
+        },
+        "eventGroup": "cabinet",
+        "categories": [
+          "coverage",
+          "temporal"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": true,
+            "relevance": false,
+            "repetition": false,
+            "temporal": true,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "b55193101728754c4c806b9a",
+        "language": "ar",
+        "expected": {
+          "factual": 1,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": null
+        },
+        "eventGroup": "clinic",
+        "categories": [
+          "citation"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "c54aa8bb07ec864ec745cd0b",
+        "language": "ar",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": 1,
+          "language": null
+        },
+        "eventGroup": "cabinet",
+        "categories": [
+          "temporal"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": true,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "d303113f5513bc2b2fb57a33",
+        "language": "en",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": 1,
+          "repetition": null,
+          "temporal": null,
+          "language": null
+        },
+        "eventGroup": "airport",
+        "categories": [
+          "factual"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": true,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": false,
+            "coverage": false,
+            "relevance": true,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "ff7093c731fe4575f7111d37",
+        "language": "ar",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": 1,
+          "repetition": null,
+          "temporal": null,
+          "language": null
+        },
+        "eventGroup": "airport",
+        "categories": [
+          "factual"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": true,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": false,
+            "coverage": false,
+            "relevance": true,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        }
+      }
+    ],
+    "scoring": "Prespecified target-category mask on faulty cases; all categories negative on correct controls. Completed-only and conservative failure-adjusted detection are separate. Unknown cost holds are NOT settled as zero. Synthetic cases are not real published briefing quality.",
+    "independence": "Seven constructed event groups, with matched translations and mutations. Artificial prevalence; no real-world positive predictive value or superiority claim."
+  },
+  "realSourceChallenges": {
+    "models": {
+      "anthropic--claude-sonnet-4.5": {
+        "planned": 12,
+        "attempted": 12,
+        "completed": 11,
+        "failedReports": [
+          {
+            "id": "21829f815fa36593eb279517",
+            "category": null,
+            "language": "ar",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 86083
+          }
+        ],
+        "incompleteWithoutReport": [],
+        "notAttempted": [],
+        "knownCorrectControls": 5,
+        "falseAlertControls": 2,
+        "injectedFaultsCompleted": 6,
+        "targetFaultsDetected": 6,
+        "missed": [],
+        "targetRecallCompleted": 1.0,
+        "targetRecallFailureAdjustedLower": 1.0,
+        "targetRecallFailureAdjustedUpper": 1.0,
+        "byCategory": {
+          "factual": {
+            "TP": 6,
+            "FP": 0,
+            "TN": 5,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "citation": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 5,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "coverage": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 5,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "relevance": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 5,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "repetition": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 5,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "temporal": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 5,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "language": {
+            "TP": 0,
+            "FP": 1,
+            "TN": 4,
+            "FN": 0,
+            "precision": 0.0,
+            "recall": null,
+            "f1": 0.0,
+            "falsePositiveRate": 0.2,
+            "falseNegativeRate": null
+          }
+        },
+        "byLanguage": {
+          "en": {
+            "completed": 4,
+            "categories": {
+              "factual": {
+                "TP": 2,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          },
+          "ar": {
+            "completed": 3,
+            "categories": {
+              "factual": {
+                "TP": 2,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          },
+          "fr": {
+            "completed": 4,
+            "categories": {
+              "factual": {
+                "TP": 2,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "language": {
+                "TP": 0,
+                "FP": 1,
+                "TN": 1,
+                "FN": 0,
+                "precision": 0.0,
+                "recall": null,
+                "f1": 0.0,
+                "falsePositiveRate": 0.5,
+                "falseNegativeRate": null
+              }
+            }
+          }
+        },
+        "calls": 36,
+        "callStates": {
+          "SETTLED": 36
+        },
+        "costUsd": 0.378915,
+        "unresolvedReservationUsd": 0,
+        "ledgerErrors": [],
+        "latencyCompletedMs": {
+          "n": 11,
+          "p50": 27594.0,
+          "p95": 43568.0
+        },
+        "errorsDetected": {
+          "factual": 6
+        },
+        "anyFaultDetection": {
+          "TP": 6,
+          "FP": 1,
+          "TN": 4,
+          "FN": 0,
+          "precision": 0.8571428571428571,
+          "recall": 1.0,
+          "f1": 0.9230769230769231
+        },
+        "uncertainAssessments": {
+          "claims": 0,
+          "coverage": 0,
+          "items": 0
+        },
+        "attemptedTargetFailuresByCategory": {},
+        "unavailableCorrectControls": 1
+      },
+      "openai--gpt-4.1": {
+        "planned": 12,
+        "attempted": 12,
+        "completed": 12,
+        "failedReports": [],
+        "incompleteWithoutReport": [],
+        "notAttempted": [],
+        "knownCorrectControls": 6,
+        "falseAlertControls": 0,
+        "injectedFaultsCompleted": 6,
+        "targetFaultsDetected": 6,
+        "missed": [],
+        "targetRecallCompleted": 1.0,
+        "targetRecallFailureAdjustedLower": 1.0,
+        "targetRecallFailureAdjustedUpper": 1.0,
+        "byCategory": {
+          "factual": {
+            "TP": 6,
+            "FP": 0,
+            "TN": 6,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "citation": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 6,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "coverage": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 6,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "relevance": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 6,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "repetition": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 6,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "temporal": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 6,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "language": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 6,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          }
+        },
+        "byLanguage": {
+          "en": {
+            "completed": 4,
+            "categories": {
+              "factual": {
+                "TP": 2,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          },
+          "ar": {
+            "completed": 4,
+            "categories": {
+              "factual": {
+                "TP": 2,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          },
+          "fr": {
+            "completed": 4,
+            "categories": {
+              "factual": {
+                "TP": 2,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          }
+        },
+        "calls": 36,
+        "callStates": {
+          "SETTLED": 36
+        },
+        "costUsd": 0.124076,
+        "unresolvedReservationUsd": 0,
+        "ledgerErrors": [],
+        "latencyCompletedMs": {
+          "n": 12,
+          "p50": 15884.0,
+          "p95": 33892.44999999998
+        },
+        "errorsDetected": {
+          "factual": 6
+        },
+        "anyFaultDetection": {
+          "TP": 6,
+          "FP": 0,
+          "TN": 6,
+          "FN": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "uncertainAssessments": {
+          "claims": 0,
+          "coverage": 0,
+          "items": 0
+        },
+        "attemptedTargetFailuresByCategory": {},
+        "unavailableCorrectControls": 0
+      }
+    },
+    "jointlyCompletedCases": 11,
+    "disagreements": [
+      {
+        "id": "1539e7553739d3a53f1e1fdf",
+        "language": "fr",
+        "expected": {
+          "factual": 1,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": null
+        },
+        "eventGroup": "real-electricity",
+        "categories": [
+          "coverage"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": true,
+            "relevance": false,
+            "repetition": false,
+            "temporal": true,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": true,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "64d6d05c2fa3986ec452bf5f",
+        "language": "en",
+        "expected": {
+          "factual": 0,
+          "citation": 0,
+          "coverage": 0,
+          "relevance": 0,
+          "repetition": 0,
+          "temporal": 0,
+          "language": 0
+        },
+        "eventGroup": "real-electricity",
+        "categories": [],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": false
+        }
+      },
+      {
+        "id": "92d1b3bcbf2e0e07522b5300",
+        "language": "en",
+        "expected": {
+          "factual": 1,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": null
+        },
+        "eventGroup": "real-customs",
+        "categories": [
+          "language"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": true
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "cf26b9223a77127dc513f0cc",
+        "language": "fr",
+        "expected": {
+          "factual": 0,
+          "citation": 0,
+          "coverage": 0,
+          "relevance": 0,
+          "repetition": 0,
+          "temporal": 0,
+          "language": 0
+        },
+        "eventGroup": "real-electricity",
+        "categories": [
+          "language"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": true
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": false
+        }
+      }
+    ],
+    "scoring": "Prespecified target-category mask on faulty cases; all categories negative on correct controls. Completed-only and conservative failure-adjusted detection are separate. Unknown cost holds are NOT settled as zero. Synthetic cases are not real published briefing quality.",
+    "independence": "Seven constructed event groups, with matched translations and mutations. Artificial prevalence; no real-world positive predictive value or superiority claim."
+  },
+  "pairedComparisons": {
+    "recent-historical": {
+      "systems": {
+        "all-headlines": {
+          "available": 3,
+          "failed": 0,
+          "metrics": {
+            "claimSupport": {
+              "numerator": 14,
+              "denominator": 14,
+              "value": 1.0
+            },
+            "citationCorrectness": {
+              "numerator": 14,
+              "denominator": 14,
+              "value": 1.0
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1.0
+            },
+            "repetition": {
+              "numerator": 0,
+              "denominator": 43,
+              "value": 0.0
+            },
+            "relevance": {
+              "numerator": 5,
+              "denominator": 41,
+              "value": 0.12195121951219512
+            },
+            "temporalCorrectness": {
+              "numerator": 39,
+              "denominator": 39,
+              "value": 1.0
+            },
+            "languageCorrectness": {
+              "numerator": 43,
+              "denominator": 43,
+              "value": 1.0
+            }
+          },
+          "failures": [],
+          "generationCompleted": 3,
+          "generationFailures": [],
+          "missingAssessments": [],
+          "totalWords": 616,
+          "generationLatencyMs": [
+            158,
+            164,
+            190
+          ]
+        },
+        "keyword": {
+          "available": 2,
+          "failed": 1,
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 7,
+              "value": 0.0
+            },
+            "repetition": {
+              "numerator": 0,
+              "denominator": 5,
+              "value": 0.0
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 5,
+              "value": 0.0
+            },
+            "temporalCorrectness": {
+              "numerator": 5,
+              "denominator": 5,
+              "value": 1.0
+            },
+            "languageCorrectness": {
+              "numerator": 5,
+              "denominator": 5,
+              "value": 1.0
+            }
+          },
+          "failures": [
+            {
+              "id": "4deb363f9c0ca226ace6e8b8",
+              "phase": "independent_developments",
+              "error": "Error: PROVIDER_HTTP_FAILURE"
+            }
+          ],
+          "generationCompleted": 3,
+          "generationFailures": [],
+          "missingAssessments": [],
+          "totalWords": 47,
+          "generationLatencyMs": [
+            157
+          ]
+        },
+        "single-llm": {
+          "available": 3,
+          "failed": 0,
+          "metrics": {
+            "claimSupport": {
+              "numerator": 6,
+              "denominator": 6,
+              "value": 1.0
+            },
+            "citationCorrectness": {
+              "numerator": 6,
+              "denominator": 6,
+              "value": 1.0
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 3,
+              "denominator": 4,
+              "value": 0.75
+            },
+            "repetition": {
+              "numerator": 0,
+              "denominator": 4,
+              "value": 0.0
+            },
+            "relevance": {
+              "numerator": 3,
+              "denominator": 4,
+              "value": 0.75
+            },
+            "temporalCorrectness": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1.0
+            },
+            "languageCorrectness": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1.0
+            }
+          },
+          "failures": [],
+          "generationCompleted": 3,
+          "generationFailures": [],
+          "missingAssessments": [],
+          "totalWords": 141,
+          "generationLatencyMs": [
+            4161,
+            3606,
+            1978
+          ]
+        },
+        "v3": {
+          "available": 0,
+          "failed": 3,
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "repetition": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "temporalCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "languageCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            }
+          },
+          "failures": [
+            {
+              "id": "2601920ffddfb3684772c465",
+              "phase": "atomic_claims_and_coverage",
+              "error": "Error: PROVIDER_HTTP_FAILURE"
+            },
+            {
+              "id": "6fec64323d870c681860022d",
+              "phase": "independent_developments",
+              "error": "Error: PROVIDER_HTTP_FAILURE"
+            },
+            {
+              "id": "89cc578350d634867c4ce15e",
+              "phase": "independent_developments",
+              "error": "Error: PROVIDER_HTTP_FAILURE"
+            }
+          ],
+          "generationCompleted": 3,
+          "generationFailures": [],
+          "missingAssessments": [],
+          "totalWords": 82,
+          "generationLatencyMs": [
+            13571,
+            2231,
+            10321
+          ]
+        }
+      },
+      "observations": [
+        {
+          "system": "all-headlines",
+          "caseId": "5b5376c73917858947b1a2793ff7e068dd826f4ca1ff6cc110150c14df67db4c",
+          "id": "1fcab9c9f31e0c79b8843a9f",
+          "words": 174,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 13,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 1,
+              "denominator": 13,
+              "value": 0.07692307692307693
+            },
+            "temporalCorrectness": {
+              "numerator": 13,
+              "denominator": 13,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 13,
+              "denominator": 13,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 1,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "all-headlines",
+          "caseId": "41de1d7ad9e1b8578ba9c0f04c5241aee16391fff58085c1f068bc1998bb200c",
+          "id": "c2f09ee5c42dcad60829a055",
+          "words": 310,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 3,
+              "denominator": 3,
+              "value": 1
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 22,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 4,
+              "denominator": 20,
+              "value": 0.2
+            },
+            "temporalCorrectness": {
+              "numerator": 18,
+              "denominator": 18,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 22,
+              "denominator": 22,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 4,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "all-headlines",
+          "caseId": "f9387f2b30a24defc1dc2ab1f80cfc23785799b0bc62f38e286b2c2ab9324be1",
+          "id": "ffed118e5caedb3090579c8d",
+          "words": 132,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 9,
+              "denominator": 9,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 9,
+              "denominator": 9,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 8,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 8,
+              "value": 0
+            },
+            "temporalCorrectness": {
+              "numerator": 8,
+              "denominator": 8,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 8,
+              "denominator": 8,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 9,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "keyword",
+          "caseId": "41de1d7ad9e1b8578ba9c0f04c5241aee16391fff58085c1f068bc1998bb200c",
+          "id": "2aceee51076b609be5ea23ef",
+          "words": 47,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 6,
+              "value": 0
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 5,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 5,
+              "value": 0
+            },
+            "temporalCorrectness": {
+              "numerator": 5,
+              "denominator": 5,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 5,
+              "denominator": 5,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 0,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "keyword",
+          "caseId": "5b5376c73917858947b1a2793ff7e068dd826f4ca1ff6cc110150c14df67db4c",
+          "id": "c5915f80a9add7113a21f7ad",
+          "words": 0,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 1,
+              "value": 0
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "temporalCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "languageCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 0,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "keyword",
+          "caseId": "f9387f2b30a24defc1dc2ab1f80cfc23785799b0bc62f38e286b2c2ab9324be1",
+          "id": "4deb363f9c0ca226ace6e8b8",
+          "words": 0,
+          "generationStatus": "completed",
+          "reviewStatus": "failed",
+          "metrics": null
+        },
+        {
+          "system": "single-llm",
+          "caseId": "41de1d7ad9e1b8578ba9c0f04c5241aee16391fff58085c1f068bc1998bb200c",
+          "id": "427f181eb52cc66757c9f861",
+          "words": 83,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 2,
+              "denominator": 3,
+              "value": 0.6666666666666666
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 2,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 2,
+              "denominator": 2,
+              "value": 1
+            },
+            "temporalCorrectness": {
+              "numerator": 2,
+              "denominator": 2,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 2,
+              "denominator": 2,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 4,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "single-llm",
+          "caseId": "5b5376c73917858947b1a2793ff7e068dd826f4ca1ff6cc110150c14df67db4c",
+          "id": "6824de6417cb9fb35b6090bd",
+          "words": 58,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 2,
+              "denominator": 2,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 2,
+              "denominator": 2,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 2,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 1,
+              "denominator": 2,
+              "value": 0.5
+            },
+            "temporalCorrectness": {
+              "numerator": 2,
+              "denominator": 2,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 2,
+              "denominator": 2,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 2,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "single-llm",
+          "caseId": "f9387f2b30a24defc1dc2ab1f80cfc23785799b0bc62f38e286b2c2ab9324be1",
+          "id": "ab526b48e9c8893f020aca03",
+          "words": 0,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "temporalCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "languageCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 0,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "v3",
+          "caseId": "41de1d7ad9e1b8578ba9c0f04c5241aee16391fff58085c1f068bc1998bb200c",
+          "id": "2601920ffddfb3684772c465",
+          "words": 41,
+          "generationStatus": "completed",
+          "reviewStatus": "failed",
+          "metrics": null
+        },
+        {
+          "system": "v3",
+          "caseId": "f9387f2b30a24defc1dc2ab1f80cfc23785799b0bc62f38e286b2c2ab9324be1",
+          "id": "6fec64323d870c681860022d",
+          "words": 0,
+          "generationStatus": "completed",
+          "reviewStatus": "failed",
+          "metrics": null
+        },
+        {
+          "system": "v3",
+          "caseId": "5b5376c73917858947b1a2793ff7e068dd826f4ca1ff6cc110150c14df67db4c",
+          "id": "89cc578350d634867c4ce15e",
+          "words": 41,
+          "generationStatus": "completed",
+          "reviewStatus": "failed",
+          "metrics": null
+        }
+      ],
+      "pairedV3MinusBaseline": {
+        "all-headlines": {
+          "completedPairs": 0,
+          "pairs": [],
+          "meanDifferences": {
+            "claimSupport": null,
+            "citationCorrectness": null,
+            "importantDevelopmentRecall": null,
+            "repetition": null,
+            "relevance": null,
+            "temporalCorrectness": null,
+            "languageCorrectness": null
+          }
+        },
+        "keyword": {
+          "completedPairs": 0,
+          "pairs": [],
+          "meanDifferences": {
+            "claimSupport": null,
+            "citationCorrectness": null,
+            "importantDevelopmentRecall": null,
+            "repetition": null,
+            "relevance": null,
+            "temporalCorrectness": null,
+            "languageCorrectness": null
+          }
+        },
+        "single-llm": {
+          "completedPairs": 0,
+          "pairs": [],
+          "meanDifferences": {
+            "claimSupport": null,
+            "citationCorrectness": null,
+            "importantDevelopmentRecall": null,
+            "repetition": null,
+            "relevance": null,
+            "temporalCorrectness": null,
+            "languageCorrectness": null
+          }
+        }
+      },
+      "scope": "Chronological retained-input exploratory comparison; incomplete source extraction; one feed; no significance or event-independent held-out claim. Inventories generated independently and may vary across system assessments. Judge shares GPT-4.1 family with editor."
+    },
+    "prospective": {
+      "systems": {
+        "all-headlines": {
+          "available": 3,
+          "failed": 0,
+          "metrics": {
+            "claimSupport": {
+              "numerator": 6,
+              "denominator": 6,
+              "value": 1.0
+            },
+            "citationCorrectness": {
+              "numerator": 6,
+              "denominator": 6,
+              "value": 1.0
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 2,
+              "denominator": 3,
+              "value": 0.6666666666666666
+            },
+            "repetition": {
+              "numerator": 0,
+              "denominator": 9,
+              "value": 0.0
+            },
+            "relevance": {
+              "numerator": 2,
+              "denominator": 9,
+              "value": 0.2222222222222222
+            },
+            "temporalCorrectness": {
+              "numerator": 9,
+              "denominator": 9,
+              "value": 1.0
+            },
+            "languageCorrectness": {
+              "numerator": 9,
+              "denominator": 9,
+              "value": 1.0
+            }
+          },
+          "failures": [],
+          "generationCompleted": 3,
+          "generationFailures": [],
+          "missingAssessments": [],
+          "totalWords": 121,
+          "generationLatencyMs": [
+            150,
+            141,
+            204
+          ]
+        },
+        "keyword": {
+          "available": 0,
+          "failed": 3,
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "repetition": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "temporalCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "languageCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            }
+          },
+          "failures": [
+            {
+              "id": "14ba518d63180fe2a84b09de",
+              "phase": "independent_developments",
+              "error": "Error: PROVIDER_HTTP_FAILURE"
+            },
+            {
+              "id": "646590a6d3373ba2aa0c4e81",
+              "phase": "independent_developments",
+              "error": "Error: PROVIDER_HTTP_FAILURE"
+            },
+            {
+              "id": "56f9d40c4c15e447bcc08d18",
+              "phase": "independent_developments",
+              "error": "Error: PROVIDER_HTTP_FAILURE"
+            }
+          ],
+          "generationCompleted": 3,
+          "generationFailures": [],
+          "missingAssessments": [],
+          "totalWords": 47,
+          "generationLatencyMs": [
+            198
+          ]
+        },
+        "single-llm": {
+          "available": 3,
+          "failed": 0,
+          "metrics": {
+            "claimSupport": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            },
+            "citationCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 1,
+              "denominator": 4,
+              "value": 0.25
+            },
+            "repetition": {
+              "numerator": 0,
+              "denominator": 1,
+              "value": 0.0
+            },
+            "relevance": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            },
+            "temporalCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            },
+            "languageCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            }
+          },
+          "failures": [],
+          "generationCompleted": 3,
+          "generationFailures": [],
+          "missingAssessments": [],
+          "totalWords": 41,
+          "generationLatencyMs": [
+            1640,
+            3803,
+            1758
+          ]
+        },
+        "v3": {
+          "available": 2,
+          "failed": 1,
+          "metrics": {
+            "claimSupport": {
+              "numerator": 3,
+              "denominator": 3,
+              "value": 1.0
+            },
+            "citationCorrectness": {
+              "numerator": 3,
+              "denominator": 3,
+              "value": 1.0
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            },
+            "repetition": {
+              "numerator": 0,
+              "denominator": 1,
+              "value": 0.0
+            },
+            "relevance": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            },
+            "temporalCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            },
+            "languageCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1.0
+            }
+          },
+          "failures": [
+            {
+              "id": "e8c75e03d5ac01c9a23a8a17",
+              "phase": "inventory_grounding_v1",
+              "error": "Error: PROVIDER_HTTP_FAILURE"
+            }
+          ],
+          "generationCompleted": 3,
+          "generationFailures": [],
+          "missingAssessments": [],
+          "totalWords": 32,
+          "generationLatencyMs": [
+            3869,
+            2397,
+            1654
+          ]
+        }
+      },
+      "observations": [
+        {
+          "system": "all-headlines",
+          "caseId": "4389e5bdc2708cd4f90712fba664f7057628526b4dcae94812076a2dec64b007",
+          "id": "446a21f666c4b9d255826a1b",
+          "words": 29,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 4,
+              "denominator": 4,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 3,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 3,
+              "value": 0
+            },
+            "temporalCorrectness": {
+              "numerator": 3,
+              "denominator": 3,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 3,
+              "denominator": 3,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 4,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "all-headlines",
+          "caseId": "2ff099366744ac7e7f7ebbb44d4a0ed7e63a705db426bb5753bbaf3945fc97d8",
+          "id": "719aa14f215b16a3a2f9d1a4",
+          "words": 8,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 1,
+              "denominator": 2,
+              "value": 0.5
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 1,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "temporalCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 1,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "all-headlines",
+          "caseId": "daf2491637503045907ef2be512a5691261905baa9d945caf17a0bb2c824ae7b",
+          "id": "d1fb486d1c2e331b98534815",
+          "words": 84,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 5,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 1,
+              "denominator": 5,
+              "value": 0.2
+            },
+            "temporalCorrectness": {
+              "numerator": 5,
+              "denominator": 5,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 5,
+              "denominator": 5,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 1,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "keyword",
+          "caseId": "daf2491637503045907ef2be512a5691261905baa9d945caf17a0bb2c824ae7b",
+          "id": "14ba518d63180fe2a84b09de",
+          "words": 10,
+          "generationStatus": "completed",
+          "reviewStatus": "failed",
+          "metrics": null
+        },
+        {
+          "system": "keyword",
+          "caseId": "4389e5bdc2708cd4f90712fba664f7057628526b4dcae94812076a2dec64b007",
+          "id": "646590a6d3373ba2aa0c4e81",
+          "words": 29,
+          "generationStatus": "completed",
+          "reviewStatus": "failed",
+          "metrics": null
+        },
+        {
+          "system": "keyword",
+          "caseId": "2ff099366744ac7e7f7ebbb44d4a0ed7e63a705db426bb5753bbaf3945fc97d8",
+          "id": "56f9d40c4c15e447bcc08d18",
+          "words": 8,
+          "generationStatus": "completed",
+          "reviewStatus": "failed",
+          "metrics": null
+        },
+        {
+          "system": "single-llm",
+          "caseId": "2ff099366744ac7e7f7ebbb44d4a0ed7e63a705db426bb5753bbaf3945fc97d8",
+          "id": "1eaf24bf1ad4b1d2af6a3527",
+          "words": 0,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 3,
+              "value": 0
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "temporalCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "languageCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 0,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "single-llm",
+          "caseId": "daf2491637503045907ef2be512a5691261905baa9d945caf17a0bb2c824ae7b",
+          "id": "843ea07f8f6e2635726094c2",
+          "words": 41,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 1,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "temporalCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 1,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "single-llm",
+          "caseId": "4389e5bdc2708cd4f90712fba664f7057628526b4dcae94812076a2dec64b007",
+          "id": "aeac88d3c94dd3605f508ee8",
+          "words": 0,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "temporalCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "languageCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 0,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "v3",
+          "caseId": "daf2491637503045907ef2be512a5691261905baa9d945caf17a0bb2c824ae7b",
+          "id": "3796356224a18db4afab63e2",
+          "words": 32,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 3,
+              "denominator": 3,
+              "value": 1
+            },
+            "citationCorrectness": {
+              "numerator": 3,
+              "denominator": 3,
+              "value": 1
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 1,
+              "value": 0
+            },
+            "relevance": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "temporalCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "languageCorrectness": {
+              "numerator": 1,
+              "denominator": 1,
+              "value": 1
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 3,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        },
+        {
+          "system": "v3",
+          "caseId": "2ff099366744ac7e7f7ebbb44d4a0ed7e63a705db426bb5753bbaf3945fc97d8",
+          "id": "e8c75e03d5ac01c9a23a8a17",
+          "words": 0,
+          "generationStatus": "completed",
+          "reviewStatus": "failed",
+          "metrics": null
+        },
+        {
+          "system": "v3",
+          "caseId": "4389e5bdc2708cd4f90712fba664f7057628526b4dcae94812076a2dec64b007",
+          "id": "f8f494aca399238a75505df2",
+          "words": 0,
+          "generationStatus": "completed",
+          "reviewStatus": "completed",
+          "metrics": {
+            "claimSupport": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "citationCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecall": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "importantDevelopmentRecallScope": "partial_retained_input_only",
+            "repetition": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "relevance": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "temporalCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "languageCorrectness": {
+              "numerator": 0,
+              "denominator": 0,
+              "value": null
+            },
+            "uncertainClaims": 0,
+            "uncertainDevelopments": 0,
+            "judgeClaimCount": 0,
+            "claimExtractionCompleteness": "not_independently_established",
+            "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+          }
+        }
+      ],
+      "pairedV3MinusBaseline": {
+        "all-headlines": {
+          "completedPairs": 2,
+          "pairs": [
+            {
+              "caseId": "daf2491637503045907ef2be512a5691261905baa9d945caf17a0bb2c824ae7b",
+              "differences": {
+                "claimSupport": 0,
+                "citationCorrectness": 0,
+                "importantDevelopmentRecall": 0,
+                "repetition": 0,
+                "relevance": 0.8,
+                "temporalCorrectness": 0,
+                "languageCorrectness": 0
+              }
+            },
+            {
+              "caseId": "4389e5bdc2708cd4f90712fba664f7057628526b4dcae94812076a2dec64b007",
+              "differences": {
+                "claimSupport": null,
+                "citationCorrectness": null,
+                "importantDevelopmentRecall": null,
+                "repetition": null,
+                "relevance": null,
+                "temporalCorrectness": null,
+                "languageCorrectness": null
+              }
+            }
+          ],
+          "meanDifferences": {
+            "claimSupport": 0,
+            "citationCorrectness": 0,
+            "importantDevelopmentRecall": 0,
+            "repetition": 0,
+            "relevance": 0.8,
+            "temporalCorrectness": 0,
+            "languageCorrectness": 0
+          }
+        },
+        "keyword": {
+          "completedPairs": 0,
+          "pairs": [],
+          "meanDifferences": {
+            "claimSupport": null,
+            "citationCorrectness": null,
+            "importantDevelopmentRecall": null,
+            "repetition": null,
+            "relevance": null,
+            "temporalCorrectness": null,
+            "languageCorrectness": null
+          }
+        },
+        "single-llm": {
+          "completedPairs": 2,
+          "pairs": [
+            {
+              "caseId": "daf2491637503045907ef2be512a5691261905baa9d945caf17a0bb2c824ae7b",
+              "differences": {
+                "claimSupport": 0,
+                "citationCorrectness": 0,
+                "importantDevelopmentRecall": 0,
+                "repetition": 0,
+                "relevance": 0,
+                "temporalCorrectness": 0,
+                "languageCorrectness": 0
+              }
+            },
+            {
+              "caseId": "4389e5bdc2708cd4f90712fba664f7057628526b4dcae94812076a2dec64b007",
+              "differences": {
+                "claimSupport": null,
+                "citationCorrectness": null,
+                "importantDevelopmentRecall": null,
+                "repetition": null,
+                "relevance": null,
+                "temporalCorrectness": null,
+                "languageCorrectness": null
+              }
+            }
+          ],
+          "meanDifferences": {
+            "claimSupport": 0,
+            "citationCorrectness": 0,
+            "importantDevelopmentRecall": 0,
+            "repetition": 0,
+            "relevance": 0,
+            "temporalCorrectness": 0,
+            "languageCorrectness": 0
+          }
+        }
+      },
+      "scope": "Chronological retained-input exploratory comparison; incomplete source extraction; one feed; no significance or event-independent held-out claim. Inventories generated independently and may vary across system assessments. Judge shares GPT-4.1 family with editor."
+    }
+  },
+  "existingPublishedEvaluations": [
+    {
+      "cohort": "recent-historical",
+      "editionId": "41de1d7ad9e1b8578ba9c0f04c5241aee16391fff58085c1f068bc1998bb200c",
+      "jobId": "bbe0c128a47ece435463e0e7210c9eb18e23766d0ffb5d9850427c4eb01b7073",
+      "status": "flagged",
+      "privateArtifact": true,
+      "protocol": "atomic-development-review-v3",
+      "model": "openai/gpt-4.1",
+      "evidenceHash": "250612aed65de2e601ec6198fa3bd5a885f9e0e3802a7b1f91b86b1efd401894",
+      "metrics": {
+        "claimSupport": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1
+        },
+        "citationCorrectness": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 2,
+          "denominator": 4,
+          "value": 0.5
+        },
+        "importantDevelopmentRecallScope": "partial_retained_input_only",
+        "repetition": {
+          "numerator": 0,
+          "denominator": 2,
+          "value": 0
+        },
+        "relevance": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1
+        },
+        "temporalCorrectness": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1
+        },
+        "languageCorrectness": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1
+        },
+        "uncertainClaims": 0,
+        "uncertainDevelopments": 0,
+        "judgeClaimCount": 2,
+        "claimExtractionCompleteness": "not_independently_established",
+        "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+      },
+      "findings": [
+        {
+          "category": "coverage",
+          "severity": "warning",
+          "item": null,
+          "explanationSha256": "e04659a8f394e8340eb0b6e0c5918094f026def83bc8f08f86be7fbedf2a2c58",
+          "evidence": [
+            {
+              "sourceId": "02cf453c-24fa-41d5-b719-48f4b6d323d8",
+              "quoteSha256": "426a60959c59ac69004b78d578ca8064ff25418b0c4899304d5e6691ab034d84"
+            }
+          ]
+        },
+        {
+          "category": "coverage",
+          "severity": "warning",
+          "item": null,
+          "explanationSha256": "315ef44e545f1b6868d3cf25151ec52800af3075ae695254cb733da78b7d2662",
+          "evidence": [
+            {
+              "sourceId": "28182cb4-2268-45c2-a893-a0142bbd7585",
+              "quoteSha256": "d5d531714d7357e3e5531d671cad6df925e4c34eead5aabdce0771098f0d522a"
+            }
+          ]
+        }
+      ],
+      "limitationsSha256": "fb67072e128c4afec23f2551be3f6ee95903e6415adac770c31058f4775c47c5",
+      "inventoryLimitationsSha256": "a604e4f7ee69bfab8329a7da597f3e0892e3f9e8e9b6a3f5d26ef005f7fd629e",
+      "operational": [
+        {
+          "code": "UNASSESSABLE_EVIDENCE"
+        }
+      ],
+      "claims": 2,
+      "inventoryDevelopments": 4
+    },
+    {
+      "cohort": "recent-historical",
+      "editionId": "5b5376c73917858947b1a2793ff7e068dd826f4ca1ff6cc110150c14df67db4c",
+      "jobId": "44c2a92566bdcc234f81fd07529faa08726797cb7fe43a5e65bb2556259f7f5a",
+      "status": "flagged",
+      "privateArtifact": true,
+      "protocol": "atomic-development-review-v3",
+      "model": "openai/gpt-4.1",
+      "evidenceHash": "1de86b5b5fec0f37ce587fe252250feb555ff8570642a36e758b4b823cb89f04",
+      "metrics": {
+        "claimSupport": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "citationCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "importantDevelopmentRecallScope": "partial_retained_input_only",
+        "repetition": {
+          "numerator": 0,
+          "denominator": 1,
+          "value": 0
+        },
+        "relevance": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "temporalCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "languageCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "uncertainClaims": 0,
+        "uncertainDevelopments": 0,
+        "judgeClaimCount": 1,
+        "claimExtractionCompleteness": "not_independently_established",
+        "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+      },
+      "findings": [],
+      "limitationsSha256": "e81e7dfd89d7f4e84ca162ea9d526b77ffc31314a6a8b6ba7558703b9821e6bb",
+      "inventoryLimitationsSha256": "4a4becc9ee491553084de7d31d7393b2b8b1f95a639405d3f1c30970aa2dfe98",
+      "operational": [
+        {
+          "code": "UNASSESSABLE_EVIDENCE"
+        }
+      ],
+      "claims": 1,
+      "inventoryDevelopments": 1
+    },
+    {
+      "cohort": "recent-historical",
+      "editionId": "f9387f2b30a24defc1dc2ab1f80cfc23785799b0bc62f38e286b2c2ab9324be1",
+      "jobId": "24ffedf7f37b986c4228c3b63fc7f1376f25ad271b08613851a21f7697e7eeee",
+      "status": "flagged",
+      "privateArtifact": true,
+      "protocol": "atomic-development-review-v3",
+      "model": "openai/gpt-4.1",
+      "evidenceHash": "64cd2ed024a48cd84db15ac79cb883433a7008c9584d1d56d161f714289392ff",
+      "metrics": {
+        "claimSupport": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "citationCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "importantDevelopmentRecallScope": "partial_retained_input_only",
+        "repetition": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "relevance": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "temporalCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "languageCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "uncertainClaims": 0,
+        "uncertainDevelopments": 0,
+        "judgeClaimCount": 0,
+        "claimExtractionCompleteness": "not_independently_established",
+        "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+      },
+      "findings": [],
+      "limitationsSha256": "ce2066c8fc42d93ac92a0d711f75e76162d9e299af67b7b84fdef53378a55854",
+      "inventoryLimitationsSha256": "08994c3e90a06593fe7501be47a38472bf7ff62752ac999a123e5df876f76710",
+      "operational": [
+        {
+          "code": "UNASSESSABLE_EVIDENCE"
+        }
+      ],
+      "claims": 0,
+      "inventoryDevelopments": 0
+    },
+    {
+      "cohort": "prospective",
+      "editionId": "daf2491637503045907ef2be512a5691261905baa9d945caf17a0bb2c824ae7b",
+      "jobId": "a4378728efb44500a3fd445816571467ae7502a160841a6151d07cce3e5f4aeb",
+      "status": "flagged",
+      "privateArtifact": true,
+      "protocol": "atomic-development-review-v3",
+      "model": "openai/gpt-4.1",
+      "evidenceHash": "71ba1f78520476c002b39ccc5ba120ddcff8ce1c2825e16ba007fdd06bd02eea",
+      "metrics": {
+        "claimSupport": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1
+        },
+        "citationCorrectness": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "importantDevelopmentRecallScope": "partial_retained_input_only",
+        "repetition": {
+          "numerator": 0,
+          "denominator": 1,
+          "value": 0
+        },
+        "relevance": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "temporalCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "languageCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1
+        },
+        "uncertainClaims": 0,
+        "uncertainDevelopments": 0,
+        "judgeClaimCount": 2,
+        "claimExtractionCompleteness": "not_independently_established",
+        "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+      },
+      "findings": [],
+      "limitationsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "inventoryLimitationsSha256": "c3ae145ffbc496183ecf38fb3a775600d154fdf34b7010fb603eb8ec365e90f7",
+      "operational": [
+        {
+          "code": "UNASSESSABLE_EVIDENCE"
+        }
+      ],
+      "claims": 2,
+      "inventoryDevelopments": 1
+    },
+    {
+      "cohort": "prospective",
+      "editionId": "4389e5bdc2708cd4f90712fba664f7057628526b4dcae94812076a2dec64b007",
+      "jobId": "01f1ac1d2585340832cc1d976813e7e69e8aad19896a75e611fcc10f70f9058e",
+      "status": "flagged",
+      "privateArtifact": true,
+      "protocol": "atomic-development-review-v3",
+      "model": "openai/gpt-4.1",
+      "evidenceHash": "353a8c3306648d1c067179c505b1671b7228c1d678d3769d637c6be3cb00943f",
+      "metrics": {
+        "claimSupport": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "citationCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "importantDevelopmentRecallScope": "partial_retained_input_only",
+        "repetition": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "relevance": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "temporalCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "languageCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "uncertainClaims": 0,
+        "uncertainDevelopments": 0,
+        "judgeClaimCount": 0,
+        "claimExtractionCompleteness": "not_independently_established",
+        "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+      },
+      "findings": [],
+      "limitationsSha256": "1d766609426f5e14a996070ffc147448b0b7750d1e226542bb980a5372f74b6e",
+      "inventoryLimitationsSha256": "e4191a276993ae4fcb1ce124be31bdfdcd8169f30821645e024407a1f66e438f",
+      "operational": [
+        {
+          "code": "UNASSESSABLE_EVIDENCE"
+        }
+      ],
+      "claims": 0,
+      "inventoryDevelopments": 0
+    },
+    {
+      "cohort": "prospective",
+      "editionId": "2ff099366744ac7e7f7ebbb44d4a0ed7e63a705db426bb5753bbaf3945fc97d8",
+      "jobId": "b3b36d1e8f273002a23f341c6bf14f43394725099eeb7b0d11dab51d8de89258",
+      "status": "flagged",
+      "privateArtifact": true,
+      "protocol": "atomic-development-review-v3",
+      "model": "openai/gpt-4.1",
+      "evidenceHash": "0fcbc1147745b5cbae0ae7de2339a522809365e64f4233f32271d54e0552b8ff",
+      "metrics": {
+        "claimSupport": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "citationCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 0,
+          "denominator": 3,
+          "value": 0
+        },
+        "importantDevelopmentRecallScope": "partial_retained_input_only",
+        "repetition": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "relevance": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "temporalCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "languageCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "uncertainClaims": 0,
+        "uncertainDevelopments": 0,
+        "judgeClaimCount": 0,
+        "claimExtractionCompleteness": "not_independently_established",
+        "inventoryGroundingPolicy": "current-evidence-entailment-v1"
+      },
+      "findings": [
+        {
+          "category": "coverage",
+          "severity": "warning",
+          "item": null,
+          "explanationSha256": "94ea717c81c097c947b70349481bb11ace460c0b28e7ab052f56408abf2b588d",
+          "evidence": [
+            {
+              "sourceId": "a5a58f8c-6a36-4cfa-be18-87e15b04672f",
+              "quoteSha256": "34fd1ba78c2e39e460f8e3c5ef892c66279f47eaf45954886f83539f168b0cff"
+            }
+          ]
+        },
+        {
+          "category": "coverage",
+          "severity": "warning",
+          "item": null,
+          "explanationSha256": "2ae92532db91efbcf4f63e7ee4ff5cadc0e2e94a677908d6542f5e6df9c80111",
+          "evidence": [
+            {
+              "sourceId": "a5a58f8c-6a36-4cfa-be18-87e15b04672f",
+              "quoteSha256": "34fd1ba78c2e39e460f8e3c5ef892c66279f47eaf45954886f83539f168b0cff"
+            }
+          ]
+        },
+        {
+          "category": "coverage",
+          "severity": "warning",
+          "item": null,
+          "explanationSha256": "066a1a39826ceb517cfa996844cf3ea60fa4d4a5efb71f201dfccb928e4b1dcb",
+          "evidence": [
+            {
+              "sourceId": "a5a58f8c-6a36-4cfa-be18-87e15b04672f",
+              "quoteSha256": "c92a449dc3a03e7416c28cffafb2f67597a3b6a677bf91e338ca791b9cdbd40f"
+            }
+          ]
+        }
+      ],
+      "limitationsSha256": "2fec4fafd35dfeb69af2a4228bf5be69b3bf13c0d93e35c18cbb7667676d0610",
+      "inventoryLimitationsSha256": "8a330e5be89b18ceaf30c6aa7089a2d6deabb762e376308542b5a010f61bd9d8",
+      "operational": [
+        {
+          "code": "UNASSESSABLE_EVIDENCE"
+        }
+      ],
+      "claims": 0,
+      "inventoryDevelopments": 3
+    }
+  ],
+  "freshPublishedEvaluations": {
+    "anthropic/claude-sonnet-4.5": {
+      "available": 0,
+      "failed": 6,
+      "metrics": {
+        "claimSupport": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "citationCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "repetition": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "relevance": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "temporalCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        },
+        "languageCorrectness": {
+          "numerator": 0,
+          "denominator": 0,
+          "value": null
+        }
+      },
+      "failures": [
+        {
+          "id": "02fb5e606fc3ebff14848fef",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "072581e0a08c0ed5d06fd453",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "19a65ffc2d48c78af7d3ff80",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "a280e63525c17a0287772d01",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "bac322fca7ea52785cead209",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "bfa7f13462ca3326e623ce7a",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        }
+      ]
+    },
+    "openai/gpt-4.1": {
+      "available": 1,
+      "failed": 5,
+      "metrics": {
+        "claimSupport": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1.0
+        },
+        "citationCorrectness": {
+          "numerator": 2,
+          "denominator": 2,
+          "value": 1.0
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1.0
+        },
+        "repetition": {
+          "numerator": 0,
+          "denominator": 1,
+          "value": 0.0
+        },
+        "relevance": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1.0
+        },
+        "temporalCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1.0
+        },
+        "languageCorrectness": {
+          "numerator": 1,
+          "denominator": 1,
+          "value": 1.0
+        }
+      },
+      "failures": [
+        {
+          "id": "02fb5e606fc3ebff14848fef",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "072581e0a08c0ed5d06fd453",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "19a65ffc2d48c78af7d3ff80",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "bac322fca7ea52785cead209",
+          "phase": "atomic_claims_and_coverage",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        },
+        {
+          "id": "bfa7f13462ca3326e623ce7a",
+          "phase": "independent_developments",
+          "error": "Error: PROVIDER_HTTP_FAILURE"
+        }
+      ]
+    }
+  },
+  "falsePositiveDetails": [
+    {
+      "dataset": "synthetic",
+      "model": "anthropic--claude-sonnet-4.5",
+      "id": "4fd0bc06365cd28a33c832b7",
+      "language": "ar",
+      "predicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "items": [
+        {
+          "item": 0,
+          "relevance": "relevant",
+          "repetition": "novel",
+          "temporal": "correct",
+          "language": "correct",
+          "explanationSha256": "25563b4e7ea6de0cffaff1ab0c0ca55ef35c0a508b0faaab407a0ce6195f992b"
+        }
+      ],
+      "findings": [
+        {
+          "category": "factual",
+          "severity": "error",
+          "item": 0,
+          "explanationSha256": "f6b180dc63c3c872d3a7aa9009dcfd3383f1103ca93f726e35733866c40fea36",
+          "evidence": [
+            {
+              "sourceId": "d7361e5b4ae3f61118f6fdaf",
+              "quoteSha256": "65e65381b2ad160984c955e4f54ecbec1410462071de80626cce83ed01a4eac6"
+            }
+          ]
+        },
+        {
+          "category": "citation",
+          "severity": "error",
+          "item": 0,
+          "explanationSha256": "e6cd7b14f55939129659275b6b929cbaa78f521274bceb8405f123bfa017ecae",
+          "evidence": [
+            {
+              "sourceId": "d7361e5b4ae3f61118f6fdaf",
+              "quoteSha256": "65e65381b2ad160984c955e4f54ecbec1410462071de80626cce83ed01a4eac6"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "model": "anthropic--claude-sonnet-4.5",
+      "id": "cf26b9223a77127dc513f0cc",
+      "language": "fr",
+      "predicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": true
+      },
+      "items": [
+        {
+          "item": 0,
+          "relevance": "relevant",
+          "repetition": "novel",
+          "temporal": "correct",
+          "language": "incorrect",
+          "explanationSha256": "ea9bc22e4140fdf905816fc24f1365ea6c6339ad671d875f368ba8cabd82016d"
+        }
+      ],
+      "findings": [
+        {
+          "category": "language",
+          "severity": "warning",
+          "item": 0,
+          "explanationSha256": "ce55ba06fb0c03ce21f4f806fcd0762eb92731720847bbe2c58126a78c0c0470",
+          "evidence": [
+            {
+              "sourceId": "53752160-5ced-4af6-bc10-d22da5fbbcaf",
+              "quoteSha256": "34d6cc74d6979a1560b083a2d6b6756581e191de1ddb212cdce2bcb769d46749"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "financials": {
+    "settledUsd": 2.647021800000002,
+    "unresolvedReservationUsd": 2.179596,
+    "calls": 417,
+    "callStates": {
+      "SETTLED": 396,
+      "UNKNOWN": 19,
+      "RESERVED": 2
+    },
+    "readErrors": [],
+    "providerRejections": [
+      {
+        "artifact": "recent-historical-judged\\openai--gpt-4.1\\2601920ffddfb3684772c465\\provider\\64982c75ac23bb90525f90594755631e32a25b8a0a8a053ba278aa565ceed65b.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "recent-historical-judged\\openai--gpt-4.1\\6fec64323d870c681860022d\\provider\\7cf5e3c1b335fbe538b84b6b25c6477f65b48841799b2fd29c8faec9a24db43d.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "recent-historical-judged\\openai--gpt-4.1\\89cc578350d634867c4ce15e\\provider\\7588d30022b8f68705bf56c3caa9bb3c972bfe38784979ce8142979f6604c57b.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\openai--gpt-4.1\\02fb5e606fc3ebff14848fef\\provider\\320863b3c60aa02a64b8da282de889044b9b0725d488f660727bcdd82c1c24a8.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\openai--gpt-4.1\\072581e0a08c0ed5d06fd453\\provider\\7588d30022b8f68705bf56c3caa9bb3c972bfe38784979ce8142979f6604c57b.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\openai--gpt-4.1\\19a65ffc2d48c78af7d3ff80\\provider\\2613ad9950885810e9399bd16ea815c3632f31904b69aa6a625abb916a281eca.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\openai--gpt-4.1\\bac322fca7ea52785cead209\\provider\\14321c132e6710d5c34975b8343596a1812e586aba6d9e621751326142a99818.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\openai--gpt-4.1\\bfa7f13462ca3326e623ce7a\\provider\\c7569c09f0b06705bd4ce00915f8c52a43ab00d6cebfb2d6dfb8bef49fbb059e.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\anthropic--claude-sonnet-4.5\\02fb5e606fc3ebff14848fef\\provider\\f9b45e9981ac0c5dfc3c95dcb672c19cfdfe1a67e9e348c7a035b91ee658d95e.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\anthropic--claude-sonnet-4.5\\072581e0a08c0ed5d06fd453\\provider\\ae16f2fc971ea5e6cff6c1fea0803c7816bc97862ea1da31186c7cca3b76ec03.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\anthropic--claude-sonnet-4.5\\19a65ffc2d48c78af7d3ff80\\provider\\bccb60c3e0db60f3a521b4ff5f79038eb8d10341336044a3f1fb9d75066866b0.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\anthropic--claude-sonnet-4.5\\a280e63525c17a0287772d01\\provider\\2a1da7f5bcf887758ddc4ed538dbc8eacb5433c5a527b466dfc63472ec9065f0.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\anthropic--claude-sonnet-4.5\\bac322fca7ea52785cead209\\provider\\3f434e487d0963a2bfd8b3a01b5e2c6bb9e12626d306b20e4f15fbafa6be8907.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "published-run\\anthropic--claude-sonnet-4.5\\bfa7f13462ca3326e623ce7a\\provider\\ef10e3940a3bf42e6ee97c696ed00a541581d93f1268d7b8d915055f7b4a8db1.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "prospective-judged\\openai--gpt-4.1\\e8c75e03d5ac01c9a23a8a17\\provider\\0778c8778197b264ffa16440daf335c7e6fb25d4c3b67cc15c90a0af294e3562.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "bridge-scored\\openai--gpt-4.1\\14ba518d63180fe2a84b09de\\provider\\8587e9c2c7080d73a0aa8bd8f1671023b9995ac55eb4d9b46b6d77b40d765647.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "bridge-scored\\openai--gpt-4.1\\4deb363f9c0ca226ace6e8b8\\provider\\7cf5e3c1b335fbe538b84b6b25c6477f65b48841799b2fd29c8faec9a24db43d.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "bridge-scored\\openai--gpt-4.1\\56f9d40c4c15e447bcc08d18\\provider\\c7569c09f0b06705bd4ce00915f8c52a43ab00d6cebfb2d6dfb8bef49fbb059e.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      },
+      {
+        "artifact": "bridge-scored\\openai--gpt-4.1\\646590a6d3373ba2aa0c4e81\\provider\\320863b3c60aa02a64b8da282de889044b9b0725d488f660727bcdd82c1c24a8.json",
+        "status": 402,
+        "reason": "in_flight_budget_exhausted",
+        "message": "This request would exceed your available credits given your current in-flight requests. Retry after in-flight requests settle, or add credits."
+      }
+    ],
+    "uninitializedDatabases": [
+      {
+        "privateArtifact": true,
+        "reason": "Initialization stopped before evaluator tables existed; no call ledger rows or requests sent by this attempt."
+      }
+    ]
+  },
+  "qualification": {
+    "retainedWindows": 28,
+    "postFreezeWindows": 22,
+    "completeNonemptyPostFreezeWindows": 0,
+    "certifiedEventIndependentHeldOut": 0
+  },
+  "limitationsSha256": "eb6cc6e725cc0b2109ded510a663de8c0f9f0b901c6a33487cbf055115e559d1",
+  "providerAccountBalanceObservedUsd": 0.043094079,
+  "replayAdapterLimitations": [
+    "Evaluator snapshots retain article IDs, text, titles, publication times and completeness but not full original publisher identity; replay uses article IDs as source metadata.",
+    "Existing replay.ts invokes core engine defaults and fixed models, not all deployed rollout flags or Worker scheduling/accounting/publication behavior.",
+    "The large historical citation failures therefore describe this recorded core replay and cannot be attributed directly to currently published production output."
+  ],
+  "sourceHashesRecordedAfterExecution": {
+    "evaluation\\briefing-quality\\validation\\acquire.mjs": "b8655175c79f99d9441f2adad4dd29668daa4a6d1ff8756a687a01e0284b4463",
+    "evaluation\\briefing-quality\\validation\\analyze.py": "baaa9becaccc641ad4438b7ba9571a4f9e49515b71a0b2d8e8ac8492b179b92d",
+    "evaluation\\briefing-quality\\validation\\baseline_bridge.py": "5af1dc3f472b8633958c333f1c665826a9eaa510cb4c2e0c97565afe18bcc386",
+    "evaluation\\briefing-quality\\validation\\build_controls.py": "85b14f841c38c1282385575b47183a5e5c479743a969d81102dd184edfea1ebe",
+    "evaluation\\briefing-quality\\validation\\correct_baseline_bridge.ts": "42f671a79374dd6417520aa3cfce0e99a75fa9cc66ca8896e2146f0f7ea1f9cb",
+    "evaluation\\briefing-quality\\validation\\existing_reports.mjs": "14bbfd3b284a5659cd482e5182f4722918711640489450c20fbfa329a0294f80",
+    "evaluation\\briefing-quality\\validation\\final_report.py": "2ba0a4ad8b299e2c991f5e5d01da04df9d05f75192fc2db94d306bf7466c31f3",
+    "evaluation\\briefing-quality\\validation\\historical.py": "eec757c73d85fc1469facb887500fac2926fe5ec56eceefea763596d51c6bc00",
+    "evaluation\\briefing-quality\\validation\\inspect.mjs": "e23eb9605926298d4826140e4784e9c7a7fdc14ed3d6fff12fac7bc6cdd5b06c",
+    "evaluation\\briefing-quality\\validation\\offline.ts": "ce1eaa590812547ee205a5f33c607831b2b1dde8d5a84f6a84e1f27feb55f07f",
+    "evaluation\\briefing-quality\\validation\\paired.ts": "48ff4d1cf941335548f07d1105ac829a561f21af8c9ccbe382100b7f76a7755b",
+    "evaluation\\briefing-quality\\validation\\protocol.json": "058c587625e0406d181b9f702961ab6dd63935828f2c7dd0c4c3abdb5f1a3cb4",
+    "evaluation\\briefing-quality\\validation\\real_controls.py": "bbc1f1e3789f4bc16170d290955dbf5d5c90999664a64a2774ea0718778e8f7a",
+    "evaluation\\briefing-quality\\validation\\report.py": "df7a295ef47b439b4442b59f7453e5259a167238a8b86c071dbd107317bcfa9e",
+    "evaluation\\briefing-quality\\validation\\resume.ts": "10f29546cfbf7d529eef223039c7afefd9c082244b7123e3f1db126aa30b7bfc",
+    "evaluation\\briefing-quality\\validation\\retained_plan.py": "b093dce52004cf452129f7d4034580001f7ba6dc5e1f134232987b58171616ae",
+    "evaluation\\briefing-quality\\validation\\run.ts": "bce30c365245795eee1a6abbee2f38b45fac042d5ea17d52c57c963716a6a7a4",
+    "evaluation\\briefing-quality\\validation\\test_analysis.py": "4c29c4297574e73fe952fca5c2b9ff0856652affc141dda35929b977eb622cdc",
+    "evaluation\\briefing-quality\\validation\\test_bridge.py": "0d9ed3f6e7e702e235f131a2a5a59b8263019f21de635034afedca2dd7b39f83",
+    "evaluation\\briefing-quality\\validation\\test_report.py": "fb32ffcd01fc49c837652b68b15c6d55c33c47d6b09856216106c9babb63d673",
+    "evaluation\\briefing-quality\\worker\\src\\budget.ts": "909e122c6d4cbd05edcacf2640b61fd8aefcc623863db963e2c88e279174097b",
+    "evaluation\\briefing-quality\\worker\\src\\complete-review.ts": "925928b597b07b8279f411b3b652c656a68b2dbd22c1102b6cd583e9790502c5",
+    "evaluation\\briefing-quality\\worker\\src\\failures.ts": "89cd4c5c83728817131dc6919570eddda23ebe48a01c16d5b3572c0b9ddedd9a",
+    "evaluation\\briefing-quality\\worker\\src\\grafana.ts": "07d873137fe34feae7ac2253b52acfc2ad28690112e6648e1a12a91047037553",
+    "evaluation\\briefing-quality\\worker\\src\\grounding.ts": "d12fe10ab4c4e6da93e23118cb6be3a26872277e6e100f9f8512fecf3dd3b765",
+    "evaluation\\briefing-quality\\worker\\src\\index.ts": "d725b4a222d1c0ff064f1afdf0d26684318880a108d3a07f18566c41717b9547",
+    "evaluation\\briefing-quality\\worker\\src\\page.ts": "7c740080839c72cd6369de36a00dec1edb1499aa8462364bfe7f26c4318a6021",
+    "evaluation\\briefing-quality\\worker\\src\\protocol.ts": "4793f206e27729ecb0b82a6504eb8967181808df86cc6c31c3ef28c10f10c478",
+    "evaluation\\briefing-quality\\worker\\src\\recovery.ts": "dba9b5e467f419a810cc5e4cf0612f6dfdf39a179a03a2304c4d064a83c07569",
+    "evaluation\\briefing-quality\\worker\\src\\schema.ts": "ade22ff224d8a8377cf22c8bccb5dde760c53442bdff8042249aaad10d2d2cdf",
+    "evaluation\\briefing-quality\\worker\\src\\secrets.d.ts": "33300ebfd371610595c191116b7d04f68430a8e8ae5e1ebc4962b5d79c686162",
+    "evaluation\\briefing-quality\\worker\\src\\source.ts": "49a8622aba6dbb56096ec5570bf93ee8d96830fae4d1e4b44ad24f1ad96b0b60",
+    "packages\\briefing\\src\\citation-coverage.ts": "950fd1944eb4b51bbbd543d10d08fa01dd635c01c928bc016b2ec1595e77ef2a",
+    "packages\\briefing\\src\\engine.ts": "650dad38daadae0e9d6c8f6551c82a3966807d0a5a00704ea004278b1dc8e91a",
+    "packages\\briefing\\src\\evidence-agent.ts": "2cdfac253be99a96bca8fa70be1e681b2b52097b57391634834d60aa59e8ff1d",
+    "packages\\briefing\\src\\evidence-tools.ts": "e4146efd4a117aa0853db962f2f1ea6a8c853dafaf1b521dba7a8adc33e04c0e",
+    "packages\\briefing\\src\\index.ts": "ebde6d7ba4e3fb6bb83d6c771ae9bd92fd393754d2bb3a8a6529890864f86a2a",
+    "packages\\briefing\\src\\model.ts": "3d58559ac669f98c5d543231ff1591d8a4877f11344f40c31b4c5780c55e28f1",
+    "packages\\briefing\\src\\novelty.ts": "08e23bded6ad4cb90e0694a2d233e3faca2104aa3c8c7689616b32052b9b4ff9",
+    "packages\\briefing\\src\\prepare.ts": "2b79d5a51e0f6ab0368a3adeda57b98ee2a7b17d8b9c8a4e70c6cdbe95feb94a",
+    "packages\\briefing\\src\\prompts-v7.ts": "120fb53f91550bbca9914758f18059f748c9f5803205349c654d62220ad66a8c",
+    "packages\\briefing\\src\\prompts.ts": "5592874e7d6612ae309ee323adb49d5e1917c07fb03d17c80e22d5a98c1ff731",
+    "packages\\briefing\\src\\source-accounting.ts": "3e4901d39cf73fabaa90612dc33e0c0d8c84094d1aa8eea5489eb814a03a173a",
+    "packages\\briefing\\src\\text.ts": "9784876bd082885adcceaad173b26d470537e626874f7463ae26adf75dfbc659",
+    "packages\\briefing\\src\\types.ts": "7cbb1c392574c95ddedaea12bdc5a87bb493efa664d581e6e705d3a8350ed4fe"
+  },
+  "languageDetection": {
+    "synthetic": {
+      "anthropic--claude-sonnet-4.5": {
+        "en": {
+          "TP": 5,
+          "FP": 0,
+          "TN": 7,
+          "FN": 0,
+          "completed": 12,
+          "failed": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "ar": {
+          "TP": 6,
+          "FP": 1,
+          "TN": 6,
+          "FN": 0,
+          "completed": 13,
+          "failed": 1,
+          "precision": 0.8571428571428571,
+          "recall": 1.0,
+          "f1": 0.9230769230769231
+        },
+        "fr": {
+          "TP": 5,
+          "FP": 0,
+          "TN": 7,
+          "FN": 0,
+          "completed": 12,
+          "failed": 2,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      },
+      "openai--gpt-4.1": {
+        "en": {
+          "TP": 5,
+          "FP": 0,
+          "TN": 7,
+          "FN": 1,
+          "completed": 13,
+          "failed": 1,
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091
+        },
+        "ar": {
+          "TP": 4,
+          "FP": 0,
+          "TN": 6,
+          "FN": 1,
+          "completed": 11,
+          "failed": 3,
+          "precision": 1.0,
+          "recall": 0.8,
+          "f1": 0.8888888888888888
+        },
+        "fr": {
+          "TP": 5,
+          "FP": 0,
+          "TN": 7,
+          "FN": 1,
+          "completed": 13,
+          "failed": 1,
+          "precision": 1.0,
+          "recall": 0.8333333333333334,
+          "f1": 0.9090909090909091
+        }
+      }
+    },
+    "realSourceChallenges": {
+      "anthropic--claude-sonnet-4.5": {
+        "en": {
+          "TP": 2,
+          "FP": 0,
+          "TN": 2,
+          "FN": 0,
+          "completed": 4,
+          "failed": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "ar": {
+          "TP": 2,
+          "FP": 0,
+          "TN": 1,
+          "FN": 0,
+          "completed": 3,
+          "failed": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "fr": {
+          "TP": 2,
+          "FP": 1,
+          "TN": 1,
+          "FN": 0,
+          "completed": 4,
+          "failed": 0,
+          "precision": 0.6666666666666666,
+          "recall": 1.0,
+          "f1": 0.8
+        }
+      },
+      "openai--gpt-4.1": {
+        "en": {
+          "TP": 2,
+          "FP": 0,
+          "TN": 2,
+          "FN": 0,
+          "completed": 4,
+          "failed": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "ar": {
+          "TP": 2,
+          "FP": 0,
+          "TN": 2,
+          "FN": 0,
+          "completed": 4,
+          "failed": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "fr": {
+          "TP": 2,
+          "FP": 0,
+          "TN": 2,
+          "FN": 0,
+          "completed": 4,
+          "failed": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        }
+      }
+    }
+  }
+}

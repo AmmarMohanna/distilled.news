@@ -1,0 +1,1127 @@
+{
+  "status": "partial_storage_interrupted",
+  "freeze": {
+    "frozenAt": "2026-11-14T21:40:40.287Z",
+    "protocolSha256": "058c587625e0406d181b9f702961ab6dd63935828f2c7dd0c4c3abdb5f1a3cb4",
+    "baseRevision": "c41d33b04d24b72efa7c7edf7ede0c9ad721f38f",
+    "authorization": "User explicitly requested executing available real model experiments on this research branch; no deployment or production changes."
+  },
+  "benchmark": {
+    "cases": 42,
+    "faults": 21,
+    "controls": 21,
+    "eventGroups": 7,
+    "languages": [
+      "en",
+      "ar",
+      "fr"
+    ],
+    "files": {
+      "blind-controls.json": "21590adc59ef7ef49229cc513cb48fb765aebe4210eb2eaed0572619be0d8cd2",
+      "control-labels.json": "67494670478822030223c261b1b381e7cda527ffd875e0661be3bb0a0b131f63"
+    },
+    "scoringMask": "target-category positives and all-category negatives on correct controls; no assumptions that collateral consequences of a mutation are negative",
+    "independence": "Matched variants and translations share event groups; 42 cases are not 42 independent real-world events."
+  },
+  "analysis": {
+    "models": {
+      "anthropic--claude-sonnet-4.5": {
+        "planned": 42,
+        "attempted": 13,
+        "completed": 11,
+        "failedReports": [
+          {
+            "id": "99f3f015890dcbe563909c06",
+            "category": "coverage",
+            "language": "ar",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 22903
+          }
+        ],
+        "incompleteWithoutReport": [
+          "abd6ebe4d587cf7a0ed668f8"
+        ],
+        "notAttempted": [
+          "06beeaee5eba909949908e6d",
+          "0d700743cc41b0019ddd4eab",
+          "1c5fd870604a84fefd53d9ee",
+          "265f3fb5925ebe0637986d20",
+          "2bfcf2b8f5516569cfc215fe",
+          "305a6a843178484df1ce7f06",
+          "3ae51c09d9c857720a85450c",
+          "3b50f6c71d289dcdb130af6f",
+          "40544365de8c58ff65059608",
+          "4fd0bc06365cd28a33c832b7",
+          "56013aacbec5b731af2f89ca",
+          "660e62ab852e94d897f03692",
+          "690661056ee433416193b1aa",
+          "6916cbb8ce96f6b64df2493f",
+          "74a96be31203effe18619527",
+          "78bd0ee7ccce025c950bf4f9",
+          "7d5d367906771d49dc409c47",
+          "84306197174ddf966c9f9abd",
+          "aa25f764aebf2e5615036ce8",
+          "b55193101728754c4c806b9a",
+          "c54aa8bb07ec864ec745cd0b",
+          "c65e6d45fe54ff50b8c4e761",
+          "c735ccd06714059b6c170c22",
+          "d303113f5513bc2b2fb57a33",
+          "d566d3bc7ed46b8e5a5d75a8",
+          "d7a634a49055b60807b1a3fa",
+          "e453ecf0fc13e17a23fbe9fa",
+          "fd350a06dd962b66c6bb2092",
+          "ff7093c731fe4575f7111d37"
+        ],
+        "knownCorrectControls": 7,
+        "falseAlertControls": 0,
+        "injectedFaultsCompleted": 4,
+        "targetFaultsDetected": 3,
+        "missed": [
+          {
+            "id": "44e9ffb48742cc0db6199afb",
+            "category": "temporal",
+            "language": "en",
+            "predicted": {
+              "factual": true,
+              "citation": true,
+              "coverage": false,
+              "relevance": false,
+              "repetition": false,
+              "temporal": false,
+              "language": false
+            },
+            "alert": true
+          }
+        ],
+        "targetRecallCompleted": 0.75,
+        "targetRecallFailureAdjustedLower": 0.5,
+        "targetRecallFailureAdjustedUpper": 0.8333333333333334,
+        "byCategory": {
+          "factual": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 7,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "citation": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 7,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "coverage": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 7,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "relevance": {
+            "TP": 1,
+            "FP": 0,
+            "TN": 7,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "repetition": {
+            "TP": 1,
+            "FP": 0,
+            "TN": 7,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "temporal": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 7,
+            "FN": 1,
+            "precision": null,
+            "recall": 0.0,
+            "f1": 0.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 1.0
+          },
+          "language": {
+            "TP": 1,
+            "FP": 0,
+            "TN": 7,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          }
+        },
+        "byLanguage": {
+          "en": {
+            "completed": 4,
+            "categories": {
+              "factual": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 1,
+                "precision": null,
+                "recall": 0.0,
+                "f1": 0.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 1.0
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          },
+          "ar": {
+            "completed": 1,
+            "categories": {
+              "factual": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 1,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          },
+          "fr": {
+            "completed": 6,
+            "categories": {
+              "factual": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "language": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              }
+            }
+          }
+        },
+        "calls": 39,
+        "callStates": {
+          "SETTLED": 38,
+          "RESERVED": 1
+        },
+        "costUsd": 0.308731,
+        "unresolvedReservationUsd": 0.126543,
+        "ledgerErrors": [],
+        "latencyCompletedMs": {
+          "n": 11,
+          "p50": 21053.0,
+          "p95": 36406.5
+        },
+        "errorsDetected": {
+          "language": 1,
+          "repetition": 1,
+          "relevance": 1
+        },
+        "anyFaultDetection": {
+          "TP": 4,
+          "FP": 0,
+          "TN": 7,
+          "FN": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        "uncertainAssessments": {
+          "claims": 0,
+          "coverage": 0,
+          "items": 0
+        },
+        "attemptedTargetFailuresByCategory": {
+          "citation": 1,
+          "coverage": 1
+        },
+        "unavailableCorrectControls": 0
+      },
+      "openai--gpt-4.1": {
+        "planned": 42,
+        "attempted": 27,
+        "completed": 23,
+        "failedReports": [
+          {
+            "id": "06beeaee5eba909949908e6d",
+            "category": null,
+            "language": "ar",
+            "phase": "inventory_grounding_v1",
+            "error": "Error: database or disk is full",
+            "latencyMs": 16575
+          },
+          {
+            "id": "2bfcf2b8f5516569cfc215fe",
+            "category": "coverage",
+            "language": "en",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 12031
+          },
+          {
+            "id": "84306197174ddf966c9f9abd",
+            "category": "coverage",
+            "language": "fr",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 23321
+          },
+          {
+            "id": "99f3f015890dcbe563909c06",
+            "category": "coverage",
+            "language": "ar",
+            "phase": "atomic_claims_and_coverage",
+            "error": "Error: UNBOUND_REVIEW_FINDING",
+            "latencyMs": 6517
+          }
+        ],
+        "incompleteWithoutReport": [],
+        "notAttempted": [
+          "0d700743cc41b0019ddd4eab",
+          "1c5fd870604a84fefd53d9ee",
+          "265f3fb5925ebe0637986d20",
+          "3b50f6c71d289dcdb130af6f",
+          "4fd0bc06365cd28a33c832b7",
+          "56013aacbec5b731af2f89ca",
+          "690661056ee433416193b1aa",
+          "74a96be31203effe18619527",
+          "78bd0ee7ccce025c950bf4f9",
+          "7d5d367906771d49dc409c47",
+          "c65e6d45fe54ff50b8c4e761",
+          "c735ccd06714059b6c170c22",
+          "e453ecf0fc13e17a23fbe9fa",
+          "fd350a06dd962b66c6bb2092",
+          "ff7093c731fe4575f7111d37"
+        ],
+        "knownCorrectControls": 13,
+        "falseAlertControls": 0,
+        "injectedFaultsCompleted": 10,
+        "targetFaultsDetected": 9,
+        "missed": [
+          {
+            "id": "4c74987b0446540882d73698",
+            "category": "language",
+            "language": "fr",
+            "predicted": {
+              "factual": false,
+              "citation": false,
+              "coverage": false,
+              "relevance": false,
+              "repetition": false,
+              "temporal": false,
+              "language": false
+            },
+            "alert": false
+          }
+        ],
+        "targetRecallCompleted": 0.9,
+        "targetRecallFailureAdjustedLower": 0.6923076923076923,
+        "targetRecallFailureAdjustedUpper": 0.9230769230769231,
+        "byCategory": {
+          "factual": {
+            "TP": 1,
+            "FP": 0,
+            "TN": 13,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "citation": {
+            "TP": 2,
+            "FP": 0,
+            "TN": 13,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "coverage": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 13,
+            "FN": 0,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": null
+          },
+          "relevance": {
+            "TP": 2,
+            "FP": 0,
+            "TN": 13,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "repetition": {
+            "TP": 1,
+            "FP": 0,
+            "TN": 13,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "temporal": {
+            "TP": 3,
+            "FP": 0,
+            "TN": 13,
+            "FN": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 0.0
+          },
+          "language": {
+            "TP": 0,
+            "FP": 0,
+            "TN": 13,
+            "FN": 1,
+            "precision": null,
+            "recall": 0.0,
+            "f1": 0.0,
+            "falsePositiveRate": 0.0,
+            "falseNegativeRate": 1.0
+          }
+        },
+        "byLanguage": {
+          "en": {
+            "completed": 8,
+            "categories": {
+              "factual": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "citation": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "temporal": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 4,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          },
+          "ar": {
+            "completed": 4,
+            "categories": {
+              "factual": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "citation": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 2,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              }
+            }
+          },
+          "fr": {
+            "completed": 11,
+            "categories": {
+              "factual": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "citation": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "coverage": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "relevance": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "repetition": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": null,
+                "recall": null,
+                "f1": null,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": null
+              },
+              "temporal": {
+                "TP": 1,
+                "FP": 0,
+                "TN": 7,
+                "FN": 0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "f1": 1.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 0.0
+              },
+              "language": {
+                "TP": 0,
+                "FP": 0,
+                "TN": 7,
+                "FN": 1,
+                "precision": null,
+                "recall": 0.0,
+                "f1": 0.0,
+                "falsePositiveRate": 0.0,
+                "falseNegativeRate": 1.0
+              }
+            }
+          }
+        },
+        "calls": 80,
+        "callStates": {
+          "SETTLED": 79,
+          "RESERVED": 1
+        },
+        "costUsd": 0.23543,
+        "unresolvedReservationUsd": 0.059956,
+        "ledgerErrors": [
+          {
+            "id": "e453ecf0fc13e17a23fbe9fa",
+            "error": "no such table: eval_calls"
+          }
+        ],
+        "latencyCompletedMs": {
+          "n": 23,
+          "p50": 8703.0,
+          "p95": 18323.5
+        },
+        "errorsDetected": {
+          "citation": 2,
+          "temporal": 3,
+          "repetition": 1,
+          "relevance": 2,
+          "factual": 1
+        },
+        "anyFaultDetection": {
+          "TP": 9,
+          "FP": 0,
+          "TN": 13,
+          "FN": 1,
+          "precision": 1.0,
+          "recall": 0.9,
+          "f1": 0.9473684210526315
+        },
+        "uncertainAssessments": {
+          "claims": 0,
+          "coverage": 0,
+          "items": 1
+        },
+        "attemptedTargetFailuresByCategory": {
+          "coverage": 3
+        },
+        "unavailableCorrectControls": 1
+      }
+    },
+    "jointlyCompletedCases": 11,
+    "disagreements": [
+      {
+        "id": "44e9ffb48742cc0db6199afb",
+        "language": "en",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": 1,
+          "language": null
+        },
+        "eventGroup": "cabinet",
+        "categories": [
+          "coverage",
+          "temporal"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": true,
+            "citation": true,
+            "coverage": true,
+            "relevance": false,
+            "repetition": false,
+            "temporal": true,
+            "language": false
+          },
+          "alert": true
+        }
+      },
+      {
+        "id": "4c74987b0446540882d73698",
+        "language": "fr",
+        "expected": {
+          "factual": null,
+          "citation": null,
+          "coverage": null,
+          "relevance": null,
+          "repetition": null,
+          "temporal": null,
+          "language": 1
+        },
+        "eventGroup": "bank",
+        "categories": [
+          "language"
+        ],
+        "anthropic--claude-sonnet-4.5": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": true
+          },
+          "alert": true
+        },
+        "openai--gpt-4.1": {
+          "predicted": {
+            "factual": false,
+            "citation": false,
+            "coverage": false,
+            "relevance": false,
+            "repetition": false,
+            "temporal": false,
+            "language": false
+          },
+          "alert": false
+        }
+      }
+    ],
+    "scoring": "Prespecified target-category mask on faulty cases; all categories negative on correct controls. Completed-only and conservative failure-adjusted detection are separate. Unknown cost holds are NOT settled as zero. Synthetic cases are not real published briefing quality.",
+    "independence": "Seven constructed event groups, with matched translations and mutations. Artificial prevalence; no real-world positive predictive value or superiority claim."
+  },
+  "historicalBaselines": {
+    "sourceExportSha256": "6efe88a9dcb4bd20f73f7dab0640c3173f838bbf61ed2571f515c92f63d4187a",
+    "publicExportSha256": "a9d9a04fee10c9c4f2dc0ecbbb4e355e83015527f57f50cc3d442c08bf994525",
+    "windows": 3,
+    "articleOccurrences": 615,
+    "observations": [
+      {
+        "caseId": "69f09cdeb86f1abad969ce2897f8a72a40ab978b405adc53c3a17087d0d4d2a8",
+        "system": "all-headlines",
+        "language": "ar",
+        "articles": 205,
+        "selected": 205,
+        "characters": 25152,
+        "latencyMs": 0.09499999578110874,
+        "outputSha256": "82720a7a6b665b9ace49afb10dfead36717ae7871aacab80984e563e6bbdf051",
+        "inputSha256": "ef333660e54d69833e339b3a06b5795fe27a22644d18ccde5b52f75d371f6852",
+        "calls": 0,
+        "costUsd": 0,
+        "scope": "actual deterministic baseline selection only; not a model-judged quality score"
+      },
+      {
+        "caseId": "69f09cdeb86f1abad969ce2897f8a72a40ab978b405adc53c3a17087d0d4d2a8",
+        "system": "keyword",
+        "language": "ar",
+        "articles": 205,
+        "selected": 5,
+        "characters": 360,
+        "latencyMs": 14.791099994909018,
+        "outputSha256": "f84a44bf692138a70052a40be1a79c2adb3f3a384639915c47798a134dbefa11",
+        "inputSha256": "ef333660e54d69833e339b3a06b5795fe27a22644d18ccde5b52f75d371f6852",
+        "calls": 0,
+        "costUsd": 0,
+        "scope": "actual deterministic baseline selection only; not a model-judged quality score"
+      },
+      {
+        "caseId": "2297f8d3d90ba022c4f8e02d64285c54a69c376da0777301ccf38715c993de29",
+        "system": "all-headlines",
+        "language": "ar",
+        "articles": 214,
+        "selected": 214,
+        "characters": 26464,
+        "latencyMs": 0.0693999754730612,
+        "outputSha256": "31e315a9de807046e8871efbed3bab3421681d8cbdace916da3c12e373065a53",
+        "inputSha256": "d8c5b0be4d1d8776eff1c02d33c1559b8627e46a9616be95b9d2897ce50349fd",
+        "calls": 0,
+        "costUsd": 0,
+        "scope": "actual deterministic baseline selection only; not a model-judged quality score"
+      },
+      {
+        "caseId": "2297f8d3d90ba022c4f8e02d64285c54a69c376da0777301ccf38715c993de29",
+        "system": "keyword",
+        "language": "ar",
+        "articles": 214,
+        "selected": 5,
+        "characters": 317,
+        "latencyMs": 9.101599978748709,
+        "outputSha256": "b72751fd10913855f00755bd17f2ca1273a5a5ef944aa6ecbddf17a5d2beea52",
+        "inputSha256": "d8c5b0be4d1d8776eff1c02d33c1559b8627e46a9616be95b9d2897ce50349fd",
+        "calls": 0,
+        "costUsd": 0,
+        "scope": "actual deterministic baseline selection only; not a model-judged quality score"
+      },
+      {
+        "caseId": "f1c673e7ed90ec208ad4afc4ff3a2381e020146ea18c9ee878d4eac7a8060770",
+        "system": "all-headlines",
+        "language": "ar",
+        "articles": 196,
+        "selected": 196,
+        "characters": 25116,
+        "latencyMs": 0.0591999851167202,
+        "outputSha256": "d20f8705c91b04c5421175d9a7457cef894054e9b7a081f30e259272f1e9e7be",
+        "inputSha256": "3bed40c7d36b1ef5d924585ed830bde4e17cb5575676a5dfa747a294b750c750",
+        "calls": 0,
+        "costUsd": 0,
+        "scope": "actual deterministic baseline selection only; not a model-judged quality score"
+      },
+      {
+        "caseId": "f1c673e7ed90ec208ad4afc4ff3a2381e020146ea18c9ee878d4eac7a8060770",
+        "system": "keyword",
+        "language": "ar",
+        "articles": 196,
+        "selected": 5,
+        "characters": 361,
+        "latencyMs": 10.960500017972663,
+        "outputSha256": "48ed965883e2df017911ec6267997d2443fa3b4d6182483cdd9e5c37bf815f7e",
+        "inputSha256": "3bed40c7d36b1ef5d924585ed830bde4e17cb5575676a5dfa747a294b750c750",
+        "calls": 0,
+        "costUsd": 0,
+        "scope": "actual deterministic baseline selection only; not a model-judged quality score"
+      }
+    ],
+    "qualityScores": null,
+    "heldOut": false
+  },
+  "unperformed": [
+    "remaining controlled cases",
+    "real-source challenge inference",
+    "V3/single-LLM paired generation and quality scoring",
+    "untouched event-independent chronological evaluation"
+  ],
+  "frozenExecutionManifest": {
+    "inputSha256": "21590adc59ef7ef49229cc513cb48fb765aebe4210eb2eaed0572619be0d8cd2",
+    "cases": 42,
+    "models": [
+      "openai/gpt-4.1",
+      "anthropic/claude-sonnet-4.5"
+    ],
+    "sourceHashes": {
+      "evaluation/briefing-quality/validation/protocol.json": "058c587625e0406d181b9f702961ab6dd63935828f2c7dd0c4c3abdb5f1a3cb4",
+      "evaluation/briefing-quality/validation/offline.ts": "ce1eaa590812547ee205a5f33c607831b2b1dde8d5a84f6a84e1f27feb55f07f",
+      "evaluation/briefing-quality/validation/run.ts": "bce30c365245795eee1a6abbee2f38b45fac042d5ea17d52c57c963716a6a7a4",
+      "evaluation/briefing-quality/worker/src/protocol.ts": "4793f206e27729ecb0b82a6504eb8967181808df86cc6c31c3ef28c10f10c478",
+      "evaluation/briefing-quality/worker/src/grounding.ts": "d12fe10ab4c4e6da93e23118cb6be3a26872277e6e100f9f8512fecf3dd3b765",
+      "evaluation/briefing-quality/worker/src/budget.ts": "909e122c6d4cbd05edcacf2640b61fd8aefcc623863db963e2c88e279174097b",
+      "evaluation/briefing-quality/worker/src/schema.ts": "ade22ff224d8a8377cf22c8bccb5dde760c53442bdff8042249aaad10d2d2cdf",
+      "evaluation/briefing-quality/worker/src/complete-review.ts": "925928b597b07b8279f411b3b652c656a68b2dbd22c1102b6cd583e9790502c5",
+      "evaluation/briefing-quality/worker/src/recovery.ts": "dba9b5e467f419a810cc5e4cf0612f6dfdf39a179a03a2304c4d064a83c07569"
+    },
+    "labelAccess": "Expected labels are never loaded by this process",
+    "accounting": "unmodified evaluator reservation/settlement in independent local SQLite databases; uncertain outcomes retained, no transport retries"
+  }
+}
