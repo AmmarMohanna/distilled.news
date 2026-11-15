@@ -1,0 +1,9 @@
+# Engine value research design
+
+Use the actual V3 core and existing offline evaluator/replay accounting. The question is an honest source-supported coverage advantage over a single call at matched reader budget, not a higher opaque judge score. See evaluation/briefing-quality/engine-value/PREREGISTRATION.md for thresholds, data qualification and inferential limits.
+
+Alternatives considered: a stronger verifier only (small change, cannot recover editorial omissions); explicit development bookkeeping and atomic verification within current calls (preferred first ablation, avoids assuming extra agent stages help); the existing evidence-first-v2 architecture (already implemented, mechanically tested but not model-qualified; use as a comparator/reuse rather than rebuild). Separate source extraction or quiet-window calls are conditional on measured development benefits.
+
+Root-cause hypotheses to verify against paid traces: selection and compression occur before independent development coverage exists; per-source left_out accounting does not prove every development was considered; no-draft windows return before verification; mini's item-level ok has no mandatory atomic support record; existing date/number hints do not enforce semantic entity equivalence. These are hypotheses until trace audit and regression reproduction.
+
+The user explicitly authorizes autonomous design and isolated implementation. No deployment is authorized. New inference waits for agreement on a finite campaign cap. All raw source/provider artifacts remain private and versioned. Final reports preserve failed arms, disagreements and non-certifiable independence.
