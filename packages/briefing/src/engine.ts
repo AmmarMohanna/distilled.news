@@ -1,3 +1,4 @@
+import{generateCoverageBriefing}from './coverage-first';
 import{anchorLocalityWire,type SourceWireAudit}from './source-wire';
 import{withinWordBudget,wordBudgetInstruction}from './word-budget';
 import{DEVELOPMENT_LEDGER_RULE,ATOMIC_SUPPORT_RULE,validateDevelopmentLedger,atomicVerdict,SOURCE_ENTITY_RULE}from './value-policy';
@@ -53,7 +54,7 @@ export interface EngineOptions {
   /** New snapshots compare cited occurrence evidence and timestamped reader memory. */
   noveltyPolicy?:'occurrence-aware-v1';
   /** Programmatic opt-in only; existing prompt versions and defaults remain unchanged. */
-  architecture?: 'evidence-first-v1' | 'evidence-first-v2';
+  architecture?: 'evidence-first-v1' | 'evidence-first-v2' | 'coverage-first-v1';
   /**
    * Deterministic publication guard candidates. They are deliberately opt-in:
    * old request bytes and the selected V4 path must remain replayable.
@@ -528,10 +529,11 @@ export async function generateBriefing(
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
   if(options.readingWordBudget!==undefined)withinWordBudget([],options.readingWordBudget);
   if(options.editorSourcePolicy&&options.citationCoverage)throw Error('CONFLICTING_SOURCE_POLICIES');
+  if(options.architecture==='coverage-first-v1')return generateCoverageBriefing(input,port,models,options.readingWordBudget, {maxRequestChars:Math.min(options.maxEditorChars,options.maxVerifyChars)});
   if(options.architecture&&options.sourceWirePolicy)throw Error('SOURCE_WIRE_POLICY_REQUIRES_STANDARD_CORE');
   if (options.architecture !== undefined) {
     if (options.architecture !== 'evidence-first-v1' && options.architecture !== 'evidence-first-v2') throw new Error('UNSUPPORTED_BRIEFING_ARCHITECTURE');
-    const result=await generateEvidenceBriefing(input,port,models,options);
+    const result=await generateEvidenceBriefing(input,port,models,{...options,architecture:options.architecture});
     if(options.readingWordBudget===undefined||withinWordBudget(result.items,options.readingWordBudget))return result;
     return {...result,status:'rejected',items:[],dropped:[...result.dropped,...result.items.map(i=>({headline:i.headline,sourceIds:i.sourceIds,carry:true,reason:'WORD_BUDGET_EXCEEDED'}))]};
   }

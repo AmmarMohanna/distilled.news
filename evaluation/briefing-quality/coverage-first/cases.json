@@ -1,0 +1,3822 @@
+[
+  {
+    "id": "development-g0-w0",
+    "split": "development",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-0",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting عين الصفصاف and وادي السنديان; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g0-w0-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-10T10:01:00Z",
+          "text": "The municipality closed عين الصفصاف bridge pending a safety inspection.",
+          "url": "https://controlled.invalid/0/0/0"
+        },
+        {
+          "id": "g0-w0-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-10T10:01:00Z",
+          "text": "أضاف مشغل العبارة قاربين إلى خط وادي السنديان.",
+          "url": "https://controlled.invalid/0/0/1"
+        },
+        {
+          "id": "g0-w0-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-10T10:01:00Z",
+          "text": "The council approved a 40,000-dollar repair grant for عين الصفصاف, conditional on an audit.",
+          "url": "https://controlled.invalid/0/0/2"
+        },
+        {
+          "id": "g0-w0-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-10T10:01:00Z",
+          "text": "علّق مكتب التعليم الدراسة في مدرسة وادي السنديان ليومين.",
+          "url": "https://controlled.invalid/0/0/3"
+        },
+        {
+          "id": "g0-w0-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-10T10:01:00Z",
+          "text": "The water authority reported damage to 12 pumps at عين الصفصاف station.",
+          "url": "https://controlled.invalid/0/0/4"
+        },
+        {
+          "id": "g0-w0-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-10T10:01:00Z",
+          "text": "The municipality closed عين الصفصاف bridge pending a safety inspection.",
+          "url": "https://controlled.invalid/0/0/0"
+        },
+        {
+          "id": "g0-w0-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-10T10:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [],
+      "windowStart": "2026-10-10T10:00:00Z",
+      "windowEnd": "2026-10-10T10:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "close",
+        "en": "The municipality closed عين الصفصاف bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر عين الصفصاف بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g0-w0-s0",
+          "g0-w0-duplicate"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the وادي السنديان route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط وادي السنديان.",
+        "anchors": [
+          [
+            "وادي السنديان"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g0-w0-s1"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for عين الصفصاف, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـعين الصفصاف بشرط التدقيق.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g0-w0-s2"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at وادي السنديان school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة وادي السنديان ليومين.",
+        "anchors": [
+          [
+            "وادي السنديان"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g0-w0-s3"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at عين الصفصاف station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة عين الصفصاف.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g0-w0-s4"
+        ]
+      }
+    ],
+    "nonNovel": [],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "f5ee1a56a0c2c8f120f82883d45bbbe23258c39cec5e247183fa98f8c5a115f6"
+  },
+  {
+    "id": "development-g0-w1",
+    "split": "development",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-0",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting عين الصفصاف and وادي السنديان; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g0-w1-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-10T11:01:00Z",
+          "text": "أعادت البلدية فتح جسر عين الصفصاف بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/0/1/0"
+        },
+        {
+          "id": "g0-w1-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-10T11:01:00Z",
+          "text": "Correction: the water authority says 7 pumps, not 12, were damaged at عين الصفصاف station.",
+          "url": "https://controlled.invalid/0/1/1"
+        },
+        {
+          "id": "g0-w1-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-10T11:01:00Z",
+          "text": "تضررت 3 مضخات في محطة وادي السنديان في حادث منفصل.",
+          "url": "https://controlled.invalid/0/1/2"
+        },
+        {
+          "id": "g0-w1-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-10T11:01:00Z",
+          "text": "The council proposed, but has not approved, a new وادي السنديان bus route.",
+          "url": "https://controlled.invalid/0/1/3"
+        },
+        {
+          "id": "g0-w1-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-10T11:01:00Z",
+          "text": "تصحيح: لم يوافق المجلس على منحة إصلاح عين الصفصاف، وصدر الإعلان السابق بالخطأ.",
+          "url": "https://controlled.invalid/0/1/4"
+        },
+        {
+          "id": "g0-w1-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-10T11:01:00Z",
+          "text": "أعادت البلدية فتح جسر عين الصفصاف بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/0/1/0"
+        },
+        {
+          "id": "g0-w1-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-10T11:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        },
+        {
+          "id": "g0-w1-repeat",
+          "source": "Constructed ferry bulletin",
+          "publishedAt": "2026-10-10T11:03:00Z",
+          "text": "The ferry operator added 2 boats on the وادي السنديان route."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g0-prior-close",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The municipality closed عين الصفصاف bridge pending a safety inspection.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-ferry",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The ferry operator added 2 boats on the وادي السنديان route.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-grant",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The council approved a 40,000-dollar repair grant for عين الصفصاف, conditional on an audit.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-school",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The education office suspended classes at وادي السنديان school for 2 days.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-water",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The water authority reported damage to 12 pumps at عين الصفصاف station.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-10T11:00:00Z",
+      "windowEnd": "2026-10-10T11:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened عين الصفصاف bridge.",
+        "ar": "أعادت البلدية فتح جسر عين الصفصاف بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ],
+        "relation": "update",
+        "priorId": "g0-prior-close",
+        "sourceIds": [
+          "g0-w1-s0",
+          "g0-w1-duplicate"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at عين الصفصاف station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة عين الصفصاف.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g0-prior-water",
+        "sourceIds": [
+          "g0-w1-s1"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at وادي السنديان station.",
+        "ar": "تضررت 3 مضخات في محطة وادي السنديان في حادث منفصل.",
+        "anchors": [
+          [
+            "وادي السنديان"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g0-w1-s2"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new وادي السنديان bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـوادي السنديان ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "وادي السنديان"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g0-w1-s3"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the عين الصفصاف repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح عين الصفصاف، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g0-prior-grant",
+        "sourceIds": [
+          "g0-w1-s4"
+        ]
+      }
+    ],
+    "nonNovel": [
+      {
+        "id": "close",
+        "en": "The municipality closed عين الصفصاف bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر عين الصفصاف بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the وادي السنديان route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط وادي السنديان.",
+        "anchors": [
+          [
+            "وادي السنديان"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for عين الصفصاف, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـعين الصفصاف بشرط التدقيق.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at وادي السنديان school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة وادي السنديان ليومين.",
+        "anchors": [
+          [
+            "وادي السنديان"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at عين الصفصاف station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة عين الصفصاف.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "4a45556dccef149f4de51e2ba7ecd50b5b3959c9a00a1ffe7a1460a73e473e3d"
+  },
+  {
+    "id": "development-g0-w2",
+    "split": "development",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-0",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting عين الصفصاف and وادي السنديان; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g0-w2-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-10T12:01:00Z",
+          "text": "After a completed inspection, the municipality reopened عين الصفصاف bridge.",
+          "url": "https://controlled.invalid/0/2/0"
+        },
+        {
+          "id": "g0-w2-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-10T12:01:00Z",
+          "text": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة عين الصفصاف.",
+          "url": "https://controlled.invalid/0/2/1"
+        },
+        {
+          "id": "g0-w2-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-10T12:01:00Z",
+          "text": "A separate incident damaged 3 pumps at وادي السنديان station.",
+          "url": "https://controlled.invalid/0/2/2"
+        },
+        {
+          "id": "g0-w2-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-10T12:01:00Z",
+          "text": "اقترح المجلس خط حافلات جديدا لـوادي السنديان ولم يوافق عليه بعد.",
+          "url": "https://controlled.invalid/0/2/3"
+        },
+        {
+          "id": "g0-w2-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-10T12:01:00Z",
+          "text": "Correction: the council did not approve the عين الصفصاف repair grant; its earlier announcement was issued in error.",
+          "url": "https://controlled.invalid/0/2/4"
+        },
+        {
+          "id": "g0-w2-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-10T12:01:00Z",
+          "text": "After a completed inspection, the municipality reopened عين الصفصاف bridge.",
+          "url": "https://controlled.invalid/0/2/0"
+        },
+        {
+          "id": "g0-w2-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-10T12:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g0-prior2-reopen",
+          "at": "2026-10-10T11:30:00Z",
+          "headline": "After a completed inspection, the municipality reopened عين الصفصاف bridge.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior2-correct",
+          "at": "2026-10-10T11:30:00Z",
+          "headline": "Correction: the water authority says 7 pumps, not 12, were damaged at عين الصفصاف station.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior2-second",
+          "at": "2026-10-10T11:30:00Z",
+          "headline": "A separate incident damaged 3 pumps at وادي السنديان station.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior2-plan",
+          "at": "2026-10-10T11:30:00Z",
+          "headline": "The council proposed, but has not approved, a new وادي السنديان bus route.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior2-withdraw",
+          "at": "2026-10-10T11:30:00Z",
+          "headline": "Correction: the council did not approve the عين الصفصاف repair grant; its earlier announcement was issued in error.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-close",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The municipality closed عين الصفصاف bridge pending a safety inspection.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-ferry",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The ferry operator added 2 boats on the وادي السنديان route.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-grant",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The council approved a 40,000-dollar repair grant for عين الصفصاف, conditional on an audit.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-school",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The education office suspended classes at وادي السنديان school for 2 days.",
+          "body": ""
+        },
+        {
+          "id": "g0-prior-water",
+          "at": "2026-10-10T10:30:00Z",
+          "headline": "The water authority reported damage to 12 pumps at عين الصفصاف station.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-10T12:00:00Z",
+      "windowEnd": "2026-10-10T12:30:00Z"
+    },
+    "expected": [],
+    "nonNovel": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened عين الصفصاف bridge.",
+        "ar": "أعادت البلدية فتح جسر عين الصفصاف بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at عين الصفصاف station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة عين الصفصاف.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at وادي السنديان station.",
+        "ar": "تضررت 3 مضخات في محطة وادي السنديان في حادث منفصل.",
+        "anchors": [
+          [
+            "وادي السنديان"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new وادي السنديان bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـوادي السنديان ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "وادي السنديان"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the عين الصفصاف repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح عين الصفصاف، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "عين الصفصاف"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "8a6fc82802420c30ed590eaa5a415f4d2b53cd59f9506c6ba9a184a6a8d43215"
+  },
+  {
+    "id": "final-g1-w0",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-1",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting مرج الياسمين and تل الزيتون; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g1-w0-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-11T10:01:00Z",
+          "text": "أغلقت البلدية جسر مرج الياسمين بانتظار فحص السلامة.",
+          "url": "https://controlled.invalid/1/0/0"
+        },
+        {
+          "id": "g1-w0-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-11T10:01:00Z",
+          "text": "The ferry operator added 2 boats on the تل الزيتون route.",
+          "url": "https://controlled.invalid/1/0/1"
+        },
+        {
+          "id": "g1-w0-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-11T10:01:00Z",
+          "text": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـمرج الياسمين بشرط التدقيق.",
+          "url": "https://controlled.invalid/1/0/2"
+        },
+        {
+          "id": "g1-w0-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-11T10:01:00Z",
+          "text": "The education office suspended classes at تل الزيتون school for 2 days.",
+          "url": "https://controlled.invalid/1/0/3"
+        },
+        {
+          "id": "g1-w0-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-11T10:01:00Z",
+          "text": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة مرج الياسمين.",
+          "url": "https://controlled.invalid/1/0/4"
+        },
+        {
+          "id": "g1-w0-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-11T10:01:00Z",
+          "text": "أغلقت البلدية جسر مرج الياسمين بانتظار فحص السلامة.",
+          "url": "https://controlled.invalid/1/0/0"
+        },
+        {
+          "id": "g1-w0-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-11T10:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [],
+      "windowStart": "2026-10-11T10:00:00Z",
+      "windowEnd": "2026-10-11T10:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "close",
+        "en": "The municipality closed مرج الياسمين bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر مرج الياسمين بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g1-w0-s0",
+          "g1-w0-duplicate"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the تل الزيتون route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط تل الزيتون.",
+        "anchors": [
+          [
+            "تل الزيتون"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g1-w0-s1"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for مرج الياسمين, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـمرج الياسمين بشرط التدقيق.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g1-w0-s2"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at تل الزيتون school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة تل الزيتون ليومين.",
+        "anchors": [
+          [
+            "تل الزيتون"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g1-w0-s3"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at مرج الياسمين station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة مرج الياسمين.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g1-w0-s4"
+        ]
+      }
+    ],
+    "nonNovel": [],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "007b6daa2710bf14b2418e3acfc90d29c9da135b46b35adbe52bc91f99e991cc"
+  },
+  {
+    "id": "final-g1-w1",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-1",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting مرج الياسمين and تل الزيتون; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g1-w1-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-11T11:01:00Z",
+          "text": "After a completed inspection, the municipality reopened مرج الياسمين bridge.",
+          "url": "https://controlled.invalid/1/1/0"
+        },
+        {
+          "id": "g1-w1-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-11T11:01:00Z",
+          "text": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة مرج الياسمين.",
+          "url": "https://controlled.invalid/1/1/1"
+        },
+        {
+          "id": "g1-w1-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-11T11:01:00Z",
+          "text": "A separate incident damaged 3 pumps at تل الزيتون station.",
+          "url": "https://controlled.invalid/1/1/2"
+        },
+        {
+          "id": "g1-w1-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-11T11:01:00Z",
+          "text": "اقترح المجلس خط حافلات جديدا لـتل الزيتون ولم يوافق عليه بعد.",
+          "url": "https://controlled.invalid/1/1/3"
+        },
+        {
+          "id": "g1-w1-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-11T11:01:00Z",
+          "text": "Correction: the council did not approve the مرج الياسمين repair grant; its earlier announcement was issued in error.",
+          "url": "https://controlled.invalid/1/1/4"
+        },
+        {
+          "id": "g1-w1-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-11T11:01:00Z",
+          "text": "After a completed inspection, the municipality reopened مرج الياسمين bridge.",
+          "url": "https://controlled.invalid/1/1/0"
+        },
+        {
+          "id": "g1-w1-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-11T11:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        },
+        {
+          "id": "g1-w1-repeat",
+          "source": "Constructed ferry bulletin",
+          "publishedAt": "2026-10-11T11:03:00Z",
+          "text": "The ferry operator added 2 boats on the تل الزيتون route."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g1-prior-close",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The municipality closed مرج الياسمين bridge pending a safety inspection.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-ferry",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The ferry operator added 2 boats on the تل الزيتون route.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-grant",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The council approved a 40,000-dollar repair grant for مرج الياسمين, conditional on an audit.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-school",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The education office suspended classes at تل الزيتون school for 2 days.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-water",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The water authority reported damage to 12 pumps at مرج الياسمين station.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-11T11:00:00Z",
+      "windowEnd": "2026-10-11T11:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened مرج الياسمين bridge.",
+        "ar": "أعادت البلدية فتح جسر مرج الياسمين بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ],
+        "relation": "update",
+        "priorId": "g1-prior-close",
+        "sourceIds": [
+          "g1-w1-s0",
+          "g1-w1-duplicate"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at مرج الياسمين station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة مرج الياسمين.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g1-prior-water",
+        "sourceIds": [
+          "g1-w1-s1"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at تل الزيتون station.",
+        "ar": "تضررت 3 مضخات في محطة تل الزيتون في حادث منفصل.",
+        "anchors": [
+          [
+            "تل الزيتون"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g1-w1-s2"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new تل الزيتون bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـتل الزيتون ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "تل الزيتون"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g1-w1-s3"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the مرج الياسمين repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح مرج الياسمين، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g1-prior-grant",
+        "sourceIds": [
+          "g1-w1-s4"
+        ]
+      }
+    ],
+    "nonNovel": [
+      {
+        "id": "close",
+        "en": "The municipality closed مرج الياسمين bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر مرج الياسمين بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the تل الزيتون route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط تل الزيتون.",
+        "anchors": [
+          [
+            "تل الزيتون"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for مرج الياسمين, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـمرج الياسمين بشرط التدقيق.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at تل الزيتون school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة تل الزيتون ليومين.",
+        "anchors": [
+          [
+            "تل الزيتون"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at مرج الياسمين station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة مرج الياسمين.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "0a2e82853ed9b19dd02734f49cf419cd1832b05136b5c753662f6597110f4c6a"
+  },
+  {
+    "id": "final-g1-w2",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-1",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting مرج الياسمين and تل الزيتون; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g1-w2-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-11T12:01:00Z",
+          "text": "أعادت البلدية فتح جسر مرج الياسمين بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/1/2/0"
+        },
+        {
+          "id": "g1-w2-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-11T12:01:00Z",
+          "text": "Correction: the water authority says 7 pumps, not 12, were damaged at مرج الياسمين station.",
+          "url": "https://controlled.invalid/1/2/1"
+        },
+        {
+          "id": "g1-w2-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-11T12:01:00Z",
+          "text": "تضررت 3 مضخات في محطة تل الزيتون في حادث منفصل.",
+          "url": "https://controlled.invalid/1/2/2"
+        },
+        {
+          "id": "g1-w2-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-11T12:01:00Z",
+          "text": "The council proposed, but has not approved, a new تل الزيتون bus route.",
+          "url": "https://controlled.invalid/1/2/3"
+        },
+        {
+          "id": "g1-w2-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-11T12:01:00Z",
+          "text": "تصحيح: لم يوافق المجلس على منحة إصلاح مرج الياسمين، وصدر الإعلان السابق بالخطأ.",
+          "url": "https://controlled.invalid/1/2/4"
+        },
+        {
+          "id": "g1-w2-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-11T12:01:00Z",
+          "text": "أعادت البلدية فتح جسر مرج الياسمين بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/1/2/0"
+        },
+        {
+          "id": "g1-w2-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-11T12:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g1-prior2-reopen",
+          "at": "2026-10-11T11:30:00Z",
+          "headline": "After a completed inspection, the municipality reopened مرج الياسمين bridge.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior2-correct",
+          "at": "2026-10-11T11:30:00Z",
+          "headline": "Correction: the water authority says 7 pumps, not 12, were damaged at مرج الياسمين station.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior2-second",
+          "at": "2026-10-11T11:30:00Z",
+          "headline": "A separate incident damaged 3 pumps at تل الزيتون station.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior2-plan",
+          "at": "2026-10-11T11:30:00Z",
+          "headline": "The council proposed, but has not approved, a new تل الزيتون bus route.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior2-withdraw",
+          "at": "2026-10-11T11:30:00Z",
+          "headline": "Correction: the council did not approve the مرج الياسمين repair grant; its earlier announcement was issued in error.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-close",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The municipality closed مرج الياسمين bridge pending a safety inspection.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-ferry",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The ferry operator added 2 boats on the تل الزيتون route.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-grant",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The council approved a 40,000-dollar repair grant for مرج الياسمين, conditional on an audit.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-school",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The education office suspended classes at تل الزيتون school for 2 days.",
+          "body": ""
+        },
+        {
+          "id": "g1-prior-water",
+          "at": "2026-10-11T10:30:00Z",
+          "headline": "The water authority reported damage to 12 pumps at مرج الياسمين station.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-11T12:00:00Z",
+      "windowEnd": "2026-10-11T12:30:00Z"
+    },
+    "expected": [],
+    "nonNovel": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened مرج الياسمين bridge.",
+        "ar": "أعادت البلدية فتح جسر مرج الياسمين بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at مرج الياسمين station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة مرج الياسمين.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at تل الزيتون station.",
+        "ar": "تضررت 3 مضخات في محطة تل الزيتون في حادث منفصل.",
+        "anchors": [
+          [
+            "تل الزيتون"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new تل الزيتون bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـتل الزيتون ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "تل الزيتون"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the مرج الياسمين repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح مرج الياسمين، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "مرج الياسمين"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "4fa1dd7d306d0aaf31218f68033344f094b6f91ca98694bd26a8876398286e7a"
+  },
+  {
+    "id": "final-g2-w0",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-2",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting سهل الندى and عين الرمان; exclude sports.",
+        "language": "ar",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g2-w0-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-12T10:01:00Z",
+          "text": "The municipality closed سهل الندى bridge pending a safety inspection.",
+          "url": "https://controlled.invalid/2/0/0"
+        },
+        {
+          "id": "g2-w0-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-12T10:01:00Z",
+          "text": "أضاف مشغل العبارة قاربين إلى خط عين الرمان.",
+          "url": "https://controlled.invalid/2/0/1"
+        },
+        {
+          "id": "g2-w0-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-12T10:01:00Z",
+          "text": "The council approved a 40,000-dollar repair grant for سهل الندى, conditional on an audit.",
+          "url": "https://controlled.invalid/2/0/2"
+        },
+        {
+          "id": "g2-w0-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-12T10:01:00Z",
+          "text": "علّق مكتب التعليم الدراسة في مدرسة عين الرمان ليومين.",
+          "url": "https://controlled.invalid/2/0/3"
+        },
+        {
+          "id": "g2-w0-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-12T10:01:00Z",
+          "text": "The water authority reported damage to 12 pumps at سهل الندى station.",
+          "url": "https://controlled.invalid/2/0/4"
+        },
+        {
+          "id": "g2-w0-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-12T10:01:00Z",
+          "text": "The municipality closed سهل الندى bridge pending a safety inspection.",
+          "url": "https://controlled.invalid/2/0/0"
+        },
+        {
+          "id": "g2-w0-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-12T10:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [],
+      "windowStart": "2026-10-12T10:00:00Z",
+      "windowEnd": "2026-10-12T10:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "close",
+        "en": "The municipality closed سهل الندى bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر سهل الندى بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g2-w0-s0",
+          "g2-w0-duplicate"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the عين الرمان route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط عين الرمان.",
+        "anchors": [
+          [
+            "عين الرمان"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g2-w0-s1"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for سهل الندى, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـسهل الندى بشرط التدقيق.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g2-w0-s2"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at عين الرمان school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة عين الرمان ليومين.",
+        "anchors": [
+          [
+            "عين الرمان"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g2-w0-s3"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at سهل الندى station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة سهل الندى.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g2-w0-s4"
+        ]
+      }
+    ],
+    "nonNovel": [],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "485d0cc8df26d7721f161f36adcdad94acaaf2c33dcf1a90c11db3c541a5e08a"
+  },
+  {
+    "id": "final-g2-w1",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-2",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting سهل الندى and عين الرمان; exclude sports.",
+        "language": "ar",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g2-w1-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-12T11:01:00Z",
+          "text": "أعادت البلدية فتح جسر سهل الندى بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/2/1/0"
+        },
+        {
+          "id": "g2-w1-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-12T11:01:00Z",
+          "text": "Correction: the water authority says 7 pumps, not 12, were damaged at سهل الندى station.",
+          "url": "https://controlled.invalid/2/1/1"
+        },
+        {
+          "id": "g2-w1-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-12T11:01:00Z",
+          "text": "تضررت 3 مضخات في محطة عين الرمان في حادث منفصل.",
+          "url": "https://controlled.invalid/2/1/2"
+        },
+        {
+          "id": "g2-w1-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-12T11:01:00Z",
+          "text": "The council proposed, but has not approved, a new عين الرمان bus route.",
+          "url": "https://controlled.invalid/2/1/3"
+        },
+        {
+          "id": "g2-w1-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-12T11:01:00Z",
+          "text": "تصحيح: لم يوافق المجلس على منحة إصلاح سهل الندى، وصدر الإعلان السابق بالخطأ.",
+          "url": "https://controlled.invalid/2/1/4"
+        },
+        {
+          "id": "g2-w1-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-12T11:01:00Z",
+          "text": "أعادت البلدية فتح جسر سهل الندى بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/2/1/0"
+        },
+        {
+          "id": "g2-w1-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-12T11:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        },
+        {
+          "id": "g2-w1-repeat",
+          "source": "Constructed ferry bulletin",
+          "publishedAt": "2026-10-12T11:03:00Z",
+          "text": "The ferry operator added 2 boats on the عين الرمان route."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g2-prior-close",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "أغلقت البلدية جسر سهل الندى بانتظار فحص السلامة.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-ferry",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "أضاف مشغل العبارة قاربين إلى خط عين الرمان.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-grant",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـسهل الندى بشرط التدقيق.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-school",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "علّق مكتب التعليم الدراسة في مدرسة عين الرمان ليومين.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-water",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة سهل الندى.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-12T11:00:00Z",
+      "windowEnd": "2026-10-12T11:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened سهل الندى bridge.",
+        "ar": "أعادت البلدية فتح جسر سهل الندى بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ],
+        "relation": "update",
+        "priorId": "g2-prior-close",
+        "sourceIds": [
+          "g2-w1-s0",
+          "g2-w1-duplicate"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at سهل الندى station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة سهل الندى.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g2-prior-water",
+        "sourceIds": [
+          "g2-w1-s1"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at عين الرمان station.",
+        "ar": "تضررت 3 مضخات في محطة عين الرمان في حادث منفصل.",
+        "anchors": [
+          [
+            "عين الرمان"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g2-w1-s2"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new عين الرمان bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـعين الرمان ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "عين الرمان"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g2-w1-s3"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the سهل الندى repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح سهل الندى، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g2-prior-grant",
+        "sourceIds": [
+          "g2-w1-s4"
+        ]
+      }
+    ],
+    "nonNovel": [
+      {
+        "id": "close",
+        "en": "The municipality closed سهل الندى bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر سهل الندى بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the عين الرمان route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط عين الرمان.",
+        "anchors": [
+          [
+            "عين الرمان"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for سهل الندى, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـسهل الندى بشرط التدقيق.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at عين الرمان school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة عين الرمان ليومين.",
+        "anchors": [
+          [
+            "عين الرمان"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at سهل الندى station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة سهل الندى.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "dd0f1d92a290501048e911f15869b6ac0a5b4546438059500c7466b37a8f3833"
+  },
+  {
+    "id": "final-g2-w2",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-2",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting سهل الندى and عين الرمان; exclude sports.",
+        "language": "ar",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g2-w2-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-12T12:01:00Z",
+          "text": "After a completed inspection, the municipality reopened سهل الندى bridge.",
+          "url": "https://controlled.invalid/2/2/0"
+        },
+        {
+          "id": "g2-w2-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-12T12:01:00Z",
+          "text": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة سهل الندى.",
+          "url": "https://controlled.invalid/2/2/1"
+        },
+        {
+          "id": "g2-w2-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-12T12:01:00Z",
+          "text": "A separate incident damaged 3 pumps at عين الرمان station.",
+          "url": "https://controlled.invalid/2/2/2"
+        },
+        {
+          "id": "g2-w2-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-12T12:01:00Z",
+          "text": "اقترح المجلس خط حافلات جديدا لـعين الرمان ولم يوافق عليه بعد.",
+          "url": "https://controlled.invalid/2/2/3"
+        },
+        {
+          "id": "g2-w2-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-12T12:01:00Z",
+          "text": "Correction: the council did not approve the سهل الندى repair grant; its earlier announcement was issued in error.",
+          "url": "https://controlled.invalid/2/2/4"
+        },
+        {
+          "id": "g2-w2-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-12T12:01:00Z",
+          "text": "After a completed inspection, the municipality reopened سهل الندى bridge.",
+          "url": "https://controlled.invalid/2/2/0"
+        },
+        {
+          "id": "g2-w2-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-12T12:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g2-prior2-reopen",
+          "at": "2026-10-12T11:30:00Z",
+          "headline": "أعادت البلدية فتح جسر سهل الندى بعد اكتمال فحص السلامة.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior2-correct",
+          "at": "2026-10-12T11:30:00Z",
+          "headline": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة سهل الندى.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior2-second",
+          "at": "2026-10-12T11:30:00Z",
+          "headline": "تضررت 3 مضخات في محطة عين الرمان في حادث منفصل.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior2-plan",
+          "at": "2026-10-12T11:30:00Z",
+          "headline": "اقترح المجلس خط حافلات جديدا لـعين الرمان ولم يوافق عليه بعد.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior2-withdraw",
+          "at": "2026-10-12T11:30:00Z",
+          "headline": "تصحيح: لم يوافق المجلس على منحة إصلاح سهل الندى، وصدر الإعلان السابق بالخطأ.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-close",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "أغلقت البلدية جسر سهل الندى بانتظار فحص السلامة.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-ferry",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "أضاف مشغل العبارة قاربين إلى خط عين الرمان.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-grant",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـسهل الندى بشرط التدقيق.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-school",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "علّق مكتب التعليم الدراسة في مدرسة عين الرمان ليومين.",
+          "body": ""
+        },
+        {
+          "id": "g2-prior-water",
+          "at": "2026-10-12T10:30:00Z",
+          "headline": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة سهل الندى.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-12T12:00:00Z",
+      "windowEnd": "2026-10-12T12:30:00Z"
+    },
+    "expected": [],
+    "nonNovel": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened سهل الندى bridge.",
+        "ar": "أعادت البلدية فتح جسر سهل الندى بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at سهل الندى station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة سهل الندى.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at عين الرمان station.",
+        "ar": "تضررت 3 مضخات في محطة عين الرمان في حادث منفصل.",
+        "anchors": [
+          [
+            "عين الرمان"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new عين الرمان bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـعين الرمان ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "عين الرمان"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the سهل الندى repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح سهل الندى، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "سهل الندى"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "b891f6547b40f1275eb3c3b94a1ed12e4da5b88556164221d40ddf26dca6fe1b"
+  },
+  {
+    "id": "final-g3-w0",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-3",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting وادي النور and رأس الصفصاف; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g3-w0-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-13T10:01:00Z",
+          "text": "أغلقت البلدية جسر وادي النور بانتظار فحص السلامة.",
+          "url": "https://controlled.invalid/3/0/0"
+        },
+        {
+          "id": "g3-w0-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-13T10:01:00Z",
+          "text": "The ferry operator added 2 boats on the رأس الصفصاف route.",
+          "url": "https://controlled.invalid/3/0/1"
+        },
+        {
+          "id": "g3-w0-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-13T10:01:00Z",
+          "text": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـوادي النور بشرط التدقيق.",
+          "url": "https://controlled.invalid/3/0/2"
+        },
+        {
+          "id": "g3-w0-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-13T10:01:00Z",
+          "text": "The education office suspended classes at رأس الصفصاف school for 2 days.",
+          "url": "https://controlled.invalid/3/0/3"
+        },
+        {
+          "id": "g3-w0-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-13T10:01:00Z",
+          "text": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة وادي النور.",
+          "url": "https://controlled.invalid/3/0/4"
+        },
+        {
+          "id": "g3-w0-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-13T10:01:00Z",
+          "text": "أغلقت البلدية جسر وادي النور بانتظار فحص السلامة.",
+          "url": "https://controlled.invalid/3/0/0"
+        },
+        {
+          "id": "g3-w0-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-13T10:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [],
+      "windowStart": "2026-10-13T10:00:00Z",
+      "windowEnd": "2026-10-13T10:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "close",
+        "en": "The municipality closed وادي النور bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر وادي النور بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "وادي النور"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g3-w0-s0",
+          "g3-w0-duplicate"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the رأس الصفصاف route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط رأس الصفصاف.",
+        "anchors": [
+          [
+            "رأس الصفصاف"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g3-w0-s1"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for وادي النور, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـوادي النور بشرط التدقيق.",
+        "anchors": [
+          [
+            "وادي النور"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g3-w0-s2"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at رأس الصفصاف school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة رأس الصفصاف ليومين.",
+        "anchors": [
+          [
+            "رأس الصفصاف"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g3-w0-s3"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at وادي النور station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة وادي النور.",
+        "anchors": [
+          [
+            "وادي النور"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g3-w0-s4"
+        ]
+      }
+    ],
+    "nonNovel": [],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "1d87762ab6e14d1125be231dfee959280b430f71516935d0b444f17daa6753a4"
+  },
+  {
+    "id": "final-g3-w1",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-3",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting وادي النور and رأس الصفصاف; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g3-w1-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-13T11:01:00Z",
+          "text": "After a completed inspection, the municipality reopened وادي النور bridge.",
+          "url": "https://controlled.invalid/3/1/0"
+        },
+        {
+          "id": "g3-w1-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-13T11:01:00Z",
+          "text": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة وادي النور.",
+          "url": "https://controlled.invalid/3/1/1"
+        },
+        {
+          "id": "g3-w1-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-13T11:01:00Z",
+          "text": "A separate incident damaged 3 pumps at رأس الصفصاف station.",
+          "url": "https://controlled.invalid/3/1/2"
+        },
+        {
+          "id": "g3-w1-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-13T11:01:00Z",
+          "text": "اقترح المجلس خط حافلات جديدا لـرأس الصفصاف ولم يوافق عليه بعد.",
+          "url": "https://controlled.invalid/3/1/3"
+        },
+        {
+          "id": "g3-w1-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-13T11:01:00Z",
+          "text": "Correction: the council did not approve the وادي النور repair grant; its earlier announcement was issued in error.",
+          "url": "https://controlled.invalid/3/1/4"
+        },
+        {
+          "id": "g3-w1-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-13T11:01:00Z",
+          "text": "After a completed inspection, the municipality reopened وادي النور bridge.",
+          "url": "https://controlled.invalid/3/1/0"
+        },
+        {
+          "id": "g3-w1-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-13T11:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        },
+        {
+          "id": "g3-w1-repeat",
+          "source": "Constructed ferry bulletin",
+          "publishedAt": "2026-10-13T11:03:00Z",
+          "text": "The ferry operator added 2 boats on the رأس الصفصاف route."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g3-prior-close",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The municipality closed وادي النور bridge pending a safety inspection.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-ferry",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The ferry operator added 2 boats on the رأس الصفصاف route.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-grant",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The council approved a 40,000-dollar repair grant for وادي النور, conditional on an audit.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-school",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The education office suspended classes at رأس الصفصاف school for 2 days.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-water",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The water authority reported damage to 12 pumps at وادي النور station.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-13T11:00:00Z",
+      "windowEnd": "2026-10-13T11:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened وادي النور bridge.",
+        "ar": "أعادت البلدية فتح جسر وادي النور بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "وادي النور"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ],
+        "relation": "update",
+        "priorId": "g3-prior-close",
+        "sourceIds": [
+          "g3-w1-s0",
+          "g3-w1-duplicate"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at وادي النور station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة وادي النور.",
+        "anchors": [
+          [
+            "وادي النور"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g3-prior-water",
+        "sourceIds": [
+          "g3-w1-s1"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at رأس الصفصاف station.",
+        "ar": "تضررت 3 مضخات في محطة رأس الصفصاف في حادث منفصل.",
+        "anchors": [
+          [
+            "رأس الصفصاف"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g3-w1-s2"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new رأس الصفصاف bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـرأس الصفصاف ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "رأس الصفصاف"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g3-w1-s3"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the وادي النور repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح وادي النور، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "وادي النور"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g3-prior-grant",
+        "sourceIds": [
+          "g3-w1-s4"
+        ]
+      }
+    ],
+    "nonNovel": [
+      {
+        "id": "close",
+        "en": "The municipality closed وادي النور bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر وادي النور بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "وادي النور"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the رأس الصفصاف route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط رأس الصفصاف.",
+        "anchors": [
+          [
+            "رأس الصفصاف"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for وادي النور, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـوادي النور بشرط التدقيق.",
+        "anchors": [
+          [
+            "وادي النور"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at رأس الصفصاف school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة رأس الصفصاف ليومين.",
+        "anchors": [
+          [
+            "رأس الصفصاف"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at وادي النور station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة وادي النور.",
+        "anchors": [
+          [
+            "وادي النور"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "9099df61b4c094c8c47a45371afc2dece2c97f84e2b4e2599d4d7486af09b699"
+  },
+  {
+    "id": "final-g3-w2",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-3",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting وادي النور and رأس الصفصاف; exclude sports.",
+        "language": "en",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g3-w2-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-13T12:01:00Z",
+          "text": "أعادت البلدية فتح جسر وادي النور بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/3/2/0"
+        },
+        {
+          "id": "g3-w2-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-13T12:01:00Z",
+          "text": "Correction: the water authority says 7 pumps, not 12, were damaged at وادي النور station.",
+          "url": "https://controlled.invalid/3/2/1"
+        },
+        {
+          "id": "g3-w2-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-13T12:01:00Z",
+          "text": "تضررت 3 مضخات في محطة رأس الصفصاف في حادث منفصل.",
+          "url": "https://controlled.invalid/3/2/2"
+        },
+        {
+          "id": "g3-w2-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-13T12:01:00Z",
+          "text": "The council proposed, but has not approved, a new رأس الصفصاف bus route.",
+          "url": "https://controlled.invalid/3/2/3"
+        },
+        {
+          "id": "g3-w2-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-13T12:01:00Z",
+          "text": "تصحيح: لم يوافق المجلس على منحة إصلاح وادي النور، وصدر الإعلان السابق بالخطأ.",
+          "url": "https://controlled.invalid/3/2/4"
+        },
+        {
+          "id": "g3-w2-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-13T12:01:00Z",
+          "text": "أعادت البلدية فتح جسر وادي النور بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/3/2/0"
+        },
+        {
+          "id": "g3-w2-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-13T12:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g3-prior2-reopen",
+          "at": "2026-10-13T11:30:00Z",
+          "headline": "After a completed inspection, the municipality reopened وادي النور bridge.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior2-correct",
+          "at": "2026-10-13T11:30:00Z",
+          "headline": "Correction: the water authority says 7 pumps, not 12, were damaged at وادي النور station.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior2-second",
+          "at": "2026-10-13T11:30:00Z",
+          "headline": "A separate incident damaged 3 pumps at رأس الصفصاف station.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior2-plan",
+          "at": "2026-10-13T11:30:00Z",
+          "headline": "The council proposed, but has not approved, a new رأس الصفصاف bus route.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior2-withdraw",
+          "at": "2026-10-13T11:30:00Z",
+          "headline": "Correction: the council did not approve the وادي النور repair grant; its earlier announcement was issued in error.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-close",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The municipality closed وادي النور bridge pending a safety inspection.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-ferry",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The ferry operator added 2 boats on the رأس الصفصاف route.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-grant",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The council approved a 40,000-dollar repair grant for وادي النور, conditional on an audit.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-school",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The education office suspended classes at رأس الصفصاف school for 2 days.",
+          "body": ""
+        },
+        {
+          "id": "g3-prior-water",
+          "at": "2026-10-13T10:30:00Z",
+          "headline": "The water authority reported damage to 12 pumps at وادي النور station.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-13T12:00:00Z",
+      "windowEnd": "2026-10-13T12:30:00Z"
+    },
+    "expected": [],
+    "nonNovel": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened وادي النور bridge.",
+        "ar": "أعادت البلدية فتح جسر وادي النور بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "وادي النور"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at وادي النور station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة وادي النور.",
+        "anchors": [
+          [
+            "وادي النور"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at رأس الصفصاف station.",
+        "ar": "تضررت 3 مضخات في محطة رأس الصفصاف في حادث منفصل.",
+        "anchors": [
+          [
+            "رأس الصفصاف"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new رأس الصفصاف bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـرأس الصفصاف ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "رأس الصفصاف"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the وادي النور repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح وادي النور، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "وادي النور"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "0437bbedde093f95ae13624486bf2674da4765586f57667c9d5bd3d2359214de"
+  },
+  {
+    "id": "final-g4-w0",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-4",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting عين الغزال and مرج السرو; exclude sports.",
+        "language": "ar",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g4-w0-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-14T10:01:00Z",
+          "text": "The municipality closed عين الغزال bridge pending a safety inspection.",
+          "url": "https://controlled.invalid/4/0/0"
+        },
+        {
+          "id": "g4-w0-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-14T10:01:00Z",
+          "text": "أضاف مشغل العبارة قاربين إلى خط مرج السرو.",
+          "url": "https://controlled.invalid/4/0/1"
+        },
+        {
+          "id": "g4-w0-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-14T10:01:00Z",
+          "text": "The council approved a 40,000-dollar repair grant for عين الغزال, conditional on an audit.",
+          "url": "https://controlled.invalid/4/0/2"
+        },
+        {
+          "id": "g4-w0-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-14T10:01:00Z",
+          "text": "علّق مكتب التعليم الدراسة في مدرسة مرج السرو ليومين.",
+          "url": "https://controlled.invalid/4/0/3"
+        },
+        {
+          "id": "g4-w0-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-14T10:01:00Z",
+          "text": "The water authority reported damage to 12 pumps at عين الغزال station.",
+          "url": "https://controlled.invalid/4/0/4"
+        },
+        {
+          "id": "g4-w0-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-14T10:01:00Z",
+          "text": "The municipality closed عين الغزال bridge pending a safety inspection.",
+          "url": "https://controlled.invalid/4/0/0"
+        },
+        {
+          "id": "g4-w0-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-14T10:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [],
+      "windowStart": "2026-10-14T10:00:00Z",
+      "windowEnd": "2026-10-14T10:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "close",
+        "en": "The municipality closed عين الغزال bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر عين الغزال بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g4-w0-s0",
+          "g4-w0-duplicate"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the مرج السرو route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط مرج السرو.",
+        "anchors": [
+          [
+            "مرج السرو"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g4-w0-s1"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for عين الغزال, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـعين الغزال بشرط التدقيق.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g4-w0-s2"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at مرج السرو school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة مرج السرو ليومين.",
+        "anchors": [
+          [
+            "مرج السرو"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g4-w0-s3"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at عين الغزال station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة عين الغزال.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g4-w0-s4"
+        ]
+      }
+    ],
+    "nonNovel": [],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "e3946dbd902d89774fcb11c4af1ab4b25f595d74a2889d39cfa7d6d7be939cd3"
+  },
+  {
+    "id": "final-g4-w1",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-4",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting عين الغزال and مرج السرو; exclude sports.",
+        "language": "ar",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g4-w1-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-14T11:01:00Z",
+          "text": "أعادت البلدية فتح جسر عين الغزال بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/4/1/0"
+        },
+        {
+          "id": "g4-w1-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-14T11:01:00Z",
+          "text": "Correction: the water authority says 7 pumps, not 12, were damaged at عين الغزال station.",
+          "url": "https://controlled.invalid/4/1/1"
+        },
+        {
+          "id": "g4-w1-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-14T11:01:00Z",
+          "text": "تضررت 3 مضخات في محطة مرج السرو في حادث منفصل.",
+          "url": "https://controlled.invalid/4/1/2"
+        },
+        {
+          "id": "g4-w1-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-14T11:01:00Z",
+          "text": "The council proposed, but has not approved, a new مرج السرو bus route.",
+          "url": "https://controlled.invalid/4/1/3"
+        },
+        {
+          "id": "g4-w1-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-14T11:01:00Z",
+          "text": "تصحيح: لم يوافق المجلس على منحة إصلاح عين الغزال، وصدر الإعلان السابق بالخطأ.",
+          "url": "https://controlled.invalid/4/1/4"
+        },
+        {
+          "id": "g4-w1-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-14T11:01:00Z",
+          "text": "أعادت البلدية فتح جسر عين الغزال بعد اكتمال فحص السلامة.",
+          "url": "https://controlled.invalid/4/1/0"
+        },
+        {
+          "id": "g4-w1-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-14T11:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        },
+        {
+          "id": "g4-w1-repeat",
+          "source": "Constructed ferry bulletin",
+          "publishedAt": "2026-10-14T11:03:00Z",
+          "text": "The ferry operator added 2 boats on the مرج السرو route."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g4-prior-close",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "أغلقت البلدية جسر عين الغزال بانتظار فحص السلامة.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-ferry",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "أضاف مشغل العبارة قاربين إلى خط مرج السرو.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-grant",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـعين الغزال بشرط التدقيق.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-school",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "علّق مكتب التعليم الدراسة في مدرسة مرج السرو ليومين.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-water",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة عين الغزال.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-14T11:00:00Z",
+      "windowEnd": "2026-10-14T11:30:00Z"
+    },
+    "expected": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened عين الغزال bridge.",
+        "ar": "أعادت البلدية فتح جسر عين الغزال بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ],
+        "relation": "update",
+        "priorId": "g4-prior-close",
+        "sourceIds": [
+          "g4-w1-s0",
+          "g4-w1-duplicate"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at عين الغزال station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة عين الغزال.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g4-prior-water",
+        "sourceIds": [
+          "g4-w1-s1"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at مرج السرو station.",
+        "ar": "تضررت 3 مضخات في محطة مرج السرو في حادث منفصل.",
+        "anchors": [
+          [
+            "مرج السرو"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g4-w1-s2"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new مرج السرو bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـمرج السرو ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "مرج السرو"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ],
+        "relation": "new",
+        "priorId": null,
+        "sourceIds": [
+          "g4-w1-s3"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the عين الغزال repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح عين الغزال، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ],
+        "relation": "correction",
+        "priorId": "g4-prior-grant",
+        "sourceIds": [
+          "g4-w1-s4"
+        ]
+      }
+    ],
+    "nonNovel": [
+      {
+        "id": "close",
+        "en": "The municipality closed عين الغزال bridge pending a safety inspection.",
+        "ar": "أغلقت البلدية جسر عين الغزال بانتظار فحص السلامة.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ]
+        ],
+        "actions": [
+          "closed",
+          "closure",
+          "closes",
+          "أغلقت",
+          "إغلاق",
+          "مغلق"
+        ]
+      },
+      {
+        "id": "ferry",
+        "en": "The ferry operator added 2 boats on the مرج السرو route.",
+        "ar": "أضاف مشغل العبارة قاربين إلى خط مرج السرو.",
+        "anchors": [
+          [
+            "مرج السرو"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "added",
+          "adds",
+          "extra",
+          "أضاف",
+          "إضافة",
+          "إضاف"
+        ]
+      },
+      {
+        "id": "grant",
+        "en": "The council approved a 40,000-dollar repair grant for عين الغزال, conditional on an audit.",
+        "ar": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـعين الغزال بشرط التدقيق.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ],
+          [
+            "40000"
+          ]
+        ],
+        "actions": [
+          "conditional",
+          "condition",
+          "audit",
+          "بشرط",
+          "شريطة",
+          "التدقيق"
+        ]
+      },
+      {
+        "id": "school",
+        "en": "The education office suspended classes at مرج السرو school for 2 days.",
+        "ar": "علّق مكتب التعليم الدراسة في مدرسة مرج السرو ليومين.",
+        "anchors": [
+          [
+            "مرج السرو"
+          ],
+          [
+            "2"
+          ]
+        ],
+        "actions": [
+          "suspended",
+          "closed",
+          "closure",
+          "cancelled",
+          "paused",
+          "علّق",
+          "تعليق",
+          "أوقف",
+          "إغلاق"
+        ]
+      },
+      {
+        "id": "water",
+        "en": "The water authority reported damage to 12 pumps at عين الغزال station.",
+        "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة عين الغزال.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ],
+          [
+            "12"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "92720aac7c06f111c7c17b2affec0b2d82c5673d2fd63873a9031ec15290b47d"
+  },
+  {
+    "id": "final-g4-w2",
+    "split": "final",
+    "kind": "constructed",
+    "eventGroup": "fictional-service-sequence-4",
+    "templateFamily": "municipal-service-sequence",
+    "input": {
+      "feed": {
+        "interest": "Official water, transport, education and local government service decisions affecting عين الغزال and مرج السرو; exclude sports.",
+        "language": "ar",
+        "windowMinutes": 30
+      },
+      "articles": [
+        {
+          "id": "g4-w2-s0",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-14T12:01:00Z",
+          "text": "After a completed inspection, the municipality reopened عين الغزال bridge.",
+          "url": "https://controlled.invalid/4/2/0"
+        },
+        {
+          "id": "g4-w2-s1",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-14T12:01:00Z",
+          "text": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة عين الغزال.",
+          "url": "https://controlled.invalid/4/2/1"
+        },
+        {
+          "id": "g4-w2-s2",
+          "source": "Constructed municipal wire 2",
+          "publishedAt": "2026-10-14T12:01:00Z",
+          "text": "A separate incident damaged 3 pumps at مرج السرو station.",
+          "url": "https://controlled.invalid/4/2/2"
+        },
+        {
+          "id": "g4-w2-s3",
+          "source": "Constructed municipal wire 0",
+          "publishedAt": "2026-10-14T12:01:00Z",
+          "text": "اقترح المجلس خط حافلات جديدا لـمرج السرو ولم يوافق عليه بعد.",
+          "url": "https://controlled.invalid/4/2/3"
+        },
+        {
+          "id": "g4-w2-s4",
+          "source": "Constructed municipal wire 1",
+          "publishedAt": "2026-10-14T12:01:00Z",
+          "text": "Correction: the council did not approve the عين الغزال repair grant; its earlier announcement was issued in error.",
+          "url": "https://controlled.invalid/4/2/4"
+        },
+        {
+          "id": "g4-w2-duplicate",
+          "source": "Constructed independent relay",
+          "publishedAt": "2026-10-14T12:01:00Z",
+          "text": "After a completed inspection, the municipality reopened عين الغزال bridge.",
+          "url": "https://controlled.invalid/4/2/0"
+        },
+        {
+          "id": "g4-w2-sport",
+          "source": "Constructed sports desk",
+          "publishedAt": "2026-10-14T12:02:00Z",
+          "text": "A visiting football team won a friendly match 3-0."
+        }
+      ],
+      "prior": [
+        {
+          "id": "g4-prior2-reopen",
+          "at": "2026-10-14T11:30:00Z",
+          "headline": "أعادت البلدية فتح جسر عين الغزال بعد اكتمال فحص السلامة.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior2-correct",
+          "at": "2026-10-14T11:30:00Z",
+          "headline": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة عين الغزال.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior2-second",
+          "at": "2026-10-14T11:30:00Z",
+          "headline": "تضررت 3 مضخات في محطة مرج السرو في حادث منفصل.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior2-plan",
+          "at": "2026-10-14T11:30:00Z",
+          "headline": "اقترح المجلس خط حافلات جديدا لـمرج السرو ولم يوافق عليه بعد.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior2-withdraw",
+          "at": "2026-10-14T11:30:00Z",
+          "headline": "تصحيح: لم يوافق المجلس على منحة إصلاح عين الغزال، وصدر الإعلان السابق بالخطأ.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-close",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "أغلقت البلدية جسر عين الغزال بانتظار فحص السلامة.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-ferry",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "أضاف مشغل العبارة قاربين إلى خط مرج السرو.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-grant",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "وافق المجلس على منحة إصلاح بقيمة 40,000 دولار لـعين الغزال بشرط التدقيق.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-school",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "علّق مكتب التعليم الدراسة في مدرسة مرج السرو ليومين.",
+          "body": ""
+        },
+        {
+          "id": "g4-prior-water",
+          "at": "2026-10-14T10:30:00Z",
+          "headline": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة عين الغزال.",
+          "body": ""
+        }
+      ],
+      "windowStart": "2026-10-14T12:00:00Z",
+      "windowEnd": "2026-10-14T12:30:00Z"
+    },
+    "expected": [],
+    "nonNovel": [
+      {
+        "id": "reopen",
+        "en": "After a completed inspection, the municipality reopened عين الغزال bridge.",
+        "ar": "أعادت البلدية فتح جسر عين الغزال بعد اكتمال فحص السلامة.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ]
+        ],
+        "actions": [
+          "reopened",
+          "reopens",
+          "reopening",
+          "أعادت",
+          "فتح"
+        ]
+      },
+      {
+        "id": "correct",
+        "en": "Correction: the water authority says 7 pumps, not 12, were damaged at عين الغزال station.",
+        "ar": "تصحيح: أكدت مؤسسة المياه تضرر 7 مضخات لا 12 في محطة عين الغزال.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ],
+          [
+            "7"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "revised",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      },
+      {
+        "id": "second",
+        "en": "A separate incident damaged 3 pumps at مرج السرو station.",
+        "ar": "تضررت 3 مضخات في محطة مرج السرو في حادث منفصل.",
+        "anchors": [
+          [
+            "مرج السرو"
+          ],
+          [
+            "3"
+          ]
+        ],
+        "actions": [
+          "damage",
+          "damaged",
+          "تضرر",
+          "تضررت",
+          "متضرر"
+        ]
+      },
+      {
+        "id": "plan",
+        "en": "The council proposed, but has not approved, a new مرج السرو bus route.",
+        "ar": "اقترح المجلس خط حافلات جديدا لـمرج السرو ولم يوافق عليه بعد.",
+        "anchors": [
+          [
+            "مرج السرو"
+          ]
+        ],
+        "actions": [
+          "proposed",
+          "proposal",
+          "proposes",
+          "اقترح",
+          "اقتراح",
+          "مقترح"
+        ]
+      },
+      {
+        "id": "withdraw",
+        "en": "Correction: the council did not approve the عين الغزال repair grant; its earlier announcement was issued in error.",
+        "ar": "تصحيح: لم يوافق المجلس على منحة إصلاح عين الغزال، وصدر الإعلان السابق بالخطأ.",
+        "anchors": [
+          [
+            "عين الغزال"
+          ]
+        ],
+        "actions": [
+          "correction",
+          "corrected",
+          "تصحيح",
+          "صححت",
+          "صحّحت"
+        ]
+      }
+    ],
+    "sourceCompleteness": "Complete declared fictional source universe; not real news",
+    "history": "Identical fixed prior context for every system; state-conditional comparison",
+    "inputHash": "64541b6142066c91b8b135c5efe5c949f28b4d0595026c288c9e516ab662adf7"
+  }
+]

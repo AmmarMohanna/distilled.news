@@ -1,0 +1,18 @@
+/** Read-only preflight: no inference and no changes to previous financial records. */
+import fs from 'node:fs';import path from 'node:path';import{createHash}from'node:crypto';import{DatabaseSync}from'node:sqlite';
+const out='evaluation/briefing-quality/private/coverage-v1',previous=process.env.DISTILLED_PRIOR_EVALUATION_ROOT,keyFile=process.env.DISTILLED_EVAL_KEY_FILE;
+if(!previous||!keyFile)throw Error('EXPLICIT_PRIOR_ROOT_AND_KEY_FILE_REQUIRED');
+const key=fs.readFileSync(keyFile,'utf8').match(/^OPENROUTER_API_KEY\s*=\s*["']?([^"'\r\n]+)/m)?.[1]?.trim();if(!key)throw Error('KEY_MISSING');
+const hash=bytes=>createHash('sha256').update(bytes).digest('hex'),stamp=new Date().toISOString().replaceAll(':','-'),dir=path.join(out,'preflight-'+stamp);fs.mkdirSync(dir,{recursive:true});
+const save=(name,data)=>fs.writeFileSync(path.join(dir,name),JSON.stringify(data,null,2)+'\n',{flag:'wx'});
+const get=async endpoint=>{const r=await fetch('https://openrouter.ai/api/v1/'+endpoint,{headers:{authorization:'Bearer '+key},signal:AbortSignal.timeout(30000)}),body=await r.text();if(!r.ok)throw Error('PREFLIGHT_'+endpoint+'_'+r.status);return JSON.parse(body)};
+const [credits,allowance,models]=await Promise.all(['credits','key','models'].map(get));
+const names=['openai/gpt-4.1','openai/gpt-4.1-mini','anthropic/claude-sonnet-4.5'];
+const funding={checkedAt:new Date().toISOString(),availableAccountUsd:credits.data.total_credits-credits.data.total_usage,keyRemainingAllowanceUsd:allowance.data.limit_remaining,prices:models.data.filter(m=>names.includes(m.id)).map(m=>({id:m.id,pricing:m.pricing,context_length:m.context_length})),newInferenceCalls:0};save('funding.json',funding);
+if(!(funding.availableAccountUsd>0))throw Error('ACCOUNT_NOT_FUNDED');
+const old=JSON.parse(fs.readFileSync(path.join(previous,'funded-v3','prior-reconciliation.private.json'),'utf8')),dbFile=path.join(previous,'funded-v3','campaign.sqlite'),before=hash(fs.readFileSync(dbFile)),db=new DatabaseSync(dbFile,{readOnly:true}),rows=db.prepare("SELECT id,state,reservation_micro,cost_micro,metadata FROM calls WHERE cost_micro IS NULL").all();db.close();if(before!==hash(fs.readFileSync(dbFile)))throw Error('OLD_LEDGER_CHANGED');
+const lookups=[];for(const row of old.operations)for(const receipt of row.receipts??[])lookups.push({scope:'prior-v1',operationId:row.id,generationId:receipt.generation_id});
+for(const row of rows){const file=path.join(previous,'funded-v3','http',row.id+'.json');if(fs.existsSync(file)){const http=JSON.parse(fs.readFileSync(file,'utf8'));if(http.generationId)lookups.push({scope:'funded-v3',operationId:row.id,generationId:http.generationId})}}
+save('prior-holds.json',{priorV1HoldUsd:old.unresolvedHoldsUsd,fundedV3HoldUsd:rows.reduce((s,r)=>s+r.reservation_micro/1e6,0),fundedV3Unknown:rows.length,originalLedgerSha256:before,policy:'Read-only inspection. New receipt evidence is preserved separately; UNKNOWN operations are never resent.'});
+const receipts=[];for(const lookup of lookups){const r=await fetch('https://openrouter.ai/api/v1/generation?id='+encodeURIComponent(lookup.generationId),{headers:{authorization:'Bearer '+key},signal:AbortSignal.timeout(30000)}),body=await r.text();const record={...lookup,status:r.status,body,checkedAt:new Date().toISOString()};save(lookup.generationId+'.json',record);receipts.push({scope:lookup.scope,generationId:lookup.generationId,status:r.status,bodySha256:hash(body)})}
+save('receipt-summary.json',receipts);console.log(JSON.stringify({directory:dir,...funding,oldV1HoldUsd:old.unresolvedHoldsUsd,oldV3HoldUsd:rows.reduce((s,r)=>s+r.reservation_micro/1e6,0),receiptStatusCounts:Object.fromEntries([...new Set(receipts.map(r=>r.status))].map(s=>[s,receipts.filter(r=>r.status===s).length]))}));

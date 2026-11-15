@@ -90,6 +90,7 @@ export interface SourceDecision {
 }
 
 export interface BriefingResult {
+  coverageFirst?: import('./coverage-first').CoverageAudit;
   /** Opt-in source-derived draft corrections; provider replies remain in their original records. */
   sourceAnchors?: import('./source-wire').SourceWireAudit[];
   /** Per-input provenance, not a certificate of editorial correctness. New accounting policy only. */
