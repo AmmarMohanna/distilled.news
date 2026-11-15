@@ -16,6 +16,30 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_public_feed_fetches_one_bounded_unchanged_url_and_rejects_redirects(self):
+        url = 'https://www.theguardian.com/technology/nvidia/rss'
+        response = io.BytesIO(b'<rss><channel/></rss>')
+        response.status = 200
+        calls = []
+        def open_request(request, timeout):
+            calls.append((request.full_url, timeout))
+            return response
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=open_request)):
+            result = runtime.fetch_public_feed({'url':url})
+            self.assertEqual(result['status'], 200)
+            self.assertEqual(result['xml'], '<rss><channel/></rss>')
+            self.assertEqual(calls, [(url, 12)])
+            blocked = runtime.urllib.error.HTTPError(url, 302, 'redirect', {'location':'https://other.example/rss'}, None)
+            with patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *args, **kwargs: (_ for _ in ()).throw(blocked))):
+                self.assertEqual(runtime.fetch_public_feed({'url':url})['status'], 302)
+
+    def test_public_feed_rejects_private_or_credentialed_targets(self):
+        for url in ['http://publisher.example/rss', 'https://user:pass@publisher.example/rss', 'https://publisher.example:8443/rss', 'https://publisher.example/rss#fragment']:
+            with self.assertRaises(ValueError): runtime.fetch_public_feed({'url':url})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url', side_effect=ValueError('NONPUBLIC_ADDRESS')), patch.object(runtime.urllib.request, 'build_opener') as opener:
+            with self.assertRaises(ValueError): runtime.fetch_public_feed({'url':'https://127.0.0.1/rss'})
+            opener.assert_not_called()
+
     def test_cbs_exact_browser_blocks_third_party_resources_and_bounds_requests(self):
         url = 'https://www.cbsnews.com/projects/2026/verified-report/'
         routes, frame = [], object()

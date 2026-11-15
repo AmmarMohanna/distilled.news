@@ -17,7 +17,7 @@ export function sameArticleUrl(left:string,right:string):boolean {
   url.hash='';
   // These parameters describe referral or campaign attribution on publishers'
   // article links. Compare the remaining URL identity for every source.
-  for(const key of [...url.searchParams.keys()])if(/^(?:utm_|at_)/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source'].includes(key.toLowerCase()))url.searchParams.delete(key);
+  for(const key of [...url.searchParams.keys()])if(/^(?:utm_|at_)/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source','xtor'].includes(key.toLowerCase()))url.searchParams.delete(key);
   normalizePublisherArticlePath(url);
   return url.href;
  };
