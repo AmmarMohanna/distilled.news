@@ -16,12 +16,14 @@ export function reviewSchema(inventory:boolean,input?:string){
  });
  if(!inventory&&Array.isArray(packet?.independentInventory?.developments)){
   const ids=packet.independentInventory.developments.map((d:{id:string})=>d.id);
-  const coverage=result.properties.coverage as {items:{properties:Record<string,unknown>}};
-  Object.assign(coverage,{minItems:ids.length,maxItems:ids.length});
+  const coverage=result.properties.coverage as {items:{properties:Record<string,unknown>};minItems?:number;maxItems?:number};
+  coverage.minItems=ids.length;
+  coverage.maxItems=ids.length;
   if(ids.length)coverage.items.properties.developmentId=label(ids);
  }
  if(!inventory&&Array.isArray(packet?.case?.items)&&packet.case.items.length===0){
-  Object.assign(result.properties.claims as object,{maxItems:0});Object.assign(result.properties.items as object,{maxItems:0});
+  (result.properties.claims as {maxItems?:number}).maxItems=0;
+  (result.properties.items as {maxItems?:number}).maxItems=0;
   const coverage=result.properties.coverage as {items:{properties:Record<string,unknown>}};
   coverage.items.properties.items={...array(integer),maxItems:0};coverage.items.properties.status=label(['omitted','uncertain','already_reported']);
  }
