@@ -1,6 +1,7 @@
 import { PublicSourceFetchFailure, PublicSourcePolicyError, type PublicSourceFetchPort } from "@distilled/agent-runtime";
 
 const MAX_BODY_BYTES = 2_000_000;
+export const PUBLIC_SOURCE_USER_AGENT = 'DistilledNewsBot/0.1 (+https://distilled.news)';
 
 /** Conservative one-origin HTTP capability. Redirects require explicit opt-in
  * and remain bounded and confined to the original public HTTPS origin. */
@@ -23,7 +24,7 @@ export class WorkerPublicSourceFetch implements PublicSourceFetchPort {
     let response: Response;
     const signal = AbortSignal.timeout(60_000);
     const fetcher=this.fetcher;
-    try { response = await fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml", "user-agent": "DistilledNewsBot/0.1 (+https://distilled.news)" } }); }
+    try { response = await fetcher(url.href, { redirect: "manual", signal, headers: { accept: "text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,application/xml", "user-agent": PUBLIC_SOURCE_USER_AGENT } }); }
     catch (error) {
       if (error instanceof PublicSourceFetchFailure) throw error;
       if (knownCloudflareSubrequestDenial(error)) throw new PublicSourcePolicyError();
