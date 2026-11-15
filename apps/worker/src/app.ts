@@ -288,6 +288,7 @@ function isDatabaseUnavailable(error: unknown): boolean {
 
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+  let activeTraces = 0;
 
   app.onError((error, c) => {
     if (error instanceof z.ZodError) {
@@ -1181,8 +1182,14 @@ export function createApp(options: AppOptions = {}) {
     c.header('Cache-Control','private, no-store');
     const query=traceOptionsSchema.safeParse(c.req.query());
     if(!query.success)return c.json({error:'invalid trace filters'},400);
+    // A trace runs about 16 queries. Bound how many one isolate runs at once so
+    // a burst of diagnostics cannot crowd readers out of D1.
+    const limit=Math.max(1,Math.min(10,Number(c.env.ADMIN_TRACE_MAX_CONCURRENT??2)||2));
+    if(activeTraces>=limit){c.header('Retry-After','2');return c.json({error:'Too many traces are running. Try again shortly.',code:'TRACE_BUSY'},429);}
+    activeTraces++;
     try{return c.json(await readPipelineTrace(c.env.DB,c.req.param('feedId'),query.data,{admittedSourceIds:c.env.V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',').map(s=>s.trim()).filter(Boolean)}))}
     catch(error){if(error instanceof HandoffError)return c.json({error:error.code},error.code==='SCOPE_DENIED'?404:400);throw error}
+    finally{activeTraces--;}
   });
 
   app.get('/api/admin/storage',async c=>{

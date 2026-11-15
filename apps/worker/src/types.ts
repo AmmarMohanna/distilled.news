@@ -193,6 +193,8 @@ export interface Env extends Cloudflare.Env {
   EDITION_ARTIFACT_BACKFILL_ENABLED?: string;
   /** "true" sends read-only routes through a D1 session that read replicas may serve. Needs read replication on the database. */
   D1_READ_SESSIONS_ENABLED?: string;
+  /** Admin pipeline traces one isolate runs at once before answering 429 (1-10, default 2). */
+  ADMIN_TRACE_MAX_CONCURRENT?: string;
   VERIFIED_ARCHIVE_ENABLED?: string;
   /** Isolated performance deployment only. All are disabled by default. */
   AGENTOPS_CAMPAIGN_ENABLED?: string;
