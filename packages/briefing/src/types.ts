@@ -90,6 +90,8 @@ export interface SourceDecision {
 }
 
 export interface BriefingResult {
+  /** Opt-in source-derived draft corrections; provider replies remain in their original records. */
+  sourceAnchors?: import('./source-wire').SourceWireAudit[];
   /** Per-input provenance, not a certificate of editorial correctness. New accounting policy only. */
   sourceDecisions?:SourceDecision[];
   /** Experimental audit, not an independent semantic-truth certificate. */

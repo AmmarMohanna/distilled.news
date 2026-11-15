@@ -64,3 +64,6 @@ Missing evidence is uncertainty, not positive entailment. Whole-event components
 - Native worktree is C:/Users/HP/.codex/worktrees/6fd7/distilled.news. It is outside the original writable root, so writes use explicit sandbox escalation; original reliability worktree is read-only evidence.
 - Existing installed dependency junctions are reused without lockfile changes.
 - No new campaign budget is inferred from earlier $20 authorization; request agreement on the new staged cap after free preflight.
+## Pilot disposition (2026-11-15)
+
+Financial preflight, preregistration, original trace audit, matched comparator, opt-in ablations and paid pilot are complete within the approved $5 ceiling ($2.649593 settled; no new holds). The three exposed windows were not repurposed as held-out data. New public publisher evidence remains acquisition candidates, not certified independent windows. No general candidate passed selection. Quiet-window omission safety and broader final comparisons remain unperformed. The unchecked full-study steps above remain requirements for a future funded study, not claims of pilot completion. See reports/engine-value-v1/RESEARCH_REPORT.md for exact counts and failures. Independent code review completed; its pinned-input finding was fixed and tested. No deployment or merge.

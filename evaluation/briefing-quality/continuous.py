@@ -17,6 +17,7 @@ def default_checks():
     vitest = ['node', 'node_modules/vitest/vitest.mjs', 'run']
     return [
         ('evaluation-python', [sys.executable, '-m', 'unittest', 'discover', '-s', 'evaluation/briefing-quality', '-p', 'test_*.py']),
+        ('engine-value-analysis', [sys.executable, '-m', 'unittest', 'discover', '-s', 'evaluation/briefing-quality/engine-value', '-p', 'test_*.py']),
         ('evaluation-replay', vitest + ['--config', 'evaluation/briefing-quality/vitest.config.ts']),
         ('briefing-engine', vitest + ['--root', 'packages/briefing', '--config', 'vitest.config.ts']),
         ('dataset-exporter', ['node', '--test', 'scripts/export-acquired-benchmark.test.mjs']),
@@ -25,7 +26,9 @@ def default_checks():
         ('evaluator-worker-types', ['node', 'node_modules/typescript/bin/tsc', '-p', 'evaluation/briefing-quality/worker/tsconfig.json']),
         ('research-validation-types', ['node', 'node_modules/typescript/bin/tsc', '--noEmit', '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'Bundler', '--skipLibCheck', '--esModuleInterop', '--types', 'node',
           'apps/worker/node_modules/@cloudflare/workers-types/index.d.ts', 'evaluation/briefing-quality/worker/worker-configuration.d.ts', 'evaluation/briefing-quality/worker/src/secrets.d.ts',
-          'evaluation/briefing-quality/validation/candidate-policy.ts', 'evaluation/briefing-quality/validation/current-engine.ts', 'evaluation/briefing-quality/validation/benchmark-audit.ts', 'evaluation/briefing-quality/validation/revalidate.ts', 'evaluation/briefing-quality/validation/funded-run.ts', 'evaluation/briefing-quality/validation/funded-receipts.ts']),
+          'evaluation/briefing-quality/validation/candidate-policy.ts', 'evaluation/briefing-quality/validation/current-engine.ts', 'evaluation/briefing-quality/validation/benchmark-audit.ts', 'evaluation/briefing-quality/validation/revalidate.ts', 'evaluation/briefing-quality/validation/funded-run.ts', 'evaluation/briefing-quality/validation/funded-receipts.ts',
+          'evaluation/briefing-quality/engine-value/pilot.ts', 'evaluation/briefing-quality/engine-value/pilot-followup.ts', 'evaluation/briefing-quality/engine-value/pilot-wire.ts', 'evaluation/briefing-quality/engine-value/frozen-input.ts']),
+        ('briefing-package-types', ['node', 'node_modules/typescript/bin/tsc', '-p', 'packages/briefing/tsconfig.json']),
     ]
 
 

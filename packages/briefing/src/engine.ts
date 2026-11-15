@@ -1,5 +1,6 @@
+import{anchorLocalityWire,type SourceWireAudit}from './source-wire';
 import{withinWordBudget,wordBudgetInstruction}from './word-budget';
-import{DEVELOPMENT_LEDGER_RULE,ATOMIC_SUPPORT_RULE,validateDevelopmentLedger,atomicVerdict}from './value-policy';
+import{DEVELOPMENT_LEDGER_RULE,ATOMIC_SUPPORT_RULE,validateDevelopmentLedger,atomicVerdict,SOURCE_ENTITY_RULE}from './value-policy';
 import {BriefingOutputError} from './types';
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OCCURRENCE_RULE} from './novelty';
@@ -37,6 +38,8 @@ export interface EngineOptions {
   readingWordBudget?: number;
   editorDevelopmentPolicy?: 'ledger-v1';
   verificationPolicy?: 'atomic-v1';
+  sourceEntityPolicy?: 'source-script-v1';
+  sourceWirePolicy?: 'arabic-airstrike-locality-v1';
   /** Frozen only in new product snapshots; legacy paid requests retain their bytes. */
   editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2';
   /** Select complete citations while editing; no separate full-input coverage call. */
@@ -219,7 +222,8 @@ async function edit(
   sourcePolicy?:EngineOptions['editorSourcePolicy'],
   noveltyPolicy?:EngineOptions['noveltyPolicy'],
   developmentPolicy?:EngineOptions['editorDevelopmentPolicy'],
-  readingWords?:number
+  readingWords?:number,
+  sourceEntityPolicy?:EngineOptions['sourceEntityPolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
@@ -229,7 +233,7 @@ async function edit(
     meter,
     {
       model: models.editor,
-      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+(developmentPolicy?DEVELOPMENT_LEDGER_RULE:'')+(readingWords!==undefined?wordBudgetInstruction(readingWords):''),
+      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+(developmentPolicy?DEVELOPMENT_LEDGER_RULE:'')+(readingWords!==undefined?wordBudgetInstruction(readingWords):'')+(sourceEntityPolicy?SOURCE_ENTITY_RULE:''),
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
         ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: accountingPolicy?Math.max(4000,articles.length*48):4000
@@ -368,7 +372,8 @@ async function verify(
   noveltyGuard = false,
   sourcePolicy?:EngineOptions['editorSourcePolicy'],
   noveltyPolicy?:EngineOptions['noveltyPolicy'],
-  verificationPolicy?:EngineOptions['verificationPolicy']
+  verificationPolicy?:EngineOptions['verificationPolicy'],
+  sourceEntityPolicy?:EngineOptions['sourceEntityPolicy']
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -382,7 +387,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: (promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM)+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+(verificationPolicy?ATOMIC_SUPPORT_RULE:''),
+          system: (promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM)+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+(verificationPolicy?ATOMIC_SUPPORT_RULE:'')+(sourceEntityPolicy?SOURCE_ENTITY_RULE:''),
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
@@ -425,7 +430,7 @@ async function verify(
             }
             if (!["ok", "fix", "drop", "redundant"].includes(verdict)) continue;
             const issues = (Array.isArray(row.issues) ? row.issues : []).map(text).filter(Boolean);
-            out.set(batch[i], verificationPolicy?atomicVerdict({...row,verdict,issues},drafts[batch[i]],byRef):{ verdict: verdict as Verdict["verdict"], issues });
+            if(verificationPolicy){try{out.set(batch[i],atomicVerdict({...row,verdict,issues},drafts[batch[i]],byRef))}catch(error){if(!(error instanceof Error)||!['MISSING_ATOMIC_ASSESSMENT','INVALID_ATOMIC_ASSESSMENT','ATOMIC_EVIDENCE_SCOPE'].includes(error.message))throw error;out.set(batch[i],{verdict:'drop',issues:['ATOMIC_VERIFICATION_UNAVAILABLE: '+error.message]})}}else out.set(batch[i],{verdict:verdict as Verdict['verdict'],issues});
           }
           return out;
         }
@@ -446,7 +451,8 @@ async function repair(
   byRef: Map<string, PreparedArticle>,
   headlineOnly = false,
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 4,
-  noveltyPolicy?:EngineOptions['noveltyPolicy']
+  noveltyPolicy?:EngineOptions['noveltyPolicy'],
+  sourceEntityPolicy?:EngineOptions['sourceEntityPolicy']
 ): Promise<Map<number, { headline: string; body: string } | null>> {
   // Model-facing numbers are local to this subset; translate back mechanically.
   const indices = [...flagged.keys()];
@@ -457,7 +463,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM,
+      system: (promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM)+(sourceEntityPolicy?SOURCE_ENTITY_RULE:''),
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,
@@ -522,6 +528,7 @@ export async function generateBriefing(
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
   if(options.readingWordBudget!==undefined)withinWordBudget([],options.readingWordBudget);
   if(options.editorSourcePolicy&&options.citationCoverage)throw Error('CONFLICTING_SOURCE_POLICIES');
+  if(options.architecture&&options.sourceWirePolicy)throw Error('SOURCE_WIRE_POLICY_REQUIRES_STANDARD_CORE');
   if (options.architecture !== undefined) {
     if (options.architecture !== 'evidence-first-v1' && options.architecture !== 'evidence-first-v2') throw new Error('UNSUPPORTED_BRIEFING_ARCHITECTURE');
     const result=await generateEvidenceBriefing(input,port,models,options);
@@ -539,12 +546,14 @@ export async function generateBriefing(
       stages[name] = (stages[name] ?? 0) + Date.now() - t;
     }
   };
+  const sourceAnchors:SourceWireAudit[]=[];
   const omittedStories: OmittedStory[] = [];
   const unaccounted: UnaccountedSource[] = [];
   const finish = (partial: Pick<BriefingResult, "status" | "items" | "skipped" | "dropped">): BriefingResult => {
     if(options.readingWordBudget!==undefined&&!withinWordBudget(partial.items,options.readingWordBudget))partial={...partial,status:'rejected',items:[],dropped:[...partial.dropped,...partial.items.map(i=>({headline:i.headline,sourceIds:i.sourceIds,carry:true,reason:'WORD_BUDGET_EXCEEDED'}))]};
     return ({
     ...partial,
+    ...(sourceAnchors.length?{sourceAnchors}:{}),
     omitted: omittedStories,
     unaccounted,
     ...(options.editorAccountingPolicy?{sourceDecisions:buildSourceDecisions(input.articles.map(a=>a.id),prepared,{...partial,omitted:omittedStories})}:{}),
@@ -559,11 +568,12 @@ export async function generateBriefing(
   const prior = selectPrior(input.prior ?? [], prepared, options.now());
   const priorIds = new Set((options.noveltyGuard?input.prior??[]:prior).map((p) => p.id));
   const sourceIdsOfRefs = (refs: string[]) => [...new Set(refs.flatMap((ref) => [byRef.get(ref)!.id, ...byRef.get(ref)!.alsoIds]))];
+  const anchor=(d:Draft):Draft=>{if(!options.sourceWirePolicy)return d;const a=anchorLocalityWire(d,byRef,input.feed.language);if(!a||a.headline===d.headline&&a.body===d.body)return d;sourceAnchors.push({sourceId:a.sourceId,rule:'arabic-airstrike-locality-v1',before:{headline:d.headline,body:d.body},after:{headline:a.headline,body:a.body},sourceText:a.sourceText});return{...d,headline:a.headline,body:a.body}};
 
   // 1. Edit: choose and write.
   const editorialFailures: DroppedItem[] = [];
   const editChunk=async(chunk:PreparedArticle[],partial:boolean)=>{
-    try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy,options.noveltyPolicy,options.editorDevelopmentPolicy,options.readingWordBudget)}
+    try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy,options.noveltyPolicy,options.editorDevelopmentPolicy,options.readingWordBudget,options.sourceEntityPolicy)}
     catch(error){
       if(!options.editorAccountingPolicy||options.editorFailurePolicy!=='isolate-unusable-chunks-v1'||!(error instanceof BriefingOutputError)||!partial&&!/EDITOR_ACCOUNTING/.test(error.message))throw error;
       editorialFailures.push({headline:'Unprocessed source batch',reason:'editor output unusable after correction: '+error.message.split('; last reply began:')[0],carry:true,sourceIds:sourceIdsOfRefs(chunk.map(a=>a.ref))});
@@ -607,7 +617,7 @@ export async function generateBriefing(
   for (const d of drafts.slice(options.maxItems)) {
     omittedStories.push({ stage: "safety_cap", reason: `over the safety limit of ${options.maxItems} items`, headline: d.headline, sourceIds: sourceIdsOfRefs(d.refs) });
   }
-  drafts = drafts.slice(0, options.maxItems);
+  drafts = drafts.slice(0, options.maxItems).map(anchor);
   const repeatReasons=new Map<Draft,string>();
   const exactRepeats=options.noveltyGuard&&!options.noveltyPolicy?drafts.filter(d=>exactPriorRepeat(d,input.prior??[])):[];
   if(options.noveltyGuard&&!options.noveltyPolicy)drafts=drafts.filter(d=>!exactPriorRepeat(d,input.prior??[]));
@@ -635,11 +645,12 @@ export async function generateBriefing(
     const refs=await timed('source_coverage',()=>completeStorySources(port,meter,models.editor,drafts,prepared,options.maxEditorChars));
     drafts=drafts.map((d,i)=>({...d,refs:refs[i]}));
   }
+  const nativeEntityPolicy=()=>options.sourceEntityPolicy??(options.sourceWirePolicy&&drafts.some(d=>anchorLocalityWire(d,byRef,input.feed.language))?'source-script-v1':undefined);
   const accepted = new Set<number>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
-    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy,options.noveltyPolicy,options.verificationPolicy));
+    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy,options.noveltyPolicy,options.verificationPolicy,nativeEntityPolicy()));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
     for (const index of todo) {
@@ -661,7 +672,7 @@ export async function generateBriefing(
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
     if (flagged.size && round < options.maxRepairs) {
-      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion,options.noveltyPolicy));
+      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion,options.noveltyPolicy,nativeEntityPolicy()));
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {
@@ -669,7 +680,7 @@ export async function generateBriefing(
           continue;
         }
         previousReviews.set(index, { headline: drafts[index].headline, body: drafts[index].body, issues: [...flagged.get(index)!] });
-        drafts[index] = { ...drafts[index], ...fixed };
+        drafts[index] = anchor({ ...drafts[index], ...fixed });
         todo.push(index);
       }
     }
