@@ -1,4 +1,4 @@
-"""Frozen, conservative source-derived facet checks for fictional controls; not a general semantic judge."""
+"""Post-freeze sensitivity checks (frozen primary remains reference_frozen.py). Source-derived facet checks for fictional controls; not a general semantic judge."""
 import re,unicodedata
 from pathlib import Path
 import json
@@ -18,6 +18,8 @@ def matches(text,fact):
  if not all(any(has(t,a) for a in group) for group in fact['anchors']):return False
  if not any(has(t,a) for a in fact['actions']):return False
  if not all(any(has(t,a) for a in group) for group in FACETS[fact['id']]):return False
+ if fact['id']=='plan' and not any(has(t,a) for a in ['not approved','not yet approved','awaiting approval','approval pending','لم يوافق','لم تتم الموافقة','لم يقر']):return False
+ if fact['id']=='correct' and not any(has(t,a) for a in ['damage','damaged','تضرر','ضرر','أصيبت','أصيب']):return False
  if fact['id']=='grant' and any(has(t,a) for a in ['not approved','did not approve','لم يوافق','لم تتم الموافقة']):return False
  if fact['id']=='water' and any(has(t,a) for a in ['not 12','لا 12','ليس 12']):return False
  if fact['id']=='close' and any(has(t,a) for a in ['did not close','not closed','لم يغلق','لم تغلق']):return False
@@ -37,4 +39,4 @@ def assess(case,output):
  for n,i in enumerate(items):
   t=i['headline']+' '+i['body']
   if not any(matches(t,f) for f in expected) and any(matches(t,f) for f in case.get('nonNovel',[])):repeats.append(n)
- return dict(eligible=len(expected),matched=len(found),matchedIds=found,unmatched=[f['id'] for f in expected if f['id'] not in found],uncitedMatches=uncited,wrongRelations=wrong_relation,allSupportingSources=len(all_sources),unnecessaryRepeatedItems=repeats,scope='Prespecified facet/citation/relation retention; unrecognized paraphrases are unresolved, not automatically factual errors')
+ return dict(eligible=len(expected),matched=len(found),matchedIds=found,unmatched=[f['id'] for f in expected if f['id'] not in found],uncitedMatches=uncited,wrongRelations=wrong_relation,allSupportingSources=len(all_sources),unnecessaryRepeatedItems=repeats,scope='Post-freeze stricter sensitivity; not the prespecified primary. Facet/citation/relation retention; unrecognized paraphrases are unresolved, not automatically factual errors')

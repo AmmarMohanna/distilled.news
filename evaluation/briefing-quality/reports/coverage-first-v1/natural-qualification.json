@@ -1,0 +1,59 @@
+[
+  {
+    "id": "natural-govuk-new",
+    "eventGroup": "govuk-new",
+    "inputHash": "9742437497f65f5df4e21925d01db21f2df71802d35ce186f79c469354cd7dee",
+    "source": {
+      "source": "GOV.UK",
+      "url": "https://www.gov.uk/government/news/stronger-savings-for-hundreds-of-thousands-of-workers",
+      "title": "Stronger savings for hundreds of thousands of workers",
+      "publishedAt": "2026-11-14T11:07:16+00:00"
+    },
+    "qualification": {
+      "status": "qualified_current_document_only",
+      "rawSha256": "c750d2384c9a8b369c8086eeb18b9c1d3ad69d91c06b340977e59e2b116fbb83",
+      "extractedRoots": 1,
+      "note": "Full GOV.UK content API body; observed current revision, not proof of past-cutoff availability.",
+      "eventIndependence": "Workplace savings / Muscat religious forum / potato pathogen research; distinct subjects, source documents and actors; no previous candidate outputs. Previously inspected source acquisition, so not untouched final chronological data.",
+      "retrievedAt": "2026-11-15T19:47:14.324Z"
+    }
+  },
+  {
+    "id": "natural-un-ar",
+    "eventGroup": "un-ar",
+    "inputHash": "039f7f1c46763bda0fc846bca68426e56a1acf63bca0057323db32480aa2e6cf",
+    "source": {
+      "source": "UN News Arabic",
+      "url": "https://news.un.org/ar/story/2026/11/1145705",
+      "title": "منتدى خطة مسقط في عُمان يبحث تعزيز دور القيادات الدينية والتقليدية في مكافحة خطاب الكراهية وصناعة السلام",
+      "publishedAt": "2026-11-15T12:00:00Z"
+    },
+    "qualification": {
+      "status": "qualified_current_document_only",
+      "rawSha256": "2d15ba2cac49d946c976d14178e8b5b50d9c25a0bc023b461b6aad17c40d011b",
+      "extractedRoots": 2,
+      "note": "Full declared lead/body HTML blocks; publisher header/RSS and JSON-LD differ on intraday time. No point-in-time historical certification.",
+      "eventIndependence": "Workplace savings / Muscat religious forum / potato pathogen research; distinct subjects, source documents and actors; no previous candidate outputs. Previously inspected source acquisition, so not untouched final chronological data.",
+      "retrievedAt": "2026-11-15T19:28:58.875Z"
+    }
+  },
+  {
+    "id": "natural-cnrs-fr",
+    "eventGroup": "cnrs-fr",
+    "inputHash": "fe4a6f7bcf58aa141a39be943d57d2a21dd0de42294d6ef62d53e0042c0b9a9d",
+    "source": {
+      "source": "CNRS",
+      "url": "https://www.cnrs.fr/fr/presse/pourriture-de-la-pomme-de-terre-des-bacteries-qui-trichent-pour-mieux-proliferer",
+      "title": "Pourriture de la pomme de terre : des bactéries qui trichent pour mieux proliférer | CNRS",
+      "publishedAt": "2026-11-13T00:00:00Z"
+    },
+    "qualification": {
+      "status": "qualified_current_document_only",
+      "rawSha256": "cdd591f709543367c6c4ee86c6844e28c94b01d66084ebe731618df306081f10",
+      "extractedRoots": 1,
+      "note": "Full declared HTML article section; publication precision day-only. Linked PDF/images excluded from evidence universe; contacts/metadata may remain.",
+      "eventIndependence": "Workplace savings / Muscat religious forum / potato pathogen research; distinct subjects, source documents and actors; no previous candidate outputs. Previously inspected source acquisition, so not untouched final chronological data.",
+      "retrievedAt": "2026-11-15T19:28:59.241Z"
+    }
+  }
+]

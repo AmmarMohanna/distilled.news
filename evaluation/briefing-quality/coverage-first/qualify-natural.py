@@ -1,7 +1,8 @@
 """Extract bounded publisher article panels; do not certify unavailable historical feed completeness."""
 from html.parser import HTMLParser
 from pathlib import Path
-import json,hashlib
+import json,hashlib,re
+from html import unescape
 class Text(HTMLParser):
  def __init__(self,match=lambda t,a:True):super().__init__();self.match=match;self.stack=[];self.depth=0;self.parts=[];self.hits=0;self.skip=0
  def handle_starttag(self,t,a):
@@ -37,6 +38,10 @@ for name in ['govuk-new','un-ar','cnrs-fr']:
  else:
   text,hits=extract(r['body'],lambda t,a:t=='section' and 'node--type-press-information' in a.get('class',''));title='CNRS: potato rot bacteria and cheating';published='2026-11-13T00:00:00Z';note='Full declared HTML article section; publication precision day-only. Linked PDF/images excluded from evidence universe; contacts/metadata may remain.'
  assert len(text)>1000,'ARTICLE_EXTRACTION_TOO_SHORT'
+ if name!='govuk-new':
+  match=re.search(r'<meta[^>]+property=[\"\']og:title[\"\'][^>]+content=[\"\']([^\"\']+)',r['body'],re.I)
+  assert match,'ORIGINAL_PUBLISHER_TITLE_MISSING'
+  title=unescape(match.group(1))
  article=dict(id='natural-'+name,source={'govuk-new':'GOV.UK','un-ar':'UN News Arabic','cnrs-fr':'CNRS'}[name],url=r['finalUrl'].replace('/api/content',''),publishedAt=published,title=title,text=text)
  interest={'govuk-new':'Workplace payroll savings arrangements, new employer participation and government implementation measures in the UK.','un-ar':'The Muscat religious and traditional leaders forum, concrete plans and actions against hate speech and for peaceful coexistence.','cnrs-fr':'Scientific findings about potato rot bacteria, the demonstrated mechanisms and the study limitations.'}[name]
  inp=dict(feed=dict(interest=interest,language='en',windowMinutes=30),articles=[article],prior=[],windowStart='2026-11-15T20:00:00Z',windowEnd='2026-11-15T20:30:00Z')

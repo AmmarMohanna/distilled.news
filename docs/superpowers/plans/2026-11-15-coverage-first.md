@@ -17,3 +17,6 @@ Preserve original success gates: >=10pp important-development coverage gain and 
 - [ ] Verify funding/old operations read-only; run small development comparisons then final controls once within new $5 ceiling.
 - [ ] Run original/coverage/single comparisons with both judges; preserve errors/unknowns, cost and latency; test metrics.
 - [ ] Full applicable regression/typechecks, independent code/scientific review, concise real results report, commit/push only research branch.
+## Execution disposition
+
+Architecture implemented and tested; frozen controlled comparison at dbccaf84 completed once. No meaningful advantage demonstrated over the equally guarded one-generation baseline. Real publisher panels and all failures/recoveries recorded separately. Post-freeze host fixes replay exact paid completions without modifying original results; additional diagnostics remain incomplete. New campaign settled $4.387300 plus $0.420084 unknown holds, exposure $4.807384 / $5. No deployment or merge. Final report: evaluation/briefing-quality/reports/coverage-first-v1/RESEARCH_REPORT.md. Broader untouched chronological study remains unperformed.

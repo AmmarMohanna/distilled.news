@@ -14,6 +14,8 @@ export interface CheckedDevelopment {id:string;statement:string;occurrence:strin
 interface Proposed extends CheckedDevelopment {evidence:Array<{passages:string[]}>;proofs:EvidenceProof[]}
 export interface CoverageAudit {architecture:'coverage-first-v1'|'guarded-single-v1';semanticTruthEstablished:false;extraction:unknown;grounding:unknown;proposed:unknown[];selectedIds:string[];decisions:Array<{id:string;reason:string;sourceIds:string[]}>;proofs:EvidenceProof[];sourceDigests:Array<{id:string;digest:string}>}
 const validString=(s:unknown):s is string=>typeof s==='string'&&s.trim().length>0;
+// Post-freeze safeguard: script compatibility only; English/French distinction remains an independent diagnostic.
+export const scriptCompatible=(statement:string,language:BriefingInput['feed']['language'])=>language==='ar'?/\p{Script=Arabic}/u.test(statement):!/\p{Script=Arabic}/u.test(statement)||(statement.match(/\p{Script=Latin}/gu)?.length??0)>=3;
 const normalized=(s:string)=>s.normalize('NFC').replace(/\s+/gu,' ').trim();
 /** Exact bounded knapsack over indivisible validated statements; no compression/truncation. */
 export function selectDevelopments<T extends CheckedDevelopment>(developments:T[],budget:number):T[]{
@@ -59,7 +61,7 @@ async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels
   audit.proposed=proposals;
   const grounded=await call('independent-grounding',DEVELOPMENT_GROUNDER,{...context,proposals:proposals.map(({proofs,relation,priorId,importance,quality,...d})=>({...d,resolvedEvidence:proofs})),...(!single?{passageDispositions:raw.passages}:{})},models.verifier);audit.grounding=grounded;
   if(!Array.isArray(grounded?.results))throw new EvidenceContractError('GROUNDING_MISSING_RESULTS');
-  if(!single){const coverage=grounded.inventoryCoverage;if(!coverage||!['complete','uncertain'].includes(coverage.status)||!validString(coverage.reason)||!Array.isArray(coverage.missing))throw new EvidenceContractError('INVENTORY_COVERAGE_UNAVAILABLE');for(const m of coverage.missing){tools.resolvePassages({passages:m.passages});if(!validString(m.reason))throw new EvidenceContractError('INVALID_MISSING_DEVELOPMENT')}if(coverage.status==='uncertain'||coverage.missing.length)defer('*','',sourceIds,'INVENTORY_COVERAGE_UNCERTAIN:'+coverage.reason)}
+  if(!single){const coverage=grounded.inventoryCoverage;const missing=coverage?.missing===undefined&&coverage?.status==='complete'?[]:coverage?.missing;if(!coverage||!['complete','uncertain'].includes(coverage.status)||!validString(coverage.reason)||!Array.isArray(missing))throw new EvidenceContractError('INVENTORY_COVERAGE_UNAVAILABLE');for(const m of missing){tools.resolvePassages({passages:m.passages});if(!validString(m.reason))throw new EvidenceContractError('INVALID_MISSING_DEVELOPMENT')}if(coverage.status==='uncertain'||missing.length)defer('*','',sourceIds,'INVENTORY_COVERAGE_UNCERTAIN:'+coverage.reason)}
   const groups=new Map<string,any[]>();for(const r of grounded.results){if(!ids.has(r?.id))throw new EvidenceContractError('GROUNDING_UNKNOWN_ID');groups.set(r.id,[...(groups.get(r.id)??[]),r]);}
   const approved:Proposed[]=[],reviews=new Map<string,any>();
   for(const d of proposals){const rs=groups.get(d.id)??[];if(rs.length!==1){defer(d.id,d.statement,d.sourceIds,'GROUNDING_UNAVAILABLE');continue}const r=rs[0];reviews.set(d.id,r);
@@ -67,6 +69,7 @@ async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels
    if(r.support!=='supported'||r.relevance==='uncertain'||r.relation==='uncertain'){defer(d.id,d.statement,d.sourceIds,'GROUNDING_'+r.support+'_'+r.relevance+'_'+r.relation+':'+r.reason);continue}
    if(r.relation!=='new'&&!prior.some(p=>p.id===r.priorId)){defer(d.id,d.statement,d.sourceIds,'GROUNDING_UNKNOWN_PRIOR');continue}
    if(r.relevance==='irrelevant'||r.relation==='already_reported'){const reason=r.relevance==='irrelevant'?'irrelevant':'already_reported';decisions.push({id:d.id,sourceIds:d.sourceIds,reason:reason+':'+r.reason});omitted.push({stage:'editor',headline:d.statement,sourceIds:d.sourceIds,reason:reason+':'+r.reason});continue}
+   if(!scriptCompatible(d.statement,input.feed.language)){defer(d.id,d.statement,d.sourceIds,'TARGET_SCRIPT_MISMATCH');continue}
    approved.push({...d,relation:r.relation,priorId:r.relation==='new'?null:r.priorId,importance:r.importance,quality:r.quality});
   }
   const canonicals=approved.filter(d=>reviews.get(d.id).duplicateOf===null);for(const d of approved.filter(d=>reviews.get(d.id).duplicateOf!==null)){const c=canonicals.find(c=>c.id===reviews.get(d.id).duplicateOf);if(!c||c.occurrence!==d.occurrence||c.relation!==d.relation||c.priorId!==d.priorId){defer(d.id,d.statement,d.sourceIds,'DUPLICATE_OCCURRENCE_CONFLICT');continue}c.sourceIds=[...new Set([...c.sourceIds,...d.sourceIds])];decisions.push({id:d.id,sourceIds:d.sourceIds,reason:'equivalent:'+c.id+':'+reviews.get(d.id).reason})}
