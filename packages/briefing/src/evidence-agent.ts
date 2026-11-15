@@ -1,3 +1,4 @@
+import{wordBudgetInstruction}from './word-budget';
 import { extractJson, UsageMeter, type ModelPort } from './model';
 import { EvidenceContractError, createEvidenceTools, type EvidenceTools, type PassageCitation, type PassageSelection, type EvidenceProof } from './evidence-tools';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult } from './types';
@@ -83,6 +84,7 @@ function records(raw: unknown, tools: EvidenceTools, prior: Set<string>, priorId
 }
 /** Host-driven read-only tools; no provider continuations, JSON resends or hidden inference loops. */
 export async function generateEvidenceBriefing(input: BriefingInput, port: ModelPort, models: BriefingModels, limits: {
+    readingWordBudget?: number;
     maxEditorChars: number;
     maxVerifyChars: number;
     maxItems: number;
@@ -209,7 +211,7 @@ export async function generateEvidenceBriefing(input: BriefingInput, port: Model
     };
     // Transport/admission failures propagate unchanged, including uncertainty. Only local parse/contract failures hold output.
     const contractError = (e: unknown): e is EvidenceContractError => e instanceof EvidenceContractError;
-    const context = { feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, tools: { sources, previousCoverage: priorForModel, revisionScope: 'Only revisions supplied by the authorized caller; historical completeness is not implied.' } };
+    const context = { feed: input.feed, ...(limits.readingWordBudget===undefined?{}:{readerBudget:wordBudgetInstruction(limits.readingWordBudget)}), windowStart: input.windowStart, windowEnd: input.windowEnd, tools: { sources, previousCoverage: priorForModel, revisionScope: 'Only revisions supplied by the authorized caller; historical completeness is not implied.' } };
     if (!sources.length)
         return finish();
     let raw: any, drafts: Draft[];

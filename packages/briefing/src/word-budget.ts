@@ -1,0 +1,6 @@
+import type{BriefingItem}from'./types';
+/** Research opt-in reading budget. Citations/working notes do not count as reader prose. */
+export const countWords=(value:string)=>value.match(/[\p{L}\p{N}]+(?:['’\u2010-\u2015-][\p{L}\p{N}]+)*/gu)?.length??0;
+export function readingWordBudget(minutes:number){if(!Number.isFinite(minutes)||minutes<=0)throw Error('INVALID_WINDOW_LENGTH');return Math.round((Math.min(420,30+minutes*.1)/60*200)/10)*10}
+export function withinWordBudget(items:ReadonlyArray<Pick<BriefingItem,'headline'|'body'>>,budget:number){if(!Number.isSafeInteger(budget)||budget<=0)throw Error('INVALID_WORD_BUDGET');return items.reduce((n,i)=>n+countWords(i.headline+' '+i.body),0)<=budget}
+export const wordBudgetInstruction=(budget:number)=>{withinWordBudget([],budget);return '\nHARD READER WORD BUDGET: '+budget+' words total across all headlines and bodies. Preserve supported essential facts, names, qualifications and attribution. Use complete headline-only items when sufficient. Do not add filler or silently lose an essential qualification to meet this budget. Citations and private working records are separate.'};

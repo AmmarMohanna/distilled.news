@@ -1,0 +1,12 @@
+import{describe,it,expect}from'vitest';
+import{countWords,readingWordBudget,withinWordBudget}from'../src/word-budget';
+import{atomicVerdict,validateDevelopmentLedger}from'../src/value-policy';
+describe('research word and evidence policies',()=>{
+ it('counts Unicode prose consistently, including apostrophes, hyphenated names and Arabic',()=>{expect(countWords("Aita al-Jabal: l'école stays open.")).toBe(5);expect(countWords('أعلنت البلدية افتتاح المكتبة.')).toBe(4);expect(countWords('')).toBe(0);expect(readingWordBudget(30)).toBe(110);expect(withinWordBudget([{headline:'One fact',body:'only'}],3)).toBe(true);expect(withinWordBudget([{headline:'One fact',body:'only'}],2)).toBe(false)});
+ it('refuses invalid budgets rather than silently treating zero as unlimited',()=>{expect(()=>withinWordBudget([],0)).toThrow('INVALID_WORD_BUDGET')});
+ const sources=new Map([['S1',{text:'The clinic can receive 120 patients daily.'}]]),draft={headline:'Clinic can receive 210 patients daily',body:'',refs:['S1']};
+ it('does not allow an item-level ok to override an explicitly unsupported atomic claim',()=>{const r=atomicVerdict({verdict:'ok',issues:[],claims:[{text:'210 patients',assessment:'unsupported',sources:['S1']}]},draft,sources);expect(r.verdict).toBe('fix');expect(r.issues.join(' ')).toContain('210 patients')});
+ it('accepts natural paraphrases supported by declared current citations without demanding copied wording',()=>{expect(atomicVerdict({verdict:'ok',issues:[],claims:[{text:'120 people',assessment:'supported',sources:['S1']}]},{headline:'Clinic can receive 120 people daily',body:'',refs:['S1']},sources).verdict).toBe('ok')});
+ it('rejects fabricated or uncited atomic evidence and an absent claim assessment',()=>{expect(()=>atomicVerdict({verdict:'ok',claims:[{text:'210',assessment:'supported',sources:['S2']}]},draft,sources)).toThrow('ATOMIC_EVIDENCE_SCOPE');expect(()=>atomicVerdict({verdict:'ok',issues:[]},draft,sources)).toThrow('MISSING_ATOMIC_ASSESSMENT')});
+ it('requires ledger-selected developments to bind to actual item/source decisions',()=>{const raw={items:[{developments:['D1'],sources:['S1']}],developments:[{id:'D1',fact:'Clinic capacity',sources:['S1'],decision:'selected',reason:'Relevant capacity announcement'}]};expect(()=>validateDevelopmentLedger(raw,new Set(['S1']))).not.toThrow();expect(()=>validateDevelopmentLedger({...raw,items:[]},new Set(['S1']))).toThrow('UNBOUND_SELECTED_DEVELOPMENT')});
+});
