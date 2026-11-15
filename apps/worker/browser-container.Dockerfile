@@ -47,8 +47,13 @@ COPY packages/core/package.json ./packages/core/package.json
 # The bridge runs directly from the reviewed TypeScript source using the
 # workspace's pinned tsx/Playwright versions. No browser state is copied into
 # or written by the image.
+# npm/corepack/pnpm are build-time tooling; the server starts with Node directly.
+# The Playwright base bundles /usr/lib/node_modules/npm and old transitive
+# packages that the runtime never needs. Remove them from the final image.
 RUN pnpm install --filter @distilled/browser-bridge... --prod --frozen-lockfile \
-    && corepack disable && rm -rf /opt/corepack
+    && corepack disable \
+    && rm -rf /opt/corepack /usr/lib/node_modules/npm \
+    && rm -f /usr/bin/npm /usr/bin/npx
 
 # Keep expensive Python layers stable across TypeScript and fixture edits.
 COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use

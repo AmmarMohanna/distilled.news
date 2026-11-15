@@ -34,7 +34,7 @@ jobs:
         run: docker build -f apps/worker/browser-container.Dockerfile -t distilled-browser-security:ci .
       - name: Verify non-root account and package-manager-free runtime
         run: |
-          docker run --rm --entrypoint sh distilled-browser-security:ci -c 'test "$(id -u)" -eq 1001 && test "$(id -g)" -eq 1001 && test ! -d /opt/corepack/v1/pnpm && node --import tsx --eval "console.log(\"TSX_LOADER_OK\")" | grep -Fx TSX_LOADER_OK'
+          docker run --rm --entrypoint sh distilled-browser-security:ci -c 'test "$(id -u)" -eq 1001 && test "$(id -g)" -eq 1001 && test ! -d /opt/corepack/v1/pnpm && test ! -d /usr/lib/node_modules/npm && node --import tsx --eval "console.log(\"TSX_LOADER_OK\")" | grep -Fx TSX_LOADER_OK'
       - name: Launch local bridge and check health (no outside traffic)
         run: |
           set -euo pipefail
