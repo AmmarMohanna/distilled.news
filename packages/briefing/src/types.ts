@@ -90,6 +90,8 @@ export interface SourceDecision {
 }
 
 export interface BriefingResult {
+  /** Offline compact-selection candidate audit, no truth guarantee. */
+  compactSelection?: unknown;
   coverageFirst?: import('./coverage-first').CoverageAudit;
   /** Opt-in source-derived draft corrections; provider replies remain in their original records. */
   sourceAnchors?: import('./source-wire').SourceWireAudit[];

@@ -27,7 +27,9 @@ export function selectDevelopments<T extends CheckedDevelopment>(developments:T[
  let best:Plan={rows:[],score:[0,0,0,0]},used=0;for(const [words,p]of plans)if(better(p,best)||JSON.stringify(p.score)===JSON.stringify(best.score)&&words<used){best=p;used=words}return best.rows.sort((a,b)=>a.importance-b.importance||a.id.localeCompare(b.id));
 }
 
-async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels,words:number,single:boolean,limits:{maxRequestChars?:number}={}):Promise<BriefingResult>{
+export interface CoverageLimits {maxRequestChars?:number;extractionSystem?:string;compactFactSlots?:boolean;requiredUnits?:Array<{id:string;statement:string;itemId:string;fact?:Record<string,string|null>}>;suppliedItems?:unknown}
+const RETENTION_RULE='\nAlso return retention:[{id:"unit ID",status:"retained|omitted|uncertain",reason:"all substantive facts including qualifications preserved or specific loss"}]. Independently check EVERY required unit, including ALL its structured fact slots when present, against its bound final item. The short statement alone cannot waive an essential slot, condition or attribution. A returned unit ID is not proof of retention. No required units means retention:[]. Do not approve a unit if facts are changed, absent or overstated.';
+async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels,words:number,single:boolean,limits:CoverageLimits={}):Promise<BriefingResult>{
  withinWordBudget([],words);const started=Date.now(),meter=new UsageMeter(),stages:Record<string,number>={},tools=await createEvidenceTools(input),sources=tools.sources(),prior=tools.previous(),dropped:BriefingResult['dropped']=[],omitted:BriefingResult['omitted']=[],decisions:CoverageAudit['decisions']=[],proofs:EvidenceProof[]=[];
  const audit:CoverageAudit={architecture:single?'guarded-single-v1':'coverage-first-v1',semanticTruthEstablished:false,extraction:null,grounding:null,proposed:[],selectedIds:[],decisions,proofs,sourceDigests:sources.map(s=>({id:s.id,digest:s.digest}))};
  const finish=(items:BriefingItem[]):BriefingResult=>({status:items.length?'published':dropped.length?'rejected':'empty',items,skipped:[],dropped,omitted,unaccounted:[],usage:meter.usage,timings:{totalMs:Date.now()-started,stages},coverageFirst:audit,sourceDecisions:input.articles.map(a=>({sourceId:a.id,outcomes:[{stage:'final',decision:items.some(i=>i.sourceIds.includes(a.id))?'selected':dropped.some(d=>d.sourceIds.includes(a.id))?'deferred':'omitted',reason:decisions.filter(d=>d.sourceIds.includes(a.id)).map(d=>d.reason).join('; ')||'SOURCE_PASSAGES_ACCOUNTED'}]}))});
@@ -36,7 +38,7 @@ async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels
  const sourceIds=sources.map(s=>s.id),context={feed:input.feed,windowStart:input.windowStart,windowEnd:input.windowEnd,sources,prior};let proposals:Proposed[]=[];
  if(!sources.length)return finish([]);
  try{
-  const raw=await call(single?'single-editor':'source-extraction',single?SINGLE_EDITOR+wordBudgetInstruction(words):DEVELOPMENT_EXTRACTOR,context,models.editor);audit.extraction=raw;
+  const raw=single&&limits.suppliedItems!==undefined?limits.suppliedItems:await call(single?'single-editor':'source-extraction',single?SINGLE_EDITOR+wordBudgetInstruction(words):(limits.extractionSystem??DEVELOPMENT_EXTRACTOR),context,models.editor);audit.extraction=raw;
   let rows:any[];
   if(single){if(!Array.isArray(raw?.items))throw new EvidenceContractError('MISSING_SINGLE_ITEMS');rows=raw.items.map((i:any,n:number)=>{if(!validString(i.headline)||typeof i.body!=='string'||!Array.isArray(i.sources)||!i.sources.length)throw new EvidenceContractError('INVALID_SINGLE_ITEM');return{id:'D'+(n+1),statement:i.headline+(i.body?' '+i.body:''),occurrence:'single-item-'+n,evidence:i.sources.map((ref:string)=>({passages:tools.source(ref).passages.map(p=>p.id)})),relation:i.relation,priorId:i.updates??null,importance:i.importance}});
    if(!withinWordBudget(rows.map(r=>({headline:r.statement,body:''})),words))throw new EvidenceContractError('WORD_BUDGET_EXCEEDED');
@@ -49,6 +51,7 @@ async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels
   }
   const ids=new Set<string>();for(const r of rows){
    if(!validString(r.id)||ids.has(r.id)||!validString(r.statement)||!validString(r.occurrence)||!Array.isArray(r.evidence)||!r.evidence.length||![1,2,3].includes(r.importance)||!['new','update','correction','already_reported','uncertain'].includes(r.relation))throw new EvidenceContractError('DEVELOPMENT_INVALID');ids.add(r.id);
+   if(limits.compactFactSlots){const keys=['actor','action','object','place','time','quantity','qualification'];if(!r.fact||!keys.every(k=>k in r.fact&&(r.fact[k]===null||validString(r.fact[k])))||!validString(r.fact.actor)||!validString(r.fact.action))throw new EvidenceContractError('COMPACT_FACT_SLOTS_INVALID')}
    const bound:EvidenceProof[]=r.evidence.flatMap((e:any)=>{
     if(!Array.isArray(e?.passages)||!e.passages.length||e.passages.some((id:unknown)=>typeof id!=='string'))throw new EvidenceContractError('INVALID_PASSAGE_SELECTION');
     const groups:string[][]=[];let previous:ReturnType<typeof tools.passage>|undefined;
@@ -59,9 +62,10 @@ async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels
    const row={...r,statement,sourceIds:idsForRow,proofs:bound};proposals.push(row);proofs.push(...bound);
   }
   audit.proposed=proposals;
-  const grounded=await call('independent-grounding',DEVELOPMENT_GROUNDER,{...context,proposals:proposals.map(({proofs,relation,priorId,importance,quality,...d})=>({...d,resolvedEvidence:proofs})),...(!single?{passageDispositions:raw.passages}:{})},models.verifier);audit.grounding=grounded;
+  const grounded=await call('independent-grounding',DEVELOPMENT_GROUNDER+(limits.compactFactSlots?'\nAlso verify every structured fact slot against the bound original evidence; reject unsupported or contradictory slots even if the short statement alone is supported. Conditions/attribution cannot be dropped in either representation.':'')+(limits.requiredUnits!==undefined?RETENTION_RULE:''),{...context,...(limits.requiredUnits!==undefined?{requiredUnits:limits.requiredUnits}:{}),proposals:proposals.map(({proofs,relation,priorId,importance,quality,...d})=>({...d,resolvedEvidence:proofs})),...(!single?{passageDispositions:raw.passages}:{})},models.verifier);audit.grounding=grounded;
   if(!Array.isArray(grounded?.results))throw new EvidenceContractError('GROUNDING_MISSING_RESULTS');
   if(!single){const coverage=grounded.inventoryCoverage;const missing=coverage?.missing===undefined&&coverage?.status==='complete'?[]:coverage?.missing;if(!coverage||!['complete','uncertain'].includes(coverage.status)||!validString(coverage.reason)||!Array.isArray(missing))throw new EvidenceContractError('INVENTORY_COVERAGE_UNAVAILABLE');for(const m of missing){tools.resolvePassages({passages:m.passages});if(!validString(m.reason))throw new EvidenceContractError('INVALID_MISSING_DEVELOPMENT')}if(coverage.status==='uncertain'||missing.length)defer('*','',sourceIds,'INVENTORY_COVERAGE_UNCERTAIN:'+coverage.reason)}
+  if(limits.requiredUnits!==undefined){if(!Array.isArray(grounded.retention)||grounded.retention.length!==limits.requiredUnits.length)throw new EvidenceContractError('FINAL_UNIT_RETENTION_UNAVAILABLE');const seen=new Set<string>();for(const row of grounded.retention){if(!limits.requiredUnits.some(u=>u.id===row.id)||seen.has(row.id)||row.status!=='retained'||!validString(row.reason))throw new EvidenceContractError('FINAL_UNIT_RETENTION_FAILED');seen.add(row.id)}}
   const groups=new Map<string,any[]>();for(const r of grounded.results){if(!ids.has(r?.id))throw new EvidenceContractError('GROUNDING_UNKNOWN_ID');groups.set(r.id,[...(groups.get(r.id)??[]),r]);}
   const approved:Proposed[]=[],reviews=new Map<string,any>();
   for(const d of proposals){const rs=groups.get(d.id)??[];if(rs.length!==1){defer(d.id,d.statement,d.sourceIds,'GROUNDING_UNAVAILABLE');continue}const r=rs[0];reviews.set(d.id,r);
@@ -80,5 +84,6 @@ async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels
   if(!withinWordBudget(items,words)||items.some((i,n)=>normalized(i.headline)!==normalized(selected[n].statement)))throw new EvidenceContractError('FINAL_COVERAGE_BINDING_FAILED');return finish(items);
  }catch(error){if(!(error instanceof EvidenceContractError))throw error;defer('*','',sourceIds,error.message);return finish([])}
 }
-export const generateCoverageBriefing=(input:BriefingInput,port:ModelPort,models:BriefingModels,words=readingWordBudget(input.feed.windowMinutes),limits?:{maxRequestChars?:number})=>generate(input,port,models,words,false,limits);
-export const generateGuardedSingle=(input:BriefingInput,port:ModelPort,models:BriefingModels,words=readingWordBudget(input.feed.windowMinutes),limits?:{maxRequestChars?:number})=>generate(input,port,models,words,true,limits);
+export const generateCoverageBriefing=(input:BriefingInput,port:ModelPort,models:BriefingModels,words=readingWordBudget(input.feed.windowMinutes),limits?:CoverageLimits)=>generate(input,port,models,words,false,limits);
+export const generateGuardedSingle=(input:BriefingInput,port:ModelPort,models:BriefingModels,words=readingWordBudget(input.feed.windowMinutes),limits?:CoverageLimits)=>generate(input,port,models,words,true,limits);
+export const verifySuppliedItems=(input:BriefingInput,port:ModelPort,models:BriefingModels,items:unknown,requiredUnits:NonNullable<CoverageLimits['requiredUnits']>,words:number)=>generate(input,port,models,words,true,{suppliedItems:items,requiredUnits});

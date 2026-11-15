@@ -1,0 +1,64 @@
+{
+  "protocolHash": "a7bbc778597bde06fa74b54e31ace433488d19fc11105b2346792183f01ad96d",
+  "validation": {
+    "valid": true,
+    "cases": 24,
+    "eventGroups": 6,
+    "families": 3,
+    "active": 18,
+    "quiet": 6,
+    "newInferenceCalls": 0,
+    "finalHeldoutCases": 0,
+    "qualification": "Constructed manifest integrity validated; source-only semantic audit and binding compression challenge remain mandatory before inference"
+  },
+  "approval": "NONE: execution requires a new explicit finite user cap and source-only semantic/pressure qualification",
+  "pricingBasis": "Prior recorded 2026-11-15 pricing only: GPT4.1 $2/$8 per million; mini $0.4/$1.6; Claude Sonnet4.5 $3/$15. Must reverify provider prices/account before approved execution.",
+  "priorHolds": "All historical holds remain separate/unchanged; no reconciliation or API access in this preparation",
+  "summaries": [
+    {
+      "split": "development",
+      "windows": 12,
+      "eventGroups": 3,
+      "active": 9,
+      "quiet": 3,
+      "generationCalls": {
+        "nominal": 90,
+        "maximum": 96
+      },
+      "independentInventoryAndGroundingCalls": 48,
+      "reviewCalls": 72,
+      "maximumConsistencyCorrections": 72,
+      "nominalProviderCalls": 210,
+      "maximumProviderCalls": 288,
+      "estimatedActualUsd": [
+        6,
+        12
+      ],
+      "estimateBasis": "Planning range, not measured: 12 larger-source windows; generation ~$1–2, dual-judge inventories/grounding/reviews ~$4–8, schema/correction allowance ~$1–2. Prior smaller campaign averaged ~$0.0164 per diagnostic provider operation; these inputs/history are larger. Reservations can block execution before this actual-cost estimate."
+    },
+    {
+      "split": "validation",
+      "windows": 12,
+      "eventGroups": 3,
+      "active": 9,
+      "quiet": 3,
+      "generationCalls": {
+        "nominal": 90,
+        "maximum": 96
+      },
+      "independentInventoryAndGroundingCalls": 48,
+      "reviewCalls": 72,
+      "maximumConsistencyCorrections": 72,
+      "nominalProviderCalls": 210,
+      "maximumProviderCalls": 288,
+      "estimatedActualUsd": [
+        6,
+        12
+      ],
+      "estimateBasis": "Planning range, not measured: 12 larger-source windows; generation ~$1–2, dual-judge inventories/grounding/reviews ~$4–8, schema/correction allowance ~$1–2. Prior smaller campaign averaged ~$0.0164 per diagnostic provider operation; these inputs/history are larger. Reservations can block execution before this actual-cost estimate."
+    }
+  ],
+  "newInferenceCalls": 0,
+  "accountChecks": 0,
+  "keyReads": 0
+}

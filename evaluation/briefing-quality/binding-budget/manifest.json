@@ -1,0 +1,348 @@
+{
+  "version": "binding-budget-v1",
+  "base": "6444560a",
+  "hashPolicy": "Code hashes normalize CRLF to LF; compressed cases hashed byte-for-byte; inputs use JSON.stringify",
+  "status": "offline-prepared-unapproved",
+  "budgetWords": 110,
+  "arms": [
+    "compact-compose",
+    "corrected-statements",
+    "strong-single"
+  ],
+  "generationModels": {
+    "editor": "openai/gpt-4.1",
+    "verifier": "openai/gpt-4.1-mini"
+  },
+  "judges": [
+    "openai/gpt-4.1",
+    "anthropic/claude-sonnet-4.5"
+  ],
+  "casesSha256": "62718c76473fda5ab4892593a228a1d682ef7e1d46e9c50de92b406dc3a627da",
+  "cases": [
+    {
+      "id": "services-development-w0",
+      "inputHash": "cc1c6703fb28430654e96493b41d07b45e9a74bfd81cc0df53a54bf17cd0f049",
+      "eventGroup": "services-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 468,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "services-development-w1",
+      "inputHash": "b2b3ef2e2725fddbf8e8929ab2d0219759effd46a2923ee99673091365458442",
+      "eventGroup": "services-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 516,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "services-development-w2",
+      "inputHash": "b23091384e1849222024fddacac53d409bf67eb30b8682dd5bdc9d5250a60190",
+      "eventGroup": "services-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 522,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "services-development-w3",
+      "inputHash": "f075a615c8ea26dfd24bab9856d47263b2990915a6253ff927388af9de27f32d",
+      "eventGroup": "services-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 0,
+        "sourceDerivedConciseWords": 0,
+        "fullFactWords": 0,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "services-validation-w0",
+      "inputHash": "d9cd1268c6bd6502c0345e5829498938d21d683b02de72eeb01ec931ff6f4b75",
+      "eventGroup": "services-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 468,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "services-validation-w1",
+      "inputHash": "ec266dcdc45fa24920117087b7b4b204c1da884feda1c9c4cffca9ff268b0103",
+      "eventGroup": "services-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 516,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "services-validation-w2",
+      "inputHash": "48911cdc1bf8378ce301fadca68ac000c411e940c4b0f822524902c74197ea7c",
+      "eventGroup": "services-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 522,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "services-validation-w3",
+      "inputHash": "a792066695ab9f363bef09f9743b643e2a3f60e7c6658a1d6c69fe5c46f7462a",
+      "eventGroup": "services-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 0,
+        "sourceDerivedConciseWords": 0,
+        "fullFactWords": 0,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "research-development-w0",
+      "inputHash": "121298e786a6046e1a5743879dba75476e4a2a4008fb2472dc5fe1c25aeb70b8",
+      "eventGroup": "research-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 414,
+        "fullFactWords": 486,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "research-development-w1",
+      "inputHash": "bca1652adb46e91efe92a0f578d749c1fe924ba6f042b1e787c6b72a727218ca",
+      "eventGroup": "research-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 414,
+        "fullFactWords": 534,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "research-development-w2",
+      "inputHash": "2fd50de3e14a808f01206c0ac5d920390f844a679f1e32a0c3f3e4deeca719ec",
+      "eventGroup": "research-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 414,
+        "fullFactWords": 540,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "research-development-w3",
+      "inputHash": "b8428177af017087b6446875189610471c4d61f8772ad383c859022cc9656fad",
+      "eventGroup": "research-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 0,
+        "sourceDerivedConciseWords": 0,
+        "fullFactWords": 0,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "research-validation-w0",
+      "inputHash": "c7c9724e312d06048939e6297929b1bc98bedb36b7032949a75a09267e9adf68",
+      "eventGroup": "research-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 414,
+        "fullFactWords": 486,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "research-validation-w1",
+      "inputHash": "4ab2c0f8f6f77776a260e814348b7c21030514f6656959d0ce1092b0e43f8a14",
+      "eventGroup": "research-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 414,
+        "fullFactWords": 534,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "research-validation-w2",
+      "inputHash": "2561bc3f35124cafc6b99e8f95c466fc5928cb3f8c69a8bda7acdfaa046c23f7",
+      "eventGroup": "research-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 414,
+        "fullFactWords": 540,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "research-validation-w3",
+      "inputHash": "d94b14126633b4485c785a8c0c04af35d95c7b42248a6348e3b361b8a18225e6",
+      "eventGroup": "research-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 0,
+        "sourceDerivedConciseWords": 0,
+        "fullFactWords": 0,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "transport-development-w0",
+      "inputHash": "f95b62d5bb1ce08569096762195fe55ddd2f7ab633d797d0144b31c620864f1c",
+      "eventGroup": "transport-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 468,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "transport-development-w1",
+      "inputHash": "bde1b197fe8281c733195615596153d09f2ac49065958cb59479d160b25ef2eb",
+      "eventGroup": "transport-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 516,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "transport-development-w2",
+      "inputHash": "91248b0f43181cd02effd1b0a13a94c090cae02053b66961ecf34785599df57b",
+      "eventGroup": "transport-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 522,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "transport-development-w3",
+      "inputHash": "4279ed4b988f5ee88c94c377175cc783668ba1e954d0d673cd53620d58f54926",
+      "eventGroup": "transport-development",
+      "split": "development",
+      "pressure": {
+        "eligible": 0,
+        "sourceDerivedConciseWords": 0,
+        "fullFactWords": 0,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "transport-validation-w0",
+      "inputHash": "b281356e41b9c5b3d5269f6f71d1ec385f4c74a4db37e5553e686636077b8b8c",
+      "eventGroup": "transport-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 468,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "transport-validation-w1",
+      "inputHash": "835cc7e83aeac31d14a3712cd76da8cc7481be268f9ee1406882138b9bd7db0a",
+      "eventGroup": "transport-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 516,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "transport-validation-w2",
+      "inputHash": "18d61346e5eab3f97d93ab5942164ae9a839f60222b4a7949a86d38f724530e8",
+      "eventGroup": "transport-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 18,
+        "sourceDerivedConciseWords": 396,
+        "fullFactWords": 522,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    },
+    {
+      "id": "transport-validation-w3",
+      "inputHash": "4266e5ce3e079e3781a04eaec9343b993172274d249c8e22461b311edce09720",
+      "eventGroup": "transport-validation",
+      "split": "validation",
+      "pressure": {
+        "eligible": 0,
+        "sourceDerivedConciseWords": 0,
+        "fullFactWords": 0,
+        "budget": 110,
+        "certification": "Constructed pressure proxy, not an information-theoretic lower bound: shared-subject/list composition could reduce these renderings. Preflight requires human source-only binding audit before any final inference."
+      }
+    }
+  ],
+  "sourceHashes": {
+    "packages/briefing/src/compact-selection.ts": "e591daac822bd7062a183c971da3729af19c92560bb3ba75134c3c1d26cf148a",
+    "packages/briefing/src/coverage-first.ts": "60cb863c54c9574aa8635eaf250f479cf08fe00e22a1e6d2b934e775f9d126ee",
+    "packages/briefing/src/word-budget.ts": "b9606f511dd94c6dc5a496aa1a6640dd60659dc2f63abb6582acd151919f9232",
+    "packages/briefing/src/evidence-tools.ts": "b144ee318b50c476169399883bb9a435dc3474680e429557d8614e34b5faf009",
+    "packages/briefing/src/source-wire.ts": "473011250bf98dde24e2c3ac5257b90cb6b506be09800d583d48e94234495be9",
+    "packages/briefing/src/value-policy.ts": "ed2c6ec2b8a432f1e4dc3437f07f07fd2bf04c192c0c1ae907a77c7bc2a4235a",
+    "evaluation/briefing-quality/binding-budget/run.ts": "c8881d068ea394952faa40b510ddd4feb4beefdd4c9418b41e22a69dedda593e",
+    "evaluation/briefing-quality/binding-budget/validate.ts": "bf60704d2f645f309008a04e642451a576bd215afbe42d191a0df32f7119e1e4",
+    "evaluation/briefing-quality/binding-budget/preflight.ts": "b8278276611dac79e115bd5a8516af725c0866dff8ef5f21760a21892d3f0464"
+  },
+  "finalSplit": "Not enrolled. Freeze distinct real-event families only after development/validation pass and independent source-only qualification; no population claim from these fictional templates.",
+  "financialApproval": null
+}
