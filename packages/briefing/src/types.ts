@@ -20,7 +20,7 @@ export interface FeedSpec {
   /** Persisted on new inputs only; frozen inputs retain their original prompts. */
   topicSelectionPolicy?: 'reader-topic-boundaries-v1';
   /** Frozen in new snapshots; preserve claim strength and action during compression. */
-  wordingFidelityPolicy?: 'faithful-compression-v1';
+  wordingFidelityPolicy?: 'faithful-compression-v1' | 'faithful-compression-v2';
 }
 
 /** Something the reader has already been told. */

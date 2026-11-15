@@ -1,9 +1,9 @@
 import {expect,it} from 'vitest';
 import {generateBriefing} from '../src/engine';
 import {EDITOR_SYSTEM_V4,VERIFY_SYSTEM,REPAIR_SYSTEM} from '../src/prompts';
-import {WORDING_FIDELITY_V1,VERIFY_WORDING_FIDELITY_V1} from '../src/wording-fidelity';
+import {WORDING_FIDELITY_V2,VERIFY_WORDING_FIDELITY_V2} from '../src/wording-fidelity';
 import {article,FEED,MODELS,scripted,WINDOW} from './helpers';
-const policy='faithful-compression-v1' as const;
+const policy='faithful-compression-v2' as const;
 const draft=(headline:string)=>({headline,body:'',sources:['S1'],relation:'new',updates:null,importance:1});
 
 it('leaves unmarked frozen editor and verifier request bytes unchanged',async()=>{
@@ -21,9 +21,9 @@ it.each([
  const result=await generateBriefing({feed:{...FEED,language,wordingFidelityPolicy:policy},...WINDOW,articles:[article('a',source)]},x.port,MODELS);
  expect(result.items[0].headline).toBe(good);expect(result.items[0].sourceIds).toEqual(['a']);
  expect(x.calls.map(c=>c.stage)).toEqual(['edit','verify','repair','verify']);
- expect(x.calls[0].request.system).toBe(EDITOR_SYSTEM_V4+'\n\n'+WORDING_FIDELITY_V1);
- expect(x.calls[1].request.system).toBe(VERIFY_SYSTEM+'\n\n'+VERIFY_WORDING_FIDELITY_V1);
- expect(x.calls[2].request.system).toBe(REPAIR_SYSTEM+'\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.'+'\n\n'+WORDING_FIDELITY_V1);
+ expect(x.calls[0].request.system).toBe(EDITOR_SYSTEM_V4+'\n\n'+WORDING_FIDELITY_V2);
+ expect(x.calls[1].request.system).toBe(VERIFY_SYSTEM+'\n\n'+VERIFY_WORDING_FIDELITY_V2);
+ expect(x.calls[2].request.system).toBe(REPAIR_SYSTEM+'\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.'+'\n\n'+WORDING_FIDELITY_V2);
  expect(x.calls[2].request.user).toContain(issue);expect(x.calls[3].request.user).toContain(good);
 });
 it('keeps supported concise wording on the ordinary two-call path',async()=>{
@@ -35,5 +35,5 @@ it('keeps supported concise wording on the ordinary two-call path',async()=>{
 it('applies fidelity rules to consolidation as well as independent drafts',async()=>{
  const x=scripted({edit:[{items:[draft('Talks continue')]},{items:[{...draft('The parties criticise one another'),sources:['S2']}]}],consolidate:[{items:[{from:[0,1],headline:'Talks continue despite criticism',body:'',relation:'new',updates:null,importance:1}],cut:[]}],verify:[{results:[{i:0,verdict:'ok',issues:[]}]}]});
  const result=await generateBriefing({feed:{...FEED,wordingFidelityPolicy:policy},...WINDOW,articles:[article('a','Both parties confirmed that talks continue.'),article('b','Both parties criticised one another during the talks.')]},x.port,MODELS,{maxEditorChars:1});
- expect(result.items).toHaveLength(1);expect(x.calls.find(c=>c.stage==='consolidate')!.request.system).toContain(WORDING_FIDELITY_V1);
+ expect(result.items).toHaveLength(1);expect(x.calls.find(c=>c.stage==='consolidate')!.request.system).toContain(WORDING_FIDELITY_V2);
 });
