@@ -7,6 +7,8 @@ import {freelyReadableResults} from './source-search-free';
 import {cachedSourceSearch} from './source-search-cache';
 import {topicSearchGate,sourceSearchCacheQuery,type SearchTopic} from './source-search-topic';
 import {readWebSearch} from './source-web-search';
+import {normalizeRssSnapshot} from '@distilled/connectors';
+import {WorkerPublicSourceFetch} from './public-source-fetch';
 
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
 const publishers = [
@@ -42,6 +44,26 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   if(env.SOURCE_RECOMMENDATIONS_WEB_SEARCH!=='true')return {results,unavailable:true};
   const publisherHosts=new Set(matches.filter(row=>row.aliases.some(alias=>normalize(alias)===term)).map(row=>new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname.replace(/^www\./,'')));
   const publisherQuery=matches.find(row=>row.aliases.some(alias=>normalize(alias)===term))?.title.split('·')[0].replace(/Â$/,'').trim();
+  // A known publisher can be searched through its actual article feed even
+  // when the external news index is unavailable. Catalog scope is not evidence.
+  if(context){
+    const feeds=matches.filter(row=>{
+      if(!row.source.startsWith('rss: '))return false;
+      const host=new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname;
+      if(term.length<3&&!searchWords(row.title+' '+host).some(word=>normalize(word)===term))return false;
+      return normalize(row.title).includes(term)||normalize(host).includes(term);
+    }).slice(0,4);
+    const sampled=await Promise.all(feeds.map(async row=>{
+      try{
+        const url=prepareProductSourceInput(row.source).sourceUrl!;
+        const page=await new WorkerPublicSourceFetch(url,recommendationFetch(fetcher,2500)).get(url);
+        if(page.status!==200||page.authenticationRequired)return [];
+        return normalizeRssSnapshot(page.body,url).filter(item=>item.identityValid&&item.title&&item.url&&topic?.matches(item.title+' '+item.body)).slice(0,5).map(item=>({source:row.source,title:item.title!,publisher:new URL(url).hostname,articleUrl:item.url!,excerpt:item.body}));
+      }catch{return [];}
+    }));
+    const found=sampled.flat();
+    if(found.length)return {results:found,unavailable:false};
+  }
   const scopedQuery=topic&&!topic.matches(query)?`${publisherQuery??query} ${topic.hint}`:query;
   const plan=prepareProductSourceInput('news: '+scopedQuery);
   let available=false;

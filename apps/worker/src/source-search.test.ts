@@ -2,6 +2,31 @@ import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
 import type {Env} from './types';
 const enabled={SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
+it.each([
+ {query:'BBC World',feed:'https://feeds.bbci.co.uk/news/world/rss.xml',title:'World events',description:'International diplomacy and conflicts',headline:'International diplomacy talks resume'},
+ {query:'France 24 Français',feed:'https://www.france24.com/fr/rss',title:'France',description:'Politique en France',headline:'France : le Parlement adopte une réforme politique'},
+ {query:'فرانس 24',feed:'https://www.france24.com/ar/rss',title:'أخبار عربية',description:'أخبار العالم العربي والشرق الأوسط',headline:'الأردن يعلن تطورات سياسية في الشرق الأوسط'}
+])('finds relevant publisher articles for $query without an external index',async row=>{
+ const article=new URL('/article',row.feed).href;
+ const xml=`<rss><channel><item><guid>one</guid><title>${row.headline}</title><description>${row.headline}</description><link>${article}</link></item></channel></rss>`;
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url)===row.feed?new Response(xml):new Response('',{status:403}));
+ const result=await searchSourceCandidates(enabled,row.query,fetcher,undefined,undefined,row);
+ expect(result.results).toEqual([expect.objectContaining({source:'rss: '+row.feed,title:row.headline,articleUrl:article})]);
+ expect(result.unavailable).toBe(false);
+});
+it('searches a named publisher through readable article evidence when the external index is blocked',async()=>{
+ const feed='https://techcrunch.com/feed/';
+ const xml='<rss><channel><item><guid>one</guid><title>Computing startup announces a new processor</title><description>Technology companies are investing in computing hardware.</description><link>https://techcrunch.com/new-processor</link></item><item><guid>two</guid><title>Unrelated theatre performance</title><description>A new play opens.</description><link>https://techcrunch.com/play</link></item></channel></rss>';
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url)===feed?new Response(xml):new Response('',{status:403}));
+ const found=await searchSourceCandidates(enabled,'TechCrunch',fetcher,undefined,undefined,{title:'Computing',description:'Computing hardware and processors'});
+ expect(found).toMatchObject({unavailable:false,results:[{source:'rss: '+feed,title:'Computing startup announces a new processor',articleUrl:'https://techcrunch.com/new-processor'}]});
+ expect(fetcher.mock.calls.every(([url])=>String(url)===feed)).toBe(true);
+});
+it('does not substitute a publisher catalog description for topic evidence',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url)==='https://techcrunch.com/feed/'?new Response('<rss><channel><item><guid>one</guid><title>A theatre production opens</title><description>Actors perform a play.</description><link>https://techcrunch.com/play</link></item></channel></rss>'):new Response('',{status:403}));
+ const found=await searchSourceCandidates(enabled,'TechCrunch',fetcher,undefined,undefined,{title:'Named Researcher',description:'Named Researcher discoveries'});
+ expect(found.results).toEqual([]);
+});
 it('requires the search words and feed topic in article evidence before checking access',async()=>{
  const titles=['AI workforce trends','Ammar Mohanna presents an AI project','Ammar Mohanna joins a theatre production'];
  let googleQuery='';
