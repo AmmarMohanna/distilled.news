@@ -1,0 +1,10 @@
+{
+  "name": "@distilled/evaluator-validation-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline research-only dependencies; never included in deployed Workers",
+  "dependencies": {
+    "tinyld": "1.3.4"
+  }
+}

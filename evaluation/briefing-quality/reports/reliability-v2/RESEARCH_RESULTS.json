@@ -1,0 +1,1480 @@
+{
+  "continuationFrom": "17edc3ec",
+  "policy": "independent-language-structured-consistency-v2",
+  "freshModelCalls": 0,
+  "freshInferenceCostUsd": 0,
+  "originalConfirmedResearchCostUsd": 2.647021800000002,
+  "originalConservativeHoldsUsd": 2.179596,
+  "benchmarkAudits": {
+    "synthetic": {
+      "version": "source-reference-audit-v2",
+      "cases": 42,
+      "sourceCasesSha256": "21590adc59ef7ef49229cc513cb48fb765aebe4210eb2eaed0572619be0d8cd2",
+      "sourceLabelsSha256": "67494670478822030223c261b1b381e7cda527ffd875e0661be3bb0a0b131f63",
+      "faults": 21,
+      "controls": 21,
+      "integrityFailures": [],
+      "exposure": "All these source events and labels are exposed development material. No held-out claim. Revised coverage masks and broad category acceptance must be reported separately from original v1 scores."
+    },
+    "real-source": {
+      "version": "source-reference-audit-v2",
+      "cases": 12,
+      "sourceCasesSha256": "0d304b4373dd9f58e512b641b2b7ef20fbcac74b3d3a7daf7cf092288157bd10",
+      "sourceLabelsSha256": "c6d5a96aa6e2249f45baccaebb7e23dd1fe414a203c6fd8ebb53ee7e709e3f62",
+      "faults": 6,
+      "controls": 6,
+      "integrityFailures": [],
+      "exposure": "All these source events and labels are exposed development material. No held-out claim. Revised coverage masks and broad category acceptance must be reported separately from original v1 scores."
+    }
+  },
+  "originalFailureAudit": [
+    {
+      "dataset": "synthetic",
+      "model": "openai--gpt-4.1",
+      "id": "06beeaee5eba909949908e6d",
+      "error": "Error: database or disk is full",
+      "phase": "inventory_grounding_v1"
+    },
+    {
+      "dataset": "synthetic",
+      "model": "openai--gpt-4.1",
+      "id": "0d700743cc41b0019ddd4eab",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    },
+    {
+      "dataset": "synthetic",
+      "model": "openai--gpt-4.1",
+      "id": "2bfcf2b8f5516569cfc215fe",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    },
+    {
+      "dataset": "synthetic",
+      "model": "openai--gpt-4.1",
+      "id": "84306197174ddf966c9f9abd",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    },
+    {
+      "dataset": "synthetic",
+      "model": "openai--gpt-4.1",
+      "id": "99f3f015890dcbe563909c06",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    },
+    {
+      "dataset": "synthetic",
+      "model": "anthropic--claude-sonnet-4.5",
+      "id": "2bfcf2b8f5516569cfc215fe",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    },
+    {
+      "dataset": "synthetic",
+      "model": "anthropic--claude-sonnet-4.5",
+      "id": "74a96be31203effe18619527",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    },
+    {
+      "dataset": "synthetic",
+      "model": "anthropic--claude-sonnet-4.5",
+      "id": "84306197174ddf966c9f9abd",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    },
+    {
+      "dataset": "synthetic",
+      "model": "anthropic--claude-sonnet-4.5",
+      "id": "99f3f015890dcbe563909c06",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    },
+    {
+      "dataset": "real-source",
+      "model": "anthropic--claude-sonnet-4.5",
+      "id": "21829f815fa36593eb279517",
+      "error": "Error: UNBOUND_REVIEW_FINDING",
+      "phase": "atomic_claims_and_coverage"
+    }
+  ],
+  "auditedSavedJudgmentMetrics": {
+    "synthetic/openai--gpt-4.1": {
+      "planned": 42,
+      "recordedResults": 42,
+      "completed": 37,
+      "failedResults": 5,
+      "strata": {
+        "all": {
+          "completed": 37,
+          "categories": {
+            "factual": {
+              "TP": 3,
+              "FP": 0,
+              "TN": 20,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 14
+            },
+            "citation": {
+              "TP": 3,
+              "FP": 0,
+              "TN": 20,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 14
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 37
+            },
+            "relevance": {
+              "TP": 3,
+              "FP": 0,
+              "TN": 20,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 14
+            },
+            "repetition": {
+              "TP": 2,
+              "FP": 0,
+              "TN": 20,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 15
+            },
+            "temporal": {
+              "TP": 3,
+              "FP": 0,
+              "TN": 20,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 14
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 20,
+              "FN": 3,
+              "precision": null,
+              "recall": 0.0,
+              "f1": 0.0,
+              "masked": 14
+            }
+          }
+        },
+        "en": {
+          "completed": 13,
+          "categories": {
+            "factual": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "citation": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 13
+            },
+            "relevance": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "repetition": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "temporal": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 7,
+              "FN": 1,
+              "precision": null,
+              "recall": 0.0,
+              "f1": 0.0,
+              "masked": 5
+            }
+          }
+        },
+        "ar": {
+          "completed": 11,
+          "categories": {
+            "factual": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "citation": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 11
+            },
+            "relevance": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 5
+            },
+            "temporal": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 6,
+              "FN": 1,
+              "precision": null,
+              "recall": 0.0,
+              "f1": 0.0,
+              "masked": 4
+            }
+          }
+        },
+        "fr": {
+          "completed": 13,
+          "categories": {
+            "factual": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "citation": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 13
+            },
+            "relevance": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "repetition": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "temporal": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 7,
+              "FN": 1,
+              "precision": null,
+              "recall": 0.0,
+              "f1": 0.0,
+              "masked": 5
+            }
+          }
+        }
+      },
+      "scoreOrigin": "Saved v1 model judgments with v2 reference mask; no new judge inference"
+    },
+    "synthetic/anthropic--claude-sonnet-4.5": {
+      "planned": 42,
+      "recordedResults": 41,
+      "completed": 37,
+      "failedResults": 4,
+      "strata": {
+        "all": {
+          "completed": 37,
+          "categories": {
+            "factual": {
+              "TP": 2,
+              "FP": 1,
+              "TN": 20,
+              "FN": 0,
+              "precision": 0.6666666666666666,
+              "recall": 1.0,
+              "f1": 0.8,
+              "masked": 14
+            },
+            "citation": {
+              "TP": 2,
+              "FP": 1,
+              "TN": 20,
+              "FN": 0,
+              "precision": 0.6666666666666666,
+              "recall": 1.0,
+              "f1": 0.8,
+              "masked": 14
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 37
+            },
+            "relevance": {
+              "TP": 3,
+              "FP": 0,
+              "TN": 21,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 13
+            },
+            "repetition": {
+              "TP": 3,
+              "FP": 0,
+              "TN": 21,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 13
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 21,
+              "FN": 3,
+              "precision": null,
+              "recall": 0.0,
+              "f1": 0.0,
+              "masked": 13
+            },
+            "language": {
+              "TP": 3,
+              "FP": 0,
+              "TN": 21,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 13
+            }
+          }
+        },
+        "en": {
+          "completed": 12,
+          "categories": {
+            "factual": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 5
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 12
+            },
+            "relevance": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "repetition": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 7,
+              "FN": 1,
+              "precision": null,
+              "recall": 0.0,
+              "f1": 0.0,
+              "masked": 4
+            },
+            "language": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            }
+          }
+        },
+        "ar": {
+          "completed": 13,
+          "categories": {
+            "factual": {
+              "TP": 1,
+              "FP": 1,
+              "TN": 6,
+              "FN": 0,
+              "precision": 0.5,
+              "recall": 1.0,
+              "f1": 0.6666666666666666,
+              "masked": 5
+            },
+            "citation": {
+              "TP": 1,
+              "FP": 1,
+              "TN": 6,
+              "FN": 0,
+              "precision": 0.5,
+              "recall": 1.0,
+              "f1": 0.6666666666666666,
+              "masked": 5
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 13
+            },
+            "relevance": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "repetition": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 7,
+              "FN": 1,
+              "precision": null,
+              "recall": 0.0,
+              "f1": 0.0,
+              "masked": 5
+            },
+            "language": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 5
+            }
+          }
+        },
+        "fr": {
+          "completed": 12,
+          "categories": {
+            "factual": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 5
+            },
+            "citation": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 12
+            },
+            "relevance": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "repetition": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 7,
+              "FN": 1,
+              "precision": null,
+              "recall": 0.0,
+              "f1": 0.0,
+              "masked": 4
+            },
+            "language": {
+              "TP": 1,
+              "FP": 0,
+              "TN": 7,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 4
+            }
+          }
+        }
+      },
+      "scoreOrigin": "Saved v1 model judgments with v2 reference mask; no new judge inference"
+    },
+    "real-source/openai--gpt-4.1": {
+      "planned": 12,
+      "recordedResults": 12,
+      "completed": 12,
+      "failedResults": 0,
+      "strata": {
+        "all": {
+          "completed": 12,
+          "categories": {
+            "factual": {
+              "TP": 6,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 0
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 12
+            },
+            "relevance": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 6,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            }
+          }
+        },
+        "en": {
+          "completed": 4,
+          "categories": {
+            "factual": {
+              "TP": 2,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 0
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 4
+            },
+            "relevance": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            }
+          }
+        },
+        "ar": {
+          "completed": 4,
+          "categories": {
+            "factual": {
+              "TP": 2,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 0
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 4
+            },
+            "relevance": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            }
+          }
+        },
+        "fr": {
+          "completed": 4,
+          "categories": {
+            "factual": {
+              "TP": 2,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 0
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 4
+            },
+            "relevance": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            }
+          }
+        }
+      },
+      "scoreOrigin": "Saved v1 model judgments with v2 reference mask; no new judge inference"
+    },
+    "real-source/anthropic--claude-sonnet-4.5": {
+      "planned": 12,
+      "recordedResults": 12,
+      "completed": 11,
+      "failedResults": 1,
+      "strata": {
+        "all": {
+          "completed": 11,
+          "categories": {
+            "factual": {
+              "TP": 6,
+              "FP": 0,
+              "TN": 5,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 0
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 5,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 11
+            },
+            "relevance": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 5,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 5,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 5,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 6
+            },
+            "language": {
+              "TP": 0,
+              "FP": 1,
+              "TN": 4,
+              "FN": 0,
+              "precision": 0.0,
+              "recall": null,
+              "f1": 0.0,
+              "masked": 6
+            }
+          }
+        },
+        "en": {
+          "completed": 4,
+          "categories": {
+            "factual": {
+              "TP": 2,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 0
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 4
+            },
+            "relevance": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            }
+          }
+        },
+        "ar": {
+          "completed": 3,
+          "categories": {
+            "factual": {
+              "TP": 2,
+              "FP": 0,
+              "TN": 1,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 0
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 1,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 3
+            },
+            "relevance": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 1,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 1,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 1,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "language": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 1,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            }
+          }
+        },
+        "fr": {
+          "completed": 4,
+          "categories": {
+            "factual": {
+              "TP": 2,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "masked": 0
+            },
+            "citation": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "coverage": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 0,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 4
+            },
+            "relevance": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "repetition": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "temporal": {
+              "TP": 0,
+              "FP": 0,
+              "TN": 2,
+              "FN": 0,
+              "precision": null,
+              "recall": null,
+              "f1": null,
+              "masked": 2
+            },
+            "language": {
+              "TP": 0,
+              "FP": 1,
+              "TN": 1,
+              "FN": 0,
+              "precision": 0.0,
+              "recall": null,
+              "f1": 0.0,
+              "masked": 2
+            }
+          }
+        }
+      },
+      "scoreOrigin": "Saved v1 model judgments with v2 reference mask; no new judge inference"
+    }
+  },
+  "independentLanguageChecks": {
+    "synthetic": {
+      "eligible": 24,
+      "classifiable": 20,
+      "abstentions": 4,
+      "TP": 2,
+      "FP": 0,
+      "TN": 18,
+      "FN": 0,
+      "scope": "Independent language validation of retained development packets only, not rerun model quality or held-out performance"
+    },
+    "real-source": {
+      "eligible": 6,
+      "classifiable": 4,
+      "abstentions": 2,
+      "TP": 0,
+      "FP": 0,
+      "TN": 4,
+      "FN": 0,
+      "scope": "Independent language validation of retained development packets only, not rerun model quality or held-out performance"
+    }
+  },
+  "correctionsPrepared": 9,
+  "newCorrectionCallsExecuted": 0,
+  "currentEngineInputs": {
+    "ready": 6,
+    "executed": 0,
+    "optionsValidatedAgainst": "apps/worker/src/v1-intelligence/v3-window.ts:180"
+  },
+  "heldOut": {
+    "suitableCertifiedWindows": 0,
+    "reason": "All available nonempty post-freeze snapshots had partial/unknown source completeness; event independence not certified. Exposed windows remain development."
+  },
+  "localChecks": {
+    "schemaVersion": 1,
+    "runId": "20261115T101040.286867Z-79b69cdf74e8",
+    "checkedAt": "20261115T101040.286867Z",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "evaluation-python",
+        "status": "passed",
+        "exitCode": 0,
+        "reason": null,
+        "durationSeconds": 1.702,
+        "log": "20261115T101040.286867Z-79b69cdf74e8/evaluation-python.log"
+      },
+      {
+        "name": "evaluation-replay",
+        "status": "passed",
+        "exitCode": 0,
+        "reason": null,
+        "durationSeconds": 25.986,
+        "log": "20261115T101040.286867Z-79b69cdf74e8/evaluation-replay.log"
+      },
+      {
+        "name": "briefing-engine",
+        "status": "passed",
+        "exitCode": 0,
+        "reason": null,
+        "durationSeconds": 10.645,
+        "log": "20261115T101040.286867Z-79b69cdf74e8/briefing-engine.log"
+      },
+      {
+        "name": "dataset-exporter",
+        "status": "passed",
+        "exitCode": 0,
+        "reason": null,
+        "durationSeconds": 0.257,
+        "log": "20261115T101040.286867Z-79b69cdf74e8/dataset-exporter.log"
+      },
+      {
+        "name": "evaluation-types",
+        "status": "passed",
+        "exitCode": 0,
+        "reason": null,
+        "durationSeconds": 4.529,
+        "log": "20261115T101040.286867Z-79b69cdf74e8/evaluation-types.log"
+      },
+      {
+        "name": "evaluator-worker-types",
+        "status": "passed",
+        "exitCode": 0,
+        "reason": null,
+        "durationSeconds": 1.538,
+        "log": "20261115T101040.286867Z-79b69cdf74e8/evaluator-worker-types.log"
+      },
+      {
+        "name": "research-validation-types",
+        "status": "passed",
+        "exitCode": 0,
+        "reason": null,
+        "durationSeconds": 2.965,
+        "log": "20261115T101040.286867Z-79b69cdf74e8/research-validation-types.log"
+      }
+    ],
+    "scope": "offline correctness and regression checks; synthetic/provider-double tests are not factual-quality measurements",
+    "paidModelCalls": 0,
+    "liveBriefingsInspected": 0,
+    "humanQuality": "not_measured",
+    "participantOutcomes": "not_measured",
+    "retainedPrivateDataset": "not_inspected_by_this_runner"
+  },
+  "deployment": "none",
+  "providerBlocker": "Account balance approximately -$0.03; key allowance is not account funding. User selected finishing available work and pushing.",
+  "sourceHashes": {
+    "evaluation\\briefing-quality\\validation\\acquire.mjs": "b8655175c79f99d9441f2adad4dd29668daa4a6d1ff8756a687a01e0284b4463",
+    "evaluation\\briefing-quality\\validation\\analyze.py": "baaa9becaccc641ad4438b7ba9571a4f9e49515b71a0b2d8e8ac8492b179b92d",
+    "evaluation\\briefing-quality\\validation\\AUDIT.md": "78bf66bc68841b34625050fe09dac6a18e1bf69c7ca01edc180524ebdede2927",
+    "evaluation\\briefing-quality\\validation\\baseline_bridge.py": "5af1dc3f472b8633958c333f1c665826a9eaa510cb4c2e0c97565afe18bcc386",
+    "evaluation\\briefing-quality\\validation\\benchmark-audit.ts": "d043d082179a73f2132ff6d5f38fa1b4d93d7a576ef846c17560c6ea457b7b72",
+    "evaluation\\briefing-quality\\validation\\build_controls.py": "85b14f841c38c1282385575b47183a5e5c479743a969d81102dd184edfea1ebe",
+    "evaluation\\briefing-quality\\validation\\candidate-policy.ts": "305bcdf06372565768a260e08e65a9d005d6cf0b0cbf23be0a86e222286851b8",
+    "evaluation\\briefing-quality\\validation\\correct_baseline_bridge.ts": "42f671a79374dd6417520aa3cfce0e99a75fa9cc66ca8896e2146f0f7ea1f9cb",
+    "evaluation\\briefing-quality\\validation\\current-engine.ts": "d91063602e97fecda6e56fc12f4c794438cb14cf8bf1663efa06fcb8ea292d2e",
+    "evaluation\\briefing-quality\\validation\\existing_reports.mjs": "14bbfd3b284a5659cd482e5182f4722918711640489450c20fbfa329a0294f80",
+    "evaluation\\briefing-quality\\validation\\final_report.py": "2ba0a4ad8b299e2c991f5e5d01da04df9d05f75192fc2db94d306bf7466c31f3",
+    "evaluation\\briefing-quality\\validation\\followup-report.py": "8ac5178f044d49230d74400d14ae4c72aca8f95de3fed0681c34f810c2289bc0",
+    "evaluation\\briefing-quality\\validation\\github-checks.mjs": "b5f8b39d2ddf1f79d928e41be22b38304f37a2f7afe41d3b1eb2d29f48aa0f85",
+    "evaluation\\briefing-quality\\validation\\historical.py": "eec757c73d85fc1469facb887500fac2926fe5ec56eceefea763596d51c6bc00",
+    "evaluation\\briefing-quality\\validation\\inspect.mjs": "e23eb9605926298d4826140e4784e9c7a7fdc14ed3d6fff12fac7bc6cdd5b06c",
+    "evaluation\\briefing-quality\\validation\\language-compliance.ts": "e591da7bf3993f3233d7cde682421bea15d1a411bd97c4c7aaeee30b6674a605",
+    "evaluation\\briefing-quality\\validation\\offline.ts": "ce1eaa590812547ee205a5f33c607831b2b1dde8d5a84f6a84e1f27feb55f07f",
+    "evaluation\\briefing-quality\\validation\\package-lock.json": "76e7d32841f64d0e01609acfb0be09c6c7eb2f5dca6f7a7c4b6de44e6ae53965",
+    "evaluation\\briefing-quality\\validation\\package.json": "b754695743edbf000a17237984ef2f8a428e5912093c2a6fccdec5189e44db0c",
+    "evaluation\\briefing-quality\\validation\\paired.ts": "48ff4d1cf941335548f07d1105ac829a561f21af8c9ccbe382100b7f76a7755b",
+    "evaluation\\briefing-quality\\validation\\protocol.json": "058c587625e0406d181b9f702961ab6dd63935828f2c7dd0c4c3abdb5f1a3cb4",
+    "evaluation\\briefing-quality\\validation\\README.md": "038725a0abac437d55a8376045fd06e077ee05104f7e767c3c25bce28cfddc0c",
+    "evaluation\\briefing-quality\\validation\\real_controls.py": "bbc1f1e3789f4bc16170d290955dbf5d5c90999664a64a2774ea0718778e8f7a",
+    "evaluation\\briefing-quality\\validation\\report.py": "df7a295ef47b439b4442b59f7453e5259a167238a8b86c071dbd107317bcfa9e",
+    "evaluation\\briefing-quality\\validation\\resume.ts": "10f29546cfbf7d529eef223039c7afefd9c082244b7123e3f1db126aa30b7bfc",
+    "evaluation\\briefing-quality\\validation\\retained_plan.py": "b093dce52004cf452129f7d4034580001f7ba6dc5e1f134232987b58171616ae",
+    "evaluation\\briefing-quality\\validation\\retrieve-frozen.mjs": "598a791ec1987cb7624bd42588e82a95e6fad73e3a1c2c00733bd4a12e93da8d",
+    "evaluation\\briefing-quality\\validation\\revalidate.ts": "5a5f819e9a8628d1b1e70271de21f3cfb5bbb311f88e75fc4f63ea734bd2a86f",
+    "evaluation\\briefing-quality\\validation\\review-consistency.ts": "a9d900ee6c6b164b9fa9dba40cc4085597f2730bf1bec59a4fb9e1be4043283f",
+    "evaluation\\briefing-quality\\validation\\run.ts": "bce30c365245795eee1a6abbee2f38b45fac042d5ea17d52c57c963716a6a7a4",
+    "evaluation\\briefing-quality\\validation\\test_analysis.py": "4c29c4297574e73fe952fca5c2b9ff0856652affc141dda35929b977eb622cdc",
+    "evaluation\\briefing-quality\\validation\\test_bridge.py": "0d9ed3f6e7e702e235f131a2a5a59b8263019f21de635034afedca2dd7b39f83",
+    "evaluation\\briefing-quality\\validation\\test_report.py": "fb32ffcd01fc49c837652b68b15c6d55c33c47d6b09856216106c9babb63d673"
+  }
+}

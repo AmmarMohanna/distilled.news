@@ -5,6 +5,43 @@ schema/grounding validators, completeness correction and reservation/settlement
 code. It does not deploy a new evaluator or modify any publishing path.
 
 Current actual observations are in
+[`../reports/reliability-v2/RESEARCH_REPORT.md`](../reports/reliability-v2/RESEARCH_REPORT.md).
+The continuation from `17edc3ec` is research-only: independent language checks,
+bounded consistency correction, benchmark ambiguity audit and an exact frozen
+production-core replay adapter. No candidate policy is imported by a deployed
+Worker. Previous measurements remain under `reports/reliability-v1/`.
+
+Install the offline-only pinned dependency before running tests:
+
+```powershell
+npm ci --prefix evaluation/briefing-quality/validation --ignore-scripts --no-audit --no-fund
+```
+
+The account had no funded inference balance during the continuation, and the
+user selected finishing available work and pushing. New GPT/Claude full reruns,
+nine prepared consistency corrections and the actual frozen-engine paired
+campaign have **not** executed. The new language check was applied to saved
+development cases only: two of three recorded language swaps were rejected,
+one abstained. These outcomes must not be described as a model accuracy gain.
+
+`revalidate.ts` preserves source/reference/paid records and writes a separate v2
+diagnostic. `followup-report.py` reproduces the concise current report from
+those diagnostics, original metrics, and local check logs. `current-engine.ts`
+mirrors `v3-window.ts`'s frozen flags and source metadata; `retrieve-frozen.mjs`
+uses SELECT-only source reads. An evaluator snapshot without those frozen
+records is not silently treated as an actual deployed-engine input.
+
+Independent detector thresholds are explicit, not calibrated probabilities:
+whole-narration top score >=0.30 with margin >=0.12; minimum three words and
+twelve letters; mixed-sentence detection uses weaker evidence only to abstain.
+Proper names, quote-only material, unsupported languages and inadequate
+evidence abstain. Short headlines may remain unknown. No threshold was tuned
+to improve an observed benchmark score; tests exposed the detector's short-text
+uncertainty before development revalidation.
+
+The older protocol and result history follows.
+
+Earlier observations are in
 [`../reports/reliability-v1/FINAL_REPORT.md`](../reports/reliability-v1/FINAL_REPORT.md).
 The initial disk-interrupted state is preserved in `PARTIAL_REPORT.md`. The
 resumed experiment executed both challenge sets, chronological replays and

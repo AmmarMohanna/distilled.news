@@ -1,0 +1,4317 @@
+{
+  "policy": "offline-language-and-consistency-audit-v2",
+  "freshModelCalls": 0,
+  "originalRecordsModified": false,
+  "referenceAuditCases": 54,
+  "detectorStats": {
+    "synthetic": {
+      "eligible": 24,
+      "classifiable": 20,
+      "abstentions": 4,
+      "TP": 2,
+      "FP": 0,
+      "TN": 18,
+      "FN": 0,
+      "scope": "Independent language validation of retained development packets only, not rerun model quality or held-out performance"
+    },
+    "real-source": {
+      "eligible": 6,
+      "classifiable": 4,
+      "abstentions": 2,
+      "TP": 0,
+      "FP": 0,
+      "TN": 4,
+      "FN": 0,
+      "scope": "Independent language validation of retained development packets only, not rerun model quality or held-out performance"
+    }
+  },
+  "correctionRequestsPrepared": 9,
+  "rows": [
+    {
+      "dataset": "synthetic",
+      "id": "4c74987b0446540882d73698",
+      "language": "fr",
+      "eventGroup": "bank",
+      "isFault": true,
+      "targetCategory": "language",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 42,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "noncompliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "incorrect"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "4c74987b0446540882d73698",
+      "language": "fr",
+      "eventGroup": "bank",
+      "isFault": true,
+      "targetCategory": "language",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": true
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 42,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "noncompliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "incorrect",
+          "combined": "incorrect"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "44e9ffb48742cc0db6199afb",
+      "language": "en",
+      "eventGroup": "cabinet",
+      "isFault": true,
+      "targetCategory": "temporal",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": true,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 55,
+          "words": 11,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "44e9ffb48742cc0db6199afb",
+      "language": "en",
+      "eventGroup": "cabinet",
+      "isFault": true,
+      "targetCategory": "temporal",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 55,
+          "words": 11,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "c96472064841d21a3b6a8174",
+      "language": "fr",
+      "eventGroup": "bank",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 48,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "c96472064841d21a3b6a8174",
+      "language": "fr",
+      "eventGroup": "bank",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 48,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "9e8f15deba04e6221383726e",
+      "language": "fr",
+      "eventGroup": "airport",
+      "isFault": true,
+      "targetCategory": "relevance",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": true,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 56,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        },
+        {
+          "item": 1,
+          "requested": "fr",
+          "letters": 46,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        },
+        {
+          "item": 1,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "9e8f15deba04e6221383726e",
+      "language": "fr",
+      "eventGroup": "airport",
+      "isFault": true,
+      "targetCategory": "relevance",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": true,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 56,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        },
+        {
+          "item": 1,
+          "requested": "fr",
+          "letters": 46,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        },
+        {
+          "item": 1,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "b346373a043a44402184d1e5",
+      "language": "fr",
+      "eventGroup": "cabinet",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 62,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "b346373a043a44402184d1e5",
+      "language": "fr",
+      "eventGroup": "cabinet",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 62,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "175f2275cf90880d3ef01dcc",
+      "language": "en",
+      "eventGroup": "cabinet",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 55,
+          "words": 11,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "175f2275cf90880d3ef01dcc",
+      "language": "en",
+      "eventGroup": "cabinet",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 55,
+          "words": 11,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "74feadf061d061e85196d6c3",
+      "language": "en",
+      "eventGroup": "bridge",
+      "isFault": true,
+      "targetCategory": "repetition",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": true,
+        "relevance": false,
+        "repetition": true,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 81,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "74feadf061d061e85196d6c3",
+      "language": "en",
+      "eventGroup": "bridge",
+      "isFault": true,
+      "targetCategory": "repetition",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": true,
+        "relevance": false,
+        "repetition": true,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 81,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "8bc8bb552a525589eb40123c",
+      "language": "en",
+      "eventGroup": "library",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 58,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "8bc8bb552a525589eb40123c",
+      "language": "en",
+      "eventGroup": "library",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 58,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "99f3f015890dcbe563909c06",
+      "language": "ar",
+      "eventGroup": "evacuation",
+      "isFault": true,
+      "targetCategory": "coverage",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "9ffd12d82fab9b7348b018255056fbfa635e469d7a04ab117d948896740ca042",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 53,
+          "words": 11,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "99f3f015890dcbe563909c06",
+      "language": "ar",
+      "eventGroup": "evacuation",
+      "isFault": true,
+      "targetCategory": "coverage",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "5625dda73e85951dd6570f2121d2042410571ebeb587ac6c233c9e75ad3be01e",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 53,
+          "words": 11,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "9bf44aaacc932c595cfe0518",
+      "language": "fr",
+      "eventGroup": "library",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 68,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "9bf44aaacc932c595cfe0518",
+      "language": "fr",
+      "eventGroup": "library",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 68,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "d087104c6f5c08c6d3e45aaf",
+      "language": "fr",
+      "eventGroup": "evacuation",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 96,
+          "words": 16,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "d087104c6f5c08c6d3e45aaf",
+      "language": "fr",
+      "eventGroup": "evacuation",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 96,
+          "words": 16,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "e42fb6c334bbd2bed19bae1d",
+      "language": "ar",
+      "eventGroup": "airport",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 43,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "e42fb6c334bbd2bed19bae1d",
+      "language": "ar",
+      "eventGroup": "airport",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 43,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "abd6ebe4d587cf7a0ed668f8",
+      "language": "en",
+      "eventGroup": "library",
+      "isFault": true,
+      "targetCategory": "citation",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 58,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "abd6ebe4d587cf7a0ed668f8",
+      "language": "en",
+      "eventGroup": "library",
+      "isFault": true,
+      "targetCategory": "citation",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "missing",
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 58,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "2bfcf2b8f5516569cfc215fe",
+      "language": "en",
+      "eventGroup": "evacuation",
+      "isFault": true,
+      "targetCategory": "coverage",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "c26333e73be058c494ef2d1b976d040af89c0a3d1ba7ae2c35c0939937ca6ff5",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 71,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "2bfcf2b8f5516569cfc215fe",
+      "language": "en",
+      "eventGroup": "evacuation",
+      "isFault": true,
+      "targetCategory": "coverage",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "d2d293164094f77ba650f08206b3ba7c7edf1b8631a2020efd125f0ecebbb45f",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 71,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "b55193101728754c4c806b9a",
+      "language": "ar",
+      "eventGroup": "clinic",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 58,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "b55193101728754c4c806b9a",
+      "language": "ar",
+      "eventGroup": "clinic",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 58,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "d7a634a49055b60807b1a3fa",
+      "language": "en",
+      "eventGroup": "airport",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 64,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "d7a634a49055b60807b1a3fa",
+      "language": "en",
+      "eventGroup": "airport",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 64,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "d566d3bc7ed46b8e5a5d75a8",
+      "language": "ar",
+      "eventGroup": "bridge",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 54,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "d566d3bc7ed46b8e5a5d75a8",
+      "language": "ar",
+      "eventGroup": "bridge",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 54,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "6916cbb8ce96f6b64df2493f",
+      "language": "fr",
+      "eventGroup": "clinic",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 89,
+          "words": 18,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "6916cbb8ce96f6b64df2493f",
+      "language": "fr",
+      "eventGroup": "clinic",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 89,
+          "words": 18,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "aa25f764aebf2e5615036ce8",
+      "language": "fr",
+      "eventGroup": "cabinet",
+      "isFault": true,
+      "targetCategory": "temporal",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": true,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 62,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "aa25f764aebf2e5615036ce8",
+      "language": "fr",
+      "eventGroup": "cabinet",
+      "isFault": true,
+      "targetCategory": "temporal",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 62,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "d303113f5513bc2b2fb57a33",
+      "language": "en",
+      "eventGroup": "airport",
+      "isFault": true,
+      "targetCategory": "relevance",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": false,
+        "coverage": false,
+        "relevance": true,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 64,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        },
+        {
+          "item": 1,
+          "requested": "en",
+          "letters": 30,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        },
+        {
+          "item": 1,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "d303113f5513bc2b2fb57a33",
+      "language": "en",
+      "eventGroup": "airport",
+      "isFault": true,
+      "targetCategory": "relevance",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": true,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 64,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        },
+        {
+          "item": 1,
+          "requested": "en",
+          "letters": 30,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        },
+        {
+          "item": 1,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "c54aa8bb07ec864ec745cd0b",
+      "language": "ar",
+      "eventGroup": "cabinet",
+      "isFault": true,
+      "targetCategory": "temporal",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 49,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "c54aa8bb07ec864ec745cd0b",
+      "language": "ar",
+      "eventGroup": "cabinet",
+      "isFault": true,
+      "targetCategory": "temporal",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 49,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "3ae51c09d9c857720a85450c",
+      "language": "fr",
+      "eventGroup": "bridge",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 78,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "3ae51c09d9c857720a85450c",
+      "language": "fr",
+      "eventGroup": "bridge",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 78,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "660e62ab852e94d897f03692",
+      "language": "en",
+      "eventGroup": "bank",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 42,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "660e62ab852e94d897f03692",
+      "language": "en",
+      "eventGroup": "bank",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 42,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "40544365de8c58ff65059608",
+      "language": "fr",
+      "eventGroup": "library",
+      "isFault": true,
+      "targetCategory": "citation",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 68,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "40544365de8c58ff65059608",
+      "language": "fr",
+      "eventGroup": "library",
+      "isFault": true,
+      "targetCategory": "citation",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 68,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "305a6a843178484df1ce7f06",
+      "language": "fr",
+      "eventGroup": "airport",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 56,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "305a6a843178484df1ce7f06",
+      "language": "fr",
+      "eventGroup": "airport",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 56,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "84306197174ddf966c9f9abd",
+      "language": "fr",
+      "eventGroup": "evacuation",
+      "isFault": true,
+      "targetCategory": "coverage",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "256a60495fe58a665ab67698e9931c446351ed3b4266df3f905449d0a470d438",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 84,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "84306197174ddf966c9f9abd",
+      "language": "fr",
+      "eventGroup": "evacuation",
+      "isFault": true,
+      "targetCategory": "coverage",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "c2f4798c1ff9f2223a10bdf376ba674af7a397e0792aa862c9b9f6b11ed31392",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 84,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "06beeaee5eba909949908e6d",
+      "language": "ar",
+      "eventGroup": "cabinet",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "failed",
+      "originalError": "Error: database or disk is full",
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 49,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "06beeaee5eba909949908e6d",
+      "language": "ar",
+      "eventGroup": "cabinet",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 49,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "e453ecf0fc13e17a23fbe9fa",
+      "language": "en",
+      "eventGroup": "clinic",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 88,
+          "words": 17,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "e453ecf0fc13e17a23fbe9fa",
+      "language": "en",
+      "eventGroup": "clinic",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 88,
+          "words": 17,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "3b50f6c71d289dcdb130af6f",
+      "language": "ar",
+      "eventGroup": "bank",
+      "isFault": true,
+      "targetCategory": "language",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 42,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "noncompliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "incorrect"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "3b50f6c71d289dcdb130af6f",
+      "language": "ar",
+      "eventGroup": "bank",
+      "isFault": true,
+      "targetCategory": "language",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": true
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 42,
+          "words": 9,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "noncompliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "incorrect",
+          "combined": "incorrect"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "78bd0ee7ccce025c950bf4f9",
+      "language": "fr",
+      "eventGroup": "bridge",
+      "isFault": true,
+      "targetCategory": "repetition",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": true,
+        "relevance": false,
+        "repetition": true,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 78,
+          "words": 15,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "78bd0ee7ccce025c950bf4f9",
+      "language": "fr",
+      "eventGroup": "bridge",
+      "isFault": true,
+      "targetCategory": "repetition",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": true,
+        "relevance": true,
+        "repetition": true,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 78,
+          "words": 15,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "1c5fd870604a84fefd53d9ee",
+      "language": "en",
+      "eventGroup": "bank",
+      "isFault": true,
+      "targetCategory": "language",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 56,
+          "words": 11,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "fr"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "1c5fd870604a84fefd53d9ee",
+      "language": "en",
+      "eventGroup": "bank",
+      "isFault": true,
+      "targetCategory": "language",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": true
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 56,
+          "words": 11,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "fr"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "incorrect",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "56013aacbec5b731af2f89ca",
+      "language": "ar",
+      "eventGroup": "bank",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 37,
+          "words": 8,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "56013aacbec5b731af2f89ca",
+      "language": "ar",
+      "eventGroup": "bank",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 37,
+          "words": 8,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "c735ccd06714059b6c170c22",
+      "language": "ar",
+      "eventGroup": "clinic",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 59,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "c735ccd06714059b6c170c22",
+      "language": "ar",
+      "eventGroup": "clinic",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 59,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "7d5d367906771d49dc409c47",
+      "language": "en",
+      "eventGroup": "clinic",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 88,
+          "words": 17,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "7d5d367906771d49dc409c47",
+      "language": "en",
+      "eventGroup": "clinic",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 88,
+          "words": 17,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "265f3fb5925ebe0637986d20",
+      "language": "ar",
+      "eventGroup": "library",
+      "isFault": true,
+      "targetCategory": "citation",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 35,
+          "words": 6,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "265f3fb5925ebe0637986d20",
+      "language": "ar",
+      "eventGroup": "library",
+      "isFault": true,
+      "targetCategory": "citation",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 35,
+          "words": 6,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "c65e6d45fe54ff50b8c4e761",
+      "language": "en",
+      "eventGroup": "bridge",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 69,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "c65e6d45fe54ff50b8c4e761",
+      "language": "en",
+      "eventGroup": "bridge",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 69,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "en"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "fd350a06dd962b66c6bb2092",
+      "language": "ar",
+      "eventGroup": "evacuation",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 64,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "fd350a06dd962b66c6bb2092",
+      "language": "ar",
+      "eventGroup": "evacuation",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 64,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "4fd0bc06365cd28a33c832b7",
+      "language": "ar",
+      "eventGroup": "library",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 35,
+          "words": 6,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "4fd0bc06365cd28a33c832b7",
+      "language": "ar",
+      "eventGroup": "library",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 35,
+          "words": 6,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "0d700743cc41b0019ddd4eab",
+      "language": "ar",
+      "eventGroup": "bridge",
+      "isFault": true,
+      "targetCategory": "repetition",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "5a0da5d80b8c4fecf977aff37e4c523a7e025ac73f12491380485fd57f5812c0",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 45,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "0d700743cc41b0019ddd4eab",
+      "language": "ar",
+      "eventGroup": "bridge",
+      "isFault": true,
+      "targetCategory": "repetition",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": true,
+        "relevance": true,
+        "repetition": true,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 45,
+          "words": 12,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "ff7093c731fe4575f7111d37",
+      "language": "ar",
+      "eventGroup": "airport",
+      "isFault": true,
+      "targetCategory": "relevance",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": false,
+        "coverage": false,
+        "relevance": true,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 43,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        },
+        {
+          "item": 1,
+          "requested": "ar",
+          "letters": 31,
+          "words": 6,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        },
+        {
+          "item": 1,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "ff7093c731fe4575f7111d37",
+      "language": "ar",
+      "eventGroup": "airport",
+      "isFault": true,
+      "targetCategory": "relevance",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": true,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 43,
+          "words": 10,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        },
+        {
+          "item": 1,
+          "requested": "ar",
+          "letters": 31,
+          "words": 6,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        },
+        {
+          "item": 1,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "74a96be31203effe18619527",
+      "language": "fr",
+      "eventGroup": "clinic",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 89,
+          "words": 18,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "74a96be31203effe18619527",
+      "language": "fr",
+      "eventGroup": "clinic",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "b8fb8f44b66b1ecf50739d77207c9d8d36c8019d0e4b92ef704f7ea91674c34b",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 89,
+          "words": 18,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "synthetic",
+      "id": "690661056ee433416193b1aa",
+      "language": "en",
+      "eventGroup": "evacuation",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 82,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "synthetic",
+      "id": "690661056ee433416193b1aa",
+      "language": "en",
+      "eventGroup": "evacuation",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 82,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "1539e7553739d3a53f1e1fdf",
+      "language": "fr",
+      "eventGroup": "real-electricity",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 121,
+          "words": 22,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "1539e7553739d3a53f1e1fdf",
+      "language": "fr",
+      "eventGroup": "real-electricity",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": true,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 121,
+          "words": 22,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "cf26b9223a77127dc513f0cc",
+      "language": "fr",
+      "eventGroup": "real-electricity",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 123,
+          "words": 22,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "cf26b9223a77127dc513f0cc",
+      "language": "fr",
+      "eventGroup": "real-electricity",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": true
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 123,
+          "words": 22,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "fr",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "incorrect",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "21829f815fa36593eb279517",
+      "language": "ar",
+      "eventGroup": "real-electricity",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 63,
+          "words": 15,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "21829f815fa36593eb279517",
+      "language": "ar",
+      "eventGroup": "real-electricity",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "failed",
+      "originalError": "Error: UNBOUND_REVIEW_FINDING",
+      "correction": {
+        "requestSha256": "a05fde0b464abfa44f272e94ed45b257ca1927abeb2fd862165deb111091f164",
+        "status": "not_executed_account_credit_unavailable"
+      },
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 63,
+          "words": 15,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": null
+    },
+    {
+      "dataset": "real-source",
+      "id": "64d6d05c2fa3986ec452bf5f",
+      "language": "en",
+      "eventGroup": "real-electricity",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 73,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "OTHER_LANGUAGE_OR_AMBIGUOUS_TEXT",
+          "detected": "cs"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "64d6d05c2fa3986ec452bf5f",
+      "language": "en",
+      "eventGroup": "real-electricity",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 73,
+          "words": 13,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "OTHER_LANGUAGE_OR_AMBIGUOUS_TEXT",
+          "detected": "cs"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "d806bcca682e526860a25c68",
+      "language": "ar",
+      "eventGroup": "real-customs",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 69,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "d806bcca682e526860a25c68",
+      "language": "ar",
+      "eventGroup": "real-customs",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 69,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "49c71309dadbcac2901ee0a6",
+      "language": "ar",
+      "eventGroup": "real-electricity",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": true,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 65,
+          "words": 15,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "49c71309dadbcac2901ee0a6",
+      "language": "ar",
+      "eventGroup": "real-electricity",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": true,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 65,
+          "words": 15,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "92d1b3bcbf2e0e07522b5300",
+      "language": "en",
+      "eventGroup": "real-customs",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 90,
+          "words": 17,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "92d1b3bcbf2e0e07522b5300",
+      "language": "en",
+      "eventGroup": "real-customs",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": true
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 90,
+          "words": 17,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "incorrect",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "5d22b82fc50a761c5dff46e2",
+      "language": "fr",
+      "eventGroup": "real-customs",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 88,
+          "words": 19,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "fr"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "5d22b82fc50a761c5dff46e2",
+      "language": "fr",
+      "eventGroup": "real-customs",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 88,
+          "words": 19,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "fr"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "8cb923ef33ca8e26d3c80561",
+      "language": "ar",
+      "eventGroup": "real-customs",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 69,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "8cb923ef33ca8e26d3c80561",
+      "language": "ar",
+      "eventGroup": "real-customs",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "ar",
+          "letters": 69,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "ar",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "af77dd23167b0fd99d2bf0f2",
+      "language": "en",
+      "eventGroup": "real-electricity",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 83,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "OTHER_LANGUAGE_OR_AMBIGUOUS_TEXT",
+          "detected": "cs"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "af77dd23167b0fd99d2bf0f2",
+      "language": "en",
+      "eventGroup": "real-electricity",
+      "isFault": true,
+      "targetCategory": "factual",
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": true,
+        "citation": true,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": true,
+        "language": false
+      },
+      "originalAlert": true,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 83,
+          "words": 14,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "OTHER_LANGUAGE_OR_AMBIGUOUS_TEXT",
+          "detected": "cs"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "7764a47c138cef3bd1378e92",
+      "language": "en",
+      "eventGroup": "real-customs",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 90,
+          "words": 17,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "7764a47c138cef3bd1378e92",
+      "language": "en",
+      "eventGroup": "real-customs",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "en",
+          "letters": 90,
+          "words": 17,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "compliant",
+          "detected": "en",
+          "reason": "INDEPENDENT_NARRATIVE_LANGUAGE"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "correct"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "2a6c227f4a34b96e1c1754af",
+      "language": "fr",
+      "eventGroup": "real-customs",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "openai--gpt-4.1",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 88,
+          "words": 19,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "fr"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    },
+    {
+      "dataset": "real-source",
+      "id": "2a6c227f4a34b96e1c1754af",
+      "language": "fr",
+      "eventGroup": "real-customs",
+      "isFault": false,
+      "targetCategory": null,
+      "model": "anthropic--claude-sonnet-4.5",
+      "originalStatus": "completed",
+      "originalPredicted": {
+        "factual": false,
+        "citation": false,
+        "coverage": false,
+        "relevance": false,
+        "repetition": false,
+        "temporal": false,
+        "language": false
+      },
+      "originalAlert": false,
+      "independentLanguage": [
+        {
+          "item": 0,
+          "requested": "fr",
+          "letters": 88,
+          "words": 19,
+          "quotationCount": 0,
+          "detector": "tinyld-1.3.4",
+          "status": "unknown",
+          "reason": "DETECTOR_AMBIGUOUS",
+          "detected": "fr"
+        }
+      ],
+      "combinedLanguage": [
+        {
+          "item": 0,
+          "original": "correct",
+          "combined": "uncertain"
+        }
+      ]
+    }
+  ]
+}

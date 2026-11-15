@@ -23,6 +23,9 @@ def default_checks():
         ('evaluation-types', ['node', 'node_modules/typescript/bin/tsc', '--noEmit', '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'Bundler', '--skipLibCheck', '--types', 'node',
                               'evaluation/briefing-quality/replay.ts', 'evaluation/briefing-quality/replay.test.ts', 'evaluation/briefing-quality/replay-boundaries.test.ts', 'evaluation/briefing-quality/diagnose.ts']),
         ('evaluator-worker-types', ['node', 'node_modules/typescript/bin/tsc', '-p', 'evaluation/briefing-quality/worker/tsconfig.json']),
+        ('research-validation-types', ['node', 'node_modules/typescript/bin/tsc', '--noEmit', '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'Bundler', '--skipLibCheck', '--esModuleInterop', '--types', 'node',
+          'apps/worker/node_modules/@cloudflare/workers-types/index.d.ts', 'evaluation/briefing-quality/worker/worker-configuration.d.ts', 'evaluation/briefing-quality/worker/src/secrets.d.ts',
+          'evaluation/briefing-quality/validation/candidate-policy.ts', 'evaluation/briefing-quality/validation/current-engine.ts', 'evaluation/briefing-quality/validation/benchmark-audit.ts', 'evaluation/briefing-quality/validation/revalidate.ts']),
     ]
 
 

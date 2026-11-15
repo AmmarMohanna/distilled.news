@@ -1,0 +1,5 @@
+import {it,expect}from'vitest';import{createHash}from'node:crypto';import{auditReference}from'./validation/benchmark-audit';
+const text='Evacuation covers both districts.';const c={id:'a',language:'en',articles:[{id:'s',text}],items:[{sourceIds:['s']}]};const label={language:'en',isFault:false,expected:{coverage:0,factual:0},evidence:[{sourceId:'s',quote:text,sha256:createHash('sha256').update(text).digest('hex')} ]};
+it('does not treat subjective development inventories as known-negative reference coverage',()=>{const r=auditReference(c,label);expect(r.strictExpected.coverage).toBeNull();expect(r.strictExpected.factual).toBe(0);expect(r.problems).toEqual([])});
+it('rejects altered or detached source evidence',()=>{expect(auditReference({...c,articles:[{id:'s',text:'Changed'}]},label).problems).toContain('REFERENCE_EVIDENCE_MISMATCH')});
+it('records overlapping date-error taxonomy without changing original strict target',()=>{const r=auditReference(c,{...label,isFault:true,category:'temporal',expected:{temporal:1}});expect(r.acceptableDetectionCategories).toEqual(['factual','temporal']);expect(r.strictExpected.temporal).toBe(1)});

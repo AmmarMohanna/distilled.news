@@ -1,0 +1,15 @@
+import fs from 'node:fs';import path from 'node:path';import{createHash}from'node:crypto';
+const sha=(s:string)=>createHash('sha256').update(s).digest('hex');
+export function auditReference(c:any,label:any){
+ const problems:string[]=[];
+ if(!['en','ar','fr'].includes(c.language)||c.language!==label.language)problems.push('LANGUAGE_METADATA_MISMATCH');
+ for(const e of label.evidence??[])if(!c.articles.some(a=>a.id===e.sourceId&&a.text===e.quote&&sha(a.text)===e.sha256))problems.push('REFERENCE_EVIDENCE_MISMATCH');
+ if(c.items.some(i=>i.sourceIds.some(id=>!c.articles.some(a=>a.id===id))))problems.push('FOREIGN_CITATION_IN_CONTROL_PACKET');
+ const notes:string[]=[];const expected={...label.expected};
+ if(label.category==='temporal')notes.push('Wrong explicit calendar date is unambiguously a source-relative fault, but factual versus temporal taxonomy overlaps. Accept either for broad detection; retain strict temporal separately.');
+ if(label.category==='coverage')notes.push('The feed explicitly requires both evacuation districts. Omission is supported, but one combined inventory development does not define a calibrated partial-coverage score.');
+ if(!label.isFault){expected.coverage=null;notes.push('Unrestricted important-development inventory and granularity are judge-dependent. Do not declare all coverage concerns false positives without an independently enumerated required-development reference.');}
+ if(label.measurementClass==='retained_real_source_fault_injection')notes.push('Complete retained statement is not the full original published-window evidence. Cross-language paraphrases are AI-curated, not human-certified multilingual gold.');
+ return {id:c.id,eventGroup:label.eventGroup,language:c.language,problems,notes,isFault:label.isFault,category:label.category,strictExpected:expected,acceptableDetectionCategories:label.category==='temporal'?['factual','temporal']:label.category?[label.category]:[],referenceOrigin:'Source-relative construction audited mechanically and explicitly for semantic ambiguity; not a new independent gold annotation.'};
+}
+export function auditDataset(root:string){const cases=JSON.parse(fs.readFileSync(path.join(root,'blind-controls.json'),'utf8')),labels=JSON.parse(fs.readFileSync(path.join(root,'control-labels.json'),'utf8'));const rows=cases.map(c=>auditReference(c,labels[c.id]));if(new Set(cases.map(c=>c.id)).size!==cases.length)throw Error('DUPLICATE_BENCHMARK_CASE');if(Object.keys(labels).length!==cases.length)throw Error('REFERENCE_ROSTER_MISMATCH');return {version:'source-reference-audit-v2',cases:rows.length,sourceCasesSha256:sha(fs.readFileSync(path.join(root,'blind-controls.json'),'utf8')),sourceLabelsSha256:sha(fs.readFileSync(path.join(root,'control-labels.json'),'utf8')),faults:rows.filter(r=>r.isFault).length,controls:rows.filter(r=>!r.isFault).length,integrityFailures:rows.filter(r=>r.problems.length),rows,exposure:'All these source events and labels are exposed development material. No held-out claim. Revised coverage masks and broad category acceptance must be reported separately from original v1 scores.'};}
