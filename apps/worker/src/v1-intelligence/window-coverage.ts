@@ -23,7 +23,7 @@ const windowJobs=(start?:string)=>`FROM v1_intake_scopes s
  WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL
  AND ${kind} IN ('ACQUIRE','REASSESS')
  AND (${observedAt} IS NULL OR julianday(${observedAt})<julianday(?))
- ${start?`AND (${observedAt} IS NULL OR julianday(${observedAt})>=julianday(?))`:''}`;
+ ${start?`AND (${state} IN ('PENDING','RUNNING') OR ${observedAt} IS NULL OR julianday(${observedAt})>=julianday(?))`:''}`;
 const passedDeadline=(settings:IntakeDeadlineOptions,end:string)=>
  settings.v3&&Date.parse(settings.now??'')>=Date.parse(end)+5*60000;
 

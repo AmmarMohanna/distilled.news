@@ -23,6 +23,17 @@ it('keeps an old failed article recoverable without deferring every later empty 
  }finally{await ctx.dispose();}
 },30000);
 
+it('keeps unresolved earlier acquisition visible in a later window',async()=>{
+ const ctx=await createIntakeDatabase();
+ try{
+  await seedIntakeScope(new V1IntakeStore(ctx.db));
+  await ctx.db.prepare('INSERT INTO v1_inputs(id,feed_source_id,json) VALUES(?,?,?)').bind('earlier','feed-source-1',JSON.stringify({observation:{observedAt:'2026-10-03T12:10:00Z'}})).run();
+  await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind('earlier','feed-source-1',JSON.stringify({kind:'ACQUIRE',state:'PENDING',observationId:'earlier',failureCode:'BUDGET_EXHAUSTED'})).run();
+  const window={start:'2026-10-03T12:30:00Z'};
+  expect(await windowIntakeCoverage(ctx.db,'feed-1','2026-10-03T13:00:00Z',window)).toMatchObject({state:'INCOMPLETE',failedJobs:1});
+ }finally{await ctx.dispose();}
+},30000);
+
 it('classifies only confirmed pending acquisition-budget waits as unavailable coverage without changing recoverable jobs',async()=>{
  const ctx=await createIntakeDatabase();
  try{
