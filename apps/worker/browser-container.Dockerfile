@@ -40,7 +40,7 @@ WORKDIR /app
 ENV COREPACK_HOME=/opt/corepack
 RUN mkdir -p /opt/corepack && corepack enable
 # Apply available Ubuntu security updates without changing Playwright/Chromium.
-RUN apt-get update && apt-get install -y --only-upgrade \
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade \
     apt libapt-pkg6.0t64 libbrotli1 libssl3t64 \
     && rm -rf /var/lib/apt/lists/*
 
