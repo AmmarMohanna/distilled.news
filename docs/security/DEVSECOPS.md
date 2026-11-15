@@ -30,6 +30,8 @@ Every `uses:` dependency in **all twelve repository workflows** (six pre-existin
 - `packages/briefing/test/occurrence-novelty.test.ts`: six test model responses include required token-usage fields; no production model prompts or agent behavior changed.
 - `apps/worker/browser-container.Dockerfile`: nonroot `pwuser`, non-pnpm direct Node/tsx entrypoint, removal of unused npm/Corepack/pnpm package-manager code from **runtime**, targeted Ubuntu fixes, Browser Use **0.13.10 → 0.13.14** preserving its v0.13 API. The image is built and tested locally within CI only, never pushed/deployed.
 
+**Container issue-level evidence:** See [CONTAINER_VULNERABILITY_MATRIX.md](CONTAINER_VULNERABILITY_MATRIX.md) for all 50 HIGH/CRITICAL image findings grouped by affected package, fixed version, upstream exact pins, known runtime use, reachability uncertainty and compatible remediation options. The matrix is based on the actual `407a44d` image SARIF, not theoretical packages; findings remain open and no Trivy gate is relaxed.
+
 ## Findings and disposition
 
 **Critical — 6 open:** The last completed real image scan shows **6 critical Python dependency advisories**. An upgrade to fixed transitive `anyio`, `aiohttp`, `pillow` and `pypdf` versions conflicted with exact `browser-use`/`browser-harness` constraints and **failed `pip check`**; the incompatible override was reverted. Browser Use 1.x changes the agent to a Python-REPL engine and cannot safely replace the restricted v0.13 tool boundary without redesign and end-to-end authorization regression testing. **Disposition: open/blocking, not suppressed**.
