@@ -15,7 +15,9 @@ export function sameArticleUrl(left:string,right:string):boolean {
  const normalize=(value:string)=>{
   const url=new URL(value);if(url.username||url.password||!['https:','http:'].includes(url.protocol))throw Error('INVALID_ARTICLE_URL');
   url.hash='';
-  for(const key of [...url.searchParams.keys()])if(/^utm_/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source'].includes(key.toLowerCase()))url.searchParams.delete(key);
+  // These parameters describe referral or campaign attribution on publishers'
+  // article links. Compare the remaining URL identity for every source.
+  for(const key of [...url.searchParams.keys()])if(/^(?:utm_|at_)/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source'].includes(key.toLowerCase()))url.searchParams.delete(key);
   normalizePublisherArticlePath(url);
   return url.href;
  };

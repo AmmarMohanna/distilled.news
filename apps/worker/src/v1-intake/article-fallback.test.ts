@@ -37,6 +37,23 @@ it('accepts exact trailing-slash normalization without changing candidate identi
  const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:url+'/',httpResponseBody:btoa(html)}});
  expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte',url,canonicalUrl:url});
 });
+it('accepts the BBC Arabic RSS article when its canonical omits attribution, without paying',async()=>{
+ const canonical='https://www.bbc.com/arabic/articles/c9m2j8pry2ndo';
+ const tracked=canonical+'?at_medium=RSS&at_campaign=rss';
+ const f=fixture({status:200,url:tracked,html:`<link rel="canonical" href="${canonical}">${html}`});
+ const result=await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:tracked}}} as AcquisitionClaim);
+ expect(result).toMatchObject({url:tracked,canonicalUrl:tracked,provider:'website_playwright',pageKind:'article'});
+ expect(f.request).not.toHaveBeenCalled();
+});
+it('accepts a retained BBC Arabic paid response with the same article canonical',async()=>{
+ const canonical='https://www.bbc.com/arabic/articles/c9m2j8pry2ndo';
+ const tracked=canonical+'?at_medium=RSS&at_campaign=rss';
+ const f=fixture({error:'UNAVAILABLE'});
+ f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:tracked,httpResponseBody:btoa(`<link rel="canonical" href="${canonical}">${html}`)}});
+ const result=await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:tracked}}} as AcquisitionClaim);
+ expect(result).toMatchObject({url:tracked,canonicalUrl:tracked,provider:'website_zyte',pageKind:'article'});
+ expect(f.request).toHaveBeenCalledTimes(1);
+});
 it('accepts Nature HTML whose publisher canonical points to the same article PDF',async()=>{
  const nature='https://www.nature.com/articles/s41586-026-11328-3',f=fixture({error:'UNAVAILABLE'});
  f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:nature,httpResponseBody:btoa('<link rel="canonical" href="'+nature+'.pdf">'+html)}});
@@ -104,8 +121,8 @@ it('reuses an exact retained recovery response before calling an unavailable bro
  expect(await fallback(recovered)).toMatchObject({resolvedUrl:target,redirectEvidence:proof});expect(execute).not.toHaveBeenCalled();expect(request).toHaveBeenCalledTimes(1);
 });
 
-it('accepts tracking-only canonical differences while preserving the admitted candidate identity',async()=>{
- const tracked=url+'?traffic_source=rss';
+it.each(['traffic_source=rss','at_medium=RSS&at_campaign=feed'])('accepts publisher attribution %s while preserving the admitted candidate identity',async query=>{
+ const tracked=url+'?'+query;
  const f=fixture({status:200,url:tracked,html:`<link rel="canonical" href="${url}">${html}`});
  const result=await f.fallback({...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:tracked}}});
  expect(result).toMatchObject({url:tracked,canonicalUrl:tracked,pageKind:'article'});

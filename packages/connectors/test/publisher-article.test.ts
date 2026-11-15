@@ -61,7 +61,15 @@ it('keeps opinion, latest-article and live indexes out of discovered article can
 it('tracking-only URL equivalence never admits another article, origin or content query',()=>{
  expect(sameArticleUrl(url+'?traffic_source=rss',url)).toBe(true);
  expect(sameArticleUrl(url+'?utm_source=rss#top',url)).toBe(true);
+ expect(sameArticleUrl(url+'?at_medium=RSS&at_campaign=feed',url)).toBe(true);
  for(const different of [url+'/other',url+'?edition=other',url.replace('publisher.example','other.example'),url.replace('https:','http:')])expect(sameArticleUrl(url,different)).toBe(false);
+});
+it('uses BBC Arabic article metadata when an RSS link adds attribution to the same article',()=>{
+ const canonical='https://www.bbc.com/arabic/articles/c9m2j8pry2ndo';
+ const requested=canonical+'?at_medium=RSS&at_campaign=rss';
+ const html=`<link rel="canonical" href="${canonical}"><meta property="og:type" content="article"><h1>${headline}</h1><script type="application/ld+json">${JSON.stringify({'@type':'NewsArticle',url:canonical,headline})}</script><article><p>${body}</p></article>`;
+ expect(extractPublicHtml(html,requested)).toMatchObject({canonicalUrl:canonical,body,pageKind:'article'});
+ expect(sameArticleUrl(canonical,requested)).toBe(true);
 });
 
 // Optional read-only replay of privately retained publisher HTML. No network,
