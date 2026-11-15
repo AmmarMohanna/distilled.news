@@ -1,4 +1,5 @@
-import {toUiError, type UiMessage} from './api-errors';
+import {ApiError, toUiError, type UiMessage} from './api-errors';
+import {FEED_REFRESH_INTERVAL_MS, afterFeedRefresh, initialFeedRefreshState, mayRefreshFeed} from './feed-refresh-policy';
 import {SourceHealth} from './SourceHealth';
 import { useFeedViewer } from './useFeedViewer';
 import { usePageMagnification } from './usePageMagnification';
@@ -1534,6 +1535,7 @@ function FeedPage(props: { username: string; slug: string }) {
       if (!silent || loadedFeed.current !== key) {
         searchFailed.current = false; setReadState({ key, state: "failed" }); setError(toUiError(cause));
       }
+      return cause instanceof ApiError ? cause.uiMessage.details : {};
     } finally {
       if (feedRead.current === read) feedRead.current = null;
     }
@@ -1554,14 +1556,18 @@ function FeedPage(props: { username: string; slug: string }) {
 
   useEffect(() => {
     let pending = false;
-    const update = async () => {
-      if (document.visibilityState !== "visible" || pending) return;
+    // A focus or reconnect within 15 seconds of the last read is skipped, and
+    // after an overload answer every trigger waits 30, 60, then 120 seconds.
+    let policy = afterFeedRefresh(initialFeedRefreshState(), Date.now());
+    const update = async (trigger: "interval" | "focus") => {
+      if (document.visibilityState !== "visible" || pending || !mayRefreshFeed(policy, Date.now(), trigger)) return;
       pending = true;
-      try { await refresh(true); } finally { pending = false; }
+      try { policy = afterFeedRefresh(policy, Date.now(), await refresh(true)); } finally { pending = false; }
     };
-    const interval = window.setInterval(() => void update(), 60_000);
-    document.addEventListener("visibilitychange", update); window.addEventListener("focus", update); window.addEventListener("online", update);
-    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); window.removeEventListener("focus", update); window.removeEventListener("online", update); };
+    const onFocus = () => void update("focus");
+    const interval = window.setInterval(() => void update("interval"), FEED_REFRESH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", onFocus); window.addEventListener("focus", onFocus); window.addEventListener("online", onFocus);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", onFocus); window.removeEventListener("focus", onFocus); window.removeEventListener("online", onFocus); };
   }, [props.username, props.slug]);
 
   useEffect(() => {
