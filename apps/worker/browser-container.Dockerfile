@@ -28,9 +28,13 @@ RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
 # Preserve the deployed Node dependency layer; Python is copied in separately.
 FROM mcr.microsoft.com/playwright:v1.61.0-noble
 WORKDIR /app
-# Share Corepack's pinned pnpm cache with the non-root runtime account.
+# Only the build needs Corepack/pnpm. Remove them before creating runtime layers.
 ENV COREPACK_HOME=/opt/corepack
 RUN mkdir -p /opt/corepack && corepack enable
+# Apply available Ubuntu security updates without changing Playwright/Chromium.
+RUN apt-get update && apt-get install -y --only-upgrade \
+    apt libapt-pkg6.0t64 libbrotli1 libssl3t64 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/package.json
@@ -43,8 +47,8 @@ COPY packages/core/package.json ./packages/core/package.json
 # The bridge runs directly from the reviewed TypeScript source using the
 # workspace's pinned tsx/Playwright versions. No browser state is copied into
 # or written by the image.
-RUN pnpm install --filter @distilled/browser-bridge... --prod --frozen-lockfile
-RUN chmod -R a+rX /opt/corepack
+RUN pnpm install --filter @distilled/browser-bridge... --prod --frozen-lockfile \
+    && corepack disable && rm -rf /opt/corepack
 
 # Keep expensive Python layers stable across TypeScript and fixture edits.
 COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use
@@ -76,5 +80,9 @@ ENV NODE_ENV=production
 # The Playwright noble base includes pwuser (UID 1001), matching the isolated
 # browser child UID/GID. No permission escalation is needed at runtime.
 USER pwuser
+# Execute the existing TypeScript bridge from its own workspace package.
+# The package declares tsx as a direct production dependency; no package
+# manager or registry access is needed after image construction.
+WORKDIR /app/packages/browser-bridge
 EXPOSE 8080
-CMD ["pnpm", "--filter", "@distilled/browser-bridge", "exec", "tsx", "src/server.ts"]
+CMD ["node", "--import", "tsx", "src/server.ts"]

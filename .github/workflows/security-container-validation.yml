@@ -32,9 +32,9 @@ jobs:
           persist-credentials: false
       - name: Build the actual browser image locally
         run: docker build -f apps/worker/browser-container.Dockerfile -t distilled-browser-security:ci .
-      - name: Verify non-root account and Corepack are usable
+      - name: Verify non-root account and package-manager-free runtime
         run: |
-          docker run --rm --entrypoint sh distilled-browser-security:ci -c 'test "$(id -u)" -eq 1001 && test "$(id -g)" -eq 1001 && pnpm --version | grep -Fx 10.12.1'
+          docker run --rm --entrypoint sh distilled-browser-security:ci -c 'test "$(id -u)" -eq 1001 && test "$(id -g)" -eq 1001 && test ! -d /opt/corepack/v1/pnpm && node --import tsx --eval "console.log(\"TSX_LOADER_OK\")" | grep -Fx TSX_LOADER_OK'
       - name: Launch local bridge and check health (no outside traffic)
         run: |
           set -euo pipefail
