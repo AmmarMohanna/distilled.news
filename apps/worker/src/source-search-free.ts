@@ -19,11 +19,12 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
  const check=async(source:string)=>{
   const plan=prepareProductSourceInput(source),url=plan.sourceUrl!;
   const key=await accessKey(source);
-  try{const saved=await cache?.match(key);if(saved)return (await saved.json() as {readable:boolean}).readable;}catch{}
+  try{const saved=await cache?.match(key);if(saved){const readable=(await saved.json() as {readable:boolean}).readable;if(!readable)incomplete=true;return readable;}}catch{}
   try{
    const page=await new WorkerPublicSourceFetch(url,bounded,{followSameOriginRedirects:true}).get(url);
    let readable=page.status===200&&!page.authenticationRequired&&page.body.trim().length>=80&&!/<title[^>]*>\s*(?:just a moment|access denied|captcha|verifying you are human)/i.test(page.body);
    if(readable&&plan.detected.kind==='rss_feed')readable=normalizeRssSnapshot(page.body,url).some(item=>item.identityValid);
+   if(!readable)incomplete=true;
    try{await cache?.put(key,Response.json({readable},{headers:{'cache-control':`public, max-age=${readable?600:120}`}}));}catch{}
    return readable;
   }catch{incomplete=true;return false;}

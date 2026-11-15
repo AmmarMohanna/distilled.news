@@ -31,10 +31,11 @@ export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof
  if(normalize(query).length<2)return {results:[],unavailable:false};
  const load=()=>discoverSourceCandidates(env,query,fetcher,context,discovery?.cache);
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
- return {...found,...await freelyReadableResults(found.results,fetcher,accessCache)};
+ const accessible=await freelyReadableResults(found.results,fetcher,accessCache);
+ return {...found,...accessible,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete};
 }
 
-async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetch,context?:SearchTopic,directoryCache?:Pick<Cache,'match'|'put'>):Promise<{results:SourceSearchResult[];unavailable:boolean;topicMismatch?:boolean}> {
+async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetch,context?:SearchTopic,directoryCache?:Pick<Cache,'match'|'put'>):Promise<{results:SourceSearchResult[];unavailable:boolean;topicMismatch?:boolean;accessIncomplete?:boolean}> {
   const term=normalize(query);
   if(term.length<2)return {results:[],unavailable:false};
   const matches=publishers.filter(row=>row.aliases.some(alias=>normalize(alias).includes(term))).slice(0,8);
@@ -72,11 +73,13 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   const scopedQuery=topic&&!topic.matches(query)?`${publisherQuery??query} ${topic.hint}`:query;
   const plan=prepareProductSourceInput('news: '+scopedQuery);
   let available=publisherAvailable;
+  let accessIncomplete=false;
   let offTopic=publisherOffTopic;
   const queryMatches=(title:string,excerpt:string,publisherOrigin?:string)=>matchesArticleQuery(query,title,excerpt)||(publisherOrigin!==undefined&&publisherHosts.has(new URL(publisherOrigin).hostname.replace(/^www\./,'')));
   if(env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'){
     const web=await readWebSearch(scopedQuery,fetcher,directoryCache);
-    available=web.available;
+    available=available||web.available;
+    accessIncomplete=web.accessIncomplete;
     for(const item of web.items){
       const url=new URL(item.url);
       if(!queryMatches(item.title,item.excerpt+' '+url.hostname.replace(/\./g,' '),url.origin))continue;
@@ -85,7 +88,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
       // when the indexed profile/article itself is publicly readable.
       results.push({source:item.url,title:item.title,publisher:url.hostname,articleUrl:item.url,excerpt:item.excerpt});
     }
-    if(results.length)return {results,unavailable:false};
+    if(results.length)return {results,unavailable:false,accessIncomplete};
   }
   const evidence=await readTopicPublishers(env,plan.sourceUrl!,recommendationFetch(fetcher,15_000),result=>{if(result.status===200)available=true;},undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true',raceRoutes:true,maxPublishers:40,perPublisher:3,acceptArticle:(title,excerpt,origin)=>{if(topic&&!topic.matches(title+' '+excerpt)){offTopic++;return false;}return queryMatches(title,excerpt,origin);}});
   for(const item of evidence){
@@ -95,5 +98,5 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
     try{prepareProductSourceInput(item.publisherOrigin+'/');}catch{continue;}
     results.push({source:item.publisherOrigin+'/',title:item.title,publisher:new URL(item.publisherOrigin).hostname,articleUrl:item.url,excerpt:item.excerpt});
   }
-  return {results,unavailable:!available,...(context&&results.length===0&&available&&offTopic>0?{topicMismatch:true}:{})};
+  return {results,unavailable:!available,accessIncomplete,...(context&&results.length===0&&available&&offTopic>0&&!accessIncomplete?{topicMismatch:true}:{})};
 }

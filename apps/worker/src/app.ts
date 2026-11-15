@@ -969,7 +969,7 @@ export function createApp(options: AppOptions = {}) {
     try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
     const owner=c.get('account')!.id,origin=new URL(c.req.url).origin;
     const context=input.data.title&&input.data.description?{title:input.data.title,description:input.data.description}:undefined;
-    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
+    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>{const accessible=await freelyReadableResults(result.results,fetcher,accessCache);return {...result,...accessible,accessIncomplete:result.accessIncomplete===true||accessible.accessIncomplete};}));
   });
 
   app.post("/api/me/sources/assess", async c => {

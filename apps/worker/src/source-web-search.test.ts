@@ -22,11 +22,11 @@ it.each(['ammar mohanna aub','ammar mohanna'])('finds a relevant institutional p
  const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',SOURCE_RECOMMENDATIONS_WEB_HTML:'true'} as never,query,fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News and projects related to Ammar Mohanna'});
  expect(found.results).toHaveLength(1);
  expect(found.results[0]).toMatchObject({source:target,articleUrl:target,publisher:'www.aub.edu.lb'});
- expect(fetcher).toHaveBeenCalledTimes(2);
+ expect(fetcher.mock.calls.filter(call=>String(call[0])===target)).toHaveLength(1);
 });
 it('rejects private destinations and keeps the topic check for institutional results',async()=>{
  const directory='<div class="researcher-card"><h4><a href="https://127.0.0.1/private">Ammar Mohanna</a></h4></div><div class="researcher-card"><h4><a href="/pages/profile.aspx?MemberId=other">Another Researcher</a></h4><p>AI workforce at AUB</p></div>';
- const fetcher=vi.fn<typeof fetch>(async input=>new Response(String(input).includes('AI-Researchers-at-MSFEA')?directory:'<rss><channel></channel></rss>'));
+ const fetcher=vi.fn<typeof fetch>(async input=>new Response(String(input).includes('duckduckgo')?'<div class="no-results">No results</div>':String(input).includes('AI-Researchers-at-MSFEA')?directory:'<rss><channel></channel></rss>'));
  const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',SOURCE_RECOMMENDATIONS_WEB_HTML:'true'} as never,'AI',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News about Ammar Mohanna'});
  expect(found.results).toEqual([]);expect(found.topicMismatch).toBe(true);
  expect(fetcher.mock.calls.every(call=>!String(call[0]).includes('127.0.0.1'))).toBe(true);
@@ -36,5 +36,21 @@ it('shares the public directory index across name searches without repeating its
  const fetcher=vi.fn<typeof fetch>(async()=>new Response('<div class="researcher-card"><h4><a href="/pages/profile.aspx?MemberId=am288">Ammar Mohanna</a></h4><p>AI researcher</p></div>'));
  expect((await readWebSearch('ammar mohanna',fetcher,cache)).items).toHaveLength(1);
  expect((await readWebSearch('another researcher',fetcher,cache)).items).toHaveLength(1);
- expect(fetcher).toHaveBeenCalledTimes(1);
+ expect(fetcher.mock.calls.filter(call=>String(call[0]).includes('AI-Researchers-at-MSFEA'))).toHaveLength(1);
+});
+it('finds ordinary web pages for a topic outside the institutional directory',async()=>{
+ const url='https://research.example/people/samira-haddad';
+ const fetcher=vi.fn<typeof fetch>(async input=>{
+  if(String(input).startsWith('https://html.duckduckgo.com/html/?q='))return new Response(result(url,'Samira Haddad research projects'));
+  if(String(input)===url)return new Response('<p>'+('Samira Haddad research projects and publications. '.repeat(5))+'</p>');
+  return new Response('Unavailable',{status:503});
+ });
+ const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',SOURCE_RECOMMENDATIONS_WEB_HTML:'true'} as never,'Samira Haddad',fetcher,undefined,undefined,{title:'Professor Samira Haddad',description:'I want details about recent work of Samira Haddad'});
+ expect(found.results).toEqual([expect.objectContaining({source:url,title:'Samira Haddad research projects'})]);
+ expect(found.unavailable).toBe(false);
+});
+it('reports a blocked web index as incomplete even if a directory was readable',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).includes('duckduckgo')?new Response('Blocked',{status:403}):new Response('<div class="researcher-card"><h4><a href="/people/other">Other Researcher</a></h4></div>'));
+ const result=await readWebSearch('Samira Haddad',fetcher);
+ expect(result.available).toBe(true);expect(result.accessIncomplete).toBe(true);
 });

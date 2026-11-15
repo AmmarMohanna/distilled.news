@@ -6,6 +6,26 @@ import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceC
 import { personalNewsBriefing } from '@distilled/core';
 import {setWebsiteLanguage} from './LanguageControl';
 
+it('clears missing-details feedback once a new feed has a name and interests',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ vi.mocked(searchSourceCandidates).mockResolvedValueOnce({results:[],unavailable:false});
+ const host=document.createElement('div'),root=createRoot(host);
+ const enter=async(element:HTMLInputElement|HTMLTextAreaElement,value:string)=>act(async()=>{Object.getOwnPropertyDescriptor(element instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value')!.set!.call(element,value);element.dispatchEvent(new Event('input',{bubbles:true}));});
+ try{
+  await act(async()=>setWebsiteLanguage('en'));
+  await act(async()=>root.render(<FeedEditor onClose={()=>{}} onSave={async()=>{}}/>));
+  await enter(host.querySelector<HTMLInputElement>('#feed-source-search')!,'Samira Haddad');
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Enter a feed name and interests');
+  await enter(host.querySelector<HTMLInputElement>('input[aria-label="Feed name"]')!,'Professor Samira Haddad');
+  await enter(host.querySelector<HTMLTextAreaElement>('textarea')!,'Recent work of Samira Haddad');
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
+  expect(searchSourceCandidates).toHaveBeenLastCalledWith('Samira Haddad',expect.any(AbortSignal),{title:'Professor Samira Haddad',description:'Recent work of Samira Haddad'});
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
+
 it('translates every schedule option when language changes and preserves the selected interval',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
  const host=document.createElement('div'),root=createRoot(host);

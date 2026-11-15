@@ -105,6 +105,9 @@ export function FeedEditor(props: {
   const [busy, setBusy] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [message, setMessage] = useState<UiMessage>("");
+  useEffect(()=>{
+    if(title.trim()&&prompt.trim())setMessage(current=>current==='Enter a feed name and interests before checking a source.'?'':current);
+  },[title,prompt]);
   const { confirm, confirmation } = useConfirmation();
   async function findSources() {
     setRecommending(true); setMessage("");
@@ -124,7 +127,8 @@ export function FeedEditor(props: {
     finally { setRecommending(false); }
   }
   async function addSource(source: string): Promise<boolean> {
-    if(checkingSource||!title.trim()||!prompt.trim()) { setMessage("Enter a feed name and interests before checking a source."); return false; }
+    if(checkingSource)return false;
+    if(!title.trim()||!prompt.trim()) { setMessage("Enter a feed name and interests before checking a source."); return false; }
     if(sources.includes(source))return true;
     const context=sourceContext.current;
     const checked=sourceChecks.find(check=>check.input===source&&check.status==='accepted');

@@ -4,7 +4,7 @@ const result=(source:string)=>({source,title:'Matching article',publisher:new UR
 it('offers readable sources and omits restricted sources without paid requests',async()=>{
  const fetcher=vi.fn<typeof fetch>(async url=>new Response('Public source reporting. '.repeat(8),{status:String(url).includes('blocked')?403:200}));
  const checked=await freelyReadableResults([result('https://blocked.example/'),result('https://free.example/'),result('https://blocked.example/')],fetcher);
- expect(checked.results.map(row=>row.source)).toEqual(['https://free.example/']);expect(fetcher).toHaveBeenCalledTimes(2);expect(checked.accessIncomplete).toBe(false);
+ expect(checked.results.map(row=>row.source)).toEqual(['https://free.example/']);expect(fetcher).toHaveBeenCalledTimes(2);expect(checked.accessIncomplete).toBe(true);
 });
 it('reuses public availability checks and honors a later confirmed free-access failure',async()=>{
  const values=new Map<string,Response>();
