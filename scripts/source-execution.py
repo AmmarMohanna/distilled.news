@@ -248,6 +248,35 @@ def fetch_public_article(data):
         return {'error': 'TRANSIENT', 'failureOrigin': 'upstream_transport'}
 
 
+def fetch_public_feed(data):
+    """One bounded anonymous HTTPS RSS fetch, with no redirect or paid provider."""
+    started = time.monotonic()
+    url = data.get('url', '')
+    parsed = urlsplit(url)
+    if (parsed.scheme != 'https' or not parsed.hostname or parsed.port or parsed.username or parsed.password
+            or parsed.fragment or len(url) > 2048):
+        raise ValueError('INVALID_PUBLIC_FEED')
+    if os.environ.get('SOURCE_BROWSER_EGRESS_CONFIRMED') != 'true':
+        return {'error': 'UNAVAILABLE'}
+    public_url(url)
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args): return None
+
+    try:
+        request = urllib.request.Request(url, headers={'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml'})
+        with urllib.request.build_opener(NoRedirect()).open(request, timeout=12) as response:
+            body = response.read(2000001)
+            if len(body) > 2000000:
+                return {'error': 'FEED_TOO_LARGE'}
+            return {'status': response.status, 'xml': body.decode('utf-8'), 'requests': 1,
+                    'latencyMs': int((time.monotonic() - started) * 1000)}
+    except urllib.error.HTTPError as error:
+        return {'status': error.code, 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000)}
+    except (OSError, TimeoutError):
+        return {'error': 'TRANSIENT', 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000)}
+
+
 def fetch_google_feed(data):
     """Bounded public Google feed fallback; no publisher or arbitrary URL fetch."""
     started = time.monotonic()
@@ -712,6 +741,8 @@ async def main():
         result = await asyncio.to_thread(resolve_google_articles if 'urls' in inputs else resolve_google_article, inputs)
     elif kind == 'google_feed':
         result = await asyncio.to_thread(fetch_google_feed, inputs)
+    elif kind == 'public_feed':
+        result = await asyncio.to_thread(fetch_public_feed, inputs)
     elif kind == 'public_article':
         result = await asyncio.to_thread(fetch_public_article, inputs)
     elif kind == 'playwright':

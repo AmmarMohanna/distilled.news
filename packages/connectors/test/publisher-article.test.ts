@@ -62,7 +62,16 @@ it('tracking-only URL equivalence never admits another article, origin or conten
  expect(sameArticleUrl(url+'?traffic_source=rss',url)).toBe(true);
  expect(sameArticleUrl(url+'?utm_source=rss#top',url)).toBe(true);
  expect(sameArticleUrl(url+'?at_medium=RSS&at_campaign=feed',url)).toBe(true);
+ expect(sameArticleUrl(url+'?xtor=RSS-16',url)).toBe(true);
+ expect(sameArticleUrl(url+'?xtor=RSS-16&edition=other',url)).toBe(false);
  for(const different of [url+'/other',url+'?edition=other',url.replace('publisher.example','other.example'),url.replace('https:','http:')])expect(sameArticleUrl(url,different)).toBe(false);
+});
+it('accepts an RSS attribution link when Sciences et Avenir identifies the same article',()=>{
+ const canonical='https://www.sciencesetavenir.fr/sante/une-radiotherapie-ultraciblee-contre-les-tumeurs-agressives_195864';
+ const requested=canonical+'?xtor=RSS-16';
+ const html=`<link rel="canonical" href="${canonical}"><meta property="og:type" content="article"><h1>${headline}</h1><article><p>${body}</p></article>`;
+ expect(extractPublicHtml(html,requested)).toMatchObject({canonicalUrl:canonical,body,pageKind:'article'});
+ expect(sameArticleUrl(requested,canonical)).toBe(true);
 });
 it('uses BBC Arabic article metadata when an RSS link adds attribution to the same article',()=>{
  const canonical='https://www.bbc.com/arabic/articles/c9m2j8pry2ndo';

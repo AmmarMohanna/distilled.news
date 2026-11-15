@@ -10,6 +10,7 @@ import { BoundedFeedHttp } from '../src/source-runtime/http';
 import { normalizeRssSnapshot } from '../src/source-runtime/rss-normalize';
 import { D1RssPollScheduler, RSS_POLL_SCHEMA } from '../src/source-runtime/scheduler';
 import type { FeedHttpPort, RssRequest } from '../src/source-runtime/ports';
+import type {SourceExecutionPort} from '../src/source-runtime/platform-providers';
 import {SourceHandoffWait} from '../src/source-runtime/handoff-wait';
 
 const directories: string[] = [], databases: DatabaseSync[] = [];
@@ -61,6 +62,25 @@ function setup(feed=xml(item('one'))) {
 }
 
 describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogate)',()=>{
+  it('uses the free private feed route after a public 406 and retains the recovered snapshot',async()=>{
+    const s=setup();
+    s.http.get=vi.fn(async()=>({status:406,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:3,providerCostUsd:0}}));
+    const execute=vi.fn(async()=>({status:200,xml:xml(item('recovered')),requests:1,latencyMs:7}));
+    const collector=new RssSourceCollector(s.repository,s.payloads,s.http,s.intake,()=>timestamp,{execute} as SourceExecutionPort);
+    const result=await collector.collect(input);
+    expect(execute).toHaveBeenCalledWith('public_feed',{url:input.url},{timeoutMs:20_000});
+    expect(result.coverage.failureReason).toBe('NONE');
+    expect(result.telemetry).toMatchObject({requests:2,latencyMs:10,providerCostUsd:0});
+    expect(s.accepted[0].observations[0].canonicalUrl).toBe('https://publisher.example/recovered');
+  });
+  it('keeps a failed private response visible as source failure',async()=>{
+    const s=setup();
+    s.http.get=vi.fn(async()=>({status:406,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:3,providerCostUsd:0}}));
+    const collector=new RssSourceCollector(s.repository,s.payloads,s.http,s.intake,()=>timestamp,{execute:vi.fn(async()=>({status:403}))} as SourceExecutionPort);
+    const result=await collector.collect(input);
+    expect(result.coverage.failureReason).toBe('TRANSIENT_PROVIDER_FAILURE');
+    expect(result.telemetry.requests).toBe(1);
+  });
   it('local origin cooldowns do not consume eight real HTTP failures or shorten Retry-After',async()=>{
     const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp);
     const due=()=>new Date(at+3600000).toISOString();

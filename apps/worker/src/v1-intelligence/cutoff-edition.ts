@@ -27,7 +27,7 @@ export async function cutoffEditionReady(db:D1Database,feedId:string,request:Sch
 /** Probe unresolved jobs before looking up frozen inputs or results. Keep the
  * same policy at dispatch, queue consumption and diagnostic refresh. */
 export async function windowIntakeReadiness(db:D1Database,feedId:string,request:ScheduledRequest,now:string,v3=request.engine==='v3',allowNew=false){
- const settings={v3,now};
+ const settings={v3,now,start:request.window.start};
  const {end}=request.window;
  if(!await windowHasHoldingJobs(db,feedId,end,settings))return {holding:false,settings};
  if(v3&&await cutoffEditionReady(db,feedId,request,now,allowNew))return {holding:false,settings:{...settings,deferIntake:true}};

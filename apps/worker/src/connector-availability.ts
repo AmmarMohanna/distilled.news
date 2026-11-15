@@ -42,8 +42,10 @@ export async function feedSourceAvailability(env:Env,feedId:string){
  ]):[{results:[]},{results:[]}];
  const global=new Map(globalRows.results.map(r=>[r.provider_id,r])),reservations=new Map(sourceRows.results.map(r=>[`${r.feed_source_id}:${r.provider_id}`,r.reserved_usd]));
  const limits=JSON.parse(env.SOURCE_PROVIDER_BUDGETS_JSON??'{}'),ceilings=JSON.parse(env.SOURCE_OPERATION_CEILINGS_JSON??'{}');
+ // Seek this feed's scopes first. Joining on kind alone let SQLite drive from the
+ // deployment-wide ACQUIRE index, so every feed page read every feed's job history.
  const acquired=await env.DB.prepare(`SELECT j.feed_source_id,json_extract(j.json,'$.state') state,json_extract(j.json,'$.failureCode') failure,json_extract(j.json,'$.failureDetail') detail,COUNT(*) count
-  FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id WHERE s.feed_id=? AND json_extract(j.json,'$.kind')='ACQUIRE'
+  FROM v1_jobs j WHERE j.feed_source_id IN (SELECT id FROM v1_intake_scopes WHERE feed_id=?) AND json_extract(j.json,'$.kind')='ACQUIRE'
   GROUP BY j.feed_source_id,state,failure,detail`).bind(feedId).all<{feed_source_id:string;state:string;failure:string|null;detail?:string|null;count:number}>();
  // A previous success must not hide a current capacity refusal that is now
  // yielding publication with incomplete coverage. Return typed causes only.

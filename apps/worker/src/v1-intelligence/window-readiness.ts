@@ -91,7 +91,7 @@ export async function observeWindowReadiness(env:Env,request:BriefingRequest,now
   const verified=await preparedV3Delivery(env.DB,request.feedId,request.id,Math.max(at,delivery));
   const deferAcquisition=verified&&at>=delivery;
   const deferIntake=await cutoffEditionReady(env.DB,request.feedId,request,now.toISOString(),env.CUTOFF_EDITIONS_ENABLED==='true');
-  const canonicalHolding=await windowHasHoldingJobs(env.DB,request.feedId,request.window.end,{v3:true,now:now.toISOString(),deferAcquisition,deferIntake});
+  const canonicalHolding=await windowHasHoldingJobs(env.DB,request.feedId,request.window.end,{v3:true,now:now.toISOString(),start:request.window.start,deferAcquisition,deferIntake});
   const projectedHolding=!deferIntake&&(deferAcquisition?projection.pending_review>0:projection.holding);
   const resolved=Number(collection.pending===0);
   const matched=canonicalHolding===projectedHolding;

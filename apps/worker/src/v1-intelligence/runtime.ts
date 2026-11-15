@@ -190,7 +190,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
    const current=await tx.read<BriefingRequest>('briefing_requests',id);
    if(current?.state!=='PENDING'||!isIntakeStatus(current.reason))return true;
    if(current.reason===intakeWaitReason&&current.coverage?.state==='PENDING')return true;
-   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,intake.settings);
+   const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{...intake.settings,start:window.start});
    if(!coverage.pendingJobs)return false;
    await tx.write('briefing_requests',id,{...current,coverage,reason:intakeWaitReason,nextAttemptAt:new Date(Date.parse(readinessAt)+60000).toISOString()});
    countLatency('pendingJobs',coverage.pendingJobs);countLatency('failedJobs',coverage.failedJobs);
@@ -237,7 +237,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
     await refreshSourceCorrectionObligations(tx,now());
     const latest=await shortlistInTransaction(tx,window,now(),undefined,{collectOnly:true,reportingWindows:true});
     if(latest.candidates.length||latest.overflow.length||latest.obligations.length)return;
-    const coverage=await windowIntakeCoverage(env.DB,feedId,window.end),incomplete=coverage.state!=='COMPLETE'||Boolean(latest.unresolvedTargets?.length);
+    const coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{start:window.start}),incomplete=coverage.state!=='COMPLETE'||Boolean(latest.unresolvedTargets?.length);
     await tx.write('briefing_requests',id,{...current,coverage,semanticCoverage:latest.unresolvedTargets?.length?{unresolvedTargets:latest.unresolvedTargets}:undefined,state:'DONE',result:incomplete?'DEFERRED':'QUIET',reason:incomplete?'INCOMPLETE_WINDOW_EVIDENCE':'NO_IN_WINDOW_DEVELOPMENTS',completedAt:now()});
    });return undefined;
   }
@@ -269,14 +269,14 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
   failureStage='LEDGER_PROJECTION';
   if(edition)await projectEditionLedger(store,feedId,edition.id);
   const deferred=!edition&&(plan?.stories.some(story=>story.decision==='DEFER')||Boolean(shortlist?.overflow.length));
-  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(!current)return;
+  await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{start:window.start});if(!current)return;
    const semanticCoverage=frozenSelection?current.semanticCoverage:shortlist?.unresolvedTargets?.length?{unresolvedTargets:shortlist.unresolvedTargets}:undefined,incomplete=!edition&&(coverage.state!=='COMPLETE'||Boolean(semanticCoverage));
    await tx.write('briefing_requests',id,{...current,coverage,semanticCoverage,state:'DONE',result:edition?'PUBLISHED':incomplete?'DEFERRED':deferred?'DEFERRED':'QUIET',reason:incomplete?(coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP'):edition?undefined:deferred?'EDITORIAL_WORK_DEFERRED':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});});return edition;
  } catch(error) {
   // Commit admission contention is not a failed draft/provider attempt. Keep
   // the frozen work and let transport rotate without consuming its retries.
   if(error instanceof IntelligenceTurnBusy||error instanceof SemanticLeaseError||error instanceof SemanticContentionError)throw error;
-  if(error instanceof QuietPublication){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end);if(current)await tx.write('briefing_requests',id,{...current,coverage,...(coverage.state!=='COMPLETE'||current.semanticCoverage?.unresolvedTargets.length?{state:'DONE',result:'DEFERRED',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP',completedAt:now()}: {})})});return undefined;}
+  if(error instanceof QuietPublication){await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id),coverage=await windowIntakeCoverage(env.DB,feedId,window.end,{start:window.start});if(current)await tx.write('briefing_requests',id,{...current,coverage,...(coverage.state!=='COMPLETE'||current.semanticCoverage?.unresolvedTargets.length?{state:'DONE',result:'DEFERRED',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'INCOMPLETE_SEMANTIC_OWNERSHIP',completedAt:now()}: {})})});return undefined;}
   if(error instanceof SettledV3CallFailure){
    // The frozen call can only replay the same failed result. Keep its receipt,
    // UNKNOWN finances (if isolated), and evidence for later windows. Never resend.
@@ -476,7 +476,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
     await feedTransact(store,id,async tx=>{
      const request=await tx.read<BriefingRequest>('briefing_requests',editionId);
      if(request?.state!=='PENDING'||!isIntakeStatus(request.reason))return;
-     const coverage=await windowIntakeCoverage(env.DB,id,window.end,intake.settings);
+     const coverage=await windowIntakeCoverage(env.DB,id,window.end,{...intake.settings,start:window.start});
      const reason=coverage.pendingJobs?intakeWaitReason:coverage.state==='INCOMPLETE'?incompleteIntakeReason:undefined;
      if(canonicalJson(request.coverage)!==canonicalJson(coverage)||request.reason!==reason)
       await tx.write('briefing_requests',editionId,{...request,coverage,reason});

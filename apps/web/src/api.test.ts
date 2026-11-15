@@ -82,3 +82,14 @@ it.each([null,[],42,'upstream error'])('handles non-object JSON error payload %j
  await expect(recommendSources('News','World')).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{id:'REQUEST_FAILED',details:{status:502}}});
  await expect(recommendSourceCandidates('News','World',vi.fn())).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{id:'REQUEST_FAILED',details:{status:502}}});
 });
+it('revalidates an unchanged feed with its ETag and reuses the payload on 304',async()=>{
+  const payload={briefing:{id:'feed'},editions:[]};
+  const fetcher=vi.fn()
+    .mockResolvedValueOnce(Response.json(payload,{headers:{ETag:'W/"7-abc"'}}))
+    .mockResolvedValueOnce(new Response(null,{status:304,headers:{ETag:'W/"7-abc"'}}));
+  vi.stubGlobal('fetch',fetcher);
+  await expect(getFeed('etag-owner','news')).resolves.toEqual(payload);
+  await expect(getFeed('etag-owner','news')).resolves.toEqual(payload);
+  const [,second]=fetcher.mock.calls[1] as [string,RequestInit];
+  expect((second.headers as Record<string,string>)['If-None-Match']).toBe('W/"7-abc"');
+});
