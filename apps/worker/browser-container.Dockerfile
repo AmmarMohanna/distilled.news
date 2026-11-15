@@ -11,6 +11,14 @@ RUN python3.12 -m venv /opt/distilled-browser-use \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir --upgrade pip==25.2 \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir browser-use==0.13.10 \
     && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'; print('browser-use', version('browser-use'))"
+# Upgrade only known vulnerable transitive Python dependencies to the
+# patched branches while retaining the audited browser-use major version.
+# pip check makes upstream incompatible pins a hard build failure.
+RUN /opt/distilled-browser-use/bin/pip install --no-cache-dir --upgrade \
+    'anyio>=4.14.2,<5' 'aiohttp>=3.14.4,<4' \
+    'pillow>=13.0.0,<14' 'pypdf>=6.21.4,<7' \
+    && /opt/distilled-browser-use/bin/pip check \
+    && /opt/distilled-browser-use/bin/python -c "import browser_use, anyio, aiohttp, PIL, pypdf; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
 # Cloudflare's registry proxy has repeatedly closed the connection on a single
 # 319 MB venv layer. Partition site-packages into smaller, reproducible layers.
 # The Google API static discovery documents are unused by ChatOpenAI and add
