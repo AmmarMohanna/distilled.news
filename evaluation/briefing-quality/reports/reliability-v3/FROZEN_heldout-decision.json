@@ -1,0 +1,48 @@
+{
+  "version": "heldout-qualification-final-v1",
+  "selectedFromLatestRosterRecords": 100,
+  "refreshedOAuth": true,
+  "initial401Preserved": true,
+  "evaluatorFrozenBefore": "2026-11-15T13:49:51.192Z",
+  "candidateWindows": 2,
+  "sourceOccurrences": 30,
+  "exactExposedSources": 0,
+  "allSourceCompletenessUnknown": true,
+  "sourceScreenSha256": "f47491cdc68f8f1b6cd8523f6c3920367424e3fe6e0b597eb5698ce58ee2f815",
+  "candidateSnapshotHashes": [
+    "c1032750733444b99427e7f8a5b39d57d872fa4f6f79c4d934af53ae0673e432",
+    "0d79a391092b78aa3a3930ef79d1720c59b667c91eef8da2da9e14e2e4698608"
+  ],
+  "adjudication": "Source-only author screening before reading candidate outputs; conservative event-thread independence, not an automated semantic certificate",
+  "decisions": [
+    {
+      "caseId": "4850dbe092f3cdd25db7d5c0cd365cd6ef77aa478c5866ec40db8c9a92269393",
+      "eligible": false,
+      "reason": "Continues exposed Beirut Bar Association election and Lebanese interior-minister Syria visit events",
+      "exposedWitnessIds": [
+        "b5dd77f7-124e-4430-bde3-08ffb7fce62b",
+        "29fb637f-5a19-4777-a659-7941556ccaa7"
+      ],
+      "currentWitnessIds": [
+        "099c48ed-bd2c-4591-9136-dd1501b3a584",
+        "0fa7d2b7-7938-41e2-a580-3bd96f89a4ed"
+      ]
+    },
+    {
+      "caseId": "24c3b8fea84aeaf237ed064b445987b373179d7972c2f5fd5a9a91eb4f52156c",
+      "eligible": false,
+      "reason": "Cannot certify whole-window event independence: Waltz Lebanon diplomacy thread exposed in an original input headline and shared with preceding new window. This is conservative uncertainty about thread independence, not proof every new story was previously exposed.",
+      "exposedWitnessIds": [
+        "75101041-3bb1-4b84-a36f-fc3bb2ae2456"
+      ],
+      "currentWitnessIds": [
+        "71b25157-aa7e-41a7-a807-b39ccdc80a6d",
+        "a47929ea-bf1f-4edc-a203-5c63bca2ca9d"
+      ]
+    }
+  ],
+  "eligibleCertifiedWholeWindows": 0,
+  "newJudgeCalls": 0,
+  "exhaustiveRealWorldRecallEligible": false,
+  "limitation": "New evidence exists and exact hashes are new. This conservative whole-window screen cannot certify event-independent held-out generalization; partial evidence separately limits recall."
+}

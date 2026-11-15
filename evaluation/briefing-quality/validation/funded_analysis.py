@@ -115,12 +115,12 @@ def main():
  report['financial']['providerReportedConfirmedUsd']=sum(json.loads(read(ROOT/'http'/(r['id']+'.json'))['body'])['usage']['cost'] for r in calls if r['state']=='SETTLED')
  report['financial']['newExposureUsd']=report['financial']['newConfirmedUsd']+report['financial']['newHeldUsd'];assert report['financial']['newExposureUsd']<=20
  report['financial']['receiptLookups']={'lookups':len(list((ROOT/'receipt-lookups').glob('*.json'))),'statusCounts':dict(collections.Counter(read(p)['status'] for p in (ROOT/'receipt-lookups').glob('*.json'))),'resolution':'404 or absent provider receipts do not prove zero cost; no original hold released or UNKNOWN operation resent'}
- report['heldout']={'executed':False,'reason':'No certified complete event-independent untouched set in retained roster. New read-only Cloudflare roster attempt failed HTTP401; old exposed cases are not relabeled held-out.'}
+ report['heldout']={'executed':False,'qualification':read(ROOT/'heldout-decision.json'),'reason':'OAuth refresh succeeded after initial401. Two new windows screened source-only: no exact source overlap, but event-thread dependence prevented whole-window independence certification. All30 source occurrences have unknown completeness; no exhaustive recall claim.'}
  # Commit audit hashes and paid receipt metadata without exposing private feeds or full evidence.
  artifacts=[]
  for p in sorted(ROOT.rglob('*')):
-  evidence_roots={'http','requests','targeted','prepared-corrections','correction-ledgers','paired-generation','paired','paired-compact','synthetic','real-source','shared-inventories','diagnostics','diagnostics-r2','receipt-lookups'}
-  evidence_files={'protocol.json','compact-protocol.json','diagnostic-cases.json','diagnostic-reference.json','diagnostic-r2-cases.json','diagnostic-r2-protocol.json','paired-packets.json','prior-reconciliation.private.json','events.jsonl'}
+  evidence_roots={'http','requests','targeted','prepared-corrections','correction-ledgers','paired-generation','paired','paired-compact','synthetic','real-source','shared-inventories','diagnostics','diagnostics-r2','receipt-lookups','heldout-screen'}
+  evidence_files={'protocol.json','compact-protocol.json','diagnostic-cases.json','diagnostic-reference.json','diagnostic-r2-cases.json','diagnostic-r2-protocol.json','paired-packets.json','prior-reconciliation.private.json','events.jsonl','heldout-decision.json','heldout-source-overlap.json','heldout-source-overlap-r2.json'}
   relative=p.relative_to(ROOT)
   if p.is_file() and p.suffix in ['.json','.jsonl'] and (relative.parts[0] in evidence_roots or relative.as_posix() in evidence_files):artifacts.append({'path':p.relative_to(ROOT).as_posix(),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size})
  (OUT/'ARTIFACT_HASHES.json').write_text(json.dumps(artifacts,indent=2)+'\n',encoding='utf8')

@@ -600,6 +600,41 @@
     "bytes": 424390
   },
   {
+    "path": "heldout-decision.json",
+    "sha256": "8b9ae8f935760c0ffb590dcb31706936f82f158de687237c509e13514d6be54a",
+    "bytes": 2265
+  },
+  {
+    "path": "heldout-screen/qualification.private.json",
+    "sha256": "e120dd719423e3319c0afe147e3686c42446ab609d2b993c92be7c439d0cc61e",
+    "bytes": 1747
+  },
+  {
+    "path": "heldout-screen/retained/1519a07000905d745a60a36a8cedf4a93a30b6aa2162ef1dd9b3d239ad3b0ae2.json",
+    "sha256": "5214a475dc5535a5cc9462e68974661302dd47d3d93867c074426ce2e036f403",
+    "bytes": 106182
+  },
+  {
+    "path": "heldout-screen/retained/2a4c794033a0dd2aa4cb38fd25e7ddf7c297a8d1f0f3b6c0c4bdd520e6cd56bf.json",
+    "sha256": "24e167ff961f2a77c62347b2e43648ddca7373b98e02d1b729ee38b021a6549e",
+    "bytes": 94792
+  },
+  {
+    "path": "heldout-screen/retained-selection-2026-11-15T15-39-02.983Z.json",
+    "sha256": "032ca9826f29381fb0cbd773bcf25285414b4d5bdca3d046c0b80c46aa702f16",
+    "bytes": 1808
+  },
+  {
+    "path": "heldout-source-overlap-r2.json",
+    "sha256": "f47491cdc68f8f1b6cd8523f6c3920367424e3fe6e0b597eb5698ce58ee2f815",
+    "bytes": 43336
+  },
+  {
+    "path": "heldout-source-overlap.json",
+    "sha256": "ed143e096f224a655eab92f38d6a8a83f74e1cb3fddd55c915f2f83fc553fb15",
+    "bytes": 49536
+  },
+  {
     "path": "http/00372cca2cae37c0407a54e102ec23982fa695e30dcce9d0d31cdfe3ebbbdb6d.json",
     "sha256": "a229a1eb069b0d937a907ba0de43f526d7b284e526eb90f4d0ccc6fa8c9b329e",
     "bytes": 1313
