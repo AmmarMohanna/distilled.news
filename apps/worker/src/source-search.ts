@@ -44,6 +44,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   if(env.SOURCE_RECOMMENDATIONS_WEB_SEARCH!=='true')return {results,unavailable:true};
   const publisherHosts=new Set(matches.filter(row=>row.aliases.some(alias=>normalize(alias)===term)).map(row=>new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname.replace(/^www\./,'')));
   const publisherQuery=matches.find(row=>row.aliases.some(alias=>normalize(alias)===term))?.title.split('·')[0].replace(/Â$/,'').trim();
+  let publisherAvailable=false,publisherOffTopic=0;
   // A known publisher can be searched through its actual article feed even
   // when the external news index is unavailable. Catalog scope is not evidence.
   if(context){
@@ -58,7 +59,11 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
         const url=prepareProductSourceInput(row.source).sourceUrl!;
         const page=await new WorkerPublicSourceFetch(url,recommendationFetch(fetcher,2500)).get(url);
         if(page.status!==200||page.authenticationRequired)return [];
-        return normalizeRssSnapshot(page.body,url).filter(item=>item.identityValid&&item.title&&item.url&&topic?.matches(item.title+' '+item.body)).slice(0,5).map(item=>({source:row.source,title:item.title!,publisher:new URL(url).hostname,articleUrl:item.url!,excerpt:item.body}));
+        const items=normalizeRssSnapshot(page.body,url).filter(item=>item.identityValid&&item.title&&item.url);
+        if(items.length)publisherAvailable=true;
+        const relevant=items.filter(item=>topic?.matches(item.title+' '+item.body));
+        publisherOffTopic+=items.length-relevant.length;
+        return relevant.slice(0,5).map(item=>({source:row.source,title:item.title!,publisher:new URL(url).hostname,articleUrl:item.url!,excerpt:item.body}));
       }catch{return [];}
     }));
     const found=sampled.flat();
@@ -66,8 +71,8 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   }
   const scopedQuery=topic&&!topic.matches(query)?`${publisherQuery??query} ${topic.hint}`:query;
   const plan=prepareProductSourceInput('news: '+scopedQuery);
-  let available=false;
-  let offTopic=0;
+  let available=publisherAvailable;
+  let offTopic=publisherOffTopic;
   const queryMatches=(title:string,excerpt:string,publisherOrigin?:string)=>matchesArticleQuery(query,title,excerpt)||(publisherOrigin!==undefined&&publisherHosts.has(new URL(publisherOrigin).hostname.replace(/^www\./,'')));
   if(env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'){
     const web=await readWebSearch(scopedQuery,fetcher,directoryCache);

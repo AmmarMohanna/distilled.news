@@ -25,7 +25,7 @@ it('searches a named publisher through readable article evidence when the extern
 it('does not substitute a publisher catalog description for topic evidence',async()=>{
  const fetcher=vi.fn<typeof fetch>(async url=>String(url)==='https://techcrunch.com/feed/'?new Response('<rss><channel><item><guid>one</guid><title>A theatre production opens</title><description>Actors perform a play.</description><link>https://techcrunch.com/play</link></item></channel></rss>'):new Response('',{status:403}));
  const found=await searchSourceCandidates(enabled,'TechCrunch',fetcher,undefined,undefined,{title:'Named Researcher',description:'Named Researcher discoveries'});
- expect(found.results).toEqual([]);
+ expect(found).toMatchObject({results:[],unavailable:false,topicMismatch:true});
 });
 it('requires the search words and feed topic in article evidence before checking access',async()=>{
  const titles=['AI workforce trends','Ammar Mohanna presents an AI project','Ammar Mohanna joins a theatre production'];
