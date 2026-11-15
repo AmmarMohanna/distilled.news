@@ -4,7 +4,7 @@
 export interface WindowIntakeCoverage {state:'COMPLETE'|'PENDING'|'INCOMPLETE';pendingJobs:number;failedJobs:number;blockedJobs?:number;deferredJobs?:number;unavailableCollections?:{id:string;title:string;count:number}[];failures:{kind:string;code:string;count:number}[]}
 /** Cutoff editions defer unfinished intake for their own window. Retained
  * inputs keep the original capacity and verified-delivery exceptions. */
-export interface IntakeDeadlineOptions {v3?:boolean;now?:string;deferAcquisition?:boolean;deferIntake?:boolean}
+export interface IntakeDeadlineOptions {v3?:boolean;now?:string;start?:string;deferAcquisition?:boolean;deferIntake?:boolean}
 
 const kind="json_extract(j.json,'$.kind')";
 const state="json_extract(j.json,'$.state')";
@@ -17,12 +17,13 @@ const capacityWait=`${kind}='ACQUIRE' AND ${state}='PENDING' AND ${code}='BACKPR
  AND ${detail} IN ('HELPER_LOCAL_CAPACITY_BUSY','HELPER_GLOBAL_CAPACITY_BUSY','HELPER_HTTP_RATE_LIMIT')
  AND julianday(${observedAt}) IS NOT NULL
  AND (${leaseUntil} IS NULL OR julianday(${leaseUntil})<=julianday(?))`;
-const windowJobs=`FROM v1_intake_scopes s
+const windowJobs=(start?:string)=>`FROM v1_intake_scopes s
  CROSS JOIN v1_jobs j ON j.feed_source_id=s.id
  LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id
  WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL
  AND ${kind} IN ('ACQUIRE','REASSESS')
- AND (${observedAt} IS NULL OR julianday(${observedAt})<julianday(?))`;
+ AND (${observedAt} IS NULL OR julianday(${observedAt})<julianday(?))
+ ${start?`AND (${observedAt} IS NULL OR julianday(${observedAt})>=julianday(?))`:''}`;
 const passedDeadline=(settings:IntakeDeadlineOptions,end:string)=>
  settings.v3&&Date.parse(settings.now??'')>=Date.parse(end)+5*60000;
 
@@ -31,13 +32,13 @@ const passedDeadline=(settings:IntakeDeadlineOptions,end:string)=>
 export async function windowHasHoldingJobs(db:D1Database,feedId:string,end:string,settings:IntakeDeadlineOptions={}):Promise<boolean>{
  if(settings.v3&&settings.deferIntake)return false;
  const afterDeadline=passedDeadline(settings,end);
- const row=await db.prepare(`SELECT 1 ${windowJobs}
+ const row=await db.prepare(`SELECT 1 ${windowJobs(settings.start)}
   AND ${state} IN ('PENDING','RUNNING') AND ${exhausted}=0
   AND NOT (${state}='PENDING' AND ${detail}='ARTICLE_PROVIDER_RECONCILIATION_WAIT')
   AND NOT (${kind}='ACQUIRE' AND ${state}='PENDING' AND ${code}='BUDGET_EXHAUSTED')
   ${settings.deferAcquisition?`AND ${kind}<>'ACQUIRE'`:''}
   ${afterDeadline?`AND NOT COALESCE((${capacityWait}),0)`:''}
-  LIMIT 1`).bind(feedId,end,...(afterDeadline?[settings.now]:[])).first();
+  LIMIT 1`).bind(feedId,end,...(settings.start?[settings.start]:[]),...(afterDeadline?[settings.now]:[])).first();
  return Boolean(row);
 }
 
@@ -46,10 +47,10 @@ export async function windowIntakeCoverage(db:D1Database,feedId:string,end:strin
  const rows=await db.prepare(`
   SELECT ${kind} kind,${state} state,${exhausted} exhausted,${code} code,${detail} detail,
    CASE WHEN ${capacityWait} THEN 1 ELSE 0 END capacityWait,COUNT(*) n
-  ${windowJobs}
+  ${windowJobs(settings.start)}
   AND ${state} IN ('PENDING','RUNNING','FAILED')
   GROUP BY kind,state,exhausted,code,detail,capacityWait ORDER BY kind,state,exhausted,code
- `).bind(settings.now??end,feedId,end).all<{kind:string;state:string;exhausted:number;code:string;detail:string;capacityWait:number;n:number}>();
+ `).bind(settings.now??end,feedId,end,...(settings.start?[settings.start]:[])).all<{kind:string;state:string;exhausted:number;code:string;detail:string;capacityWait:number;n:number}>();
  let pendingJobs=0,failedJobs=0,blockedJobs=0,deferredJobs=0;
  const failures:WindowIntakeCoverage['failures']=[];
  const afterDeadline=passedDeadline(settings,end);
