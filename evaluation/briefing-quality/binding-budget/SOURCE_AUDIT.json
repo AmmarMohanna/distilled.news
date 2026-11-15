@@ -1,0 +1,239 @@
+{
+  "version": "source-only-binding-audit-v1",
+  "manifestHash": "118b28d555a5323880a8c9fc1821bdb225ddd5150b426e7d8a8a90a03e5d5ca1",
+  "status": "qualified-constructed-controls",
+  "sourceOnly": true,
+  "candidateOutputsSeen": false,
+  "newInferenceCalls": 0,
+  "scope": "Source-derived scalar equivalence, reader-history identities and aggressive compact-tuple pressure checked. Generator/action translation templates separately reviewed; only fictional operational controls, not natural-news certification.",
+  "validation": {
+    "valid": true,
+    "cases": 24,
+    "eventGroups": 6,
+    "families": 3,
+    "active": 18,
+    "quiet": 6,
+    "newInferenceCalls": 0,
+    "finalHeldoutCases": 0,
+    "qualification": "Constructed manifest integrity validated; source-only semantic audit and binding compression challenge remain mandatory before inference"
+  },
+  "rows": [
+    {
+      "id": "services-development-w0",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "services authority 2026-09-10: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/350/Mira Haddad/de1382c1/1651Z; 2/588/Rana Mansour/2ed95bd6/1613Z; 3/785/Lina Nasser/9dede3f1/1434Z; 4/135/Nour Farah/ef0b8422/1924Z; 5/536/Hala Salim/671222c4/1743Z; 6/738/Dina Khalil/4e68cd56/1805Z; 7/475/Sara Fares/95abe67f/1454Z; 8/561/Reem Daher/0a6bbae2/1704Z; 9/278/Maya Habib/0b7c4347/1959Z; 10/273/Nada Hobeika/cca22189/1623Z; 11/552/Rita Saad/d2ea1a87/1421Z; 12/771/Lara Assaf/1763d358/1438Z; 13/389/Hiba Tabet/e4bafd5c/1952Z; 14/616/Mona Najjar/dd6eaa27/1727Z; 15/218/Tala Ghosn/306ce159/1826Z; 16/82/Aya Rahal/f99294cc/1424Z; 17/831/Raya Daher/28d73669/1442Z; 18/694/Nina Aoun/6b2fcb6a/1903Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "services-development-w1",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "services authority 2026-09-11: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/821/Mira Haddad/de1382c1/1651Z; 2/871/Rana Mansour/2ed95bd6/1613Z; 3/616/Lina Nasser/9dede3f1/1434Z; 4/470/Nour Farah/ef0b8422/1924Z; 5/632/Hala Salim/671222c4/1743Z; 6/690/Dina Khalil/4e68cd56/1805Z; 7/321/Sara Fares/95abe67f/1454Z; 8/60/Reem Daher/0a6bbae2/1704Z; 9/864/Maya Habib/0b7c4347/1959Z; 10/320/Nada Hobeika/cca22189/1623Z; 11/455/Rita Saad/d2ea1a87/1421Z; 12/622/Lara Assaf/1763d358/1438Z; 13/213/Hiba Tabet/e4bafd5c/1952Z; 14/291/Mona Najjar/dd6eaa27/1727Z; 15/822/Tala Ghosn/306ce159/1826Z; 16/606/Aya Rahal/f99294cc/1424Z; 17/717/Raya Daher/28d73669/1442Z; 18/51/Nina Aoun/6b2fcb6a/1903Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "services-development-w2",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "services authority 2026-09-12: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/747/Mira Haddad/de1382c1/1651Z; 2/354/Rana Mansour/2ed95bd6/1613Z; 3/452/Lina Nasser/9dede3f1/1434Z; 4/684/Nour Farah/ef0b8422/1924Z; 5/165/Hala Salim/671222c4/1743Z; 6/110/Dina Khalil/4e68cd56/1805Z; 7/603/Sara Fares/95abe67f/1454Z; 8/696/Reem Daher/0a6bbae2/1704Z; 9/105/Maya Habib/0b7c4347/1959Z; 10/341/Nada Hobeika/cca22189/1623Z; 11/382/Rita Saad/d2ea1a87/1421Z; 12/479/Lara Assaf/1763d358/1438Z; 13/837/Hiba Tabet/e4bafd5c/1952Z; 14/857/Mona Najjar/dd6eaa27/1727Z; 15/645/Tala Ghosn/306ce159/1826Z; 16/637/Aya Rahal/f99294cc/1424Z; 17/461/Raya Daher/28d73669/1442Z; 18/500/Nina Aoun/6b2fcb6a/1903Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "services-development-w3",
+      "kind": "quiet",
+      "knownFacts": 3,
+      "sourceOnly": true
+    },
+    {
+      "id": "services-validation-w0",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "services authority 2026-09-11: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/94/Mira Haddad/e1a80f16/1854Z; 2/729/Rana Mansour/3944fa8f/1823Z; 3/474/Lina Nasser/5de28383/1458Z; 4/465/Nour Farah/4ab6fc58/1534Z; 5/227/Hala Salim/06999e7a/1446Z; 6/403/Dina Khalil/a7879413/1422Z; 7/633/Sara Fares/614aeb22/1604Z; 8/81/Reem Daher/d3295022/1508Z; 9/436/Maya Habib/f42acf42/1859Z; 10/883/Nada Hobeika/9cdbf717/1959Z; 11/82/Rita Saad/6c9b870b/1844Z; 12/114/Lara Assaf/1b173b21/1730Z; 13/816/Hiba Tabet/334c3a8f/1612Z; 14/802/Mona Najjar/f781cf4f/1704Z; 15/252/Tala Ghosn/a18e6dbf/1407Z; 16/212/Aya Rahal/0e8736af/1911Z; 17/537/Raya Daher/58938a77/1631Z; 18/557/Nina Aoun/c2797b5d/1737Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "services-validation-w1",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "services authority 2026-09-12: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/584/Mira Haddad/e1a80f16/1854Z; 2/490/Rana Mansour/3944fa8f/1823Z; 3/664/Lina Nasser/5de28383/1458Z; 4/62/Nour Farah/4ab6fc58/1534Z; 5/496/Hala Salim/06999e7a/1446Z; 6/551/Dina Khalil/a7879413/1422Z; 7/816/Sara Fares/614aeb22/1604Z; 8/68/Reem Daher/d3295022/1508Z; 9/610/Maya Habib/f42acf42/1859Z; 10/386/Nada Hobeika/9cdbf717/1959Z; 11/530/Rita Saad/6c9b870b/1844Z; 12/489/Lara Assaf/1b173b21/1730Z; 13/696/Hiba Tabet/334c3a8f/1612Z; 14/706/Mona Najjar/f781cf4f/1704Z; 15/869/Tala Ghosn/a18e6dbf/1407Z; 16/585/Aya Rahal/0e8736af/1911Z; 17/840/Raya Daher/58938a77/1631Z; 18/758/Nina Aoun/c2797b5d/1737Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "services-validation-w2",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "services authority 2026-09-13: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/312/Mira Haddad/e1a80f16/1854Z; 2/529/Rana Mansour/3944fa8f/1823Z; 3/550/Lina Nasser/5de28383/1458Z; 4/263/Nour Farah/4ab6fc58/1534Z; 5/512/Hala Salim/06999e7a/1446Z; 6/752/Dina Khalil/a7879413/1422Z; 7/637/Sara Fares/614aeb22/1604Z; 8/547/Reem Daher/d3295022/1508Z; 9/724/Maya Habib/f42acf42/1859Z; 10/712/Nada Hobeika/9cdbf717/1959Z; 11/71/Rita Saad/6c9b870b/1844Z; 12/590/Lara Assaf/1b173b21/1730Z; 13/277/Hiba Tabet/334c3a8f/1612Z; 14/440/Mona Najjar/f781cf4f/1704Z; 15/75/Tala Ghosn/a18e6dbf/1407Z; 16/601/Aya Rahal/0e8736af/1911Z; 17/617/Raya Daher/58938a77/1631Z; 18/162/Nina Aoun/c2797b5d/1737Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "services-validation-w3",
+      "kind": "quiet",
+      "knownFacts": 3,
+      "sourceOnly": true
+    },
+    {
+      "id": "research-development-w0",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 414,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "research authority 2026-09-10: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/347/Mira Haddad/a91e8feb/1652Z; 2/443/Rana Mansour/26a9eaa1/1907Z; 3/452/Lina Nasser/af4c79d0/1946Z; 4/364/Nour Farah/57cd7106/1930Z; 5/304/Hala Salim/bf958c42/1829Z; 6/131/Dina Khalil/e8e21261/1859Z; 7/374/Sara Fares/a18f58b3/1855Z; 8/644/Reem Daher/6ab9d37c/1724Z; 9/320/Maya Habib/56b78180/1655Z; 10/628/Nada Hobeika/007acecb/1437Z; 11/654/Rita Saad/bdff6a03/1732Z; 12/616/Lara Assaf/37be21ea/1953Z; 13/178/Hiba Tabet/85faffe1/1524Z; 14/669/Mona Najjar/a9e85725/1827Z; 15/712/Tala Ghosn/ca092a9e/1659Z; 16/163/Aya Rahal/5a58945f/1843Z; 17/403/Raya Daher/b1bc1d70/1943Z; 18/428/Nina Aoun/c0eb1f36/1535Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "research-development-w1",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 414,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "research authority 2026-09-11: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/170/Mira Haddad/a91e8feb/1652Z; 2/196/Rana Mansour/26a9eaa1/1907Z; 3/645/Lina Nasser/af4c79d0/1946Z; 4/450/Nour Farah/57cd7106/1930Z; 5/812/Hala Salim/bf958c42/1829Z; 6/634/Dina Khalil/e8e21261/1859Z; 7/302/Sara Fares/a18f58b3/1855Z; 8/490/Reem Daher/6ab9d37c/1724Z; 9/718/Maya Habib/56b78180/1655Z; 10/358/Nada Hobeika/007acecb/1437Z; 11/352/Rita Saad/bdff6a03/1732Z; 12/358/Lara Assaf/37be21ea/1953Z; 13/137/Hiba Tabet/85faffe1/1524Z; 14/134/Mona Najjar/a9e85725/1827Z; 15/673/Tala Ghosn/ca092a9e/1659Z; 16/562/Aya Rahal/5a58945f/1843Z; 17/331/Raya Daher/b1bc1d70/1943Z; 18/874/Nina Aoun/c0eb1f36/1535Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "research-development-w2",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 414,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "research authority 2026-09-12: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/608/Mira Haddad/a91e8feb/1652Z; 2/140/Rana Mansour/26a9eaa1/1907Z; 3/405/Lina Nasser/af4c79d0/1946Z; 4/394/Nour Farah/57cd7106/1930Z; 5/288/Hala Salim/bf958c42/1829Z; 6/428/Dina Khalil/e8e21261/1859Z; 7/837/Sara Fares/a18f58b3/1855Z; 8/263/Reem Daher/6ab9d37c/1724Z; 9/163/Maya Habib/56b78180/1655Z; 10/300/Nada Hobeika/007acecb/1437Z; 11/184/Rita Saad/bdff6a03/1732Z; 12/92/Lara Assaf/37be21ea/1953Z; 13/792/Hiba Tabet/85faffe1/1524Z; 14/173/Mona Najjar/a9e85725/1827Z; 15/173/Tala Ghosn/ca092a9e/1659Z; 16/142/Aya Rahal/5a58945f/1843Z; 17/696/Raya Daher/b1bc1d70/1943Z; 18/803/Nina Aoun/c0eb1f36/1535Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "research-development-w3",
+      "kind": "quiet",
+      "knownFacts": 3,
+      "sourceOnly": true
+    },
+    {
+      "id": "research-validation-w0",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 414,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "research authority 2026-09-11: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/596/Mira Haddad/b88eb401/1708Z; 2/306/Rana Mansour/1cdd3a13/1617Z; 3/757/Lina Nasser/873a63ce/1529Z; 4/463/Nour Farah/9afe02c7/1436Z; 5/473/Hala Salim/83cb6f3b/1923Z; 6/809/Dina Khalil/6f0a8968/1836Z; 7/678/Sara Fares/de98b280/1554Z; 8/258/Reem Daher/b55c5f71/1812Z; 9/147/Maya Habib/d30300a3/1507Z; 10/573/Nada Hobeika/3336fdb2/1908Z; 11/497/Rita Saad/0e6cf216/1949Z; 12/661/Lara Assaf/afb1adab/1959Z; 13/799/Hiba Tabet/be0d16f1/1906Z; 14/829/Mona Najjar/c806d277/1720Z; 15/128/Tala Ghosn/bcacfe1d/1538Z; 16/131/Aya Rahal/2a664dd6/1543Z; 17/119/Raya Daher/d7fadf8d/1438Z; 18/101/Nina Aoun/bd4cefed/1645Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "research-validation-w1",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 414,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "research authority 2026-09-12: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/110/Mira Haddad/b88eb401/1708Z; 2/356/Rana Mansour/1cdd3a13/1617Z; 3/853/Lina Nasser/873a63ce/1529Z; 4/304/Nour Farah/9afe02c7/1436Z; 5/631/Hala Salim/83cb6f3b/1923Z; 6/172/Dina Khalil/6f0a8968/1836Z; 7/609/Sara Fares/de98b280/1554Z; 8/301/Reem Daher/b55c5f71/1812Z; 9/90/Maya Habib/d30300a3/1507Z; 10/287/Nada Hobeika/3336fdb2/1908Z; 11/510/Rita Saad/0e6cf216/1949Z; 12/299/Lara Assaf/afb1adab/1959Z; 13/342/Hiba Tabet/be0d16f1/1906Z; 14/63/Mona Najjar/c806d277/1720Z; 15/445/Tala Ghosn/bcacfe1d/1538Z; 16/179/Aya Rahal/2a664dd6/1543Z; 17/363/Raya Daher/d7fadf8d/1438Z; 18/800/Nina Aoun/bd4cefed/1645Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "research-validation-w2",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 414,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "research authority 2026-09-13: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/66/Mira Haddad/b88eb401/1708Z; 2/642/Rana Mansour/1cdd3a13/1617Z; 3/663/Lina Nasser/873a63ce/1529Z; 4/397/Nour Farah/9afe02c7/1436Z; 5/112/Hala Salim/83cb6f3b/1923Z; 6/640/Dina Khalil/6f0a8968/1836Z; 7/271/Sara Fares/de98b280/1554Z; 8/266/Reem Daher/b55c5f71/1812Z; 9/175/Maya Habib/d30300a3/1507Z; 10/851/Nada Hobeika/3336fdb2/1908Z; 11/290/Rita Saad/0e6cf216/1949Z; 12/189/Lara Assaf/afb1adab/1959Z; 13/317/Hiba Tabet/be0d16f1/1906Z; 14/149/Mona Najjar/c806d277/1720Z; 15/520/Tala Ghosn/bcacfe1d/1538Z; 16/700/Aya Rahal/2a664dd6/1543Z; 17/575/Raya Daher/d7fadf8d/1438Z; 18/444/Nina Aoun/bd4cefed/1645Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "research-validation-w3",
+      "kind": "quiet",
+      "knownFacts": 3,
+      "sourceOnly": true
+    },
+    {
+      "id": "transport-development-w0",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "transport authority 2026-09-10: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/125/Mira Haddad/39eeee42/1923Z; 2/563/Rana Mansour/030b7b0e/1924Z; 3/575/Lina Nasser/301de65e/1754Z; 4/103/Nour Farah/55039d31/1528Z; 5/535/Hala Salim/70d09db9/1905Z; 6/271/Dina Khalil/ab487f9f/1539Z; 7/820/Sara Fares/ffc090d8/1711Z; 8/425/Reem Daher/ef47696b/1540Z; 9/864/Maya Habib/2fca9391/1448Z; 10/682/Nada Hobeika/e6fbff76/1913Z; 11/339/Rita Saad/794bae4a/1858Z; 12/748/Lara Assaf/6184fdb4/1424Z; 13/408/Hiba Tabet/ef4b57b7/1646Z; 14/703/Mona Najjar/bfd42bac/1806Z; 15/369/Tala Ghosn/975b98ec/1701Z; 16/319/Aya Rahal/b0556aa3/1840Z; 17/91/Raya Daher/c3d35986/1820Z; 18/453/Nina Aoun/78b27074/1508Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "transport-development-w1",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "transport authority 2026-09-11: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/113/Mira Haddad/39eeee42/1923Z; 2/729/Rana Mansour/030b7b0e/1924Z; 3/611/Lina Nasser/301de65e/1754Z; 4/125/Nour Farah/55039d31/1528Z; 5/261/Hala Salim/70d09db9/1905Z; 6/837/Dina Khalil/ab487f9f/1539Z; 7/887/Sara Fares/ffc090d8/1711Z; 8/580/Reem Daher/ef47696b/1540Z; 9/195/Maya Habib/2fca9391/1448Z; 10/45/Nada Hobeika/e6fbff76/1913Z; 11/442/Rita Saad/794bae4a/1858Z; 12/575/Lara Assaf/6184fdb4/1424Z; 13/251/Hiba Tabet/ef4b57b7/1646Z; 14/609/Mona Najjar/bfd42bac/1806Z; 15/100/Tala Ghosn/975b98ec/1701Z; 16/627/Aya Rahal/b0556aa3/1840Z; 17/367/Raya Daher/c3d35986/1820Z; 18/369/Nina Aoun/78b27074/1508Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "transport-development-w2",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "transport authority 2026-09-12: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/372/Mira Haddad/39eeee42/1923Z; 2/715/Rana Mansour/030b7b0e/1924Z; 3/773/Lina Nasser/301de65e/1754Z; 4/378/Nour Farah/55039d31/1528Z; 5/182/Hala Salim/70d09db9/1905Z; 6/355/Dina Khalil/ab487f9f/1539Z; 7/612/Sara Fares/ffc090d8/1711Z; 8/564/Reem Daher/ef47696b/1540Z; 9/445/Maya Habib/2fca9391/1448Z; 10/751/Nada Hobeika/e6fbff76/1913Z; 11/74/Rita Saad/794bae4a/1858Z; 12/393/Lara Assaf/6184fdb4/1424Z; 13/320/Hiba Tabet/ef4b57b7/1646Z; 14/329/Mona Najjar/bfd42bac/1806Z; 15/656/Tala Ghosn/975b98ec/1701Z; 16/131/Aya Rahal/b0556aa3/1840Z; 17/481/Raya Daher/c3d35986/1820Z; 18/481/Nina Aoun/78b27074/1508Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "transport-development-w3",
+      "kind": "quiet",
+      "knownFacts": 3,
+      "sourceOnly": true
+    },
+    {
+      "id": "transport-validation-w0",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "transport authority 2026-09-11: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/786/Mira Haddad/8b568e78/1943Z; 2/648/Rana Mansour/5425ab73/1833Z; 3/456/Lina Nasser/fe433c18/1709Z; 4/877/Nour Farah/980802a5/1941Z; 5/800/Hala Salim/86f85172/1938Z; 6/514/Dina Khalil/d7d24b72/1933Z; 7/378/Sara Fares/abde0d04/1830Z; 8/447/Reem Daher/34ec4d66/1731Z; 9/272/Maya Habib/b8836f38/1531Z; 10/673/Nada Hobeika/7f3f2782/1906Z; 11/482/Rita Saad/ff7b74ff/1812Z; 12/410/Lara Assaf/ef3b62a8/1816Z; 13/760/Hiba Tabet/e1427718/1821Z; 14/450/Mona Najjar/8ce204b4/1417Z; 15/85/Tala Ghosn/4dc8ba2c/1405Z; 16/276/Aya Rahal/d0b54a53/1813Z; 17/586/Raya Daher/128eac11/1950Z; 18/222/Nina Aoun/31e9ab4b/1453Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "transport-validation-w1",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "transport authority 2026-09-12: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/604/Mira Haddad/8b568e78/1943Z; 2/391/Rana Mansour/5425ab73/1833Z; 3/322/Lina Nasser/fe433c18/1709Z; 4/402/Nour Farah/980802a5/1941Z; 5/359/Hala Salim/86f85172/1938Z; 6/603/Dina Khalil/d7d24b72/1933Z; 7/298/Sara Fares/abde0d04/1830Z; 8/891/Reem Daher/34ec4d66/1731Z; 9/758/Maya Habib/b8836f38/1531Z; 10/181/Nada Hobeika/7f3f2782/1906Z; 11/521/Rita Saad/ff7b74ff/1812Z; 12/61/Lara Assaf/ef3b62a8/1816Z; 13/364/Hiba Tabet/e1427718/1821Z; 14/58/Mona Najjar/8ce204b4/1417Z; 15/266/Tala Ghosn/4dc8ba2c/1405Z; 16/666/Aya Rahal/d0b54a53/1813Z; 17/721/Raya Daher/128eac11/1950Z; 18/835/Nina Aoun/31e9ab4b/1453Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "transport-validation-w2",
+      "kind": "active",
+      "eligible": 18,
+      "conciseProseWords": 396,
+      "sharedHeaderMatrixWords": 125,
+      "overBudget": 15,
+      "challengeText": "transport authority 2026-09-13: facility/count/inspector/permit/sign-by UTC; action and any correction must also remain explicit. 1/442/Mira Haddad/8b568e78/1943Z; 2/290/Rana Mansour/5425ab73/1833Z; 3/394/Lina Nasser/fe433c18/1709Z; 4/860/Nour Farah/980802a5/1941Z; 5/284/Hala Salim/86f85172/1938Z; 6/356/Dina Khalil/d7d24b72/1933Z; 7/79/Sara Fares/abde0d04/1830Z; 8/537/Reem Daher/34ec4d66/1731Z; 9/664/Maya Habib/b8836f38/1531Z; 10/750/Nada Hobeika/7f3f2782/1906Z; 11/860/Rita Saad/ff7b74ff/1812Z; 12/451/Lara Assaf/ef3b62a8/1816Z; 13/236/Hiba Tabet/e1427718/1821Z; 14/333/Mona Najjar/8ce204b4/1417Z; 15/783/Tala Ghosn/4dc8ba2c/1405Z; 16/335/Aya Rahal/d0b54a53/1813Z; 17/667/Raya Daher/128eac11/1950Z; 18/237/Nina Aoun/31e9ab4b/1453Z",
+      "limitation": "Aggressive matrix still omits per-row action changes/correction old quantities; not a universal minimum-length proof. No source aliases, full names or essential permit conditions were silently removed."
+    },
+    {
+      "id": "transport-validation-w3",
+      "kind": "quiet",
+      "knownFacts": 3,
+      "sourceOnly": true
+    }
+  ],
+  "stop": "If a later independent source-only rendering fits all full-meaning facts naturally within110, withdraw binding qualification and version/rebuild before any candidate output; do not preserve a favorable label."
+}

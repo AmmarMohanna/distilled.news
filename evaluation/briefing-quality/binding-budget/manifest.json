@@ -17,7 +17,7 @@
     "openai/gpt-4.1",
     "anthropic/claude-sonnet-4.5"
   ],
-  "casesSha256": "62718c76473fda5ab4892593a228a1d682ef7e1d46e9c50de92b406dc3a627da",
+  "casesSha256": "04bc3fe378051506a07d0f791d910a74c0d2702048bff33373e1a449cee4cb67",
   "cases": [
     {
       "id": "services-development-w0",
@@ -34,7 +34,7 @@
     },
     {
       "id": "services-development-w1",
-      "inputHash": "b2b3ef2e2725fddbf8e8929ab2d0219759effd46a2923ee99673091365458442",
+      "inputHash": "2d1193de9718d13a0eca1116804df94dad1f4f4b5e5d28dc33678fa2dc2c08a6",
       "eventGroup": "services-development",
       "split": "development",
       "pressure": {
@@ -47,7 +47,7 @@
     },
     {
       "id": "services-development-w2",
-      "inputHash": "b23091384e1849222024fddacac53d409bf67eb30b8682dd5bdc9d5250a60190",
+      "inputHash": "7c9b3598278cb98692138d172a0dea8a5f85336aed2b1c03ca41fb7743800fad",
       "eventGroup": "services-development",
       "split": "development",
       "pressure": {
@@ -86,7 +86,7 @@
     },
     {
       "id": "services-validation-w1",
-      "inputHash": "ec266dcdc45fa24920117087b7b4b204c1da884feda1c9c4cffca9ff268b0103",
+      "inputHash": "e09c9fcfe4d1c12faab5c9a347fa35d45aa6d105d2a76095f8c989575367dd3b",
       "eventGroup": "services-validation",
       "split": "validation",
       "pressure": {
@@ -99,7 +99,7 @@
     },
     {
       "id": "services-validation-w2",
-      "inputHash": "48911cdc1bf8378ce301fadca68ac000c411e940c4b0f822524902c74197ea7c",
+      "inputHash": "fc1224496be3558c99b5165d59365299e8d29168bd044b1c9e00fdb01b7bb273",
       "eventGroup": "services-validation",
       "split": "validation",
       "pressure": {
@@ -138,7 +138,7 @@
     },
     {
       "id": "research-development-w1",
-      "inputHash": "bca1652adb46e91efe92a0f578d749c1fe924ba6f042b1e787c6b72a727218ca",
+      "inputHash": "a52859a009952d32e7cab075ae49d09ba52365434abdaa43af036a48a2b8ff45",
       "eventGroup": "research-development",
       "split": "development",
       "pressure": {
@@ -151,7 +151,7 @@
     },
     {
       "id": "research-development-w2",
-      "inputHash": "2fd50de3e14a808f01206c0ac5d920390f844a679f1e32a0c3f3e4deeca719ec",
+      "inputHash": "4a2df21136cadb43d52c5f7106b4a953848c33487e0a7268a8e503c732213c43",
       "eventGroup": "research-development",
       "split": "development",
       "pressure": {
@@ -190,7 +190,7 @@
     },
     {
       "id": "research-validation-w1",
-      "inputHash": "4ab2c0f8f6f77776a260e814348b7c21030514f6656959d0ce1092b0e43f8a14",
+      "inputHash": "c2e28ac895f2e911a1b0ea2d7c0a286bbc0570375f2d93a021dedf056ba07fbd",
       "eventGroup": "research-validation",
       "split": "validation",
       "pressure": {
@@ -203,7 +203,7 @@
     },
     {
       "id": "research-validation-w2",
-      "inputHash": "2561bc3f35124cafc6b99e8f95c466fc5928cb3f8c69a8bda7acdfaa046c23f7",
+      "inputHash": "c2e28448db61037955599a13835fac45841a1a0de7950f7f518f2c465eac54fe",
       "eventGroup": "research-validation",
       "split": "validation",
       "pressure": {
@@ -242,7 +242,7 @@
     },
     {
       "id": "transport-development-w1",
-      "inputHash": "bde1b197fe8281c733195615596153d09f2ac49065958cb59479d160b25ef2eb",
+      "inputHash": "5b2ae3f1644e4dea3c5938fbc14bdb077cf50f66de11ce2310a7140dfb851561",
       "eventGroup": "transport-development",
       "split": "development",
       "pressure": {
@@ -255,7 +255,7 @@
     },
     {
       "id": "transport-development-w2",
-      "inputHash": "91248b0f43181cd02effd1b0a13a94c090cae02053b66961ecf34785599df57b",
+      "inputHash": "b23f976cd7aa278b2aa59caca0d81f4698f06f98ccafb1b5456cfe7ad53c777f",
       "eventGroup": "transport-development",
       "split": "development",
       "pressure": {
@@ -294,7 +294,7 @@
     },
     {
       "id": "transport-validation-w1",
-      "inputHash": "835cc7e83aeac31d14a3712cd76da8cc7481be268f9ee1406882138b9bd7db0a",
+      "inputHash": "145ece678920d27f819c62b852a1b9e81ad9c08dafba89683979a61702196cf0",
       "eventGroup": "transport-validation",
       "split": "validation",
       "pressure": {
@@ -307,7 +307,7 @@
     },
     {
       "id": "transport-validation-w2",
-      "inputHash": "18d61346e5eab3f97d93ab5942164ae9a839f60222b4a7949a86d38f724530e8",
+      "inputHash": "9216183727a6ee3abf2b865620f9cb3091ad71718e5163cf91f6e2bc0e840d47",
       "eventGroup": "transport-validation",
       "split": "validation",
       "pressure": {
@@ -339,9 +339,12 @@
     "packages/briefing/src/evidence-tools.ts": "b144ee318b50c476169399883bb9a435dc3474680e429557d8614e34b5faf009",
     "packages/briefing/src/source-wire.ts": "473011250bf98dde24e2c3ac5257b90cb6b506be09800d583d48e94234495be9",
     "packages/briefing/src/value-policy.ts": "ed2c6ec2b8a432f1e4dc3437f07f07fd2bf04c192c0c1ae907a77c7bc2a4235a",
-    "evaluation/briefing-quality/binding-budget/run.ts": "c8881d068ea394952faa40b510ddd4feb4beefdd4c9418b41e22a69dedda593e",
+    "evaluation/briefing-quality/binding-budget/run.ts": "1911098d66843ca1bf16c48d718a50e43db84ac3364ff68f6d97ffa9ac0a41d1",
     "evaluation/briefing-quality/binding-budget/validate.ts": "bf60704d2f645f309008a04e642451a576bd215afbe42d191a0df32f7119e1e4",
-    "evaluation/briefing-quality/binding-budget/preflight.ts": "b8278276611dac79e115bd5a8516af725c0866dff8ef5f21760a21892d3f0464"
+    "evaluation/briefing-quality/binding-budget/preflight.ts": "4afa4ae214a6ed038034e3c211061aa163d3a07aeac092b4f35893b4085c2e02",
+    "evaluation/briefing-quality/binding-budget/source-audit.ts": "f587173b4f39860dedcf6b27e7626d24902a15dbe21e8ef78fe98c59e7ba0236",
+    "evaluation/briefing-quality/binding-budget/PROTOCOL.md": "79d8e659436e0af65e5fb464e89a642d2bddc5802c0c7a83fc5baf917db39274",
+    "evaluation/briefing-quality/engine-value/PREREGISTRATION.md": "00c7f91d60634729a9641d52887834c84ee98ad3d46bde7324ceebbaf57a7431"
   },
   "finalSplit": "Not enrolled. Freeze distinct real-event families only after development/validation pass and independent source-only qualification; no population claim from these fictional templates.",
   "financialApproval": null

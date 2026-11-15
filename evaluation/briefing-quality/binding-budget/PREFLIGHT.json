@@ -1,5 +1,10 @@
 {
-  "protocolHash": "a7bbc778597bde06fa74b54e31ace433488d19fc11105b2346792183f01ad96d",
+  "protocolHash": "118b28d555a5323880a8c9fc1821bdb225ddd5150b426e7d8a8a90a03e5d5ca1",
+  "sourceQualification": {
+    "status": "qualified-constructed-controls",
+    "reportHash": "9893c18273e9e29df53f96d65d4984844e49d0796f659b76e6234cbf7fcfd6c6",
+    "scope": "Constructed controls only, no natural-news or population certification"
+  },
   "validation": {
     "valid": true,
     "cases": 24,
