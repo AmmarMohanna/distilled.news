@@ -15,7 +15,10 @@ export function sameArticleUrl(left:string,right:string):boolean {
  const normalize=(value:string)=>{
   const url=new URL(value);if(url.username||url.password||!['https:','http:'].includes(url.protocol))throw Error('INVALID_ARTICLE_URL');
   url.hash='';
-  for(const key of [...url.searchParams.keys()])if(/^utm_/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source'].includes(key.toLowerCase()))url.searchParams.delete(key);
+  const bbc=['bbc.co.uk','www.bbc.co.uk','bbc.com','www.bbc.com'].includes(url.hostname);
+  // BBC RSS links carry these attribution parameters; their article canonical
+  // omits them. Compare only: retained URLs and operation identities stay intact.
+  for(const key of [...url.searchParams.keys()])if(/^utm_/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source'].includes(key.toLowerCase())||(bbc&&['at_medium','at_campaign'].includes(key.toLowerCase())))url.searchParams.delete(key);
   normalizePublisherArticlePath(url);
   return url.href;
  };
