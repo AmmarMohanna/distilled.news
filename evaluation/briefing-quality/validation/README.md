@@ -39,6 +39,21 @@ evidence abstain. Short headlines may remain unknown. No threshold was tuned
 to improve an observed benchmark score; tests exposed the detector's short-text
 uncertainty before development revalidation.
 
+Independent code review added two regression fixes. Arabic script alone cannot
+establish narration: absent a syntactic/news cue, even a long Arabic list of
+proper names abstains. A consistency correction now preserves both original
+and replacement raw replies. Clearing any prior adverse/uncertain claim,
+development or item assessment requires an explicit source-grounded
+`CORRECTION_RECONSIDERED:<key>` limitations entry; otherwise the correction
+fails. This records reconsideration rather than proving its semantic validity.
+The original raw response remains available for auditing claim meaning.
+
+The post-review zero-call results are retained separately in
+`OFFLINE_REVALIDATION_R2.json`; the first diagnostic is not overwritten. Use
+`revalidate.ts r2` to reproduce that revision. The detector classifies 19/24
+eligible synthetic language packets and abstains on five, plus 4/6 real-source
+controls with two abstentions. Full-model completion counts are unchanged.
+
 The older protocol and result history follows.
 
 Earlier observations are in

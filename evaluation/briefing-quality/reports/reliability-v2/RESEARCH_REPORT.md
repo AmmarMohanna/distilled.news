@@ -14,7 +14,7 @@
 
 | Source set | Eligible controls/swaps | Classifiable | Abstained | TP / FP / TN / FN among classifiable |
 | --- | ---: | ---: | ---: | --- |
-| synthetic | 24 | 20 | 4 | 2 / 0 / 18 / 0 |
+| synthetic | 24 | 19 | 5 | 2 / 0 / 17 / 0 |
 | real-source | 6 | 4 | 2 | 0 / 0 / 4 / 0 |
 
 The checker flags two of the three recorded GPT wrong-language misses and abstains on the third. The combined candidate result marks that third case uncertain, not correct. This is development revalidation, not a fresh GPT/Claude rerun or held-out sensitivity estimate. No high score is inferred from excluding abstentions.
@@ -42,3 +42,9 @@ The provider account was approximately **-$0.03**, despite about $16.37 of unuse
 Local check runner status: **passed**. It covers evaluation Python tests, evaluator/replay tests, existing engine tests, exporter tests and three TypeScript checks. Research Python tests are run separately. GitHub workflow results for the pushed commit are reported separately, not assumed from local tests.
 
 All candidate behavior stays offline. No deployment, production resource change, dashboard change, publication modification, or merge to main was made. Before any monitoring deployment, obtain separate approval and validate the new policy with fresh independent data and complete failure-aware measurement.
+
+## Independent review and CI follow-up
+
+Independent review found and verified fixes for Arabic name-list false language classification and silently cleared adverse assessments. Corrections now retain original/replacement raw replies and require explicit reconsideration explanations per claim, item or development. Explanation text and claim meaning still need semantic validation; a trace is not factual proof. The first diagnostic remains preserved; post-review results are in `OFFLINE_REVALIDATION_R2.json`.
+
+GitHub’s initial dedicated Briefing evaluation workflow passed. The wider Project checks exposed six pre-existing model test doubles missing required token-count fields. Their test-only responses were corrected without changing assertions or production code. Corrective-commit CI results are reported separately. One local pre-existing Miniflare retention test exceeded its five-second host deadline; its failed run log is retained and unchanged checks were rerun.

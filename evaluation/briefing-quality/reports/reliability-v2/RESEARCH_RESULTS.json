@@ -1340,11 +1340,11 @@
   "independentLanguageChecks": {
     "synthetic": {
       "eligible": 24,
-      "classifiable": 20,
-      "abstentions": 4,
+      "classifiable": 19,
+      "abstentions": 5,
       "TP": 2,
       "FP": 0,
-      "TN": 18,
+      "TN": 17,
       "FN": 0,
       "scope": "Independent language validation of retained development packets only, not rerun model quality or held-out performance"
     },
@@ -1372,8 +1372,8 @@
   },
   "localChecks": {
     "schemaVersion": 1,
-    "runId": "20261115T101040.286867Z-79b69cdf74e8",
-    "checkedAt": "20261115T101040.286867Z",
+    "runId": "20261115T103822.598388Z-fbe4dbb6eb2a",
+    "checkedAt": "20261115T103822.598388Z",
     "status": "passed",
     "checks": [
       {
@@ -1381,56 +1381,56 @@
         "status": "passed",
         "exitCode": 0,
         "reason": null,
-        "durationSeconds": 1.702,
-        "log": "20261115T101040.286867Z-79b69cdf74e8/evaluation-python.log"
+        "durationSeconds": 1.2,
+        "log": "20261115T103822.598388Z-fbe4dbb6eb2a/evaluation-python.log"
       },
       {
         "name": "evaluation-replay",
         "status": "passed",
         "exitCode": 0,
         "reason": null,
-        "durationSeconds": 25.986,
-        "log": "20261115T101040.286867Z-79b69cdf74e8/evaluation-replay.log"
+        "durationSeconds": 32.515,
+        "log": "20261115T103822.598388Z-fbe4dbb6eb2a/evaluation-replay.log"
       },
       {
         "name": "briefing-engine",
         "status": "passed",
         "exitCode": 0,
         "reason": null,
-        "durationSeconds": 10.645,
-        "log": "20261115T101040.286867Z-79b69cdf74e8/briefing-engine.log"
+        "durationSeconds": 12.453,
+        "log": "20261115T103822.598388Z-fbe4dbb6eb2a/briefing-engine.log"
       },
       {
         "name": "dataset-exporter",
         "status": "passed",
         "exitCode": 0,
         "reason": null,
-        "durationSeconds": 0.257,
-        "log": "20261115T101040.286867Z-79b69cdf74e8/dataset-exporter.log"
+        "durationSeconds": 0.396,
+        "log": "20261115T103822.598388Z-fbe4dbb6eb2a/dataset-exporter.log"
       },
       {
         "name": "evaluation-types",
         "status": "passed",
         "exitCode": 0,
         "reason": null,
-        "durationSeconds": 4.529,
-        "log": "20261115T101040.286867Z-79b69cdf74e8/evaluation-types.log"
+        "durationSeconds": 27.08,
+        "log": "20261115T103822.598388Z-fbe4dbb6eb2a/evaluation-types.log"
       },
       {
         "name": "evaluator-worker-types",
         "status": "passed",
         "exitCode": 0,
         "reason": null,
-        "durationSeconds": 1.538,
-        "log": "20261115T101040.286867Z-79b69cdf74e8/evaluator-worker-types.log"
+        "durationSeconds": 3.719,
+        "log": "20261115T103822.598388Z-fbe4dbb6eb2a/evaluator-worker-types.log"
       },
       {
         "name": "research-validation-types",
         "status": "passed",
         "exitCode": 0,
         "reason": null,
-        "durationSeconds": 2.965,
-        "log": "20261115T101040.286867Z-79b69cdf74e8/research-validation-types.log"
+        "durationSeconds": 10.418,
+        "log": "20261115T103822.598388Z-fbe4dbb6eb2a/research-validation-types.log"
       }
     ],
     "scope": "offline correctness and regression checks; synthetic/provider-double tests are not factual-quality measurements",
@@ -1449,29 +1449,29 @@
     "evaluation\\briefing-quality\\validation\\baseline_bridge.py": "5af1dc3f472b8633958c333f1c665826a9eaa510cb4c2e0c97565afe18bcc386",
     "evaluation\\briefing-quality\\validation\\benchmark-audit.ts": "d043d082179a73f2132ff6d5f38fa1b4d93d7a576ef846c17560c6ea457b7b72",
     "evaluation\\briefing-quality\\validation\\build_controls.py": "85b14f841c38c1282385575b47183a5e5c479743a969d81102dd184edfea1ebe",
-    "evaluation\\briefing-quality\\validation\\candidate-policy.ts": "305bcdf06372565768a260e08e65a9d005d6cf0b0cbf23be0a86e222286851b8",
+    "evaluation\\briefing-quality\\validation\\candidate-policy.ts": "b2a40617216c4c3df1b01be0b2e9e81a4ac55bab761ddf26266a3627c3c39adf",
     "evaluation\\briefing-quality\\validation\\correct_baseline_bridge.ts": "42f671a79374dd6417520aa3cfce0e99a75fa9cc66ca8896e2146f0f7ea1f9cb",
     "evaluation\\briefing-quality\\validation\\current-engine.ts": "d91063602e97fecda6e56fc12f4c794438cb14cf8bf1663efa06fcb8ea292d2e",
     "evaluation\\briefing-quality\\validation\\existing_reports.mjs": "14bbfd3b284a5659cd482e5182f4722918711640489450c20fbfa329a0294f80",
     "evaluation\\briefing-quality\\validation\\final_report.py": "2ba0a4ad8b299e2c991f5e5d01da04df9d05f75192fc2db94d306bf7466c31f3",
-    "evaluation\\briefing-quality\\validation\\followup-report.py": "8ac5178f044d49230d74400d14ae4c72aca8f95de3fed0681c34f810c2289bc0",
+    "evaluation\\briefing-quality\\validation\\followup-report.py": "aef0a015885822fb67adeb543cd41c557d4776fbf556031108cb4d75f3804ef8",
     "evaluation\\briefing-quality\\validation\\github-checks.mjs": "b5f8b39d2ddf1f79d928e41be22b38304f37a2f7afe41d3b1eb2d29f48aa0f85",
     "evaluation\\briefing-quality\\validation\\historical.py": "eec757c73d85fc1469facb887500fac2926fe5ec56eceefea763596d51c6bc00",
     "evaluation\\briefing-quality\\validation\\inspect.mjs": "e23eb9605926298d4826140e4784e9c7a7fdc14ed3d6fff12fac7bc6cdd5b06c",
-    "evaluation\\briefing-quality\\validation\\language-compliance.ts": "e591da7bf3993f3233d7cde682421bea15d1a411bd97c4c7aaeee30b6674a605",
+    "evaluation\\briefing-quality\\validation\\language-compliance.ts": "683ad45fc0ff11817d3a9c0396525f54e1ab15c99b8921d987ad631ce03896d2",
     "evaluation\\briefing-quality\\validation\\offline.ts": "ce1eaa590812547ee205a5f33c607831b2b1dde8d5a84f6a84e1f27feb55f07f",
     "evaluation\\briefing-quality\\validation\\package-lock.json": "76e7d32841f64d0e01609acfb0be09c6c7eb2f5dca6f7a7c4b6de44e6ae53965",
     "evaluation\\briefing-quality\\validation\\package.json": "b754695743edbf000a17237984ef2f8a428e5912093c2a6fccdec5189e44db0c",
     "evaluation\\briefing-quality\\validation\\paired.ts": "48ff4d1cf941335548f07d1105ac829a561f21af8c9ccbe382100b7f76a7755b",
     "evaluation\\briefing-quality\\validation\\protocol.json": "058c587625e0406d181b9f702961ab6dd63935828f2c7dd0c4c3abdb5f1a3cb4",
-    "evaluation\\briefing-quality\\validation\\README.md": "038725a0abac437d55a8376045fd06e077ee05104f7e767c3c25bce28cfddc0c",
+    "evaluation\\briefing-quality\\validation\\README.md": "12421f3a168cde1cc5d97e74401a4d57cd273733e7e49e41ba59833b65fb045e",
     "evaluation\\briefing-quality\\validation\\real_controls.py": "bbc1f1e3789f4bc16170d290955dbf5d5c90999664a64a2774ea0718778e8f7a",
     "evaluation\\briefing-quality\\validation\\report.py": "df7a295ef47b439b4442b59f7453e5259a167238a8b86c071dbd107317bcfa9e",
     "evaluation\\briefing-quality\\validation\\resume.ts": "10f29546cfbf7d529eef223039c7afefd9c082244b7123e3f1db126aa30b7bfc",
     "evaluation\\briefing-quality\\validation\\retained_plan.py": "b093dce52004cf452129f7d4034580001f7ba6dc5e1f134232987b58171616ae",
     "evaluation\\briefing-quality\\validation\\retrieve-frozen.mjs": "598a791ec1987cb7624bd42588e82a95e6fad73e3a1c2c00733bd4a12e93da8d",
-    "evaluation\\briefing-quality\\validation\\revalidate.ts": "5a5f819e9a8628d1b1e70271de21f3cfb5bbb311f88e75fc4f63ea734bd2a86f",
-    "evaluation\\briefing-quality\\validation\\review-consistency.ts": "a9d900ee6c6b164b9fa9dba40cc4085597f2730bf1bec59a4fb9e1be4043283f",
+    "evaluation\\briefing-quality\\validation\\revalidate.ts": "42607da1468fd31b9167fcc529014086b088f2978e461728e159f560f8b16010",
+    "evaluation\\briefing-quality\\validation\\review-consistency.ts": "2c7a87a11112c33a489fd4477a407b6b2e88bd7b70a24e0121194277d69b3089",
     "evaluation\\briefing-quality\\validation\\run.ts": "bce30c365245795eee1a6abbee2f38b45fac042d5ea17d52c57c963716a6a7a4",
     "evaluation\\briefing-quality\\validation\\test_analysis.py": "4c29c4297574e73fe952fca5c2b9ff0856652affc141dda35929b977eb622cdc",
     "evaluation\\briefing-quality\\validation\\test_bridge.py": "0d9ed3f6e7e702e235f131a2a5a59b8263019f21de635034afedca2dd7b39f83",

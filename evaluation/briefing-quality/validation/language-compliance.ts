@@ -27,6 +27,10 @@ export function languageCompliance(headline:string,body:string,requested:OutputL
  const lowercase=tokens.filter(t=>t[0]===t[0].toLocaleLowerCase()&&t[0]!==t[0].toLocaleUpperCase());
  const arabic=(narrative.match(/\p{Script=Arabic}/gu)??[]).length;
  if(arabic<3&&lowercase.length<2)return unknown('NAME_OR_ABBREVIATION_ONLY');
+ // Arabic has no uppercase distinction. Script confidence alone cannot distinguish
+ // a list of place/person names from narration; require a syntactic/news cue.
+ const arabicCues=new Set('في من إلى الى عن على مع أن ان إن لا لن لم قد قال قالت أعلن أعلنت او أو ثم هو هي هذا هذه بحسب خلال بعد قبل عند دون أمام امام يفتح تبدأ تفتح سيبقى أبقى ابقى'.split(' '));
+ if(arabic>=3&&!tokens.some(t=>arabicCues.has(t)||t.startsWith('و')&&arabicCues.has(t.slice(1))))return unknown('ARABIC_NAME_LIST_OR_INSUFFICIENT_SYNTAX');
  // A language-changing sentence is not excused by a majority-language paragraph.
  const segments=narrative.split(/[.!?؟。\n]+/u).filter(s=>words(s).length>=4);
  const confidentSegments=segments.map(s=>detectAll(s)).map(cs=>cs[0]&&cs[0].accuracy>=.075&&cs[0].accuracy-(cs[1]?.accuracy??0)>=.025?cs[0].lang:null).filter(Boolean);

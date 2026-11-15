@@ -11,5 +11,5 @@ export function candidateReviewRequest(c:Case,d:Inventory):Request {
 export async function candidateAssessment(c:Case,d:Inventory,raw:unknown,correct:(request:Request)=>Promise<unknown>){
  const assessed=await consistentReview(c,d,raw,correct);
  const language=assessed.review.items.map(row=>{const i=c.items[row.item],independent=languageCompliance(i.headline,i.body,c.language);return {item:row.item,model:row.language,independent,combined:combinedLanguageStatus(row.language,independent)}});
- return {policy:CANDIDATE_POLICY,originalModelAssessment:assessed.review,correction:assessed.correction,language,languageOutcome:{incorrect:language.filter(i=>i.combined==='incorrect').length,uncertain:language.filter(i=>i.combined==='uncertain').length,correct:language.filter(i=>i.combined==='correct').length},calibration:'not_independently_established',deployment:'not_deployed'};
+ return {policy:CANDIDATE_POLICY,originalRawModelAssessment:assessed.originalRawReview,validatedModelAssessment:assessed.review,correction:assessed.correction,language,languageOutcome:{incorrect:language.filter(i=>i.combined==='incorrect').length,uncertain:language.filter(i=>i.combined==='uncertain').length,correct:language.filter(i=>i.combined==='correct').length},calibration:'not_independently_established',deployment:'not_deployed'};
 }
