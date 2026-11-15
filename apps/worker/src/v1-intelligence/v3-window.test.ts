@@ -28,6 +28,16 @@ import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
 function responseArchive(){const objects=new Map<string,string>();return {objects,bucket:{put:async(key:string,value:string)=>{if(objects.has(key))return null;objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket}}
+it('versions topic selection in new input identity without changing unmarked source evidence',async()=>{
+ await article();
+ const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,'reader-topic-boundaries-v1');
+ expect(old.input.feed).not.toHaveProperty('topicSelectionPolicy');
+ expect(next.input.feed.topicSelectionPolicy).toBe('reader-topic-boundaries-v1');
+ expect(next.fingerprint).not.toBe(old.fingerprint);
+ const {topicSelectionPolicy:_,...unchanged}=next.input.feed;
+ expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
+});
 it('attaches the verified edition artifact when publication retries a CAS conflict',async()=>{
  await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0090_verified_edition_delivery.sql',import.meta.url),'utf8'));
  await article();

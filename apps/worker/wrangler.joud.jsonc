@@ -18,6 +18,7 @@
   },
   "vars": {
     "BRIEFING_ENGINE": "v3",
+    "BRIEFING_TOPIC_SELECTION_ENABLED": "true",
     "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
     "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
     "BRIEFING_EDITOR_MODEL": "openai/gpt-4.1",

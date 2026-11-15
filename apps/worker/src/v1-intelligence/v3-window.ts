@@ -44,7 +44,7 @@ export const productV3Models=(env:Env):BriefingModels=>({editor:env.BRIEFING_EDI
 
 /** Read-through preparation is mechanical. The window is frozen only at close,
  * so arrivals during preparation are included without paying twice. */
-export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false):Promise<V3WindowInput>{
+export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1'):Promise<V3WindowInput>{
  const feed=await store.getFeed(feedId);if(!feed||feed.paused||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
  if(!['en','ar','fr'].includes(feed.outputLanguage))throw Error('V3_UNSUPPORTED_LANGUAGE');
  const editions=(await store.publicationPreparationHistory(feedId,priorMemoryCutoff(new Date(window.end)))).filter(e=>Date.parse(e.windowEnd)<=Date.parse(window.start));
@@ -79,7 +79,7 @@ export async function prepareV3Window(store:V1FeedStore,feedId:string,window:Pub
  active.sort((a,b)=>a.revision.id.localeCompare(b.revision.id));admissions.sort((a,b)=>a.revisionId.localeCompare(b.revisionId));
  const hydrated=new Map((await store.currentEvidenceByIds(feedId,active.map(e=>e.revision.id),cutoffPolicy?window.end:undefined)).map(e=>[e.revision.id,e]));
  const selected=active.map(e=>{const full=hydrated.get(e.revision.id);if(!full)throw new HandoffError('TEMPORARY_UNAVAILABLE');return full});
- const input:BriefingInput={feed:{interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:selected.map(({item,revision:r})=>({...(architecture?{revision:{evidenceId:r.evidenceId,version:r.revision,acceptedAt:r.acceptedAt,observedAt:observedAt.get(r.id)??undefined,contentHash:r.contentHash,sourceObservationId:r.sourceObservationId,acquiredContentId:r.acquiredContentId}}:{}),id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.representation==='LISTING_RESULT'?'[Source content: catalogue/listing snapshot. Descriptions, ratings and review excerpts are not full linked reviews. Do not infer a product release or news event date from this page timestamp.]\n'+(r.body??r.title??''):r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
+ const input:BriefingInput={feed:{...(topicSelectionPolicy?{topicSelectionPolicy}:{}),interest:feed.interests.join('\n'),language:feed.outputLanguage as 'en'|'ar'|'fr',windowMinutes:(Date.parse(window.end)-Date.parse(window.start))/60000,style:'Use the original source publication dates. Label late discoveries and source revisions with accurate temporal context; acquisition time is not event time.'},articles:selected.map(({item,revision:r})=>({...(architecture?{revision:{evidenceId:r.evidenceId,version:r.revision,acceptedAt:r.acceptedAt,observedAt:observedAt.get(r.id)??undefined,contentHash:r.contentHash,sourceObservationId:r.sourceObservationId,acquiredContentId:r.acquiredContentId}}:{}),id:r.id,source:item.sourceId,title:r.title,url:r.canonicalUrl,publishedAt:r.publishedAt??'',text:r.representation==='LISTING_RESULT'?'[Source content: catalogue/listing snapshot. Descriptions, ratings and review excerpts are not full linked reviews. Do not infer a product release or news event date from this page timestamp.]\n'+(r.body??r.title??''):r.body??r.title??''})),prior,windowStart:window.start,windowEnd:window.end};
  const value={editorAccountingPolicy:'complete-source-decisions-v2' as const,editorSourcePolicy:'all-supporting-sources-v1' as const,editorFailurePolicy:'isolate-unusable-chunks-v1' as const,admissionPolicy:V3_ADMISSION_POLICY,admissions,...(cutoffPolicy?{cutoffPolicy}:{}),citationCoverage:false,noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1' as const,...(architecture?{architecture}:{}),...(window.scheduledFor?{scheduledFor:window.scheduledFor}:{}),promptVersion,feedId,feedRevision:feed.revision,input,models,evidenceRevisionIds:active.map(e=>e.revision.id)};
  const fingerprint=await sha256(canonicalJson({policy:POLICY,...value}));return {id:fingerprint,fingerprint,...value};
 }
@@ -144,7 +144,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   // deferred its unstarted request. Never freeze or pay for that old window.
   if(!request||request.state!=='PENDING'||request.engine!=='v3')return undefined;
   let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',request?.v3InputId??id);
-  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true');snapshot=await feedTransact(store,feedId,async tx=>{
+  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined);snapshot=await feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<V3WindowInput>('v3_window_inputs',id);if(prior)return prior;
    if(tx.snapshot.feed.revision!==prepared.feedRevision)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    const frozen={...prepared,id};await tx.write('v3_window_inputs',id,frozen);return frozen;
@@ -155,7 +155,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   if(snapshot.cutoffPolicy){
    if(!await cutoffEvidenceAuthorized(store,snapshot))throw new HandoffError('SCOPE_DENIED');
   }else if(snapshot.evidenceRevisionIds.some(ref=>!activeIds.has(ref))){
-   const prepared=await prepareV3Window(store,feedId,window,now(),snapshot.models,snapshot.promptVersion??1,snapshot.architecture,false),priorSnapshot=snapshot;
+   const prepared=await prepareV3Window(store,feedId,window,now(),snapshot.models,snapshot.promptVersion??1,snapshot.architecture,false,snapshot.input.feed.topicSelectionPolicy),priorSnapshot=snapshot;
    if(prepared.feedRevision!==priorSnapshot.feedRevision)throw new HandoffError('SCOPE_DENIED');
    for(const ref of priorSnapshot.evidenceRevisionIds.filter(ref=>!activeIds.has(ref))){
     const revision=await store.revision(feedId,ref);

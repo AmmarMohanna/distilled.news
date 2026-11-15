@@ -28,6 +28,7 @@ import {
   type PreviousReview
 } from "./prompts";
 import { significantNumbers } from "./text";
+import {selectTopicSources} from './topic-selection';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
@@ -510,6 +511,7 @@ export async function generateBriefing(
 ): Promise<BriefingResult> {
   if ('v7Experiment' in overrides && overrides.v7Experiment !== undefined) throw new Error('UNSUPPORTED_V7_EXPERIMENT');
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
+  if(input.feed.topicSelectionPolicy&&options.architecture)throw Error('TOPIC_SELECTION_ARCHITECTURE_UNQUALIFIED');
   if(options.editorSourcePolicy&&options.citationCoverage)throw Error('CONFLICTING_SOURCE_POLICIES');
   if (options.architecture !== undefined) {
     if (options.architecture !== 'evidence-first-v1' && options.architecture !== 'evidence-first-v2') throw new Error('UNSUPPORTED_BRIEFING_ARCHITECTURE');
@@ -547,6 +549,19 @@ export async function generateBriefing(
 
   // 1. Edit: choose and write.
   const editorialFailures: DroppedItem[] = [];
+  let eligible=prepared;
+  if(input.feed.topicSelectionPolicy==='reader-topic-boundaries-v1'){
+    const decisions=await timed('topic_selection',()=>selectTopicSources(port,meter,models.verifier,input.feed,prepared,options.maxVerifyChars));
+    eligible=prepared.filter(article=>{
+      const decision=decisions.get(article.ref)!;
+      if(decision.relation==='direct')return true;
+      const sourceIds=sourceIdsOfRefs([article.ref]);
+      if(decision.relation==='uncertain')editorialFailures.push({headline:article.title??'Unresolved topic relevance',reason:'Topic relevance unresolved: '+decision.reason,carry:true,sourceIds});
+      else omittedStories.push({stage:'editor',reason:'Off-topic: '+decision.reason,sourceIds});
+      return false;
+    });
+    if(!eligible.length)return finish({status:editorialFailures.length?'rejected':'empty',items:[],skipped,dropped:editorialFailures});
+  }
   const editChunk=async(chunk:PreparedArticle[],partial:boolean)=>{
     try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy,options.noveltyPolicy)}
     catch(error){
@@ -555,11 +570,11 @@ export async function generateBriefing(
       return {drafts:[],omitted:[],unaccounted:auditEditorSourceAccounting({},chunk)};
     }
   };
-  const chunks = chunkArticles(prepared, options.maxEditorChars);
+  const chunks = chunkArticles(eligible, options.maxEditorChars);
   let drafts: Draft[];
   const omitted: OmittedStory[] = [];
   if (chunks.length === 1) {
-    const edited = await timed("edit", () => editChunk(prepared,false));
+    const edited = await timed("edit", () => editChunk(eligible,false));
     drafts = edited.drafts;
     omitted.push(...edited.omitted);
     unaccounted.push(...edited.unaccounted);

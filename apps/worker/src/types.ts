@@ -193,6 +193,7 @@ export interface Env extends Cloudflare.Env {
   UNREAD_SUMMARY_ENABLED?: string;
   /** Version 5 is opt-in pending real novelty/false-rejection qualification. */
   BRIEFING_PROMPT_VERSION?: "4" | "5" | "6";
+  BRIEFING_TOPIC_SELECTION_ENABLED?: string;
   BRIEFING_EDITOR_MODEL?: string;
   BRIEFING_VERIFIER_MODEL?: string;
   /** Required for V3: rolling 24h dollar ceiling across all feeds. V3 does not run without it. */
