@@ -41,18 +41,23 @@ async function generate(input:BriefingInput,port:ModelPort,models:BriefingModels
   }else{
    if(!Array.isArray(raw?.developments)||!Array.isArray(raw?.passages))throw new EvidenceContractError('EXTRACTION_MISSING_RECORDS');rows=raw.developments;
    const required=sources.flatMap(s=>s.passages.map(p=>p.id)),known=new Set(required),seen=new Set<string>();
-   for(const p of raw.passages){if(!known.has(p.id)||seen.has(p.id)||!Array.isArray(p.developments)||!validString(p.reason)||p.developments.some((id:string)=>!rows.some(d=>d.id===id)))throw new EvidenceContractError('PASSAGE_ACCOUNTING_INVALID');seen.add(p.id)}if(seen.size!==known.size)throw new EvidenceContractError('PASSAGE_ACCOUNTING_INCOMPLETE');
+   for(const p of raw.passages){if(!known.has(p.id)||seen.has(p.id)||!Array.isArray(p.developments)||!validString(p.reason)||p.developments.some((id:string)=>!rows.some(d=>d.id===id)))throw new EvidenceContractError('PASSAGE_ACCOUNTING_INVALID');seen.add(p.id)}for(const id of required.filter(id=>!seen.has(id)))defer(id,'',[sources.find(s=>s.passages.some(p=>p.id===id))!.id],'PASSAGE_ACCOUNTING_INCOMPLETE');
    for(const p of raw.passages)for(const id of p.developments)if(!rows.find(d=>d.id===id)?.evidence?.some((e:any)=>e.passages?.includes(p.id)))throw new EvidenceContractError('PASSAGE_DEVELOPMENT_MISMATCH');
    for(const d of rows)for(const e of d.evidence??[])for(const id of e.passages??[])if(!raw.passages.some((p:any)=>p.id===id&&p.developments.includes(d.id)))throw new EvidenceContractError('PASSAGE_DEVELOPMENT_MISMATCH');
   }
   const ids=new Set<string>();for(const r of rows){
    if(!validString(r.id)||ids.has(r.id)||!validString(r.statement)||!validString(r.occurrence)||!Array.isArray(r.evidence)||!r.evidence.length||![1,2,3].includes(r.importance)||!['new','update','correction','already_reported','uncertain'].includes(r.relation))throw new EvidenceContractError('DEVELOPMENT_INVALID');ids.add(r.id);
-   const bound:EvidenceProof[]=r.evidence.map((e:any)=>tools.resolvePassages(e));const idsForRow=[...new Set(bound.map(p=>p.sourceId))];
+   const bound:EvidenceProof[]=r.evidence.flatMap((e:any)=>{
+    if(!Array.isArray(e?.passages)||!e.passages.length||e.passages.some((id:unknown)=>typeof id!=='string'))throw new EvidenceContractError('INVALID_PASSAGE_SELECTION');
+    const groups:string[][]=[];let previous:ReturnType<typeof tools.passage>|undefined;
+    for(const id of e.passages){const passage=tools.passage(id);if(!previous||previous.ref!==passage.ref||previous.field!==passage.field||previous.end!==passage.start)groups.push([]);groups[groups.length-1].push(id);previous=passage;}
+    return groups.map(passages=>tools.resolvePassages({passages}));
+   });const idsForRow=[...new Set(bound.map(p=>p.sourceId))];
    let statement=r.statement;const anchor=anchorLocalityWire({headline:statement,body:'',relation:r.relation,refs:idsForRow},new Map(input.articles.map(a=>[a.id,a])),input.feed.language);if(anchor)statement=anchor.headline;
    const row={...r,statement,sourceIds:idsForRow,proofs:bound};proposals.push(row);proofs.push(...bound);
   }
   audit.proposed=proposals;
-  const grounded=await call('independent-grounding',DEVELOPMENT_GROUNDER,{...context,proposals:proposals.map(({proofs,...d})=>({...d,resolvedEvidence:proofs})),...(!single?{passageDispositions:raw.passages}:{})},models.verifier);audit.grounding=grounded;
+  const grounded=await call('independent-grounding',DEVELOPMENT_GROUNDER,{...context,proposals:proposals.map(({proofs,relation,priorId,importance,quality,...d})=>({...d,resolvedEvidence:proofs})),...(!single?{passageDispositions:raw.passages}:{})},models.verifier);audit.grounding=grounded;
   if(!Array.isArray(grounded?.results))throw new EvidenceContractError('GROUNDING_MISSING_RESULTS');
   if(!single){const coverage=grounded.inventoryCoverage;if(!coverage||!['complete','uncertain'].includes(coverage.status)||!validString(coverage.reason)||!Array.isArray(coverage.missing))throw new EvidenceContractError('INVENTORY_COVERAGE_UNAVAILABLE');for(const m of coverage.missing){tools.resolvePassages({passages:m.passages});if(!validString(m.reason))throw new EvidenceContractError('INVALID_MISSING_DEVELOPMENT')}if(coverage.status==='uncertain'||coverage.missing.length)defer('*','',sourceIds,'INVENTORY_COVERAGE_UNCERTAIN:'+coverage.reason)}
   const groups=new Map<string,any[]>();for(const r of grounded.results){if(!ids.has(r?.id))throw new EvidenceContractError('GROUNDING_UNKNOWN_ID');groups.set(r.id,[...(groups.get(r.id)??[]),r]);}
