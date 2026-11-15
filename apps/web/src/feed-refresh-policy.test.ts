@@ -1,11 +1,9 @@
 import {expect,it,vi} from 'vitest';
 import {afterFeedRefresh,initialFeedRefreshState,mayRefreshFeed} from './feed-refresh-policy';
 
-it('throttles focus refreshes to one per 15 seconds but keeps the minute interval',()=>{
+it('allows every refresh while the server is healthy',()=>{
  const state=afterFeedRefresh(initialFeedRefreshState(),1_000);
- expect(mayRefreshFeed(state,10_000,'focus')).toBe(false);
- expect(mayRefreshFeed(state,16_000,'focus')).toBe(true);
- expect(mayRefreshFeed(state,10_000,'interval')).toBe(true);
+ expect(mayRefreshFeed(state,1_001)).toBe(true);
 });
 
 it('backs off 30, 60 then 120 seconds after server overload and resets on success',()=>{
@@ -13,7 +11,7 @@ it('backs off 30, 60 then 120 seconds after server overload and resets on succes
  try{
   let state=afterFeedRefresh(initialFeedRefreshState(),0,{status:503});
   expect(state.blockedUntil).toBe(30_000);
-  expect(mayRefreshFeed(state,29_999,'interval')).toBe(false);
+  expect(mayRefreshFeed(state,29_999)).toBe(false);
   state=afterFeedRefresh(state,30_000,{status:503});expect(state.blockedUntil).toBe(90_000);
   state=afterFeedRefresh(state,90_000,{});expect(state.blockedUntil).toBe(210_000);// network failure
   state=afterFeedRefresh(state,210_000,{status:503});expect(state.blockedUntil).toBe(330_000);

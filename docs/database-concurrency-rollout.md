@@ -8,7 +8,7 @@ Branch `database-v4-readiness`, off `v4-readiness-validation`. It addresses the 
 | --- | --- | --- |
 | Source availability on the feed page reads only this feed's acquisition jobs. Before, SQLite drove the query from the deployment-wide `ACQUIRE` index, so every feed page read every feed's job history. | none | on |
 | Feed page, edition detail and search reuse the latest-100 edition list per isolate, keyed by `v1_feed_read_versions` (migration 0095). Collection status is reused for `FEED_STATUS_CACHE_SECONDS` (default 15). Concurrent misses share one build. The feed page sends a weak ETag and answers 304. | `FEED_READ_CACHE_ENABLED` | off (on in the QA config) |
-| The web app sends `If-None-Match`, skips focus, visibility and reconnect refreshes within 15 seconds of the last read, and backs off 30, 60, then 120 seconds after 429, 502, 503, 504 or a network error. | none | on |
+| The web app sends `If-None-Match` and, after 429, 502, 503, 504 or a network error, holds every refresh (interval, focus, visibility, reconnect) for 30, 60, then 120 seconds. Healthy refreshes stay immediate. | none | on |
 | Read-only GET routes (feed, edition, search, developments, sketch, evidence, explore, admin trace) use a D1 session. Signed-in readers start on the primary; anonymous readers can be served by a replica. | `D1_READ_SESSIONS_ENABLED` | off (on in the QA config) |
 | On those routes, a plain `SELECT`/`WITH` (or an all-read batch) refused as overloaded is retried once after 100 to 300 ms. Writes are never retried this way. | none | on |
 | The admin pipeline trace runs at most 2 at a time per isolate and answers `429 TRACE_BUSY` with `Retry-After: 2` beyond that. | `ADMIN_TRACE_MAX_CONCURRENT` | 2 |

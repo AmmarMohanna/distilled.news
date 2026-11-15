@@ -1,19 +1,19 @@
 /** When an open feed tab may re-read the feed.
  *
- * Every open tab used to re-read the whole feed every minute and on every
- * focus, visibility change or reconnect, even while the server answered 503.
- * Under load that multiplied the very traffic that caused the 503. */
+ * Every open tab re-reads the feed every minute and on every focus, visibility
+ * change or reconnect. It used to keep doing so while the server answered 503,
+ * which multiplied the very traffic that caused the 503. After an overload or
+ * network failure every trigger now waits. Healthy re-reads stay immediate:
+ * they are coalesced and usually answered 304. */
 export const FEED_REFRESH_INTERVAL_MS = 60_000;
-export const FOCUS_REFRESH_THROTTLE_MS = 15_000;
 const BACKOFF_MS = [30_000, 60_000, 120_000];
 const TRANSIENT = new Set([429, 502, 503, 504]);
 
 export interface FeedRefreshState { lastAttemptAt: number; failures: number; blockedUntil: number }
 export const initialFeedRefreshState = (): FeedRefreshState => ({ lastAttemptAt: 0, failures: 0, blockedUntil: 0 });
 
-export function mayRefreshFeed(state: FeedRefreshState, now: number, trigger: 'interval' | 'focus'): boolean {
-  if (now < state.blockedUntil) return false;
-  return trigger === 'interval' || now - state.lastAttemptAt >= FOCUS_REFRESH_THROTTLE_MS;
+export function mayRefreshFeed(state: FeedRefreshState, now: number): boolean {
+  return now >= state.blockedUntil;
 }
 
 /** `failure` is undefined after a successful read. A missing status is a network failure. */
