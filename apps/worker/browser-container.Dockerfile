@@ -9,14 +9,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3.12 pyth
     && rm -rf /var/lib/apt/lists/*
 RUN python3.12 -m venv /opt/distilled-browser-use \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir --upgrade pip==25.2 \
-    && /opt/distilled-browser-use/bin/pip install --no-cache-dir browser-use==0.13.10 \
-    && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'; print('browser-use', version('browser-use'))"
+    && /opt/distilled-browser-use/bin/pip install --no-cache-dir browser-use==0.13.14 \
+    && /opt/distilled-browser-use/bin/pip check \
+    && /opt/distilled-browser-use/bin/python -c "import browser_use; from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult; from browser_use.browser.profile import BrowserProfile; from importlib.metadata import version; assert version('browser-use') == '0.13.14'; print('browser-use', version('browser-use'))"
 # Cloudflare's registry proxy has repeatedly closed the connection on a single
 # 319 MB venv layer. Partition site-packages into smaller, reproducible layers.
 # The Google API static discovery documents are unused by ChatOpenAI and add
 # roughly 93 MB to the runtime image; keep the library itself available.
 RUN rm -rf /opt/distilled-browser-use/lib/python3.12/site-packages/googleapiclient/discovery_cache/documents \
-    && /opt/distilled-browser-use/bin/python -c "import browser_use; import googleapiclient.discovery; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
+    && /opt/distilled-browser-use/bin/python -c "import browser_use; import googleapiclient.discovery; from importlib.metadata import version; assert version('browser-use') == '0.13.14'"
 RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
     mkdir -p /opt/browser-use-packages/ac /opt/browser-use-packages/df /opt/browser-use-packages/g /opt/browser-use-packages/hl /opt/browser-use-packages/im /opt/browser-use-packages/no /opt/browser-use-packages/pa_pi /opt/browser-use-packages/pj_pz /opt/browser-use-packages/qs /opt/browser-use-packages/tz /opt/browser-use-packages/other; \
     for item in "$packages"/* "$packages"/.[!.]*; do \
@@ -72,7 +73,7 @@ COPY apps ./apps
 COPY packages ./packages
 RUN chromium_path="$(find /ms-playwright -type f -path '*/chrome-linux64/chrome' -print -quit)" \
     && test -n "$chromium_path" && ln -s "$chromium_path" /usr/local/bin/distilled-chromium \
-    && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
+    && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.14'"
 
 ENV DISTILLED_BROWSER_USE_PYTHON=/opt/distilled-browser-use/bin/python
 ENV DISTILLED_BROWSER_USE_CHROMIUM=/usr/local/bin/distilled-chromium
