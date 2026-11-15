@@ -31,9 +31,9 @@ function responseArchive(){const objects=new Map<string,string>();return {object
 it('versions wording fidelity without rewriting retained inputs or source evidence',async()=>{
  await article();
  const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
- const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,'faithful-compression-v2');
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,'focused-wording-v1');
  expect(old.input.feed).not.toHaveProperty('wordingFidelityPolicy');
- expect(next.input.feed.wordingFidelityPolicy).toBe('faithful-compression-v2');expect(next.fingerprint).not.toBe(old.fingerprint);
+ expect(next.input.feed.wordingFidelityPolicy).toBe('focused-wording-v1');expect(next.fingerprint).not.toBe(old.fingerprint);
  const {wordingFidelityPolicy:_,...unchanged}=next.input.feed;
  expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
 });

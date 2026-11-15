@@ -29,7 +29,8 @@ import {
 } from "./prompts";
 import { significantNumbers } from "./text";
 import {selectTopicSources} from './topic-selection';
-import {wordingFidelity} from './wording-fidelity';
+import {wordingFidelity,wordingBase} from './wording-fidelity';
+import {reviewWording} from './wording-review';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
@@ -347,6 +348,28 @@ function batchesBySourceSize(indices: number[], drafts: Draft[], byRef: Map<stri
 }
 
 async function verify(
+  ...args:Parameters<typeof verifyBaseline>
+):Promise<Map<number,Verdict>>{
+ const [port,meter,models,input,drafts,indices,byRef,,maxChars]=args;
+ if(input.feed.wordingFidelityPolicy!=='focused-wording-v1')return verifyBaseline(...args);
+ const [verdicts,focused]=await Promise.all([
+  verifyBaseline(...args),
+  Promise.all(batchesBySourceSize(indices,drafts,byRef,maxChars).map(async batch=>{
+   const refs=[...new Set(batch.flatMap(i=>drafts[i].refs))];
+   const issues=await reviewWording(port,meter,models.verifier,batch.map(i=>drafts[i]),refs.map(ref=>byRef.get(ref)!).filter(Boolean));
+   return batch.map((index,local)=>({index,issues:issues.get(local)!}));
+  }))
+ ]);
+ for(const {index,issues}of focused.flat()){
+  if(!issues.length)continue;
+  const prior=verdicts.get(index);
+  if(prior?.verdict==='drop'||prior?.verdict==='redundant')continue;
+  verdicts.set(index,{verdict:'fix',issues:[...new Set([...(prior?.issues??[]),...issues])]});
+ }
+ return verdicts;
+}
+
+async function verifyBaseline(
   port: ModelPort,
   meter: UsageMeter,
   models: BriefingModels,
@@ -374,7 +397,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: (promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM)+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed,true),
+          system: wordingBase(input.feed,'verify',(promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM))+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed,true),
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
@@ -449,7 +472,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: (promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM)+wordingFidelity(input.feed),
+      system: wordingBase(input.feed,'repair',(promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM))+wordingFidelity(input.feed),
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,
