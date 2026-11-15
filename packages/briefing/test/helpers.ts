@@ -1,10 +1,9 @@
 import type { ModelPort, ModelRequest, ModelResponse } from "../src/model";
 import type { Article } from "../src/types";
 
-type Stage = "edit" | "consolidate" | "verify" | "repair" | "topic" | "wording";
+type Stage = "edit" | "consolidate" | "verify" | "repair" | "topic";
 
 export function stageOf(request: ModelRequest): Stage {
-  if(request.system.startsWith('Compare only factual strength'))return 'wording';
   if(request.system.startsWith('Classify topical relevance'))return 'topic';
   if (request.system.startsWith("You are the editor")) return "edit";
   if (request.system.startsWith("You are the senior editor")) return "consolidate";

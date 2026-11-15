@@ -30,7 +30,6 @@ import {
 import { significantNumbers } from "./text";
 import {selectTopicSources} from './topic-selection';
 import {wordingFidelity,wordingBase} from './wording-fidelity';
-import {reviewWording} from './wording-review';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
@@ -348,28 +347,6 @@ function batchesBySourceSize(indices: number[], drafts: Draft[], byRef: Map<stri
 }
 
 async function verify(
-  ...args:Parameters<typeof verifyBaseline>
-):Promise<Map<number,Verdict>>{
- const [port,meter,models,input,drafts,indices,byRef,,maxChars]=args;
- if(input.feed.wordingFidelityPolicy!=='focused-wording-v1')return verifyBaseline(...args);
- const [verdicts,focused]=await Promise.all([
-  verifyBaseline(...args),
-  Promise.all(batchesBySourceSize(indices,drafts,byRef,maxChars).map(async batch=>{
-   const refs=[...new Set(batch.flatMap(i=>drafts[i].refs))];
-   const issues=await reviewWording(port,meter,models.verifier,batch.map(i=>drafts[i]),refs.map(ref=>byRef.get(ref)!).filter(Boolean));
-   return batch.map((index,local)=>({index,issues:issues.get(local)!}));
-  }))
- ]);
- for(const {index,issues}of focused.flat()){
-  if(!issues.length)continue;
-  const prior=verdicts.get(index);
-  if(prior?.verdict==='drop'||prior?.verdict==='redundant')continue;
-  verdicts.set(index,{verdict:'fix',issues:[...new Set([...(prior?.issues??[]),...issues])]});
- }
- return verdicts;
-}
-
-async function verifyBaseline(
   port: ModelPort,
   meter: UsageMeter,
   models: BriefingModels,
