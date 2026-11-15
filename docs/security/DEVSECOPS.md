@@ -1,6 +1,6 @@
 # Distilled.news — DevSecOps implementation and verification
 
-**Evidence date:** 14 November 2026. **Branch:** `ghada/devsecops-security-automation`. **Draft PR:** [#11](https://github.com/AmmarMohanna/distilled.news/pull/11), based on `ghada/DevSecOps`. **No production deployment, cloud changes, history rewrites, or paid services.** The code is **not yet security-cleared for merge**: container-image vulnerabilities and historical credential triage remain open, and unrelated application checks are not fully passing.
+**Evidence date:** 15 November 2026. **Branch:** `ghada/devsecops-security-automation`. **Draft PR:** [#11](https://github.com/AmmarMohanna/distilled.news/pull/11), based on `ghada/DevSecOps`. **No production deployment, cloud changes, history rewrites, or paid services.** The code is **not yet security-cleared for merge**: container-image vulnerabilities and historical credential triage remain open, and unrelated application checks are not fully passing.
 
 ## Baseline
 
@@ -32,11 +32,11 @@ The security CI workflows are isolated from existing application checks. No broa
 ## Confirmed findings and merge blockers
 
 ### Critical
-- **6 critical advisories in installed Python image dependencies** and **2 critical advisories in installed Node.js image dependencies**, as reported by Trivy. Full rule/CVE details are in [image scan 43639889177](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889177), not hidden. **Owner must validate reachable components, select compatible patched dependency/base versions, and rerun the exact image build/startup+Trivy gate.**
+- **6 critical advisories in installed Python image dependencies**, as reported by Trivy. Full rule/CVE details are in [image scan 43639889177](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889177), not hidden. **Owner must validate reachable components, select compatible patched dependency/base versions, and rerun the exact image build/startup+Trivy gate.**
 - The original `fast-xml-parser` 5.3.0 critical CVE-2026-25896 is remediated in the 5.11.2 lockfile (verified Trivy filesystem PASS).
 
 ### High
-- **99 high-severity image findings**: 7 Ubuntu OS, 47 Node.js dependencies, 45 Python dependencies, in the real Playwright/browser-use image scan. Some may be transitive or lack a safe compatible upgrade; no blanket risk acceptance or ignore is included.
+- **47 high-severity image findings**: 2 Ubuntu OS and 45 Python dependencies, in the real Playwright/browser-use image scan. Some may be transitive or lack a safe compatible upgrade; no blanket risk acceptance or ignore is included.
 - Original `fast-xml-parser` high CVE-2026-25128, CVE-2026-26278, CVE-2026-33036 and HIGH non-root Dockerfile DS-0002 are no longer reported by filesystem scan after package fix and non-root user change.
 - **Historical Gitleaks:** 107 candidate secret matches are *not* 107 confirmed active credentials. They require restricted review, deduplication and classification; any genuine credential must be revoked/rotated with its owner, sessions inspected and replacement stored in GitHub Secrets/Cloudflare secret storage. Do not disclose values in logs/PR/comments or rewrite shared history without explicit approval.
 
@@ -44,13 +44,20 @@ The security CI workflows are isolated from existing application checks. No broa
 - Semgrep's full report contains 115 findings of varying reported priorities, not individually triaged; consult SARIF before determining false positives, risk, and dispositions. No ungrounded zero medium/low claim.
 - The Trivy filesystem HIGH/CRITICAL gate passed; this **does not** imply Python image dependencies or all medium/low findings are clean.
 
+
+### November 15 validated browser-image hardening
+- [Final runtime image build/startup/scan 43693818382](https://github.com/AmmarMohanna/distilled.news/actions/runs/43693818382): built the actual image, verified non-root identity, Node/tsx and local bridge health; the severity gate correctly **FAILED on 6 CRITICAL and 47 HIGH** (**53 total**): Ubuntu 2 HIGH, Python 6 CRITICAL and 45 HIGH, Node.js 0 HIGH/CRITICAL. This is a reduction from 8 CRITICAL + 99 HIGH (107 total) on [the original actual image](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889177).
+- The Dockerfile now applies narrowly selected Ubuntu security upgrades with `--no-install-recommends`; starts the bridge through `node --import tsx`; removes the unused bundled npm and pnpm toolchains from the final runtime. Browser bootstrap/prompt logic, browser-use version, and production Cloudflare resources are unchanged.
+- A contained attempt to upgrade `anyio`, `aiohttp`, `pillow` and `pypdf` to fixed versions **failed `pip check`**: `browser-use==0.13.10` requires exact older versions, and `browser-harness==0.1.13` also pins Pillow. The incompatible override was reverted. Do not claim those Python CVEs fixed. A coordinated, tested browser-use/browser-harness upgrade or replacement is a separate prerequisite to merge-readiness; removing the findings from Trivy would conceal risk.
+- [Latest filesystem Trivy](https://github.com/AmmarMohanna/distilled.news/actions/runs/43693822853) **PASS**, [Semgrep](https://github.com/AmmarMohanna/distilled.news/actions/runs/43693822856) **PASS**, [new-commit Gitleaks](https://github.com/AmmarMohanna/distilled.news/actions/runs/43693822833) **PASS**, [Python acquisition benchmarks](https://github.com/AmmarMohanna/distilled.news/actions/runs/43693822879) **PASS**, and [briefing evaluation](https://github.com/AmmarMohanna/distilled.news/actions/runs/43693822862) **PASS**. CodeQL has a prior all-language [PASS](https://github.com/AmmarMohanna/distilled.news/actions/runs/43693494821); latest run is [43693822839](https://github.com/AmmarMohanna/distilled.news/actions/runs/43693822839). Existing full application suite [43640491411](https://github.com/AmmarMohanna/distilled.news/actions/runs/43640491411) FAILED, including 1 V3 fixture, unit-test case and 30 Playwright E2Es; these failures are not solved by security-only changes. Do not treat the PR as ready for merging.
+
 ## Current CI and limitations
 
 - [CodeQL](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889306) PASS all languages.
 - [Semgrep](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889181) PASS ERROR gate, SARIF holds 115 review findings.
 - [Trivy filesystem](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889172) PASS HIGH/CRITICAL.
 - [Gitleaks change gate](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889231) PASS; historical audit still FAIL as above.
-- [Container build/health/image vulnerability scan](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889177) BUILD/HEALTH PASS, IMAGE VULNERABILITY GATE FAIL (8 CRITICAL/99 HIGH). No production image was deployed.
+- [Container build/health/image vulnerability scan](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889177) BUILD/HEALTH PASS, IMAGE VULNERABILITY GATE FAIL (6 CRITICAL/47 HIGH). No production image was deployed.
 - [Acquisition benchmark Python 3.12 and 3.14](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639507274) PASS; [offline briefing evaluation](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639507326) PASS.
 - [Existing Project checks](https://github.com/AmmarMohanna/distilled.news/actions/runs/43639889197): full pipeline still running when documentation was prepared; V3 correctness fixture previously fails independently of security edits. Earlier base-branch [Project checks](https://github.com/AmmarMohanna/distilled.news/actions/runs/43633029197) also failed. Do not infer project green from the narrower security jobs.
 
