@@ -62,13 +62,13 @@ jobs:
           output: browser-image.sarif
           exit-code: '0'
       - name: Publish image code scanning results
-        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: ${{ always() && hashFiles('browser-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: github/codeql-action/upload-sarif@v4.39.3
         with:
           sarif_file: browser-image.sarif
           category: trivy-browser-image
       - name: Retain non-secret findings
-        if: always()
+        if: ${{ always() && hashFiles('browser-image.sarif') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: browser-container-sarif
