@@ -191,6 +191,8 @@ export interface Env extends Cloudflare.Env {
   FEED_STATUS_CACHE_SECONDS?: string;
   /** "true" (with EDITION_ARTIFACTS_ENABLED) backfills R2 copies of published V3 editions in Cron, a few per tick. */
   EDITION_ARTIFACT_BACKFILL_ENABLED?: string;
+  /** "true" sends read-only routes through a D1 session that read replicas may serve. Needs read replication on the database. */
+  D1_READ_SESSIONS_ENABLED?: string;
   VERIFIED_ARCHIVE_ENABLED?: string;
   /** Isolated performance deployment only. All are disabled by default. */
   AGENTOPS_CAMPAIGN_ENABLED?: string;

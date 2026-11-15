@@ -84,3 +84,12 @@ it('preserves real D1 prepared statement and atomic batch behavior',async()=>{
   expect(await db.prepare('SELECT value FROM diagnostic_smoke WHERE id=?').bind('two').first()).toEqual({value:'changed'});
  }finally{await ctx.dispose()}
 });
+it('applies the same diagnostics to statements run through a read-replica session',async()=>{
+ const failure=new Error('D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window.');
+ const session=nativeDatabase(failure),withSession=vi.fn(()=>session.db);
+ const log=vi.spyOn(console,'error').mockImplementation(()=>{});
+ const db=withD1ResetDiagnostics({prepare(){throw Error('primary used')},withSession} as unknown as D1Database);
+ await expect(db.withSession('first-unconstrained').prepare('SELECT 1').first()).rejects.toBe(failure);
+ expect(withSession).toHaveBeenCalledWith('first-unconstrained');
+ expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({type:'D1_OVERLOADED',method:'first'});
+});

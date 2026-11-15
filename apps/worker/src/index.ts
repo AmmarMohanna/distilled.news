@@ -1,4 +1,5 @@
 import {withD1ResetDiagnostics} from './d1-reset-diagnostics';
+import {readRouteDatabase} from './d1-read-routes';
 import {backfillEditionArtifacts,editionArtifactBackfillEnabled} from './edition-artifact-backfill';
 import {observeInvocation,emitAgentOps} from './agentops';
 import {runStorageMaintenance} from './storage-maintenance';
@@ -55,7 +56,8 @@ const SLOW_QUEUE_JOB_MS = 10_000;
 
 export default {
   fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
-    env={...env,DB:withD1ResetDiagnostics(env.DB)};
+    // Read-only routes may use a replica session and retry an overloaded read once.
+    env={...env,DB:readRouteDatabase(env,request,withD1ResetDiagnostics)};
     return env.AGENTOPS_ENABLED==='true' ? observeInvocation('fetch',async()=>app.fetch(request,await productRuntimeEnv(env),ctx)) : app.fetch(request,await productRuntimeEnv(env),ctx);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
