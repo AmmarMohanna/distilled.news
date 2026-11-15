@@ -1,5 +1,9 @@
 # Reliability validation extension
 
+The funded continuation is complete. See [the final v3 report](../reports/reliability-v3/RESEARCH_REPORT.md), [actual quantitative results](../reports/reliability-v3/FUNDED_RESULTS.json), and [CI investigation](../reports/reliability-v3/CI_INVESTIGATION.md). Earlier credit-blocked statements below are preserved history.
+
+`funded-run.ts` reuses the existing evaluator ledger, validators, candidate policy, exact current-engine adapter and baselines. Its versioned private `funded-v3` campaign enforces a $20 exposure ceiling. `funded_analysis.py` and `funded_report.py` reproduce the public report from retained private evidence; they make no paid calls. The report documents compact-schema transport results separately from original provider failures and excludes invalid-input extra diagnostics from valid language measurements. UNKNOWN operations remain fenced, not retried.
+
 This directory extends the existing evaluator. It imports the deployed prompts,
 schema/grounding validators, completeness correction and reservation/settlement
 code. It does not deploy a new evaluator or modify any publishing path.

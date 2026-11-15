@@ -1,0 +1,7 @@
+{
+  "version": "paired-compact-v1",
+  "reason": "Claude provider explicitly refused original grammar for large source windows; original operations and holds remain intact, never retried",
+  "transport": "Factor source/passage schema alternatives into two enum fields; unchanged local exact source-passage validator rejects invalid pairs",
+  "scope": "All four systems and both judges, same previously generated outputs, shared original source-only inventories; no outcome-selected reruns",
+  "schemaCodeSha256": "072cb907a24d8c1dbbf0a1d59a52a203f64d6fed23fc301b6ee8184da8402bee"
+}

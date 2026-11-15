@@ -1,0 +1,46 @@
+{
+  "version": "funded-v3",
+  "base": "f9a7a515",
+  "models": [
+    "openai/gpt-4.1",
+    "anthropic/claude-sonnet-4.5"
+  ],
+  "ceilingUsd": 20,
+  "estimatedUsd": [
+    8,
+    12
+  ],
+  "concurrency": 2,
+  "hashes": {
+    "evaluation/briefing-quality/private/reliability-v1/blind-controls.json": "21590adc59ef7ef49229cc513cb48fb765aebe4210eb2eaed0572619be0d8cd2",
+    "evaluation/briefing-quality/private/reliability-v1/control-labels.json": "67494670478822030223c261b1b381e7cda527ffd875e0661be3bb0a0b131f63",
+    "evaluation/briefing-quality/private/reliability-v1/real-challenges/blind-controls.json": "0d304b4373dd9f58e512b641b2b7ef20fbcac74b3d3a7daf7cf092288157bd10",
+    "evaluation/briefing-quality/private/reliability-v1/real-challenges/control-labels.json": "c6d5a96aa6e2249f45baccaebb7e23dd1fe414a203c6fd8ebb53ee7e709e3f62",
+    "evaluation/briefing-quality/private/reliability-v2/r2/synthetic-reference-audit.json": "eaccbc032370bc05ee24ed645a2b3d43a8cdd74f79cf30ff9aae95c65f0c0df8",
+    "evaluation/briefing-quality/private/reliability-v2/r2/real-source-reference-audit.json": "e70dc99386a1b9268cd363e8e9a4e805dc2e9a91b235d2fe990c630b2d35571c",
+    "evaluation\\briefing-quality\\private\\reliability-v2\\frozen-inputs\\41de1d7ad9e1b8578ba9c0f0.json": "26ee1a64de9fb2ccc84c8acdb2f24b940f16496ef0f9c836f55f4d7e03461a55",
+    "evaluation\\briefing-quality\\private\\reliability-v2\\frozen-inputs\\5b5376c73917858947b1a279.json": "6e05066470ae7a003aff82ea0dce288cf3976b5dfadb9eb1c408d3d799ea111b",
+    "evaluation\\briefing-quality\\private\\reliability-v2\\frozen-inputs\\f9387f2b30a24defc1dc2ab1.json": "257009590519cdc8e05dc01c26ef7f3eeb64a7dc11ab3c5734d89950a8d1db24",
+    "evaluation\\briefing-quality\\private\\reliability-v2\\frozen-inputs\\daf2491637503045907ef2be.json": "9bb253ecf2e9e962d201c36b701b12ee2933af4daaa9531a985a247dcab0219b",
+    "evaluation\\briefing-quality\\private\\reliability-v2\\frozen-inputs\\4389e5bdc2708cd4f90712fb.json": "b7159c14ee1d55c524ede6b9bd73b09fd8a7645f51f5fc571fd6e7cea84695c4",
+    "evaluation\\briefing-quality\\private\\reliability-v2\\frozen-inputs\\2ff099366744ac7e7f7ebbb4.json": "4853351ef6dfb68082e4803bd04e05dd5688feb125fb2cc7c3bb857d7c5ec733"
+  },
+  "policy": "independent-language-structured-consistency-v2",
+  "paired": {
+    "systems": [
+      "current-engine",
+      "single-llm",
+      "all-headlines",
+      "keyword"
+    ],
+    "history": "common cold start per feed; chronological separate system history over all six windows",
+    "sourceInventory": "independent candidate-blind inventory per judge; same frozen inventory reused across all four systems per window",
+    "maxJudgeTokens": 12000
+  },
+  "benchmark": {
+    "maxJudgeTokens": 6000,
+    "reference": "r2 audited masks; unknown references excluded with denominators disclosed; translations grouped by event"
+  },
+  "heldout": "Exposed development windows are ineligible; no inferred independence",
+  "noDeployment": true
+}

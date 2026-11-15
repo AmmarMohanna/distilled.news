@@ -1,0 +1,3 @@
+import{it,expect}from'vitest';import{generationProvider,pipelineStatus}from'./validation/funded-requests';
+it('enforces price caps before generation and refuses unapproved routes',()=>{expect(generationProvider('openai/gpt-4.1')).toEqual({allow_fallbacks:false,require_parameters:true,max_price:{prompt:2,completion:8}});expect(generationProvider('openai/gpt-4.1-mini').max_price).toEqual({prompt:.4,completion:1.6});expect(()=>generationProvider('arbitrary/model')).toThrow('MODEL_ROUTE_NOT_ALLOWED')});
+it('preserves rejected states instead of treating a failed engine as legitimate quiet',()=>{expect(pipelineStatus('empty')).toBe('quiet');expect(pipelineStatus('rejected')).toBe('rejected');expect(pipelineStatus('published')).toBe('published')});

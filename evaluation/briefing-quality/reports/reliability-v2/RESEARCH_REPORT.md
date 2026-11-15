@@ -1,5 +1,7 @@
 # Briefing evaluation research: continuation findings
 
+**Funded follow-up completed:** the latest actual experiments and conclusions are in [the v3 final research report](../reliability-v3/RESEARCH_REPORT.md). The v2 text below is the preserved unfunded-stage record; its “not executed” statements describe that earlier stage, not the funded continuation.
+
 **Finding:** the existing evaluator is useful triage, with demonstrated language and structured-output weaknesses. The available evidence does not establish that the current Distilled.news engine outperforms all simpler baselines. This continuation adds safeguards and revalidates saved evidence; it does not claim new paid-model measurements.
 
 ## What was actually done

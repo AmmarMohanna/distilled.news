@@ -1,0 +1,7 @@
+{
+  "version": "utf8-diagnostics-r2",
+  "reason": "Original extra diagnostic literals were corrupted by PowerShell pipe encoding; those paid records are invalid-input diagnostics, preserved, not scored as valid language controls",
+  "packetHash": "1d5a3fbfc1a9eeb89a5661869ece52571d9f14516b61be28ff4a1fcadeb5c50c",
+  "codeHash": "07ad136f85c856ab340eed792daabded5052c0dd3f6e4e863a2c723ffc914eb0",
+  "scope": "Six development controls, separate from original 54-case benchmark; correct quotations, names, short headlines and missing source evidence"
+}
