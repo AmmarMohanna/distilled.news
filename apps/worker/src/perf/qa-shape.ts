@@ -12,6 +12,22 @@ export const OWNER='qa-owner';
 export const feedId=(i:number)=>`qa_feed_${String(i).padStart(2,'0')}`;
 export const feedSlug=(i:number)=>`qa-feed-${String(i).padStart(2,'0')}`;
 
+/** An edition with its citations, revisions and PUBLISHED status, as a publish writes them. */
+export function editionStatements(db:D1Database,f:number,e:number,sources:number,citations:number,createdAt=at(30+e*30)):D1PreparedStatement[] {
+ const id=feedId(f),editionId=editionIdFor(f,e),refs:string[]=[],statements:D1PreparedStatement[]=[];
+ for(let c=0;c<citations;c++){
+  const scope=`${id}::rss_${c%sources}`,revision=`${editionId}_rev_${c}`,observation=`${editionId}_cobs_${c}`;refs.push(revision);
+  statements.push(db.prepare('INSERT INTO v1_inputs(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(observation,scope,`cite_${e}_${c}`,JSON.stringify({observation:{feedId:id,publisherId:`publisher_${f}_${c}`,sourceId:scope,observedAt:at(e*30)}})),
+   db.prepare('INSERT INTO v1_revisions(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(revision,scope,`cite_${e}_${c}`,JSON.stringify({id:revision,feedId:id,evidenceId:revision,revision:1,sourceObservationId:observation,title:`Article ${e}-${c}`,canonicalUrl:`https://publisher${f}.example/${e}/${c}`,publishedAt:at(e*30),body:'x'.repeat(2000)})));
+ }
+ const edition={id:editionId,feedId:id,feedRevision:1,language:'en',windowStart:at(e*30-5),windowEnd:at(25+e*30),createdAt,evidenceRevisionIds:refs,
+  stories:[{candidateId:`story_${e}`,claims:refs.map((ref,i)=>({id:`claim_${e}_${i}`,text:`Supported development ${e}.${i} with enough prose to resemble a real paragraph of an edition.`,support:[{evidenceRevisionId:ref}]}))}]};
+ statements.push(db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('editions',?,?,?)").bind(editionId,id,JSON.stringify(edition)),
+  db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('publication_status',?,?,?)").bind(editionId,id,JSON.stringify({id:editionId,feedId:id,status:'PUBLISHED',publishedAt:createdAt})));
+ return statements;
+}
+export const editionIdFor=(f:number,e:number)=>`${feedId(f)}_ed_${String(e).padStart(3,'0')}`;
+
 async function chunked(db:D1Database,statements:D1PreparedStatement[]){for(let i=0;i<statements.length;i+=80)await db.batch(statements.slice(i,i+80));}
 
 export async function seedQaShape(db:D1Database,shape:QaShape=QA_SHAPE){
@@ -56,19 +72,7 @@ export async function seedQaShape(db:D1Database,shape:QaShape=QA_SHAPE){
     window:{start:at(r*30-5),end,kind:'30M',scheduledFor:at(30+r*30)},coverage:{state:'COMPLETE',pendingJobs:0,failedJobs:0,failures:[]}})));
   }
   const editions=heavy?shape.editionsHeavy:shape.editionsPerFeed;
-  for(let e=0;e<editions;e++){
-   const editionId=`${id}_ed_${String(e).padStart(3,'0')}`,refs:string[]=[];
-   for(let c=0;c<shape.citationsPerEdition;c++){
-    const scope=`${id}::rss_${c%sources}`,revision=`${editionId}_rev_${c}`,observation=`${editionId}_cobs_${c}`;refs.push(revision);
-    statements.push(db.prepare('INSERT INTO v1_inputs(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(observation,scope,`cite_${e}_${c}`,JSON.stringify({observation:{feedId:id,publisherId:`publisher_${f}_${c}`,sourceId:scope,observedAt:at(e*30)}})),
-     db.prepare('INSERT INTO v1_revisions(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(revision,scope,`cite_${e}_${c}`,JSON.stringify({id:revision,feedId:id,evidenceId:revision,revision:1,sourceObservationId:observation,title:`Article ${e}-${c}`,canonicalUrl:`https://publisher${f}.example/${e}/${c}`,publishedAt:at(e*30),body:'x'.repeat(2000)})));
-   }
-   const createdAt=at(30+e*30);
-   const edition={id:editionId,feedId:id,feedRevision:1,language:'en',windowStart:at(e*30-5),windowEnd:at(25+e*30),createdAt,evidenceRevisionIds:refs,
-    stories:[{candidateId:`story_${e}`,claims:refs.map((ref,i)=>({id:`claim_${e}_${i}`,text:`Supported development ${e}.${i} with enough prose to resemble a real paragraph of an edition.`,support:[{evidenceRevisionId:ref}]}))}]};
-   statements.push(db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('editions',?,?,?)").bind(editionId,id,JSON.stringify(edition)),
-    db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('publication_status',?,?,?)").bind(editionId,id,JSON.stringify({id:editionId,feedId:id,status:'PUBLISHED',publishedAt:createdAt})));
-  }
+  for(let e=0;e<editions;e++)statements.push(...editionStatements(db,f,e,sources,shape.citationsPerEdition));
   await chunked(db,statements);
  }
  return {owner};

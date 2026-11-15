@@ -18,7 +18,8 @@ import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
 import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
 import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
-import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
 import {connectorSourceHealth} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
 import {feedSourceAvailability} from './connector-availability';
@@ -1304,6 +1305,37 @@ export function createApp(options: AppOptions = {}) {
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
+    if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
+      // Cached data only: access, the viewer's star and feed settings are read per request.
+      const version = await feedReadVersion(c.env.DB, briefing.id);
+      const env = c.env;
+      const [published, status] = await Promise.all([
+        cachedProductEditions(env, briefing.id, version),
+        cachedFeedStatus(env, briefing.id, version, async () => {
+          const value = {
+            sourceAvailability: await feedSourceAvailability(env, briefing.id),
+            publicationState: await productPublicationState(env, briefing.id),
+            publicationProgress: await productPublicationProgress(env, briefing.id)
+          };
+          return { value, hash: fnv1a(JSON.stringify(value)) };
+        })
+      ]);
+      const viewerHasStarred = voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false;
+      if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
+      const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
+      const publicFeed = publicBriefing(briefing);
+      // Content-derived, so every isolate computes the same tag for the same response.
+      const etag = `W/"${version}-${fnv1a([published.hash, status.value.hash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
+      c.header('ETag', etag);
+      if (etagMatches(c.req.header('If-None-Match'), etag)) return c.body(null, 304);
+      return c.json({
+        unreadSummaryAvailable,
+        briefing: publicFeed,
+        ...status.value.value,
+        editions: presentProductEditions(briefing, published.records),
+        viewerHasStarred
+      });
+    }
     const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     const payload={
@@ -1331,7 +1363,9 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0] : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
+    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (feedReadCacheEnabled(c.env)
+      ? presentProductEditions(briefing, (await cachedProductEditions(c.env, briefing.id, await feedReadVersion(c.env.DB, briefing.id))).records.filter(record => record.id === c.req.param("editionId")))[0]
+      : (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0]) : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
@@ -1352,7 +1386,9 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
+    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (feedReadCacheEnabled(c.env)
+      ? presentProductEditions(briefing, (await cachedProductEditions(c.env, briefing.id, await feedReadVersion(c.env.DB, briefing.id))).records)
+      : await publishedProductEditions(c.env, briefing)) : (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
     return c.json({
@@ -1588,6 +1624,14 @@ export function createApp(options: AppOptions = {}) {
   });
 
   type FeedAccess={public_feed_enabled:number;owner_account_id:string;disabled_at:string|null};
+  /** The latest-100 published list, shared by the feed page, edition detail and search. */
+  async function cachedProductEditions(env:Env, feedId:string, version:number) {
+    const { value } = await cachedFeedEditions(feedId, version, async () => {
+      const records = await publishedProductEditionRecords(env, feedId);
+      return { records, hash: fnv1a(JSON.stringify(records)) };
+    });
+    return value;
+  }
   function usesEditionArtifacts(env:Env) {
     return env.PRODUCT_FEEDS_ENABLED==='true'&&env.EDITION_ARTIFACTS_ENABLED==='true';
   }
@@ -2188,4 +2232,12 @@ async function maybeRedirectUsernameRoute(
   const url = new URL(c.req.url);
   url.pathname = `/${resolved.account.username}/${briefing.slug}/`;
   return c.redirect(url.toString(), 301);
+}
+
+/** RFC 9110 weak comparison for If-None-Match. */
+export function etagMatches(header:string|undefined,etag:string):boolean {
+  if(!header)return false;
+  if(header.trim()==='*')return true;
+  const opaque=(tag:string)=>tag.trim().replace(/^W\//,'');
+  return header.split(',').some(tag=>opaque(tag)===opaque(etag));
 }

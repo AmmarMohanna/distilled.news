@@ -185,6 +185,10 @@ export interface Env extends Cloudflare.Env {
   WINDOW_READINESS_MODE?: 'shadow'|'relay';
   WINDOW_READINESS_FEED_IDS?: string;
   EDITION_ARTIFACTS_ENABLED?: string;
+  /** "true" caches feed-page reads per isolate, keyed by v1_feed_read_versions (0095). Off by default. */
+  FEED_READ_CACHE_ENABLED?: string;
+  /** Seconds the feed page's collection status may be reused (0–120, default 15). */
+  FEED_STATUS_CACHE_SECONDS?: string;
   VERIFIED_ARCHIVE_ENABLED?: string;
   /** Isolated performance deployment only. All are disabled by default. */
   AGENTOPS_CAMPAIGN_ENABLED?: string;
