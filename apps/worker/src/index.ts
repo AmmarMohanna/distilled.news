@@ -1,4 +1,5 @@
 import {withD1ResetDiagnostics} from './d1-reset-diagnostics';
+import {backfillEditionArtifacts,editionArtifactBackfillEnabled} from './edition-artifact-backfill';
 import {observeInvocation,emitAgentOps} from './agentops';
 import {runStorageMaintenance} from './storage-maintenance';
 import {sweepVerifiedArchiveOrphans} from './verified-archives';
@@ -343,6 +344,8 @@ async function runProjectionMaintenance(env:Env):Promise<void> {
 export async function runScheduledMaintenance(env: Env): Promise<void> {
   if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
   catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
+  if(editionArtifactBackfillEnabled(env))try {await backfillEditionArtifacts(env,{maxAttached:5,budgetMs:5000})}
+  catch(error){console.error(JSON.stringify({event:'edition_artifact_backfill_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   env = await productRuntimeEnv(env);
   await runModelPublicationMaintenance(env);
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}

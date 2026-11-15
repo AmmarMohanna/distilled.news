@@ -42,3 +42,6 @@ BEGIN
   INSERT INTO v1_feed_read_versions(feed_id,version,updated_at) VALUES(OLD.feed_id,1,strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     ON CONFLICT(feed_id) DO UPDATE SET version=version+1,updated_at=excluded.updated_at;
 END;
+
+-- The edition artifact backfill skips editions with an archive attempt.
+CREATE INDEX v1_verified_archives_record ON v1_verified_archives(record_id,kind);

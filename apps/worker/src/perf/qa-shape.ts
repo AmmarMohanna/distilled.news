@@ -20,10 +20,11 @@ export function editionStatements(db:D1Database,f:number,e:number,sources:number
   statements.push(db.prepare('INSERT INTO v1_inputs(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(observation,scope,`cite_${e}_${c}`,JSON.stringify({observation:{feedId:id,publisherId:`publisher_${f}_${c}`,sourceId:scope,observedAt:at(e*30)}})),
    db.prepare('INSERT INTO v1_revisions(id,feed_source_id,item_key,json) VALUES(?,?,?,?)').bind(revision,scope,`cite_${e}_${c}`,JSON.stringify({id:revision,feedId:id,evidenceId:revision,revision:1,sourceObservationId:observation,title:`Article ${e}-${c}`,canonicalUrl:`https://publisher${f}.example/${e}/${c}`,publishedAt:at(e*30),body:'x'.repeat(2000)})));
  }
- const edition={id:editionId,feedId:id,feedRevision:1,language:'en',windowStart:at(e*30-5),windowEnd:at(25+e*30),createdAt,evidenceRevisionIds:refs,
+ const edition={id:editionId,feedId:id,engine:'v3',feedRevision:1,language:'en',windowStart:at(e*30-5),windowEnd:at(25+e*30),createdAt,evidenceRevisionIds:refs,
   stories:[{candidateId:`story_${e}`,claims:refs.map((ref,i)=>({id:`claim_${e}_${i}`,text:`Supported development ${e}.${i} with enough prose to resemble a real paragraph of an edition.`,support:[{evidenceRevisionId:ref}]}))}]};
  statements.push(db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('editions',?,?,?)").bind(editionId,id,JSON.stringify(edition)),
-  db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('publication_status',?,?,?)").bind(editionId,id,JSON.stringify({id:editionId,feedId:id,status:'PUBLISHED',publishedAt:createdAt})));
+  db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('publication_status',?,?,?)").bind(editionId,id,JSON.stringify({id:editionId,feedId:id,status:'PUBLISHED',publishedAt:createdAt})),
+  db.prepare("INSERT INTO v1_feed_documents(kind,id,feed_id,json) VALUES('delivery_jobs',?,?,?)").bind(editionId,id,JSON.stringify({id:editionId,feedId:id,editionId,state:'DONE',attempts:1,createdAt})));
  return statements;
 }
 export const editionIdFor=(f:number,e:number)=>`${feedId(f)}_ed_${String(e).padStart(3,'0')}`;

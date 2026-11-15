@@ -189,6 +189,8 @@ export interface Env extends Cloudflare.Env {
   FEED_READ_CACHE_ENABLED?: string;
   /** Seconds the feed page's collection status may be reused (0–120, default 15). */
   FEED_STATUS_CACHE_SECONDS?: string;
+  /** "true" (with EDITION_ARTIFACTS_ENABLED) backfills R2 copies of published V3 editions in Cron, a few per tick. */
+  EDITION_ARTIFACT_BACKFILL_ENABLED?: string;
   VERIFIED_ARCHIVE_ENABLED?: string;
   /** Isolated performance deployment only. All are disabled by default. */
   AGENTOPS_CAMPAIGN_ENABLED?: string;
