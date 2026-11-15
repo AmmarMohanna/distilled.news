@@ -19,6 +19,8 @@ export interface FeedSpec {
   style?: string;
   /** Persisted on new inputs only; frozen inputs retain their original prompts. */
   topicSelectionPolicy?: 'reader-topic-boundaries-v1';
+  /** Frozen in new snapshots; preserve claim strength and action during compression. */
+  wordingFidelityPolicy?: 'faithful-compression-v1';
 }
 
 /** Something the reader has already been told. */
