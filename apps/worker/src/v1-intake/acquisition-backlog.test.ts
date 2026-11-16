@@ -13,6 +13,35 @@ const policy={...testPolicy,verifySuppliedContent:async(o:import('@distilled/con
 beforeEach(async()=>{ctx=await createIntakeDatabase();store=new V1IntakeStore(ctx.db);await seedIntakeScope(store);await new V1FeedStore(ctx.db).registerFeed(feedFixture);});
 afterEach(async()=>ctx.dispose());
 const batch=(n=1)=>{const b=batchFixture(n);b.observations[0].publishedAtHint='2026-10-02T10:00:00Z';b.proposals[0].publishedAtHint=b.observations[0].publishedAtHint;return b;};
+it('records old first discoveries before dispatch and preserves changed articles and corrections',async()=>{
+ const {windowIntakeCoverage}=await import('../v1-intelligence/window-coverage');
+ const port=createCandidateIntakePort(store,{...policy,deferInitialBacklog:true});
+ const first=await port.acceptBatch(batch());
+ expect(first.receipts[0].decision).toBe('ACCEPTED');
+ expect((await store.read<DownstreamJob>('jobs',jobId(1)))?.value).toMatchObject({
+  state:'DEFERRED',attempts:0,deferred:{reason:'INITIAL_BACKLOG',feedCreatedAt:now},
+ });
+ expect(await claimAcquisition(store,jobId(1),now)).toBeUndefined();
+ expect(await port.acceptBatch(batch())).toEqual(first);
+ expect((await port.acceptBatch(batch(2))).receipts[0].decision).toBe('REPLAY');
+ expect(await store.read('inputs','observation-2')).toBeDefined();
+ expect(await store.read('jobs',jobId(2))).toBeUndefined();
+ expect(await windowIntakeCoverage(ctx.db,'feed-1','2026-10-03T12:30:00Z')).toMatchObject({state:'COMPLETE',pendingJobs:0,failedJobs:0});
+
+ const changed=batch(3);
+ changed.observations[0].contentHash='b'.repeat(64);
+ await port.acceptBatch(changed);
+ const correction=batch(4);
+ correction.observations[0].sourceItemKey=correction.proposals[0].sourceItemKey='guid-correction';
+ correction.observations[0].titleHint=correction.proposals[0].titleHint='Correction: agency revises its earlier report';
+ await port.acceptBatch(correction);
+ const late=batch(5);
+ late.observations[0].sourceItemKey=late.proposals[0].sourceItemKey='guid-late';
+ late.observations[0].publishedAtHint=late.proposals[0].publishedAtHint=now;
+ await port.acceptBatch(late);
+ for(const n of [3,4,5])expect((await store.read<DownstreamJob>('jobs',jobId(n)))?.value.state).toBe('PENDING');
+});
+
 it('defers unchanged initial backlog without scraping, erasing its input or reporting acquisition success',async()=>{
  const b=batch();await createCandidateIntakePort(store,policy).acceptBatch(b);
  const original=await store.read('inputs','observation-1');
@@ -24,7 +53,7 @@ it('defers unchanged initial backlog without scraping, erasing its input or repo
  const next=batch(2);expect((await createCandidateIntakePort(store,policy).acceptBatch(next)).receipts[0].decision).toBe('REPLAY');
  expect(await store.read('jobs',jobId(2))).toBeUndefined();expect(await store.read('inputs','observation-2')).toBeDefined();
 });
-it.each(['missing-date','new-date','revision','authoritative','changed-text','explicit-recovery','existing-evidence','running','saved-result','correction'])('retains runnable acquisition for %s',async mode=>{
+it.each(['missing-date','new-date','revision','authoritative','changed-text','explicit-recovery','existing-evidence','running','saved-result','correction','attempted','capacity-wait'])('retains runnable acquisition for %s',async mode=>{
  const first=batch();await createCandidateIntakePort(store,policy).acceptBatch(first);
  let target=jobId(1);
  if(mode==='changed-text'){const changed=batch(2);changed.observations[0].contentHash='b'.repeat(64);await createCandidateIntakePort(store,policy).acceptBatch(changed);target=jobId(2);}
@@ -40,6 +69,7 @@ it.each(['missing-date','new-date','revision','authoritative','changed-text','ex
  }else{
   const job=(await store.read<DownstreamJob>('jobs',target))!.value;
   if(mode==='running')await store.commit(await store.snapshot('feed-source-1'),[{table:'jobs',id:target,value:{...job,state:'RUNNING',leaseToken:'active',leaseUntil:'2026-10-03T12:01:00Z'}}]);
+  if(mode==='attempted'||mode==='capacity-wait')await store.commit(await store.snapshot('feed-source-1'),[{table:'jobs',id:target,value:{...job,...(mode==='attempted'?{attempts:1}:{resourceWaits:1})}}]);
   if(mode==='explicit-recovery')await store.commit(await store.snapshot('feed-source-1'),[{table:'jobs',id:target,value:{...job,recoveryAuthorizations:[{id:'review',priorAttempts:0,priorFailureCode:'NETWORK',maxAttempts:1,authorizedAt:now}]}}]);
   if(mode==='saved-result')await store.commit(await store.snapshot('feed-source-1'),[{table:'acquisition_results',id:target,itemKey:'guid-1',value:{id:'saved-content',feedId:'feed-1',candidateId:itemId('feed-source-1','guid-1'),sourceObservationId:'observation-1',representation:'FULL_ARTICLE',contentCompleteness:'COMPLETE',body:'Retained article body.',acquiredAt:now,acquisitionMethod:'direct_http'},immutable:true}]);
   if(mode==='existing-evidence')await store.commit(await store.snapshot('feed-source-1'),[{table:'evidence',id:itemId('feed-source-1','guid-1'),itemKey:'guid-1',value:{state:'ACTIVE'}}]);

@@ -17,6 +17,10 @@ export interface FeedSpec {
   /** Length of the briefing window; shapes how selective the editor is. */
   windowMinutes: number;
   style?: string;
+  /** Persisted on new inputs only; frozen inputs retain their original prompts. */
+  topicSelectionPolicy?: 'reader-topic-boundaries-v1';
+  /** Frozen in new snapshots; preserve claim strength and action during compression. */
+  wordingFidelityPolicy?: 'faithful-writing-v1';
 }
 
 /** Something the reader has already been told. */

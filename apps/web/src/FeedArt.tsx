@@ -42,10 +42,11 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
     let retries = 0;
     let inFlight = false;
     let refreshPending = false;
-    let checkedStorage = false;
+    const refreshArtwork = new URLSearchParams(window.location.search).get('refresh-artwork') === feed.id;
+    let checkedStorage = refreshArtwork;
     const sketchUrl = `/api/feed/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/sketch`;
     const cacheable = feed.publicFeedEnabled === true;
-    const saved = cacheable ? cachedSketch(sketchUrl) : undefined;
+    const saved = cacheable && !refreshArtwork ? cachedSketch(sketchUrl) : undefined;
     if (saved) {
       objectUrl = URL.createObjectURL(saved);
       setImage(objectUrl);
@@ -72,12 +73,12 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
           }
         }
         const load = async () => {
-          const response = await fetch(sketchUrl, { ...(cacheable ? {} : {signal:controller.signal}), cache: cacheable ? "default" : "no-store" });
+          const response = await fetch(sketchUrl, { ...(cacheable ? {} : {signal:controller.signal}), cache: cacheable ? refreshArtwork ? "reload" : "default" : "no-store" });
           if (response.ok && response.headers.get("content-type")?.startsWith("image/")) return {blob:await transparentSketch(await response.blob()),pending:false};
           // A missing job cannot become ready merely by repeatedly reading its URL.
           return {pending:response.status === 404 && Boolean(response.headers?.get("Retry-After"))};
         };
-        let request = cacheable ? sketchRequests.get(sketchUrl) : undefined;
+        let request = cacheable && !refreshArtwork ? sketchRequests.get(sketchUrl) : undefined;
         if (!request) {
           request = load();
           if (cacheable) {
@@ -94,6 +95,13 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
           objectUrl = URL.createObjectURL(blob);
           setImage(objectUrl);
           if (cacheable) void saveSketch(sketchUrl, blob);
+          if (refreshArtwork) {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('refresh-artwork') === feed.id) {
+              url.searchParams.delete('refresh-artwork');
+              window.history.replaceState(window.history.state, '', url);
+            }
+          }
           return;
         }
       } catch (error) {

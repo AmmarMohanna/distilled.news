@@ -28,6 +28,8 @@ import {
   type PreviousReview
 } from "./prompts";
 import { significantNumbers } from "./text";
+import {selectTopicSources} from './topic-selection';
+import {wordingFidelity,wordingBase} from './wording-fidelity';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
@@ -221,7 +223,7 @@ async function edit(
     meter,
     {
       model: models.editor,
-      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:''),
+      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed),
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
         ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: accountingPolicy?Math.max(4000,articles.length*48):4000
@@ -252,7 +254,7 @@ async function consolidate(
     meter,
     {
       model: models.editor,
-      system: (promptVersion === 7 ? CONSOLIDATE_SYSTEM_V7 : promptVersion >= 6 ? CONSOLIDATE_SYSTEM_V6 : promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:''),
+      system: (promptVersion === 7 ? CONSOLIDATE_SYSTEM_V7 : promptVersion >= 6 ? CONSOLIDATE_SYSTEM_V6 : promptVersion >= 5 ? CONSOLIDATE_SYSTEM_V5 : CONSOLIDATE_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed),
       user: consolidateUser({
         promptVersion,
         feed: input.feed,
@@ -372,7 +374,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: (promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM)+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:''),
+          system: wordingBase(input.feed,'verify',(promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM))+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed,true),
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
@@ -447,7 +449,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM,
+      system: wordingBase(input.feed,'repair',(promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM))+wordingFidelity(input.feed),
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,
@@ -510,6 +512,8 @@ export async function generateBriefing(
 ): Promise<BriefingResult> {
   if ('v7Experiment' in overrides && overrides.v7Experiment !== undefined) throw new Error('UNSUPPORTED_V7_EXPERIMENT');
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
+  if(input.feed.topicSelectionPolicy&&options.architecture)throw Error('TOPIC_SELECTION_ARCHITECTURE_UNQUALIFIED');
+  if(input.feed.wordingFidelityPolicy&&options.architecture)throw Error('WORDING_FIDELITY_ARCHITECTURE_UNQUALIFIED');
   if(options.editorSourcePolicy&&options.citationCoverage)throw Error('CONFLICTING_SOURCE_POLICIES');
   if (options.architecture !== undefined) {
     if (options.architecture !== 'evidence-first-v1' && options.architecture !== 'evidence-first-v2') throw new Error('UNSUPPORTED_BRIEFING_ARCHITECTURE');
@@ -547,6 +551,19 @@ export async function generateBriefing(
 
   // 1. Edit: choose and write.
   const editorialFailures: DroppedItem[] = [];
+  let eligible=prepared;
+  if(input.feed.topicSelectionPolicy==='reader-topic-boundaries-v1'){
+    const decisions=await timed('topic_selection',()=>selectTopicSources(port,meter,models.verifier,input.feed,prepared,options.maxVerifyChars));
+    eligible=prepared.filter(article=>{
+      const decision=decisions.get(article.ref)!;
+      if(decision.relation==='direct')return true;
+      const sourceIds=sourceIdsOfRefs([article.ref]);
+      if(decision.relation==='uncertain')editorialFailures.push({headline:article.title??'Unresolved topic relevance',reason:'Topic relevance unresolved: '+decision.reason,carry:true,sourceIds});
+      else omittedStories.push({stage:'editor',reason:'Off-topic: '+decision.reason,sourceIds});
+      return false;
+    });
+    if(!eligible.length)return finish({status:editorialFailures.length?'rejected':'empty',items:[],skipped,dropped:editorialFailures});
+  }
   const editChunk=async(chunk:PreparedArticle[],partial:boolean)=>{
     try{return await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy,options.noveltyPolicy)}
     catch(error){
@@ -555,11 +572,11 @@ export async function generateBriefing(
       return {drafts:[],omitted:[],unaccounted:auditEditorSourceAccounting({},chunk)};
     }
   };
-  const chunks = chunkArticles(prepared, options.maxEditorChars);
+  const chunks = chunkArticles(eligible, options.maxEditorChars);
   let drafts: Draft[];
   const omitted: OmittedStory[] = [];
   if (chunks.length === 1) {
-    const edited = await timed("edit", () => editChunk(prepared,false));
+    const edited = await timed("edit", () => editChunk(eligible,false));
     drafts = edited.drafts;
     omitted.push(...edited.omitted);
     unaccounted.push(...edited.unaccounted);

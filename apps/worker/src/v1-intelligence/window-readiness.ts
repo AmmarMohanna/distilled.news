@@ -9,6 +9,8 @@ const DAY_MS=86_400_000;
 const LEASE_MS=120_000;
 const MAX_ACTIVE_WINDOWS=2;
 const WAKE_BATCH=5;
+const MAX_WAKE_ATTEMPTS=4;
+const ACCEPTED_WAKE_RETRY_MS=600_000;
 const REPAIR_DELAY_MS=300_000;
 
 export type WindowReadinessWake={type:'window_readiness_wake';eventId:string;feedId:string};
@@ -88,7 +90,7 @@ export async function observeWindowReadiness(env:Env,request:BriefingRequest,now
   const collection=await pendingWindowCollections(env.DB,request.feedId,request.window.end,true,{scheduledFor:request.window.scheduledFor,now:at});
   const verified=await preparedV3Delivery(env.DB,request.feedId,request.id,Math.max(at,delivery));
   const deferAcquisition=verified&&at>=delivery;
-  const deferIntake=await cutoffEditionReady(env.DB,request.feedId,request,now.toISOString());
+  const deferIntake=await cutoffEditionReady(env.DB,request.feedId,request,now.toISOString(),env.CUTOFF_EDITIONS_ENABLED==='true');
   const canonicalHolding=await windowHasHoldingJobs(env.DB,request.feedId,request.window.end,{v3:true,now:now.toISOString(),deferAcquisition,deferIntake});
   const projectedHolding=!deferIntake&&(deferAcquisition?projection.pending_review>0:projection.holding);
   const resolved=Number(collection.pending===0);
@@ -118,8 +120,8 @@ export async function observeWindowReadiness(env:Env,request:BriefingRequest,now
  * transactional intents with zero queue sends. An accepted but unconsumed
  * wake becomes due again, including after a crash between send and ack. */
 export async function sweepWindowReadiness(env:Env,now=new Date()):Promise<void> {
-  if(!enabled(env))return;
   const at=now.getTime();
+  if(!enabled(env)&&!await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='v1_window_readiness'").first())return;
   await env.DB.prepare(`DELETE FROM v1_window_readiness WHERE window_id IN (
     SELECT window_id FROM v1_window_readiness WHERE expires_ms<=? ORDER BY expires_ms,window_id LIMIT 16)`)
     .bind(at).run();
@@ -131,21 +133,21 @@ export async function sweepWindowReadiness(env:Env,now=new Date()):Promise<void>
   const cohort=env.WINDOW_READINESS_FEED_IDS?.split(',').map(id=>id.trim()).filter(Boolean);
   const candidates=await env.DB.prepare(`SELECT o.event_id,w.feed_id FROM v1_window_ready_outbox o
     JOIN v1_window_readiness w ON w.window_id=o.window_id AND w.generation=o.generation
-    WHERE o.consumed_ms IS NULL AND o.due_ms<=? AND o.send_until_ms<=? AND o.consumer_until_ms<=? AND w.expires_ms>?
+    WHERE o.consumed_ms IS NULL AND o.attempts<? AND o.due_ms<=? AND o.send_until_ms<=? AND o.consumer_until_ms<=? AND w.expires_ms>?
     ${cohort?'AND w.feed_id IN (SELECT value FROM json_each(?))':''}
-    ORDER BY o.due_ms,o.window_id LIMIT ?`).bind(at,at,at,at,...(cohort?[JSON.stringify(cohort)]:[]),WAKE_BATCH).all<{event_id:string;feed_id:string}>();
+    ORDER BY o.due_ms,o.window_id LIMIT ?`).bind(MAX_WAKE_ATTEMPTS,at,at,at,at,...(cohort?[JSON.stringify(cohort)]:[]),WAKE_BATCH).all<{event_id:string;feed_id:string}>();
   for(const candidate of candidates.results){
     const token=crypto.randomUUID();
     const claim=await env.DB.prepare(`UPDATE v1_window_ready_outbox SET send_token=?,send_until_ms=?,attempts=attempts+1
-      WHERE event_id=? AND consumed_ms IS NULL AND due_ms<=? AND send_until_ms<=? AND consumer_until_ms<=? RETURNING attempts`)
-      .bind(token,at+LEASE_MS,candidate.event_id,at,at,at).first<{attempts:number}>();
+      WHERE event_id=? AND consumed_ms IS NULL AND attempts<? AND due_ms<=? AND send_until_ms<=? AND consumer_until_ms<=? RETURNING attempts`)
+      .bind(token,at+LEASE_MS,candidate.event_id,MAX_WAKE_ATTEMPTS,at,at,at).first<{attempts:number}>();
     if(!claim)continue;
     try{
       await queue.send({type:'window_readiness_wake',eventId:candidate.event_id,feedId:candidate.feed_id});
       await env.DB.prepare('UPDATE v1_window_ready_outbox SET sent_ms=?,send_token=NULL,send_until_ms=0,due_ms=? WHERE event_id=? AND send_token=?')
-        .bind(at,at+LEASE_MS,candidate.event_id,token).run();
+        .bind(at,at+ACCEPTED_WAKE_RETRY_MS*2**(claim.attempts-1),candidate.event_id,token).run();
     }catch{
-      const delay=Math.min(300_000,1000*2**Math.min(claim.attempts,8));
+      const delay=60_000*2**(claim.attempts-1);
       await env.DB.prepare('UPDATE v1_window_ready_outbox SET send_token=NULL,send_until_ms=0,due_ms=? WHERE event_id=? AND send_token=?')
         .bind(at+delay,candidate.event_id,token).run();
     }

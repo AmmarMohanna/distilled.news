@@ -26,7 +26,7 @@ export async function dispatchReadyConnectorBriefing(env:Env,feedId:string,now=n
  if(!isAutomaticReportingWindow(window.data))return false;
  const v3=request.engine==='v3'||!request.engine&&env.BRIEFING_ENGINE==='v3';
  if((request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!(v3?productV3Ready(env):createStoredEvidenceModel(env)))return false;
- const intake=await windowIntakeReadiness(env.DB,feedId,{...request,id:row.id,window:window.data},now.toISOString(),v3);
+ const intake=await windowIntakeReadiness(env.DB,feedId,{...request,id:row.id,window:window.data},now.toISOString(),v3,env.CUTOFF_EDITIONS_ENABLED==='true');
  if(intake.holding||(await pendingWindowCollections(env.DB,feedId,window.data.end,v3,{scheduledFor:window.data.scheduledFor,now:now.getTime()})).pending)return false;
  return enqueueV1(env,'v1_briefing',row.id,{type:'v1_briefing',feedId,window:window.data},now);
 }

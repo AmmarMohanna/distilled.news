@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword} from './api';
+import {getFeed,saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword} from './api';
 
 it.each(['en','fr','ar'])('sends the currently chosen %s language when requesting either auth email',async language=>{
  localStorage.setItem('dn_language',language);
@@ -12,6 +12,33 @@ it.each(['en','fr','ar'])('sends the currently chosen %s language when requestin
 });
 
 afterEach(()=>vi.unstubAllGlobals());
+it('recovers the initial feed read from one temporary server failure',async()=>{
+  const payload={briefing:{id:'feed'},editions:[]};
+  const fetcher=vi.fn()
+    .mockResolvedValueOnce(Response.json({code:'DATABASE_UNAVAILABLE'},{status:503}))
+    .mockResolvedValueOnce(Response.json(payload));
+  vi.stubGlobal('fetch',fetcher);
+  await expect(getFeed('owner','news',{signal:new AbortController().signal,retryInitialRead:true})).resolves.toEqual(payload);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+it.each([403,404,429])('keeps feed response %s final without a retry',async status=>{
+  const fetcher=vi.fn(async()=>Response.json({}, {status}));
+  vi.stubGlobal('fetch',fetcher);
+  await expect(getFeed('owner','news',{signal:new AbortController().signal,retryInitialRead:true})).rejects.toMatchObject({uiMessage:{details:{status}}});
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it('does not retry a cancelled feed read',async()=>{
+  const controller=new AbortController();
+  const fetcher=vi.fn(async()=>{
+    controller.abort();
+    return Response.json({}, {status:503});
+  });
+  vi.stubGlobal('fetch',fetcher);
+  await expect(getFeed('owner','news',{signal:controller.signal,retryInitialRead:true})).rejects.toMatchObject({id:'REQUEST_FAILED'});
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
 it('delivers verified suggestions before a slower check finishes and handles split stream chunks',async()=>{
  let output!:ReadableStreamDefaultController<Uint8Array>;
  const body=new ReadableStream<Uint8Array>({start(controller){output=controller}}),encoder=new TextEncoder();

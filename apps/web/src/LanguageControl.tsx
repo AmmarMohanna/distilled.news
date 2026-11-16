@@ -8,6 +8,13 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'All matching sources are already added to this feed.':['Toutes les sources correspondantes sont déjà ajoutées à ce flux.','جميع المصادر المطابقة مضافة بالفعل إلى هذا الموجز.'],
+  'Search by publisher, person or article title. Select a result to follow its source.':['Recherchez un média, une personne ou un titre d’article. Sélectionnez un résultat pour suivre sa source.','ابحث باسم المصدر أو الشخص أو عنوان المقال. اختر نتيجة لمتابعة مصدرها.'],
+  'The results were off topic for this feed, so they were not shown. Try another search.':['Les résultats ne correspondaient pas au sujet de ce flux et ont été masqués. Essayez une autre recherche.','كانت النتائج خارج موضوع هذا الموجز، لذلك لم يتم عرضها. جرّب بحثًا آخر.'],
+  'No sources matched your search and this feed’s topic. Try a related search.':['Aucune source ne correspond à votre recherche et au sujet de ce flux. Essayez une recherche liée au sujet.','لم يتم العثور على مصادر تطابق بحثك وموضوع هذا الموجز. جرّب بحثًا مرتبطًا بالموضوع.'],
+  'Suggested searches':['Recherches suggérées','عمليات بحث مقترحة'],
+  'Search sources':['Rechercher des sources','البحث عن مصادر'],
+  'No results matched this feed’s topic. Try a more specific search.':['Aucun résultat ne correspond au sujet de ce flux. Précisez votre recherche.','لا توجد نتائج تطابق موضوع هذا الموجز. جرّب بحثًا أكثر تحديدًا.'],
   "No freely accessible sources found. Try another name or a public feed URL.": ["Aucune source accessible gratuitement. Essayez un autre nom ou un lien de flux public.", "لم يتم العثور على مصادر متاحة مجانًا. جرّب اسمًا آخر أو رابط موجز عام."],
   "Checking {source}...": ["Vérification de {source}...", "جارٍ التحقق من {source}..."],
   "Already added": ["Déjà ajouté", "تمت إضافته بالفعل"],

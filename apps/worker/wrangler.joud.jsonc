@@ -18,6 +18,8 @@
   },
   "vars": {
     "BRIEFING_ENGINE": "v3",
+    "BRIEFING_TOPIC_SELECTION_ENABLED": "true",
+    "BRIEFING_WORDING_FIDELITY_ENABLED": "true",
     "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
     "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
     "BRIEFING_EDITOR_MODEL": "openai/gpt-4.1",
@@ -35,6 +37,7 @@
     "SOURCE_DISCOVERY_MODEL": "openai/gpt-4.1",
     "SOURCE_RECOMMENDATIONS_FAST_CATALOG": "true",
     "SOURCE_RECOMMENDATIONS_WEB_SEARCH": "true",
+    "SOURCE_RECOMMENDATIONS_WEB_HTML": "true",
     "SOURCE_RECOMMENDATIONS_GOOGLE_NEWS": "true",
     "SOURCE_ASSESSMENT_ENABLED": "true",
     "SOURCE_ASSESSMENT_MODEL": "openai/gpt-4.1-mini",

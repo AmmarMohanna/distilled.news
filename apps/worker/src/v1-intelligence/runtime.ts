@@ -57,7 +57,7 @@ const incompleteIntakeReason='INCOMPLETE_INTAKE_COVERAGE';
 function isIntakeStatus(reason:string|undefined):boolean {
  return !reason||reason===intakeWaitReason||reason===incompleteIntakeReason;
 }
-export interface BriefingRequest {catchup?:{policy:'v3-unstarted-backlog-v1';supersededBy:string;at:string};engine?:'v2'|'v3';v3InputId?:string;coverage?:WindowIntakeCoverage;semanticCoverage?:{unresolvedTargets:unknown[]};id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
+export interface BriefingRequest {providerWaitSince?:string;catchup?:{policy:'v3-unstarted-backlog-v1';supersededBy:string;at:string};engine?:'v2'|'v3';v3InputId?:string;coverage?:WindowIntakeCoverage;semanticCoverage?:{unresolvedTargets:unknown[]};id:string;feedId:string;window:PublicationWindow;state:'PENDING'|'DONE'|'FAILED';attempts:number;nextAttemptAt?:string;failure?:string;createdAt:string;requireModel?:boolean;result?:'QUIET'|'PUBLISHED'|'DEFERRED';reason?:string;completedAt?:string;blocked?:import('./blocked-window').BlockedWindow}
 export const windowIdentity=(feedId:string,window:PublicationWindow)=>sha256(canonicalJson({feedId,start:new Date(window.start).toISOString(),end:new Date(window.end).toISOString()}));
 async function approvedFeed(env:Env,feedId:string):Promise<void> {
  if(env.V1_DOWNSTREAM_ENABLED!=='true') throw new HandoffError('SCOPE_DENIED');
@@ -175,7 +175,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  // Queue delivery order is not guaranteed. Recheck the same durable pending
  // requests at consumption, before admitting any editorial or writer operation.
  for(const older of orderedPendingWindows(await store.pendingBriefingRequests(feedId),now()).filter(r=>isAutomaticReportingWindow(r.window)&&Date.parse(r.window.end)<Date.parse(window.end))){
-  if((await windowIntakeReadiness(env.DB,feedId,older,now())).holding||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
+  if((await windowIntakeReadiness(env.DB,feedId,older,now(),undefined,env.CUTOFF_EDITIONS_ENABLED==='true')).holding||await editorialWindowAwaitingRecovery(env.DB,feedId,older.window,older.reason))continue;
   const job=await store.read<{state:string;pendingCall?:string;leaseUntil:string}>(feedId,'synthesis_jobs',older.id);
   if(job?.state==='FAILED')continue;
   if(job?.state==='RUNNING'&&Date.parse(job.leaseUntil)>Date.parse(now()))return undefined;
@@ -184,7 +184,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
  }
  const readinessAt=now();
  const holding=await measureLatency('WINDOW_READINESS',async()=>{
-  const intake=await windowIntakeReadiness(env.DB,feedId,request,readinessAt);
+  const intake=await windowIntakeReadiness(env.DB,feedId,request,readinessAt,undefined,env.CUTOFF_EDITIONS_ENABLED==='true');
   if(!intake.holding)return false;
   return feedTransact(store,feedId,async tx=>{
    const current=await tx.read<BriefingRequest>('briefing_requests',id);
@@ -285,7 +285,7 @@ export async function processV1Briefing(env:Env,raw:V1BriefingMessage,now=()=>ne
    return undefined;
   }
   const waitingJob=await store.read<{state:string;failure?:string}>(feedId,'synthesis_jobs',id);
-  if(error instanceof ModelSpendingWait||waitingJob?.state==='PENDING'&&waitingJob.failure&&/ACCOUNT_|PROVIDER_RESOURCE|PROVIDER_LIMIT|AUTHORIZATION|EXECUTION_YIELD|MODEL_UNQUALIFIED|MODEL_BINDING|MODEL_CONTEXT|PAID_RESULT_AWAITING/.test(waitingJob.failure)){const reason=error instanceof ModelSpendingWait?error.reason:waitingJob!.failure!;await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!==reason)await tx.write('briefing_requests',id,{...current,reason,nextAttemptAt:new Date(Date.parse(now())+60000).toISOString()})});return undefined;}
+  if(error instanceof ModelSpendingWait||waitingJob?.state==='PENDING'&&waitingJob.failure&&/ACCOUNT_|PROVIDER_RESOURCE|PROVIDER_LIMIT|AUTHORIZATION|EXECUTION_YIELD|MODEL_UNQUALIFIED|MODEL_BINDING|MODEL_CONTEXT|PAID_RESULT_AWAITING/.test(waitingJob.failure)){const reason=error instanceof ModelSpendingWait?error.reason:waitingJob!.failure!;await feedTransact(store,feedId,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',id);if(current?.state==='PENDING'&&current.reason!==reason){const at=now();await tx.write('briefing_requests',id,{...current,reason,providerWaitSince:reason==='PROVIDER_RESOURCE_WAIT'?at:undefined,nextAttemptAt:new Date(Date.parse(at)+60000).toISOString()})}});return undefined;}
   console.error(JSON.stringify({type:'V1_BRIEFING_ATTEMPT_FAILED',feedId,requestId:id,stage:failureStage,error:error instanceof Error?error.message.slice(0,300):'UNKNOWN'}));
   // The publication lease owns contention; concurrent deliveries cannot consume
   // retry attempts while that lease is live or reopen a completed edition.
@@ -314,21 +314,26 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
  const dispatchReviews=async(feedId?:string)=>{
   for(const source of reviewSources){
    if(feedId&&source.feedId!==feedId||reviewDispatched.has(source.id))continue;
-   const rows=await pendingV1Jobs(env,source.id,'REASSESS',now);
-   for(const job of rows)if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++;
    reviewDispatched.add(source.id);
+   await maintenance(source.feedId,'REVIEW_DISPATCH',async()=>{
+    const rows=await pendingV1Jobs(env,source.id,'REASSESS',now);
+    for(const job of rows)if(await enqueueV1(env,'v1_reassess',job.id,{type:'v1_reassess',jobId:job.id},now))sent++;
+   });
   }
  };
  for(const id of sourceIds) {
   let scope:IntakeScope|undefined;
-  try {scope=await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
-  scope??=await new V1IntakeStore(env.DB).getScope(id);
+  await maintenance(id,'SOURCE_SCOPE_LOOKUP',async()=>{
+   try {scope=await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) return;throw error}
+   scope??=await new V1IntakeStore(env.DB).getScope(id);
+  });
   if(!scope?.enabled||scope.deletedAt)continue;
   feeds.add(scope.feedId);
   reviewSources.push({id,feedId:scope.feedId});
  }
  const store=new V1FeedStore(env.DB);
  for(const id of feeds) {
+  try {
   const feed=await store.getFeed(id);if(!feed || feed.paused || feed.deletedAt) continue;
   try {await approvedFeed(env,id)} catch(error) {if(error instanceof HandoffError && error.code==='SCOPE_DENIED') continue;throw error}
   if(!productV3Enabled(env))await dispatchReviews(id);
@@ -464,7 +469,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
   if(env.WINDOW_READINESS_MODE&&current?.state==='PENDING')
    await maintenance(id,'WINDOW_READINESS_SHADOW',()=>observeWindowReadiness(env,current,now));
   if(current?.state==='PENDING'&&isIntakeStatus(current.reason)){
-   const intake=await windowIntakeReadiness(env.DB,id,current,now.toISOString());
+   const intake=await windowIntakeReadiness(env.DB,id,current,now.toISOString(),undefined,env.CUTOFF_EDITIONS_ENABLED==='true');
    // Refresh the diagnostic snapshot when readiness changes. Repeated ticks
    // only check live jobs. The final commit still recomputes exact coverage.
    if(!current.coverage||Boolean(current.coverage.pendingJobs)!==intake.holding){
@@ -487,7 +492,7 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    }
 
    // Each window is held only by jobs for evidence that existed when it closed.
-   if((await windowIntakeReadiness(env.DB,id,request,now.toISOString())).holding)continue;
+   if((await windowIntakeReadiness(env.DB,id,request,now.toISOString(),undefined,env.CUTOFF_EDITIONS_ENABLED==='true')).holding)continue;
    const v3=request.engine==='v3'||!request.engine&&productV3Enabled(env);
    if((v3||request.requireModel||env.V1_REAL_MODEL_REQUIRED==='true')&&!(v3?productV3Ready(env):createStoredEvidenceModel(env))){
     if(request.reason!=='MODEL_SETUP_REQUIRED')await feedTransact(store,id,async tx=>{const current=await tx.read<BriefingRequest>('briefing_requests',request.id);if(current?.state==='PENDING')await tx.write('briefing_requests',request.id,{...current,reason:'MODEL_SETUP_REQUIRED'});});
@@ -504,6 +509,9 @@ export async function dispatchV1Intelligence(env:Env,now=new Date(),options:{ski
    // feed's publication turn. Do not enqueue the next window alongside it.
    if(!await enqueueV1(env,'v1_briefing',request.id,{type:'v1_briefing',feedId:id,window:request.window} satisfies DistilledQueueMessage,now))break;sent++;
    break;
+  }
+  }catch(error){
+   console.error(JSON.stringify({type:'V1_FEED_DISPATCH_FAILED',feedId:id,error:error instanceof Error?error.message:'UNKNOWN'}));
   }
  }
  // Claim due publication transport before offering unfinished reviews the same

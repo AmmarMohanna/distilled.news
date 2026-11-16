@@ -28,7 +28,7 @@ export function unreadSummaryPort(env:Env,feedId:string,readerId:string,fetcher:
     const estimate=summaryTokenUpperBound(request)*capability.inputUsdPerToken+request.maxTokens*capability.outputUsdPerToken;
     try{
       const accountId=await modelSpendingAccount(db,request.model,at);
-      await reserveModelSpending(db,{id,accountId,feedId,model:request.model,token,reservedCostUsd:estimate,createdAt:at,leaseUntil:Date.now()+120_000,providerLimits:configuredProviderLimits(env,'openrouter')});
+      await reserveModelSpending(db,{id,accountId,feedId,model:request.model,token,reservedCostUsd:estimate,createdAt:at,leaseUntil:Date.now()+120_000,providerLimits:configuredProviderLimits(env,'openrouter','interactive')});
     }catch(error){
       if(error instanceof ModelSpendingWait&&error.reason==='PROVIDER_RESOURCE_WAIT')throw new UnreadSummaryResourceWait();
       console.warn('unread-summary-admission-failed',{reason:error instanceof ModelSpendingWait?error.reason:'DATABASE_OR_CONFIGURATION_FAILURE'});

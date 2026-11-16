@@ -6,6 +6,13 @@ import type {AcquisitionClaim} from './acquisition';
 const url='https://publisher.example/news/decision';
 const claim={job:{id:'stable-job'},input:{observation:{canonicalUrl:url,feedId:'feed',feedSourceId:'source',sourceId:'publisher'}}} as AcquisitionClaim;
 const html=`<meta property="article:published_time" content="2026-10-01T12:00:00Z"><article><h1>Decision</h1><p>${'The council approved the proposal. '.repeat(30)}</p></article>`;
+it('accepts a BBC RSS tracking canonical while preserving the original admitted URL',async()=>{
+ const canonical='https://www.bbc.co.uk/sport/football/articles/cq4gn7014x76o',tracked=canonical+'?at_medium=RSS&at_campaign=rss';
+ const candidate={...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:tracked}}};
+ const f=fixture({status:200,url:tracked,html:'<link rel="canonical" href="'+canonical+'">'+html});
+ expect(await f.fallback(candidate)).toMatchObject({canonicalUrl:tracked,url:tracked});
+ expect(f.request).not.toHaveBeenCalled();
+});
 it('retains a short primary webinar description as partial evidence while refusing title/date/CTA-only text',async()=>{
  const title='How OpenAI uses ChatGPT Atlas at work',short=`<article><h1>${title}</h1><p>Webinar ${title} Watch how OpenAI uses ChatGPT Atlas at work.</p></article>`;
  const f=fixture({status:200,url,html:short});expect(await f.fallback(claim)).toMatchObject({partial:true,shortTextEvidence:true,title});expect(f.request).not.toHaveBeenCalled();

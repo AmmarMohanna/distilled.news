@@ -68,7 +68,7 @@ it('projects guarded intake writes, retains terminal counts and delivers the lat
     expect(reads[0]).toBeGreaterThanOrEqual(2000);
     expect(reads[1]).toBeLessThan(20);
 
-    const active={...env,WINDOW_READINESS_MODE:'relay'} as Env;
+    const active={...env,WINDOW_READINESS_MODE:'relay',CUTOFF_EDITIONS_ENABLED:'true'} as Env;
     const relay=vi.fn<()=>Promise<void>>().mockResolvedValue(undefined);
     await consumeWindowReadinessWake(active,{type:'window_readiness_wake',eventId:previous!.event_id,feedId:request.feedId},relay,delivery);
     expect(relay).not.toHaveBeenCalled();
@@ -79,6 +79,8 @@ it('projects guarded intake writes, retains terminal counts and delivers the lat
     const wake=send.mock.calls[0][0];
     const redelivery=new Date(+delivery+120_000);
     await sweepWindowReadiness(active,redelivery);
+    expect(send).toHaveBeenCalledOnce();
+    await sweepWindowReadiness(active,new Date(+delivery+600_000));
     expect(send.mock.calls.map(([message])=>message.eventId)).toEqual([wake.eventId,wake.eventId]);
     await consumeWindowReadinessWake(active,wake,relay,delivery);
     await consumeWindowReadinessWake(active,wake,relay,redelivery);
@@ -110,12 +112,15 @@ it('projects guarded intake writes, retains terminal counts and delivers the lat
     await db.prepare("INSERT INTO v1_feed_documents VALUES('briefing_requests',?,?,?)")
       .bind(cutoffRequest.id,request.feedId,JSON.stringify(cutoffRequest)).run();
     await db.prepare("UPDATE v1_jobs SET json=json_set(json,'$.state','PENDING') WHERE id=?").bind(review.id).run();
-    await observeWindowReadiness(env,cutoffRequest,beforeDelivery);
+    await observeWindowReadiness({...env,CUTOFF_EDITIONS_ENABLED:'true'},cutoffRequest,beforeDelivery);
     const ready=await db.prepare('SELECT event_id,due_ms FROM v1_window_ready_outbox WHERE window_id=?')
       .bind(cutoffRequest.id).first<{event_id:string;due_ms:number}>();
     expect(ready?.due_ms).toBe(+beforeDelivery);
     await consumeWindowReadinessWake(active,{type:'window_readiness_wake',eventId:ready!.event_id,feedId:request.feedId},relay,beforeDelivery);
     expect(relay).toHaveBeenCalledTimes(2);
     expect((await intake.read<DownstreamJob>('jobs',review.id))?.value.state).toBe('PENDING');
+    await sweepWindowReadiness({...env,WINDOW_READINESS_MODE:undefined},new Date(+delivery+86_400_001));
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM v1_window_readiness').first()).toEqual({n:0});
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM v1_window_ready_outbox').first()).toEqual({n:0});
   }finally{await dispose();}
 },60_000);

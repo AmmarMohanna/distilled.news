@@ -74,6 +74,19 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('collects RSS from publishers requiring the same bot identity used during assessment',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
+  const headers=new Headers(init?.headers);
+  if(headers.get('user-agent')!=='DistilledNewsBot/0.1 (+https://distilled.news)')return new Response('Bot identity required',{status:403});
+  expect(headers.get('accept')).toContain('application/rss+xml');
+  return new Response('<rss><channel><item><guid>identified-report</guid><title>Lebanon banking reform approved</title><description>Parliament approved banking legislation.</description><link>https://example.com/identified</link></item></channel></rss>');
+ });
+ const backend=createConnectorRuntime(env,fetcher);
+ const result=await backend.collectRss({scope:request.scope,configurationRevision:request.configurationRevision,runId:'identified-rss',url:request.source.locator,maxItems:30});
+ expect(result.checkpoint).toBe('ADVANCED');
+ expect(result.coverage.failureReason).toBe('NONE');
+ expect(fetcher).toHaveBeenCalledTimes(1);
+});
 it('CAS retries reuse only verified immutable payload metadata within their own policy instance',async()=>{
  const body='Known immutable body',fixture=handoffFixture().observations[0],canonicalUrl='https://example.com/article';
  const o={...fixture,...request.scope,id:'verification-observation',representation:'ARTICLE_EXCERPT' as const,contentCompleteness:'UNKNOWN' as const,canonicalUrl,titleHint:'Known title',contentHash:await hashContent({representation:'ARTICLE_EXCERPT',title:'Known title',body})};

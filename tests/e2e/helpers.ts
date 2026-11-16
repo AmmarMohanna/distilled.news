@@ -96,12 +96,12 @@ export async function toggleTheme(page: Page) {
   await inSettings(page, () => page.locator('.settings-preferences-group > button[role="switch"]').click());
 }
 
-/** Source URLs are exposed by Copy link; website actions retain the article's outbound links. */
+/** Copy link and Read full article expose the same retained article URL. */
 export async function expectCopiedSource(page: Page, sourceUrl: string) {
   await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
     value: {writeText: async (text: string) => { (window as Window & {copiedSource?: string}).copiedSource = text; }}
   }));
-  await page.getByRole('dialog', {name:'Sources'}).getByRole('button', {name:'Copy link',exact:true}).click();
+  await page.getByRole('dialog', {name:'News Briefing'}).getByRole('button', {name:'Copy link',exact:true}).click();
   await expect.poll(() => page.evaluate(() => (window as Window & {copiedSource?: string}).copiedSource)).toBe(sourceUrl);
 }

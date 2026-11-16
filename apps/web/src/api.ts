@@ -288,8 +288,19 @@ export async function deleteAdminBriefing(
   );
 }
 
-export async function getFeed(username: string, slug: string): Promise<FeedPayload> {
-  return requestJson<FeedPayload>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`);
+export async function getFeed(username: string, slug: string, options?: { signal: AbortSignal; retryInitialRead: boolean }): Promise<FeedPayload> {
+  const path = `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`;
+  const signal = options?.signal;
+  try {
+    return await requestJson<FeedPayload>(path, { signal });
+  } catch (cause) {
+    if (!options?.retryInitialRead || signal?.aborted || !(cause instanceof ApiError)) throw cause;
+    const { status, retryAfterSeconds } = cause.uiMessage.details;
+    if ((status !== undefined && ![502, 503, 504].includes(status)) || retryAfterSeconds) throw cause;
+    await new Promise(resolve => setTimeout(resolve, 700 + Math.random() * 300));
+    if (signal?.aborted) throw cause;
+    return requestJson<FeedPayload>(path, { signal });
+  }
 }
 
 export async function getFeedEdition(username: string, slug: string, editionId: string): Promise<BriefingEdition> {
@@ -331,7 +342,6 @@ export async function recommendSources(title: string, description: string): Prom
 
 export interface SourceAssessment {
   freeAccessUnavailable?: boolean;
-  paidRetryMaxUsd?: number;
   evidenceQuote?: string;
   input: string;
   status: "accepted" | "rejected" | "unverified" | "unavailable";
@@ -340,8 +350,11 @@ export interface SourceAssessment {
 }
 export interface SourceRecommendations { sources: string[]; checks?: SourceAssessment[] }
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
-export function searchSourceCandidates(query:string,signal?:AbortSignal):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean}> {
-  return requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
+export function getSourceQuerySuggestions(query:string,language:string,signal?:AbortSignal):Promise<{suggestions:string[];unavailable:boolean}>{
+ return requestJson(`/api/me/sources/suggestions?${new URLSearchParams({q:query,language})}`,{signal});
+}
+export function searchSourceCandidates(query:string,signal?:AbortSignal,context?:{title:string;description:string}):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;topicMismatch?:boolean}> {
+  return context?requestJson('/api/me/sources/search',{method:'POST',body:JSON.stringify({q:query,...context}),signal}):requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
 }
 export async function recommendSourceCandidates(title: string, description: string, onProgress?: (result:SourceRecommendations)=>void): Promise<SourceRecommendations> {
   if(!onProgress)return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });
@@ -369,7 +382,7 @@ export async function recommendSourceCandidates(title: string, description: stri
   }catch(cause){throw cause instanceof ApiError?cause:apiError(undefined,response);}
   finally{await reader.cancel().catch(()=>undefined);reader.releaseLock();}
 }
-export async function assessSourceInput(title: string, description: string, source: string,options?:{approvedRetrievalBudgetUsd?:0.10;searchQuery?:string}): Promise<SourceAssessment> {
+export async function assessSourceInput(title: string, description: string, source: string,options?:{searchQuery?:string}): Promise<SourceAssessment> {
   const payload = await requestJson<{ assessment: SourceAssessment }>("/api/me/sources/assess", { method: "POST", body: JSON.stringify({ title, description, source,...options }) });
   return payload.assessment;
 }

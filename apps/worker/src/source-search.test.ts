@@ -2,6 +2,76 @@ import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
 import type {Env} from './types';
 const enabled={SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
+it.each([
+ {query:'BBC World',feed:'https://feeds.bbci.co.uk/news/world/rss.xml',title:'World events',description:'International diplomacy and conflicts',headline:'International diplomacy talks resume'},
+ {query:'France 24 Français',feed:'https://www.france24.com/fr/rss',title:'France',description:'Politique en France',headline:'France : le Parlement adopte une réforme politique'},
+ {query:'فرانس 24',feed:'https://www.france24.com/ar/rss',title:'أخبار عربية',description:'أخبار العالم العربي والشرق الأوسط',headline:'الأردن يعلن تطورات سياسية في الشرق الأوسط'}
+])('finds relevant publisher articles for $query without an external index',async row=>{
+ const article=new URL('/article',row.feed).href;
+ const xml=`<rss><channel><item><guid>one</guid><title>${row.headline}</title><description>${row.headline}</description><link>${article}</link></item></channel></rss>`;
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url)===row.feed?new Response(xml):new Response('',{status:403}));
+ const result=await searchSourceCandidates(enabled,row.query,fetcher,undefined,undefined,row);
+ expect(result.results).toEqual([expect.objectContaining({source:'rss: '+row.feed,title:row.headline,articleUrl:article})]);
+ expect(result.unavailable).toBe(false);
+});
+it('searches a named publisher through readable article evidence when the external index is blocked',async()=>{
+ const feed='https://techcrunch.com/feed/';
+ const xml='<rss><channel><item><guid>one</guid><title>Computing startup announces a new processor</title><description>Technology companies are investing in computing hardware.</description><link>https://techcrunch.com/new-processor</link></item><item><guid>two</guid><title>Unrelated theatre performance</title><description>A new play opens.</description><link>https://techcrunch.com/play</link></item></channel></rss>';
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url)===feed?new Response(xml):new Response('',{status:403}));
+ const found=await searchSourceCandidates(enabled,'TechCrunch',fetcher,undefined,undefined,{title:'Computing',description:'Computing hardware and processors'});
+ expect(found).toMatchObject({unavailable:false,results:[{source:'rss: '+feed,title:'Computing startup announces a new processor',articleUrl:'https://techcrunch.com/new-processor'}]});
+ expect(fetcher.mock.calls.every(([url])=>String(url)===feed)).toBe(true);
+});
+it('does not substitute a publisher catalog description for topic evidence',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async url=>String(url)==='https://techcrunch.com/feed/'?new Response('<rss><channel><item><guid>one</guid><title>A theatre production opens</title><description>Actors perform a play.</description><link>https://techcrunch.com/play</link></item></channel></rss>'):new Response('',{status:403}));
+ const found=await searchSourceCandidates(enabled,'TechCrunch',fetcher,undefined,undefined,{title:'Named Researcher',description:'Named Researcher discoveries'});
+ expect(found).toMatchObject({results:[],unavailable:false,topicMismatch:true});
+});
+it('requires the search words and feed topic in article evidence before checking access',async()=>{
+ const titles=['AI workforce trends','Ammar Mohanna presents an AI project','Ammar Mohanna joins a theatre production'];
+ let googleQuery='';
+ const fetcher=vi.fn<typeof fetch>(async url=>{
+  if(String(url).startsWith('https://news.google.com/')){googleQuery=new URL(String(url)).searchParams.get('q')!;return new Response('<rss><channel>'+titles.map((title,i)=>`<item><guid>${i}</guid><title>${title}</title><link>https://news.google.com/rss/articles/${i}</link><source url="https://publisher${i}.example">Publisher</source></item>`).join('')+'</channel></rss>');}
+  return new Response('Public reporting. '.repeat(20));
+ });
+ const result=await searchSourceCandidates(enabled,'AI',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News and projects about Ammar Mohanna'});
+ expect(googleQuery).toContain('Ammar Mohanna');
+ expect(result.results.map(row=>row.title)).toEqual(['Ammar Mohanna presents an AI project']);
+ expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('reports off-topic indexed articles without offering them as sources',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async()=>new Response('<rss><channel><item><guid>1</guid><title>AI workforce trends</title><link>https://news.google.com/rss/articles/1</link><source url="https://publisher.example">Publisher</source></item></channel></rss>'));
+ const result=await searchSourceCandidates(enabled,'AI',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News about Ammar Mohanna'});
+ expect(result).toMatchObject({results:[],topicMismatch:true,unavailable:false});
+ expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('returns up to thirty relevant free results instead of twelve',async()=>{
+ const xml='<rss><channel>'+Array.from({length:45},(_,i)=>`<item><guid>${i}</guid><title>Subject news ${i}</title><link>https://news.google.com/rss/articles/${i}</link><source url="https://publisher${i}.example">Publisher</source></item>`).join('')+'</channel></rss>';
+ const fetcher=vi.fn<typeof fetch>(async url=>new Response(String(url).startsWith('https://news.google.com/')?xml:'Public reporting. '.repeat(20)));
+ expect((await searchSourceCandidates(enabled,'Subject news',fetcher)).results).toHaveLength(30);
+});
+it('reuses discovery after an incomplete access check rather than repeating the upstream search',async()=>{
+ const saved=new Map<string,Response>(),cache={match:async(key:Request)=>saved.get(key.url)?.clone(),put:async(key:Request,value:Response)=>{saved.set(key.url,value.clone());}};
+ let available=false,googleReads=0;
+ const fetcher=vi.fn<typeof fetch>(async url=>{
+  if(String(url).startsWith('https://news.google.com/')){googleReads++;return new Response('<rss><channel><item><guid>1</guid><title>Subject news</title><link>https://news.google.com/rss/articles/1</link><source url="https://publisher.example">Publisher</source></item></channel></rss>');}
+  if(!available)throw Error('temporary network failure');
+  return new Response('Public reporting. '.repeat(20));
+ });
+ const discovery={owner:'one',origin:'https://app.example',cache};
+ expect((await searchSourceCandidates(enabled,'Subject news',fetcher,undefined,discovery)).accessIncomplete).toBe(true);
+ available=true;
+ expect((await searchSourceCandidates(enabled,'subject  news',fetcher,undefined,discovery)).results).toHaveLength(1);
+ expect(googleReads).toBe(1);
+});
+it('omits relaxed search results that do not mention the complete query',async()=>{
+  const titles=['From Raw Data to Graph-Native AI','Google DeepMind event at MSFEA highlights AI career paths','Man charged over Richmond Hill road rage','Ammar discusses AI','Mohanna presents a project','Ammar Mohanna presents a new project'];
+  const xml='<rss><channel>'+titles.map((title,index)=>`<item><guid>${index}</guid><title>${title}</title><link>https://news.google.com/rss/articles/${index}</link><source url="https://publisher${index}.example">Publisher</source></item>`).join('')+'</channel></rss>';
+  const fetcher=vi.fn<typeof fetch>(async url=>String(url).startsWith('https://news.google.com/')?new Response(xml):new Response('Public source reporting. '.repeat(8)));
+  const result=await searchSourceCandidates(enabled,'Ammar Mohanna',fetcher);
+  expect(result.results.map(row=>row.title)).toEqual(['Ammar Mohanna presents a new project']);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
 it.each(['aljadded','Al Jadeed','الجديد'])('finds Al Jadeed by %s without inference or a paid request',async query=>{
   const fetcher=vi.fn<typeof fetch>(async()=>new Response('<html><p>'+('Public source reporting. '.repeat(8))+'</p></html>',{headers:{'content-type':'text/html'}}));
   const result=await searchSourceCandidates(enabled,query,fetcher);

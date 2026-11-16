@@ -63,6 +63,12 @@ it('tracking-only URL equivalence never admits another article, origin or conten
  expect(sameArticleUrl(url+'?utm_source=rss#top',url)).toBe(true);
  for(const different of [url+'/other',url+'?edition=other',url.replace('publisher.example','other.example'),url.replace('https:','http:')])expect(sameArticleUrl(url,different)).toBe(false);
 });
+it('compares BBC RSS attribution with its article canonical without ignoring other identities',()=>{
+ const article='https://www.bbc.co.uk/sport/football/articles/cq4gn7014x76o';
+ expect(sameArticleUrl(article+'?at_medium=RSS&at_campaign=rss',article)).toBe(true);
+ for(const other of [article+'/other',article+'?edition=other',article.replace('bbc.co.uk','bbc.com'),article.replace('bbc.co.uk','bbc.co.uk.evil.example')])expect(sameArticleUrl(article+'?at_medium=RSS&at_campaign=rss',other)).toBe(false);
+ expect(sameArticleUrl(url+'?at_medium=article-2',url)).toBe(false);
+});
 
 // Optional read-only replay of privately retained publisher HTML. No network,
 // provider calls or article text in test output; normal CI uses synthetic fixtures.

@@ -30,3 +30,4 @@ export type { CandidateProposal as ConnectorCandidateProposal, ConnectorBatch, C
 export {extractWordpressArticle} from './source-runtime/wordpress-article';
 export {readArticleDateMetadata,unreadableArticleReason} from './source-runtime/article-integrity';
 export type {ArticleDateMetadata,ArticleDateCandidate} from './source-runtime/article-integrity';
+export {parseWebSearchHtml,parseDirectorySearchHtml} from './source-runtime/web-search-html';

@@ -7,6 +7,7 @@ export interface VerifiedSuppliedContent { representation: RepresentationKind; c
 export interface PublicHttpRecoveryEvidence {url:string;status:200;bodyHash:string;textCharacters:number;observedAt:string}
 export interface IntakePolicy {
   unpaidOnly?:true;
+  deferInitialBacklog?:true;
   expectedFeedRevision?: number;
   version: string;
   now(): string;

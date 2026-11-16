@@ -1,0 +1,13 @@
+import fs from 'node:fs/promises';
+const directory='.local-reports/general-web-search-probe-retry2';
+const baseline=JSON.parse(await fs.readFile(directory+'/runs-before.json','utf8'));
+const env=await fs.readFile('.env','utf8');const token=env.match(/^(?:APIFY_API_TOKEN|APIFY_TOKEN)\s*=\s*(.+)$/m)?.[1]?.trim().replace(/^["']|["']$/g,'');if(!token)throw Error('NO_TOKEN');
+const get=async path=>{const r=await fetch('https://api.apify.com'+path,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});if(!r.ok)throw Error('READ_FAILED_'+r.status);return r.json();};
+const runs=(await get('/v2/acts/apify~google-search-scraper/runs?desc=true&limit=5')).data.items;
+const candidates=runs.filter(run=>!baseline.runs.some(prior=>prior.id===run.id)&&Date.parse(run.startedAt)>=Date.parse(baseline.checkedAt));
+if(candidates.length!==1)throw Error('TEST_RUN_IDENTITY_NOT_UNIQUE');
+const run=candidates[0];const input=await get('/v2/key-value-stores/'+encodeURIComponent(run.defaultKeyValueStoreId)+'/records/INPUT');
+if(input.queries!=='ammar mohanna\ngeorges khabbaz theater\nsolar panel efficiency news')throw Error('TEST_INPUT_MISMATCH');
+await fs.writeFile(directory+'/actor-run.json',JSON.stringify(run,null,2));
+await fs.writeFile(directory+'/actor-input.json',JSON.stringify(input,null,2));
+console.log(JSON.stringify({id:run.id,status:run.status,startedAt:run.startedAt,finishedAt:run.finishedAt,options:run.options,usageTotalUsd:run.usageTotalUsd,chargedEventCounts:run.chargedEventCounts,pricingInfo:run.pricingInfo}));

@@ -17,6 +17,18 @@ it('bounds independent publisher discovery and samples per publisher',()=>{
  const xml=`<rss><channel>${Array.from({length:30},(_,i)=>item(`https://publisher${i}.example`,String(i))).join('')}${item('https://publisher0.example','extra')}${item('https://publisher0.example','overflow')}</channel></rss>`;
  const found=topicPublishers(xml,search);expect(new Set(found.map(row=>row.publisherOrigin)).size).toBe(24);expect(found.filter(row=>row.publisherOrigin==='https://publisher0.example')).toHaveLength(2);
 });
+it('can use a fast public search without waiting for the private route',async()=>{
+ const service=vi.fn(()=>new Promise<Response>(()=>{}));
+ const env={SOURCE_EXECUTION_SERVICE:{fetch:service},SOURCE_EXECUTION_URL:'http://127.0.0.1:8791/v1/source-execution',SOURCE_EXECUTION_TOKEN:'test-only-token-'.repeat(3)} as unknown as Env;
+ const worker=vi.fn(async()=>new Response(`<rss><channel>${item('https://publisher.example')}</channel></rss>`));
+ expect(await readTopicPublishers(env,search,worker,undefined,undefined,{preferRuntime:true,raceRoutes:true})).toHaveLength(1);
+ expect(worker).toHaveBeenCalledTimes(1);expect(service).toHaveBeenCalledTimes(1);
+});
+it('does not let unrelated articles exhaust a publisher sample quota',()=>{
+ const xml=`<rss><channel>${item('https://publisher.example','wrong1')}${item('https://publisher.example','wrong2')}${item('https://publisher.example','right').replace('Named subject','right subject')}</channel></rss>`;
+ const found=topicPublishers(xml,search,{acceptArticle:title=>title.includes('right')});
+ expect(found).toHaveLength(1);
+});
 
 it.each([503,403,429])('uses the configured Google runtime only for transient HTTP %s',async status=>{
  const service=vi.fn(async(_url:unknown,init:RequestInit)=>{expect(JSON.parse(init.body as string)).toEqual({kind:'google_feed',input:{url:search}});return Response.json({status:200,xml:`<rss><channel>${item('https://publisher.example')}</channel></rss>`})});

@@ -3,15 +3,43 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { personalNewsBriefing } from '@distilled/core';
 import { AppExperience } from './AppExperience';
+import { getExploreFeeds } from './api';
 
 vi.mock('./api', () => ({
-  getExploreFeeds: async () => [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', stars: 0 }],
+  getExploreFeeds: vi.fn(async () => [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', stars: 0 }]),
   getFeed: async () => ({ editions: [], viewerHasStarred: false }),
   setFeedStar: vi.fn()
 }));
 vi.mock('./Dialog', () => ({ Dialog: ({children,label}: {children: React.ReactNode;label:string}) => <div role="dialog" aria-label={label}>{children}</div> }));
 vi.mock('./FeedArt', () => ({ FeedArt: () => <img src="/prepared-sketch.png" alt=""/> }));
 vi.mock('./pwa', () => ({ installApp: vi.fn(), notificationsEnabled: async () => false, setNotificationsEnabled: vi.fn() }));
+
+it('keeps an Explore loading failure off Home and retries from Explore', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  vi.stubGlobal('scrollTo', vi.fn());
+  vi.mocked(getExploreFeeds).mockRejectedValueOnce(new Error('Could not load community feeds'));
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const account = { username: 'reader' } as Parameters<typeof AppExperience>[0]['account'];
+  try {
+    await act(async () => root.render(<AppExperience account={account}
+      briefings={[personalNewsBriefing]} onAccount={() => {}} onHelp={() => {}}/>));
+    const explore = host.querySelector<HTMLElement>('.explore-view')!;
+    expect(explore.style.display).toBe('none');
+    expect(host.querySelector('main > [role="alert"]')).toBeNull();
+    expect(host.querySelector('.personal-feed-grid a')).not.toBeNull();
+    await act(async () => host.querySelector<HTMLButtonElement>('nav button[aria-label="Explore"]')!.click());
+    expect(explore.querySelector('[role="alert"]')?.textContent).toContain('Could not load community feeds');
+    await act(async () => explore.querySelector<HTMLButtonElement>('.feed-state-retry')!.click());
+    expect(explore.querySelector('[role="alert"]')).toBeNull();
+    expect(explore.textContent).toContain('Science');
+  } finally {
+    await act(async () => root.unmount());
+    vi.unstubAllGlobals();
+  }
+});
 
 it('prepares Explore artwork on Home and preserves image elements through tab switches', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);

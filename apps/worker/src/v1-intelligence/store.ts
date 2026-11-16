@@ -122,6 +122,18 @@ export class V1FeedStore {
   }
   return values;
  }
+ /** Load immutable revisions in bounded batches, scoped to the owning feed. */
+ async loadRevisions(feedId:string,ids:string[],onBatch?:()=>void):Promise<Map<string,EvidenceRevision>> {
+  const values=new Map<string,EvidenceRevision>();
+  for(let offset=0;offset<ids.length;offset+=90){
+   const batch=ids.slice(offset,offset+90);
+   onBatch?.();
+   const rows=await this.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${batch.map(()=>'?').join(',')})`)
+    .bind(feedId,...batch).all<{id:string;json:string}>();
+   for(const row of rows.results)values.set(row.id,JSON.parse(row.json) as EvidenceRevision);
+  }
+  return values;
+ }
  /** Ordering and dispatch consume pending requests, never completed payloads.
   * Keep the existing unresolved-index predicate explicit for SQLite admission. */
  async pendingBriefingRequests(feedId:string):Promise<import('./runtime').BriefingRequest[]> {
@@ -358,12 +370,8 @@ export class FeedTransaction {
   * A foreign/missing revision stays absent just as with store.revision(). */
  async preloadRevisions(ids:string[]):Promise<void> {
   const missing=[...new Set(ids)].filter(id=>!this.revisions.has(id));
-  for(let offset=0;offset<missing.length;offset+=90){
-   this.metrics.preloadQueries++;
-   const chunk=missing.slice(offset,offset+90),rows=await this.store.db.prepare(`SELECT r.id,r.json FROM v1_revisions r JOIN v1_intake_scopes s ON s.id=r.feed_source_id WHERE s.feed_id=? AND r.id IN (${chunk.map(()=>'?').join(',')})`).bind(this.snapshot.feed.id,...chunk).all<{id:string;json:string}>();
-   const values=new Map(rows.results.map(row=>[row.id,JSON.parse(row.json) as EvidenceRevision]));
-   for(const id of chunk)this.revisions.set(id,Promise.resolve(values.get(id)));
-  }
+  const values=await this.store.loadRevisions(this.snapshot.feed.id,missing,()=>this.metrics.preloadQueries++);
+  for(const id of missing)this.revisions.set(id,Promise.resolve(values.get(id)));
  }
  async write(kind:DocumentKind,id:string,value:unknown) {
   if(!value || typeof value!=='object' || !('id' in value) || value.id!==id) throw new HandoffError('SCOPE_DENIED');

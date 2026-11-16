@@ -31,3 +31,11 @@ it('processing shows actual review counts and updates without pretending publica
  await render(<FeedProcessingProgress progress={{...progress,review:{...progress.review,completed:70},pending:339}} language="en"/>,host=>expect(host.textContent).toContain('70 / 409'));
 });
 it.each(['en','ar','fr'] as const)('publishing displays its stage without stale review counters (%s)',async language=>{await render(<FeedProcessingProgress progress={{stage:'PUBLISHING',acquisition:{completed:1,total:1,failed:0},review:{completed:1,total:1,failed:0},pending:0}} language={language}/>,host=>{expect(host.querySelector('[role="status"]')).not.toBeNull();expect(host.textContent).not.toContain('1 / 1');expect(host.textContent?.length).toBeGreaterThan(5);});});
+
+it('reports a single retrieval failure without calling the briefing delayed',async()=>{
+ await render(<FeedPublicationNotice publicationState="partial" hasPublishedEditions={false} language="en"/>,host=>{
+  expect(host.textContent).toContain('No new developments in the sources we could check.');
+  expect(host.textContent).toContain('One article could not be retrieved.');
+  expect(host.textContent).not.toContain('Briefing delayed');
+ });
+});

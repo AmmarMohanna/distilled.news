@@ -1,6 +1,7 @@
 ﻿import {afterEach,beforeEach,it,expect,vi} from 'vitest';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {campaignAssessmentFetcher} from './agentops-assessment';
+import {isolateExpiredModelExecutions} from './v1-intelligence/model-capacity-recovery';
 import {authorizeModelSpending} from './v1-intelligence/model-spending';
 import type {Env} from './types';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
@@ -10,3 +11,22 @@ const url='https://openrouter.ai/api/v1/chat/completions',init={method:'POST',bo
 it('records real usage once and replays a saved response without another paid request',async()=>{const {env}=await fixture(),remote=vi.fn(async()=>Response.json({id:'real-provider-generation',usage:{cost:.001},choices:[]})),paid=campaignAssessmentFetcher(env,'owner',remote as typeof fetch);expect((await paid(url,init)).status).toBe(200);expect((await paid(url,init)).status).toBe(200);expect(remote).toHaveBeenCalledTimes(1);expect(await ctx.db.prepare('SELECT cost_usd,reported FROM v1_model_spending_settlements').first()).toEqual({cost_usd:.001,reported:1})});
 it('an uncertain request retains its reservation and cannot be resent',async()=>{const {env}=await fixture(),remote=vi.fn(async()=>{throw Error('connection lost')}),paid=campaignAssessmentFetcher(env,'owner',remote as typeof fetch);await expect(paid(url,init)).rejects.toThrow('connection lost');await expect(paid(url,init)).rejects.toThrow('UNCERTAIN_ASSESSMENT_NO_RESEND');expect(remote).toHaveBeenCalledTimes(1);expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first('n')).toBe(1)});
 it('ordinary deployments retain their existing transport and scope mismatch never calls a provider',async()=>{const remote=vi.fn();expect(campaignAssessmentFetcher({} as Env,undefined,remote as typeof fetch)).toBe(remote);const {env}=await fixture();await expect(campaignAssessmentFetcher(env,'foreign',remote as typeof fetch)(url,init)).rejects.toThrow('ACCOUNT_FEED_SCOPE_DENIED');expect(remote).not.toHaveBeenCalled()});
+
+it('accounts for opted-in QA assessment without taking the scheduled briefing slot',async()=>{
+ const {env}=await fixture(),remote=vi.fn<typeof fetch>();
+ const guarded=campaignAssessmentFetcher({...env,ENVIRONMENT:'qa',SOURCE_ASSESSMENT_SHARED_MODEL_CAPACITY_ENABLED:'true',V1_PROVIDER_MAX_CONCURRENCY:'1'},'owner',remote);
+ await expect(guarded(url,init)).rejects.toThrow('PROVIDER_RESOURCE_WAIT');
+ expect(remote).not.toHaveBeenCalled();
+ expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first('n')).toBe(0);
+});
+
+it('lets an uncertain QA assessment release its execution slot without losing the hold or allowing replay',async()=>{
+ const {env}=await fixture(),remote=vi.fn(async()=>{throw Error('body lost')});
+ const guarded=campaignAssessmentFetcher({...env,ENVIRONMENT:'qa',SOURCE_ASSESSMENT_SHARED_MODEL_CAPACITY_ENABLED:'true'},'owner',remote as typeof fetch);
+ await expect(guarded(url,init)).rejects.toThrow('body lost');
+ expect(await isolateExpiredModelExecutions(ctx.db,'isolate-after-5m-v1',new Date(Date.now()+8*60_000))).toBe(1);
+ expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first('n')).toBe(1);
+ expect(await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_spending_settlements').first('n')).toBe(0);
+ await expect(guarded(url,init)).rejects.toThrow('UNCERTAIN_ASSESSMENT_NO_RESEND');
+ expect(remote).toHaveBeenCalledOnce();
+});

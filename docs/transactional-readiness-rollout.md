@@ -24,15 +24,16 @@ Migrations `0089_transactional_window_readiness.sql` and `0090_verified_edition_
 
 | Flag | Effect |
 | --- | --- |
+| `CUTOFF_EDITIONS_ENABLED=true` | Opts new, unstarted clock-scheduled V3 windows into cutoff editions. Off by default; frozen inputs retain their original policy. |
 | `WINDOW_READINESS_MODE=shadow` | Enrolls open clock-scheduled V3 windows, maintains counters and compares with the current job check. Outbox events stay in D1. |
-| `WINDOW_READINESS_MODE=relay` | Delivers due, current-generation events through the configured acquisition queue. Transport acceptance and consumption are separately leased. The existing relay handles replay. |
+| `WINDOW_READINESS_MODE=relay` | Delivers due, current-generation events through the configured acquisition queue. Transport acceptance and consumption are separately leased. Accepted wakes have a ten-minute initial retry delay and a four-attempt limit per generation. Canonical scheduling continues independently. |
 | `WINDOW_READINESS_FEED_IDS` | Restricts enrollment and relay to a comma-separated cohort. Use explicit feed IDs for the initial comparison. |
 | `EDITION_ARTIFACTS_ENABLED=true` | Stages and verifies private R2 edition projections. The canonical D1 commit attaches the reference, latest pointer, publication status and delivery job. Legacy editions and unavailable artifacts still read through D1. |
-| `VERIFIED_ARCHIVE_ENABLED=true` | Uses indexed pages of eligible unpaid diagnostics and manifest verification. Cleanup checks exact references before deleting an abandoned object. |
+| `VERIFIED_ARCHIVE_ENABLED=true` | With `STORAGE_MAINTENANCE_ENABLED=true`, uses indexed pages of eligible unpaid diagnostics and manifest verification. Cleanup checks exact references before deleting an abandoned object. |
 
 The projection seeds once per eligible window and retains up to two current windows per feed. Repeat reads depend on the window row and currently unresolved capacity waits. Seeding and final canonical coverage can still examine retained jobs. Review writes gain work while a window is enrolled. An expired window stops receiving job updates. [D1 transaction semantics](https://developers.cloudflare.com/d1/worker-api/d1-database/) [Queues delivery guarantees](https://developers.cloudflare.com/queues/reference/delivery-guarantees/)
 
-Removing the readiness flag stops observations and extra relay events. Existing queue messages revalidate the flag, and an expired projection is inert. Removing the edition flag returns the reader to its D1 projection. Verified compaction retains a small D1 diagnostic record even for waits older than the legacy 30-day diagnostic cutoff. Turning off verified compaction preserves prior compact records and their verified archives. Keep the verified R2 prefix private and outside broad expiration rules. [R2 lifecycle rules](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)
+Removing the readiness flag stops observations and extra relay events; bounded expiry cleanup keeps running. Existing queue messages revalidate the flag, and an expired projection is inert. Removing the edition flag returns the reader to its D1 projection. Verified compaction retains a small D1 diagnostic record even for waits older than the legacy 30-day diagnostic cutoff. Turning off verified compaction preserves prior compact records and their verified archives. Keep the verified R2 prefix private and outside broad expiration rules. [R2 lifecycle rules](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)
 
 ## Measurement and decision
 
@@ -43,3 +44,5 @@ Compare matched periods with similar feed counts, cadences, sources, evidence vo
 Before widening the cohort, verify that stable shadow decisions match, due windows remain accounted for, privacy and withdrawals work, and replay has zero duplicate publications or charges. Compare end-to-end API failures, lag and cost before enabling artifact reads or relay broadly. The local fixture checks query work and invariants. Sustained post-change QA performance remains to be measured.
 
 Keep D1 for this rollout. The baseline identifies a shared accounting recovery lookup worth measuring separately. Revisit per-feed Durable Objects if measured feed coordination dominates. Revisit PostgreSQL through Hyperdrive if shared relational work dominates after selective D1 reads. Permissions and accounting require authoritative reads in either design. [Hyperdrive query caching](https://developers.cloudflare.com/hyperdrive/concepts/query-caching/)
+
+Before a QA rollout, apply `0094_model_wait_lookup.sql`. The scheduler logs `V1_BRIEFING_MODEL_STALLED` when an active V3 briefing has waited at least 15 minutes for provider capacity and there is no confirmed OpenRouter call among recent reservations. This is a structured log, with no external notification. QA's configured provider capacity is six concurrent operations and sixty requests per minute; unread summaries and opted-in source assessments leave one concurrent slot and one request per minute available for scheduled publication. These settings do not amend spending authorizations.

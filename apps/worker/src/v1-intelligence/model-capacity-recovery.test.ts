@@ -13,7 +13,8 @@ it('requires an explicit deployment policy and does not confuse lease expiry wit
  expect((await ctx.db.prepare('SELECT COUNT(*) n FROM v1_model_active_operations').first())?.n).toBe(1);
  await expect(isolateExpiredModelExecutions(ctx.db,'other' as typeof policy,now)).rejects.toThrow('INVALID_UNCERTAIN_EXECUTION_POLICY');
 });
-it('parks exact expired identities without settling money, pausing feeds or allowing replay; late cost still settles',async()=>{
+it('frees the slot of a paused feed without settling money or allowing replay; late cost still settles',async()=>{
+ await ctx.db.prepare("UPDATE v1_feeds SET json=json_set(json,'$.paused',json('true'),'$.revision',2) WHERE id='feed-a'").run();
  const old=reservation('old');await reserveModelSpending(ctx.db,old);
  const before=await ctx.db.prepare('SELECT json FROM v1_model_spending_reservations').first();
  expect(await isolateExpiredModelExecutions(ctx.db,policy,now)).toBe(1);
@@ -23,7 +24,7 @@ it('parks exact expired identities without settling money, pausing feeds or allo
  expect(await spendingExposure(ctx.db,old.accountId,now.toISOString())).toMatchObject({heldCostUsd:.1,activeConcurrencySlots:0,quarantinedConcurrencySlots:1});
  const q=await ctx.db.prepare("SELECT json FROM v1_feed_documents WHERE kind='model_execution_quarantines' AND id='old'").first<{json:string}>();
  expect(JSON.parse(q!.json)).toMatchObject({remoteExecutionState:'TERMINATION_UNPROVEN',financialExposureRetained:true,reservationToken:old.token});
- expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feeds WHERE id='feed-a'").first<{json:string}>())!.json).paused).toBe(false);
+ expect(JSON.parse((await ctx.db.prepare("SELECT json FROM v1_feeds WHERE id='feed-a'").first<{json:string}>())!.json).paused).toBe(true);
  await expect(reserveModelSpending(ctx.db,old)).rejects.toThrow('OPERATION_EXECUTION_QUARANTINED');
  await reserveModelSpending(ctx.db,reservation('independent','feed-b',now.getTime()+60000));
  await settleModelSpending(ctx.db,old.id,old.token,{costUsd:.03,reported:true});

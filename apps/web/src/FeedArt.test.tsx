@@ -107,3 +107,17 @@ it('waits for visibility metadata before requesting a placeholder image',async()
  const {root}=renderHost();await act(async()=>root.render(<FeedArt feed={{title:'News',ownerUsername:'owner',slug:'metadata'}}/>));expect(fetcher).not.toHaveBeenCalled();
  await act(async()=>root.render(<FeedArt feed={{id:'metadata',title:'News',ownerUsername:'owner',slug:'metadata',publicFeedEnabled:true}}/>));expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+it('refreshes only explicitly requested artwork even when a processed image is cached',async()=>{
+ const fetcher=vi.fn().mockResolvedValue(sketch());vi.stubGlobal('fetch',fetcher);
+ vi.stubGlobal('URL',class extends URL{static createObjectURL(){return 'blob:refreshed'}static revokeObjectURL(){}});
+ const {root}=renderHost(),feed={id:'refresh-one',title:'News',ownerUsername:'owner',slug:'refresh-one',publicFeedEnabled:true};
+ await act(async()=>root.render(<FeedArt feed={feed}/>));await act(async()=>root.render(null));
+ window.history.replaceState(null,'','/?refresh-artwork=refresh-one&keep=1');
+ try{
+  await act(async()=>root.render(<FeedArt feed={feed}/>));
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher).toHaveBeenLastCalledWith('/api/feed/owner/refresh-one/sketch',expect.objectContaining({cache:'reload'}));
+  expect(window.location.search).toBe('?keep=1');
+ }finally{window.history.replaceState(null,'','/');}
+});

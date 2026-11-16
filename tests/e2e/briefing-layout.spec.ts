@@ -72,7 +72,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test("published summaries retain original citations and read-only refresh", async ({ page }) => {
+test("published headlines open retained briefing evidence and preserve read-only refresh", async ({ page }) => {
   const sourceUrl = "https://example.test/supported-development";
   const summary = "Acme released an updated research model [1].";
   const edition = { id: "published-one", title: "October 11 updates", summary, publishedAt: "2026-10-11T08:00:00Z", sections: [{ title: "Research model", summary, evidence: [{ messageId: "evidence-one", sourceTitle: "Research source", sourceUrl, text: summary, postedAt: "2026-10-11T07:00:00Z", links: [], media: [] }] }] };
@@ -87,18 +87,23 @@ test("published summaries retain original citations and read-only refresh", asyn
     return route.fulfill({ json: data });
   });
   await page.goto("/admin/personal-briefing/");
-  await expect(page.locator(".news-summary")).toContainText("Acme released an updated research model");
+  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
+  await expect(page.locator(".news-summary")).toHaveCount(0);
+  await expect(page.locator(".news-sources")).toHaveCount(0);
+  await expect(page.locator(".briefing-reference")).toHaveText("[1]");
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
-  await page.locator(".news-summary button").click();
+  await page.locator(".briefing-reference").click();
+  const report = page.getByRole("dialog", { name: "News Briefing" });
+  await expect(report.locator('.news-briefing-description')).toContainText("Acme released an updated research model [1].");
   await expectCopiedSource(page, sourceUrl);
-  await expect(page.getByRole("dialog", { name: "Sources" }).locator(".sources-posts a[href]").first()).toHaveAttribute("href", new URL(sourceUrl).origin);
+  await expect(report.locator(".news-briefing-read")).toHaveAttribute("href", sourceUrl);
   await page.getByRole("button", { name: "Close", exact: true }).click();
   const readsBefore = feedReads;
   await refreshFeed(page);
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);
-  await expect(page.locator(".news-summary")).toHaveCount(1);
+  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
   expect(manualRequests).toBe(0);
   await page.reload();
-  await expect(page.locator(".news-summary")).toContainText("Acme released an updated research model");
-  await expect(page.locator(".news-summary button")).toHaveCount(1);
+  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
+  await expect(page.locator(".news-summary")).toHaveCount(0);
 });
