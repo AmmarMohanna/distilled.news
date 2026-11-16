@@ -992,6 +992,8 @@ export function createApp(options: AppOptions = {}) {
     const context={title:input.title,description:input.description};
     const cached=await cachedSourceAssessment(c.env,owner,context,input.source);
     if(cached)return c.json({assessment:cached});
+    try{await assertRateLimit(c.get('repo'),'source-assess:'+owner,'source_assess',30,5*60*1000);}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','300');return c.json({error:'Too many source checks. Please try again shortly.'},429);}
     let publisherEvidence:TopicPublisherEvidence[]|undefined;
     if(input.searchQuery)try{
       const cache=typeof caches==='undefined'?undefined:await caches.open('source-search-v2-free-only');

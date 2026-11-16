@@ -27,6 +27,7 @@ it.each(categories)('sends individual interests in $title to the model without a
     return Response.json({choices:[{message:{content:JSON.stringify({results:[{id:0,alignment:'YES'},{id:1,alignment:'NO'}]})}}]});
    }
    if(String(input)===feed)return new Response(`<rss><channel><item><guid>yes</guid><title>${headline}</title><description>${headline}</description><link>https://techcrunch.com/yes</link></item><item><guid>no</guid><title>A football match opens a stadium</title><link>https://techcrunch.com/no</link></item></channel></rss>`);
+   if(String(input)==='https://techcrunch.com/yes')return new Response('Public article evidence. '.repeat(10));
    return new Response('',{status:403});
   });
   const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',OPENROUTER_API_KEY:'test'} as Env,'TechCrunch',fetcher,undefined,{owner:'owner',origin:'https://app.example'},topic);
@@ -54,7 +55,7 @@ it.each([
    expect(request.messages[0].content).toContain('person, institution or required geography');
    return Response.json({choices:[{message:{content:JSON.stringify({results:[{id:0,alignment:'YES'},{id:1,alignment:'NO'}]})}}]});
   }
-  if(String(input).startsWith('https://news.google.com/'))return new Response('<rss><channel>'+[topic.matching,topic.unrelated].map((title,id)=>`<item><guid>${id}</guid><title>${title}</title><link>https://news.google.com/rss/articles/${id}</link><source url="https://publisher.example">Publisher</source></item>`).join('')+'</channel></rss>');
+  if(String(input).startsWith('https://news.google.com/'))return new Response('<rss><channel>'+[topic.matching,topic.unrelated].map((title,id)=>`<item><guid>${id}</guid><title>${title}</title><link>https://publisher.example/article-${id}</link><source url="https://publisher.example">Publisher</source></item>`).join('')+'</channel></rss>');
   return new Response('Public reporting. '.repeat(20));
  };
  const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',OPENROUTER_API_KEY:'test'} as Env,topic.title,fetcher,undefined,{owner:'owner',origin:'https://app.example'},topic);
