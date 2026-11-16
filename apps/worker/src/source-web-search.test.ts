@@ -2,6 +2,7 @@ import {expect,it,vi} from 'vitest';
 import {parseWebSearchHtml} from '@distilled/connectors';
 import {searchSourceCandidates} from './source-search';
 import {readWebSearch} from './source-web-search';
+vi.mock('./source-search-relevance',()=>({alignedSearchResults:vi.fn(async(_env:unknown,_query:string,_topic:unknown,rows:{title:string}[])=>({results:rows.filter(row=>!row.title.includes('Another Researcher')),unavailable:false}))}));
 const profile='https://www.aub.edu/pages/profile.aspx?MemberId=am288';
 const result=(url=profile,title='AUB - Faculty Member Profile - Ammar Mohanna')=>`<div class="result"><div class="result__body"><a class="result__a" href="//duckduckgo.com/l/?uddg=${encodeURIComponent(url)}&amp;rut=tracking">${title}</a><a class="result__snippet">Faculty information and research at AUB.</a></div></div>`;
 it('extracts the actual HTTPS result identity, decoded title and associated snippet',()=>{

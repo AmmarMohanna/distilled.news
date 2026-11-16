@@ -4,7 +4,7 @@ type Result=Awaited<ReturnType<typeof searchSourceCandidates>>;
  * private feed reads, persistent database rows or module-level request state.
  */
 async function cacheKey(owner:string,query:string,origin:string,kind='results'){
- const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(['search-v7-general-web',kind,owner,query.trim().toLocaleLowerCase().replace(/\s+/g,' ')])));
+ const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(['search-v8-model-relevance',kind,owner,query.trim().toLocaleLowerCase().replace(/\s+/g,' ')])));
  const digest=Array.from(new Uint8Array(bytes),byte=>byte.toString(16).padStart(2,'0')).join('');
  return new Request(new URL('/__source-search-cache/'+digest,origin));
 }
