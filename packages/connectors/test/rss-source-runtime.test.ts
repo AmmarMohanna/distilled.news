@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { mkdtempSync, rmSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -358,3 +360,13 @@ it('initial lookback prioritizes recent entries but retains older unseen history
  expect(first.nextOffset).toBe(1);await s.collector.collect(request,1);
  expect(s.accepted.at(-1)!.observations[0].sourceItemKey).toContain('old');expect(s.http.get).toHaveBeenCalledTimes(1);
 });
+
+// GHSA-7cfw-w2rf-f3jc: untrusted RSS reaches XMLValidator before normalization.
+// Bound the process externally: a synchronous parser hang cannot be caught by a promise timeout.
+it('rejects malformed whitespace attributes without stalling the source collector',()=>{
+ const require=createRequire(import.meta.url),parserPath=require.resolve('fast-xml-parser');
+ const code=`const {XMLValidator}=require(${JSON.stringify(parserPath)});const xml='<rss '+ ' '.repeat(300000)+'=x><channel /></rss>';if(XMLValidator.validate(xml)===true)process.exit(2);`;
+ const child=spawnSync(process.execPath,['-e',code],{timeout:5000,windowsHide:true,encoding:'utf8'});
+ expect(child.error).toBeUndefined();expect(child.status).toBe(0);
+ expect(()=>normalizeRssSnapshot('<rss '+ ' '.repeat(300000)+'=x><channel /></rss>',input.url)).toThrow('INVALID_FEED');
+},10000);
