@@ -1485,7 +1485,7 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
 function FeedPage(props: { username: string; slug: string }) {
   const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
   const { language: uiLanguage, t } = useLanguage();
-  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading } = useFeedViewer(props.username, props.slug);
+  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading, readerId, sessionState, retrySession } = useFeedViewer(props.username, props.slug);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
   const feedKey = `${props.username}/${props.slug}`;
@@ -1512,7 +1512,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, viewerLoading ? undefined : account?.id ?? null, payload?.editions.map(edition=>edition.id) ?? []);
+  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload?.editions.map(edition=>edition.id) ?? []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1725,7 +1725,7 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} loading={viewerLoading} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>}/>}
+      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
@@ -1734,6 +1734,10 @@ function FeedPage(props: { username: string; slug: string }) {
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
     >
+      {sessionState==='error' && <div role="alert" className="feed-session-error">
+        <p>{t("We couldn’t confirm your session. Retry to restore your account and read progress.")}</p>
+        <button type="button" onClick={retrySession}>{t("Retry session")}</button>
+      </div>}
       {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
         onLogout={async () => {
@@ -1825,6 +1829,7 @@ function FeedPage(props: { username: string; slug: string }) {
                   contentLanguage={payload?.briefing.language ?? language}
                   isLoading={editionBusyIds.has(edition.id)}
                   isRead={readIds.has(edition.id)}
+                  readProgressUnavailable={readerId===undefined}
                   onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
                   onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
                 />
@@ -1921,6 +1926,7 @@ function FeedEditionRow(props: {
   isLoading: boolean;
   isRead: boolean;
   onToggleRead: () => void;
+  readProgressUnavailable?: boolean;
   onOpenReport: (sectionIndex: number) => void;
 }) {
   const { edition, language } = props;
@@ -1969,6 +1975,7 @@ function FeedEditionRow(props: {
         <button
           type="button"
           className="read-button"
+          disabled={props.readProgressUnavailable}
           aria-pressed={props.isRead}
           onClick={props.onToggleRead}
         >

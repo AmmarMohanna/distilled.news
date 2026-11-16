@@ -8,6 +8,8 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'Retry session': ['Réessayer la connexion', 'إعادة محاولة تحميل الجلسة'],
+  'We couldn’t confirm your session. Retry to restore your account and read progress.': ['Impossible de confirmer votre session. Réessayez pour retrouver votre compte et votre progression de lecture.', 'تعذّر التحقق من جلستك. أعد المحاولة لاستعادة حسابك وتقدّم القراءة.'],
   'Feed saved. Some sources are awaiting activation. Check source health for updates.': ['Flux enregistré. Certaines sources attendent leur activation. Consultez leur état pour suivre les mises à jour.', 'تم حفظ الموجز. بعض المصادر بانتظار التفعيل. راجع حالة المصادر لمتابعة المستجدات.'],
   'Some feeds could not be loaded. Previously loaded feeds are still available.': ['Certains flux n’ont pas pu être chargés. Les flux déjà chargés restent disponibles.', 'تعذّر تحميل بعض الموجزات. لا تزال الموجزات المحمّلة سابقًا متاحة.'],
   'Load more feeds': ['Afficher plus de flux', 'تحميل المزيد من الموجزات'],

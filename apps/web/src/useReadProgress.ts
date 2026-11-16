@@ -40,9 +40,14 @@ export function useReadProgress(feedId:string|undefined,readerId:string|null|und
   const [saved,setSaved]=useState<{key:string|null;ids:Set<string>}>({key:null,ids:empty});
   useEffect(()=>{
     if(!key)return;
-    let ids:Set<string>;
-    try {ids=loadReadProgress(feedId!,readerId!,JSON.parse(editionsKey));} catch {ids=new Set();}
-    setSaved({key,ids});
+    setSaved(current=>{
+      // The mounted reader owns its current progress. A refresh must not replace
+      // unsaved marks with empty/stale storage when reads or writes are blocked.
+      if(current.key===key)return current;
+      let ids:Set<string>;
+      try {ids=loadReadProgress(feedId!,readerId!,JSON.parse(editionsKey));} catch {ids=new Set();}
+      return {key,ids};
+    });
   },[key,editionsKey]);
   useEffect(()=>{
     if(!key||saved.key!==key)return;

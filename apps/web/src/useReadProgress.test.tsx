@@ -63,3 +63,17 @@ it('never reimports legacy read IDs after the reader marks an edition unread',()
  localStorage.setItem(readProgressKey('stable','reader'),'[]');
  expect([...loadReadProgress('stable','reader',['one','new-edition'])]).toEqual([]);
 });
+
+it.each(['read-and-write','write-only'])('preserves in-memory progress through new editions with %s storage failure',async mode=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ if(mode==='read-and-write')vi.spyOn(Storage.prototype,'getItem').mockImplementation(()=>{throw Error('blocked')});
+ vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw Error('blocked')});
+ const host=document.createElement('div'),root=createRoot(host);
+ function Reader({reader='reader',feed='stable',ids}:{reader?:string;feed?:string;ids:string[]}){const [read,set]=useReadProgress(feed,reader,ids);return <button onClick={()=>set(current=>new Set([...current,'one']))}>{[...read].join(',')}</button>;}
+ try{
+  await act(async()=>root.render(<Reader ids={['one']}/>));await act(async()=>host.querySelector('button')!.click());expect(host.textContent).toBe('one');
+  await act(async()=>root.render(<Reader ids={['one','two']}/>));expect(host.textContent).toBe('one');
+  await act(async()=>root.render(<Reader reader="another" ids={['one','two']}/>));expect(host.textContent).toBe('');
+  await act(async()=>root.render(<Reader feed="another-feed" ids={['one','two']}/>));expect(host.textContent).toBe('');
+ }finally{await act(async()=>root.unmount());}
+});

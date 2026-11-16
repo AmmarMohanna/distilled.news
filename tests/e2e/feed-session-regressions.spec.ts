@@ -64,3 +64,28 @@ test('failed logout keeps the private reader authenticated and retryable',async(
  await expect(dialog.getByRole('button',{name:'Log out',exact:true})).toBeEnabled();
  await expect(page).toHaveURL(/\/owner\/news\/$/);await expect(page.locator('.news-item')).toContainText('Protected development');
 });
+
+test('session outage keeps loaded feed history unassigned until retry confirms the reader',async({page})=>{
+ let sessions=0;const anonymousKey='dn_read:v3:'+JSON.stringify([['anonymous'],'stable-feed-id']);
+ await page.addInitScript(key=>localStorage.setItem(key,'["anonymous-only"]'),anonymousKey);
+ await page.route('**/api/**',route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path==='/api/auth/session'){sessions++;return sessions===1?route.fulfill({status:503,json:{error:'temporarily unavailable'}}):route.fulfill({json:{authenticated:true,setupRequired:false,account:original}});}
+  if(path==='/api/me/briefings')return route.fulfill({json:{briefings:[{...base,publicFeedEnabled:true}]}});
+  if(path.endsWith('/sketch'))return route.fulfill({status:404});
+  if(path.startsWith('/api/feed/'))return route.fulfill({json:{briefing:{...base,publicFeedEnabled:true},editions:[edition],viewerHasStarred:false}});
+  return route.fulfill({json:{}});
+ });
+ await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
+ await expect(page.getByRole('button',{name:'Retry session',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeDisabled();
+ expect(await page.evaluate(key=>localStorage.getItem(key),anonymousKey)).toBe('["anonymous-only"]');
+ expect(await page.evaluate(()=>localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id'])))).toBeNull();
+ await page.getByRole('button',{name:'Retry session',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Account profile',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Mark as read',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id']))??'[]'))).toContain('stable-edition');
+ expect(await page.evaluate(key=>localStorage.getItem(key),anonymousKey)).toBe('["anonymous-only"]');expect(sessions).toBe(2);
+});
