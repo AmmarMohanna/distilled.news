@@ -6,13 +6,24 @@ export function topicSearchGate(context?:SearchTopic){
  const title=topicWords(context.title).filter(word=>word.length>1&&!ignored.has(word));
  const description=topicWords(context.description);
  const titleInDescription=title.length>0&&title.every(word=>description.includes(word));
- const terms=[...new Set(titleInDescription?title:description.filter(word=>word.length>1&&!ignored.has(word)))].slice(0,16);
+ const exact=titleInDescription&&title.length>1&&title.length<=5;
+ // A category title is a label, not an instruction to discard the rest of the
+ // interests. Proper subjects/geographies still retain their original anchor.
+ const categories=new Set(['economy','economics','business','finance','technology','computing','science','research','health','sports','sport','politics','economie','entreprises','technologie','recherche','sante','politique','اقتصاد','الاقتصاد','تكنولوجيا','علوم','صحة','رياضة','سياسة']);
+ const retainTitle=exact||(titleInDescription&&!title.some(word=>categories.has(word)));
+ const terms=[...new Set(retainTitle?title:[...title,...description.filter(word=>word.length>1&&!ignored.has(word))])].slice(0,16);
  if(!terms.length)return {hint:context.title,matches:()=>false};
  // Short literal feed subjects, especially people, must retain the full subject.
- const exact=titleInDescription&&title.length>1&&title.length<=5;
+ const variants=(word:string)=>{
+  // Arabic conjunctions/prepositions attached to the definite article are
+  // grammatical variants, not different subjects. Never alter exact names.
+  const prefix=word.match(/^(?:[وفبك]ال|لل|ال)/u)?.[0];
+  return prefix&&word.length-prefix.length>=3?[word,word.slice(prefix.length)]:[word];
+ };
+ const relevant=new Set(terms.flatMap(variants));
  return {hint:exact?context.title:terms.slice(0,4).join(' '),matches:(text:string)=>{
   const words=new Set(topicWords(text));
-  return exact?terms.every(term=>words.has(term)):terms.some(term=>words.has(term));
+  return exact?terms.every(term=>words.has(term)):[...words].some(word=>variants(word).some(term=>relevant.has(term)));
  }};
 }
 export function sourceSearchCacheQuery(query:string,context?:SearchTopic){

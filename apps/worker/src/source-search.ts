@@ -54,7 +54,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
       const host=new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname;
       if(term.length<3&&!searchWords(row.title+' '+host).some(word=>normalize(word)===term))return false;
       return normalize(row.title).includes(term)||normalize(host).includes(term);
-    }).slice(0,4);
+    }).sort((a,b)=>Number(topic?.matches(b.aliases.join(' '))??false)-Number(topic?.matches(a.aliases.join(' '))??false)).slice(0,4);
     const sampled=await Promise.all(feeds.map(async row=>{
       try{
         const url=prepareProductSourceInput(row.source).sourceUrl!;
