@@ -9,6 +9,7 @@ import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } f
 import type { BriefingEdition, BriefingItem, EventReviewAdapter, NormalizedMessage, SummaryAdapter } from "@distilled/core";
 import type { DistilledQueueMessage, Env, ProcessingJobMessage } from "./types";
 import {rememberSourceAssessment} from './source-assessment-cache';
+import * as searchRelevance from './source-search-relevance';
 
 class FakeBucket {
   objects = new Map<string, string>();
@@ -120,6 +121,8 @@ describe("worker app accounts", () => {
     expect(fetcher).toHaveBeenCalledTimes(30);
   });
   it('accepts topic-scoped search in a POST body and excludes off-topic indexed articles',async()=>{
+    const relevance=vi.spyOn(searchRelevance,'alignedSearchResults').mockResolvedValueOnce({results:[],unavailable:false});
+    try{
     const fetcher=vi.fn<typeof fetch>(async()=>new Response('<rss><channel><item><guid>1</guid><title>AI workforce trends</title><link>https://news.google.com/rss/articles/1</link><source url="https://publisher.example">Publisher</source></item></channel></rss>'));
     const app=createApp({repository:new InMemoryRepository(),fetcher}),target={...env(),SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'};
     const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'topic@example.com',username:'topic-search',password:'password123',setupToken:'setup-token'})},target);
@@ -128,7 +131,9 @@ describe("worker app accounts", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({results:[],topicMismatch:true});
     expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(relevance).toHaveBeenCalledWith(target,'AI',{title:'Ammar Mohanna',description:'Latest news about Ammar Mohanna'},expect.arrayContaining([expect.objectContaining({title:'AI workforce trends'})]),fetcher,expect.any(String));
     expect((await app.request('/api/me/sources/search',{method:'POST',headers,body:JSON.stringify({q:'AI',title:'Ammar'})},target)).status).toBe(400);
+    }finally{relevance.mockRestore();}
   });
   it("sets up the first verified admin account and session", async () => {
     const repo = new InMemoryRepository();

@@ -1,6 +1,8 @@
 import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
 import type {Env} from './types';
+// Explicit relevance fixture: transport tests do not call a paid model.
+vi.mock('./source-search-relevance',()=>({alignedSearchResults:vi.fn(async(_env:Env,_query:string,_topic:unknown,results:{title:string}[])=>({results:results.filter(row=>!['A football match','Unrelated theatre performance','A theatre production opens','AI workforce trends','Ammar Mohanna joins a theatre production'].includes(row.title)),unavailable:false}))}));
 const enabled={SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
 it.each([
  {query:'France 24 English',title:'Economy',description:'Economy, finance and international trade',feed:'https://www.france24.com/en/business-tech/rss',headline:'International trade grows as companies invest'},
@@ -30,7 +32,8 @@ it('searches a named publisher through readable article evidence when the extern
  const fetcher=vi.fn<typeof fetch>(async url=>String(url)===feed?new Response(xml):new Response('',{status:403}));
  const found=await searchSourceCandidates(enabled,'TechCrunch',fetcher,undefined,undefined,{title:'Computing',description:'Computing hardware and processors'});
  expect(found).toMatchObject({unavailable:false,results:[{source:'rss: '+feed,title:'Computing startup announces a new processor',articleUrl:'https://techcrunch.com/new-processor'}]});
- expect(fetcher.mock.calls.every(([url])=>String(url)===feed)).toBe(true);
+ expect(fetcher.mock.calls.some(([url])=>String(url)===feed)).toBe(true);
+ expect(fetcher.mock.calls.every(([url])=>String(url)===feed||String(url).startsWith('https://news.google.com/'))).toBe(true);
 });
 it('does not substitute a publisher catalog description for topic evidence',async()=>{
  const fetcher=vi.fn<typeof fetch>(async url=>String(url)==='https://techcrunch.com/feed/'?new Response('<rss><channel><item><guid>one</guid><title>A theatre production opens</title><description>Actors perform a play.</description><link>https://techcrunch.com/play</link></item></channel></rss>'):new Response('',{status:403}));
@@ -45,7 +48,7 @@ it('requires the search words and feed topic in article evidence before checking
   return new Response('Public reporting. '.repeat(20));
  });
  const result=await searchSourceCandidates(enabled,'AI',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News and projects about Ammar Mohanna'});
- expect(googleQuery).toContain('Ammar Mohanna');
+ expect(googleQuery).toBe('AI');
  expect(result.results.map(row=>row.title)).toEqual(['Ammar Mohanna presents an AI project']);
  expect(fetcher).toHaveBeenCalledTimes(2);
 });
