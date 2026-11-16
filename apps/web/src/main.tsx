@@ -364,9 +364,10 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   }
 
   async function handleLogout() {
+    const result = await logout();
     setAccountDialogOpen(false);
     setFeedSettingsOpen(false);
-    await logout();
+    if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
     setSession({ authenticated: false, setupRequired: false });
     setBriefings([]);
     setBriefingsState('loading');
@@ -830,27 +831,36 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
   const [error, setError] = useState<UiMessage>("");
   const language = props.language ?? "en";
 
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const failedOffset = useRef(0);
+  const loader = useRef<(offset?: number) => Promise<void>>(async () => {});
   useEffect(() => {
-    let active = true;
-    getExploreFeeds()
-      .then((nextFeeds) => {
-        if (active) setFeeds(nextFeeds);
-      })
-      .catch((cause) => {
-        if (active) setError(toUiError(cause));
-      });
-    return () => {
-      active = false;
-    };
+    let active = true, inFlight = false;
+    async function load(offset = 0) {
+      if (inFlight) return;
+      inFlight = true; failedOffset.current = offset;
+      setLoading(true); setError("");
+      try {
+        const page = await getExploreFeeds(offset);
+        if (active) {
+          setFeeds(current => offset === 0 ? page.feeds : [...new Map([...(current ?? []), ...page.feeds].map(feed => [feed.id, feed])).values()]);
+          setNextOffset(page.nextOffset);
+        }
+      } catch (cause) { if (active) setError(toUiError(cause)); }
+      finally { inFlight = false; if (active) setLoading(false); }
+    }
+    loader.current = load; void load();
+    return () => { active = false; };
   }, []);
 
-  if (error) return <p className="error">{t(error)}</p>;
-  if (!feeds) return null;
-  if (feeds.length === 0) return <p className="muted">{noFeaturedFeedsLabel(language)}</p>;
+  if (!feeds && !error) return null;
+  if (feeds?.length === 0 && !error) return <p className="muted">{noFeaturedFeedsLabel(language)}</p>;
 
   return (
     <div className="explore-list">
-      {feeds.map((feed) => {
+      {error && <div role="alert">{Boolean(feeds?.length) && <p>{t("Some feeds could not be loaded. Previously loaded feeds are still available.")}</p>}<p className="error">{t(error)}</p><button type="button" disabled={loading} onClick={() => void loader.current(failedOffset.current)}>{t("Try Again")}</button></div>}
+      {(feeds ?? []).map((feed) => {
         const href = `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
         const isCurrent = props.currentFeed?.id === feed.id;
         return (
@@ -865,6 +875,7 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
           </a>
         );
       })}
+      {nextOffset !== null && !error && <button type="button" disabled={loading} onClick={() => void loader.current(nextOffset)}>{t("Load more feeds")}</button>}
     </div>
   );
 }
@@ -1261,8 +1272,10 @@ function AccountDialog(props: {
           title={t("logout")}
           disabled={busy === "logout"}
           onClick={async () => {
-            setBusy("logout");
-            await props.onLogout();
+            setBusy("logout"); setError("");
+            try { await props.onLogout(); }
+            catch (cause) { setError(toUiError(cause)); }
+            finally { setBusy(null); }
           }}
         >
           <LogOut size={22} aria-hidden /> {t("Log out")}
@@ -1728,7 +1741,7 @@ function FeedPage(props: { username: string; slug: string }) {
     >
       {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
-        onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
+        onLogout={async () => { const result = await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings.")); }}
         onSaved={async (nextAccount, nextBriefings) => {
           setAccount(nextAccount);
           setOwnedFeed(nextBriefings.find(feed => feed.ownerUsername === props.username && feed.slug === props.slug) ?? null);
@@ -2114,7 +2127,7 @@ function Shell(props: {
               </button>
             ) : null}
             <ThemeToggle/>
-            {props.onLogout ? <button type="button" title={t("logout")} onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> {t("logout")}</button> : null}
+            {props.onLogout ? <button type="button" title={t("logout")} onClick={() => { void props.onLogout?.().catch(() => window.alert(t("Could not complete the request. Try again."))); }}><LogOut size={15} aria-hidden /> {t("logout")}</button> : null}
           </div>
         </div>
       </header>}

@@ -54,9 +54,15 @@ export async function setNotificationsEnabled(enabled: boolean): Promise<void> {
   const worker = await navigator.serviceWorker.ready;
   const existing = await worker.pushManager.getSubscription();
   if (!enabled && existing) {
-    const response = await fetch("/api/me/push", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: existing.endpoint }) });
-    if (!response.ok) throw new Error("Could not remove subscription");
-    if (!await existing.unsubscribe()) throw new Error("Could not disable notifications. Please try again.");
+    // Always attempt local unsubscription, even when server deletion fails.
+    let removed = false;
+    try {
+      const response = await fetch("/api/me/push", { method: "DELETE", signal: AbortSignal.timeout(5_000), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: existing.endpoint }) });
+      removed = response.ok;
+    } finally {
+      if (!await existing.unsubscribe()) throw new Error("Could not disable notifications. Please try again.");
+    }
+    if (!removed) throw new Error("Could not remove subscription");
     return;
   }
   if (!enabled) return;

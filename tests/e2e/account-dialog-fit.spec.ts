@@ -25,3 +25,21 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
     expect(result.height).toBeLessThanOrEqual(size.height);
   });
 }
+
+
+test('server logout failure leaves the account dialog retryable', async ({page}) => {
+  let attempts=0;
+  await page.route('**/api/**', route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==='/api/auth/session')return route.fulfill({json:{authenticated:true,account:{id:'owner',username:'owner',email:'owner@example.invalid',role:'user'}}});
+    if(path==='/api/me/briefings')return route.fulfill({json:{briefings:[]}});
+    if(path==='/api/explore/feeds')return route.fulfill({json:{feeds:[],nextOffset:null}});
+    if(path==='/api/auth/logout') {attempts++;return attempts===1?route.fulfill({status:503,json:{error:'unavailable'}}):route.fulfill({json:{ok:true}});}
+    return route.fulfill({json:{}});
+  });
+  await page.goto('/');await page.getByRole('button',{name:'Account profile'}).click();
+  const button=page.locator('.profile-dialog').getByRole('button',{name:'Log out',exact:true});
+  await button.click();await expect(page.locator('.profile-dialog .error')).toContainText('Could not complete the request');
+  await expect(button).toBeEnabled();await button.click();
+  await expect(page.locator('.profile-dialog')).toHaveCount(0);expect(attempts).toBe(2);
+});

@@ -77,3 +77,53 @@ it('settles known usage before rejecting an unusable summary and never resends i
   expect(fetcher).toHaveBeenCalledOnce();
  }finally{await local.dispose()}
 },30000);
+
+
+it('requires a finite grant despite TRACK_ONLY and leaves existing accounting untouched',async()=>{
+ const local=await createIntakeDatabase({product:true,modelSpending:false});try{
+  await local.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('limited-feed',JSON.stringify({revision:1})).run();
+  await local.db.prepare("INSERT INTO settings(key,value,updated_at) VALUES(?,?,'2026-11-16T00:00:00Z')").bind('model-spending:tracking-only:summary-account',JSON.stringify({mode:'TRACK_ONLY',modelIds:['*'],enabledAt:'2000-01-01T00:00:00Z'})).run();
+  const fetcher=vi.fn(async()=>{throw Error('MUST_NOT_SEND')});
+  await expect(unreadSummaryPort({DB:local.db,OPENROUTER_API_KEY:'test'} as Env,'limited-feed','reader',fetcher).complete(unreadSummaryRequest(input))).rejects.toThrow('temporarily unavailable');
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(await local.db.prepare('SELECT id FROM v1_model_spending_reservations').first()).toBeNull();
+  // The setting is intentionally preserved; only summaries require a grant.
+  expect(await local.db.prepare('SELECT key FROM settings').first()).not.toBeNull();
+ }finally{await local.dispose()}
+},30000);
+
+it('enforces a finite exposure cap even on a TRACK_ONLY account',async()=>{
+ const local=await createIntakeDatabase({product:true});try{
+  await local.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('capped-feed',JSON.stringify({revision:1})).run();
+  await local.db.prepare("INSERT INTO settings(key,value,updated_at) VALUES(?,?,'2026-11-16T00:00:00Z')").bind('model-spending:tracking-only:test-only-account',JSON.stringify({mode:'TRACK_ONLY',modelIds:['*'],enabledAt:'2000-01-01T00:00:00Z'})).run();
+  await reserveModelSpending(local.db,{id:'prior-unknown',accountId:'test-only-account',feedId:'capped-feed',token:'prior',model:'openai/gpt-4.1',reservedCostUsd:100,leaseUntil:0,createdAt:new Date().toISOString()});
+  const before=(await local.db.prepare('SELECT * FROM v1_model_spending_reservations').all()).results;
+  const fetcher=vi.fn(async()=>{throw Error('MUST_NOT_SEND')});
+  await expect(unreadSummaryPort({DB:local.db,OPENROUTER_API_KEY:'test'} as Env,'capped-feed','reader',fetcher).complete(unreadSummaryRequest(input))).rejects.toThrow();
+  expect(fetcher).not.toHaveBeenCalled();expect((await local.db.prepare('SELECT * FROM v1_model_spending_reservations').all()).results).toEqual(before);
+ }finally{await local.dispose()}
+},30000);
+
+it('atomically caps distinct summary attempts across feeds while reusing paid receipts without quota',async()=>{
+ const local=await createIntakeDatabase({product:true});try{
+  for(const id of ['quota-feed-a','quota-feed-b'])await local.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind(id,JSON.stringify({revision:1})).run();
+  const env={DB:local.db,OPENROUTER_API_KEY:'test',V1_PROVIDER_MAX_CONCURRENCY:'6',V1_PROVIDER_REQUESTS_PER_MINUTE:'1000'} as Env;
+  const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:'{"summary":"A proposal remains subject to approval."}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20,cost:.0001}}));
+  const requests=Array.from({length:8},(_,i)=>unreadSummaryRequest({...input,briefings:[{...input.briefings[0],id:'edition-'+i}]}));
+  const results:PromiseSettledResult<unknown>[]=[];
+  for(let i=0;i<5;i++)results.push({status:'fulfilled',value:await unreadSummaryPort(env,i%2?'quota-feed-a':'quota-feed-b','same-reader',fetcher).complete(requests[i])});
+  results.push(...await Promise.allSettled(requests.slice(5).map((request,index)=>unreadSummaryPort(env,(index+5)%2?'quota-feed-a':'quota-feed-b','same-reader',fetcher).complete(request))));
+  expect(results.filter(result=>result.status==='fulfilled')).toHaveLength(6);
+  expect(results.filter(result=>result.status==='rejected')).toHaveLength(2);expect(fetcher).toHaveBeenCalledTimes(6);
+  const count=()=>local.db.prepare("SELECT COUNT(*) n FROM auth_attempts WHERE key='same-reader' AND action='unread-summary'").first<{n:number}>();
+  expect((await count())?.n).toBe(6);
+  const passed=results.findIndex(result=>result.status==='fulfilled');
+  await unreadSummaryPort(env,passed%2?'quota-feed-a':'quota-feed-b','same-reader',fetcher).complete(requests[passed]);
+  expect(fetcher).toHaveBeenCalledTimes(6);expect((await count())?.n).toBe(6);
+  // Another account has its own quota; advancing the retained attempt timestamps reopens the hour.
+  await unreadSummaryPort(env,'quota-feed-a','other-reader',fetcher).complete(requests[0]);
+  await local.db.prepare("UPDATE auth_attempts SET created_at='2000-01-01T00:00:00Z' WHERE key='same-reader'").run();
+  await unreadSummaryPort(env,'quota-feed-a','same-reader',fetcher).complete(unreadSummaryRequest({...input,language:'fr'}));
+  expect(fetcher).toHaveBeenCalledTimes(8);
+ }finally{await local.dispose()}
+},30000);
