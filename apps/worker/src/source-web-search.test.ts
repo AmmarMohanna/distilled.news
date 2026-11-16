@@ -28,7 +28,7 @@ it.each(['ammar mohanna aub','ammar mohanna'])('finds a relevant institutional p
 it('rejects private destinations and keeps the topic check for institutional results',async()=>{
  const directory='<div class="researcher-card"><h4><a href="https://127.0.0.1/private">Ammar Mohanna</a></h4></div><div class="researcher-card"><h4><a href="/pages/profile.aspx?MemberId=other">Another Researcher</a></h4><p>AI workforce at AUB</p></div>';
  const fetcher=vi.fn<typeof fetch>(async input=>new Response(String(input).includes('duckduckgo')?'<div class="no-results">No results</div>':String(input).includes('AI-Researchers-at-MSFEA')?directory:'<rss><channel></channel></rss>'));
- const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',SOURCE_RECOMMENDATIONS_WEB_HTML:'true'} as never,'AI',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News about Ammar Mohanna'});
+ const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',SOURCE_RECOMMENDATIONS_WEB_HTML:'true'} as never,'AI research',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News about Ammar Mohanna'});
  expect(found.results).toEqual([]);expect(found.topicMismatch).toBe(true);
  expect(fetcher.mock.calls.every(call=>!String(call[0]).includes('127.0.0.1'))).toBe(true);
 });

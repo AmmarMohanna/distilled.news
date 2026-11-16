@@ -48,7 +48,7 @@ it('requires the search words and feed topic in article evidence before checking
   return new Response('Public reporting. '.repeat(20));
  });
  const result=await searchSourceCandidates(enabled,'AI',fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News and projects about Ammar Mohanna'});
- expect(googleQuery).toContain('Ammar Mohanna');
+ expect(googleQuery).toBe('AI');
  expect(result.results.map(row=>row.title)).toEqual(['Ammar Mohanna presents an AI project']);
  expect(fetcher).toHaveBeenCalledTimes(2);
 });

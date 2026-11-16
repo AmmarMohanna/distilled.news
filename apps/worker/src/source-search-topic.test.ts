@@ -1,6 +1,6 @@
 import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
-import {sourceSearchCacheQuery,sourceSearchHint} from './source-search-topic';
+import {sourceSearchCacheQuery} from './source-search-topic';
 import type {Env} from './types';
 vi.mock('./agentops-assessment',()=>({campaignAssessmentFetcher:(_env:Env,_owner:string,fetcher:typeof fetch)=>fetcher}));
 const categories=[
@@ -35,9 +35,8 @@ it.each(categories)('sends individual interests in $title to the model without a
   expect(modelCalls).toHaveLength(1);
  }
 });
-it('keeps full context in cache identities and uses titles only as retrieval hints',()=>{
+it('keeps full context in cache identities',()=>{
  const topic={title:'Economy and Finance',description:'Economy, finance and international trade'};
- expect(sourceSearchHint(topic)).toBe(topic.title);
  expect(sourceSearchCacheQuery('markets',topic)).not.toBe(sourceSearchCacheQuery('markets',{...topic,description:'Only public finance'}));
 });
 it.each([

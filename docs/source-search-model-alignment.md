@@ -5,7 +5,8 @@ batch to judge the retrieved result titles and excerpts against the complete
 feed context and query. Broad category titles do not impose an exact-word AND
 rule. Named people, institutions and required geography still need a supported
 connection. The model may recognize translations and synonyms; discovery does
-not discard those candidates through literal query or title matching first.
+not discard those candidates through literal query or title matching first. The submitted query is kept intact rather than appending every
+word of the category title as an upstream search requirement.
 
 Public publisher samples, web results and the configured public Google route
 run concurrently. The relevance batch includes at most 60 candidates and uses

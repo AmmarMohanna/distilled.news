@@ -5,7 +5,7 @@ import {prepareProductSourceInput} from './product-feeds';
 import {recommendationFetch} from './source-recommendation-fetch';
 import {freelyReadableResults} from './source-search-free';
 import {cachedSourceSearch} from './source-search-cache';
-import {sourceSearchHint,sourceSearchCacheQuery,type SearchTopic} from './source-search-topic';
+import {sourceSearchCacheQuery,type SearchTopic} from './source-search-topic';
 import {alignedSearchResults} from './source-search-relevance';
 import {readWebSearch} from './source-web-search';
 import {normalizeRssSnapshot} from '@distilled/connectors';
@@ -41,13 +41,14 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   const term=normalize(query);
   if(term.length<2)return {results:[],unavailable:false};
   const matches=publishers.filter(row=>row.aliases.some(alias=>normalize(alias).includes(term))).slice(0,8);
-  const hint=sourceSearchHint(context);
   const results:SourceSearchResult[]=context?[]:matches.map(row=>({source:row.source,title:row.title,publisher:new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname}));
   if(!context&&matches.some(row=>row.aliases.some(alias=>normalize(alias)===term)))return {results,unavailable:false};
   if(env.SOURCE_RECOMMENDATIONS_WEB_SEARCH!=='true')return {results,unavailable:true};
   const publisherHosts=new Set(matches.filter(row=>row.aliases.some(alias=>normalize(alias)===term)).map(row=>new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname.replace(/^www\./,'')));
   const publisherQuery=matches.find(row=>row.aliases.some(alias=>normalize(alias)===term))?.title.split('·')[0].replace(/Â$/,'').trim();
-  const scopedQuery=hint&&!searchWords(hint).every(word=>searchWords(query).includes(word))?`${publisherQuery??query} ${hint}`:query;
+  // Keep the user's search intact; context belongs in the relevance decision.
+  // Appending a category title here would reintroduce an upstream AND rule.
+  const scopedQuery=publisherQuery??query;
   const plan=prepareProductSourceInput('news: '+scopedQuery);
   const queryMatches=(title:string,excerpt:string,publisherOrigin?:string)=>matchesArticleQuery(query,title,excerpt)||(publisherOrigin!==undefined&&publisherHosts.has(new URL(publisherOrigin).hostname.replace(/^www\./,'')));
   let indexAvailable=false;
