@@ -387,7 +387,7 @@ export interface Repository {
   countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number>;
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
-  listBriefings(accountId?: string): Promise<BriefingConfig[]>;
+  listBriefings(accountId?: string, voterId?: string): Promise<BriefingConfig[]>;
   listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>>;
   setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;
@@ -395,6 +395,7 @@ export interface Repository {
   hasBriefingStar(briefingId: string, voterId: string): Promise<boolean>;
   setBriefingStar(briefingId: string, voterId: string, starred: boolean, now?: Date): Promise<number>;
   upsertBriefing(input: BriefingConfig, now?: Date): Promise<BriefingConfig>;
+  saveFeedConfiguration(input:BriefingConfig,sources:Parameters<Repository['upsertConfiguredSource']>[0][],previous:BriefingConfig|null,now?:Date):Promise<{briefing:BriefingConfig;sourceIds:string[]}>;
   deleteBriefing(id: string, now?: Date): Promise<void>;
   listSources(briefingId: string): Promise<SourceRecord[]>;
   getSource(sourceId: string): Promise<SourceRecord | null>;

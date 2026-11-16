@@ -122,20 +122,22 @@ export async function resolveProductSourceInput(input:string,fetcher:typeof fetc
  return {detected,actorId:undefined,sourceUrl:feedUrl,input,canonicalUrl:feedUrl};
 }
 
+/** All external resolution/verification happens before the atomic configuration write. */
+export function configuredProductSource(feedId:string,plan:Awaited<ReturnType<typeof resolveProductSourceInput>>):Parameters<Repository['upsertConfiguredSource']>[0] {
+ if(plan.detected.kind==='telegram_channel'){
+  const result=plan.verifiedTelegram;
+  if(!result)throw new ProductSourceApprovalError('Could not verify this Telegram channel.');
+  return {briefingId:feedId,title:`@${result.username}`,provider:'telegram',kind:'telegram_channel',identityKey:result.channelId,username:result.username,sourceUrl:`https://t.me/${result.username}`,input:JSON.stringify(result),enabled:true};
+ }
+ return {briefingId:feedId,title:plan.detected.title,provider:plan.detected.provider,kind:plan.detected.kind,username:'username' in plan.detected?plan.detected.username:undefined,sourceUrl:plan.sourceUrl,input:plan.input,actorId:plan.actorId,actorInput:'actorInput' in plan.detected?plan.detected.actorInput:undefined,enabled:true};
+}
+
 export async function approveProductSource(env:Env,repo:Repository,feed:BriefingConfig,input:string,
  preResolved?:Awaited<ReturnType<typeof resolveProductSourceInput>>) {
- const plan=preResolved??await resolveProductSourceInput(input);
- if(plan.detected.kind==='telegram_channel'){
-  const result=plan.verifiedTelegram??await verifyTelegramApproval(env,plan.detected.username);
-  const verifiedInput=JSON.stringify(result);
-  const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:`@${result.username}`,provider:'telegram',kind:'telegram_channel',
-   identityKey:result.channelId,username:result.username,sourceUrl:`https://t.me/${result.username}`,input:verifiedInput,enabled:true});
-  await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=?").bind(source.id).run();
-  if(!feed.paused)await enrollV1Source(env.DB,source.id,feed.ownerAccountId,new Date().toISOString());
-  return {sourceId:source.id,url:`https://t.me/${result.username}`,title:source.title,fetched:0,imported:0,queued:0,skipped:0};
- }
+ let plan=preResolved??await resolveProductSourceInput(input);
+ if(plan.detected.kind==='telegram_channel'&&!plan.verifiedTelegram)plan={...plan,verifiedTelegram:await verifyTelegramApproval(env,plan.detected.username)};
  if(plan.detected.kind==='web_page'&&(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_TOKEN))throw new Error('Website extraction requires the source execution service.');
- const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:plan.detected.title,provider:plan.detected.provider,kind:plan.detected.kind,username:'username' in plan.detected?plan.detected.username:undefined,sourceUrl:plan.sourceUrl,input:plan.input,actorId:plan.actorId,actorInput:'actorInput' in plan.detected?plan.detected.actorInput:undefined,enabled:true});
+ const source=await repo.upsertConfiguredSource(configuredProductSource(feed.id,plan));
  await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=?").bind(source.id).run();
  if(!feed.paused)await enrollV1Source(env.DB,source.id,feed.ownerAccountId,new Date().toISOString());
  return {sourceId:source.id,url:plan.canonicalUrl,title:source.title,fetched:0,imported:0,queued:0,skipped:0};

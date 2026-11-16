@@ -4,8 +4,8 @@ import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
-import type { AccountRecord, HealthStatus, PublicBriefing } from "./types";
-import { getExploreFeeds, getFeed, setFeedStar } from "./api";
+import type { AccountRecord, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
+import { getExploreFeeds, setFeedStar } from "./api";
 import { ThemeToggle, useTheme } from "./ThemeToggle";
 import { LanguageControl, languageNames, setWebsiteLanguage, useLanguage } from "./LanguageControl";
 import { installApp, notificationsEnabled, setNotificationsEnabled } from "./pwa";
@@ -17,6 +17,11 @@ import { AdaptiveFeedGrid } from "./AdaptiveFeedGrid";
 import { formatFeedUpdated } from "./helpers";
 import { EXPLORE_CHANGED_EVENT } from "./ExplorePublishingControl";
 
+type ExperienceTab='home'|'explore'|'settings';
+function tabFromLocation():ExperienceTab {
+  if(new URLSearchParams(window.location.search).get('view')==='settings')return 'settings';
+  return /^\/explore\/?$/.test(window.location.pathname)?'explore':'home';
+}
 const topics = [
   { name: "Lebanon", category: "Lebanon", art: "coast", pattern: /lebanon|lebanese|beirut/i },
   { name: "Global Affairs", category: "World", art: "world", pattern: /world|global|international/i },
@@ -42,12 +47,12 @@ export function AppHeader({ account, onAccount, leading, actions, contextual, lo
 }
 
 export function AppExperience(props: {
-  account: AccountRecord | null; briefings: BriefingConfig[]; briefingsState?: 'loading' | 'ready' | 'error'; briefing?: BriefingConfig; health?: HealthStatus | null;
+  account: AccountRecord | null; briefings: Array<BriefingConfig & FeedCardMetadata>; briefingsState?: 'loading' | 'ready' | 'error'; briefing?: BriefingConfig; health?: HealthStatus | null;
   onRetryBriefings?: () => Promise<void>;
   onAccount: () => void; onFeedSettings?: () => void; onCreate?: () => void;
   onHelp: () => void; onResumeFeed?: (feed: BriefingConfig) => Promise<void>; error?: UiMessage; children?: React.ReactNode; initialTab?: "home" | "explore" | "settings";
 }) {
-  const [tab, setTab] = useState(props.initialTab ?? "home");
+  const [tab, setTab] = useState<ExperienceTab>(() => props.initialTab ?? tabFromLocation());
   const [query, setQuery] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [resumingFeed, setResumingFeed] = useState<string | null>(null);
@@ -109,9 +114,15 @@ export function AppExperience(props: {
   const visibleFeeds = feeds.filter(feed => !feed.paused && !owns(feed) && matching(`${feed.title} ${feed.ownerUsername}`));
   const setting = (icon: React.ReactNode, label: string, action: () => void) => <button type="button" className="setting-row" onClick={action}>{icon}<span>{t(label)}</span><ChevronRight size={17}/></button>;
   function changeTab(next: typeof tab) {
+    const url = next === "home" ? "/" : next === "explore" ? "/explore" : "/?view=settings";
+    if(window.location.pathname + window.location.search !== url) window.history.pushState(null, "", url);
     setTab(next); setArchiveOpen(false); setSettingsDialog(null); window.scrollTo({ top: 0 });
   }
-  useEffect(() => { if (new URLSearchParams(window.location.search).get("view") === "settings" && props.account) setTab("settings"); }, []);
+  useEffect(() => {
+    const restore = () => { setTab(tabFromLocation()); setArchiveOpen(false); setSettingsDialog(null); };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, []);
   useEffect(() => {
     if (tab !== "settings" || !props.account) return;
     let active = true;
@@ -196,7 +207,7 @@ export function accountInitials(username: string) {
   return initials.join(initials.some(letter => /\p{Script=Arabic}/u.test(letter)) ? "\u200c" : "");
 }
 
-function FeedCardActions({ feed, owner, onError, hideStar = false, children, latestUpdatedAt }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled">; owner: boolean; onError: (message: UiMessage) => void; hideStar?: boolean; children?: React.ReactNode; latestUpdatedAt?: string }) {
+function FeedCardActions({ feed, owner, onError, hideStar = false, children, latestUpdatedAt }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled"> & FeedCardMetadata; owner: boolean; onError: (message: UiMessage) => void; hideStar?: boolean; children?: React.ReactNode; latestUpdatedAt?: string }) {
   const { t } = useLanguage();
   const menu = useRef<HTMLDetailsElement>(null);
   useVisibleFeedMenu(menu);
@@ -205,25 +216,17 @@ function FeedCardActions({ feed, owner, onError, hideStar = false, children, lat
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, []);
-  const [starred, setStarred] = useState(false);
+  const [starred, setStarred] = useState(feed.viewerHasStarred ?? false);
   const [stars, setStars] = useState(feed.stars);
   const [busy, setBusy] = useState(false);
-  const [updatedAt, setUpdatedAt] = useState<string>();
   useEffect(() => {
-    let active = true;
-    setUpdatedAt(undefined);
-    if (!hideStar) getFeed(feed.ownerUsername, feed.slug).then(result => {
-      if (!active) return;
-      setStarred(result.viewerHasStarred); setStars(result.briefing.stars);
-      setUpdatedAt(latestFeedUpdate(result.editions));
-    }).catch(() => {});
-    return () => { active = false; };
-  }, [feed.ownerUsername, feed.slug, hideStar]);
+    setStarred(feed.viewerHasStarred ?? false); setStars(feed.stars);
+  }, [feed.id, feed.stars, feed.viewerHasStarred]);
   const url = () => window.location.origin + feedUrl(feed);
   return <div className="feed-card-actions">
     <div className="feed-card-meta">{children}
     {!hideStar && <button type="button" aria-label={t(starred ? "Unstar" : "Star")} aria-pressed={starred} disabled={busy} onClick={async () => { setBusy(true); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !starred); setStarred(result.viewerHasStarred); setStars(result.stars); } catch (cause) { onError(toUiError(cause)); } finally { setBusy(false); } }}><Star size={16} fill={starred ? "currentColor" : "none"}/><span className="feed-star-count">{stars}</span></button>}
-    <FeedUpdatedAt value={hideStar ? latestUpdatedAt : updatedAt}/></div>
+    <FeedUpdatedAt value={hideStar ? latestUpdatedAt : feed.latestUpdatedAt}/></div>
     <a className="feed-card-open" href={feedUrl(feed)} aria-label={`${t("Open feed")}: ${feed.title}`}><ArrowRight size={20}/></a>
     {(owner || feed.publicFeedEnabled) && <details ref={menu} className="feed-options" onKeyDown={event => { if (event.key === "Escape" && menu.current) { menu.current.open = false; menu.current.querySelector("summary")?.focus(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
       <summary aria-label={t("Feed options")}><Ellipsis size={18}/></summary>
@@ -233,12 +236,6 @@ function FeedCardActions({ feed, owner, onError, hideStar = false, children, lat
       </div>
     </details>}
   </div>;
-}
-
-function latestFeedUpdate(editions: Awaited<ReturnType<typeof getFeed>>["editions"]): string | undefined {
-  return editions.map(edition => edition.updatedAt || edition.publishedAt)
-    .filter(value => Number.isFinite(Date.parse(value)))
-    .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
 }
 
 function FeedUpdatedAt({ value }: { value?: string }) {

@@ -72,3 +72,5 @@ export interface FeedPayload {
   editions: BriefingEdition[];
   viewerHasStarred: boolean;
 }
+
+export interface FeedCardMetadata {viewerHasStarred?: boolean; latestUpdatedAt?: string}

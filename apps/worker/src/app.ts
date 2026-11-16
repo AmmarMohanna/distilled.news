@@ -18,7 +18,7 @@ import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
 import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
 import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
-import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
 import {connectorSourceHealth} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
@@ -79,7 +79,7 @@ import {
   verifySession
 } from "./auth";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
-import { D1Repository } from "./repository";
+import { D1Repository, FeedConfigurationConflict } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
@@ -825,7 +825,7 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    return c.json({ briefings: (await repo.listBriefings(account.id)).map(feed => ({...feed,nextBriefingAt:readNextBriefingAt(feed)})) });
+    return c.json({ briefings: (await repo.listBriefings(account.id, await getVoterId(c) ?? undefined)).map(feed => ({...feed,nextBriefingAt:readNextBriefingAt(feed)})) });
   });
 
   app.post('/api/me/v1/editions/:id/withdraw',async c=>{
@@ -834,10 +834,10 @@ export function createApp(options: AppOptions = {}) {
     catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
   });
 
-  app.post("/api/me/briefings", async (c) => {
+  async function saveBriefingConfiguration(c:Context<{Bindings:Env;Variables:Variables}>,raw:unknown,plans?:Awaited<ReturnType<typeof resolveProductSourceInput>>[]) {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    const input = briefingInputSchema.parse(await c.req.json());
+    const input = briefingInputSchema.parse(raw);
     const existing = await repo.getBriefingById(input.id);
     if (existing && existing.ownerAccountId !== account.id) return c.json({ error: "briefing not found" }, 404);
     const slug = normalizeUsername(input.slug || input.title);
@@ -871,7 +871,7 @@ export function createApp(options: AppOptions = {}) {
           timezone: input.briefingTimezone
         })
       : existing.nextBriefingAt;
-    const briefing = await repo.upsertBriefing({
+    const configuration:BriefingConfig = {
       ...input,
       ownerAccountId: account.id,
       ownerUsername: account.username,
@@ -886,11 +886,31 @@ export function createApp(options: AppOptions = {}) {
       briefingScheduleClockStartAt,
       briefingSchedulePolicy,
       retentionDays: FIXED_RETENTION_DAYS
-    },savedAt);
+    };
+    let briefing:BriefingConfig,sourceIds:string[]=[];
+    try {
+      if(plans) {
+        const saved=await repo.saveFeedConfiguration(configuration,plans.map(plan=>configuredProductSource(configuration.id,plan)),existing,savedAt);
+        briefing=saved.briefing;sourceIds=saved.sourceIds;
+      } else briefing=await repo.upsertBriefing(configuration,savedAt);
+    } catch(error) {if(error instanceof FeedConfigurationConflict)return c.json({error:error.message},409);throw error;}
+    const pendingSourceIds:string[]=[];
+    if(plans&&!briefing.paused)for(const id of sourceIds) {
+      try {await enrollV1Source(c.env.DB,id,briefing.ownerAccountId,savedAt.toISOString());}
+      catch {
+        pendingSourceIds.push(id);
+        console.warn("Feed saved; source activation needs scheduler recovery",{feedId:briefing.id,sourceId:id});
+        try {
+          const prior=await repo.getSource(id),note="Source activation is pending. Check source health for updates.";
+          await repo.updateSourceState({sourceId:id,lastError:prior?.lastError?.includes(note)?prior.lastError:[prior?.lastError,note].filter(Boolean).join(' ')});
+        } catch { /* The committed scheduler trigger remains the recovery record. */ }
+      }
+    }
     try { await queueInitialFeedSketch(c.env, briefing); }
     catch { console.warn("Feed illustration enqueue needs recovery",{feedId:briefing.id}); }
-    return c.json({ briefing });
-  });
+    return c.json({briefing,...(plans?{sourceActivation:pendingSourceIds.length?"pending":"ready",pendingSourceIds}:{})},pendingSourceIds.length?202:200);
+  }
+  app.post("/api/me/briefings",async c=>saveBriefingConfiguration(c,await c.req.json()));
 
   app.post('/api/me/feeds', async c => {
     if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
@@ -910,19 +930,10 @@ export function createApp(options: AppOptions = {}) {
     const plans=[...new Map(resolved.map(plan=>[plan.canonicalUrl,plan] as const)).values()];
     if(plans.some(plan=>plan.detected.kind==='web_page')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Website extraction requires the source execution service.'},400);
     if(plans.some(plan=>plan.detected.kind==='telegram_channel')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_URL||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Telegram collection requires the private source execution service.'},400);
-    const prior=existing?await repo.listSources(existing.id):[];
     const feeds=await repo.listBriefings(owner.id);
     const base=normalizeUsername(input.title);let slug=existing?.slug??base,index=2;
     while(!existing&&feeds.some(f=>f.slug===slug))slug=`${base}-${index++}`;
-    const savedResponse=await app.fetch(new Request(new URL('/api/me/briefings',c.req.url),{method:'POST',headers:c.req.raw.headers,body:JSON.stringify({...existing,...input,slug})}),c.env);
-    if(!savedResponse.ok)return savedResponse;
-    const {briefing}=await savedResponse.json() as {briefing:BriefingConfig};
-    const approvedIds=new Set<string>();
-    for(const plan of plans)approvedIds.add((await approveProductSource(c.env,repo,briefing,plan.input,plan)).sourceId);
-    // Ordinary editor lists active sources. Preserve independently paused sources
-    // that the user did not see or explicitly remove in this edit.
-    for(const source of prior)if(source.enabled&&!approvedIds.has(source.id))await repo.deleteSource(source.id);
-    return c.json({briefing});
+    return saveBriefingConfiguration(c,{...existing,...input,slug},plans);
   });
 
   app.delete("/api/me/briefings/:briefingId", async (c) => {

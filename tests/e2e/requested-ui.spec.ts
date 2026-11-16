@@ -82,6 +82,7 @@ test("feed cards retain transparent illustrations, rounded cards, plain controls
   briefing: feed, viewerHasStarred: false,
   editions: [{ id: "edition", publishedAt: "2026-10-02T11:00:00Z", updatedAt: "2026-10-02T12:00:00Z", sections: [] }]
  } }));
+ await page.route("**/api/me/briefings", route => route.fulfill({json:{briefings:[{...feed,viewerHasStarred:false,latestUpdatedAt:"2026-10-02T12:00:00Z"}]}}));
  await page.goto("/");
  const card = page.locator(".personal-feed-grid .topic-card");
  await expect(card.locator("time")).toHaveText("Updated 2 hours ago");

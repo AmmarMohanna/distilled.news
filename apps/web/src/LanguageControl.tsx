@@ -8,6 +8,7 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'Feed saved. Some sources are awaiting activation. Check source health for updates.': ['Flux enregistré. Certaines sources attendent leur activation. Consultez leur état pour suivre les mises à jour.', 'تم حفظ الموجز. بعض المصادر بانتظار التفعيل. راجع حالة المصادر لمتابعة المستجدات.'],
   'Some feeds could not be loaded. Previously loaded feeds are still available.': ['Certains flux n’ont pas pu être chargés. Les flux déjà chargés restent disponibles.', 'تعذّر تحميل بعض الموجزات. لا تزال الموجزات المحمّلة سابقًا متاحة.'],
   'Load more feeds': ['Afficher plus de flux', 'تحميل المزيد من الموجزات'],
   'Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings.': ['Déconnexion effectuée. La suppression des notifications n’a pas pu être confirmée. Désactivez-les dans les paramètres du navigateur.', 'تم تسجيل الخروج. تعذّر تأكيد إلغاء الإشعارات. عطّل الإشعارات من إعدادات المتصفح.'],

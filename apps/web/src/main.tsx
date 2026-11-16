@@ -1,3 +1,4 @@
+import {useReadProgress} from './useReadProgress';
 import {ApiError, toUiError, type UiMessage} from './api-errors';
 import {FEED_REFRESH_INTERVAL_MS, afterFeedRefresh, initialFeedRefreshState, mayRefreshFeed} from './feed-refresh-policy';
 import {SourceHealth} from './SourceHealth';
@@ -343,6 +344,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     try {
       const draft = { ...createBriefingDraft(briefings, account), language: preferredLanguage(), ...input };
       const created = input ? await saveFeed(input) : await persistBriefing(draft, "feed created");
+      if ("sourceActivation" in created && created.sourceActivation === "pending") window.alert(t("Feed saved. Some sources are awaiting activation. Check source health for updates."));
       await loadBriefings(created.id);
       if (input) {
         window.location.href = `/${created.ownerUsername}/${created.slug}/`;
@@ -473,11 +475,11 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
               onAuthenticated={async () => {
                 const next = await getSession();
                 if (next.authenticated) {
-                  await loadBriefings();
+                  setSession(next);
                   setCreationOpen(createAfterLogin);
                   setAuthOpen(false);
                   setCreateAfterLogin(false);
-                  setSession(next);
+                  try { await loadBriefings(); } catch { /* Feed-list state owns its error and retry. */ }
                 }
               }}
             /> : error ? <section className="auth-unavailable" role="alert" aria-labelledby="auth-unavailable-title" dir="ltr">
@@ -1510,7 +1512,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [readIds, setReadIds] = useReadProgress(props.username, props.slug, viewerLoading ? undefined : account?.id ?? null);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1583,15 +1585,6 @@ function FeedPage(props: { username: string; slug: string }) {
     document.addEventListener("visibilitychange", update); window.addEventListener("focus", update); window.addEventListener("online", online);
     return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); window.removeEventListener("focus", update); window.removeEventListener("online", online); };
   }, [props.username, props.slug]);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(`ln_read:${props.username}:${props.slug}`);
-    setReadIds(new Set(raw ? (JSON.parse(raw) as string[]) : []));
-  }, [props.username, props.slug]);
-
-  useEffect(() => {
-    localStorage.setItem(`ln_read:${props.username}:${props.slug}`, JSON.stringify(Array.from(readIds)));
-  }, [props.username, props.slug, readIds]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -1748,6 +1741,7 @@ function FeedPage(props: { username: string; slug: string }) {
         }}/>}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveFeed(input);
+        if (saved.sourceActivation === "pending") window.alert(t("Feed saved. Some sources are awaiting activation. Check source health for updates."));
         setOwnedFeed(saved); setEditorOpen(false);
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();

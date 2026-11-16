@@ -99,3 +99,8 @@ it('fetches exactly the requested Explore page and exposes its continuation',asy
  expect(await getExploreFeeds()).toMatchObject({feeds:[{id:'page-one'}],nextOffset:100});
  expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher.mock.calls[0][0]).toBe('/api/explore/feeds?offset=0');
 });
+
+it('preserves successful pending-activation semantics instead of reporting a committed save as failed',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json({briefing:{id:'saved'},sourceActivation:'pending',pendingSourceIds:['second-source']},{status:202})));
+ expect(await saveFeed({id:'saved',title:'Science',interestProfile:'Science',sourceInputs:['https://example.com/feed.xml'],language:'en',briefingTimezone:'UTC',publicFeedEnabled:true,updateIntervalMinutes:60})).toEqual({id:'saved',sourceActivation:'pending'});
+});

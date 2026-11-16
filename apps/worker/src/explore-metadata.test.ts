@@ -20,6 +20,11 @@ it('lists public card metadata with indexed timestamps and voter isolation, with
   expect((await repo.listExploreBriefings(101,0,undefined,'voter-b'))[0].viewerHasStarred).toBe(false);
   expect((await repo.listExploreBriefings(101))[0].viewerHasStarred).toBe(false);
   expect(await repo.listExploreBriefings(101,0,owner.id,'voter-a')).toEqual([]);
+  const personal=await repo.listBriefings(owner.id,'voter-a');
+  expect(personal).toHaveLength(3);
+  expect(personal.find(feed=>feed.id==='public-card')).toMatchObject({viewerHasStarred:true,latestUpdatedAt:'2026-11-16T18:00:00Z'});
+  expect((await repo.listBriefings(owner.id,'voter-b')).find(feed=>feed.id==='public-card')).toMatchObject({viewerHasStarred:false});
+  expect(await repo.listBriefings('other-account','voter-a')).toEqual([]);
   const plan=await local.db.prepare("EXPLAIN QUERY PLAN SELECT json_extract(json,'$.publishedAt') FROM v1_feed_documents WHERE feed_id=? AND kind='publication_status' AND json_extract(json,'$.status')='PUBLISHED' ORDER BY json_extract(json,'$.publishedAt') DESC LIMIT 1").bind('public-card').all<{detail:string}>();
   expect(plan.results.map(row=>row.detail).join(' ')).toContain('v1_explore_publication_time');
  }finally{await local.dispose()}

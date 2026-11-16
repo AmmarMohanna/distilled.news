@@ -155,9 +155,9 @@ export async function getBriefings(): Promise<BriefingConfig[]> {
 }
 
 export type SaveFeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
-export async function saveFeed(input: SaveFeedInput): Promise<BriefingConfig> {
-  const payload = await requestJson<{briefing:BriefingConfig}>("/api/me/feeds", {method:"POST",body:JSON.stringify(input)});
-  return payload.briefing;
+export async function saveFeed(input: SaveFeedInput): Promise<BriefingConfig & {sourceActivation?: "pending" | "ready"}> {
+  const payload = await requestJson<{briefing:BriefingConfig;sourceActivation?:"pending"|"ready"}>("/api/me/feeds", {method:"POST",body:JSON.stringify(input)});
+  return payload.sourceActivation ? {...payload.briefing,sourceActivation:payload.sourceActivation} : payload.briefing;
 }
 
 export async function saveBriefing(briefing: BriefingConfig): Promise<BriefingConfig> {

@@ -1,3 +1,4 @@
+import {canonicalJson} from './v1-intake/canonical';
 import {
   collapseDuplicateBriefingItems,
   defaultNextBriefingAt,
@@ -36,6 +37,10 @@ import type {
 type DbValue = string | number | null;
 
 const FIXED_RETENTION_DAYS = 15;
+const BRIEFING_CARD_FIELDS = `EXISTS(SELECT 1 FROM briefing_stars s WHERE s.briefing_id=briefings.id AND s.voter_id=?) AS viewer_starred,
+          COALESCE((SELECT json_extract(p.json,'$.publishedAt') FROM v1_feed_documents p WHERE p.feed_id=briefings.id AND p.kind='publication_status' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY json_extract(p.json,'$.publishedAt') DESC LIMIT 1),
+            (SELECT e.updated_at FROM briefing_editions e WHERE e.briefing_id=briefings.id AND e.status='published' ORDER BY e.published_at DESC LIMIT 1)) AS latest_updated_at`;
+
 const DEFAULT_DAILY_BUDGET_USD = 1;
 const PROCESSOR_EXISTING_ITEM_QUERY_LIMIT = 120;
 
@@ -454,17 +459,17 @@ export class D1Repository implements Repository {
     );
   }
 
-  async listBriefings(accountId?: string): Promise<BriefingConfig[]> {
+  async listBriefings(accountId?: string, voterId?: string): Promise<BriefingConfig[]> {
     const sql =
-      `SELECT briefings.*, accounts.username as owner_username
+      `SELECT briefings.*, accounts.username as owner_username${accountId ? ", " + BRIEFING_CARD_FIELDS : ""}
       FROM briefings
       JOIN accounts ON accounts.id = briefings.owner_account_id` +
       (accountId ? " WHERE briefings.owner_account_id = ?" : "") +
       " ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC";
     const rows = accountId
-      ? await all<BriefingRow>(this.db.prepare(sql).bind(accountId))
+      ? await all<BriefingRow>(this.db.prepare(sql).bind(voterId ?? null, accountId))
       : await all<BriefingRow>(this.db.prepare(sql));
-    return rows.map(rowToBriefing);
+    return rows.map(row => accountId ? rowToBriefingCard(row) : rowToBriefing(row));
   }
 
   async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
@@ -473,9 +478,7 @@ export class D1Repository implements Repository {
       this.db
         .prepare(
           `SELECT briefings.*, accounts.username as owner_username,
-          EXISTS(SELECT 1 FROM briefing_stars s WHERE s.briefing_id=briefings.id AND s.voter_id=?) AS viewer_starred,
-          COALESCE((SELECT json_extract(p.json,'$.publishedAt') FROM v1_feed_documents p WHERE p.feed_id=briefings.id AND p.kind='publication_status' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY json_extract(p.json,'$.publishedAt') DESC LIMIT 1),
-            (SELECT e.updated_at FROM briefing_editions e WHERE e.briefing_id=briefings.id AND e.status='published' ORDER BY e.published_at DESC LIMIT 1)) AS latest_updated_at
+          ${BRIEFING_CARD_FIELDS}
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
           WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
@@ -485,7 +488,7 @@ export class D1Repository implements Repository {
         )
         .bind(voterId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, limit, offset)
     );
-    return rows.map(row => ({...rowToBriefing(row), viewerHasStarred: Boolean(row.viewer_starred), latestUpdatedAt: row.latest_updated_at ?? undefined}));
+    return rows.map(rowToBriefingCard);
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
@@ -558,9 +561,9 @@ export class D1Repository implements Repository {
     return nextStars;
   }
 
-  async upsertBriefing(input: BriefingConfig, now = new Date()): Promise<BriefingConfig> {
+  private briefingWrite(input: BriefingConfig, now: Date): D1PreparedStatement {
     const timestamp = now.toISOString();
-    await this.db
+    return this.db
       .prepare(
         `INSERT INTO briefings (
           id, owner_account_id, slug, title, stars, interest_profile, style_instruction,
@@ -611,10 +614,31 @@ export class D1Repository implements Repository {
         input.briefingScheduleOriginAt ?? null,
         input.briefingScheduleClockStartAt ?? null,
         input.briefingSchedulePolicy ?? null
-      )
-      .run();
-    const saved = await this.getBriefingById(input.id);
-    return saved ?? input;
+      );
+  }
+
+  async upsertBriefing(input: BriefingConfig, now = new Date()): Promise<BriefingConfig> {
+    await this.briefingWrite(input, now).run();
+    return await this.getBriefingById(input.id) ?? input;
+  }
+
+  async saveFeedConfiguration(input:BriefingConfig,sources:Parameters<Repository['upsertConfiguredSource']>[0][],previous:BriefingConfig|null,now=new Date()):Promise<{briefing:BriefingConfig;sourceIds:string[]}> {
+    const row=await first<BriefingRow & {updated_at:string}>(this.db.prepare('SELECT briefings.*,accounts.username AS owner_username FROM briefings JOIN accounts ON accounts.id=briefings.owner_account_id WHERE briefings.id=?').bind(input.id));
+    if(canonicalJson(row?rowToBriefing(row):null)!==canonicalJson(previous))throw new FeedConfigurationConflict();
+    if(sources.some(source=>source.briefingId!==input.id))throw new Error('Source belongs to another feed');
+    const writes=sources.map(source=>this.configuredSourceWrite(source,now));
+    const ids=[...new Set(writes.map(write=>write.sourceId))],guard=crypto.randomUUID();
+    try {
+      await this.db.batch([
+        this.db.prepare(`INSERT INTO v1_enrollment_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM accounts WHERE id=? AND disabled_at IS NULL) AND ${row?'EXISTS(SELECT 1 FROM briefings WHERE id=? AND owner_account_id=? AND updated_at=? AND stars=?)':'NOT EXISTS(SELECT 1 FROM briefings WHERE id=?)'} THEN 1 ELSE 0 END`).bind(guard,input.ownerAccountId,input.id,...(row?[input.ownerAccountId,row.updated_at,row.stars]:[])),
+        this.briefingWrite(input,now),
+        ...writes.flatMap(write=>[write.statement,this.db.prepare("UPDATE sources SET collection_owner='connector' WHERE id=? AND briefing_id=?").bind(write.sourceId,input.id)]),
+        this.db.prepare('DELETE FROM sources WHERE briefing_id=? AND enabled=1 AND id NOT IN (SELECT value FROM json_each(?))').bind(input.id,JSON.stringify(ids)),
+        this.db.prepare('DELETE FROM v1_enrollment_guards WHERE id=?').bind(guard)
+      ]);
+    } catch(error) {if(String(error).includes('v1_enrollment_cas'))throw new FeedConfigurationConflict();throw error;}
+    // No fallible read after the commit: a read outage must not report a committed save as failed.
+    return {briefing:input,sourceIds:ids};
   }
 
   async deleteBriefing(id: string): Promise<void> {
@@ -661,7 +685,7 @@ export class D1Repository implements Repository {
     await this.db.prepare("DELETE FROM sources WHERE id = ?").bind(sourceId).run();
   }
 
-  async upsertConfiguredSource(input: {
+  private configuredSourceWrite(input: {
     briefingId: string;
     identityKey?: string;
     title: string;
@@ -675,13 +699,13 @@ export class D1Repository implements Repository {
     actorId?: string;
     actorInput?: unknown;
     enabled?: boolean;
-  }, now = new Date()): Promise<SourceRecord> {
+  }, now: Date): {sourceId:string;statement:D1PreparedStatement} {
     const sourceId = scopedSourceId(
       input.briefingId,
       stableSourceKey(input.provider, input.kind, input.identityKey ?? input.username ?? input.sourceUrl ?? input.input ?? input.title)
     );
     const timestamp = now.toISOString();
-    await this.db
+    const statement = this.db
       .prepare(
         `INSERT INTO sources (
           id, briefing_id, title, type, provider, kind, username, input, source_url,
@@ -716,10 +740,29 @@ export class D1Repository implements Repository {
         timestamp,
         timestamp,
         timestamp
-      )
-      .run();
-    const source = await this.getSource(sourceId);
-    if (!source) throw new Error("Failed to upsert source");
+      );
+    return {sourceId,statement};
+  }
+
+  async upsertConfiguredSource(input: {
+    briefingId: string;
+    identityKey?: string;
+    title: string;
+    type?: SourceType;
+    provider: SourceProvider;
+    kind: SourceKind;
+    username?: string;
+    input?: string;
+    url?: string;
+    sourceUrl?: string;
+    actorId?: string;
+    actorInput?: unknown;
+    enabled?: boolean;
+  }, now = new Date()): Promise<SourceRecord> {
+    const {sourceId,statement}=this.configuredSourceWrite(input,now);
+    await statement.run();
+    const source=await this.getSource(sourceId);
+    if(!source)throw new Error("Failed to upsert source");
     return source;
   }
 
@@ -1886,12 +1929,12 @@ export class InMemoryRepository implements Repository {
     return this.upsertBriefing(briefing, now);
   }
 
-  async listBriefings(accountId?: string): Promise<BriefingConfig[]> {
+  async listBriefings(accountId?: string, voterId?: string): Promise<BriefingConfig[]> {
     return Array.from(this.briefings.values())
       .filter((briefing) => !accountId || briefing.ownerAccountId === accountId)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
-      .map((briefing) => briefing);
+      .map((briefing) => accountId ? this.cardMetadata(briefing, voterId) : briefing);
   }
 
   async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
@@ -1901,7 +1944,12 @@ export class InMemoryRepository implements Repository {
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .slice(offset, offset + limit)
-      .map(feed => ({...feed, viewerHasStarred: voterId ? this.starsByBriefing.get(feed.id)?.has(voterId) ?? false : false, latestUpdatedAt: Array.from(this.editionsByBriefing.get(feed.id)?.values() ?? []).filter(edition => edition.status === "published").sort((a,b) => b.publishedAt.localeCompare(a.publishedAt))[0]?.updatedAt}));
+      .map(feed => this.cardMetadata(feed, voterId));
+  }
+
+  private cardMetadata(feed:BriefingConfig,voterId?:string) {
+    const latest=Array.from(this.editionsByBriefing.get(feed.id)?.values() ?? []).filter(edition=>edition.status==='published').sort((a,b)=>b.publishedAt.localeCompare(a.publishedAt))[0];
+    return {...feed,viewerHasStarred:voterId?this.starsByBriefing.get(feed.id)?.has(voterId)??false:false,latestUpdatedAt:latest?.updatedAt??latest?.publishedAt};
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
@@ -1953,6 +2001,26 @@ export class InMemoryRepository implements Repository {
   private withCurrentBriefingOwner(briefing: BriefingConfig): BriefingConfig {
     const account = this.accounts.get(briefing.ownerAccountId);
     return { ...briefing, ownerUsername: account?.username ?? briefing.ownerUsername };
+  }
+
+  async saveFeedConfiguration(input:BriefingConfig,sources:Parameters<Repository['upsertConfiguredSource']>[0][],previous:BriefingConfig|null,now=new Date()):Promise<{briefing:BriefingConfig;sourceIds:string[]}> {
+    if(canonicalJson(await this.getBriefingById(input.id))!==canonicalJson(previous))throw new FeedConfigurationConflict();
+    if(sources.some(source=>source.briefingId!==input.id))throw new Error('Source belongs to another feed');
+    const staged=new InMemoryRepository();staged.accounts=new Map(this.accounts);staged.sources=new Map(this.sources);
+    const approved=await Promise.all(sources.map(source=>staged.upsertConfiguredSource(source,now)));
+    const ids=new Set(approved.map(source=>source.id));
+    const removed=new Set([...this.sources.values()].filter(source=>source.briefingId===input.id&&source.enabled&&!ids.has(source.id)).map(source=>source.id));
+    const briefing=await staged.upsertBriefing(input,now);
+    const current=this.briefings.get(input.id);
+    if(canonicalJson(current?this.withCurrentBriefingOwner(current):null)!==canonicalJson(previous))throw new FeedConfigurationConflict();
+    // Commit synchronously; do not replace state belonging to another feed.
+    this.briefings.set(input.id,briefing);
+    if(!this.briefingCreatedAt.has(input.id))this.briefingCreatedAt.set(input.id,now.toISOString());
+    for(const source of approved)this.sources.set(source.id,source);
+    for(const id of removed)this.sources.delete(id);
+    for(const [id,run] of this.sourceRuns)if(removed.has(run.sourceId))this.sourceRuns.delete(id);
+    for(const [id,message] of this.rawMessages)if(removed.has(message.source.id))this.rawMessages.delete(id);
+    return {briefing,sourceIds:[...ids]};
   }
 
   async deleteBriefing(id: string): Promise<void> {
@@ -2764,3 +2832,9 @@ async function all<T>(statement: D1PreparedStatement): Promise<T[]> {
   const result = await statement.all<T>();
   return result.results ?? [];
 }
+
+function rowToBriefingCard(row:BriefingRow & {viewer_starred?:number;latest_updated_at?:string|null}) {
+ return {...rowToBriefing(row),viewerHasStarred:Boolean(row.viewer_starred),latestUpdatedAt:row.latest_updated_at??undefined};
+}
+
+export class FeedConfigurationConflict extends Error {constructor(){super("Feed configuration changed. Reload and try again.");}}

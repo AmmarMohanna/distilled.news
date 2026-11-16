@@ -1,9 +1,11 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { personalNewsBriefing } from '@distilled/core';
 import { AppExperience } from './AppExperience';
 import { getExploreFeeds, getFeed } from './api';
+
+afterEach(() => window.history.replaceState(null, '', '/'));
 
 vi.mock('./api', () => ({
   getExploreFeeds: vi.fn(async () => ({feeds: [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', stars: 0, viewerHasStarred: false }], nextOffset: null})),
@@ -147,4 +149,17 @@ it('loads one Explore page without feed fan-out, keeps cards on page failure and
     expect(explore.querySelectorAll('.topic-card')).toHaveLength(2);
     expect(explore.querySelector('[role="alert"]')).toBeNull();expect(getFeed).not.toHaveBeenCalled();
   } finally {await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
+
+it('renders thirty personal cards from listing metadata without detail requests',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});
+ vi.stubGlobal('matchMedia',()=>({matches:false,addEventListener(){},removeEventListener(){}}));vi.mocked(getFeed).mockClear();
+ const feeds=Array.from({length:30},(_,i)=>({...personalNewsBriefing,id:'own-'+i,title:'Own '+i,ownerUsername:'reader',slug:'own-'+i,latestUpdatedAt:'2026-11-16T12:00:00Z',viewerHasStarred:i===0}));
+ const host=document.createElement('div'),root=createRoot(host);
+ try{await act(async()=>root.render(<AppExperience account={{username:'reader'} as any} briefings={feeds} onAccount={()=>{}} onHelp={()=>{}}/>));
+  expect(host.querySelectorAll('.personal-feed-grid .topic-card')).toHaveLength(30);
+  expect(host.querySelectorAll('.personal-feed-grid time')).toHaveLength(30);
+  expect(host.querySelector('.personal-feed-grid button[aria-label="Unstar"]')?.getAttribute('aria-pressed')).toBe('true');
+  expect(getFeed).not.toHaveBeenCalled();
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
