@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {getFeed,saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword} from './api';
+import {getExploreFeeds,getFeed,saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword} from './api';
 
 it.each(['en','fr','ar'])('sends the currently chosen %s language when requesting either auth email',async language=>{
  localStorage.setItem('dn_language',language);
@@ -92,4 +92,10 @@ it('revalidates an unchanged feed with its ETag and reuses the payload on 304',a
   await expect(getFeed('etag-owner','news')).resolves.toEqual(payload);
   const [,second]=fetcher.mock.calls[1] as [string,RequestInit];
   expect((second.headers as Record<string,string>)['If-None-Match']).toBe('W/"7-abc"');
+});
+
+it('fetches exactly the requested Explore page and exposes its continuation',async()=>{
+ const fetcher=vi.fn(async(_url: string)=>Response.json({feeds:[{id:'page-one'}],nextOffset:100}));vi.stubGlobal('fetch',fetcher);
+ expect(await getExploreFeeds()).toMatchObject({feeds:[{id:'page-one'}],nextOffset:100});
+ expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher.mock.calls[0][0]).toBe('/api/explore/feeds?offset=0');
 });

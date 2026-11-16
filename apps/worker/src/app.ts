@@ -1,6 +1,6 @@
 import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence,campaignSourceProbe} from './agentops-campaign';
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
-import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryError} from './unread-summary';
+import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryQuotaError,UnreadSummaryError} from './unread-summary';
 import {unreadSummaryPort} from './unread-summary-provider';
 import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
@@ -1285,10 +1285,10 @@ export function createApp(options: AppOptions = {}) {
     const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
     const viewer = claims ? await repo.getAccountById(claims.sub) : null;
-    const feeds = await repo.listExploreBriefings(101, offset, viewer && !viewer.disabledAt ? viewer.id : undefined);
+    const feeds = await repo.listExploreBriefings(101, offset, viewer && !viewer.disabledAt ? viewer.id : undefined, await getVoterId(c) ?? undefined);
     c.header('Cache-Control','private, no-store');
     c.header('Vary','Cookie');
-    return c.json({ feeds: feeds.slice(0, 100).map(publicBriefing), nextOffset: feeds.length > 100 ? offset + 100 : null });
+    return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null });
   });
 
   app.get("/api/feed/:username/:briefingSlug/sketch", async (c) => {
@@ -1421,7 +1421,7 @@ export function createApp(options: AppOptions = {}) {
     try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
     c.header('Cache-Control','private, no-store');
     try{const result=await task;return c.json(result,result.status==='pending'?202:200);}
-    catch(error){if(error instanceof UnreadSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'?503:422);console.warn('unread-summary-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
+    catch(error){if(error instanceof UnreadSummaryQuotaError){c.header('Retry-After','3600');return c.json({error:error.message,code:'SUMMARY_QUOTA_EXCEEDED'},429);}if(error instanceof UnreadSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'?503:422);console.warn('unread-summary-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
   });
 
   // Retired: summaries above never collect articles or publish editions.

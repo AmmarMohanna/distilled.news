@@ -12,7 +12,7 @@ async function mock(page: any, authenticated = true, username = 'joud') {
  const body = path.endsWith('/star') ? {stars:4,viewerHasStarred:true}
  : path === '/api/auth/session' ? { authenticated, setupRequired:false, account:authenticated ? {id:'joud',username,email:'joud@example.test',role:'user'} : null }
  : path === '/api/me/briefings' || path === '/api/me/feeds' ? (route.request().method()==='POST' ? {briefing:currentFeed} : {briefings:[currentFeed]})
- : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[feed]}
+ : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[{...feed,viewerHasStarred:false}],nextOffset:null}
  : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:currentFeed,editions:[],viewerHasStarred:false}
  : path === '/api/me/sources/assess' ? {assessment:{status:'accepted',input:route.request().postDataJSON().source,reason:'Fixture source matches',checkedAt:'2026-10-24T12:00:00Z'}}
  : path === '/api/me/sources' ? {sources:[{id:'rss-1',enabled:true,input:'https://example.test/feed.xml',title:'Science',provider:'rss',kind:'rss_feed'}]}

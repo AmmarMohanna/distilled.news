@@ -51,6 +51,7 @@ export function parseUnreadSummary(text:string,finishReason?:string){
 }
 
 /** Admission failed before any paid reservation or provider request. */
+export class UnreadSummaryQuotaError extends BriefingBudgetError {constructor(){super('The hourly summary allowance has been used. Try again later.');}}
 export class UnreadSummaryResourceWait extends Error {constructor(){super('PROVIDER_RESOURCE_WAIT');}}
 
 export type UnreadSummaryResult={status:'ready';summary:string}|{status:'pending'}|{status:'empty'};

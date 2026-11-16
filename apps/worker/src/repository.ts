@@ -467,12 +467,15 @@ export class D1Repository implements Repository {
     return rows.map(rowToBriefing);
   }
 
-  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string): Promise<BriefingConfig[]> {
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
     if (limit <= 0) return [];
-    const rows = await all<BriefingRow>(
+    const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null}>(
       this.db
         .prepare(
-          `SELECT briefings.*, accounts.username as owner_username
+          `SELECT briefings.*, accounts.username as owner_username,
+          EXISTS(SELECT 1 FROM briefing_stars s WHERE s.briefing_id=briefings.id AND s.voter_id=?) AS viewer_starred,
+          COALESCE((SELECT json_extract(p.json,'$.publishedAt') FROM v1_feed_documents p WHERE p.feed_id=briefings.id AND p.kind='publication_status' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY json_extract(p.json,'$.publishedAt') DESC LIMIT 1),
+            (SELECT e.updated_at FROM briefing_editions e WHERE e.briefing_id=briefings.id AND e.status='published' ORDER BY e.published_at DESC LIMIT 1)) AS latest_updated_at
           FROM briefings
           JOIN accounts ON accounts.id = briefings.owner_account_id
           WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
@@ -480,9 +483,9 @@ export class D1Repository implements Repository {
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ? OFFSET ?`
         )
-        .bind(excludeOwnerId ?? null, excludeOwnerId ?? null, limit, offset)
+        .bind(voterId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, limit, offset)
     );
-    return rows.map(rowToBriefing);
+    return rows.map(row => ({...rowToBriefing(row), viewerHasStarred: Boolean(row.viewer_starred), latestUpdatedAt: row.latest_updated_at ?? undefined}));
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
@@ -1891,13 +1894,14 @@ export class InMemoryRepository implements Repository {
       .map((briefing) => briefing);
   }
 
-  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string): Promise<BriefingConfig[]> {
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
       .filter((briefing) => briefing.publicFeedEnabled && !briefing.paused && briefing.ownerAccountId !== excludeOwnerId && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
-      .slice(offset, offset + limit);
+      .slice(offset, offset + limit)
+      .map(feed => ({...feed, viewerHasStarred: voterId ? this.starsByBriefing.get(feed.id)?.has(voterId) ?? false : false, latestUpdatedAt: Array.from(this.editionsByBriefing.get(feed.id)?.values() ?? []).filter(edition => edition.status === "published").sort((a,b) => b.publishedAt.localeCompare(a.publishedAt))[0]?.updatedAt}));
   }
 
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {

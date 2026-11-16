@@ -9,7 +9,7 @@ async function openLanding(page: import("@playwright/test").Page, count: number)
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/auth/session") return route.fulfill({ json: { authenticated: false } });
-    if (path === "/api/explore/feeds") return route.fulfill({ json: { feeds: Array.from({ length: count }, (_, index) => feed(index)) } });
+    if (path === "/api/explore/feeds") return route.fulfill({ json: { feeds: Array.from({ length: count }, (_, index) => ({...feed(index),viewerHasStarred:false,latestUpdatedAt:"2026-10-27T10:00:00Z"})), nextOffset:null } });
     if (path.endsWith("/sketch")) return route.fulfill({ status: 404 });
     if (path.startsWith("/api/feed/")) return route.fulfill({ json: { briefing: feed(0), editions: [{ id: "preview-edition", publishedAt: "2026-10-27T10:00:00Z", title: "Update", summary: "Update", sections: [] }], viewerHasStarred: false } });
     return route.fulfill({ json: {} });

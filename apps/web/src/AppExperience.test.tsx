@@ -3,11 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { personalNewsBriefing } from '@distilled/core';
 import { AppExperience } from './AppExperience';
-import { getExploreFeeds } from './api';
+import { getExploreFeeds, getFeed } from './api';
 
 vi.mock('./api', () => ({
-  getExploreFeeds: vi.fn(async () => [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', stars: 0 }]),
-  getFeed: async () => ({ editions: [], viewerHasStarred: false }),
+  getExploreFeeds: vi.fn(async () => ({feeds: [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', stars: 0, viewerHasStarred: false }], nextOffset: null})),
+  getFeed: vi.fn(async () => ({ editions: [], viewerHasStarred: false })),
   setFeedStar: vi.fn()
 }));
 vi.mock('./Dialog', () => ({ Dialog: ({children,label}: {children: React.ReactNode;label:string}) => <div role="dialog" aria-label={label}>{children}</div> }));
@@ -118,4 +118,33 @@ it('retains cards during refresh and waits for archive data before claiming it i
   await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="loading" onAccount={()=>{}} onHelp={()=>{}}/>));await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Archived feeds"]')!.click());expect(host.querySelector('.archive-empty')).toBeNull();expect(host.querySelector('[role="dialog"]')?.textContent).toContain('Loading feeds');
   await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="ready" onAccount={()=>{}} onHelp={()=>{}}/>));expect(host.querySelector('.archive-empty')?.textContent).toContain('No archived feeds');
  }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
+
+
+it('loads one Explore page without feed fan-out, keeps cards on page failure and retries the same cursor', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  vi.stubGlobal('scrollTo', vi.fn());
+  vi.mocked(getExploreFeeds).mockClear(); vi.mocked(getFeed).mockClear();
+  const first = {id:'first',title:'First science',ownerUsername:'other',slug:'first',stars:2,viewerHasStarred:true,latestUpdatedAt:new Date().toISOString()} as any;
+  const second = {...first,id:'second',title:'Second science',slug:'second'};
+  vi.mocked(getExploreFeeds).mockResolvedValueOnce({feeds:[first],nextOffset:100})
+    .mockRejectedValueOnce(new Error('Temporary page failure'))
+    .mockResolvedValueOnce({feeds:[first,second],nextOffset:null});
+  const host=document.createElement('div'),root=createRoot(host);
+  try {
+    await act(async()=>root.render(<AppExperience account={{id:'reader',username:'reader'} as any} briefings={[]} onAccount={()=>{}} onHelp={()=>{}}/>));
+    expect(getExploreFeeds).toHaveBeenCalledTimes(1);expect(getFeed).not.toHaveBeenCalled();
+    await act(async()=>host.querySelector<HTMLButtonElement>('nav button[aria-label="Explore"]')!.click());
+    const explore=host.querySelector('.explore-view')!;
+    expect(explore.querySelector('[aria-label="Unstar First science"]')?.getAttribute('aria-pressed')).toBe('true');
+    const more=Array.from(explore.querySelectorAll('button')).find(button=>button.textContent==='Load more feeds')!;
+    await act(async()=>more.click());
+    expect(explore.textContent).toContain('First science');expect(explore.querySelector('[role="alert"]')).not.toBeNull();
+    await act(async()=>explore.querySelector<HTMLButtonElement>('[role="alert"] button')!.click());
+    expect(vi.mocked(getExploreFeeds).mock.calls.map(args=>args[0])).toEqual([0,100,100]);
+    expect(explore.querySelectorAll('.topic-card')).toHaveLength(2);
+    expect(explore.querySelector('[role="alert"]')).toBeNull();expect(getFeed).not.toHaveBeenCalled();
+  } finally {await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });

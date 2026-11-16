@@ -112,12 +112,16 @@ export async function login(email: string, password: string, turnstileToken?: st
   return payload.account;
 }
 
-export async function logout(): Promise<void> {
-  const {stopNotificationsOnLogout}=await import("./pwa");
-  await stopNotificationsOnLogout();
+export async function logout(): Promise<{ pushRevocationFailed: boolean }> {
+  let pushRevocationFailed = false;
+  try {
+    const {stopNotificationsOnLogout}=await import("./pwa");
+    await stopNotificationsOnLogout();
+  } catch { pushRevocationFailed = true; }
   await requestJson("/api/auth/logout", {
     method: "POST"
   });
+  return { pushRevocationFailed };
 }
 
 export async function forgotPassword(email: string, turnstileToken?: string): Promise<void> {
@@ -330,15 +334,14 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
   return payload.edition;
 }
 
-export async function getExploreFeeds(): Promise<PublicBriefing[]> {
-  const feeds: PublicBriefing[] = [];
-  let offset: number | null = 0;
-  do {
-    const payload: { feeds: PublicBriefing[]; nextOffset?: number | null } = await requestJson(`/api/explore/feeds?offset=${offset}`);
-    feeds.push(...payload.feeds);
-    offset = payload.nextOffset ?? null;
-  } while (offset !== null);
-  return feeds;
+export interface ExplorePage {
+  feeds: Array<PublicBriefing & { viewerHasStarred: boolean; latestUpdatedAt?: string }>;
+  nextOffset: number | null;
+}
+/** One bounded page. The caller retains earlier pages if a subsequent read fails. */
+export async function getExploreFeeds(offset = 0): Promise<ExplorePage> {
+  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}`);
+  return { ...payload, nextOffset: payload.nextOffset ?? null };
 }
 
 export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["editions"]> {

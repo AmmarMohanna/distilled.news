@@ -6,7 +6,7 @@ import {configuredProviderLimits} from './v1-intelligence/provider-routing';
 import {providerResponseReceipt,providerBodyReceipt,type ProviderReceipt} from './provider-receipt';
 import {modelSettlementStatement} from './v1-intelligence/model-spending';
 import {modelCapability} from './v1-intelligence/model-capacity';
-import {summaryTokenUpperBound,UnreadSummaryResourceWait,UnreadSummaryError} from './unread-summary';
+import {summaryTokenUpperBound,UnreadSummaryResourceWait,UnreadSummaryQuotaError,UnreadSummaryError} from './unread-summary';
 
 /** Same provider account ledger and rate/concurrency admission as live V3.
  * Receipts survive a client disconnect; an uncertain call is never resubmitted. */
@@ -24,7 +24,15 @@ export function unreadSummaryPort(env:Env,feedId:string,readerId:string,fetcher:
     if(await db.prepare('SELECT id FROM v1_model_spending_reservations WHERE id=?').bind(id).first())throw new UnreadSummaryError('SUMMARY_OUTCOME_UNKNOWN');
     const capability=modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON);
     if(!capability)throw new BriefingBudgetError('Summary model is not configured.');
-    const token=crypto.randomUUID(),at=new Date().toISOString();
+    // One atomic indexed statement serializes admission across requests/feeds.
+    // Cache/receipt reuse and UNKNOWN operations above never consume this quota.
+    const now = Date.now(), at = new Date(now).toISOString();
+    const quota = await db.prepare(`INSERT INTO auth_attempts(id,key,action,created_at)
+      SELECT ?,?,'unread-summary',? WHERE
+      (SELECT COUNT(*) FROM auth_attempts WHERE key=? AND action='unread-summary' AND created_at>=?) < 6`)
+      .bind(crypto.randomUUID(),readerId,at,readerId,new Date(now-3_600_000).toISOString()).run();
+    if(quota.meta.changes!==1)throw new UnreadSummaryQuotaError();
+    const token=crypto.randomUUID();
     const estimate=summaryTokenUpperBound(request)*capability.inputUsdPerToken+request.maxTokens*capability.outputUsdPerToken;
     try{
       const accountId=await modelSpendingAccount(db,request.model,at);
