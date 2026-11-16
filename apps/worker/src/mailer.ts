@@ -29,6 +29,7 @@ const mailCopy = {
 export async function sendVerificationEmail(env: Env, account: AccountRecord, token: string, language: MailLanguage = 'en'): Promise<void> {
   const copy = mailCopy[language];
   await sendAuthEmail(env, {
+    verification: true,
     to: account.email,
     language,
     subject: copy.verifySubject,
@@ -55,6 +56,7 @@ export async function sendPasswordResetEmail(env: Env, account: AccountRecord, t
 async function sendAuthEmail(
   env: Env,
   input: {
+    verification?: true;
     to: string;
     subject: string;
     path: string;
@@ -64,14 +66,16 @@ async function sendAuthEmail(
     language: MailLanguage;
   }
 ): Promise<void> {
-  if (!env.EMAIL_FROM) throw new Error("EMAIL_FROM is not configured");
+  const transport = (input.verification ? env.VERIFICATION_MAIL_TRANSPORT : undefined) ?? env.MAIL_TRANSPORT;
+  const sender = transport === "GMAIL_API" ? env.GMAIL_FROM : env.EMAIL_FROM;
+  if (!sender) throw new Error(transport === "GMAIL_API" ? "GMAIL_FROM is not configured" : "EMAIL_FROM is not configured");
 
   const url = new URL(input.path, env.PUBLIC_WEB_BASE_URL || "https://distilled.news").toString();
   const logoUrl = new URL('/email-logo.png', url).toString();
   const footer = mailCopy[input.language].footer;
   const message = {
     to: input.to,
-    from: parseEmailAddress(env.EMAIL_FROM),
+    from: parseEmailAddress(sender),
     subject: input.subject,
     text: [
       "Distilled.News",
@@ -94,12 +98,78 @@ async function sendAuthEmail(
       "</div>"
     ].join("")
   };
-  if (env.MAIL_TRANSPORT === "OUTLOOK_GRAPH") {
+  if (transport === "GMAIL_API") {
+    await sendGmailEmail(env, message);
+    return;
+  }
+  if (transport === "OUTLOOK_GRAPH") {
     await sendOutlookEmail(env, message);
     return;
   }
   if (!env.EMAIL) throw new Error("Cloudflare Email binding is not configured");
   await env.EMAIL.send(message);
+}
+
+async function sendGmailEmail(
+  env: Env,
+  message: { to: string; from: EmailAddressInput; subject: string; text: string; html: string }
+): Promise<void> {
+  const clientId = env.GMAIL_CLIENT_ID?.trim();
+  const clientSecret = env.GMAIL_CLIENT_SECRET?.trim();
+  const refreshToken = env.GMAIL_REFRESH_TOKEN?.trim();
+  if (!clientId || !clientSecret || !refreshToken) throw new Error("Gmail mail is not configured");
+
+  const from = typeof message.from === "string" ? message.from : message.from.email;
+  const mailbox = /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+$/i;
+  if (![from, message.to].every(value => mailbox.test(value) && !/[\r\n]/.test(value))) {
+    throw new Error("Gmail requires a single valid sender and recipient address");
+  }
+  const utf8 = (value: string) => encodeBase64(new TextEncoder().encode(value));
+  const encodedHeader = (value: string) => `=?UTF-8?B?${utf8(value)}?=`;
+  const boundary = crypto.randomUUID();
+  const mimePart = (type: string, body: string) => [
+    `--${boundary}`,
+    `Content-Type: ${type}; charset=UTF-8`,
+    "Content-Transfer-Encoding: base64",
+    "",
+    utf8(body).match(/.{1,76}/g)?.join("\r\n") ?? ""
+  ];
+  const raw = utf8([
+    `From: ${encodedHeader("Distilled.News")} <${from}>`,
+    `To: <${message.to}>`,
+    `Subject: ${encodedHeader(message.subject)}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    ...mimePart("text/plain", message.text),
+    ...mimePart("text/html", message.html),
+    `--${boundary}--`,
+    ""
+  ].join("\r\n")).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    redirect: "error",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId, client_secret: clientSecret,
+      grant_type: "refresh_token", refresh_token: refreshToken
+    }),
+    signal: AbortSignal.timeout(10_000)
+  });
+  if (!response.ok) throw new Error(`Gmail token exchange failed (${response.status})`);
+  const tokens = await response.json() as { access_token?: unknown };
+  if (typeof tokens.access_token !== "string" || !tokens.access_token) {
+    throw new Error("Gmail token exchange returned incomplete credentials");
+  }
+  const send = await fetch(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(from)}/messages/send`, {
+    method: "POST",
+    redirect: "error",
+    headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json" },
+    body: JSON.stringify({ raw }),
+    signal: AbortSignal.timeout(10_000)
+  });
+  if (!send.ok) throw new Error(`Gmail mail submission failed (${send.status})`);
 }
 
 async function sendOutlookEmail(

@@ -85,6 +85,24 @@ Sending. For public user registration, Cloudflare must also allow sending to
 arbitrary recipients; Email Routing-only bindings can send only to verified
 destination addresses in the Cloudflare account.
 
+### Gmail for verification emails
+
+Enable the Gmail API in Google Cloud and authorize a dedicated sending mailbox
+with the `https://www.googleapis.com/auth/gmail.send` scope and offline access.
+Follow [Google's OAuth setup guide](https://developers.google.com/workspace/gmail/api/auth/web-server)
+to obtain the refresh token. Set these values on the target Worker:
+
+- `VERIFICATION_MAIL_TRANSPORT=GMAIL_API`
+- `GMAIL_FROM` with the address of the authorized mailbox
+- `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` as Worker secrets
+- `PUBLIC_WEB_BASE_URL` with the public URL for that deployment
+
+Password resets continue to use `MAIL_TRANSPORT` and `EMAIL_FROM`. To switch
+verification back to the Outlook configuration, remove the override when
+`MAIL_TRANSPORT=OUTLOOK_GRAPH`, or set `VERIFICATION_MAIL_TRANSPORT=OUTLOOK_GRAPH`.
+After configuring Gmail, verify delivery by requesting a fresh signup link and
+opening it from the recipient's inbox.
+
 ## Feed Illustrations
 
 Feed illustrations use Cloudflare Workers AI model `@cf/black-forest-labs/flux-2-klein-4b`.

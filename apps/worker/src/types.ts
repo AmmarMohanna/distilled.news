@@ -61,6 +61,11 @@ export interface ProcessingJobRecord {
 export interface Env extends Cloudflare.Env {
   AGENTOPS_ENABLED?: string;
   MAIL_TRANSPORT?: "CLOUDFLARE" | "OUTLOOK_GRAPH";
+  VERIFICATION_MAIL_TRANSPORT?: "GMAIL_API" | "CLOUDFLARE" | "OUTLOOK_GRAPH";
+  GMAIL_FROM?: string;
+  GMAIL_CLIENT_ID?: string;
+  GMAIL_CLIENT_SECRET?: string;
+  GMAIL_REFRESH_TOKEN?: string;
   OUTLOOK_CLIENT_ID?: string;
   OUTLOOK_REFRESH_TOKEN?: string;
   OUTLOOK_TOKEN_ENCRYPTION_KEY?: string;
