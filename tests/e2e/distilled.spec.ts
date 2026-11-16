@@ -323,6 +323,11 @@ test("arabic feed keeps public chrome localized and summary stable when opening 
 });
 
 test("feed pages twenty editions with unread editions first and keeps read editions accessible", async ({ page }) => {
+  // Read tracking requires a confirmed viewer; a missing session route exercises
+  // the unresolved-session safeguard rather than this pagination scenario.
+  await page.route("**/api/auth/session", route => route.fulfill({
+    json: { authenticated: false, setupRequired: false }
+  }));
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
     await route.fulfill({
       contentType: "application/json",
