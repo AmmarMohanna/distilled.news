@@ -21,7 +21,7 @@ export function sameArticleUrl(left:string,right:string):boolean {
   // never discard those merely because their names resemble analytics fields.
   // Comparison does not rewrite retained URLs or paid operation identities.
   const rssAttribution=[...url.searchParams].some(([key,value])=>key.toLowerCase()==='at_medium'&&/^(?:rss|feed)$/i.test(value));
-  for(const key of [...url.searchParams.keys()])if(/^utm_/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source','xtor'].includes(key.toLowerCase())||((bbc||rssAttribution)&&['at_medium','at_campaign'].includes(key.toLowerCase())))url.searchParams.delete(key);
+  for(const key of [...url.searchParams.keys()])if(/^utm_/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source','xtor'].includes(key.toLowerCase())||(bbc&&['at_medium','at_campaign','at_link_type'].includes(key.toLowerCase()))||(rssAttribution&&['at_medium','at_campaign'].includes(key.toLowerCase())))url.searchParams.delete(key);
   normalizePublisherArticlePath(url);
   return url.href;
  };

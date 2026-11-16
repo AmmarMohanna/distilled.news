@@ -69,6 +69,7 @@ it('tracking-only URL equivalence never admits another article, origin or conten
 it('compares BBC RSS attribution with its article canonical without ignoring other identities',()=>{
  const article='https://www.bbc.co.uk/sport/football/articles/cq4gn7014x76o';
  expect(sameArticleUrl(article+'?at_medium=RSS&at_campaign=rss',article)).toBe(true);
+ expect(sameArticleUrl(article+'?at_medium=RSS&at_article_id=other',article)).toBe(false);
  for(const other of [article+'/other',article+'?edition=other',article.replace('bbc.co.uk','bbc.com'),article.replace('bbc.co.uk','bbc.co.uk.evil.example')])expect(sameArticleUrl(article+'?at_medium=RSS&at_campaign=rss',other)).toBe(false);
  expect(sameArticleUrl(url+'?at_medium=article-2',url)).toBe(false);
  expect(sameArticleUrl(url+'?at_article_id=other&at_medium=RSS',url)).toBe(false);
