@@ -3,6 +3,16 @@ import {searchSourceCandidates} from './source-search';
 import type {Env} from './types';
 const enabled={SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
 it.each([
+ {query:'France 24 English',title:'Economy',description:'Economy, finance and international trade',feed:'https://www.france24.com/en/business-tech/rss',headline:'International trade grows as companies invest'},
+ {query:'France 24 Français',title:'Économie',description:'Économie, entreprises, finance et commerce international',feed:'https://www.france24.com/fr/%C3%A9co-tech/rss',headline:'Le commerce mondial en progression'},
+ {query:'فرانس 24',title:'اقتصاد',description:'الاقتصاد والشركات والتجارة',feed:'https://www.france24.com/ar/%D8%A7%D9%82%D8%AA%D8%B5%D8%A7%D8%AF/rss',headline:'نمو التجارة واستثمارات الشركات'}
+])('searches a relevant category feed when the publisher front page lacks $title coverage',async row=>{
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input)===row.feed?new Response(`<rss><channel><item><guid>economy</guid><title>${row.headline}</title><description>${row.headline}</description><link>https://www.france24.com/economy-article</link></item></channel></rss>`):new Response('<rss><channel><item><guid>other</guid><title>A football match</title><link>https://www.france24.com/football</link></item></channel></rss>'));
+ const result=await searchSourceCandidates(enabled,row.query,fetcher,undefined,undefined,row);
+ expect(result.results).toEqual([expect.objectContaining({source:'rss: '+row.feed,title:row.headline})]);
+ expect(result.unavailable).toBe(false);
+});
+it.each([
  {query:'BBC World',feed:'https://feeds.bbci.co.uk/news/world/rss.xml',title:'World events',description:'International diplomacy and conflicts',headline:'International diplomacy talks resume'},
  {query:'France 24 Français',feed:'https://www.france24.com/fr/rss',title:'France',description:'Politique en France',headline:'France : le Parlement adopte une réforme politique'},
  {query:'فرانس 24',feed:'https://www.france24.com/ar/rss',title:'أخبار عربية',description:'أخبار العالم العربي والشرق الأوسط',headline:'الأردن يعلن تطورات سياسية في الشرق الأوسط'}
