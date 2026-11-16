@@ -26,6 +26,8 @@ SOURCE_GOOGLE_RESOLUTION_ENABLED = "true"
 SOURCE_LEGACY_POLLING_ENABLED = "false"
 PRODUCT_FEEDS_ENABLED = "true"
 BRIEFING_ENGINE = "v3"
+# Preserve the existing deployed cutoff-based delivery under the merged opt-in guard.
+CUTOFF_EDITIONS_ENABLED = "true"
 # Recover current reporting after outages; retain missed windows and evidence.
 V3_BACKLOG_CATCHUP_ENABLED = "true"
 # Readiness relay for all eligible clock-scheduled V3 staging feeds.

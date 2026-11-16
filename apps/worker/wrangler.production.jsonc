@@ -62,7 +62,8 @@
     "V1_SEMANTIC_STRONG_MODEL": "openai/gpt-4.1-mini",
     "V1_SYNTHESIS_MODEL_ENABLED": "true",
     "V3_BACKLOG_CATCHUP_ENABLED": "true",
-    "WINDOW_READINESS_MODE": "relay"
+    "WINDOW_READINESS_MODE": "relay",
+    "CUTOFF_EDITIONS_ENABLED": "true"
   },
   "d1_databases": [
     {
