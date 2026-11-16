@@ -35,6 +35,7 @@ const knownErrors: Record<string, ApiErrorId> = {
   'email is already registered': 'AUTH_EMAIL_REGISTERED',
   'username is already taken': 'AUTH_USERNAME_TAKEN',
   'too many attempts': 'AUTH_TOO_MANY_ATTEMPTS',
+  'too many source checks. please try again shortly.': 'AUTH_TOO_MANY_ATTEMPTS',
   'invalid setup token': 'AUTH_INVALID_SETUP_TOKEN',
   'setup is already complete': 'AUTH_SETUP_COMPLETE',
   'could not send verification email': 'AUTH_EMAIL_SEND_FAILED',
