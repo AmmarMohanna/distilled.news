@@ -104,7 +104,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,dispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited',requirePaidApproval),execution,secrets,ceilings,
 
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
-      rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};
+      rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake,undefined,helper)};
   };
   const scheduledCollector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>makeCollector(request).provider.collect(request,order,offset)};
   const collector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>{

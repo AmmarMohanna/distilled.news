@@ -36,6 +36,43 @@ function outlookEnv(sender = "distilled.news@outlook.com") {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("routes verification to Gmail and leaves password resets on the configured transport", async () => {
+  const resetSend = vi.fn();
+  const env = {
+    VERIFICATION_MAIL_TRANSPORT: "GMAIL_API",
+    GMAIL_FROM: "sender@gmail.com",
+    GMAIL_CLIENT_ID: "client",
+    GMAIL_CLIENT_SECRET: "secret",
+    GMAIL_REFRESH_TOKEN: "refresh",
+    EMAIL_FROM: "noreply@example.com",
+    PUBLIC_WEB_BASE_URL: "https://qa.example.com",
+    EMAIL: { send: resetSend }
+  } as unknown as Env;
+  const fetchMock = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json({ access_token: "access" }))
+    .mockResolvedValueOnce(Response.json({ id: "sent" }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await sendVerificationEmail(env, account, "fixture", "ar");
+  await sendPasswordResetEmail(env, account, "reset");
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  const [tokenUrl, tokenRequest] = fetchMock.mock.calls[0];
+  expect(tokenUrl).toBe("https://oauth2.googleapis.com/token");
+  expect((tokenRequest?.body as URLSearchParams).get("grant_type")).toBe("refresh_token");
+  const [mailUrl, mailRequest] = fetchMock.mock.calls[1];
+  expect(mailUrl).toBe("https://gmail.googleapis.com/gmail/v1/users/sender%40gmail.com/messages/send");
+  expect(new Headers(mailRequest?.headers).get("authorization")).toBe("Bearer access");
+  const { raw } = JSON.parse(mailRequest?.body as string);
+  expect(raw).toMatch(/^[a-zA-Z0-9_-]+$/);
+  const mime = atob(raw.replace(/-/g, "+").replace(/_/g, "/"));
+  expect(mime).toContain("To: <reader@example.com>\r\n");
+  const plain = /Content-Type: text\/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([\s\S]+?)\r\n--/.exec(mime)![1];
+  const decoded = new TextDecoder().decode(Uint8Array.from(atob(plain), char => char.charCodeAt(0)));
+  expect(decoded).toContain("https://qa.example.com/verify-email?token=fixture&lang=ar");
+  expect(resetSend).toHaveBeenCalledOnce();
+});
+
 it.each(['en', 'fr', 'ar'] as const)('localizes both authentication emails in %s, including links and direction', async language => {
   const messages: any[] = [];
   const env = { EMAIL_FROM: 'Distilled.News <noreply@example.com>', PUBLIC_WEB_BASE_URL: 'https://joud.example', EMAIL: {send: async (message: unknown) => {messages.push(message);}} } as unknown as Env;

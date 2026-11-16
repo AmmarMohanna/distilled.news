@@ -33,6 +33,19 @@ it('resolves a Google listing at acquisition while retaining observation identit
  const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,resolveGoogleArticle:async url=>({inputUrl:url,url:publisher}),publicGet:async url=>{expect(url).toBe(publisher);return {url,body:'<html><head><meta property="article:published_time" content="2026-10-03T11:00:00Z"></head><body><article><h1>Report</h1><p>Parliament approved banking legislation after a lengthy debate. Presidential approval is still required before the measure becomes law. Officials said the vote followed consultations with local banking representatives and consumer protection organizations.</p></article></body></html>',contentType:'text/html',status:200}}});
  const result=await router(claim);expect(result.canonicalUrl).toBe(publisher);expect(result.sourceObservationId).toBe('observation-1');expect(claim.input.observation.canonicalUrl).toBe(listing);
 },30000);
+it.each([
+ ['https://research.google/blog/a-research-update/',`<h1>A research update</h1><div class="blog-detail-wrapper"><div class="rich-text"><p>${'Researchers describe a new learning method and its measured results. '.repeat(5)}</p><p>${'The study explains its limitations and the next evaluation. '.repeat(5)}</p></div></div>`],
+ ['https://www.advanced-television.com/2026/10/30/sample-acquisition-story/',`<title>Sample acquisition story | Advanced Television</title><main><section><h3 class="h1">Sample acquisition story</h3><p>${'The company announced a transaction with concrete terms and participants. '.repeat(5)}</p><p>${'The report explains the expected change and cites the publisher statement. '.repeat(5)}</p><div class="yarpp"><p>${'Unrelated promoted post. '.repeat(20)}</p></div></section></main>`]
+])('acquires publisher-scoped article text without a paid fallback: %s',async(url,body)=>{
+ const claim=(await claimAcquisition(store,jobId,now))!;
+ claim.input.observation={...claim.input.observation,canonicalUrl:url};
+ let paid=0;
+ const result=await createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,publicGet:async()=>({url,body:`<link rel="canonical" href="${url}">${body}`,contentType:'text/html',status:200}),articleFallback:async()=>{paid++;return undefined}})(claim);
+ expect(result.representation).toBe('FULL_ARTICLE');
+ expect(result.body.length).toBeGreaterThan(200);
+ expect(result.body).not.toContain('Unrelated promoted post');
+ expect(paid).toBe(0);
+},30000);
 it.each([undefined,{inputUrl:'https://other.example',url:'https://publisher.example/report'},{inputUrl:'https://news.google.com/rss/articles/encoded',url:'http://127.0.0.1/private'}])('never scrapes or pays for unresolved or unsafe Google targets: %j',async decoded=>{
  const claim=(await claimAcquisition(store,jobId,now))!;claim.input.observation={...claim.input.observation,canonicalUrl:'https://news.google.com/rss/articles/encoded',representation:'LISTING_RESULT'};
  let calls=0;const router=createCandidateAcquisitionRouter({now:()=>now,preferFullArticle:true,resolveGoogleArticle:async()=>decoded,publicGet:async()=>{calls++;throw Error('must not scrape')},articleFallback:async()=>{calls++;throw Error('must not pay')}});

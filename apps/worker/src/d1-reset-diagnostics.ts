@@ -54,6 +54,8 @@ export function withD1ResetDiagnostics(db:D1Database):D1Database{
    return observe('batch',sqls,()=>Reflect.apply(value,target,forwarded));
   };
   if(key==='exec')return (...args:unknown[])=>observe('exec',typeof args[0]==='string'?[args[0]]:[],()=>Reflect.apply(value,target,args));
+  // A session (read replicas) gets the same failure-only diagnostics.
+  if(key==='withSession'&&typeof value==='function')return (...args:unknown[])=>withD1ResetDiagnostics(Reflect.apply(value,target,args) as D1Database);
   return typeof value==='function'?value.bind(target):value;
  }});
  databases.set(db,wrapped);databases.set(wrapped,wrapped);return wrapped;

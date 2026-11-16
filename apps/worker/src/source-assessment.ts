@@ -271,8 +271,8 @@ export async function assessSource(env: Env, context: { title: string; descripti
       });
       if(!auditResponse.ok)return result('unverified','The cited passage could not be independently checked.',extra);
       const auditPayload=auditResponse.payload as {choices?:{message?:{content?:string}}[]};
-      const audit=z.object({exactTopic:flag,reason:z.string()}).parse(JSON.parse(auditPayload.choices?.[0]?.message?.content??'{}'));
-      if(audit.exactTopic!=='YES')return result(audit.exactTopic==='NO'?'rejected':'unverified',audit.reason,{...extra,evidenceQuote:quote});
+      const audit=z.object({exactTopic:flag}).parse(JSON.parse(auditPayload.choices?.[0]?.message?.content??'{}'));
+      if(audit.exactTopic!=='YES')return result(audit.exactTopic==='NO'?'rejected':'unverified',audit.exactTopic==='NO'?'The cited article does not match this feed’s interests.':'The cited article did not establish a clear match.',{...extra,evidenceQuote:quote});
       return result('accepted', archiveOnly?`${verdict.reason} Historical archive; sampled articles are over a year old.`:verdict.reason, { ...extra, coverage: 'direct', evidenceQuote: quote,...(archiveOnly?{freshness:'archive' as const}:{}) });
     }
     const parsed = z.object({ answers: z.object({ news: choice, alignment: choice, concern: choice }) }).parse(payload);

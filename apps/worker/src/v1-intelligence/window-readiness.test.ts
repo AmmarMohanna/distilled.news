@@ -10,6 +10,26 @@ import {CLOCK_PREPARATION_POLICY,livePublicationWindow} from './schedule';
 import {consumeWindowReadinessWake,observeWindowReadiness,readWindowReadiness,sweepWindowReadiness,type WindowReadinessWake} from './window-readiness';
 import type {BriefingRequest} from './runtime';
 
+it('projects only article jobs first observed inside the reporting window',async()=>{
+ const {db,dispose}=await createIntakeDatabase({product:true});
+ try{
+  await seedIntakeScope(new V1IntakeStore(db));
+  await new V1FeedStore(db).registerFeed(feedFixture);
+  const origin=new Date(Math.ceil(Date.now()/1_800_000)*1_800_000);
+  const window=livePublicationWindow({durationMinutes:30,timezone:'UTC',clockStartAt:origin.toISOString(),clockPolicy:CLOCK_PREPARATION_POLICY},new Date(+origin+25*60_000));
+  const request:BriefingRequest={id:'scoped-window',feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'};
+  await db.prepare("INSERT INTO v1_feed_documents VALUES('briefing_requests',?,?,?)").bind(request.id,request.feedId,JSON.stringify(request)).run();
+  for(const [id,observedAt,state] of [['old',new Date(Date.parse(window.start)-60_000).toISOString(),'FAILED'],['current',new Date(Date.parse(window.start)+60_000).toISOString(),'PENDING']] as const){
+   await db.prepare('INSERT INTO v1_inputs(id,feed_source_id,json) VALUES(?,?,?)').bind(id,'feed-source-1',JSON.stringify({observation:{observedAt}})).run();
+   await db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(id,'feed-source-1',JSON.stringify({kind:'ACQUIRE',state,observationId:id,failureCode:state==='FAILED'?'EXTRACTION_FAILED':undefined})).run();
+  }
+  const env={DB:db,WINDOW_READINESS_MODE:'shadow',SOURCE_QUEUE_SCHEDULING_ENABLED:'true'} as Env;
+  await observeWindowReadiness(env,request,new Date(window.end));
+  expect(await readWindowReadiness(db,request.id,Date.parse(window.end))).toMatchObject({pending_acquisition:1,failed:0,holding:true});
+  expect(await windowIntakeCoverage(db,request.feedId,window.end,{start:window.start})).toMatchObject({pendingJobs:1,failedJobs:0});
+ }finally{await dispose();}
+});
+
 it('projects guarded intake writes, retains terminal counts and delivers the latest wake once',async()=>{
   const {db,dispose}=await createIntakeDatabase({product:true});
   try{

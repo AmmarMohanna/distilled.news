@@ -16,6 +16,9 @@ export function isWebsiteListingUrl(value:string):boolean {
  if(host==='thenationalnews.com'&&(['/business','/arts-culture','/magazine'].includes(path)||/^\/podcasts\/(?:beyond-the-headlines|culture-bites|business-extra|tarab)$/.test(path)))return true;
  if(host==='lbcgroup.tv'&&(/^\/(?:news-highlights|latest-news)\/(?:ar|en)$/.test(path)||/^\/news-bulletin(?:\/[^/]+)*\/(?:ar|en)$/.test(path)))return true;
  if(host==='almodon.com'&&path==='/politics')return true;
+ // Al Arabiya stories always carry a /YYYY/MM/DD/ path; its undated links
+ // (/aswaq/microscope, /aswaq/economy, ...) are section pages, not stories.
+ if((host==='alarabiya.net'||host.endsWith('.alarabiya.net'))&&!/\/\d{4}\/\d{2}\/\d{2}\//.test(path+'/'))return true;
  // ESA archive pagination is a section locator, even when its link appears
  // inside a headline card. It must not become an article acquisition job.
  if(host==='esa.int'&&/\/(?:\(archive\)|%28archive%29)\/\d+$/i.test(path))return true;

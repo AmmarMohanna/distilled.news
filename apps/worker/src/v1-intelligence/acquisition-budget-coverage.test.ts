@@ -4,6 +4,36 @@ import {V1IntakeStore} from '../v1-intake/store';
 import {windowHasHoldingJobs} from './runtime';
 import {windowIntakeCoverage} from './window-coverage';
 
+it('keeps an old failed article recoverable without deferring every later empty window',async()=>{
+ const ctx=await createIntakeDatabase();
+ try{
+  await seedIntakeScope(new V1IntakeStore(ctx.db));
+  for(const [id,observedAt,state] of [['old','2026-10-03T12:10:00Z','FAILED'],['current','2026-10-03T13:10:00Z','PENDING']] as const){
+   await ctx.db.prepare('INSERT INTO v1_inputs(id,feed_source_id,json) VALUES(?,?,?)').bind(id,'feed-source-1',JSON.stringify({observation:{observedAt}})).run();
+   await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind(id,'feed-source-1',JSON.stringify({kind:'ACQUIRE',state,observationId:id,failureCode:state==='FAILED'?'EXTRACTION_FAILED':undefined})).run();
+  }
+  const first={start:'2026-10-03T12:00:00Z'};
+  const second={start:'2026-10-03T12:30:00Z'};
+  expect(await windowIntakeCoverage(ctx.db,'feed-1','2026-10-03T12:30:00Z',first)).toMatchObject({state:'INCOMPLETE',failedJobs:1,pendingJobs:0});
+  expect(await windowIntakeCoverage(ctx.db,'feed-1','2026-10-03T13:00:00Z',second)).toMatchObject({state:'COMPLETE',failedJobs:0,pendingJobs:0});
+  expect(await windowHasHoldingJobs(ctx.db,'feed-1','2026-10-03T13:00:00Z',second)).toBe(false);
+  expect(await windowIntakeCoverage(ctx.db,'feed-1','2026-10-03T13:30:00Z',{start:'2026-10-03T13:00:00Z'})).toMatchObject({state:'PENDING',failedJobs:0,pendingJobs:1});
+  expect(await windowHasHoldingJobs(ctx.db,'feed-1','2026-10-03T13:30:00Z',{start:'2026-10-03T13:00:00Z'})).toBe(true);
+  expect((await ctx.db.prepare("SELECT json_extract(json,'$.state') state FROM v1_jobs WHERE id='old'").first<{state:string}>())?.state).toBe('FAILED');
+ }finally{await ctx.dispose();}
+},30000);
+
+it('keeps unresolved earlier acquisition visible in a later window',async()=>{
+ const ctx=await createIntakeDatabase();
+ try{
+  await seedIntakeScope(new V1IntakeStore(ctx.db));
+  await ctx.db.prepare('INSERT INTO v1_inputs(id,feed_source_id,json) VALUES(?,?,?)').bind('earlier','feed-source-1',JSON.stringify({observation:{observedAt:'2026-10-03T12:10:00Z'}})).run();
+  await ctx.db.prepare('INSERT INTO v1_jobs(id,feed_source_id,json) VALUES(?,?,?)').bind('earlier','feed-source-1',JSON.stringify({kind:'ACQUIRE',state:'PENDING',observationId:'earlier',failureCode:'BUDGET_EXHAUSTED'})).run();
+  const window={start:'2026-10-03T12:30:00Z'};
+  expect(await windowIntakeCoverage(ctx.db,'feed-1','2026-10-03T13:00:00Z',window)).toMatchObject({state:'INCOMPLETE',failedJobs:1});
+ }finally{await ctx.dispose();}
+},30000);
+
 it('classifies only confirmed pending acquisition-budget waits as unavailable coverage without changing recoverable jobs',async()=>{
  const ctx=await createIntakeDatabase();
  try{

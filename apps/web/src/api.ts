@@ -288,18 +288,38 @@ export async function deleteAdminBriefing(
   );
 }
 
+/** The last feed payload per path with the server's validator, so refreshing
+ * an unchanged feed returns 304 and downloads nothing. Memory only. */
+const feedValidators = new Map<string, { etag: string; payload: FeedPayload }>();
+async function readFeed(path: string, signal?: AbortSignal): Promise<FeedPayload> {
+  const known = feedValidators.get(path);
+  let response: Response;
+  try {
+    response = await fetch(path, { credentials: "include", signal, headers: known ? { "If-None-Match": known.etag } : {} });
+  } catch {
+    throw apiError(undefined);
+  }
+  if (response.status === 304 && known) return known.payload;
+  if (!(response.headers.get("content-type") ?? "").includes("application/json")) throw apiError(undefined, response);
+  const payload = (await response.json().catch(() => ({}))) as FeedPayload & { error?: string };
+  if (!response.ok) throw apiError(errorDetail(payload), response);
+  const etag = response.headers.get("ETag");
+  if (etag) feedValidators.set(path, { etag, payload }); else feedValidators.delete(path);
+  return payload;
+}
+
 export async function getFeed(username: string, slug: string, options?: { signal: AbortSignal; retryInitialRead: boolean }): Promise<FeedPayload> {
   const path = `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`;
   const signal = options?.signal;
   try {
-    return await requestJson<FeedPayload>(path, { signal });
+    return await readFeed(path, signal);
   } catch (cause) {
     if (!options?.retryInitialRead || signal?.aborted || !(cause instanceof ApiError)) throw cause;
     const { status, retryAfterSeconds } = cause.uiMessage.details;
     if ((status !== undefined && ![502, 503, 504].includes(status)) || retryAfterSeconds) throw cause;
     await new Promise(resolve => setTimeout(resolve, 700 + Math.random() * 300));
     if (signal?.aborted) throw cause;
-    return requestJson<FeedPayload>(path, { signal });
+    return readFeed(path, signal);
   }
 }
 

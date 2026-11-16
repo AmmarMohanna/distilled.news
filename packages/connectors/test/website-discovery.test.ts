@@ -13,6 +13,15 @@ it('discovers the Al Modon politics section even when its page metadata says art
  ]);
  expect(isWebsiteListingUrl(first)).toBe(false);
 });
+it('keeps undated Al Arabiya section links out of article discovery',()=>{
+ const section='https://www.alarabiya.net/aswaq';
+ const story=section+'/oil-and-gas/2026/11/15/%D8%A3%D8%B3%D8%B9%D8%A7%D8%B1-%D8%A7%D9%84%D9%86%D9%81%D8%B7';
+ for(const listing of [section,section+'/microscope',section+'/economy/','https://english.alarabiya.net/business'])expect(isWebsiteListingUrl(listing),listing).toBe(true);
+ for(const article of [story,'https://english.alarabiya.net/business/economy/2026/11/14/story'])expect(isWebsiteListingUrl(article),article).toBe(false);
+ expect(isWebsiteListingUrl('https://other.example/aswaq/microscope')).toBe(false);
+ const html=`<main><a href="/aswaq/microscope"><h2>مجهر</h2></a><article><h2><a href="${story}">أسعار النفط</a></h2></article><article><h2><a href="/aswaq/economy/2026/11/15/story-two">قصة ثانية</a></h2></article></main>`;
+ expect(discoverWebsiteArticles(html,section)?.articles.map(a=>a.url)).toEqual([story,'https://www.alarabiya.net/aswaq/economy/2026/11/15/story-two']);
+});
 const url='https://publisher.example/news';
 describe('source-scoped article discovery',()=>{
  it('filters observed publisher section links while retaining their article children',()=>{
