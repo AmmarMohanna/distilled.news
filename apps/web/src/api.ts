@@ -121,6 +121,7 @@ export async function logout(): Promise<{ pushRevocationFailed: boolean }> {
   await requestJson("/api/auth/logout", {
     method: "POST"
   });
+  feedCacheEpoch++; feedValidators.clear();
   return { pushRevocationFailed };
 }
 
@@ -294,8 +295,10 @@ export async function deleteAdminBriefing(
 
 /** The last feed payload per path with the server's validator, so refreshing
  * an unchanged feed returns 304 and downloads nothing. Memory only. */
+let feedCacheEpoch = 0;
 const feedValidators = new Map<string, { etag: string; payload: FeedPayload }>();
 async function readFeed(path: string, signal?: AbortSignal): Promise<FeedPayload> {
+  const epoch = feedCacheEpoch;
   const known = feedValidators.get(path);
   let response: Response;
   try {
@@ -308,7 +311,9 @@ async function readFeed(path: string, signal?: AbortSignal): Promise<FeedPayload
   const payload = (await response.json().catch(() => ({}))) as FeedPayload & { error?: string };
   if (!response.ok) throw apiError(errorDetail(payload), response);
   const etag = response.headers.get("ETag");
-  if (etag) feedValidators.set(path, { etag, payload }); else feedValidators.delete(path);
+  if (epoch === feedCacheEpoch) {
+    if (etag) feedValidators.set(path, { etag, payload }); else feedValidators.delete(path);
+  }
   return payload;
 }
 

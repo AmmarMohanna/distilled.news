@@ -1512,7 +1512,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useReadProgress(props.username, props.slug, viewerLoading ? undefined : account?.id ?? null);
+  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, viewerLoading ? undefined : account?.id ?? null, payload?.editions.map(edition=>edition.id) ?? []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1701,12 +1701,14 @@ function FeedPage(props: { username: string; slug: string }) {
         aria-pressed={payload?.viewerHasStarred ?? false}
         onClick={async () => {
           if (!payload) return;
-          setStarBusy(true);
+          setStarBusy(true); setError("");
           try {
             const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
             setFeedResult(current => current?.key === feedKey && feedIdentity.current === feedKey ? {
               key: feedKey, value: { ...current.value, briefing: { ...current.value.briefing, stars: result.stars }, viewerHasStarred: result.viewerHasStarred }
             } : current);
+          } catch (cause) {
+            setError(toUiError(cause));
           } finally {
             setStarBusy(false);
           }
@@ -1734,10 +1736,23 @@ function FeedPage(props: { username: string; slug: string }) {
     >
       {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
-        onLogout={async () => { const result = await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings.")); }}
+        onLogout={async () => {
+          const result = await logout();
+          feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
+          visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
+          setFeedResult(null);setEditions([]);setEditionDetails(new Map());setSelectedReport(null);
+          setQuery('');setSettledSearch(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
+          setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
+          if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
+          window.location.replace('/');
+        }}
         onSaved={async (nextAccount, nextBriefings) => {
           setAccount(nextAccount);
-          setOwnedFeed(nextBriefings.find(feed => feed.ownerUsername === props.username && feed.slug === props.slug) ?? null);
+          const nextOwned=nextBriefings.find(feed=>feed.id===(ownedFeed?.id??payload?.briefing.id)&&feed.ownerAccountId===nextAccount.id)??null;
+          setOwnedFeed(nextOwned);
+          if(nextAccount.username!==props.username&&nextOwned){
+            window.location.replace(`/${encodeURIComponent(nextAccount.username)}/${encodeURIComponent(nextOwned.slug)}/`);
+          }
         }}/>}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveFeed(input);
