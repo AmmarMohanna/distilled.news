@@ -135,35 +135,41 @@ test("selected user fits a desktop viewport without panel or table scrolling", a
   await page.setViewportSize({ width: 1479, height: 794 });
   await mock(page); await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
-  await page.locator(".accounts-summary").click();
-  await page.getByRole("button", { name: "View admin", exact: true }).click();
+  const settings = page.locator(".settings-view");
+  // The class is shared with dialogs; measure the app viewport containing Settings.
+  const settingsViewport = page.locator(".app-pages > .screen-page-viewport").filter({ has: settings });
+  const panel = settings.getByRole("complementary", { name: "manage account", exact: true });
+  const table = settings.locator(".users-table-scroll");
+  await settings.locator(".accounts-summary").click();
+  await settings.getByRole("button", { name: "View admin", exact: true }).click();
+  // click() finishing does not guarantee that React committed the selection.
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "admin", exact: true })).toBeVisible();
+  await expect(settingsViewport).toHaveCount(1);
   for (const viewport of [{ width: 1555, height: 768 }, { width: 1280, height: 720 }, { width: 1244, height: 614 }]) {
     await page.setViewportSize(viewport);
-    const measurements = await page.evaluate(() => {
-      const panel = document.querySelector(".managed-user-panel")!;
-      const table = document.querySelector(".users-table-scroll")!;
-      const page = document.querySelector(".screen-page-viewport")!;
-      const email = document.querySelector(".users-table tbody td:nth-child(2)")!;
-      const role = document.querySelector(".users-table tbody .user-role-badge")!;
-      const status = document.querySelector(".users-table tbody .user-status")!;
-      return {
-        panelBottom: panel.getBoundingClientRect().bottom,
-        viewportBottom: window.innerHeight,
-        tableWidth: table.clientWidth,
-        tableContentWidth: table.scrollWidth,
-        pageHeight: page.scrollHeight,
-        pageViewportHeight: page.clientHeight,
-        emailWhiteSpace: getComputedStyle(email).whiteSpace,
-        roleWhiteSpace: getComputedStyle(role).whiteSpace,
-        statusWhiteSpace: getComputedStyle(status).whiteSpace
-      };
-    });
-    expect(measurements.panelBottom).toBeLessThanOrEqual(measurements.viewportBottom);
-    expect(measurements.tableContentWidth).toBeLessThanOrEqual(measurements.tableWidth);
-    expect(measurements.pageHeight).toBeLessThanOrEqual(measurements.pageViewportHeight);
-    expect(measurements.emailWhiteSpace).toBe("nowrap");
-    expect(measurements.roleWhiteSpace).toBe("nowrap");
-    expect(measurements.statusWhiteSpace).toBe("nowrap");
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "admin", exact: true })).toBeVisible();
+    // Resize-driven layout can settle after setViewportSize resolves. Retry the
+    // complete set of strict geometry assertions, never substitute missing nodes.
+    await expect(async () => {
+      const [panelBounds, tableBounds, pageBounds, whiteSpace] = await Promise.all([
+        panel.evaluate(node => ({bottom: node.getBoundingClientRect().bottom, height: node.clientHeight, contentHeight: node.scrollHeight})),
+        table.evaluate(node => ({width: node.clientWidth, contentWidth: node.scrollWidth, height: node.clientHeight, contentHeight: node.scrollHeight})),
+        settingsViewport.evaluate(node => ({height: node.clientHeight, contentHeight: node.scrollHeight})),
+        Promise.all([
+          settings.locator(".users-table tbody td:nth-child(2)").first(),
+          settings.locator(".users-table tbody .user-role-badge").first(),
+          settings.locator(".users-table tbody .user-status").first()
+        ].map(node => node.evaluate(element => getComputedStyle(element).whiteSpace)))
+      ]);
+      expect(panelBounds.bottom).toBeLessThanOrEqual(viewport.height);
+      expect(panelBounds.contentHeight).toBeLessThanOrEqual(panelBounds.height);
+      expect(tableBounds.contentWidth).toBeLessThanOrEqual(tableBounds.width);
+      expect(tableBounds.contentHeight).toBeLessThanOrEqual(tableBounds.height);
+      expect(pageBounds.contentHeight).toBeLessThanOrEqual(pageBounds.height);
+      for (const value of whiteSpace) expect(value).toBe("nowrap");
+    }).toPass({ timeout: 5_000 });
   }
   await page.screenshot({ path: "test-results/reference-users-compact.png" });
 });
