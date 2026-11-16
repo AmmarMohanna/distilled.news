@@ -1,0 +1,208 @@
+{
+  "version": "continuous-value-v1",
+  "base": "92be8812",
+  "status": "offline-only-unapproved",
+  "researchQuestion": "Continuous personalized news experience, not isolated compressor superiority",
+  "sequences": [
+    {
+      "id": "cedar-chronology",
+      "ticks": 8,
+      "profiles": 2,
+      "facts": 11,
+      "sourceArticles": 15,
+      "lateSources": 1,
+      "sourceReferenceDigest": "2fd124621961862703b4fc284eab6346ce1cd7c8e583a9a24032f60a29fc0d8c",
+      "emptyInitialHistory": true,
+      "inputSourceHash": "6e549734ef3a65d8917c8212e3622639e864dac4a0bf8cc72e75c7c8e8af58b8"
+    },
+    {
+      "id": "birch-education-business",
+      "ticks": 8,
+      "profiles": 2,
+      "facts": 11,
+      "sourceArticles": 14,
+      "lateSources": 1,
+      "sourceReferenceDigest": "0c6bd6c783492d8b5ecb229f4d85132b9ad9b888504208b0c722180914fb113e",
+      "emptyInitialHistory": true,
+      "inputSourceHash": "aff16fd4bcb8de5bc5a8647baf737a29d72998be44f2ae6102c35ca3ab372920"
+    }
+  ],
+  "pilot": {
+    "sequenceId": "cedar-chronology",
+    "ticks": 8,
+    "profiles": 2,
+    "systems": 3,
+    "scheduledJobs": 48,
+    "eventSequenceClusters": 1,
+    "nominalGenerationCalls": 128,
+    "maximumGenerationCalls": 320,
+    "independentInventoryGroundingCalls": 192,
+    "outputReviewOpportunities": 96,
+    "maximumConsistencyCorrections": 96,
+    "nominalProviderCallsWithoutCorrections": 416,
+    "planningCallsWith25PercentCorrections": 440,
+    "maximumAdmittedProviderCalls": 704,
+    "maximumExplanation": "Planned future admission configuration, not enforced by an arbitrary injected port: 16 V4 jobs ×16 admission slots +32 one-generation jobs ×2 slots +192 inventory/grounding +96 reviews +96 bounded corrections. Admission slots are explicit financial fences, not guaranteed engine requirements; reaching them is a recorded failure."
+  },
+  "models": {
+    "editor": "openai/gpt-4.1",
+    "commonGuard": "openai/gpt-4.1-mini",
+    "diagnosticJudges": [
+      "openai/gpt-4.1",
+      "anthropic/claude-sonnet-4.5"
+    ]
+  },
+  "inventoryAccounting": "Existing source-only inventory includes actual prior reader history. Budget separate requests per arm/profile/tick/judge; reuse only exact settled request hashes, not shared source labels.",
+  "priceBasis": {
+    "recordedAt": "2026-11-15",
+    "usdPerMillion": {
+      "gpt": {
+        "input": 2,
+        "output": 8
+      },
+      "mini": {
+        "input": 0.4,
+        "output": 1.6
+      },
+      "claude": {
+        "input": 3,
+        "output": 15
+      }
+    },
+    "reverifiedLive": false
+  },
+  "cost": {
+    "currency": "USD",
+    "lineItems": [
+      {
+        "label": "V4 editor",
+        "calls": 16,
+        "model": "gpt",
+        "inputTokensPerCall": 8000,
+        "outputTokensPerCall": 650,
+        "subtotalUsd": 0.3392
+      },
+      {
+        "label": "V4 novelty/verification/common-guard allowance",
+        "calls": 48,
+        "model": "mini",
+        "inputTokensPerCall": 7000,
+        "outputTokensPerCall": 300,
+        "subtotalUsd": 0.15744
+      },
+      {
+        "label": "Strong+simple one-generation editors",
+        "calls": 32,
+        "model": "gpt",
+        "inputTokensPerCall": 8000,
+        "outputTokensPerCall": 650,
+        "subtotalUsd": 0.6784
+      },
+      {
+        "label": "Strong+simple common guards",
+        "calls": 32,
+        "model": "mini",
+        "inputTokensPerCall": 7000,
+        "outputTokensPerCall": 300,
+        "subtotalUsd": 0.10496
+      },
+      {
+        "label": "GPT source inventory+grounding",
+        "calls": 96,
+        "model": "gpt",
+        "inputTokensPerCall": 6000,
+        "outputTokensPerCall": 1000,
+        "subtotalUsd": 1.92
+      },
+      {
+        "label": "Claude source inventory+grounding",
+        "calls": 96,
+        "model": "claude",
+        "inputTokensPerCall": 6000,
+        "outputTokensPerCall": 1000,
+        "subtotalUsd": 3.168
+      },
+      {
+        "label": "GPT output reviews",
+        "calls": 48,
+        "model": "gpt",
+        "inputTokensPerCall": 9000,
+        "outputTokensPerCall": 1500,
+        "subtotalUsd": 1.44
+      },
+      {
+        "label": "Claude output reviews",
+        "calls": 48,
+        "model": "claude",
+        "inputTokensPerCall": 9000,
+        "outputTokensPerCall": 1500,
+        "subtotalUsd": 2.376
+      },
+      {
+        "label": "GPT consistency correction scenario (25%)",
+        "calls": 12,
+        "model": "gpt",
+        "inputTokensPerCall": 9000,
+        "outputTokensPerCall": 1500,
+        "subtotalUsd": 0.36
+      },
+      {
+        "label": "Claude consistency correction scenario (25%)",
+        "calls": 12,
+        "model": "claude",
+        "inputTokensPerCall": 9000,
+        "outputTokensPerCall": 1500,
+        "subtotalUsd": 0.594
+      }
+    ],
+    "modeledModelUsageUsd": 11.138,
+    "generationAndGuardUsd": 1.28,
+    "diagnosticUsd": 9.858,
+    "proposedFiniteCeilingUsd": 15,
+    "ceilingApproved": false,
+    "unknownReservationsIncluded": true,
+    "actualSpendUsd": 0,
+    "operationalServiceCosts": "Unmeasured: acquisition/D1/R2/queues/hosting must be itemized separately, not assumed zero. Offline clock/checkpoint operation counts are available.",
+    "uncertainty": "Planning tokens and25% correction incidence are assumptions; actual generation, cached/quiet reviews and reservations differ. Price/account check and new exact cap approval required before inference."
+  },
+  "paidInferenceEnabled": false,
+  "newPaidCalls": 0,
+  "initialHistory": "empty per system/profile; subsequent history is actual committed output only",
+  "realNews": "No certified new real-news cohort; constructed results remain separate.",
+  "capabilities": {
+    "shared": [
+      "same cutoff/source pool/interest/language/word budget",
+      "own complete publication-history access",
+      "same common factual guard",
+      "persistent publication-idempotency key",
+      "unknown-outcome no-resend fence"
+    ],
+    "v4AndStrong": [
+      "durable prepublication result checkpoint",
+      "automatic known-failure recovery"
+    ],
+    "simple": [
+      "one-generation editor, same as strong",
+      "no automatic prepublication result recovery; this is a capability configuration, not an intrinsic LLM limitation"
+    ]
+  },
+  "sourceHashes": {
+    "evaluation/briefing-quality/continuous-value/loop.ts": "514d37a7f2b9f5e62c129d61b4ca61a53bf46bd74c4b0d0394f7f40eb5ccec8c",
+    "evaluation/briefing-quality/continuous-value/editors.ts": "a88d32940d7f9285c5e6bf4ee41dacdc5b14a1b04358341197f9e7bf4378fdd0",
+    "evaluation/briefing-quality/continuous-value/data.ts": "f0443ad924b1d4b49e9cdde7813ad91f35eef0977488cbf8a113f561353a2d0b",
+    "evaluation/briefing-quality/continuous-value/metrics.ts": "62c3ada5e8c708fae4c9724c85e8680eaad346bfaa6bc841b5d875ff6c498020",
+    "evaluation/briefing-quality/continuous-value/plan.ts": "dc77d1b8f1ef750da4437300bef6349cb7522527595bfbde07169040fda4677b",
+    "evaluation/briefing-quality/continuous-value/offline.ts": "556167f657766648ee4c84ba4548ba9549e6776860bac7f08309faa555681e24",
+    "evaluation/briefing-quality/continuous-value/packets.ts": "b2275e2ec72aad2b5e2535938040e716c85a1a03ed3e98982f6811d33d10573c",
+    "evaluation/briefing-quality/continuous-value/PROTOCOL.md": "675879569e7493009627526a5c1051cd751a0f629baa95bff36551f9e1a9a1d5",
+    "evaluation/briefing-quality/validation/current-engine.ts": "d91063602e97fecda6e56fc12f4c794438cb14cf8bf1663efa06fcb8ea292d2e",
+    "evaluation/briefing-quality/engine-value/matched-single.ts": "7c07dd4913762e299c9cdc25695f7fdae9fedce9bb2de4ef64e64d7c0507ed1d",
+    "evaluation/briefing-quality/replay.ts": "23453ea0fe31ced7e8ae7acc978494e0723eeab9646f9bdabdc8ce0004db5fda",
+    "packages/briefing/src/engine.ts": "b3d9831cf2fbf4d199b36cf22a06b93693ecf4ea1813380f17620fa45be0d4c6",
+    "packages/briefing/src/prompts.ts": "23fad9e36607ac94f2cb6ed59c49178963e9d0a1c0875e87fe51025030ecb2f0",
+    "packages/briefing/src/coverage-first.ts": "60cb863c54c9574aa8635eaf250f479cf08fe00e22a1e6d2b934e775f9d126ee",
+    "apps/worker/src/v1-intelligence/schedule.ts": "305a27dfd1fd1c1b45b27147cb75a89a112d9537cceea5b0e9c21c6674720b96"
+  },
+  "sequencesFileSha256": "239be358d8c3b473475614ab22a4120466bd911c3440e43cbfb6690ea220d8b4",
+  "financialAuthorization": null
+}

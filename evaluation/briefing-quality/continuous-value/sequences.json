@@ -1,0 +1,696 @@
+[
+  {
+    "id": "cedar-chronology",
+    "kind": "constructed",
+    "sourceComplete": true,
+    "start": "2026-11-03T08:00:00Z",
+    "ticks": 8,
+    "profiles": [
+      {
+        "id": "transport",
+        "interest": "Cedar transport access, bridge incidents, ferry operations and material updates. Exclude utilities and sports.",
+        "language": "en"
+      },
+      {
+        "id": "utilities",
+        "interest": "Cedar water safety, supply interruptions, pump damage and corrections. Exclude transport and sports.",
+        "language": "ar"
+      }
+    ],
+    "articles": [
+      {
+        "id": "cedar-chronology-bridge-closed-authority",
+        "source": "Constructed official bulletin",
+        "text": "The municipality closed Cedar bridge pending a safety inspection.",
+        "publishedAt": "2026-11-03T08:03:00.000Z",
+        "availableAt": "2026-11-03T08:04:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-water-warning-authority",
+        "source": "Constructed official bulletin",
+        "text": "The water authority ordered Cedar residents to boil tap water pending test results.",
+        "publishedAt": "2026-11-03T08:03:00.000Z",
+        "availableAt": "2026-11-03T08:04:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-bridge-relay",
+        "source": "Constructed relay bulletin",
+        "text": "The municipality closed Cedar bridge pending a safety inspection.",
+        "publishedAt": "2026-11-03T08:03:00.000Z",
+        "availableAt": "2026-11-03T08:04:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-ferry-added-authority",
+        "source": "Constructed official bulletin",
+        "text": "أضاف مشغل العبارة قاربين إلى خط سيدار.",
+        "publishedAt": "2026-11-03T08:28:00.000Z",
+        "availableAt": "2026-11-03T08:29:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-factory-claim-authority",
+        "source": "Constructed official bulletin",
+        "text": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة سيدار.",
+        "publishedAt": "2026-11-03T08:28:00.000Z",
+        "availableAt": "2026-11-03T08:29:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-bridge-reopened-authority",
+        "source": "Constructed official bulletin",
+        "text": "The municipality reported that Cedar bridge had reopened, pending independent confirmation.",
+        "publishedAt": "2026-11-03T08:58:00.000Z",
+        "availableAt": "2026-11-03T08:59:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-pump-correction-authority",
+        "source": "Constructed official bulletin",
+        "text": "Correction: the water authority reported seven damaged pumps at Cedar station, not 12.",
+        "publishedAt": "2026-11-03T08:58:00.000Z",
+        "availableAt": "2026-11-03T08:59:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-bridge-retraction-authority",
+        "source": "Constructed official bulletin",
+        "text": "تصحيح: قالت البلدية إن إعلان إعادة الفتح كان خاطئا؛ وظل جسر سيدار مغلقا.",
+        "publishedAt": "2026-11-03T09:28:00.000Z",
+        "availableAt": "2026-11-03T09:29:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-water-clear-authority",
+        "source": "Constructed official bulletin",
+        "text": "رفعت مؤسسة المياه طلب غلي المياه في سيدار بعدما أثبتت الفحوصات سلامتها.",
+        "publishedAt": "2026-11-03T09:28:00.000Z",
+        "availableAt": "2026-11-03T09:29:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-bridge-retraction-authority-repeat",
+        "source": "Constructed official bulletin",
+        "text": "تصحيح: قالت البلدية إن إعلان إعادة الفتح كان خاطئا؛ وظل جسر سيدار مغلقا.",
+        "publishedAt": "2026-11-03T09:55:30.000Z",
+        "availableAt": "2026-11-03T09:56:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-water-clear-authority-repeat",
+        "source": "Constructed official bulletin",
+        "text": "رفعت مؤسسة المياه طلب غلي المياه في سيدار بعدما أثبتت الفحوصات سلامتها.",
+        "publishedAt": "2026-11-03T09:55:30.000Z",
+        "availableAt": "2026-11-03T09:56:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-bridge-new-incident-authority",
+        "source": "Constructed official bulletin",
+        "text": "أغلق حادث تصادم جديد جسر سيدار؛ وهو حادث منفصل عن الإغلاق السابق للفحص.",
+        "publishedAt": "2026-11-03T10:28:00.000Z",
+        "availableAt": "2026-11-03T10:29:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-water-new-incident-authority",
+        "source": "Constructed official bulletin",
+        "text": "أدى كسر جديد في أنبوب إلى انقطاع المياه في سيدار؛ وهو منفصل عن تحذير التلوث السابق.",
+        "publishedAt": "2026-11-03T10:28:00.000Z",
+        "availableAt": "2026-11-03T10:29:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-late-ferry-authority",
+        "source": "Constructed official bulletin",
+        "text": "The ferry operator announced an evening Cedar sailing at 19:00, subject to weather conditions.",
+        "publishedAt": "2026-11-03T08:57:00.000Z",
+        "availableAt": "2026-11-03T10:56:00.000Z"
+      },
+      {
+        "id": "cedar-chronology-sports",
+        "source": "Constructed sports desk",
+        "text": "A visiting team won a friendly football match 3-0.",
+        "publishedAt": "2026-11-03T08:01:00.000Z",
+        "availableAt": "2026-11-03T08:02:00.000Z"
+      }
+    ],
+    "facts": [
+      {
+        "id": "cedar-chronology-bridge-closed",
+        "eventId": "cedar-chronology-bridge-incident-1",
+        "occurrenceId": "cedar-chronology-bridge-incident-1",
+        "kind": "new",
+        "profiles": [
+          "transport"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The municipality closed Cedar bridge pending a safety inspection.",
+          "ar": "أغلقت البلدية جسر سيدار بانتظار فحص السلامة."
+        },
+        "sourceIds": [
+          "cedar-chronology-bridge-closed-authority",
+          "cedar-chronology-bridge-relay"
+        ]
+      },
+      {
+        "id": "cedar-chronology-water-warning",
+        "eventId": "cedar-chronology-water-incident-1",
+        "occurrenceId": "cedar-chronology-water-incident-1",
+        "kind": "new",
+        "profiles": [
+          "utilities"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The water authority ordered Cedar residents to boil tap water pending test results.",
+          "ar": "طلبت مؤسسة المياه من سكان سيدار غلي مياه الصنبور بانتظار نتائج الفحوصات."
+        },
+        "sourceIds": [
+          "cedar-chronology-water-warning-authority"
+        ]
+      },
+      {
+        "id": "cedar-chronology-ferry-added",
+        "eventId": "cedar-chronology-ferry-service",
+        "occurrenceId": "cedar-chronology-ferry-service",
+        "kind": "new",
+        "profiles": [
+          "transport"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The ferry operator added two boats on the Cedar route.",
+          "ar": "أضاف مشغل العبارة قاربين إلى خط سيدار."
+        },
+        "sourceIds": [
+          "cedar-chronology-ferry-added-authority"
+        ]
+      },
+      {
+        "id": "cedar-chronology-factory-claim",
+        "eventId": "cedar-chronology-water-incident-1",
+        "occurrenceId": "cedar-chronology-water-incident-1",
+        "kind": "update",
+        "profiles": [
+          "utilities"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The water authority reported 12 damaged pumps at Cedar station.",
+          "ar": "أعلنت مؤسسة المياه تضرر 12 مضخة في محطة سيدار."
+        },
+        "sourceIds": [
+          "cedar-chronology-factory-claim-authority"
+        ],
+        "parent": "cedar-chronology-water-warning"
+      },
+      {
+        "id": "cedar-chronology-bridge-reopened",
+        "eventId": "cedar-chronology-bridge-incident-1",
+        "occurrenceId": "cedar-chronology-bridge-incident-1",
+        "kind": "update",
+        "profiles": [
+          "transport"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The municipality reported that Cedar bridge had reopened, pending independent confirmation.",
+          "ar": "أعلنت البلدية إعادة فتح جسر سيدار بانتظار تأكيد مستقل."
+        },
+        "sourceIds": [
+          "cedar-chronology-bridge-reopened-authority"
+        ],
+        "parent": "cedar-chronology-bridge-closed",
+        "supersedes": [
+          "cedar-chronology-bridge-closed"
+        ]
+      },
+      {
+        "id": "cedar-chronology-pump-correction",
+        "eventId": "cedar-chronology-water-incident-1",
+        "occurrenceId": "cedar-chronology-water-incident-1",
+        "kind": "correction",
+        "profiles": [
+          "utilities"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "Correction: the water authority reported seven damaged pumps at Cedar station, not 12.",
+          "ar": "تصحيح: أكدت مؤسسة المياه تضرر سبع مضخات في محطة سيدار، وليس 12."
+        },
+        "sourceIds": [
+          "cedar-chronology-pump-correction-authority"
+        ],
+        "parent": "cedar-chronology-factory-claim",
+        "supersedes": [
+          "cedar-chronology-factory-claim"
+        ]
+      },
+      {
+        "id": "cedar-chronology-bridge-retraction",
+        "eventId": "cedar-chronology-bridge-incident-1",
+        "occurrenceId": "cedar-chronology-bridge-incident-1",
+        "kind": "correction",
+        "profiles": [
+          "transport"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "Correction: the municipality said its reopening report was wrong; Cedar bridge remained closed.",
+          "ar": "تصحيح: قالت البلدية إن إعلان إعادة الفتح كان خاطئا؛ وظل جسر سيدار مغلقا."
+        },
+        "sourceIds": [
+          "cedar-chronology-bridge-retraction-authority",
+          "cedar-chronology-bridge-retraction-authority-repeat"
+        ],
+        "parent": "cedar-chronology-bridge-reopened",
+        "supersedes": [
+          "cedar-chronology-bridge-reopened"
+        ]
+      },
+      {
+        "id": "cedar-chronology-water-clear",
+        "eventId": "cedar-chronology-water-incident-1",
+        "occurrenceId": "cedar-chronology-water-incident-1",
+        "kind": "update",
+        "profiles": [
+          "utilities"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The water authority lifted the Cedar boil-water order after tests found the supply safe.",
+          "ar": "رفعت مؤسسة المياه طلب غلي المياه في سيدار بعدما أثبتت الفحوصات سلامتها."
+        },
+        "sourceIds": [
+          "cedar-chronology-water-clear-authority",
+          "cedar-chronology-water-clear-authority-repeat"
+        ],
+        "parent": "cedar-chronology-water-warning",
+        "supersedes": [
+          "cedar-chronology-water-warning"
+        ]
+      },
+      {
+        "id": "cedar-chronology-bridge-new-incident",
+        "eventId": "cedar-chronology-bridge-incident-2",
+        "occurrenceId": "cedar-chronology-bridge-incident-2",
+        "kind": "new",
+        "profiles": [
+          "transport"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "A separate new collision closed Cedar bridge; this was a different incident from the earlier inspection closure.",
+          "ar": "أغلق حادث تصادم جديد جسر سيدار؛ وهو حادث منفصل عن الإغلاق السابق للفحص."
+        },
+        "sourceIds": [
+          "cedar-chronology-bridge-new-incident-authority"
+        ]
+      },
+      {
+        "id": "cedar-chronology-water-new-incident",
+        "eventId": "cedar-chronology-water-incident-2",
+        "occurrenceId": "cedar-chronology-water-incident-2",
+        "kind": "new",
+        "profiles": [
+          "utilities"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "A new pipe rupture interrupted Cedar water service; it was separate from the earlier contamination warning.",
+          "ar": "أدى كسر جديد في أنبوب إلى انقطاع المياه في سيدار؛ وهو منفصل عن تحذير التلوث السابق."
+        },
+        "sourceIds": [
+          "cedar-chronology-water-new-incident-authority"
+        ]
+      },
+      {
+        "id": "cedar-chronology-late-ferry",
+        "eventId": "cedar-chronology-ferry-timetable",
+        "occurrenceId": "cedar-chronology-ferry-timetable",
+        "kind": "new",
+        "profiles": [
+          "transport"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The ferry operator announced an evening Cedar sailing at 19:00, subject to weather conditions.",
+          "ar": "أعلن مشغل العبارة رحلة مسائية إلى سيدار الساعة 19:00، رهنا بالأحوال الجوية."
+        },
+        "sourceIds": [
+          "cedar-chronology-late-ferry-authority"
+        ]
+      }
+    ],
+    "faults": [
+      {
+        "tick": 1,
+        "phase": "before-generation",
+        "delayMs": 120000
+      },
+      {
+        "tick": 3,
+        "phase": "after-generation",
+        "delayMs": 120000
+      },
+      {
+        "tick": 5,
+        "phase": "after-publication",
+        "delayMs": 120000
+      }
+    ]
+  },
+  {
+    "id": "birch-education-business",
+    "kind": "constructed",
+    "sourceComplete": true,
+    "start": "2026-11-05T09:00:00Z",
+    "ticks": 8,
+    "profiles": [
+      {
+        "id": "education",
+        "interest": "Birch school access, safety, remote learning and exam arrangements; exclude business and sports.",
+        "language": "en"
+      },
+      {
+        "id": "business",
+        "interest": "Birch business grants, conditions, corrections and market access; exclude education and sports.",
+        "language": "ar"
+      }
+    ],
+    "articles": [
+      {
+        "id": "birch-education-business-school-closure",
+        "source": "Constructed education office",
+        "text": "The education office closed three Birch schools after flooding.",
+        "publishedAt": "2026-11-05T09:01:00.000Z",
+        "availableAt": "2026-11-05T09:02:00.000Z"
+      },
+      {
+        "id": "birch-education-business-grant-proposal",
+        "source": "Constructed enterprise agency",
+        "text": "The enterprise agency proposed a Birch business grant, subject to council approval.",
+        "publishedAt": "2026-11-05T09:01:00.000Z",
+        "availableAt": "2026-11-05T09:02:00.000Z"
+      },
+      {
+        "id": "birch-education-business-remote-classrooms",
+        "source": "Constructed education office",
+        "text": "افتتح مكتب التعليم صفين مؤقتين لطلاب بيرش المتضررين.",
+        "publishedAt": "2026-11-05T09:26:00.000Z",
+        "availableAt": "2026-11-05T09:27:00.000Z"
+      },
+      {
+        "id": "birch-education-business-grant-approved",
+        "source": "Constructed enterprise agency",
+        "text": "وافق المجلس على منحة أعمال بيرش، بشرط تدقيق مستقل.",
+        "publishedAt": "2026-11-05T09:26:00.000Z",
+        "availableAt": "2026-11-05T09:27:00.000Z"
+      },
+      {
+        "id": "birch-education-business-exam-correction",
+        "source": "Constructed education office",
+        "text": "Correction: the education office set Birch exams for November 14, not November 12 as it previously reported.",
+        "publishedAt": "2026-11-05T09:56:00.000Z",
+        "availableAt": "2026-11-05T09:57:00.000Z"
+      },
+      {
+        "id": "birch-education-business-grant-count",
+        "source": "Constructed enterprise agency",
+        "text": "The enterprise agency reported 20 eligible Birch grant recipients, pending audit.",
+        "publishedAt": "2026-11-05T09:56:00.000Z",
+        "availableAt": "2026-11-05T09:57:00.000Z"
+      },
+      {
+        "id": "birch-education-business-school-reopen",
+        "source": "Constructed education office",
+        "text": "أعاد مكتب التعليم فتح مدارس بيرش الثلاث بعد فحوصات السلامة.",
+        "publishedAt": "2026-11-05T10:26:00.000Z",
+        "availableAt": "2026-11-05T10:27:00.000Z"
+      },
+      {
+        "id": "birch-education-business-grant-retraction",
+        "source": "Constructed enterprise agency",
+        "text": "تصحيح: قال المجلس إن إعلان الموافقة على منحة بيرش صدر بالخطأ؛ ولم تتم الموافقة عليها.",
+        "publishedAt": "2026-11-05T10:26:00.000Z",
+        "availableAt": "2026-11-05T10:27:00.000Z"
+      },
+      {
+        "id": "birch-education-business-school-reopen-repeat",
+        "source": "Constructed education office",
+        "text": "أعاد مكتب التعليم فتح مدارس بيرش الثلاث بعد فحوصات السلامة.",
+        "publishedAt": "2026-11-05T10:56:00.000Z",
+        "availableAt": "2026-11-05T10:57:00.000Z"
+      },
+      {
+        "id": "birch-education-business-grant-retraction-repeat",
+        "source": "Constructed enterprise agency",
+        "text": "تصحيح: قال المجلس إن إعلان الموافقة على منحة بيرش صدر بالخطأ؛ ولم تتم الموافقة عليها.",
+        "publishedAt": "2026-11-05T10:56:00.000Z",
+        "availableAt": "2026-11-05T10:57:00.000Z"
+      },
+      {
+        "id": "birch-education-business-new-school-incident",
+        "source": "Constructed education office",
+        "text": "أغلقت حالة حر طارئة منفصلة مدرسة واحدة في بيرش؛ ولا ترتبط بإغلاقات الفيضان السابقة.",
+        "publishedAt": "2026-11-05T11:26:00.000Z",
+        "availableAt": "2026-11-05T11:27:00.000Z"
+      },
+      {
+        "id": "birch-education-business-new-shop-incident",
+        "source": "Constructed enterprise agency",
+        "text": "أغلق حريق جديد سوق بيرش ليوم واحد، وهو منفصل عن برنامج المنح.",
+        "publishedAt": "2026-11-05T11:26:00.000Z",
+        "availableAt": "2026-11-05T11:27:00.000Z"
+      },
+      {
+        "id": "birch-education-business-late-exam-venue",
+        "source": "Constructed education office",
+        "text": "The education office moved Birch exams to the town hall; the November 14 date was unchanged.",
+        "publishedAt": "2026-11-05T09:58:00.000Z",
+        "availableAt": "2026-11-05T11:57:00.000Z"
+      },
+      {
+        "id": "birch-education-business-sports",
+        "source": "Constructed sports desk",
+        "text": "A football club signed a new goalkeeper.",
+        "publishedAt": "2026-11-05T09:01:00.000Z",
+        "availableAt": "2026-11-05T09:02:00.000Z"
+      }
+    ],
+    "facts": [
+      {
+        "id": "birch-education-business-school-closure",
+        "eventId": "birch-education-business-school-flood-1",
+        "occurrenceId": "birch-education-business-school-flood-1",
+        "kind": "new",
+        "profiles": [
+          "education"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The education office closed three Birch schools after flooding.",
+          "ar": "أغلق مكتب التعليم ثلاث مدارس في بيرش بعد فيضان."
+        },
+        "sourceIds": [
+          "birch-education-business-school-closure"
+        ]
+      },
+      {
+        "id": "birch-education-business-grant-proposal",
+        "eventId": "birch-education-business-business-grant-1",
+        "occurrenceId": "birch-education-business-business-grant-1",
+        "kind": "new",
+        "profiles": [
+          "business"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The enterprise agency proposed a Birch business grant, subject to council approval.",
+          "ar": "اقترحت وكالة المؤسسات منحة لأعمال بيرش، بشرط موافقة المجلس."
+        },
+        "sourceIds": [
+          "birch-education-business-grant-proposal"
+        ]
+      },
+      {
+        "id": "birch-education-business-remote-classrooms",
+        "eventId": "birch-education-business-school-flood-1",
+        "occurrenceId": "birch-education-business-school-flood-1",
+        "kind": "update",
+        "profiles": [
+          "education"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The education office opened two temporary classrooms for displaced Birch pupils.",
+          "ar": "افتتح مكتب التعليم صفين مؤقتين لطلاب بيرش المتضررين."
+        },
+        "sourceIds": [
+          "birch-education-business-remote-classrooms"
+        ],
+        "parent": "birch-education-business-school-closure"
+      },
+      {
+        "id": "birch-education-business-grant-approved",
+        "eventId": "birch-education-business-business-grant-1",
+        "occurrenceId": "birch-education-business-business-grant-1",
+        "kind": "update",
+        "profiles": [
+          "business"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The council approved the Birch business grant, conditional on an independent audit.",
+          "ar": "وافق المجلس على منحة أعمال بيرش، بشرط تدقيق مستقل."
+        },
+        "sourceIds": [
+          "birch-education-business-grant-approved"
+        ],
+        "parent": "birch-education-business-grant-proposal",
+        "supersedes": [
+          "birch-education-business-grant-proposal"
+        ]
+      },
+      {
+        "id": "birch-education-business-exam-correction",
+        "eventId": "birch-education-business-school-exams-1",
+        "occurrenceId": "birch-education-business-school-exams-1",
+        "kind": "new",
+        "profiles": [
+          "education"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "Correction: the education office set Birch exams for November 14, not November 12 as it previously reported.",
+          "ar": "تصحيح: حدد مكتب التعليم امتحانات بيرش في 14 نوفمبر، وليس 12 نوفمبر كما أعلن سابقا."
+        },
+        "sourceIds": [
+          "birch-education-business-exam-correction"
+        ]
+      },
+      {
+        "id": "birch-education-business-grant-count",
+        "eventId": "birch-education-business-business-grant-1",
+        "occurrenceId": "birch-education-business-business-grant-1",
+        "kind": "update",
+        "profiles": [
+          "business"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The enterprise agency reported 20 eligible Birch grant recipients, pending audit.",
+          "ar": "أعلنت وكالة المؤسسات أهلية 20 مستفيدا لمنحة بيرش، بانتظار التدقيق."
+        },
+        "sourceIds": [
+          "birch-education-business-grant-count"
+        ],
+        "parent": "birch-education-business-grant-approved"
+      },
+      {
+        "id": "birch-education-business-school-reopen",
+        "eventId": "birch-education-business-school-flood-1",
+        "occurrenceId": "birch-education-business-school-flood-1",
+        "kind": "update",
+        "profiles": [
+          "education"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The education office reopened the three Birch schools after safety inspections.",
+          "ar": "أعاد مكتب التعليم فتح مدارس بيرش الثلاث بعد فحوصات السلامة."
+        },
+        "sourceIds": [
+          "birch-education-business-school-reopen",
+          "birch-education-business-school-reopen-repeat"
+        ],
+        "parent": "birch-education-business-school-closure",
+        "supersedes": [
+          "birch-education-business-school-closure"
+        ]
+      },
+      {
+        "id": "birch-education-business-grant-retraction",
+        "eventId": "birch-education-business-business-grant-1",
+        "occurrenceId": "birch-education-business-business-grant-1",
+        "kind": "correction",
+        "profiles": [
+          "business"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "Correction: the council said the Birch grant approval announcement was issued in error; the grant had not been approved.",
+          "ar": "تصحيح: قال المجلس إن إعلان الموافقة على منحة بيرش صدر بالخطأ؛ ولم تتم الموافقة عليها."
+        },
+        "sourceIds": [
+          "birch-education-business-grant-retraction",
+          "birch-education-business-grant-retraction-repeat"
+        ],
+        "parent": "birch-education-business-grant-approved",
+        "supersedes": [
+          "birch-education-business-grant-approved"
+        ]
+      },
+      {
+        "id": "birch-education-business-new-school-incident",
+        "eventId": "birch-education-business-school-heat-2",
+        "occurrenceId": "birch-education-business-school-heat-2",
+        "kind": "new",
+        "profiles": [
+          "education"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "A separate heat emergency closed one Birch school; it was unrelated to the earlier flood closures.",
+          "ar": "أغلقت حالة حر طارئة منفصلة مدرسة واحدة في بيرش؛ ولا ترتبط بإغلاقات الفيضان السابقة."
+        },
+        "sourceIds": [
+          "birch-education-business-new-school-incident"
+        ]
+      },
+      {
+        "id": "birch-education-business-new-shop-incident",
+        "eventId": "birch-education-business-shop-fire-2",
+        "occurrenceId": "birch-education-business-shop-fire-2",
+        "kind": "new",
+        "profiles": [
+          "business"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "A new fire closed the Birch market for one day, separately from the grant programme.",
+          "ar": "أغلق حريق جديد سوق بيرش ليوم واحد، وهو منفصل عن برنامج المنح."
+        },
+        "sourceIds": [
+          "birch-education-business-new-shop-incident"
+        ]
+      },
+      {
+        "id": "birch-education-business-late-exam-venue",
+        "eventId": "birch-education-business-school-exams-1",
+        "occurrenceId": "birch-education-business-school-exams-1",
+        "kind": "update",
+        "profiles": [
+          "education"
+        ],
+        "importance": 2,
+        "canonical": {
+          "en": "The education office moved Birch exams to the town hall; the November 14 date was unchanged.",
+          "ar": "نقل مكتب التعليم امتحانات بيرش إلى مبنى البلدية؛ وظل موعد 14 نوفمبر دون تغيير."
+        },
+        "sourceIds": [
+          "birch-education-business-late-exam-venue"
+        ],
+        "parent": "birch-education-business-exam-correction"
+      }
+    ],
+    "faults": [
+      {
+        "tick": 1,
+        "phase": "before-generation",
+        "delayMs": 120000
+      },
+      {
+        "tick": 3,
+        "phase": "after-generation",
+        "delayMs": 120000
+      },
+      {
+        "tick": 5,
+        "phase": "after-publication",
+        "delayMs": 120000
+      }
+    ]
+  }
+]

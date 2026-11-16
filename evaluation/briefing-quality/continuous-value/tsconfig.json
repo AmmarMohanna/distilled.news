@@ -1,0 +1,24 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "../../..",
+    "paths": {
+      "@distilled/connectors": [
+        "packages/connectors/src/index.ts"
+      ],
+      "@distilled/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@distilled/contracts": [
+        "packages/contracts/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "*.ts",
+    "../continuous-*.test.ts",
+    "../../../apps/worker/worker-configuration.d.ts",
+    "../../../apps/worker/node_modules/@cloudflare/workers-types/index.d.ts",
+    "../worker/src/secrets.d.ts"
+  ]
+}

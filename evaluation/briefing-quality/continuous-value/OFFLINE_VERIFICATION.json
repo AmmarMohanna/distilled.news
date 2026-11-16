@@ -1,0 +1,1341 @@
+{
+  "schemaVersion": 1,
+  "newPaidCalls": 0,
+  "actualModelSpendUsd": 0,
+  "protocol": "continuous-value-v1",
+  "runs": [
+    {
+      "sequenceId": "cedar-chronology",
+      "simpleCheckpoint": false,
+      "scope": "Scripted oracle supplied expected statements. This is a harness/capability control, not measured editorial quality.",
+      "rows": [
+        {
+          "system": "v4",
+          "profile": "transport",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-bridge-closed",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-ferry-added",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-reopened",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-bridge-retraction",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-late-ferry",
+              "firstDue": "2026-11-03T11:30:00.000Z",
+              "at": "2026-11-03T11:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 75,
+          "falseQuiet": []
+        },
+        {
+          "system": "v4",
+          "profile": "utilities",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-water-warning",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-factory-claim",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-pump-correction",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-water-clear",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-water-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 61,
+          "falseQuiet": []
+        },
+        {
+          "system": "strong",
+          "profile": "transport",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-bridge-closed",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-ferry-added",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-reopened",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-bridge-retraction",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-late-ferry",
+              "firstDue": "2026-11-03T11:30:00.000Z",
+              "at": "2026-11-03T11:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 75,
+          "falseQuiet": []
+        },
+        {
+          "system": "strong",
+          "profile": "utilities",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-water-warning",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-factory-claim",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-pump-correction",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-water-clear",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-water-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 61,
+          "falseQuiet": []
+        },
+        {
+          "system": "simple",
+          "profile": "transport",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "failed-no-checkpoint": 1,
+            "quiet": 1
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-bridge-closed",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-ferry-added",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-reopened",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-bridge-retraction",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:30:00.001Z",
+              "delayMs": 1800001
+            },
+            {
+              "id": "cedar-chronology-bridge-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-late-ferry",
+              "firstDue": "2026-11-03T11:30:00.000Z",
+              "at": "2026-11-03T11:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 75,
+          "falseQuiet": []
+        },
+        {
+          "system": "simple",
+          "profile": "utilities",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "failed-no-checkpoint": 1,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-water-warning",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-factory-claim",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-pump-correction",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-water-clear",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:30:00.001Z",
+              "delayMs": 1800001
+            },
+            {
+              "id": "cedar-chronology-water-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 61,
+          "falseQuiet": []
+        }
+      ],
+      "operationalCounts": {
+        "scheduledJobs": 48,
+        "generationExecutions": 48,
+        "dispatchAttempts": 66,
+        "checkpointReuses": 4,
+        "suppressedDuplicateDeliveries": 6
+      }
+    },
+    {
+      "sequenceId": "cedar-chronology",
+      "simpleCheckpoint": true,
+      "scope": "Scripted oracle supplied expected statements. This is a harness/capability control, not measured editorial quality.",
+      "rows": [
+        {
+          "system": "v4",
+          "profile": "transport",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-bridge-closed",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-ferry-added",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-reopened",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-bridge-retraction",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-late-ferry",
+              "firstDue": "2026-11-03T11:30:00.000Z",
+              "at": "2026-11-03T11:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 75,
+          "falseQuiet": []
+        },
+        {
+          "system": "v4",
+          "profile": "utilities",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-water-warning",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-factory-claim",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-pump-correction",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-water-clear",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-water-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 61,
+          "falseQuiet": []
+        },
+        {
+          "system": "strong",
+          "profile": "transport",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-bridge-closed",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-ferry-added",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-reopened",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-bridge-retraction",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-late-ferry",
+              "firstDue": "2026-11-03T11:30:00.000Z",
+              "at": "2026-11-03T11:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 75,
+          "falseQuiet": []
+        },
+        {
+          "system": "strong",
+          "profile": "utilities",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-water-warning",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-factory-claim",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-pump-correction",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-water-clear",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-water-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 61,
+          "falseQuiet": []
+        },
+        {
+          "system": "simple",
+          "profile": "transport",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-bridge-closed",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-ferry-added",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-reopened",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-bridge-retraction",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-bridge-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-late-ferry",
+              "firstDue": "2026-11-03T11:30:00.000Z",
+              "at": "2026-11-03T11:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 75,
+          "falseQuiet": []
+        },
+        {
+          "system": "simple",
+          "profile": "utilities",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "cedar-chronology-water-warning",
+              "firstDue": "2026-11-03T08:30:00.000Z",
+              "at": "2026-11-03T08:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-factory-claim",
+              "firstDue": "2026-11-03T09:00:00.000Z",
+              "at": "2026-11-03T09:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-pump-correction",
+              "firstDue": "2026-11-03T09:30:00.000Z",
+              "at": "2026-11-03T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "cedar-chronology-water-clear",
+              "firstDue": "2026-11-03T10:00:00.000Z",
+              "at": "2026-11-03T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "cedar-chronology-water-new-incident",
+              "firstDue": "2026-11-03T11:00:00.000Z",
+              "at": "2026-11-03T11:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 61,
+          "falseQuiet": []
+        }
+      ],
+      "operationalCounts": {
+        "scheduledJobs": 48,
+        "generationExecutions": 48,
+        "dispatchAttempts": 66,
+        "checkpointReuses": 6,
+        "suppressedDuplicateDeliveries": 6
+      }
+    },
+    {
+      "sequenceId": "birch-education-business",
+      "simpleCheckpoint": false,
+      "scope": "Scripted oracle supplied expected statements. This is a harness/capability control, not measured editorial quality.",
+      "rows": [
+        {
+          "system": "v4",
+          "profile": "education",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-school-closure",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-remote-classrooms",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-exam-correction",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-school-reopen",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-school-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-late-exam-venue",
+              "firstDue": "2026-11-05T12:30:00.000Z",
+              "at": "2026-11-05T12:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 80,
+          "falseQuiet": []
+        },
+        {
+          "system": "v4",
+          "profile": "business",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-grant-proposal",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-approved",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-grant-count",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-retraction",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-shop-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 55,
+          "falseQuiet": []
+        },
+        {
+          "system": "strong",
+          "profile": "education",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-school-closure",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-remote-classrooms",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-exam-correction",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-school-reopen",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-school-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-late-exam-venue",
+              "firstDue": "2026-11-05T12:30:00.000Z",
+              "at": "2026-11-05T12:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 80,
+          "falseQuiet": []
+        },
+        {
+          "system": "strong",
+          "profile": "business",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-grant-proposal",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-approved",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-grant-count",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-retraction",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-shop-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 55,
+          "falseQuiet": []
+        },
+        {
+          "system": "simple",
+          "profile": "education",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "failed-no-checkpoint": 1,
+            "quiet": 1
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-school-closure",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-remote-classrooms",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-exam-correction",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-school-reopen",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:30:00.001Z",
+              "delayMs": 1800001
+            },
+            {
+              "id": "birch-education-business-new-school-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-late-exam-venue",
+              "firstDue": "2026-11-05T12:30:00.000Z",
+              "at": "2026-11-05T12:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 80,
+          "falseQuiet": []
+        },
+        {
+          "system": "simple",
+          "profile": "business",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "failed-no-checkpoint": 1,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-grant-proposal",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-approved",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-grant-count",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-retraction",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:30:00.001Z",
+              "delayMs": 1800001
+            },
+            {
+              "id": "birch-education-business-new-shop-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 55,
+          "falseQuiet": []
+        }
+      ],
+      "operationalCounts": {
+        "scheduledJobs": 48,
+        "generationExecutions": 48,
+        "dispatchAttempts": 66,
+        "checkpointReuses": 4,
+        "suppressedDuplicateDeliveries": 6
+      }
+    },
+    {
+      "sequenceId": "birch-education-business",
+      "simpleCheckpoint": true,
+      "scope": "Scripted oracle supplied expected statements. This is a harness/capability control, not measured editorial quality.",
+      "rows": [
+        {
+          "system": "v4",
+          "profile": "education",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-school-closure",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-remote-classrooms",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-exam-correction",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-school-reopen",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-school-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-late-exam-venue",
+              "firstDue": "2026-11-05T12:30:00.000Z",
+              "at": "2026-11-05T12:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 80,
+          "falseQuiet": []
+        },
+        {
+          "system": "v4",
+          "profile": "business",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-grant-proposal",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-approved",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-grant-count",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-retraction",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-shop-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 55,
+          "falseQuiet": []
+        },
+        {
+          "system": "strong",
+          "profile": "education",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-school-closure",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-remote-classrooms",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-exam-correction",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-school-reopen",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-school-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-late-exam-venue",
+              "firstDue": "2026-11-05T12:30:00.000Z",
+              "at": "2026-11-05T12:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 80,
+          "falseQuiet": []
+        },
+        {
+          "system": "strong",
+          "profile": "business",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-grant-proposal",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-approved",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-grant-count",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-retraction",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-shop-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 55,
+          "falseQuiet": []
+        },
+        {
+          "system": "simple",
+          "profile": "education",
+          "coverage": {
+            "recognized": 6,
+            "eligible": 6,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 6,
+          "jobStates": {
+            "published": 6,
+            "quiet": 2
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-school-closure",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-remote-classrooms",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-exam-correction",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-school-reopen",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-school-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-late-exam-venue",
+              "firstDue": "2026-11-05T12:30:00.000Z",
+              "at": "2026-11-05T12:30:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 80,
+          "falseQuiet": []
+        },
+        {
+          "system": "simple",
+          "profile": "business",
+          "coverage": {
+            "recognized": 5,
+            "eligible": 5,
+            "lowerBound": 1,
+            "upperBound": 1,
+            "missedOrUnresolved": []
+          },
+          "publicationCount": 5,
+          "jobStates": {
+            "published": 5,
+            "quiet": 3
+          },
+          "delays": [
+            {
+              "id": "birch-education-business-grant-proposal",
+              "firstDue": "2026-11-05T09:30:00.000Z",
+              "at": "2026-11-05T09:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-approved",
+              "firstDue": "2026-11-05T10:00:00.000Z",
+              "at": "2026-11-05T10:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-grant-count",
+              "firstDue": "2026-11-05T10:30:00.000Z",
+              "at": "2026-11-05T10:30:00.001Z",
+              "delayMs": 1
+            },
+            {
+              "id": "birch-education-business-grant-retraction",
+              "firstDue": "2026-11-05T11:00:00.000Z",
+              "at": "2026-11-05T11:02:00.001Z",
+              "delayMs": 120001
+            },
+            {
+              "id": "birch-education-business-new-shop-incident",
+              "firstDue": "2026-11-05T12:00:00.000Z",
+              "at": "2026-11-05T12:00:00.001Z",
+              "delayMs": 1
+            }
+          ],
+          "readerWords": 55,
+          "falseQuiet": []
+        }
+      ],
+      "operationalCounts": {
+        "scheduledJobs": 48,
+        "generationExecutions": 48,
+        "dispatchAttempts": 66,
+        "checkpointReuses": 6,
+        "suppressedDuplicateDeliveries": 6
+      }
+    }
+  ],
+  "claim": "Harness correctness only. No V4 or comparator paid-model quality result is claimed."
+}
