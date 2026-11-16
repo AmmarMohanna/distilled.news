@@ -6,8 +6,7 @@ import {effectiveModelExposure} from './model-spending-exposure-amendments';
 import type {ProviderDiagnostic} from '../provider-outcome';
 import {canonicalJson} from '../v1-intake/canonical';
 export interface ModelSpendingAuthorization {id:string;accountId:string;modelIds:string[];validFrom:string;validUntil:string;maxExposureUsd:number;maxConcurrentOperations:number;maxOperations?:number;feedIds?:string[];recoveryScope?:ModelRecoveryScope;evaluationScope?:ModelEvaluationScope}
-/** Interactive features may require a finite grant even on TRACK_ONLY accounts. */
-export interface ModelSpendingReservation {requireFinancialAuthorization?:boolean;providerLimits?:ProviderLimits;id:string;accountId:string;model:string;feedId:string;token:string;reservedCostUsd:number;leaseUntil:number;createdAt:string;recovery?:RecoveryReservationBinding;evaluation?:{manifestHash:string;requestHash:string}}
+export interface ModelSpendingReservation {providerLimits?:ProviderLimits;id:string;accountId:string;model:string;feedId:string;token:string;reservedCostUsd:number;leaseUntil:number;createdAt:string;recovery?:RecoveryReservationBinding;evaluation?:{manifestHash:string;requestHash:string}}
 export class ModelSpendingWait extends Error {constructor(readonly reason:string){super(reason)}}
 const instant=(value:string)=>new Date(value).toISOString();
 const legacyMissing=`SELECT COUNT(*) AS n FROM v1_feed_documents d WHERE d.kind IN ('semantic_intents','salience_intents','model_intents') AND NOT EXISTS(SELECT 1 FROM v1_model_spending_reservations r WHERE r.id=d.kind||':'||d.id)`;
@@ -48,7 +47,7 @@ export async function modelSpendingStatements(db:D1Database,r:ModelSpendingReser
  const quarantined=await db.prepare("SELECT id FROM v1_feed_documents WHERE kind='model_execution_quarantines' AND id=? AND feed_id=?").bind(r.id,r.feedId).first();
  const existing=await db.prepare('SELECT json FROM v1_model_spending_reservations WHERE id=?').bind(r.id).first<{json:string}>();if(existing){if(canonicalJson(JSON.parse(existing.json))!==canonicalJson(r))throw new ModelSpendingWait('RESERVATION_IDENTITY_CONFLICT');if(quarantined)throw new ModelSpendingWait('OPERATION_EXECUTION_QUARANTINED');return []}
  if(quarantined)throw new ModelSpendingWait('OPERATION_EXECUTION_QUARANTINED');
- const tracking=r.requireFinancialAuthorization ? [] : await trackingAccounts(db,r.model,r.accountId);
+ const tracking=await trackingAccounts(db,r.model,r.accountId);
  if(tracking.length>1)throw new ModelSpendingWait('ACCOUNT_AUTHORIZATION_REQUIRED');
  if(tracking.length===1){
   const guards=await providerLimitStatements(db,r,{accountingSince:tracking[0].enabledAt});
