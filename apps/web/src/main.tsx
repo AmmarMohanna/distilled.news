@@ -1507,6 +1507,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const initialLoading = !payload && (readState.key !== feedKey || readState.state === "loading");
   const readerLoading = initialLoading || viewerLoading;
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
+  const [editionSource,setEditionSource]=useState<{key:string;text:string}|null>(null);
   const [query, setQuery] = useState("");
   const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
   const [error, setError] = useState<UiMessage>("");
@@ -1516,7 +1517,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload ? [
     ...payload.editions.map(edition=>edition.id),
-    ...(settledSearch?.key===feedKey?editions.map(edition=>edition.id):[])
+    ...(editionSource?.key===feedKey?editions.map(edition=>edition.id):[])
   ] : []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
@@ -1556,7 +1557,8 @@ function FeedPage(props: { username: string; slug: string }) {
       // Changed or unknown publication state must not leave stale search prose
       // visible while its authoritative replacement is pending or unavailable.
       setEditions(current => searching ? (changed?[]:complete?current.filter(edition => ids.has(edition.id)):current) : next.editions);
-      if(changed){setSettledSearch(null);setSelectedReport(null);setEditionDetails(new Map());}
+      if(!searching)setEditionSource({key,text:latestQuery.current});
+      if(changed){setEditionSource(null);setSettledSearch(null);setSelectedReport(null);setEditionDetails(new Map());}
       setEditionDetails(current => new Map([...current].filter(([id]) => ids.has(id))));
       setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
     } catch (cause) {
@@ -1571,7 +1573,7 @@ function FeedPage(props: { username: string; slug: string }) {
   }
 
   useEffect(() => {
-    setError("");setSearchError(null); setSummaryMessage(""); latestQuery.current = "";
+    setError("");setSearchError(null);setEditionSource(null); setSummaryMessage(""); latestQuery.current = "";
     setQuery(""); setEditions([]); setEditionBusyIds(new Set());
     setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
     visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
@@ -1618,7 +1620,7 @@ function FeedPage(props: { username: string; slug: string }) {
       const next = text.trim() ? await searchFeed(props.username, props.slug, text) : payload?.editions ?? [];
       if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) {
         visibleEditionIds.current = new Set([...visibleEditionIds.current, ...next.map(edition => edition.id)]);
-        setSearchError(null); setEditions(next); setSettledSearch({ key, text });
+        setSearchError(null); setEditions(next);setEditionSource({key,text}); setSettledSearch({ key, text });
       }
     } catch (cause) {
       if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { setSearchError({key,text,message:toUiError(cause)}); setSettledSearch({key,text}); }
@@ -1629,15 +1631,17 @@ function FeedPage(props: { username: string; slug: string }) {
   useEffect(() => {
     const request = ++searchRequest.current;
     if (!payload) return;
-    if (!query.trim()) { setSearchError(null); setEditions(payload.editions); return; }
+    if (!query.trim()) { setSearchError(null); setEditions(payload.editions);setEditionSource({key:feedKey,text:query}); return; }
     const timeout = window.setTimeout(() => {
       if (request === searchRequest.current && feedIdentity.current === feedKey && query === latestQuery.current) void applySearch(query, request);
     }, 250);
     return () => window.clearTimeout(timeout);
   }, [searchSnapshot, props.username, props.slug, query]);
 
-  const currentEditions = payload ? editions : [];
+  const editionMatchesQuery=editionSource?.key===feedKey&&editionSource.text===query;
+  const currentEditions = payload&&editionMatchesQuery ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
+  const activeSearchError=searchError?.key===feedKey&&searchError.text===query?searchError.message:null;
   const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
   const filteredEditions = [
     ...currentEditions.filter(edition => !readIds.has(edition.id)),
@@ -1650,7 +1654,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const canStar = Boolean(payload);
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
   const compactFeedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language, true) : "";
-  const reportEdition = selectedReport
+  const reportEdition = editionMatchesQuery&&selectedReport
     ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
     : undefined;
   const feedTitle = payload ? (
@@ -1764,7 +1768,7 @@ function FeedPage(props: { username: string; slug: string }) {
           const result = await logout();
           feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
           visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
-          setFeedResult(null);setEditions([]);setEditionDetails(new Map());setSelectedReport(null);
+          setFeedResult(null);setEditions([]);setEditionSource(null);setEditionDetails(new Map());setSelectedReport(null);
           setQuery('');setSettledSearch(null);setSearchError(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
           setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
           if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
@@ -1824,7 +1828,7 @@ function FeedPage(props: { username: string; slug: string }) {
         />
       ) : null}
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
-      {searchError?.key===feedKey&&searchError.text===query&&<FeedNotice message={t(searchError.message)} language={language}/>}
+      {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
@@ -1835,7 +1839,7 @@ function FeedPage(props: { username: string; slug: string }) {
         </p>
       ) : null}
 
-      {searchLoading && !error && currentEditions.length === 0 ? <FeedLoadingSkeleton label={loadingFeedLabel(language)}/> : null}
+      {searchLoading && !error && !activeSearchError && currentEditions.length === 0 ? <FeedLoadingSkeleton label={loadingFeedLabel(language)}/> : null}
       <div className="news-line">
         {groupEditionsByDay(visibleUnreadEditions, language, clock).map(group => (
           <section className="news-day-group" key={group.key}>
@@ -1867,7 +1871,7 @@ function FeedPage(props: { username: string; slug: string }) {
             <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
           </div>
         ) : null}
-        {payload && !initialLoading && !searchLoading && filteredEditions.length === 0 && !error ? (
+        {payload && !initialLoading && !searchLoading && filteredEditions.length === 0 && !error && !activeSearchError ? (
           <div className="empty-state feed-empty-state">
             {archivedReadEditions.length === 0 && <span className="feed-empty-icon" aria-hidden="true"><Newspaper size={32} strokeWidth={1.5}/></span>}
             <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>

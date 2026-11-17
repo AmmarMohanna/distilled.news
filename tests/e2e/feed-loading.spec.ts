@@ -100,6 +100,19 @@ test('an unchanged healthy feed refresh cannot clear a failed historical search'
  await page.getByPlaceholder('Search briefings').press('Enter');await expect(page.locator('.news-headline')).toContainText('historical');await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
+for(const priorSearch of [false,true])test(`a failed new search cannot display unrelated previous editions (prior search=${priorSearch})`,async({page})=>{
+ await page.route('**/api/**',route=>{
+  const u=new URL(route.request().url());
+  if(u.pathname===path)return route.fulfill({json:{briefing:feed,editionsComplete:false,publicationVersion:'unchanged',editions:[edition('Sports update')]}});
+  if(u.pathname.endsWith('/search'))return u.searchParams.get('q')==='sports'?route.fulfill({json:{editions:[edition('Sports result')]}}):route.fulfill({status:503,json:{error:'unavailable'}});
+  return route.fulfill({json:{authenticated:false,feeds:[]}});
+ });
+ await page.goto('/reader/news/');await expect(page.locator('.news-headline')).toContainText('Sports update');
+ const search=page.getByPlaceholder('Search briefings');if(priorSearch){await search.fill('sports');await expect(page.locator('.news-headline')).toContainText('Sports result');}
+ await search.fill('biology');await expect(page.getByRole('alert')).toContainText(requestFailed);await expect(page.locator('.news-item')).toHaveCount(0);
+ await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+});
+
 test('navigation cannot inherit a pending response from another feed',async({page})=>{
  const previous=gate();
  await page.route('**/api/**',async route=>{
