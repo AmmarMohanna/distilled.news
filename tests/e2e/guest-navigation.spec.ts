@@ -54,7 +54,8 @@ test("create feed opens login and signup with outside, inside, and Escape behavi
   const registered = page.waitForRequest(request => request.url().endsWith("/api/auth/register"));
   await dialog.getByRole("button", { name: "Create Account", exact: true }).click();
   expect((await registered).postDataJSON()).toMatchObject({ username: "joud", email: "joud@example.test" });
-  await expect(dialog.getByText(/verification email sent/i)).toBeVisible();
+  await expect(dialog.locator(".auth-message")).toHaveText("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
+  await expect(dialog.getByRole("button", { name: "Resend verification email", exact: true })).toBeEnabled();
   await page.screenshot({ path: "test-results/auth-popup-" + test.info().project.name + ".png" });
   await page.mouse.click(4, 4);
   await expect(dialog).toHaveCount(0);
