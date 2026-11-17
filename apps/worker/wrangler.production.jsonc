@@ -9,7 +9,12 @@
   ],
   "workers_dev": true,
   "preview_urls": false,
-  "routes": [],
+  "routes": [
+    {
+      "pattern": "distilled.news",
+      "custom_domain": true
+    }
+  ],
   "vars": {
     "BRIEFING_EDITOR_MODEL": "openai/gpt-4.1",
     "BRIEFING_ENGINE": "v3",
@@ -24,8 +29,8 @@
     "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
     "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
     "PRODUCT_FEEDS_ENABLED": "true",
-    "PUBLIC_API_BASE_URL": "https://distilled-news-production.distillednews-platform.workers.dev",
-    "PUBLIC_WEB_BASE_URL": "https://distilled-news-production.distillednews-platform.workers.dev",
+    "PUBLIC_API_BASE_URL": "https://distilled.news",
+    "PUBLIC_WEB_BASE_URL": "https://distilled.news",
     "SOURCE_ASSESSMENT_ENABLED": "true",
     "SOURCE_ASSESSMENT_MODEL": "openai/gpt-4.1-mini",
     "SOURCE_COLLECTION_BUDGET_MODE": "unlimited",
