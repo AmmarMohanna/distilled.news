@@ -30,7 +30,7 @@ import {
 import { significantNumbers } from "./text";
 import {selectTopicSources} from './topic-selection';
 import {wordingFidelity,wordingBase} from './wording-fidelity';
-import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,recoveryHistory} from './verification-recovery';
+import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,SUPPORTED_CORE_VERIFY_V2,SUPPORTED_CORE_REPAIR_V2,MATERIAL_RECOVERY,auditRepairCoverage,recoveryHistory} from './verification-recovery';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
@@ -375,7 +375,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: wordingBase(input.feed,'verify',(promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM))+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed,true)+(input.feed.verificationRecoveryPolicy==='supported-core-v1'?'\n\n'+SUPPORTED_CORE_VERIFY:''),
+          system: wordingBase(input.feed,'verify',(promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM))+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed,true)+(input.feed.verificationRecoveryPolicy?'\n\n'+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?SUPPORTED_CORE_VERIFY_V2:SUPPORTED_CORE_VERIFY):''),
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
@@ -452,7 +452,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: wordingBase(input.feed,'repair',(promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM))+wordingFidelity(input.feed)+(input.feed.verificationRecoveryPolicy==='supported-core-v1'?'\n\n'+SUPPORTED_CORE_REPAIR:''),
+      system: wordingBase(input.feed,'repair',(promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM))+wordingFidelity(input.feed)+(input.feed.verificationRecoveryPolicy?'\n\n'+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?SUPPORTED_CORE_REPAIR_V2:SUPPORTED_CORE_REPAIR):''),
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,
@@ -464,7 +464,7 @@ async function repair(
           sources: drafts[index].refs,
           issues: flagged.get(index)!
         }))
-      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy==='supported-core-v1'?recoveryHistory(history,indices,finalRepair):''),
+      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy?recoveryHistory(history,indices,input.feed.verificationRecoveryPolicy==='supported-core-v2'?false:finalRepair)+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?'\n\n'+(finalRepair?'FINAL SUPPORTED-CORE REPAIR: ':'')+MATERIAL_RECOVERY:''):''),
       maxTokens: 3000
     },
     (raw) => {
@@ -682,6 +682,15 @@ export async function generateBriefing(
     }
   }
   for (const index of todo) dropped.push({ headline: drafts[index].headline, reason: "never confirmed by the verifier", carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
+
+  if(input.feed.verificationRecoveryPolicy==='supported-core-v2'){
+    const repaired=[...accepted].filter(index=>repairHistory.has(index));
+    for(const batch of batchesBySourceSize(repaired,drafts,byRef,options.maxVerifyChars)){
+      const refs=[...new Set(batch.flatMap(index=>drafts[index].refs))];
+      const issues=await timed('recovery_coverage',()=>auditRepairCoverage(port,meter,models.editor,input,batch.map(index=>({index,...drafts[index],history:repairHistory.get(index)!})),refs.map(ref=>byRef.get(ref)!)));
+      for(const [index,reason]of issues){accepted.delete(index);dropped.push({headline:drafts[index].headline,reason,carry:true,sourceIds:sourceIdsOfRefs(drafts[index].refs)});}
+    }
+  }
 
   const items: BriefingItem[] = [...accepted]
     .sort((a, b) => a - b)

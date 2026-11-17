@@ -47,12 +47,12 @@ it('versions topic selection in new input identity without changing unmarked sou
  const {topicSelectionPolicy:_,...unchanged}=next.input.feed;
  expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
 });
-it('versions supported-core recovery in new frozen inputs without rewriting prior snapshots',async()=>{
+it.each(['supported-core-v1','supported-core-v2'] as const)('versions %s recovery in new frozen inputs without rewriting prior snapshots',async policy=>{
  await article();
  const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
- const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,'supported-core-v1');
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,policy);
  expect(old.input.feed).not.toHaveProperty('verificationRecoveryPolicy');
- expect(next.input.feed.verificationRecoveryPolicy).toBe('supported-core-v1');expect(next.fingerprint).not.toBe(old.fingerprint);
+ expect(next.input.feed.verificationRecoveryPolicy).toBe(policy);expect(next.fingerprint).not.toBe(old.fingerprint);
  const {verificationRecoveryPolicy:_,...unchanged}=next.input.feed;expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
 });
 
@@ -1096,7 +1096,7 @@ it('freezes complete accounting in new inputs and persists every source decision
  expect(edition).toBeDefined();
  const id=await windowIdentity('feed-1',window),snapshot=await store.read<any>('feed-1','v3_window_inputs',id),saved=await store.read<any>('feed-1','v3_window_results',id);
  expect(snapshot.editorAccountingPolicy).toBe('complete-source-decisions-v2');
- expect(snapshot.input.feed.verificationRecoveryPolicy).toBe('supported-core-v1');
+ expect(snapshot.input.feed.verificationRecoveryPolicy).toBe('supported-core-v2');
  expect(seen.join('\n')).toContain('SUPPORTED-CORE VERIFICATION');
  expect(snapshot.editorSourcePolicy).toBe('all-supporting-sources-v1');expect(snapshot.citationCoverage).toBe(false);
  expect(saved.result.sourceDecisions).toHaveLength(snapshot.input.articles.length);
@@ -1114,4 +1114,23 @@ it('reports exhausted accounting as an accounting deferral rather than a quiet o
  const saved=await store.read<any>('feed-1','v3_window_results',id);
  expect(saved.result.status).toBe('rejected');expect(saved.result.sourceDecisions[0].outcomes[0].decision).toBe('deferred');expect(saved.result.dropped[0].carry).toBe(true);expect(seen).toHaveLength(2);
  await processV1Briefing(env,message,()=>window.end,undefined,provider);expect(seen).toHaveLength(2);
+});
+
+
+it.each([
+ ['EDITORIAL_RECOVERY_COVERAGE: incomplete: major groups omitted','V3_EDITORIAL_COVERAGE_INCOMPLETE'],
+ ['still flagged after repair: unsupported quantity','V3_VERIFICATION_REJECTED']
+])('records the correct deferral reason for retained rejection %s without repeating inference',async(reason,code)=>{
+ await article();const id=await windowIdentity('feed-1',window);
+ const prepared=await prepareV3Window(store,'feed-1',window,window.end,undefined,4,undefined,false,undefined,undefined,'supported-core-v2');
+ const frozen={...prepared,id},saved={id,feedId:'feed-1',inputId:prepared.fingerprint,windowEnd:window.end,operationIds:[],result:{status:'rejected',items:[],skipped:[],omitted:[],dropped:[{headline:'Army report',sourceIds:prepared.evidenceRevisionIds,carry:true,reason}],usage:{calls:0,inputTokens:0,outputTokens:0},timings:{totalMs:0,stages:{}}}};
+ await feedTransact(store,'feed-1',async tx=>{
+  await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,engine:'v3',state:'PENDING',attempts:0,createdAt:window.end});
+  await tx.write('v3_window_inputs',id,frozen);await tx.write('v3_window_results',id,saved);
+ });
+ const send=vi.fn(async()=>{throw Error('Retained rejection must not repeat model calls')});
+ await expect(publishProductV3Window(env,'feed-1',window,id,()=>window.end,send)).resolves.toBeUndefined();
+ expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'DEFERRED',reason:code});
+ await expect(publishProductV3Window(env,'feed-1',window,id,()=>window.end,send)).resolves.toBeUndefined();expect(send).not.toHaveBeenCalled();
+ expect(await store.read('feed-1','v3_window_results',id)).toEqual(saved);
 });

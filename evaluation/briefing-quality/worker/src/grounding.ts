@@ -1,5 +1,5 @@
 import {check,inventoryRequest,reviewRequest,review,metrics,type Review,type Case,type Inventory,type Request} from './protocol';
-export const REVIEW_VALIDATION_POLICY='citation-consistency-v1';
+export const REVIEW_VALIDATION_POLICY='claim-citation-consistency-v2';
 export interface GroundingRow {developmentId:string;support:'supported'|'unsupported'|'uncertain';explanation:string}
 export interface Grounding {results:GroundingRow[];limitations:string[]}
 /** Candidate-blind and history-blind: history cannot supply missing current facts. */
@@ -25,13 +25,13 @@ export function groundedReviewRequest(c:Case,d:Inventory):Request{
 }
 export function groundedReview(raw:unknown,c:Case,d:Inventory){
  const r=review(raw,c,d,true);
- // Citation existence is structural; semantic entailment remains a judge claim.
+ // Missing/unsupported refer to this atomic claim, not the whole item.
+ // Other claims may legitimately have citations on the same item.
  // Reject contradictions, never upgrade a negative/uncertain label into a score.
  for(const claim of r.claims){
   const attached=new Set(c.items[claim.item].sourceIds);
-  check(claim.citationSupport!=='missing'||attached.size===0,'CITATIONS_PRESENT_BUT_MARKED_MISSING');
   const allSupportAttached=claim.evidence.length>0&&claim.evidence.every(e=>attached.has(e.sourceId));
-  check(!(claim.support==='supported'&&claim.citationSupport==='unsupported'&&allSupportAttached),'CITED_SUPPORT_LABEL_CONTRADICTION');
+  check(!(claim.support==='supported'&&['missing','unsupported'].includes(claim.citationSupport)&&allSupportAttached),'CITED_SUPPORT_LABEL_CONTRADICTION');
  }
  check(!r.findings.some(f=>f.category==='coverage'),'UNBOUND_COVERAGE_FINDING');
  for(const f of r.findings){

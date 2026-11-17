@@ -150,7 +150,7 @@ describe('D1/R2 spending and recovery',()=>{
   });
   try{
    const e={...env,SOURCE_DB:source};await processJob(e,id);
-   expect(await env.EVAL_DB.prepare('SELECT status,error,report_key,metrics_json FROM eval_jobs WHERE id=?').bind(id).first()).toEqual({status:'review_failed',error:'CITATIONS_PRESENT_BUT_MARKED_MISSING',report_key:null,metrics_json:null});
+   expect(await env.EVAL_DB.prepare('SELECT status,error,report_key,metrics_json FROM eval_jobs WHERE id=?').bind(id).first()).toEqual({status:'review_failed',error:'CITED_SUPPORT_LABEL_CONTRADICTION',report_key:null,metrics_json:null});
    const calls=(await env.EVAL_DB.prepare('SELECT stage,state,response_key,cost_micro FROM eval_calls WHERE job_id=? ORDER BY stage').bind(id).all<{stage:string;state:string;response_key:string;cost_micro:number}>()).results;
    expect(calls).toHaveLength(3);expect(calls.every(v=>v.state==='SETTLED'&&v.cost_micro===1000)).toBe(true);
    const saved=await env.EVIDENCE.get(calls.find(v=>v.stage==='atomic_claims_and_coverage')!.response_key);

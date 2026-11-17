@@ -22,7 +22,7 @@ export interface FeedSpec {
   /** Frozen in new snapshots; preserve claim strength and action during compression. */
   wordingFidelityPolicy?: 'faithful-writing-v1';
   /** New frozen inputs only: bounded repair history and supported-core recovery. */
-  verificationRecoveryPolicy?: 'supported-core-v1';
+  verificationRecoveryPolicy?: 'supported-core-v1' | 'supported-core-v2';
 }
 
 /** Something the reader has already been told. */

@@ -186,14 +186,18 @@ only when the corresponding authorized experiments and independent reviews occur
 
 ## Citation consistency validation (candidate, 17 November 2026)
 
-Current grounded reviews use `citation-consistency-v1`, recorded as
-`reviewValidationPolicy` on newly completed reports. An attached citation cannot
-be labelled `missing`. If the judge declares a claim supported and every passage
-it uses to establish that claim comes from attached sources, calling those
-citations `unsupported` is internally contradictory. Both cases fail validation
-with explicit error codes. A claim needing uncited evidence may legitimately have
-unsupported citations; `uncertain` remains an honest abstention. Mere citation-ID
-membership never establishes semantic support.
+Current grounded reviews use `claim-citation-consistency-v2`, recorded as
+`reviewValidationPolicy` on newly completed reports. Missing means no attached
+citation supporting this particular atomic claim, not no citations anywhere on
+the item. A multi-claim item may therefore have correctly cited claim A and a
+valid missing-citation finding on claim B supported only by an uncited source.
+
+Only an internal contradiction is rejected: the judge declares the claim
+supported, all evidence it supplies to establish that claim comes from attached
+sources, yet it calls the claim's citation missing or unsupported. Partial cited
+plus uncited support, wholly uncited support and uncertain assessments remain
+valid adverse/unknown outcomes. Mere item-level citation presence never forces a
+claim to pass. Labels are never automatically upgraded.
 
 Contradictory received assessments become `review_failed` with no quality metrics.
 Original paid responses, settled costs and UNKNOWN holds remain intact. These
@@ -214,11 +218,19 @@ change does not repair that historical finding or claim to eliminate paraphrase
 and coverage errors. No keyword-based score correction is introduced. Treat model
 coverage findings as potential issues requiring source-and-reader comparison.
 
-Local verification: 116 offline evaluator tests pass, including an end-to-end
+Prior local verification: 116 offline evaluator tests passed, including an end-to-end
 paid-record preservation test; evaluator Worker typecheck passes. The fixtures
 are regression controls, not new paid-model accuracy measurements. No deployment,
 paid inference or historical report mutation is included in this change.
 
-The CI-equivalent command also passed all six check groups (Python evaluation,
+The previous CI-equivalent command also passed all six check groups (Python evaluation,
 116 evaluator tests, 389 briefing tests, exporter tests, replay types and evaluator
 Worker types): `python evaluation/briefing-quality/continuous.py --output <local-report-directory>`.
+
+
+The claim-level P1 correction passes 119 offline evaluator tests, including the
+multi-claim A-cited/B-uncited cases. All six CI-equivalent groups pass, with 396
+briefing tests and both evaluation typecheck groups. An unchanged queue test timed
+out in the first concurrent run and passed in the sequential rerun; assertions and
+timeouts were not changed. No paid inference, report rewriting or deployment was
+performed.

@@ -44,7 +44,7 @@ export const productV3Models=(env:Env):BriefingModels=>({editor:env.BRIEFING_EDI
 
 /** Read-through preparation is mechanical. The window is frozen only at close,
  * so arrivals during preparation are included without paying twice. */
-export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1',wordingFidelityPolicy?:'faithful-writing-v1',verificationRecoveryPolicy?:'supported-core-v1'):Promise<V3WindowInput>{
+export async function prepareV3Window(store:V1FeedStore,feedId:string,window:PublicationWindow,now:string,models:BriefingModels={editor:'openai/gpt-4.1',verifier:'openai/gpt-4.1-mini'},promptVersion:1|2|3|4|5|6=4,architecture?:'evidence-first-v1'|'evidence-first-v2',freezeAtCutoff=false,topicSelectionPolicy?:'reader-topic-boundaries-v1',wordingFidelityPolicy?:'faithful-writing-v1',verificationRecoveryPolicy?:'supported-core-v1'|'supported-core-v2'):Promise<V3WindowInput>{
  const feed=await store.getFeed(feedId);if(!feed||feed.paused||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
  if(!['en','ar','fr'].includes(feed.outputLanguage))throw Error('V3_UNSUPPORTED_LANGUAGE');
  const editions=(await store.publicationPreparationHistory(feedId,priorMemoryCutoff(new Date(window.end)))).filter(e=>Date.parse(e.windowEnd)<=Date.parse(window.start));
@@ -144,7 +144,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   // deferred its unstarted request. Never freeze or pay for that old window.
   if(!request||request.state!=='PENDING'||request.engine!=='v3')return undefined;
   let snapshot=await store.read<V3WindowInput>(feedId,'v3_window_inputs',request?.v3InputId??id);
-  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v1');snapshot=await feedTransact(store,feedId,async tx=>{
+  if(!snapshot){const prepared=await prepareV3Window(store,feedId,window,now(),productV3Models(env),productV3PromptVersion(env),undefined,env.CUTOFF_EDITIONS_ENABLED==='true',env.BRIEFING_TOPIC_SELECTION_ENABLED==='true'?'reader-topic-boundaries-v1':undefined,env.BRIEFING_WORDING_FIDELITY_ENABLED==='true'?'faithful-writing-v1':undefined,'supported-core-v2');snapshot=await feedTransact(store,feedId,async tx=>{
    const prior=await tx.read<V3WindowInput>('v3_window_inputs',id);if(prior)return prior;
    if(tx.snapshot.feed.revision!==prepared.feedRevision)throw new HandoffError('TEMPORARY_UNAVAILABLE');
    const frozen={...prepared,id};await tx.write('v3_window_inputs',id,frozen);return frozen;
@@ -219,7 +219,7 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    else{const active=await store.activeEvidenceRevisionIds(feedId);if(frozen.evidenceRevisionIds.some(r=>!active.has(r)))throw new HandoffError('SCOPE_DENIED');}
    const result=completed.result;
    if(result.status!=='published'){
-    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:result.status==='rejected'||coverage.state!=='COMPLETE'?'DEFERRED':'QUIET',reason:result.status==='rejected'?(result.dropped.some(d=>/EDITOR_ACCOUNTING/.test(d.reason))?'V3_EDITOR_ACCOUNTING_INCOMPLETE':'V3_VERIFICATION_REJECTED'):coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});return undefined;
+    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:result.status==='rejected'||coverage.state!=='COMPLETE'?'DEFERRED':'QUIET',reason:result.status==='rejected'?(result.dropped.some(d=>/EDITOR_ACCOUNTING/.test(d.reason))?'V3_EDITOR_ACCOUNTING_INCOMPLETE':result.dropped.some(d=>d.reason.startsWith('EDITORIAL_RECOVERY_COVERAGE:'))?'V3_EDITORIAL_COVERAGE_INCOMPLETE':'V3_VERIFICATION_REJECTED'):coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':'NO_SELECTED_DEVELOPMENTS',completedAt:now()});return undefined;
    }
    await tx.preloadRevisions(frozen.evidenceRevisionIds);
    const edition=stagedEdition??await v3Edition(ref=>tx.revision(ref),id,frozen,completed,now());
