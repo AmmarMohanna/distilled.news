@@ -1,10 +1,41 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { FeedEditor } from './FeedEditor';
 import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceCandidates, getSourceQuerySuggestions } from './api';
 import { personalNewsBriefing } from '@distilled/core';
 import {setWebsiteLanguage} from './LanguageControl';
+beforeEach(()=>vi.mocked(getSources).mockReset().mockResolvedValue([{enabled:true,sourceUrl:'https://example.com/feed.xml'}] as any));
+
+it('saves a title change with all persisted sources disabled without enabling them',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ vi.mocked(getSources).mockResolvedValueOnce([{id:'disabled',briefingId:personalNewsBriefing.id,title:'Paused source',provider:'rss',kind:'rss_feed',type:'channel',enabled:false,lastSeenAt:'2026-11-17T00:00:00Z',sourceUrl:'https://example.com/feed.xml'}]);
+ const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async(_input:unknown)=>{});
+ try{
+  await act(async()=>setWebsiteLanguage('en'));
+  await act(async()=>root.render(<FeedEditor feed={personalNewsBriefing} onClose={()=>{}} onSave={onSave}/>));
+  await act(async()=>{const input=host.querySelector<HTMLInputElement>('input[aria-label="Feed name"]')!;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'Renamed inactive feed');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({title:'Renamed inactive feed',sourceInputs:[]}));
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
+
+it('retries source loading in the open editor without losing a typed title',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ vi.mocked(getSources).mockRejectedValueOnce(new Error('Temporary source failure')).mockResolvedValueOnce([{enabled:true,sourceUrl:'https://example.com/feed.xml'}] as any);
+ const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async(_input:unknown)=>{});
+ try{
+  await act(async()=>setWebsiteLanguage('en'));
+  await act(async()=>root.render(<FeedEditor feed={personalNewsBriefing} onClose={()=>{}} onSave={onSave}/>));
+  const title=host.querySelector<HTMLInputElement>('input[aria-label="Feed name"]')!;
+  await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(title,'Typed before retry');title.dispatchEvent(new Event('input',{bubbles:true}));});
+  expect(host.querySelector<HTMLButtonElement>('.primary-button')?.disabled).toBe(true);
+  const retry=[...host.querySelectorAll('button')].find(button=>button.textContent==='Retry sources');expect(retry).toBeDefined();
+  await act(async()=>retry!.click());expect(title.value).toBe('Typed before retry');
+  await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({title:'Typed before retry',sourceInputs:['https://example.com/feed.xml']}));
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
 
 it('submits the public Telegram URL when editing only a verified channel feed title',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);

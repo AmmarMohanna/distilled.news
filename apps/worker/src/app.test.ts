@@ -82,6 +82,20 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it.each([1,75])('marks whether the legacy feed snapshot covers searchable history (%s editions)',async(count)=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo});
+    const user=await createVerifiedUser(app,repo,'history@example.invalid','History Owner');
+    const briefing=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+    for(let i=0;i<count;i++){
+      const at=new Date(Date.now()-(i+1)*60000).toISOString();
+      await repo.saveBriefingEdition({id:'history-'+i,briefingId:briefing.id,cadence:'hourly',windowStart:at,windowEnd:at,title:'Archive development '+i,summary:'The coastal road reopened after an overnight security closure.',sections:[{title:'Infrastructure',summary:'The coastal road reopened after an overnight security closure.',evidence:[]}],status:'published',publishedAt:at,createdAt:at,updatedAt:at});
+    }
+    const response=await app.request('/api/feed/history-owner/personal',{},env());expect(response.status).toBe(200);
+    const payload=await response.json() as {editionsComplete:boolean;editions:unknown[]};
+    expect(payload.editions).toHaveLength(Math.min(count,50));expect(payload.editionsComplete).toBe(count<50);
+    const search=await app.request('/api/feed/history-owner/personal/search?q=coastal',{},env());
+    expect((await search.json() as {editions:unknown[]}).editions).toHaveLength(count);
+  });
   it('rejects invalid retrieval budgets and never spends on an ordinary blocked source check',async()=>{
     const fetcher=vi.fn<typeof fetch>(async()=>new Response('Blocked',{status:403})),app=createApp({repository:new InMemoryRepository(),fetcher});
     const target={...env(),SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_PAID_VERIFICATION_ENABLED:'true',OPENROUTER_API_KEY:'test',ZYTE_API_KEY:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0.05}'};

@@ -64,6 +64,8 @@ export interface PublicationProgress {
 }
 
 export interface FeedPayload {
+  /** Whether editions covers the complete searchable publication set. */
+  editionsComplete?: boolean;
   unreadSummaryAvailable?: boolean;
   publicationProgress?: PublicationProgress;
   publicationState?: 'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required'|'partial'|'service_blocked';

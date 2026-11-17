@@ -914,10 +914,17 @@ export function createApp(options: AppOptions = {}) {
 
   app.post('/api/me/feeds', async c => {
     if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
-    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(FEED_TITLE_MAX_LENGTH),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")).min(1),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleFields.durationMinutes,briefingTimeOfDay:liveScheduleFields.deliveryAnchor,briefingTimezone:liveScheduleFields.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
+    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(FEED_TITLE_MAX_LENGTH),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleFields.durationMinutes,briefingTimeOfDay:liveScheduleFields.deliveryAnchor,briefingTimezone:liveScheduleFields.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
     if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
+    if(input.sourceInputs.length===0){
+      const sources=existing?await repo.listSources(existing.id):[];
+      // Preserve intentionally disabled records; an empty list must not create
+      // an unconfigured feed or silently remove its active sources.
+      if(sources.length===0||sources.some(source=>source.enabled))return c.json({error:'Add at least one source.'},400);
+      return saveBriefingConfiguration(c,{...existing!,...input,slug:existing!.slug});
+    }
     if(c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
       const checks=await assessSources(c.env,{title:input.title,description:input.interestProfile},input.sourceInputs,fetcher,{ownerAccountId:owner.id,providerFetcher:fetcher});
       const blocked=checks.find(check=>check.status!=='accepted');
@@ -1351,11 +1358,12 @@ export function createApp(options: AppOptions = {}) {
         briefing: publicFeed,
         ...status.value.value,
         editions: presentProductEditions(briefing, published.records),
+        editionsComplete:true,
         viewerHasStarred
       });
     }
-    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true))
-      .filter((edition) => isPublicEditionVisible(edition, briefing.language));
+    const legacyEditions=c.env.PRODUCT_FEEDS_ENABLED==='true'?undefined:await repo.listBriefingEditions(briefing.id,true);
+    const editions = legacyEditions ? legacyEditions.filter(edition=>isPublicEditionVisible(edition,briefing.language)) : await publishedProductEditions(c.env,briefing);
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
@@ -1363,6 +1371,9 @@ export function createApp(options: AppOptions = {}) {
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
+      // Product search uses the same retained window. Legacy search can return
+      // 100 editions, so a full default page of 50 is not an exhaustive list.
+      editionsComplete:legacyEditions?legacyEditions.length<50:true,
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     };
     if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);

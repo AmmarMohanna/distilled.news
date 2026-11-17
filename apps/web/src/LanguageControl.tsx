@@ -8,6 +8,11 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'Retry sources': ['Réessayer le chargement des sources', 'إعادة تحميل المصادر'],
+  'All configured sources are disabled. You can save settings without enabling them.': ['Toutes les sources configurées sont désactivées. Vous pouvez enregistrer les paramètres sans les activer.', 'جميع المصادر المضبوطة معطّلة. يمكنك حفظ الإعدادات دون تفعيلها.'],
+  'Could not load feed-management controls. Retry to restore access to settings.': ['Impossible de charger les commandes de gestion du fil. Réessayez pour accéder aux paramètres.', 'تعذّر تحميل أدوات إدارة الخلاصة. أعد المحاولة للوصول إلى الإعدادات.'],
+  'Retry feed controls': ['Réessayer les commandes du fil', 'إعادة تحميل أدوات الخلاصة'],
+  'Loading feed controls…': ['Chargement des commandes du fil…', 'جارٍ تحميل أدوات الخلاصة…'],
   'Notifications are disabled on this device, but server cleanup failed.': ['Les notifications sont désactivées sur cet appareil, mais leur suppression sur le serveur a échoué.', 'تم إيقاف الإشعارات على هذا الجهاز، لكن تعذّر حذف الاشتراك من الخادم.'],
   'The Telegram source URL is missing. Reload before saving.': ['Le lien de la source Telegram est manquant. Rechargez la page avant d’enregistrer.', 'رابط مصدر تيليغرام مفقود. أعد تحميل الصفحة قبل الحفظ.'],
   'Retry session': ['Réessayer la connexion', 'إعادة محاولة تحميل الجلسة'],

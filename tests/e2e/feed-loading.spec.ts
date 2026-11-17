@@ -55,6 +55,20 @@ test('stale search and refresh responses cannot replace the current search resul
  await refreshFeed(page);await expect.poll(()=>reads).toBeGreaterThan(1);await page.waitForTimeout(350);await expect(page.locator('.news-headline')).toContainText('current');
 });
 
+test('limited feed refresh preserves older search results without repeating a successful search',async({page})=>{
+ let searches=0,reads=0;
+ await page.route('**/api/**',route=>{
+  const u=new URL(route.request().url());
+  if(u.pathname===path){reads++;return route.fulfill({json:{briefing:feed,editionsComplete:false,editions:Array.from({length:50},(_,i)=>edition('recent-'+i))}});}
+  if(u.pathname.endsWith('/search')){searches++;return searches===1?route.fulfill({json:{editions:[edition('historical')]}}):route.fulfill({status:503,json:{error:'unavailable'}});}
+  return route.fulfill({json:{authenticated:false,feeds:[]}});
+ });
+ await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(20);
+ await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.news-headline')).toContainText('historical');
+ await refreshFeed(page);await expect.poll(()=>reads).toBe(2);await page.waitForTimeout(600);
+ await expect(page.locator('.news-headline')).toContainText('historical');expect(searches).toBe(1);await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
 test('navigation cannot inherit a pending response from another feed',async({page})=>{
  const previous=gate();
  await page.route('**/api/**',async route=>{
@@ -86,7 +100,7 @@ test('refresh removes withdrawn prose from active search results even if search 
  let withdrawn=false;
  await page.route('**/api/**',route=>{
   const u=new URL(route.request().url());
-  if(u.pathname===path)return route.fulfill({json:{briefing:feed,editions:withdrawn?[]:[edition('one')]}});
+  if(u.pathname===path)return route.fulfill({json:{briefing:feed,editionsComplete:true,editions:withdrawn?[]:[edition('one')]}});
   if(u.pathname.endsWith('/search'))return withdrawn?route.fulfill({status:503,json:{error:'Search unavailable.'}}):route.fulfill({json:{editions:[edition('one')]}});
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });

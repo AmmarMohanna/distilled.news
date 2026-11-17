@@ -23,9 +23,13 @@ export function FeedEditor(props: {
   const [id] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
   const editing = Boolean(props.feed);
   const [sourcesReady, setSourcesReady] = useState(!props.feed);
+  const [sourceLoadAttempt,setSourceLoadAttempt]=useState(0);
+  const [sourceLoadError,setSourceLoadError]=useState<UiMessage>('');
+  const [inactiveConfiguration,setInactiveConfiguration]=useState(false);
   useEffect(() => {
     if (!props.feed) return;
     let active = true;
+    setSourcesReady(false);setSourceLoadError('');
     getSources(props.feed.id).then(items => { if (active) {
       setSources(items.filter(s=>s.enabled).map(s=>{
         // Telegram input contains verification metadata, not an editable URL.
@@ -36,10 +40,11 @@ export function FeedEditor(props: {
         }
         return s.input||s.sourceUrl||s.url||s.title;
       }));
+      setInactiveConfiguration(items.length>0&&items.every(source=>!source.enabled));
       setSourcesReady(true);
-    } }).catch(cause => { if (active) setMessage(toUiError(cause)); });
+    } }).catch(cause => { if (active) setSourceLoadError(toUiError(cause)); });
     return () => { active = false; };
-  }, [props.feed?.id]);
+  }, [props.feed?.id,sourceLoadAttempt]);
   const [title, setTitle] = useState(props.feed?.title ?? "");
   const [prompt, setPrompt] = useState(props.feed?.interestProfile ?? "");
   const [rhythm, setRhythm] = useState<FeedInput["updateIntervalMinutes"]>(props.feed?.updateIntervalMinutes ?? (props.feed?.briefingCadence === "hourly" ? 60 : 1440));
@@ -174,7 +179,7 @@ export function FeedEditor(props: {
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
       catch { setMessage("Enter a valid time zone, such as Asia/Beirut or UTC."); return; }
       if (checkingSource) return;
-      if (!sourcesReady || sources.length === 0) { setMessage("Add at least one source."); return; }
+      if (!sourcesReady || (sources.length === 0 && !inactiveConfiguration)) { setMessage("Add at least one source."); return; }
       void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
       <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={props.onClose}><X size={20}/></button>
@@ -185,6 +190,8 @@ export function FeedEditor(props: {
         <label>{t("What would you like to follow?")}<span className="voice-field"><textarea aria-label={t("What would you like to follow?")} placeholder={t("e.g. topics, keywords...")} required rows={2} value={prompt} onChange={event => setPrompt(event.target.value)}/><VoiceInput language={feedLanguage} onText={setPrompt}/></span></label>
         <div className="source-picker">
           <label htmlFor="feed-source-search">{t("Sources")}</label>
+          {sourceLoadError&&<div role="alert"><p>{t(sourceLoadError)}</p><button type="button" onClick={()=>setSourceLoadAttempt(attempt=>attempt+1)}>{t('Retry sources')}</button></div>}
+          {sourcesReady&&inactiveConfiguration&&sources.length===0&&<p>{t('All configured sources are disabled. You can save settings without enabling them.')}</p>}
           <div className="source-search-field"><button type="button" className="source-search-submit" aria-label={t("Search sources")} title={t("Search sources")} disabled={directSource||searching||sourceQuery.trim().length<2||sourceQuery.trim().length>200} onClick={()=>submitSourceSearch()}><Search size={21} aria-hidden/></button><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} maxLength={500} role="combobox" aria-autocomplete="list" aria-expanded={suggestionsOpen&&querySuggestions.length>0} aria-controls="source-query-suggestions" aria-activedescendant={suggestionsOpen&&suggestionIndex>=0?`source-query-option-${suggestionIndex}`:undefined} aria-describedby="feed-source-search-help feed-source-search-status" placeholder={t("Search sources or paste a URL")} onChange={event => {setSourceQuery(event.target.value);setSubmittedSearch(null);setSuggestionsOpen(true);setSuggestionIndex(-1);}} onKeyDown={event => {
             if((event.key==='ArrowDown'||event.key==='ArrowUp')&&querySuggestions.length){event.preventDefault();setSuggestionsOpen(true);setSuggestionIndex(index=>index<0?(event.key==='ArrowDown'?0:querySuggestions.length-1):(index+(event.key==='ArrowDown'?1:-1)+querySuggestions.length)%querySuggestions.length);}
             if(event.key==='Escape'){setSuggestionsOpen(false);setSuggestionIndex(-1);}

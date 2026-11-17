@@ -1485,7 +1485,7 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
 function FeedPage(props: { username: string; slug: string }) {
   const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
   const { language: uiLanguage, t } = useLanguage();
-  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading, readerId, sessionState, retrySession } = useFeedViewer(props.username, props.slug);
+  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading, readerId, sessionState, retrySession, ownershipState, retryOwnership } = useFeedViewer(props.username, props.slug);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
   const feedKey = `${props.username}/${props.slug}`;
@@ -1533,16 +1533,20 @@ function FeedPage(props: { username: string; slug: string }) {
       });
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       loadedFeed.current = key;
-      visibleEditionIds.current = new Set(next.editions.map(edition => edition.id));
+      const searching=Boolean(latestQuery.current.trim()),complete=next.editionsComplete===true;
+      visibleEditionIds.current = new Set([
+        ...(searching&&!complete?visibleEditionIds.current:[]),
+        ...next.editions.map(edition => edition.id)
+      ]);
       setFeedResult({ key, value: next }); setReadState({ key, state: "loaded" });
       const sourceNotice = sessionStorage.getItem(`feed-notice:${next.briefing.id}`);
       searchFailed.current = false; setError(sourceNotice ?? "");
       if (sourceNotice) sessionStorage.removeItem(`feed-notice:${next.briefing.id}`);
-      // Invalidate pending searches before they can restore newly withdrawn prose.
-      searchRequest.current++;
+      // Only a complete searchable snapshot can prove an edition was withdrawn.
+      if(!searching||complete)searchRequest.current++;
       const ids = visibleEditionIds.current;
       // Refresh visibility without discarding pagination, search or loaded detail.
-      setEditions(current => latestQuery.current.trim() ? current.filter(edition => ids.has(edition.id)) : next.editions);
+      setEditions(current => searching ? (complete?current.filter(edition => ids.has(edition.id)):current) : next.editions);
       setEditionDetails(current => new Map([...current].filter(([id]) => ids.has(id))));
       setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
     } catch (cause) {
@@ -1611,6 +1615,7 @@ function FeedPage(props: { username: string; slug: string }) {
     }
   }
 
+  const searchSnapshot=payload?.editionsComplete===false?Boolean(payload):payload;
   useEffect(() => {
     const request = ++searchRequest.current;
     if (!payload) return;
@@ -1619,7 +1624,7 @@ function FeedPage(props: { username: string; slug: string }) {
       if (request === searchRequest.current && feedIdentity.current === feedKey && query === latestQuery.current) void applySearch(query, request);
     }, 250);
     return () => window.clearTimeout(timeout);
-  }, [payload, props.username, props.slug, query]);
+  }, [searchSnapshot, props.username, props.slug, query]);
 
   const currentEditions = payload ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
@@ -1738,6 +1743,11 @@ function FeedPage(props: { username: string; slug: string }) {
         <p>{t("We couldn’t confirm your session. Retry to restore your account and read progress.")}</p>
         <button type="button" onClick={retrySession}>{t("Retry session")}</button>
       </div>}
+      {sessionState==='authenticated'&&ownershipState==='error'&&<div role="alert">
+        <p>{t('Could not load feed-management controls. Retry to restore access to settings.')}</p>
+        <button type="button" onClick={retryOwnership}>{t('Retry feed controls')}</button>
+      </div>}
+      {sessionState==='authenticated'&&!viewerLoading&&ownershipState==='loading'&&<p role="status">{t('Loading feed controls…')}</p>}
       {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
         onLogout={async () => {

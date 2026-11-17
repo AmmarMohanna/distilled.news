@@ -24,6 +24,14 @@ async function rename(page:Page){
  const dialog=page.locator('.profile-dialog');await dialog.getByRole('button',{name:'Edit username',exact:true}).click();
  await dialog.getByLabel('username',{exact:true}).fill('renamed-owner');await dialog.getByRole('button',{name:'Save',exact:true}).click();
 }
+
+test('an ownership lookup failure has a visible retry that restores feed settings',async({page})=>{
+ await fixture(page);let attempts=0;
+ await page.route('**/api/me/briefings',route=>++attempts===1?route.fulfill({status:503,json:{error:'unavailable'}}):route.fulfill({json:{briefings:[base]}}));
+ await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
+ await page.getByRole('button',{name:'Retry feed controls',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();expect(attempts).toBe(2);
+});
 test('logout replaces the open private feed with Home and cannot restore its content using Back',async({page})=>{
  await fixture(page);await page.goto('/');await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
  await page.getByRole('button',{name:'Account profile',exact:true}).click();await page.locator('.profile-dialog').getByRole('button',{name:'Log out',exact:true}).click();
