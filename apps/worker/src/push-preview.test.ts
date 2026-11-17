@@ -40,7 +40,15 @@ it('reads only published, verified, projected, public evidence-backed edition re
   const fallback='A new briefing is ready in your feeds.';
   await db.prepare("UPDATE briefings SET public_feed_enabled=0").run();expect(await readBriefingPushPreview(db,sub)).toBe(fallback);
   await db.prepare("INSERT INTO settings VALUES('browser-push-private-owner:feed',?)").bind(JSON.stringify({enabled:true,ownerAccountId:'owner',enabledFrom:'2026-10-23T16:00:00Z'})).run();
-  expect(await readBriefingPushPreview(db,sub)).toBe(fallback);await db.prepare("DELETE FROM settings").run();await db.prepare("UPDATE briefings SET public_feed_enabled=1").run();
+  expect(await readBriefingPushPreview(db,sub)).toBe(fallback);
+  await db.prepare("UPDATE settings SET value=json_set(value,'$.includePreview',1)").run();
+  expect(await readBriefingPushPreview(db,sub)).toBe('Supported headline');
+  expect(await readBriefingPushPreview(db,{...sub,account_id:'someone-else'})).toBe(fallback);
+  await db.prepare("UPDATE settings SET value=json_set(value,'$.ownerAccountId','previous-owner')").run();
+  expect(await readBriefingPushPreview(db,sub)).toBe(fallback);
+  await db.prepare("UPDATE settings SET value=json_set(value,'$.ownerAccountId','owner','$.enabledFrom','2026-10-24T00:00:00Z')").run();
+  expect(await readBriefingPushPreview(db,sub)).toBe(fallback);
+  await db.prepare("DELETE FROM settings").run();await db.prepare("UPDATE briefings SET public_feed_enabled=1").run();
   await db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.passed',0) WHERE kind='fidelity_results'").run();expect(await readBriefingPushPreview(db,sub)).toBe(fallback);await db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.passed',1) WHERE kind='fidelity_results'").run();
   await db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.status','WITHDRAWN') WHERE kind='publication_status'").run();expect(await readBriefingPushPreview(db,sub)).toBe(fallback);await db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.status','PUBLISHED') WHERE kind='publication_status'").run();
   expect(await readBriefingPushPreview(db,{...sub,account_id:'someone-else'})).toBe(fallback);
