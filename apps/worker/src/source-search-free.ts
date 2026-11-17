@@ -5,7 +5,7 @@ import {recommendationFetch} from './source-recommendation-fetch';
 import type {SourceSearchResult} from './source-search';
 import type {Env} from './types';
 import {resolveSearchGoogleArticles} from './source-search-google';
-import {admittedSourceExecution} from './source-execution-admission';
+import {searchArticleChecks} from './source-search-helper';
 async function accessKey(source:string,article=false){
  const url=prepareProductSourceInput(source).sourceUrl!;
  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(article?'article-access-v4-free-helper:'+url:url));
@@ -13,6 +13,13 @@ async function accessKey(source:string,article=false){
 }
 export async function rememberUnavailableSearchSource(source:string,cache?:Pick<Cache,'put'>){
  try{await cache?.put(await accessKey(source),Response.json({readable:false},{headers:{'cache-control':'public, max-age=120'}}));}catch{}
+}
+/** Reuse only an actual, independently fetched RSS response from discovery.
+ * Catalog membership or a search snippet can never mark a source readable. */
+export async function rememberVerifiedSearchFeed(source:string,xml:string,cache?:Pick<Cache,'put'>){
+ const plan=prepareProductSourceInput(source);
+ if(plan.detected.kind!=='rss_feed'||!normalizeRssSnapshot(xml,plan.sourceUrl!).some(item=>item.identityValid))return;
+ try{await cache?.put(await accessKey(source),Response.json({readable:true},{headers:{'cache-control':'public, max-age=120'}}));}catch{}
 }
 /** Search is temporarily free-access only. No models or paid providers are
  * invoked. Six queued checks share a 20-second batch deadline. Direct HTTP
@@ -23,16 +30,20 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
  type Access='readable'|'denied'|'unknown';
  const bounded=recommendationFetch(fetcher,20_000),checks=new Map<string,Promise<Access>>();
  const deadline=Date.now()+20_000,tasks:(()=>Promise<void>)[]=[];
+ const helperChecks=env?searchArticleChecks(env,deadline):undefined;
  const privateArticle=async(url:string):Promise<Access>=>{
   if(!env||env.SOURCE_NATIVE_EXECUTION_ENABLED!=='true'||!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_URL||!env.SOURCE_EXECUTION_TOKEN||new URL(url).hostname==='news.google.com'||isWebsiteListingUrl(url))return 'unknown';
-  const remaining=Math.min(8000,deadline-Date.now());if(remaining<=0)return 'unknown';
+  const endpoint=env.SOURCE_EXECUTION_URL,token=env.SOURCE_EXECUTION_TOKEN;
   try{
-   const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(target,init)=>env.DB?admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(target,init)):env.SOURCE_EXECUTION_SERVICE!.fetch(target,init),true);
+   return await helperChecks!(async helper=>{
+   const remaining=Math.min(8000,deadline-Date.now());if(remaining<=0)return 'unknown';
+   const execution=new HttpSourceExecution(endpoint,token,helper,true);
    const raw=await execution.execute('public_article',{url},{timeoutMs:remaining});
    if(!raw||typeof raw!=='object')return 'unknown';
    const page=raw as Record<string,unknown>;
    if(page.status===429||typeof page.status!=='number'||page.status>=500)return 'unknown';
    return page.status===200&&page.url===url&&page.pageKind==='article'&&page.authenticationRequired!==true&&page.accessRestricted!==true&&typeof page.title==='string'&&Boolean(page.title.trim())&&!/^(?:404|410|page not found|article not found|page introuvable|article introuvable)(?:\s|$|[|:—-])/iu.test(page.title.trim())&&typeof page.body==='string'&&page.body.trim().length>=80&&new TextEncoder().encode(page.body).length<=500_000&&typeof page.canonicalUrl==='string'&&!isWebsiteListingUrl(page.canonicalUrl)&&sameArticleUrl(page.canonicalUrl,url)?'readable':'denied';
+   });
   }catch{return 'unknown';}
  };
  const check=async(source:string,article=false)=>{

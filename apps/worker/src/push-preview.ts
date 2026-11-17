@@ -20,15 +20,21 @@ export function briefingPushPreview(value:unknown,uiLanguage:string):string {
 }
 
 /** Same oldest-first, receipt/cutoff eligibility as the acceptance outbox. */
-export async function readBriefingPushPreview(db:D1Database,s:{account_id:string;last_notified_at:string;newest:string;notification_version:string;language:string}):Promise<string>{
- const row=await db.prepare(`SELECT e.json,(b.public_feed_enabled=1 OR EXISTS(
+export async function readBriefingPushContent(db:D1Database,s:{account_id:string;last_notified_at:string;newest:string;notification_version:string;language:string}):Promise<{body:string;url:string}>{
+ const fallback={body:genericPushPreview(s.language),url:'/'};
+ const row=await db.prepare(`SELECT e.json,a.username,b.slug,(b.public_feed_enabled=1 OR EXISTS(
  SELECT 1 FROM settings preview WHERE preview.key='browser-push-private-owner:'||b.id
  AND json_extract(CASE WHEN json_valid(preview.value) THEN preview.value ELSE '{}' END,'$.includePreview')=1
  )) AS preview_allowed FROM briefings b JOIN accounts a ON a.id=b.owner_account_id
  ${ELIGIBLE_PUSH_SQL} WHERE b.owner_account_id=? AND json_extract(p.json,'$.publishedAt')>?
  AND json_extract(p.json,'$.publishedAt')<=?
  AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='browser_push_receipts' AND r.feed_id=e.feed_id AND json_extract(r.json,'$.editionId')=e.id AND json_extract(r.json,'$.subscriptionVersion')=?)
- ORDER BY json_extract(p.json,'$.publishedAt'),e.id LIMIT 1`).bind(s.account_id,s.last_notified_at,s.newest,s.notification_version).first<{json:string;preview_allowed:number}>();
- if(!row||row.preview_allowed!==1)return genericPushPreview(s.language);
- try{return briefingPushPreview(JSON.parse(row.json),s.language);}catch{return genericPushPreview(s.language);}
+ ORDER BY json_extract(p.json,'$.publishedAt'),e.id LIMIT 1`).bind(s.account_id,s.last_notified_at,s.newest,s.notification_version).first<{json:string;username:string;slug:string;preview_allowed:number}>();
+ if(!row)return fallback;
+ const url=row.username&&row.slug?`/${encodeURIComponent(row.username)}/${encodeURIComponent(row.slug)}/`:'/';
+ if(row.preview_allowed!==1)return {...fallback,url};
+ try{return {body:briefingPushPreview(JSON.parse(row.json),s.language),url};}catch{return {...fallback,url};}
+}
+export async function readBriefingPushPreview(db:D1Database,s:Parameters<typeof readBriefingPushContent>[1]):Promise<string>{
+ return (await readBriefingPushContent(db,s)).body;
 }

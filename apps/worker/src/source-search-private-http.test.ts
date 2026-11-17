@@ -39,3 +39,20 @@ it('does not negatively cache a helper timeout or describe it as confirmed denia
  expect(found.results).toEqual([]);expect(found.verificationIncomplete).toBe(true);
  expect([...values.keys()].filter(key=>key.includes('source-search-access'))).toHaveLength(1); // Homepage denial only.
 });
+it('queues private checks instead of losing later readable articles to two-slot contention',async()=>{
+ let active=0,peak=0,calls=0;
+ const helper=vi.fn<typeof fetch>(async(_target,init)=>{
+  calls++;active++;peak=Math.max(peak,active);
+  if(active>2){active--;return Response.json({error:'Busy'},{status:429});}
+  try{
+   await new Promise(resolve=>setTimeout(resolve,20));
+   const target=JSON.parse(init!.body as string).input.url as string;
+   const index=Number(new URL(target).pathname.slice(1));
+   return Response.json(index<2?{status:403}:{...article,url:target,canonicalUrl:target});
+  }finally{active--;}
+ });
+ const rows=Array.from({length:6},(_,i)=>({...result,articleUrl:'https://publisher.example/'+i}));
+ const found=await freelyReadableResults(rows,async()=>new Response('',{status:403}),undefined,configured(helper));
+ expect(found.results.map(row=>row.articleUrl)).toEqual(rows.slice(2).map(row=>row.articleUrl));
+ expect(peak).toBe(2);expect(calls).toBe(6);expect(found.verificationIncomplete).toBe(false);
+});
