@@ -1486,7 +1486,7 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
 function FeedPage(props: { username: string; slug: string }) {
   const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
   const { language: uiLanguage, t } = useLanguage();
-  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading } = useFeedViewer(props.username, props.slug);
+  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading, readerId, sessionState, retrySession } = useFeedViewer(props.username, props.slug);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
   const feedKey = `${props.username}/${props.slug}`;
@@ -1513,7 +1513,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useReadProgress(props.username, props.slug, viewerLoading ? undefined : account?.id ?? null);
+  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload?.editions.map(edition=>edition.id) ?? []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1702,12 +1702,14 @@ function FeedPage(props: { username: string; slug: string }) {
         aria-pressed={payload?.viewerHasStarred ?? false}
         onClick={async () => {
           if (!payload) return;
-          setStarBusy(true);
+          setStarBusy(true); setError("");
           try {
             const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
             setFeedResult(current => current?.key === feedKey && feedIdentity.current === feedKey ? {
               key: feedKey, value: { ...current.value, briefing: { ...current.value.briefing, stars: result.stars }, viewerHasStarred: result.viewerHasStarred }
             } : current);
+          } catch (cause) {
+            setError(toUiError(cause));
           } finally {
             setStarBusy(false);
           }
@@ -1724,7 +1726,7 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} loading={viewerLoading} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>}/>}
+      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
@@ -1733,12 +1735,29 @@ function FeedPage(props: { username: string; slug: string }) {
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
     >
+      {sessionState==='error' && <div role="alert" className="feed-session-error">
+        <p>{t("We couldn’t confirm your session. Retry to restore your account and read progress.")}</p>
+        <button type="button" onClick={retrySession}>{t("Retry session")}</button>
+      </div>}
       {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
-        onLogout={async () => { const result = await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings.")); }}
+        onLogout={async () => {
+          const result = await logout();
+          feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
+          visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
+          setFeedResult(null);setEditions([]);setEditionDetails(new Map());setSelectedReport(null);
+          setQuery('');setSettledSearch(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
+          setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
+          if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
+          window.location.replace('/');
+        }}
         onSaved={async (nextAccount, nextBriefings) => {
           setAccount(nextAccount);
-          setOwnedFeed(nextBriefings.find(feed => feed.ownerUsername === props.username && feed.slug === props.slug) ?? null);
+          const nextOwned=nextBriefings.find(feed=>feed.id===(ownedFeed?.id??payload?.briefing.id)&&feed.ownerAccountId===nextAccount.id)??null;
+          setOwnedFeed(nextOwned);
+          if(nextAccount.username!==props.username&&nextOwned){
+            window.location.replace(`/${encodeURIComponent(nextAccount.username)}/${encodeURIComponent(nextOwned.slug)}/`);
+          }
         }}/>}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveFeed(input);
@@ -1811,6 +1830,7 @@ function FeedPage(props: { username: string; slug: string }) {
                   contentLanguage={payload?.briefing.language ?? language}
                   isLoading={editionBusyIds.has(edition.id)}
                   isRead={readIds.has(edition.id)}
+                  readProgressUnavailable={readerId===undefined}
                   onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
                   onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
                 />
@@ -1907,6 +1927,7 @@ function FeedEditionRow(props: {
   isLoading: boolean;
   isRead: boolean;
   onToggleRead: () => void;
+  readProgressUnavailable?: boolean;
   onOpenReport: (sectionIndex: number) => void;
 }) {
   const { edition, language } = props;
@@ -1955,6 +1976,7 @@ function FeedEditionRow(props: {
         <button
           type="button"
           className="read-button"
+          disabled={props.readProgressUnavailable}
           aria-pressed={props.isRead}
           onClick={props.onToggleRead}
         >
