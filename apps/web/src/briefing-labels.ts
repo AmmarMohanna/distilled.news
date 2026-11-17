@@ -17,18 +17,20 @@ function arabicDuration(count:number,unit:'minute'|'hour'|'day'):string {
 
 /** Reader-facing wording only. Keep the existing rounding and thresholds;
  * intended delivery and actual publication are separate backend values. */
-export function formatCountdown(isoDate:string,nowMs:number,language:Language='en'):string {
+export function formatCountdown(isoDate:string,nowMs:number,language:Language='en',compact=false):string {
  const diffMs=new Date(isoDate).getTime()-nowMs;
  if(!Number.isFinite(diffMs))return '';
  if(diffMs<=0)return language==='ar'?'حان الموعد':language==='fr'?'maintenant':'is due';
  const minutes=Math.ceil(diffMs/60_000);
  if(minutes<60){
-  if(language==='ar')return `بعد ${arabicDuration(minutes,'minute')}`;
+  if(language==='ar')return compact?`بعد ${minutes} د`:`بعد ${arabicDuration(minutes,'minute')}`;
   return language==='fr'?`dans ${minutes} min`:`in ${minutes} min`;
  }
  const hours=Math.floor(minutes/60),remainder=minutes%60;
  if(hours<24){
-  if(language==='ar')return `بعد ${arabicDuration(hours,'hour')}${remainder?` و${arabicDuration(remainder,'minute')}`:''}`;
+  if(language==='ar')return compact
+   ? `بعد ${hours} س${remainder?` ${remainder} د`:''}`
+   : `بعد ${arabicDuration(hours,'hour')}${remainder?` و${arabicDuration(remainder,'minute')}`:''}`;
   if(language==='fr')return remainder===0?`dans ${hours} h`:`dans ${hours} h ${remainder} min`;
   return remainder===0?`in ${hours}h`:`in ${hours}h ${remainder}m`;
  }

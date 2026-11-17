@@ -144,9 +144,9 @@ test('feed language and advanced settings persist independently of website langu
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.locator('.feed-preferences-disclosure').click();
- await expect(dialog.getByRole('button',{name:'Langue du bulletin Anglais',exact:true})).toBeVisible();
+ await expect(dialog.getByRole('button',{name:'Langue des briefs Anglais',exact:true})).toBeVisible();
  expect(edits).toHaveLength(0);
- await chooseSetting(dialog,'Langue du bulletin','Arabe');
+ await chooseSetting(dialog,'Langue des briefs','Arabe');
  await expect(dialog.getByLabel('Fuseau horaire')).toHaveCount(0);
  const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/feeds')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Enregistrer',exact:true}).click();
@@ -155,7 +155,7 @@ test('feed language and advanced settings persist independently of website langu
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  await page.locator('.feed-preferences-disclosure').click();
- await expect(dialog.getByRole('button',{name:'Langue du bulletin Arabe',exact:true})).toBeVisible();
+ await expect(dialog.getByRole('button',{name:'Langue des briefs Arabe',exact:true})).toBeVisible();
  await page.mouse.click(4,4);
  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
@@ -205,11 +205,11 @@ for(const size of [{width:320,height:568},{width:667,height:375}])test(`Arabic p
  await page.getByRole('button',{name:'إنشاء خلاصة',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.getByRole('button',{name:'التفضيلات',exact:true}).click();
- await chooseSetting(dialog,'لغة الملخص','الفرنسية');
+ await chooseSetting(dialog,'لغة الموجز','الفرنسية');
  await expect(page.locator('html')).toHaveAttribute('dir','rtl');
  await expect(page.locator('html')).toHaveAttribute('lang','ar');
- await dialog.getByRole('button',{name:'لغة الملخص الفرنسية',exact:true}).press('ArrowDown');
- const menu=dialog.getByRole('listbox',{name:'لغة الملخص',exact:true});
+ await dialog.getByRole('button',{name:'لغة الموجز الفرنسية',exact:true}).press('ArrowDown');
+ const menu=dialog.getByRole('listbox',{name:'لغة الموجز',exact:true});
  await expect(menu.getByRole('option',{name:'الفرنسية',exact:true})).toHaveAttribute('aria-selected','true');
  await page.screenshot({path:info.outputPath('rtl-language-menu.png')});
  await menu.press('Escape');

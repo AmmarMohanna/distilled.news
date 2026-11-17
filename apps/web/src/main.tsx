@@ -2464,7 +2464,7 @@ function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" 
   const nextAt = new Date(briefing.nextBriefingAt).getTime();
   if (!Number.isFinite(nextAt)) return "";
   if (nextAt <= nowMs) return awaitingAcceptedBriefMessage(briefing.briefingCadence, language);
-  const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language);
+  const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language, compact);
   if (compact && countdown) return `${language === "ar" ? "التالي" : language === "fr" ? (briefing.briefingCadence === "hourly" ? "Vérif." : "Brief") : "Next"} ${countdown}`;
   return countdown ? nextBriefingText(briefing.briefingCadence, countdown, language) : "";
 }

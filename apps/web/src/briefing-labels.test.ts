@@ -28,6 +28,13 @@ it('uses consistent French time units without changing countdown thresholds',()=
  expect(formatCountdown(after(1440),now,'fr')).toBe('dans 1 j');
 });
 
+it('keeps compact Arabic time units short while retaining full natural wording',()=>{
+ expect(formatCountdown(after(418),now,'ar',true)).toBe('بعد 6 س 58 د');
+ expect(formatCountdown(after(418),now,'ar')).toBe('بعد 6 ساعات و58 دقيقة');
+ expect(formatCountdown(after(2),now,'ar',true)).toBe('بعد 2 د');
+ expect(formatCountdown(after(2),now,'ar')).toBe('بعد دقيقتين');
+});
+
 it('preserves English countdown rounding and due/invalid handling',()=>{
  expect(formatCountdown(after(59.5),now,'en')).toBe('in 1h');
  expect(formatCountdown(after(125),now,'en')).toBe('in 2h 5m');
