@@ -6,6 +6,7 @@ import {SourceHealth} from './SourceHealth';
 import { useFeedViewer } from './useFeedViewer';
 import { usePageMagnification } from './usePageMagnification';
 import { NewsBriefing } from "./NewsBriefing";
+import {briefingReferences} from './briefing-references';
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
 import React, { useEffect, useRef, useState } from "react";
@@ -1705,8 +1706,11 @@ function FeedPage(props: { username: string; slug: string }) {
 
   async function openEditionReport(edition: BriefingEdition, sectionIndex: number) {
     const detailed = await loadEditionDetail(edition);
-    if (!detailed || !detailed.sections[sectionIndex]) return;
-    setSelectedReport({ editionId: edition.id, sectionIndex });
+    if (!detailed) return;
+    const references=briefingReferences(detailed);
+    const selectedIndex=edition.sections.length||editionDetails.has(edition.id)?sectionIndex:references.findIndex(reference=>reference.sectionIndex===sectionIndex);
+    if (!references[selectedIndex]) return;
+    setSelectedReport({ editionId: edition.id, sectionIndex:selectedIndex });
   }
 
   const { theme, setTheme } = useTheme();
@@ -1962,9 +1966,9 @@ function FeedEditionRow(props: {
   const headline = (edition.sections.length === 1 ? edition.sections[0].title || retainedHeadline : undefined) || edition.title;
   const narrative = normalizeSummary(edition.summary);
   const summary = headline && narrative.startsWith(headline) ? narrative.slice(headline.length).trimStart() : narrative;
-  const referenceCount = Math.max(props.detailEdition?.sections.length ?? 0, edition.sections.length, highestReferenceNumber(edition.summary));
-  const citedNumbers = [...new Set(referenceTextParts(edition.summary).flatMap(part => part.kind === 'reference' && part.value > 0 ? [part.value] : []))];
-  const referenceNumbers = citedNumbers.length ? citedNumbers : Array.from({length: referenceCount}, (_, index) => index + 1);
+  const references = briefingReferences(props.detailEdition ?? edition);
+  const referenceCount = Math.max(references.length, highestReferenceNumber(edition.summary));
+  const referenceNumbers = Array.from({length: referenceCount}, (_, index) => index + 1);
   const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
@@ -1979,7 +1983,7 @@ function FeedEditionRow(props: {
         fallbackSummary={summary}
         sections={edition.sections}
         direction={textDir}
-        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : [sectionIndex + 1]).map(number => <button
+        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <button
           key={number}
           type="button"
           className="briefing-reference"

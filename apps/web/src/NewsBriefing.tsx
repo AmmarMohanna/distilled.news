@@ -4,6 +4,7 @@ import type {BriefingEdition,BriefingEvidence} from '@distilled/core';
 import {Dialog} from './Dialog';
 import {SourceLogo} from './SourceLogo';
 import {sourceEvidenceLabels} from './source-evidence-labels';
+import {briefingReferences} from './briefing-references';
 
 type Language='en'|'ar'|'fr';
 const copy={
@@ -30,12 +31,14 @@ function evidenceDetails(entry:BriefingEvidence){
 }
 export function NewsBriefing(props:{edition:BriefingEdition;selectedIndex:number;language:Language;onClose:()=>void;mediaLabel:(media:BriefingEvidence['media'][number])=>string}){
  const {edition,language}=props,labels=copy[language],rtl=language==='ar';
- const lastIndex=Math.max(0,edition.sections.length-1);
+ const references=briefingReferences(edition);
+ const lastIndex=Math.max(0,references.length-1);
  const [selectedStory,setSelectedStory]=useState(Math.min(lastIndex,Math.max(0,props.selectedIndex)));
  const [copied,setCopied]=useState<{url:string;status:'copied'|'failed'}>();
  useEffect(()=>setSelectedStory(Math.min(lastIndex,Math.max(0,props.selectedIndex))),[edition.id,props.selectedIndex,lastIndex]);
- const storyIndex=Math.min(selectedStory,lastIndex),section=edition.sections[storyIndex];
- const entry=section?.evidence[0];
+ const referenceIndex=Math.min(selectedStory,lastIndex),reference=references[referenceIndex];
+ const storyIndex=reference?.sectionIndex??0,section=edition.sections[storyIndex];
+ const entry=section?.evidence[reference?.evidenceIndex??0];
  const text=(section?.summary??edition.summary).replace(/\r\n/g,'\n'),boundary=text.indexOf('\n');
  const heading=section?.title.trim()||(boundary>0?text.slice(0,boundary).trim():'')||edition.title;
  const body=!section?.title.trim()&&boundary>0?text.slice(boundary+1).trim():text.startsWith(heading)?text.slice(heading.length).trimStart():text;
@@ -48,28 +51,13 @@ export function NewsBriefing(props:{edition:BriefingEdition;selectedIndex:number
    <div className="news-briefing-meta">
     {entry?<span className="news-briefing-publisher"><SourceLogo key={entry.sourceId+storyIndex} source={articleUrl??entry.sourceUrl??entry.sourceTitle}/><strong dir="auto">{publisher}</strong></span>:null}
     {date?<span className="news-briefing-date"><CalendarDays size={18} aria-hidden="true"/><time dateTime={entry!.postedAt}>{new Intl.DateTimeFormat(language==='en'?'en-US':language,{month:'short',day:'numeric',year:'numeric'}).format(date)}</time></span>:null}
-    <nav className="news-briefing-references" aria-label={labels.reference}>{edition.sections.map((_,index)=><button key={index} type="button" aria-label={`${labels.reference} ${index+1}`} aria-pressed={storyIndex===index} onClick={()=>setSelectedStory(index)}>{index+1}</button>)}</nav>
+    <nav className="news-briefing-references" aria-label={labels.reference}>{references.filter(item=>item.sectionIndex===storyIndex).map(item=><button key={item.number} type="button" aria-label={`${labels.reference} ${item.number}`} aria-pressed={referenceIndex===item.number-1} onClick={()=>setSelectedStory(item.number-1)}>{item.number}</button>)}</nav>
    </div>
    <div className="news-briefing-description"><p dir="auto">{display(body)}</p></div>
    {!entry?<p className="news-briefing-empty">{labels.noSources}</p>:null}
    {(links.length>1||Boolean(entry?.media.length))?<div className="news-briefing-related">
     {links.slice(1).map(link=><a key={link} href={link} target="_blank" rel="noopener noreferrer"><Link2 size={15} aria-hidden="true"/>{new URL(link).hostname.replace(/^www\./,'')}</a>)}
     {entry?.media.map((media,index)=>{const url=publicUrl(media.url);return url?<a key={index} href={url} target="_blank" rel="noopener noreferrer">{props.mediaLabel(media)}</a>:<span key={index}>{props.mediaLabel(media)}</span>;})}
-   </div>:null}
-   {(section?.evidence.length??0)>1?<div className="news-briefing-additional-sources">
-    {section!.evidence.slice(1).map((source,index)=>{
-     const details=evidenceDetails(source);
-     return <div className="news-briefing-additional-source" key={`${source.sourceId}:${source.messageId}:${index}`}>
-      <div className="news-briefing-meta">
-       <span className="news-briefing-publisher"><SourceLogo source={details.links[0]??source.sourceUrl??source.sourceTitle}/><strong dir="auto">{details.publisher}</strong></span>
-       {details.date?<span className="news-briefing-date"><CalendarDays size={18} aria-hidden="true"/><time dateTime={source.postedAt}>{new Intl.DateTimeFormat(language==='en'?'en-US':language,{month:'short',day:'numeric',year:'numeric'}).format(details.date)}</time></span>:null}
-      </div>
-      <div className="news-briefing-related">
-       {details.links.map((link,linkIndex)=><a key={link} href={link} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} aria-hidden="true"/>{linkIndex===0?labels.read:new URL(link).hostname.replace(/^www\./,'')}</a>)}
-       {source.media.map((media,mediaIndex)=>{const url=publicUrl(media.url);return url?<a key={`media:${mediaIndex}`} href={url} target="_blank" rel="noopener noreferrer">{props.mediaLabel(media)}</a>:<span key={`media:${mediaIndex}`}>{props.mediaLabel(media)}</span>;})}
-      </div>
-     </div>;
-    })}
    </div>:null}
    <footer className="news-briefing-footer">
     <div className="news-briefing-actions">
