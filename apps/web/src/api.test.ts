@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {getExploreFeeds,getFeed,saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword} from './api';
+import {getExploreFeeds,getFeed,saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword,resendVerification} from './api';
 
 it.each(['en','fr','ar'])('sends the currently chosen %s language when requesting either auth email',async language=>{
  localStorage.setItem('dn_language',language);
@@ -7,6 +7,7 @@ it.each(['en','fr','ar'])('sends the currently chosen %s language when requestin
  try {
   await register({email:'fixture@example.invalid',username:'Home',password:'local-only-fixture'});
   await forgotPassword('fixture@example.invalid');
+  await resendVerification('fixture@example.invalid');
   for(const [,init]of fetcher.mock.calls as unknown as [string,RequestInit][]){expect(JSON.parse(String(init.body))).toMatchObject({language,email:'fixture@example.invalid'});}
  } finally {localStorage.removeItem('dn_language');}
 });

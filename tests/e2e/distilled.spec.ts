@@ -179,7 +179,8 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await page.getByLabel("username").fill("Ammar Mohanna");
   await page.getByLabel("password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: /^create account$/i }).click();
-  await expect(page.getByText(/verification email sent/i)).toBeVisible();
+  await expect(page.locator(".auth-message")).toHaveText("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
+  await expect(page.getByRole("button", { name: "Resend verification email", exact: true })).toBeEnabled();
 });
 
 test("email verification waits for an explicit user action", async ({ page }) => {

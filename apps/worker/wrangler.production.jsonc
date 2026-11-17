@@ -68,7 +68,9 @@
     "V1_SYNTHESIS_MODEL_ENABLED": "true",
     "V3_BACKLOG_CATCHUP_ENABLED": "true",
     "WINDOW_READINESS_MODE": "relay",
-    "CUTOFF_EDITIONS_ENABLED": "true"
+    "CUTOFF_EDITIONS_ENABLED": "true",
+    "SOURCE_RECOMMENDATIONS_WEB_SEARCH": "true",
+    "SOURCE_RECOMMENDATIONS_WEB_HTML": "true"
   },
   "d1_databases": [
     {
