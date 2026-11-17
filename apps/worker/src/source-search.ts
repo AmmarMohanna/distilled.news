@@ -8,9 +8,9 @@ import {cachedSourceSearch} from './source-search-cache';
 import {sourceSearchCacheQuery,type SearchTopic} from './source-search-topic';
 import {alignedSearchResults} from './source-search-relevance';
 import {readWebSearch} from './source-web-search';
-import {HttpSourceExecution,normalizeRssSnapshot} from '@distilled/connectors';
-import {WorkerPublicSourceFetch} from './public-source-fetch';
+import {normalizeRssSnapshot} from '@distilled/connectors';
 import {searchArticleChecks} from './source-search-helper';
+import {readSearchFeed} from './source-search-feed';
 
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
 const publishers = [
@@ -29,12 +29,12 @@ function matchesArticleQuery(query:string,title:string,excerpt?:string){
 /** Public discovery only. Selection still goes through the normal source assessment.
  * No scope is passed to readTopicPublishers: typing must never start paid collectors.
  */
-export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}> {
+export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic,onProgress?:(result:{results:SourceSearchResult[];unavailable:boolean})=>Promise<void>):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}> {
  if(normalize(query).length<2)return {results:[],unavailable:false};
  const load=()=>discoverSourceCandidates(env,query,fetcher,context,discovery?.cache,accessCache);
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
  const aligned=context?await alignedSearchResults(env,query,context,found.results,fetcher,discovery?.owner):{results:found.results,unavailable:false};
- const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache,env);
+ const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache,env,onProgress?results=>onProgress({results,unavailable:false}):undefined);
  return {...found,...accessible,unavailable:found.unavailable||aligned.unavailable,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete,...(context&&found.results.length>0&&!aligned.results.length&&!aligned.unavailable?{topicMismatch:true}:{})};
 }
 
@@ -56,7 +56,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   const readIndex=()=>readTopicPublishers(env,plan.sourceUrl!,recommendationFetch(fetcher,15_000),result=>{if(result.status===200)indexAvailable=true;},undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true',raceRoutes:true,maxPublishers:40,perPublisher:3,acceptArticle:(title,excerpt,origin)=>context?true:queryMatches(title,excerpt,origin)}).catch(()=>[]);
   // Independent public lookups overlap; the model sees their combined results once.
   const indexTask=context?readIndex():undefined;
-  const webTask=context&&env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'?readWebSearch(scopedQuery,fetcher,directoryCache).catch(()=>({items:[],available:false,accessIncomplete:true})):undefined;
+  const webTask=context&&env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'?readWebSearch(scopedQuery,fetcher,directoryCache,env).catch(()=>({items:[],available:false,accessIncomplete:true})):undefined;
   const pools:SourceSearchResult[][]=[];
   let publisherAvailable=false;
   // A known publisher can be searched through its actual article feed even
@@ -76,16 +76,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
     const sampled=await Promise.all(feeds.map(async row=>{
       try{
         const url=prepareProductSourceInput(row.source).sourceUrl!;
-        let page:{status:number;body:string;authenticationRequired?:boolean};
-        try{page=await new WorkerPublicSourceFetch(url,recommendationFetch(fetcher,2500)).get(url);}catch{page={status:0,body:''};}
-        if(page.status!==200&&env.SOURCE_NATIVE_EXECUTION_ENABLED==='true'&&env.SOURCE_EXECUTION_SERVICE&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN){
-          const endpoint=env.SOURCE_EXECUTION_URL,token=env.SOURCE_EXECUTION_TOKEN;
-          try{page=await feedChecks(async helper=>{
-            const remaining=Math.min(7500,feedDeadline-Date.now());if(remaining<=0)return page;
-            const value=await new HttpSourceExecution(endpoint,token,helper,true).execute('public_feed',{url},{timeoutMs:remaining}) as {status?:number;xml?:string};
-            return value?.status===200&&typeof value.xml==='string'&&new TextEncoder().encode(value.xml).length<=2_000_000?{status:200,body:value.xml}:page;
-          });}catch{/* Keep the direct transport result; no paid fallback. */}
-        }
+        const page=await readSearchFeed(url,fetcher,env,feedDeadline,feedChecks);
         if(page.status!==200||page.authenticationRequired)return [];
         const items=normalizeRssSnapshot(page.body,url).filter(item=>item.identityValid&&item.title&&item.url);
         if(items.length){publisherAvailable=true;await rememberVerifiedSearchFeed(row.source,page.body,accessCache);}
@@ -97,7 +88,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   let available=publisherAvailable;
   let accessIncomplete=false;
   if(env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'){
-    const web=await (webTask??readWebSearch(scopedQuery,fetcher,directoryCache));
+    const web=await (webTask??readWebSearch(scopedQuery,fetcher,directoryCache,env));
     available=available||web.available;
     accessIncomplete=web.accessIncomplete;
     const webResults:SourceSearchResult[]=[];

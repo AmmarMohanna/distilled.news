@@ -55,3 +55,11 @@ it('reports a blocked web index as incomplete even if a directory was readable',
  const result=await readWebSearch('Samira Haddad',fetcher);
  expect(result.available).toBe(true);expect(result.accessIncomplete).toBe(true);
 });
+it.each(['Lebanon','économie française','أخبار العلوم'])('uses direct general-web RSS identities when the HTML index is unavailable for %s',async query=>{
+ const target='https://independent.example/news/report';
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).startsWith('https://www.bing.com/search?')?new Response(`<rss><channel><item><guid>report</guid><title>Actual reporting</title><description>Original indexed excerpt.</description><link>${target}</link></item><item><guid>unsafe</guid><title>Unsafe result</title><link>https://127.0.0.1/private</link></item></channel></rss>`):new Response('Blocked',{status:403}));
+ const found=await readWebSearch(query,fetcher);
+ expect(found).toMatchObject({available:true,accessIncomplete:false,items:[{url:target,title:'Actual reporting',excerpt:'Original indexed excerpt.'}]});
+ expect(new URL(String(fetcher.mock.calls.find(([url])=>String(url).startsWith('https://www.bing.com/'))![0])).searchParams.get('q')).toBe(query);
+ expect(fetcher.mock.calls.every(([url])=>!String(url).includes('127.0.0.1'))).toBe(true);
+});

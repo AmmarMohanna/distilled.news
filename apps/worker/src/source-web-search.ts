@@ -1,7 +1,9 @@
-import {parseDirectorySearchHtml,parseWebSearchHtml} from '@distilled/connectors';
+import {normalizeRssSnapshot,parseDirectorySearchHtml,parseWebSearchHtml} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {recommendationFetch} from './source-recommendation-fetch';
-export async function readWebSearch(query:string,fetcher:typeof fetch,cache?:Pick<Cache,'match'|'put'>){
+import {readSearchFeed} from './source-search-feed';
+import type {Env} from './types';
+export async function readWebSearch(query:string,fetcher:typeof fetch,cache?:Pick<Cache,'match'|'put'>,env?:Env){
  const general=(async()=>{
   try{
    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(query.trim().toLocaleLowerCase()));
@@ -13,6 +15,23 @@ export async function readWebSearch(query:string,fetcher:typeof fetch,cache?:Pic
    const items=parseWebSearchHtml(page.body);
    if(items.length)try{await cache?.put(key,Response.json(items,{headers:{'cache-control':'public, max-age=60'}}));}catch{}
    return {items,available:items.length>0||/class=["'][^"']*no-results/i.test(page.body)};
+  }catch{return {items:[],available:false};}
+ })();
+ const webRss=(async()=>{
+  try{
+   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(query.trim().toLocaleLowerCase()));
+   const key=new Request('https://source-directory-cache.invalid/bing-rss-v1/'+Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join(''));
+   try{const saved=await cache?.match(key);if(saved)return {items:await saved.json() as ReturnType<typeof parseWebSearchHtml>,available:true};}catch{}
+   const url='https://www.bing.com/search?format=rss&count=30&q='+encodeURIComponent(query);
+   const page=await readSearchFeed(url,fetcher,env);
+   if(page.status!==200||page.authenticationRequired)return {items:[],available:false};
+   const items=normalizeRssSnapshot(page.body,url).flatMap(item=>{
+    if(!item.identityValid||!item.url||!item.title)return [];
+    try{new WorkerPublicSourceFetch(item.url);if(new URL(item.url).hostname.endsWith('bing.com'))return [];}catch{return [];}
+    return [{url:item.url,title:item.title,excerpt:(item.body||item.excerpt||'').slice(0,1000)}];
+   }).slice(0,30);
+   if(items.length)try{await cache?.put(key,Response.json(items,{headers:{'cache-control':'public, max-age=60'}}));}catch{}
+   return {items,available:items.length>0};
   }catch{return {items:[],available:false};}
  })();
  const directory=(async()=>{
@@ -32,6 +51,6 @@ export async function readWebSearch(query:string,fetcher:typeof fetch,cache?:Pic
  }
  return {items:[],available:false};
  })();
- const found=await Promise.all([general,directory]);
- return {items:[...new Map(found.flatMap(result=>result.items).map(item=>[item.url,item])).values()].slice(0,40),available:found.some(result=>result.available),accessIncomplete:!found[0].available};
+ const found=await Promise.all([general,webRss,directory]);
+ return {items:[...new Map(found.flatMap(result=>result.items).map(item=>[item.url,item])).values()].slice(0,40),available:found.some(result=>result.available),accessIncomplete:!found[0].available&&!found[1].available};
 }

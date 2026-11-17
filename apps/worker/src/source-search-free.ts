@@ -25,8 +25,10 @@ export async function rememberVerifiedSearchFeed(source:string,xml:string,cache?
  * invoked. Six queued checks share a 20-second batch deadline. Direct HTTP
  * gets three seconds; the anonymous helper can use eight remaining seconds.
  */
-export async function freelyReadableResults(results:SourceSearchResult[],fetcher:typeof fetch,cache?:Pick<Cache,'match'|'put'>,env?:Env){
- results=await resolveSearchGoogleArticles(results,env,cache);
+export async function freelyReadableResults(results:SourceSearchResult[],fetcher:typeof fetch,cache?:Pick<Cache,'match'|'put'>,env?:Env,onProgress?:(results:SourceSearchResult[])=>Promise<void>){
+ const original=results;
+ let listingsReady=false;
+ const resolution=resolveSearchGoogleArticles(results,env,cache);
  type Access='readable'|'denied'|'unknown';
  const bounded=recommendationFetch(fetcher,20_000),checks=new Map<string,Promise<Access>>();
  const deadline=Date.now()+20_000,tasks:(()=>Promise<void>)[]=[];
@@ -96,14 +98,38 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
   if(!pending){pending=new Promise<Access>(resolve=>tasks.push(async()=>{try{resolve(await check(source,article));}catch{resolve('unknown');}}));checks.set(identity,pending);}
   return pending;
  };
- const pending=results.slice(0,60).map(async result=>{
+ const verified=new Map<number,SourceSearchResult>();
+ let reporting=Promise.resolve();
+ const enqueue=(result:SourceSearchResult,index:number)=>(async()=>{
   const [source,article]=await Promise.all([shared(result.source),result.articleUrl?shared(result.articleUrl,true):Promise.resolve<Access>('readable')]);
   const plan=prepareProductSourceInput(result.source);
   const matchingArticle=result.articleUrl&&plan.detected.kind==='web_page'&&new URL(plan.sourceUrl!).hostname.replace(/^www\./,'')===new URL(result.articleUrl).hostname.replace(/^www\./,'');
-  return {result,readable:article==='readable'&&(source==='readable'||Boolean(matchingArticle)),unknown:article==='unknown'||(source==='unknown'&&!matchingArticle)};
+  const readable=article==='readable'&&(source==='readable'||Boolean(matchingArticle));
+  if(readable){
+   verified.set(index,result);
+   if(onProgress&&(verified.size===1||verified.size%5===0)){
+    const snapshot=[...verified].sort(([a],[b])=>a-b).map(([,row])=>row).slice(0,30);
+    // Serialize snapshots so an older cache write cannot replace newer evidence.
+    // A disconnected reader must not invalidate already verified sources.
+    reporting=reporting.then(()=>onProgress(snapshot)).catch(()=>{});
+   }
+  }
+  return {index,result,readable,unknown:article==='unknown'||(source==='unknown'&&!matchingArticle)};
+ })();
+ const isListing=(row:SourceSearchResult)=>/^https:\/\/news\.google\.com\//i.test(row.articleUrl??'');
+ const pending=original.slice(0,60).flatMap((row,index)=>isListing(row)?[]:[enqueue(row,index)]);
+ const queued=resolution.then(resolved=>{
+  resolved.slice(0,60).forEach((row,index)=>{if(isListing(original[index]))pending.push(enqueue(row,index));});
+  listingsReady=true;
  });
  let next=0;
- await Promise.all(Array.from({length:Math.min(6,tasks.length)},async()=>{while(next<tasks.length){const task=tasks[next++];await task();}}));
- const tested=await Promise.all(pending);
+ await Promise.all(Array.from({length:Math.min(6,original.length*2)},async()=>{
+  for(;;){
+   if(next<tasks.length){await tasks[next++]();continue;}
+   if(listingsReady)break;
+   await queued;
+  }
+ }));
+ const tested=(await Promise.all(pending)).sort((a,b)=>a.index-b.index);await reporting;
  return {results:tested.filter(value=>value.readable).map(value=>value.result).slice(0,30),accessIncomplete:tested.some(value=>!value.readable),verificationIncomplete:tested.some(value=>value.unknown)};
 }

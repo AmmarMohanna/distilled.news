@@ -36,6 +36,18 @@ it.each(['https://127.0.0.1/private','https://publisher.example/login'])('never 
 });
 const listing='https://news.google.com/rss/articles/ArticleA?oc=5';
 function resolverEnv(service:typeof fetch):Env{return {SOURCE_GOOGLE_RESOLUTION_ENABLED:'true',SOURCE_EXECUTION_SERVICE:{fetch:service},SOURCE_EXECUTION_URL:'http://127.0.0.1:8791/v1/source-execution',SOURCE_EXECUTION_TOKEN:'test-only-token-'.repeat(3)} as unknown as Env;}
+it('streams a verified direct article while Google resolution is pending and preserves final result order',async()=>{
+ let release!:()=>void,first!:()=>void;
+ const waiting=new Promise<void>(resolve=>{release=resolve;}),progress=new Promise<void>(resolve=>{first=resolve;});
+ const service=vi.fn<typeof fetch>(async()=>{await waiting;return Response.json({results:[{inputUrl:listing,url:'https://publisher.example/google-report'}]});});
+ const rows=[{source:'https://publisher.example/',publisher:'publisher.example',title:'Indexed report',articleUrl:listing},{source:'https://publisher.example/',publisher:'publisher.example',title:'Direct report',articleUrl:'https://publisher.example/direct-report'}];
+ const received:string[][]=[];
+ const work=freelyReadableResults(rows,async()=>articlePage(),undefined,resolverEnv(service),async results=>{received.push(results.map(row=>row.title));first();});
+ try{await progress;expect(received[0]).toEqual(['Direct report']);}
+ finally{release();}
+ expect((await work).results.map(row=>row.title)).toEqual(['Indexed report','Direct report']);
+ expect(service).toHaveBeenCalledOnce();
+});
 it('checks a readable Google result beyond position thirty in a cold sixty-link batch',async()=>{
  const urls=Array.from({length:60},(_,i)=>listing.replace('ArticleA','Article'+i));
  const service=vi.fn<typeof fetch>(async(_input,init)=>{

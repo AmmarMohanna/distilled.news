@@ -98,7 +98,10 @@ export function FeedEditor(props: {
     if(cached&&Date.now()-cached.at<(cached.result.accessIncomplete?15_000:60_000)){setSearchResults(cached.result.results.filter(row=>!row.blocked));setSearchStatus(status(cached.result));return;}
     const controller=new AbortController();
     setSearching(true);
-      void searchSourceCandidates(query,controller.signal,{title:title.trim(),description:prompt.trim()}).then(result=>{
+      void searchSourceCandidates(query,controller.signal,{title:title.trim(),description:prompt.trim()},result=>{
+        if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
+        setSearchResults(result.results.filter(row=>!row.blocked));setSearchStatus('');
+      }).then(result=>{
         if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
         if(!result.unavailable&&(!result.accessIncomplete||result.results.length>0)){if(searchCache.current.size>=20)searchCache.current.delete(searchCache.current.keys().next().value!);searchCache.current.set(cacheKey,{at:Date.now(),query,result});}
         setSearchResults(result.results.filter(row=>!row.blocked));
