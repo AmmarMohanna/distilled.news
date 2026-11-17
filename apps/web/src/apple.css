@@ -3071,9 +3071,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .news-briefing-actions svg { flex-shrink: 0; }
 :root.apple-ui.apple-ui .news-briefing-copy { background: color-mix(in srgb,var(--accent) 9%,var(--surface)); color: var(--accent-ink); }
 :root.apple-ui.apple-ui .news-briefing-read { background: var(--accent-fill); color: white; }
-:root.apple-ui.apple-ui .news-briefing-source-nav { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); padding: 0; border: 0; background: transparent; }
-:root.apple-ui.apple-ui .news-briefing-source-nav button { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-height: 36px; padding: 0; background: transparent; color: var(--text); border: 0; box-shadow: none; }
-:root.apple-ui.apple-ui .news-briefing-card[dir="rtl"] .news-briefing-source-nav svg { transform: scaleX(-1); }
 @media (max-width: 600px) {
  :root.apple-ui.apple-ui .news-briefing-card { padding: 20px; gap: 18px; }
  :root.apple-ui.apple-ui .news-briefing-meta { gap: 14px 20px; font-size: 14px; }

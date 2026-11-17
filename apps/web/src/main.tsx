@@ -1,3 +1,4 @@
+import {cadenceMetaLabel,formatCountdown,nextBriefingText} from './briefing-labels';
 import {useReadProgress} from './useReadProgress';
 import {ApiError, toUiError, type UiMessage} from './api-errors';
 import {FEED_REFRESH_INTERVAL_MS, afterFeedRefresh, initialFeedRefreshState, mayRefreshFeed} from './feed-refresh-policy';
@@ -1364,7 +1365,7 @@ function AdminAccountsSection(props: {
         <div className={`user-management ${managedAccount ? "has-selection" : ""}`}>
         <div className="user-management-main">
         <div className="user-management-heading"><h1>{t("User Management")}</h1><p>{t("Manage registered users and their feeds.")}</p></div>
-        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><span id="users-role-filter-label" className="sr-only">{t("Filter users by role")}</span><FeedSettingsSelect kind="role" value={role} onChange={setRole} labelId="users-role-filter-label" options={[{value:'all',label:t('All Roles')},{value:'admin',label:t('Admin')},{value:'user',label:t('User')}]}/></span><div className="users-counts"><span>{props.accounts.length} {t("users")}</span><span>{props.accounts.reduce((total, account) => total + feedCountFor(account), 0)} {t("feeds")}</span></div></div>
+        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><span id="users-role-filter-label" className="sr-only">{t("Filter users by role")}</span><FeedSettingsSelect kind="role" value={role} onChange={setRole} labelId="users-role-filter-label" options={[{value:'all',label:t('All Roles')},{value:'admin',label:t('Admin')},{value:'user',label:t('User')}]}/></span><div className="users-counts"><span>{t("{count} users",{count:props.accounts.length})}</span><span>{t("{count} feeds",{count:props.accounts.reduce((total, account) => total + feedCountFor(account), 0)})}</span></div></div>
 
         {accountsError ? <div role="alert"><p className="error">{t(accountsError)}</p><button type="button" className="feed-state-retry" onClick={() => setAccountLoad(current => current + 1)}>{t("Try Again")}</button></div> : null}
         {error ? <p className="error">{t(error)}</p> : null}
@@ -2323,8 +2324,8 @@ function bylineLabel(language: "en" | "ar" | "fr"): string {
 }
 
 function loadingFeedLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار تحميل الموجز";
-  if (language === "fr") return "chargement du fil";
+  if (language === "ar") return "جارٍ تحميل الخلاصة";
+  if (language === "fr") return "Chargement du fil";
   return "loading feed";
 }
 
@@ -2336,25 +2337,25 @@ function refreshControlLabel(language: "en" | "ar" | "fr"): string {
 
 function summaryPublishedLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "تم نشر موجز جديد.";
-  if (language === "fr") return "nouveau brief publié.";
+  if (language === "fr") return "Nouveau brief publié.";
   return "new brief published.";
 }
 
 function starControlLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return starred ? "مميّز" : "تمييز";
-  if (language === "fr") return starred ? "Favori" : "Favoriser";
+  if (language === "ar") return starred ? "في المفضلة" : "إضافة للمفضلة";
+  if (language === "fr") return starred ? "Favori" : "Ajouter aux favoris";
   return starred ? "Starred" : "Star";
 }
 
 function starTitleLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return starred ? "إزالة التمييز" : "تمييز الموجز";
-  if (language === "fr") return starred ? "retirer le favori" : "favoriser le fil";
+  if (language === "ar") return starred ? "إزالة من المفضلة" : "إضافة الخلاصة إلى المفضلة";
+  if (language === "fr") return starred ? "Retirer des favoris" : "Ajouter le fil aux favoris";
   return starred ? "remove star" : "star feed";
 }
 
 function loadingFeedsLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار تحميل الموجزات";
-  if (language === "fr") return "chargement des fils";
+  if (language === "ar") return "جارٍ تحميل الخلاصات";
+  if (language === "fr") return "Chargement des fils";
   return "loading feeds";
 }
 
@@ -2377,49 +2378,49 @@ function allFilterLabel(language: "en" | "ar" | "fr"): string {
 }
 
 function unreadFilterLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "غير مقروء";
+  if (language === "ar") return "غير المقروءة";
   if (language === "fr") return "Non lus";
   return "Unread";
 }
 
 function searchPublishedLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "ابحث في الموجز المنشور";
+  if (language === "ar") return "البحث في الموجزات";
   if (language === "fr") return "Chercher dans les briefs";
   return "Search briefings";
 }
 
 function loadMoreLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "عرض المزيد";
-  if (language === "fr") return "afficher plus";
+  if (language === "fr") return "Afficher plus";
   return "Load More";
 }
 
 function moreCountLabel(count: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `${count} إضافية`;
+  if (language === "ar") return `المزيد: ${count}`;
   if (language === "fr") return `${count} de plus`;
   return `${count} more`;
 }
 
 function emptyFeedTitle(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "كل الموجزات الظاهرة مقروءة" : "لا توجد موجزات منشورة";
-  if (language === "fr") return readCount > 0 ? "tous les briefs visibles sont lus" : "aucun brief publié";
+  if (language === "ar") return readCount > 0 ? "جميع الموجزات المعروضة مقروءة" : "لا توجد موجزات منشورة";
+  if (language === "fr") return readCount > 0 ? "Tous les briefs affichés sont lus" : "Aucun brief publié";
   return readCount > 0 ? "all visible briefings are read" : "no published briefings";
 }
 
 function emptyFeedMessage(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "افتح قسم المقروء للعودة إلى الموجزات السابقة." : "سيظهر الموجز المجدول التالي هنا.";
-  if (language === "fr") return readCount > 0 ? "Ouvrez la section lue pour revoir les anciens briefs." : "Le prochain brief programmé apparaîtra ici.";
+  if (language === "ar") return readCount > 0 ? "افتح قسم «المقروءة» للاطلاع على الموجزات السابقة." : "سيظهر الموجز المجدول التالي هنا.";
+  if (language === "fr") return readCount > 0 ? "Ouvrez la section « Lus » pour consulter les briefs précédents." : "Le prochain brief programmé apparaîtra ici.";
   return readCount > 0 ? "Open the read section below to revisit archived briefings." : "The next scheduled briefing will appear here.";
 }
 
 function readSectionLabel(count: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `مقروء · ${count}`;
+  if (language === "ar") return `المقروءة · ${count}`;
   if (language === "fr") return `Lus · ${count}`;
   return `Read · ${count}`;
 }
 
 function markReadLabel(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "وضع كغير مقروء" : "وضع كمقروء";
+  if (language === "ar") return isRead ? "تعيين كغير مقروء" : "تعيين كمقروء";
   if (language === "fr") return isRead ? "Marquer comme non lu" : "Marquer comme lu";
   return isRead ? "Mark as unread" : "Mark as read";
 }
@@ -2431,14 +2432,14 @@ function readToggleText(isRead: boolean, language: "en" | "ar" | "fr"): string {
 }
 
 function readToggleTitle(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "وضع كغير مقروء" : "وضع كمقروء";
-  if (language === "fr") return isRead ? "marquer non lu" : "marquer lu";
+  if (language === "ar") return isRead ? "تعيين كغير مقروء" : "تعيين كمقروء";
+  if (language === "fr") return isRead ? "Marquer comme non lu" : "Marquer comme lu";
   return isRead ? "mark unread" : "mark read";
 }
 
 function readToggleAria(title: string, isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? `وضع ${title} كغير مقروء` : `وضع ${title} كمقروء`;
-  if (language === "fr") return isRead ? `marquer ${title} non lu` : `marquer ${title} lu`;
+  if (language === "ar") return isRead ? `تعيين «${title}» كغير مقروء` : `تعيين «${title}» كمقروء`;
+  if (language === "fr") return isRead ? `Marquer « ${title} » comme non lu` : `Marquer « ${title} » comme lu`;
   return isRead ? `mark ${title} unread` : `mark ${title} read`;
 }
 
@@ -2455,32 +2456,7 @@ function formatAutosaveStatus(state: "idle" | "saving" | "saved" | "error", stat
   return status || "ready";
 }
 
-function formatCountdown(isoDate: string, nowMs: number, language: "en" | "ar" | "fr" = "en"): string {
-  const diffMs = new Date(isoDate).getTime() - nowMs;
-  if (!Number.isFinite(diffMs)) return "";
-  if (diffMs <= 0) {
-    if (language === "ar") return "مستحق الآن";
-    if (language === "fr") return "maintenant";
-    return "is due";
-  }
-  const minutes = Math.ceil(diffMs / 60_000);
-  if (minutes < 60) {
-    if (language === "ar") return `بعد ${minutes} د`;
-    if (language === "fr") return `dans ${minutes} min`;
-    return `in ${minutes} min`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (hours < 24) {
-    if (language === "ar") return remainder === 0 ? `بعد ${hours} س` : `بعد ${hours} س ${remainder} د`;
-    if (language === "fr") return remainder === 0 ? `dans ${hours}h` : `dans ${hours}h ${remainder}m`;
-    return remainder === 0 ? `in ${hours}h` : `in ${hours}h ${remainder}m`;
-  }
-  const days = Math.floor(hours / 24);
-  if (language === "ar") return `بعد ${days} يوم`;
-  if (language === "fr") return `dans ${days}j`;
-  return `in ${days}d`;
-}
+
 
 function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr", compact = false): string {
   if (briefing.paused) return pausedFeedMessage(language);
@@ -2489,13 +2465,13 @@ function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" 
   if (!Number.isFinite(nextAt)) return "";
   if (nextAt <= nowMs) return awaitingAcceptedBriefMessage(briefing.briefingCadence, language);
   const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language);
-  if (compact && countdown) return `${language === "ar" ? "التالي" : language === "fr" ? "Brief" : "Next"} ${countdown}`;
+  if (compact && countdown) return `${language === "ar" ? "التالي" : language === "fr" ? (briefing.briefingCadence === "hourly" ? "Vérif." : "Brief") : "Next"} ${countdown}`;
   return countdown ? nextBriefingText(briefing.briefingCadence, countdown, language) : "";
 }
 
 function pausedFeedMessage(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "الموجز متوقف مؤقتاً؛ لن تُنشر موجزات جديدة حتى يُستأنف.";
-  if (language === "fr") return "fil en pause; aucun nouveau brief ne sera publié avant reprise.";
+  if (language === "ar") return "الخلاصة متوقفة مؤقتًا. لن تُنشر فيها موجزات جديدة حتى استئنافها.";
+  if (language === "fr") return "Fil en pause. Aucun nouveau brief ne sera publié avant sa reprise.";
   return "feed paused; no new briefings will publish until it resumes.";
 }
 
@@ -2503,8 +2479,8 @@ function awaitingAcceptedBriefMessage(
   cadence: BriefingConfig["briefingCadence"],
   language: "en" | "ar" | "fr"
 ): string {
-  if (language === "ar") return cadence === "hourly" ? "بانتظار التحديث المقبول التالي." : `بانتظار الموجز المقبول التالي (${cadenceMetaLabel(cadence, language)}).`;
-  if (language === "fr") return cadence === "hourly" ? "en attente de la prochaine mise à jour acceptée." : `en attente du prochain brief ${cadenceMetaLabel(cadence, language)} accepté.`;
+  if (language === "ar") return cadence === "hourly" ? "بانتظار تحديث جديد بعد مراجعته." : `بانتظار الموجز ال${cadenceMetaLabel(cadence, language)} التالي بعد مراجعته.`;
+  if (language === "fr") return cadence === "hourly" ? "En attente d’une nouvelle mise à jour validée." : `En attente du prochain brief ${cadenceMetaLabel(cadence, language)} validé.`;
   return cadence === "hourly" ? "waiting for the next accepted update." : `waiting for the next accepted ${cadence} brief.`;
 }
 
@@ -2548,32 +2524,9 @@ function showLessLabel(language: "en" | "ar" | "fr"): string {
   return "Show less";
 }
 
-function cadenceMetaLabel(cadence: BriefingConfig["briefingCadence"], language: "en" | "ar" | "fr"): string {
-  if (language === "ar") {
-    if (cadence === "daily") return "يومي";
-    if (cadence === "weekly") return "أسبوعي";
-    if (cadence === "monthly") return "شهري";
-    return "تحديثات";
-  }
-  if (language === "fr") {
-    if (cadence === "daily") return "quotidien";
-    if (cadence === "weekly") return "hebdomadaire";
-    if (cadence === "monthly") return "mensuel";
-    return "mises à jour";
-  }
-  if (cadence === "hourly") return "updates";
-  return cadence;
-}
 
-function nextBriefingText(
-  cadence: BriefingConfig["briefingCadence"],
-  countdown: string,
-  language: "en" | "ar" | "fr"
-): string {
-  if (language === "ar") return cadence === "hourly" ? `الفحص التالي ${countdown}` : `الموجز التالي ${countdown}`;
-  if (language === "fr") return `prochain brief ${cadenceMetaLabel(cadence, language)} ${countdown}`;
-  return cadence === "hourly" ? `Next check ${countdown}` : `Next ${cadence} brief ${countdown}`;
-}
+
+
 
 function noReferencesLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "لا توجد مصادر لهذا الخبر.";
@@ -2583,7 +2536,7 @@ function noReferencesLabel(language: "en" | "ar" | "fr"): string {
 
 function originalPostLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "المنشور الأصلي";
-  if (language === "fr") return "publication originale";
+  if (language === "fr") return "Publication originale";
   return "original post";
 }
 

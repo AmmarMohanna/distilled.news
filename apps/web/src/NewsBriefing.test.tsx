@@ -21,12 +21,14 @@ it('shows the briefing headline, full elaboration, publisher, source date and nu
   expect(host.querySelector('details,.news-briefing-description svg')).toBeNull();
  });
 });
-it('navigates all references and supporting sources, copying the same article used by Read full article',async()=>{
+it('navigates numbered references and copies their article without source pagination',async()=>{
  const writeText=vi.fn(async()=>{});Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText}});
  await render(async host=>{
-  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Next source"]')!.click());
-  expect(host.querySelector('.news-briefing-publisher')?.textContent).toBe('Other publisher');
-  await act(async()=>host.querySelector<HTMLButtonElement>('.news-briefing-copy')!.click());expect(writeText).toHaveBeenCalledWith('https://other.example/article');expect(host.querySelector('.news-briefing-copy')?.textContent).toBe('Copied');
+  expect(host.querySelector('.news-briefing-source-nav')).toBeNull();
+  expect(host.querySelector('[aria-label="Next source"],[aria-label="Previous source"]')).toBeNull();
+  expect(host.textContent).not.toMatch(/Source \d+ \/ \d+/);
+  expect(host.querySelector('.news-briefing-publisher')?.textContent).toBe('ABC');
+  await act(async()=>host.querySelector<HTMLButtonElement>('.news-briefing-copy')!.click());expect(writeText).toHaveBeenCalledWith('https://abc.example/article');expect(host.querySelector('.news-briefing-copy')?.textContent).toBe('Copied');
   await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Reference 2"]')!.click());
   expect(host.querySelector('h3')?.textContent).toBe('Second headline');expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://second.example/article');expect(host.querySelector('.news-briefing-copy')?.textContent).toBe('Copy link');
  });
