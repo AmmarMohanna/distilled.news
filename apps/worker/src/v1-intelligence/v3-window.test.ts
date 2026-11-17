@@ -47,6 +47,15 @@ it('versions topic selection in new input identity without changing unmarked sou
  const {topicSelectionPolicy:_,...unchanged}=next.input.feed;
  expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
 });
+it('versions supported-core recovery in new frozen inputs without rewriting prior snapshots',async()=>{
+ await article();
+ const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,'supported-core-v1');
+ expect(old.input.feed).not.toHaveProperty('verificationRecoveryPolicy');
+ expect(next.input.feed.verificationRecoveryPolicy).toBe('supported-core-v1');expect(next.fingerprint).not.toBe(old.fingerprint);
+ const {verificationRecoveryPolicy:_,...unchanged}=next.input.feed;expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
+});
+
 it('attaches the verified edition artifact when publication retries a CAS conflict',async()=>{
  await applyTestMigration(ctx.db,readFileSync(new URL('../../migrations/0090_verified_edition_delivery.sql',import.meta.url),'utf8'));
  await article();
@@ -1073,6 +1082,8 @@ it('freezes the unusable editor chunk policy for new inputs and keeps legacy sna
  await feedTransact(store,'feed-1',tx=>tx.write('v3_window_inputs',id,frozen));
  const seen:string[]=[];await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,fetcher(seen) as typeof fetch);
  expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(frozen);
+ expect(frozen.input.feed).not.toHaveProperty('verificationRecoveryPolicy');
+ expect(seen.join('\n')).not.toContain('SUPPORTED-CORE VERIFICATION');
 });
 
 it('freezes complete accounting in new inputs and persists every source decision through duplicate delivery',async()=>{
@@ -1085,6 +1096,8 @@ it('freezes complete accounting in new inputs and persists every source decision
  expect(edition).toBeDefined();
  const id=await windowIdentity('feed-1',window),snapshot=await store.read<any>('feed-1','v3_window_inputs',id),saved=await store.read<any>('feed-1','v3_window_results',id);
  expect(snapshot.editorAccountingPolicy).toBe('complete-source-decisions-v2');
+ expect(snapshot.input.feed.verificationRecoveryPolicy).toBe('supported-core-v1');
+ expect(seen.join('\n')).toContain('SUPPORTED-CORE VERIFICATION');
  expect(snapshot.editorSourcePolicy).toBe('all-supporting-sources-v1');expect(snapshot.citationCoverage).toBe(false);
  expect(saved.result.sourceDecisions).toHaveLength(snapshot.input.articles.length);
  expect(saved.result.sourceDecisions[0].outcomes).toContainEqual(expect.objectContaining({stage:'final',decision:'selected'}));
