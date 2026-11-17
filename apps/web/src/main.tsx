@@ -1486,7 +1486,7 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
 function FeedPage(props: { username: string; slug: string }) {
   const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
   const { language: uiLanguage, t } = useLanguage();
-  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading, readerId, sessionState, retrySession } = useFeedViewer(props.username, props.slug);
+  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading, readerId, sessionState, retrySession, ownershipState, retryOwnership } = useFeedViewer(props.username, props.slug);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
   const feedKey = `${props.username}/${props.slug}`;
@@ -1495,11 +1495,12 @@ function FeedPage(props: { username: string; slug: string }) {
   const feedRead = useRef<AbortController | null>(null);
   const searchRequest = useRef(0);
   const latestQuery = useRef("");
-  const searchFailed = useRef(false);
   const loadedFeed = useRef<string | null>(null);
   const visibleEditionIds = useRef(new Set<string>());
+  const publicationVersion = useRef<string|undefined>(undefined);
   if (feedIdentity.current !== feedKey) {
     feedIdentity.current = feedKey; feedRequest.current++; searchRequest.current++;
+    publicationVersion.current=undefined;
   }
   const [feedResult, setFeedResult] = useState<{ key: string; value: FeedPayload } | null>(null);
   const payload = feedResult?.key === feedKey ? feedResult.value : null;
@@ -1510,10 +1511,14 @@ function FeedPage(props: { username: string; slug: string }) {
   const [query, setQuery] = useState("");
   const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
   const [error, setError] = useState<UiMessage>("");
+  const [searchError,setSearchError]=useState<{key:string;text:string;message:UiMessage}|null>(null);
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload?.editions.map(edition=>edition.id) ?? []);
+  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload ? [
+    ...payload.editions.map(edition=>edition.id),
+    ...(settledSearch?.key===feedKey?editions.map(edition=>edition.id):[])
+  ] : []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1525,7 +1530,7 @@ function FeedPage(props: { username: string; slug: string }) {
     const read = new AbortController();
     feedRead.current = read;
     const key = feedKey, request = ++feedRequest.current;
-    if (!silent || loadedFeed.current !== key) { searchFailed.current = false; setError(""); setSummaryMessage(""); }
+    if (!silent || loadedFeed.current !== key) { setError(""); setSummaryMessage(""); }
     if (loadedFeed.current !== key) setReadState({ key, state: "loading" });
     try {
       const next = await getFeed(props.username, props.slug, {
@@ -1534,22 +1539,31 @@ function FeedPage(props: { username: string; slug: string }) {
       });
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       loadedFeed.current = key;
-      visibleEditionIds.current = new Set(next.editions.map(edition => edition.id));
+      const searching=Boolean(latestQuery.current.trim()),complete=next.editionsComplete===true;
+      const changed=searching&&!complete&&(next.publicationVersion===undefined||next.publicationVersion!==publicationVersion.current);
+      publicationVersion.current=next.publicationVersion;
+      visibleEditionIds.current = new Set([
+        ...(searching&&!complete&&!changed?visibleEditionIds.current:[]),
+        ...next.editions.map(edition => edition.id)
+      ]);
       setFeedResult({ key, value: next }); setReadState({ key, state: "loaded" });
       const sourceNotice = sessionStorage.getItem(`feed-notice:${next.briefing.id}`);
-      searchFailed.current = false; setError(sourceNotice ?? "");
+      setError(sourceNotice ?? "");
       if (sourceNotice) sessionStorage.removeItem(`feed-notice:${next.briefing.id}`);
-      // Invalidate pending searches before they can restore newly withdrawn prose.
-      searchRequest.current++;
+      // Only a complete searchable snapshot can prove an edition was withdrawn.
+      if(!searching||complete||changed)searchRequest.current++;
       const ids = visibleEditionIds.current;
       // Refresh visibility without discarding pagination, search or loaded detail.
-      setEditions(current => latestQuery.current.trim() ? current.filter(edition => ids.has(edition.id)) : next.editions);
+      // Changed or unknown publication state must not leave stale search prose
+      // visible while its authoritative replacement is pending or unavailable.
+      setEditions(current => searching ? (changed?[]:complete?current.filter(edition => ids.has(edition.id)):current) : next.editions);
+      if(changed){setSettledSearch(null);setSelectedReport(null);setEditionDetails(new Map());}
       setEditionDetails(current => new Map([...current].filter(([id]) => ids.has(id))));
       setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
     } catch (cause) {
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       if (!silent || loadedFeed.current !== key) {
-        searchFailed.current = false; setReadState({ key, state: "failed" }); setError(toUiError(cause));
+        setReadState({ key, state: "failed" }); setError(toUiError(cause));
       }
       return cause instanceof ApiError ? cause.uiMessage.details : {};
     } finally {
@@ -1558,7 +1572,7 @@ function FeedPage(props: { username: string; slug: string }) {
   }
 
   useEffect(() => {
-    setError(""); setSummaryMessage(""); latestQuery.current = "";
+    setError("");setSearchError(null); setSummaryMessage(""); latestQuery.current = "";
     setQuery(""); setEditions([]); setEditionBusyIds(new Set());
     setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
     visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
@@ -1605,22 +1619,23 @@ function FeedPage(props: { username: string; slug: string }) {
       const next = text.trim() ? await searchFeed(props.username, props.slug, text) : payload?.editions ?? [];
       if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) {
         visibleEditionIds.current = new Set([...visibleEditionIds.current, ...next.map(edition => edition.id)]);
-        searchFailed.current = false; setError(""); setEditions(next); setSettledSearch({ key, text });
+        setSearchError(null); setEditions(next); setSettledSearch({ key, text });
       }
     } catch (cause) {
-      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { searchFailed.current = true; setError(toUiError(cause)); }
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { setSearchError({key,text,message:toUiError(cause)}); setSettledSearch({key,text}); }
     }
   }
 
+  const searchSnapshot=payload?.editionsComplete===false&&payload.publicationVersion!==undefined?payload.publicationVersion:payload;
   useEffect(() => {
     const request = ++searchRequest.current;
     if (!payload) return;
-    if (!query.trim()) { if (searchFailed.current) { searchFailed.current = false; setError(""); } setEditions(payload.editions); return; }
+    if (!query.trim()) { setSearchError(null); setEditions(payload.editions); return; }
     const timeout = window.setTimeout(() => {
       if (request === searchRequest.current && feedIdentity.current === feedKey && query === latestQuery.current) void applySearch(query, request);
     }, 250);
     return () => window.clearTimeout(timeout);
-  }, [payload, props.username, props.slug, query]);
+  }, [searchSnapshot, props.username, props.slug, query]);
 
   const currentEditions = payload ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
@@ -1739,6 +1754,11 @@ function FeedPage(props: { username: string; slug: string }) {
         <p>{t("We couldn’t confirm your session. Retry to restore your account and read progress.")}</p>
         <button type="button" onClick={retrySession}>{t("Retry session")}</button>
       </div>}
+      {sessionState==='authenticated'&&ownershipState==='error'&&<div role="alert">
+        <p>{t('Could not load feed-management controls. Retry to restore access to settings.')}</p>
+        <button type="button" onClick={retryOwnership}>{t('Retry feed controls')}</button>
+      </div>}
+      {sessionState==='authenticated'&&!viewerLoading&&ownershipState==='loading'&&<p role="status">{t('Loading feed controls…')}</p>}
       {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
       {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
         onLogout={async () => {
@@ -1746,7 +1766,7 @@ function FeedPage(props: { username: string; slug: string }) {
           feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
           visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
           setFeedResult(null);setEditions([]);setEditionDetails(new Map());setSelectedReport(null);
-          setQuery('');setSettledSearch(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
+          setQuery('');setSettledSearch(null);setSearchError(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
           setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
           if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
           window.location.replace('/');
@@ -1805,6 +1825,7 @@ function FeedPage(props: { username: string; slug: string }) {
         />
       ) : null}
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
+      {searchError?.key===feedKey&&searchError.text===query&&<FeedNotice message={t(searchError.message)} language={language}/>}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}

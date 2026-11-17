@@ -16,6 +16,19 @@ vi.mock('./Dialog', () => ({ Dialog: ({children,label}: {children: React.ReactNo
 vi.mock('./FeedArt', () => ({ FeedArt: () => <img src="/prepared-sketch.png" alt=""/> }));
 vi.mock('./pwa', () => ({ installApp: vi.fn(), notificationsEnabled: async () => false, setNotificationsEnabled: vi.fn() }));
 
+it('shows a successful empty Explore state only after loading, independently of failures',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});vi.stubGlobal('matchMedia',()=>({matches:false,addEventListener(){},removeEventListener(){}}));
+ let resolve!:(value:Awaited<ReturnType<typeof getExploreFeeds>>)=>void;
+ vi.mocked(getExploreFeeds).mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
+ const host=document.createElement('div'),root=createRoot(host);
+ try{
+  await act(async()=>root.render(<AppExperience account={null} briefings={[]} initialTab="explore" onAccount={()=>{}} onHelp={()=>{}}/>));
+  expect(host.textContent).not.toContain('No community feeds are available yet.');
+  await act(async()=>resolve({feeds:[],nextOffset:null}));
+  expect(host.querySelector('.explore-view [role="status"]')?.textContent).toBe('No community feeds are available yet.');
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
+
 it('keeps an Explore loading failure off Home and retries from Explore', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
@@ -133,7 +146,7 @@ it('loads one Explore page without feed fan-out, keeps cards on page failure and
   const second = {...first,id:'second',title:'Second science',slug:'second'};
   vi.mocked(getExploreFeeds).mockResolvedValueOnce({feeds:[first],nextOffset:100})
     .mockRejectedValueOnce(new Error('Temporary page failure'))
-    .mockResolvedValueOnce({feeds:[first,second],nextOffset:null});
+    .mockResolvedValueOnce({feeds:[second],nextOffset:null});
   const host=document.createElement('div'),root=createRoot(host);
   try {
     await act(async()=>root.render(<AppExperience account={{id:'reader',username:'reader'} as any} briefings={[]} onAccount={()=>{}} onHelp={()=>{}}/>));

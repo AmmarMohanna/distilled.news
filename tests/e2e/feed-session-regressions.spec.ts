@@ -24,6 +24,14 @@ async function rename(page:Page){
  const dialog=page.locator('.profile-dialog');await dialog.getByRole('button',{name:'Edit username',exact:true}).click();
  await dialog.getByLabel('username',{exact:true}).fill('renamed-owner');await dialog.getByRole('button',{name:'Save',exact:true}).click();
 }
+
+test('an ownership lookup failure has a visible retry that restores feed settings',async({page})=>{
+ await fixture(page);let attempts=0;
+ await page.route('**/api/me/briefings',route=>++attempts===1?route.fulfill({status:503,json:{error:'unavailable'}}):route.fulfill({json:{briefings:[base]}}));
+ await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
+ await page.getByRole('button',{name:'Retry feed controls',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Edit feed settings',exact:true})).toBeVisible();expect(attempts).toBe(2);
+});
 test('logout replaces the open private feed with Home and cannot restore its content using Back',async({page})=>{
  await fixture(page);await page.goto('/');await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');
  await page.getByRole('button',{name:'Account profile',exact:true}).click();await page.locator('.profile-dialog').getByRole('button',{name:'Log out',exact:true}).click();
@@ -54,6 +62,36 @@ test('reader history from the old account-scoped URL key migrates across a publi
  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('dn_read:v3:'+JSON.stringify([['account','owner-id'],'stable-feed-id']))??'[]'))).toContain('stable-edition');
  await page.getByRole('button',{name:'Mark as unread',exact:true}).click();await page.reload();
  await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
+});
+
+test('legacy historical read flags migrate from search and an explicit unread flag survives reload',async({page})=>{
+ await page.addInitScript(()=>{if(!localStorage.getItem('history-fixture')){localStorage.setItem('history-fixture','1');localStorage.setItem('dn_read:v2:'+JSON.stringify([['account','owner-id'],'old-owner','news']),'["historical-only"]');}});
+ await fixture(page,true);
+ await page.route('**/api/feed/owner/news/search?*',route=>route.fulfill({json:{editions:[{...edition,id:'historical-only',title:'Historical development',sections:edition.sections.map(section=>({...section,title:'Historical development'}))}]}}));
+ await page.goto('/owner/news/');await expect(page.locator('.news-item')).toHaveCount(1);
+ await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
+ await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();await page.getByRole('button',{name:'Mark as unread',exact:true}).click();
+ await page.reload();await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
+ await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
+});
+
+test('two tabs synchronize independent read marks and retain an explicit unread choice after reload',async({page,context})=>{
+ const other=await context.newPage();
+ const rows=['A','B','C'].map(letter=>({...edition,id:'edition-'+letter,title:'Development '+letter,sections:edition.sections.map(section=>({...section,title:'Development '+letter}))}));
+ for(const tab of [page,other]){
+  await fixture(tab,true);
+  await tab.route('**/api/feed/owner/news',route=>route.fulfill({json:{briefing:{...base,publicFeedEnabled:true},editions:rows,viewerHasStarred:false}}));
+ }
+ const row=(tab:Page,letter:string)=>tab.locator('.news-item').filter({hasText:'Development '+letter});
+ await Promise.all([page.goto('/owner/news/'),other.goto('/owner/news/')]);
+ for(const tab of [page,other])await expect(tab.locator('.news-item')).toHaveCount(3);
+ await Promise.all([row(page,'A').getByRole('button',{name:'Mark as read',exact:true}).click(),row(other,'B').getByRole('button',{name:'Mark as read',exact:true}).click()]);
+ for(const tab of [page,other])await expect(tab.locator('.news-item.is-read')).toHaveCount(2);
+ await row(page,'A').getByRole('button',{name:'Mark as unread',exact:true}).click();
+ await row(other,'C').getByRole('button',{name:'Mark as read',exact:true}).click();
+ for(const tab of [page,other]){await expect(row(tab,'A')).not.toHaveClass(/is-read/);await expect(tab.locator('.news-item.is-read')).toHaveCount(2);}
+ await Promise.all([page.reload(),other.reload()]);
+ for(const tab of [page,other]){await expect(row(tab,'A')).not.toHaveClass(/is-read/);await expect(row(tab,'B')).toHaveClass(/is-read/);await expect(row(tab,'C')).toHaveClass(/is-read/);}
 });
 
 test('failed logout keeps the private reader authenticated and retryable',async({page})=>{

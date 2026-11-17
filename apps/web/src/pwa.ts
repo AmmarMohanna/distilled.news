@@ -62,7 +62,7 @@ export async function setNotificationsEnabled(enabled: boolean): Promise<void> {
     } finally {
       if (!await existing.unsubscribe()) throw new Error("Could not disable notifications. Please try again.");
     }
-    if (!removed) throw new Error("Could not remove subscription");
+    if (!removed) throw new Error("Notifications are disabled on this device, but server cleanup failed.");
     return;
   }
   if (!enabled) return;

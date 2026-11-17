@@ -82,6 +82,29 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it.each([1,50,75])('marks whether the legacy feed snapshot covers searchable history (%s editions)',async(count)=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo});
+    const user=await createVerifiedUser(app,repo,'history@example.invalid','History Owner');
+    const briefing=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+    for(let i=0;i<count;i++){
+      const at=new Date(Date.now()-(i+1)*60000).toISOString();
+      await repo.saveBriefingEdition({id:'history-'+i,briefingId:briefing.id,cadence:'hourly',windowStart:at,windowEnd:at,title:'Archive development '+i,summary:'The coastal road reopened after an overnight security closure.',sections:[{title:'Infrastructure',summary:'The coastal road reopened after an overnight security closure.',evidence:[]}],status:'published',publishedAt:at,createdAt:at,updatedAt:at});
+    }
+    const response=await app.request('/api/feed/history-owner/personal',{},env());expect(response.status).toBe(200);
+    const payload=await response.json() as {editionsComplete:boolean;publicationVersion:string;editions:unknown[]};
+    expect(payload.editions).toHaveLength(Math.min(count,50));expect(payload.editionsComplete).toBe(count<=50);expect(payload.publicationVersion).toEqual(expect.any(String));
+    expect((await(await app.request('/api/feed/history-owner/personal',{},env())).json() as typeof payload).publicationVersion).toBe(payload.publicationVersion);
+    const search=await app.request('/api/feed/history-owner/personal/search?q=coastal',{},env());
+    expect((await search.json() as {editions:unknown[]}).editions).toHaveLength(count);
+    if(count===75){
+      const old=(await repo.getBriefingEdition(briefing.id,'history-74'))!;
+      await repo.saveBriefingEdition({...old,status:'empty',updatedAt:new Date().toISOString()});
+      const changed=await(await app.request('/api/feed/history-owner/personal',{},env())).json() as typeof payload;
+      expect(changed.editions).toEqual(payload.editions);expect(changed.publicationVersion).not.toBe(payload.publicationVersion);
+      const after=await(await app.request('/api/feed/history-owner/personal/search?q=coastal',{},env())).json() as {editions:Array<{id:string}>};
+      expect(after.editions.some(edition=>edition.id===old.id)).toBe(false);
+    }
+  });
   it('rejects invalid retrieval budgets and never spends on an ordinary blocked source check',async()=>{
     const fetcher=vi.fn<typeof fetch>(async()=>new Response('Blocked',{status:403})),app=createApp({repository:new InMemoryRepository(),fetcher});
     const target={...env(),SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_PAID_VERIFICATION_ENABLED:'true',OPENROUTER_API_KEY:'test',ZYTE_API_KEY:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0.05}'};

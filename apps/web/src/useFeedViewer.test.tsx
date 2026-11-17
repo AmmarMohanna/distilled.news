@@ -90,6 +90,16 @@ it('keeps a failed session unresolved instead of anonymous, then retries to the 
  await act(async()=> latest!.retrySession());
  expect(latest!.readerId).toBe('owner');expect(latest!.sessionState).toBe('authenticated');
 });
+
+it('distinguishes an ownership failure from non-ownership and retries while retaining the confirmed reader',async()=>{
+ let latest:ReturnType<typeof useFeedViewer>;
+ function Viewer(){latest=useFeedViewer('owner','news');return null;}
+ vi.mocked(getSession).mockResolvedValue({authenticated:true,setupRequired:false,account:owner});
+ vi.mocked(getBriefings).mockRejectedValueOnce(new Error('Temporary owner failure')).mockResolvedValueOnce([feed]);
+ await act(async()=>root.render(<Viewer/>));expect(latest!.readerId).toBe(owner.id);expect(latest!.ownershipState).toBe('error');
+ await act(async()=>latest!.retryOwnership());expect(latest!.ownershipState).toBe('owner');expect(latest!.ownedFeed?.id).toBe(feed.id);
+ expect(latest!.readerId).toBe(owner.id);
+});
 it('uses an anonymous identity only after an explicit unauthenticated session',async()=>{
  let latest:ReturnType<typeof useFeedViewer>;
  function Session(){latest=useFeedViewer('owner','news');return null;}

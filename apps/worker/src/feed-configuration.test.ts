@@ -20,6 +20,16 @@ beforeEach(async()=>{
 afterEach(async()=>ctx?.dispose());
 const save=(value:unknown)=>app.request('/api/me/feeds',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify(value)},env);
 
+it('edits settings while retaining every disabled source and rejects empty sources for new or active feeds',async()=>{
+ expect((await save(input)).status).toBe(200);
+ expect((await save({...input,sourceInputs:[]})).status).toBe(400);
+ const source=(await repo.listSources(input.id))[0];await repo.setSourceEnabled(source.id,false);
+ const before=await repo.listSources(input.id);
+ const result=await save({...input,title:'Renamed inactive feed',sourceInputs:[]});expect(result.status).toBe(200);
+ expect((await repo.getBriefingById(input.id))?.title).toBe('Renamed inactive feed');expect(await repo.listSources(input.id)).toEqual(before);
+ expect((await save({...input,id:'new-empty',sourceInputs:[]})).status).toBe(400);
+});
+
 it.each([false,true])('rolls back configuration, sources and scheduler triggers when the second source write fails (existing=%s)',async(existing)=>{
  if(existing)expect((await save(input)).status).toBe(200);
  const before=await repo.getBriefingById(input.id),sources=await repo.listSources(input.id);

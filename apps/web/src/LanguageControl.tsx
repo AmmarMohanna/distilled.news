@@ -8,6 +8,15 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'No matches in loaded feeds. Load more feeds to continue searching.': ['Aucun résultat parmi les fils chargés. Chargez davantage de fils pour poursuivre la recherche.', 'لا توجد نتائج ضمن الخلاصات المحمّلة. حمّل المزيد من الخلاصات لمتابعة البحث.'],
+  'No community feeds are available yet.': ['Aucun fil communautaire n’est disponible pour le moment.', 'لا توجد خلاصات مجتمعية متاحة بعد.'],
+  'Retry sources': ['Réessayer le chargement des sources', 'إعادة تحميل المصادر'],
+  'All configured sources are disabled. You can save settings without enabling them.': ['Toutes les sources configurées sont désactivées. Vous pouvez enregistrer les paramètres sans les activer.', 'جميع المصادر المضبوطة معطّلة. يمكنك حفظ الإعدادات دون تفعيلها.'],
+  'Could not load feed-management controls. Retry to restore access to settings.': ['Impossible de charger les commandes de gestion du fil. Réessayez pour accéder aux paramètres.', 'تعذّر تحميل أدوات إدارة الخلاصة. أعد المحاولة للوصول إلى الإعدادات.'],
+  'Retry feed controls': ['Réessayer les commandes du fil', 'إعادة تحميل أدوات الخلاصة'],
+  'Loading feed controls…': ['Chargement des commandes du fil…', 'جارٍ تحميل أدوات الخلاصة…'],
+  'Notifications are disabled on this device, but server cleanup failed.': ['Les notifications sont désactivées sur cet appareil, mais leur suppression sur le serveur a échoué.', 'تم إيقاف الإشعارات على هذا الجهاز، لكن تعذّر حذف الاشتراك من الخادم.'],
+  'The Telegram source URL is missing. Reload before saving.': ['Le lien de la source Telegram est manquant. Rechargez la page avant d’enregistrer.', 'رابط مصدر تيليغرام مفقود. أعد تحميل الصفحة قبل الحفظ.'],
   'Retry session': ['Réessayer la connexion', 'إعادة محاولة تحميل الجلسة'],
   'We couldn’t confirm your session. Retry to restore your account and read progress.': ['Impossible de confirmer votre session. Réessayez pour retrouver votre compte et votre progression de lecture.', 'تعذّر التحقق من جلستك. أعد المحاولة لاستعادة حسابك وتقدّم القراءة.'],
   'Feed saved. Some sources are awaiting activation. Check source health for updates.': ["Fil enregistré. Certaines sources sont en attente d’activation. Consultez leur état pour suivre leur progression.","تم حفظ الخلاصة. بعض المصادر بانتظار التفعيل. راجع حالتها لمتابعة المستجدات."],
