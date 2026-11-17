@@ -64,6 +64,17 @@ test('reader history from the old account-scoped URL key migrates across a publi
  await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
 });
 
+test('legacy historical read flags migrate from search and an explicit unread flag survives reload',async({page})=>{
+ await page.addInitScript(()=>{if(!localStorage.getItem('history-fixture')){localStorage.setItem('history-fixture','1');localStorage.setItem('dn_read:v2:'+JSON.stringify([['account','owner-id'],'old-owner','news']),'["historical-only"]');}});
+ await fixture(page,true);
+ await page.route('**/api/feed/owner/news/search?*',route=>route.fulfill({json:{editions:[{...edition,id:'historical-only',title:'Historical development',sections:edition.sections.map(section=>({...section,title:'Historical development'}))}]}}));
+ await page.goto('/owner/news/');await expect(page.locator('.news-item')).toHaveCount(1);
+ await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
+ await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();await page.getByRole('button',{name:'Mark as unread',exact:true}).click();
+ await page.reload();await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
+ await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
+});
+
 test('failed logout keeps the private reader authenticated and retryable',async({page})=>{
  await fixture(page);await page.route('**/api/auth/logout',route=>route.fulfill({status:503,json:{error:'unavailable'}}));
  await page.goto('/owner/news/');await expect(page.locator('.news-item')).toContainText('Protected development');

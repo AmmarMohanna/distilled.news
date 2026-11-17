@@ -11,20 +11,29 @@ export function legacyReadProgressKey(owner:string,slug:string,readerId:string|n
  * Keep legacy records intact: editions no longer retained cannot be safely bound.
  */
 export function loadReadProgress(feedId:string,readerId:string|null,editionIds:readonly string[]):Set<string> {
-  const raw=localStorage.getItem(readProgressKey(feedId,readerId));
-  const result=parseReadProgress(raw);
-  // A stable record is authoritative, including an intentional mark-as-unread.
-  if(raw!==null)return result;
-  const known=new Set(editionIds),scope=JSON.stringify(readerScope(readerId));
+  return loadReadState(feedId,readerId,editionIds).ids;
+}
+type Progress={ids:Set<string>;considered:Set<string>};
+function loadReadState(feedId:string,readerId:string|null,editionIds:readonly string[],current?:Progress):Progress {
+  const key=readProgressKey(feedId,readerId);
+  const raw=current?null:localStorage.getItem(key);
+  const metadata=current?null:localStorage.getItem(key+':considered');
+  const result=new Set(current?.ids??parseReadProgress(raw));
+  // Earlier v3 arrays cannot explain why a known ID is absent. Preserve those
+  // decisions, but permit migration when previously unseen history is found.
+  const considered=new Set(current?.considered??(raw!==null&&metadata===null?editionIds:parseReadProgress(metadata)));
+  const fresh=new Set(editionIds.filter(id=>!considered.has(id)));
+  if(current&&fresh.size===0)return current;
+  const scope=JSON.stringify(readerScope(readerId));
   for(let i=0;i<localStorage.length;i++){
     const key=localStorage.key(i);if(!key?.startsWith('dn_read:v2:'))continue;
     try {
       const identity:unknown=JSON.parse(key.slice('dn_read:v2:'.length));
       if(!Array.isArray(identity)||identity.length!==3||typeof identity[1]!=='string'||typeof identity[2]!=='string'||JSON.stringify(identity[0])!==scope)continue;
-      for(const id of parseReadProgress(localStorage.getItem(key)))if(known.has(id))result.add(id);
+      for(const id of parseReadProgress(localStorage.getItem(key)))if(fresh.has(id))result.add(id);
     }catch{/* Invalid or inaccessible legacy data is not migration evidence. */}
   }
-  return result;
+  return {ids:result,considered:new Set([...considered,...editionIds])};
 }
 export function parseReadProgress(raw:string|null):Set<string> {
   try {
@@ -37,25 +46,32 @@ const empty=new Set<string>();
 export function useReadProgress(feedId:string|undefined,readerId:string|null|undefined,editionIds:readonly string[]=[]) {
   const key=readerId===undefined||!feedId?null:readProgressKey(feedId,readerId);
   const editionsKey=JSON.stringify([...new Set(editionIds)].sort());
-  const [saved,setSaved]=useState<{key:string|null;ids:Set<string>}>({key:null,ids:empty});
+  const [saved,setSaved]=useState<Progress&{key:string|null}>({key:null,ids:empty,considered:empty});
   useEffect(()=>{
     if(!key)return;
     setSaved(current=>{
-      // The mounted reader owns its current progress. A refresh must not replace
-      // unsaved marks with empty/stale storage when reads or writes are blocked.
-      if(current.key===key)return current;
-      let ids:Set<string>;
-      try {ids=loadReadProgress(feedId!,readerId!,JSON.parse(editionsKey));} catch {ids=new Set();}
-      return {key,ids};
+      // Merge only newly discovered IDs into the mounted reader's state. Never
+      // replace unsaved progress with stale storage when storage is blocked.
+      try {
+        const progress=loadReadState(feedId!,readerId!,JSON.parse(editionsKey),current.key===key?current:undefined);
+        return progress===current?current:{key,...progress};
+      } catch {return current.key===key?current:{key,ids:new Set(),considered:new Set()};}
     });
   },[key,editionsKey]);
   useEffect(()=>{
     if(!key||saved.key!==key)return;
-    try {localStorage.setItem(key,JSON.stringify([...saved.ids]));} catch { /* Reading still works with storage disabled/full. */ }
+    try {
+      localStorage.setItem(key,JSON.stringify([...saved.ids]));
+      localStorage.setItem(key+':considered',JSON.stringify([...saved.considered]));
+    } catch { /* Reading still works with storage disabled/full. */ }
   },[key,saved]);
   const setIds:Dispatch<SetStateAction<Set<string>>>=useCallback(next=>{
     if(!key)return;
-    setSaved(current=>({key,ids:typeof next==='function'?next(current.key===key?current.ids:empty):next}));
+    setSaved(current=>{
+      const previous=current.key===key?current:{ids:empty,considered:empty};
+      const ids=typeof next==='function'?next(previous.ids):next;
+      return {key,ids,considered:new Set([...previous.considered,...previous.ids,...ids])};
+    });
   },[key]);
   // Account/feed changes hide the previous reader's IDs before effects run.
   return [saved.key===key?saved.ids:empty,setIds] as const;

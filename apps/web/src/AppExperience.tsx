@@ -176,7 +176,7 @@ export function AppExperience(props: {
           <FeedCardActions feed={feed} owner={props.account?.username === feed.ownerUsername} onError={setError} hideStar latestUpdatedAt={feed.latestUpdatedAt}>
             <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${t(feed.viewerHasStarred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(toUiError(cause)); } finally { setStarBusy(null); } }}><Star size={16}/><span className="feed-star-count">{feed.stars}</span></button>
           </FeedCardActions>
-        </article>)}</AdaptiveFeedGrid> : !loading && !exploreError && query.trim() ? <p className="empty-copy" role="status">{t("No feeds match your search.")}</p> : null}
+        </article>)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim()||nextOffset===null) ? <p className="empty-copy" role="status">{t(query.trim()?"No feeds match your search.":"No community feeds are available yet.")}</p> : null}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>
     </section>

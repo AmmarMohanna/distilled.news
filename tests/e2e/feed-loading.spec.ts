@@ -59,7 +59,7 @@ test('limited feed refresh preserves older search results without repeating a su
  let searches=0,reads=0;
  await page.route('**/api/**',route=>{
   const u=new URL(route.request().url());
-  if(u.pathname===path){reads++;return route.fulfill({json:{briefing:feed,editionsComplete:false,editions:Array.from({length:50},(_,i)=>edition('recent-'+i))}});}
+  if(u.pathname===path){reads++;return route.fulfill({json:{briefing:feed,editionsComplete:false,publicationVersion:'unchanged',editions:Array.from({length:50},(_,i)=>edition('recent-'+i))}});}
   if(u.pathname.endsWith('/search')){searches++;return searches===1?route.fulfill({json:{editions:[edition('historical')]}}):route.fulfill({status:503,json:{error:'unavailable'}});}
   return route.fulfill({json:{authenticated:false,feeds:[]}});
  });
@@ -67,6 +67,23 @@ test('limited feed refresh preserves older search results without repeating a su
  await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toHaveCount(1);await expect(page.locator('.news-headline')).toContainText('historical');
  await refreshFeed(page);await expect.poll(()=>reads).toBe(2);await page.waitForTimeout(600);
  await expect(page.locator('.news-headline')).toContainText('historical');expect(searches).toBe(1);await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+for(const fails of [false,true])test(`historical search withdrawal is revalidated after a publication change (search fails=${fails})`,async({page})=>{
+ let withdrawn=false,searches=0;
+ await page.route('**/api/**',route=>{
+  const u=new URL(route.request().url());
+  if(u.pathname===path)return route.fulfill({json:{briefing:feed,editionsComplete:false,publicationVersion:withdrawn?'after-withdrawal':'before-withdrawal',editions:Array.from({length:50},(_,i)=>edition('recent-'+i))}});
+  if(u.pathname.endsWith('/search')){searches++;return withdrawn?(fails?route.fulfill({status:503,json:{error:'unavailable'}}):route.fulfill({json:{editions:[]}})):route.fulfill({json:{editions:[edition('historical')]}});}
+  return route.fulfill({json:{authenticated:false,feeds:[]}});
+ });
+ await page.goto('/reader/news/');await expect(page.locator('.news-item')).toHaveCount(20);
+ await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toHaveCount(1);
+ await page.getByRole('button',{name:'Source 1',exact:true}).click();await expect(page.locator('.news-briefing-card')).toBeVisible();
+ withdrawn=true;await refreshFeed(page);await expect.poll(()=>searches).toBe(2);
+ await expect(page.locator('.news-item')).toHaveCount(0);await expect(page.locator('.news-briefing-card')).toHaveCount(0);
+ await expect(page.getByText('Development historical',{exact:true})).toHaveCount(0);
+ if(fails)await expect(page.getByRole('alert')).toContainText(requestFailed);
 });
 
 test('navigation cannot inherit a pending response from another feed',async({page})=>{

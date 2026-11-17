@@ -1497,8 +1497,10 @@ function FeedPage(props: { username: string; slug: string }) {
   const searchFailed = useRef(false);
   const loadedFeed = useRef<string | null>(null);
   const visibleEditionIds = useRef(new Set<string>());
+  const publicationVersion = useRef<string|undefined>(undefined);
   if (feedIdentity.current !== feedKey) {
     feedIdentity.current = feedKey; feedRequest.current++; searchRequest.current++;
+    publicationVersion.current=undefined;
   }
   const [feedResult, setFeedResult] = useState<{ key: string; value: FeedPayload } | null>(null);
   const payload = feedResult?.key === feedKey ? feedResult.value : null;
@@ -1512,7 +1514,10 @@ function FeedPage(props: { username: string; slug: string }) {
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload?.editions.map(edition=>edition.id) ?? []);
+  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload ? [
+    ...payload.editions.map(edition=>edition.id),
+    ...(settledSearch?.key===feedKey?editions.map(edition=>edition.id):[])
+  ] : []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1534,8 +1539,10 @@ function FeedPage(props: { username: string; slug: string }) {
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       loadedFeed.current = key;
       const searching=Boolean(latestQuery.current.trim()),complete=next.editionsComplete===true;
+      const changed=searching&&!complete&&(next.publicationVersion===undefined||next.publicationVersion!==publicationVersion.current);
+      publicationVersion.current=next.publicationVersion;
       visibleEditionIds.current = new Set([
-        ...(searching&&!complete?visibleEditionIds.current:[]),
+        ...(searching&&!complete&&!changed?visibleEditionIds.current:[]),
         ...next.editions.map(edition => edition.id)
       ]);
       setFeedResult({ key, value: next }); setReadState({ key, state: "loaded" });
@@ -1543,10 +1550,13 @@ function FeedPage(props: { username: string; slug: string }) {
       searchFailed.current = false; setError(sourceNotice ?? "");
       if (sourceNotice) sessionStorage.removeItem(`feed-notice:${next.briefing.id}`);
       // Only a complete searchable snapshot can prove an edition was withdrawn.
-      if(!searching||complete)searchRequest.current++;
+      if(!searching||complete||changed)searchRequest.current++;
       const ids = visibleEditionIds.current;
       // Refresh visibility without discarding pagination, search or loaded detail.
-      setEditions(current => searching ? (complete?current.filter(edition => ids.has(edition.id)):current) : next.editions);
+      // Changed or unknown publication state must not leave stale search prose
+      // visible while its authoritative replacement is pending or unavailable.
+      setEditions(current => searching ? (changed?[]:complete?current.filter(edition => ids.has(edition.id)):current) : next.editions);
+      if(changed){setSettledSearch(null);setSelectedReport(null);setEditionDetails(new Map());}
       setEditionDetails(current => new Map([...current].filter(([id]) => ids.has(id))));
       setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
     } catch (cause) {
@@ -1611,11 +1621,11 @@ function FeedPage(props: { username: string; slug: string }) {
         searchFailed.current = false; setError(""); setEditions(next); setSettledSearch({ key, text });
       }
     } catch (cause) {
-      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { searchFailed.current = true; setError(toUiError(cause)); }
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { searchFailed.current = true; setError(toUiError(cause)); setSettledSearch({key,text}); }
     }
   }
 
-  const searchSnapshot=payload?.editionsComplete===false?Boolean(payload):payload;
+  const searchSnapshot=payload?.editionsComplete===false&&payload.publicationVersion!==undefined?payload.publicationVersion:payload;
   useEffect(() => {
     const request = ++searchRequest.current;
     if (!payload) return;

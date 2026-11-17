@@ -1362,8 +1362,10 @@ export function createApp(options: AppOptions = {}) {
         viewerHasStarred
       });
     }
-    const legacyEditions=c.env.PRODUCT_FEEDS_ENABLED==='true'?undefined:await repo.listBriefingEditions(briefing.id,true);
-    const editions = legacyEditions ? legacyEditions.filter(edition=>isPublicEditionVisible(edition,briefing.language)) : await publishedProductEditions(c.env,briefing);
+    // Match legacy search's bounded window so withdrawals outside the recent
+    // page change the marker too. The reader still receives only 50 editions.
+    const legacyEditions=c.env.PRODUCT_FEEDS_ENABLED==='true'?undefined:await repo.listBriefingEditions(briefing.id,true,new Date(),100);
+    const editions = legacyEditions ? legacyEditions.slice(0,50).filter(edition=>isPublicEditionVisible(edition,briefing.language)) : await publishedProductEditions(c.env,briefing);
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
@@ -1371,9 +1373,8 @@ export function createApp(options: AppOptions = {}) {
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
-      // Product search uses the same retained window. Legacy search can return
-      // 100 editions, so a full default page of 50 is not an exhaustive list.
-      editionsComplete:legacyEditions?legacyEditions.length<50:true,
+      editionsComplete:legacyEditions?legacyEditions.length<=50:true,
+      ...(legacyEditions?{publicationVersion:await hashToken(JSON.stringify([briefing.language,legacyEditions]))}:{}),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     };
     if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
