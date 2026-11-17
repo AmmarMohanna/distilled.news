@@ -51,7 +51,7 @@ it('checks a readable Google result beyond position thirty in a cold sixty-link 
 it('resolves Google listings through one free helper batch, verifies the actual articles and reuses resolutions',async()=>{
  const second=listing.replace('ArticleA','ArticleB');
  const service=vi.fn<typeof fetch>(async(_url,init)=>{
-  expect(JSON.parse(init!.body as string)).toEqual({kind:'google_resolve',input:{urls:[listing,second],timeoutSeconds:2,maxFreshDecodes:60}});
+  expect(JSON.parse(init!.body as string)).toEqual({kind:'google_resolve',input:{urls:[listing,second],timeoutSeconds:8,maxFreshDecodes:60}});
   return Response.json({results:[{inputUrl:listing,url:'https://publisher.example/free'},{inputUrl:second,url:'https://publisher.example/paid'}]});
  });
  const fetcher=vi.fn<typeof fetch>(async url=>String(url).endsWith('/paid')?new Response('Forbidden',{status:403}):articlePage());

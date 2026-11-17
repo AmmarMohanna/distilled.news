@@ -21,11 +21,11 @@ export function briefingPushPreview(value:unknown,uiLanguage:string):string {
 
 /** Same oldest-first, receipt/cutoff eligibility as the acceptance outbox. */
 export async function readBriefingPushPreview(db:D1Database,s:{account_id:string;last_notified_at:string;newest:string;notification_version:string;language:string}):Promise<string>{
- const row=await db.prepare(`SELECT e.json FROM briefings b JOIN accounts a ON a.id=b.owner_account_id
+ const row=await db.prepare(`SELECT e.json,b.public_feed_enabled FROM briefings b JOIN accounts a ON a.id=b.owner_account_id
  ${ELIGIBLE_PUSH_SQL} WHERE b.owner_account_id=? AND json_extract(p.json,'$.publishedAt')>?
  AND json_extract(p.json,'$.publishedAt')<=?
  AND NOT EXISTS(SELECT 1 FROM v1_feed_documents r WHERE r.kind='browser_push_receipts' AND r.feed_id=e.feed_id AND json_extract(r.json,'$.editionId')=e.id AND json_extract(r.json,'$.subscriptionVersion')=?)
- ORDER BY json_extract(p.json,'$.publishedAt'),e.id LIMIT 1`).bind(s.account_id,s.last_notified_at,s.newest,s.notification_version).first<{json:string}>();
- if(!row)return genericPushPreview(s.language);
+ ORDER BY json_extract(p.json,'$.publishedAt'),e.id LIMIT 1`).bind(s.account_id,s.last_notified_at,s.newest,s.notification_version).first<{json:string;public_feed_enabled:number}>();
+ if(!row||row.public_feed_enabled!==1)return genericPushPreview(s.language);
  try{return briefingPushPreview(JSON.parse(row.json),s.language);}catch{return genericPushPreview(s.language);}
 }
