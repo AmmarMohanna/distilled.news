@@ -1,0 +1,18 @@
+{
+  "extends": "../apps/worker/tsconfig.json",
+  "include": [
+    "strong-route-comparison.ts",
+    "strong-route-comparison.test.ts",
+    "strong-route-live.test.ts",
+    "strong-route-comparison.vitest.config.ts",
+    "../apps/worker/worker-configuration.d.ts",
+    "cloudflare-evaluation-billing.ts",
+    "cloudflare-evaluation-billing.test.ts"
+  ],
+  "compilerOptions": {
+    "types": [
+      "../apps/worker/node_modules/@cloudflare/workers-types",
+      "node"
+    ]
+  }
+}

@@ -1,0 +1,312 @@
+{
+  "scope": "Three retained real windows; AI-assisted review, not independent human gold. Engine output, not live publication. Editor results reused without another paid editor request.",
+  "models": {
+    "editor": "openai/gpt-4.1",
+    "verifier": "openai/gpt-4.1-mini"
+  },
+  "rows": [
+    {
+      "case": "2202",
+      "variants": {
+        "baseline": {
+          "artifactSha256": "e0297e0a2705eedea71202b7b64f33675a731c5f2453ad0f9a2cb6ceec31fb68",
+          "items": [
+            {
+              "headline": "Army deployed after major incident near Sagesse University in Furn El Chebbak",
+              "body": "A major incident occurred near Sagesse University in Furn El Chebbak, with a heavy army presence reported.",
+              "relation": "new",
+              "importance": 1,
+              "sourceIds": [
+                "bb76b7bf-8409-4db7-a132-bb8ae3d49169"
+              ]
+            }
+          ],
+          "status": "published",
+          "callsIncludingReusedEditor": 2,
+          "effectiveCostUsd": 0.0068076,
+          "editorMs": 2120,
+          "replayMs": 1682,
+          "combinedInferenceMs": 3802,
+          "whitespaceWords": 29,
+          "dropped": [],
+          "omitted": [
+            {
+              "stage": "editor",
+              "reason": "routine; Israeli interceptor launch in Upper Galilee not directly affecting Lebanon",
+              "sourceIds": [
+                "e274cf15-f7d2-4191-8be9-37095f5f1b92"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "routine; general Iranian statement on border threats, no specific Lebanon development",
+              "sourceIds": [
+                "bd0b3823-008c-4b72-8cdb-2fd2a88720b8"
+              ]
+            }
+          ]
+        },
+        "optionalBody": {
+          "artifactSha256": "cab1288a0a7a4184ebf6ba9752338c623b56cdf5f4928588fe3272fb4466fa91",
+          "items": [
+            {
+              "headline": "Large altercation reported near Al-Hikma University in Furn El Chebbak; heavy army presence",
+              "body": "",
+              "relation": "new",
+              "importance": 1,
+              "sourceIds": [
+                "bb76b7bf-8409-4db7-a132-bb8ae3d49169"
+              ]
+            }
+          ],
+          "status": "published",
+          "callsIncludingReusedEditor": 4,
+          "effectiveCostUsd": 0.0087724,
+          "editorMs": 1817,
+          "replayMs": 5099,
+          "combinedInferenceMs": 6916,
+          "whitespaceWords": 13,
+          "dropped": [],
+          "omitted": [
+            {
+              "stage": "editor",
+              "reason": "off-topic; Israeli interceptor launch in Upper Galilee not directly affecting Lebanon",
+              "sourceIds": [
+                "e274cf15-f7d2-4191-8be9-37095f5f1b92"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "off-topic; Iranian statement on border threats not specific to Lebanon",
+              "sourceIds": [
+                "bd0b3823-008c-4b72-8cdb-2fd2a88720b8"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "6b658",
+      "variants": {
+        "baseline": {
+          "artifactSha256": "3a47c61cd09c06b233fb1cf95195a73b8fd0788df412820a7a7a471d7ab9ba2b",
+          "items": [
+            {
+              "headline": "تفجير ضخم في محيط بلدة بني حيان جنوب لبنان",
+              "body": "وردت تقارير عن وقوع تفجير ضخم نفذه الجيش الإسرائيلي في محيط بلدة بني حيان جنوب لبنان، حسب ما نشر في 27 تشرين الأول 2026.",
+              "relation": "new",
+              "importance": 1,
+              "sourceIds": [
+                "36ee7bd1-75bf-47fc-ab4b-b5289d6cad2e"
+              ]
+            },
+            {
+              "headline": "تقارير: جنود إسرائيليون ينتخبون من مواقع انتشارهم جنوب لبنان",
+              "body": "أفادت تقارير بأن جنود الاحتلال الإسرائيلي شاركوا في التصويت من مواقع انتشارهم جنوب لبنان، حيث وُضعت صناديق اقتراع هناك لأول مرة، وفق ما نشر في 27 تشرين الأول 2026.",
+              "relation": "new",
+              "importance": 2,
+              "sourceIds": [
+                "6efff059-d274-4127-831e-1180d0d7cc8c"
+              ]
+            }
+          ],
+          "status": "published",
+          "callsIncludingReusedEditor": 2,
+          "effectiveCostUsd": 0.011166,
+          "editorMs": 2144,
+          "replayMs": 1358,
+          "combinedInferenceMs": 3502,
+          "whitespaceWords": 71,
+          "dropped": [],
+          "omitted": [
+            {
+              "stage": "editor",
+              "reason": "تعليق رأي وليس خبرًا جديدًا",
+              "sourceIds": [
+                "d2744617-904d-4fed-83f2-6ce0e0617281"
+              ]
+            }
+          ]
+        },
+        "optionalBody": {
+          "artifactSha256": "629c6e6c28370cd32e8386407c3240f743eb3253d8cda466c223cec0f848567a",
+          "items": [
+            {
+              "headline": "تفجير ضخم في محيط بلدة بني حيان جنوب لبنان",
+              "body": "",
+              "relation": "new",
+              "importance": 1,
+              "sourceIds": [
+                "36ee7bd1-75bf-47fc-ab4b-b5289d6cad2e"
+              ]
+            },
+            {
+              "headline": "تقارير عن تصويت جنود إسرائيليين من مواقع انتشارهم جنوب لبنان",
+              "body": "",
+              "relation": "new",
+              "importance": 2,
+              "sourceIds": [
+                "6efff059-d274-4127-831e-1180d0d7cc8c"
+              ]
+            }
+          ],
+          "status": "published",
+          "callsIncludingReusedEditor": 2,
+          "effectiveCostUsd": 0.0114536,
+          "editorMs": 1707,
+          "replayMs": 1433,
+          "combinedInferenceMs": 3140,
+          "whitespaceWords": 19,
+          "dropped": [],
+          "omitted": [
+            {
+              "stage": "editor",
+              "reason": "تعليق رأي وتحليل وليس خبرًا عن حدث جديد",
+              "sourceIds": [
+                "d2744617-904d-4fed-83f2-6ce0e0617281"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "993936",
+      "variants": {
+        "baseline": {
+          "artifactSha256": "e78baa9ef15e67425f05481d6617a0e21d64df1137cdc195d1a716630b0cbf44",
+          "items": [
+            {
+              "headline": "تقارير: نتنياهو وآيزنكوت يتفقان على استمرار الاحتلال الإسرائيلي في لبنان من دون موعد محدد للانسحاب",
+              "body": "ذكرت قناة المحطة في 27 تشرين الأول 2026 أن بنيامين نتنياهو ومنافسه الانتخابي آيزنكوت اتفقا على استمرار الاحتلال الإسرائيلي في لبنان بشروط أمنية ومن دون موعد محدد للانسحاب.",
+              "relation": "new",
+              "importance": 1,
+              "sourceIds": [
+                "04b6a152-8dab-4cad-97a9-74e310a16107"
+              ]
+            }
+          ],
+          "status": "published",
+          "callsIncludingReusedEditor": 4,
+          "effectiveCostUsd": 0.0150376,
+          "editorMs": 2246,
+          "replayMs": 4886,
+          "combinedInferenceMs": 7132,
+          "whitespaceWords": 43,
+          "dropped": [],
+          "omitted": [
+            {
+              "stage": "editor",
+              "reason": "تعليق رأي وتحليل وليس تطوراً فعلياً",
+              "sourceIds": [
+                "d2744617-904d-4fed-83f2-6ce0e0617281"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "حادث محلي محدود في الانتخابات الإسرائيلية",
+              "sourceIds": [
+                "2ef26629-f236-4085-8a9c-1c8aab606f33"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "ملاحظة عامة حول المشاركة العربية في الانتخابات الإسرائيلية",
+              "sourceIds": [
+                "545227a2-dc91-4ccf-b6df-608cb4dce704"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "إحصائية تصويت داخل الجيش الإسرائيلي",
+              "sourceIds": [
+                "bc5981ab-b2aa-4e68-9c37-b67857ee1911"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "تصريح انتخابي داخلي إسرائيلي",
+              "sourceIds": [
+                "b38ed26e-2e07-4f58-a96d-0b49570a909f"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "تعليق سياسي داخلي إسرائيلي",
+              "sourceIds": [
+                "13feff2d-419e-4ee9-8d13-2a2dfa63e6b6"
+              ]
+            }
+          ]
+        },
+        "optionalBody": {
+          "artifactSha256": "626b478cc20f10eefcc96e7094294fab3b05d29575e7d9eb7f2eb654c00fbe09",
+          "items": [
+            {
+              "headline": "تقارير: نتنياهو وآيزنكوت يتفقان على استمرار الاحتلال الإسرائيلي في لبنان دون موعد محدد للانسحاب",
+              "body": "ذكرت قناة \"المحطة\" أن رئيس الوزراء الإسرائيلي بنيامين نتنياهو ومنافسه الانتخابي آيزنكوت اتفقا على استمرار الاحتلال الإسرائيلي في لبنان بشروط أمنية ودون تحديد موعد للانسحاب.",
+              "relation": "new",
+              "importance": 1,
+              "sourceIds": [
+                "04b6a152-8dab-4cad-97a9-74e310a16107"
+              ]
+            }
+          ],
+          "status": "published",
+          "callsIncludingReusedEditor": 2,
+          "effectiveCostUsd": 0.013034800000000001,
+          "editorMs": 2785,
+          "replayMs": 1382,
+          "combinedInferenceMs": 4167,
+          "whitespaceWords": 39,
+          "dropped": [],
+          "omitted": [
+            {
+              "stage": "editor",
+              "reason": "تعليق رأي وتحليل سياسي، لا يحمل تطوراً عملياً أو قراراً جديداً",
+              "sourceIds": [
+                "d2744617-904d-4fed-83f2-6ce0e0617281"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "حادثة محلية في الانتخابات الإسرائيلية، ليست ذات أثر مباشر على لبنان",
+              "sourceIds": [
+                "2ef26629-f236-4085-8a9c-1c8aab606f33"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "ملاحظة عامة حول مشاركة العرب في الانتخابات الإسرائيلية، دون تفاصيل أو أثر مباشر على لبنان",
+              "sourceIds": [
+                "545227a2-dc91-4ccf-b6df-608cb4dce704"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "إحصائية عن نسبة تصويت الجيش الإسرائيلي، ليست تطوراً مؤثراً على لبنان",
+              "sourceIds": [
+                "bc5981ab-b2aa-4e68-9c37-b67857ee1911"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "تصريحات انتخابية داخلية لبن غفير، لا تحمل قراراً أو تطوراً يخص لبنان",
+              "sourceIds": [
+                "b38ed26e-2e07-4f58-a96d-0b49570a909f"
+              ]
+            },
+            {
+              "stage": "editor",
+              "reason": "تعليق سياسي ساخر من نتنياهو حول نائب في الكنيست، لا يحمل تطوراً عملياً أو أثراً على لبنان",
+              "sourceIds": [
+                "13feff2d-419e-4ee9-8d13-2a2dfa63e6b6"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

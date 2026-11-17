@@ -1,0 +1,174 @@
+{
+  "scope": "REAL_RETAINED_EDITION_SEMANTIC_REGRESSION_NOT_END_TO_END",
+  "results": [
+    {
+      "configuration": "gpt41",
+      "cases": [
+        {
+          "correctedControl": false,
+          "checks": {
+            "laplaceRejected": false,
+            "attributionRejected": false,
+            "missingRevenueRejected": false
+          },
+          "costUsd": 0.085448,
+          "claimJudgments": [
+            {
+              "claimId": "claim_1",
+              "fullyEntailed": true,
+              "reason": "All written assertions in the claim are supported by the source and communicated in the reader prose.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_2",
+              "fullyEntailed": true,
+              "reason": "All written assertions in the claim are supported by the source and communicated in the reader prose.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_3",
+              "fullyEntailed": true,
+              "reason": "All written assertions in the claim are supported by the source and communicated in the reader prose.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_4",
+              "fullyEntailed": true,
+              "reason": "All written assertions in the claim are supported by the source and communicated in the reader prose.",
+              "unsupportedMeaning": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "configuration": "lunaLow",
+      "cases": [
+        {
+          "correctedControl": false,
+          "checks": {
+            "laplaceRejected": false,
+            "attributionRejected": false,
+            "missingRevenueRejected": true
+          },
+          "costUsd": 0.005450175,
+          "claimJudgments": [
+            {
+              "claimId": "claim_1",
+              "fullyEntailed": true,
+              "reason": "The claim\u2019s written assertions are supported by the Replit story, and it preserves both Masad\u2019s initial statement and the later insider dispute rather than treating termination as settled.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_2",
+              "fullyEntailed": false,
+              "reason": "The claim is otherwise supported, but saying the simulation ensures accuracy overstates the source, which says the simulator recreates environments true to scale.",
+              "unsupportedMeaning": [
+                "The simulation\u2019s use of real-world map data and images ensures accuracy; the source describes true-to-scale reconstruction but makes no assurance of accuracy."
+              ]
+            },
+            {
+              "claimId": "claim_3",
+              "fullyEntailed": true,
+              "reason": "The safety discussion and the listed habitat components accurately paraphrase Masad\u2019s remarks.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_4",
+              "fullyEntailed": true,
+              "reason": "The fund\u2019s structure, share commitments, possible uses, and forthcoming governance information are supported by the source.",
+              "unsupportedMeaning": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "configuration": "lunaMedium",
+      "cases": [
+        {
+          "correctedControl": false,
+          "checks": {
+            "laplaceRejected": true,
+            "attributionRejected": true,
+            "missingRevenueRejected": true
+          },
+          "costUsd": 0.00755405,
+          "claimJudgments": [
+            {
+              "claimId": "claim_1",
+              "fullyEntailed": false,
+              "reason": "The claim is broadly about Replit\u2019s provider change, but it changes the content of Masad\u2019s initial onstage statement by recasting \u201cno longer working with Anthropic\u201d as \u201cno longer working with Anthropic as its primary partner.\u201d It also attributes benchmark results to OpenAI models more specifically than the supplied evidence supports.",
+              "unsupportedMeaning": [
+                "Masad said at Disrupt that Replit was no longer working with Anthropic as its primary partner; the source does not state that qualification as part of his initial remarks.",
+                "Public and internal benchmarks showed better results for OpenAI\u2019s models; the source does not establish that exact model attribution."
+              ]
+            },
+            {
+              "claimId": "claim_2",
+              "fullyEntailed": false,
+              "reason": "The developmental framing and other described product details are generally supported, but the claim adds an unsupported assurance about accuracy.",
+              "unsupportedMeaning": [
+                "The simulation environment ensures accuracy; the source supports real-world reconstruction and true-to-scale environments, not a guarantee of accuracy."
+              ]
+            },
+            {
+              "claimId": "claim_3",
+              "fullyEntailed": true,
+              "reason": "The claim faithfully paraphrases Masad\u2019s comparison, the listed habitat features, and the stated connection to safe deployment.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_4",
+              "fullyEntailed": true,
+              "reason": "The claim accurately reports the fund, its share commitment and structure, the conditional additional contribution, possible uses, and the planned disclosure about governance.",
+              "unsupportedMeaning": []
+            }
+          ]
+        },
+        {
+          "correctedControl": true,
+          "checks": {
+            "laplaceRejected": false,
+            "attributionRejected": false,
+            "missingRevenueRejected": false
+          },
+          "costUsd": 0.006799925,
+          "claimJudgments": [
+            {
+              "claimId": "claim_1",
+              "fullyEntailed": true,
+              "reason": "The written assertions are supported by story 1, including the default change, Masad\u2019s explanations, continued model access, the reported spending possibility, the partnership dispute, and the recent promotion evidence.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_2",
+              "fullyEntailed": true,
+              "reason": "The written assertions are supported by story 2. Developing agents are described as developing, and the safety outcome is framed as an aim rather than a guarantee.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_3",
+              "fullyEntailed": true,
+              "reason": "The paraphrase accurately attributes the analogy and safety-feature list to Masad and does not strengthen the source\u2019s deployment claim beyond its stated condition.",
+              "unsupportedMeaning": []
+            },
+            {
+              "claimId": "claim_4",
+              "fullyEntailed": true,
+              "reason": "The written assertions about the fund, share commitment, structure, possible additional contribution, potential uses, and forthcoming governance information are supported by story 4.",
+              "unsupportedMeaning": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "passedConfiguration": "lunaMedium",
+  "limitations": [
+    "One retained four-item edition, not statistical qualification.",
+    "Earlier positive controls contained a separate benchmark defect and a text-replacement fixture bug; their raw outputs and charges remain retained.",
+    "Meaning comparisons are AI-assisted, not human gold."
+  ],
+  "importantVsOptional": "Required parent omission must fail; omitted optional context does not make supported reader text unsupported."
+}

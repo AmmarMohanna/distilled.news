@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "decision": "DO_NOT_PROMOTE",
+  "stopReason": "Critical accepted candidate factual error in first pair",
+  "authority": "AI-assisted source-linked engineering review; not human ground truth or a paid independent judge.",
+  "findings": [
+    {
+      "id": "fund-source-today-became-current",
+      "assessment": "CONFIRMED_SOURCE_LINKED_FALSE_APPROVAL",
+      "severity": "critical",
+      "sourceId": "public-benefit-fund",
+      "sourcePublishedAt": "2026-10-18T00:00:00Z",
+      "reportingCutoff": "2026-10-20T00:00:00Z",
+      "evidence": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline.",
+      "item": {
+        "headline": "Anthropic يخصص حصة من أسهمه لصندوق منفعة عامة مع تصاعد الالتزام عند نمو الشركة",
+        "body": "أعلنت Anthropic عن التزامها اليوم بتخصيص 5% من أسهمها لصندوق منفعة عامة جديد، مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة فوق خط أساس محدد، وذلك بعد موافقة المساهمين. سيمنح الصندوق مرونة أكبر لدعم مشاريع المنفعة العامة، مثل التبرعات الكبيرة للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. مع الإعلان الجديد، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة، مع إمكانية زيادة النسبة عند تحقيق معالم تقييم محددة. لن تُستخدم أي من الأسهم المخصصة للصندوق في الضغط السياسي أو التبرعات السياسية.",
+        "relation": "new",
+        "importance": 1,
+        "sourceIds": [
+          "public-benefit-fund"
+        ]
+      },
+      "explanation": "The reader-facing sentence says the announcement/commitment was today, but source-relative today belongs to the October 18 source; the briefing cutoff is October 20. No separate October 20 announcement supports that wording. The editor record repeats the relative date and the verifier returns ok. Minimal correction: omit the unsupported relative date without changing the conditional 5% commitment."
+    },
+    {
+      "id": "replit-potential-spending-became-actual-usage",
+      "assessment": "CONFIRMED_UNSUPPORTED_MODALITY_AND_SCOPE",
+      "severity": "critical",
+      "sourceId": "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+      "evidence": "After Disrupt, Masad clarified that customers can still access Anthropic models on the platform, but that OpenAI’s ChatGPT is now the default. This shift could significantly reduce Replit’s spend with Anthropic since most customers stick with the default rather than selecting a model themselves.\n",
+      "item": {
+        "headline": "Replit تعتمد OpenAI شريكاً مفضلاً وتخفض استخدام نماذج Anthropic",
+        "body": "أعلنت Replit أن OpenAI أصبح الشريك المفضل لتشغيل Replit Agent، مما يجعل ChatGPT هو النموذج الافتراضي بدلاً من نماذج Anthropic. لا يزال بإمكان المستخدمين اختيار نماذج Anthropic، لكن هذا التحول قد يقلل بشكل كبير من إنفاق Replit مع Anthropic، حيث يلتزم معظم العملاء بالافتراضي. جاء القرار بناءً على الأداء والتكلفة وقوة الشراكة.",
+        "relation": "new",
+        "importance": 1,
+        "sourceIds": [
+          "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+        ]
+      },
+      "explanation": "The headline states Replit reduces Anthropic-model usage as an accomplished/current action. The cited passage establishes a new default while retaining Anthropic availability and only a possible spending reduction. That does not establish observed usage reduction. The body retains could reduce spending, but the headline strengthens and changes that claim. Minimal correction: report the default-model change, not a measured usage reduction."
+    },
+    {
+      "id": "critical-rights-and-approval-preserved",
+      "assessment": "SUPPORTED_ON_THIS_PAIR_NOT_A_GENERAL_QUALITY_RATE",
+      "sourceIds": [
+        "public-benefit-fund",
+        "an-update-on-independent-evaluators"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline."
+        },
+        {
+          "sourceId": "an-update-on-independent-evaluators",
+          "quote": "METR will publish its analysis of our risk levels, incidents, or practices. Anthropic can’t veto publication, but we can require them to redact information if it falls into predefined categories such as reproducing confidential IP. (Anthropic ultimately decides what information does and does not fall into these categories, although METR reserves the right to make certain statements about the level of access and information it received.)2\n\n"
+        }
+      ],
+      "explanation": "V2 correctly keeps shareholder approval and redactions rather than a publication veto in this Arabic draft. Matched V4 also does so, so this is not an incremental win over V4."
+    }
+  ],
+  "observations": {
+    "contract": "Both configurations completed editor and verifier; v2 has no recordFailures and accounts for supplied sources.",
+    "eventGrouping": "Both selected three separate fund/METR/Replit items; no observed false merge in this pair.",
+    "meaningfulUpdates": "Not exercised: this input has no previous reader coverage.",
+    "repairs": "No repair calls occurred because both verifiers returned ok; this does not establish repairs were unnecessary.",
+    "reading": "V2 is 236 words versus V4 240; four fewer words do not establish better distillation.",
+    "costIncreaseFraction": 0.6892677933944129,
+    "latencyIncreaseFraction": 0.6290748698170792,
+    "remainingCases": "Unobserved after the stop gate; not failed or quietly completed.",
+    "baseline": "No confirmed critical error in this review of the matched V4 core claims; this is not a general V4 accuracy claim."
+  },
+  "rootCauseBoundaries": "Original evidence, source timestamps and reporting cutoff reached the verifier. No source acquisition, citation-ID transport, quotation-format, cache or truncation failure explains the two accepted wording errors. This does not prove whether a concise instruction change or a replacement verifier would solve them; records alone do not confer semantic reliability."
+}

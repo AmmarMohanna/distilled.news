@@ -1,0 +1,466 @@
+{
+  "checkedFor": "RSS subset of the 40-feed mixed-source demo dataset",
+  "scope": "HTTP fetch and non-empty RSS/Atom parse from the preparation environment; not a Cloudflare ingestion test",
+  "sources": [
+    {
+      "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
+      "checkedAt": "2026-10-21T06:54:16.758776+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
+      "format": "feed",
+      "title": "USGS Significant Earthquakes, Past Month",
+      "entryCount": 15
+    },
+    {
+      "url": "https://feeds.arstechnica.com/arstechnica/index",
+      "checkedAt": "2026-10-21T06:50:39.614469+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.arstechnica.com/arstechnica/index",
+      "format": "rss",
+      "title": "Ars Technica - All content",
+      "entryCount": 20
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "checkedAt": "2026-10-21T06:50:34.783566+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/business/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 52
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/education/rss.xml",
+      "checkedAt": "2026-10-21T06:50:35.857266+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/education/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 23
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+      "checkedAt": "2026-10-21T06:50:34.789944+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 23
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/health/rss.xml",
+      "checkedAt": "2026-10-21T06:50:34.788631+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/health/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 56
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+      "checkedAt": "2026-10-21T06:50:34.787414+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 41
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "checkedAt": "2026-10-21T06:50:34.786236+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 21
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/world/africa/rss.xml",
+      "checkedAt": "2026-10-21T06:50:34.791096+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/world/africa/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 33
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/world/asia/rss.xml",
+      "checkedAt": "2026-10-21T06:50:34.792164+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/world/asia/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 17
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/world/europe/rss.xml",
+      "checkedAt": "2026-10-21T06:50:35.820759+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/world/europe/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 21
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/world/latin_america/rss.xml",
+      "checkedAt": "2026-10-21T06:54:17.420275+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/world/latin_america/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 17
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
+      "checkedAt": "2026-10-21T06:50:35.821715+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 36
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "checkedAt": "2026-10-21T06:50:34.781700+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 35
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
+      "checkedAt": "2026-10-21T06:54:17.415316+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
+      "format": "rss",
+      "title": "BBC News",
+      "entryCount": 23
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/sport/football/rss.xml",
+      "checkedAt": "2026-10-21T06:54:17.797568+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/sport/football/rss.xml",
+      "format": "rss",
+      "title": "BBC Sport",
+      "entryCount": 76
+    },
+    {
+      "url": "https://feeds.bbci.co.uk/sport/rss.xml",
+      "checkedAt": "2026-10-21T06:50:35.876048+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://feeds.bbci.co.uk/sport/rss.xml",
+      "format": "rss",
+      "title": "BBC Sport",
+      "entryCount": 70
+    },
+    {
+      "url": "https://github.blog/feed/",
+      "checkedAt": "2026-10-21T06:54:16.750784+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://github.blog/feed/",
+      "format": "rss",
+      "title": "The GitHub Blog",
+      "entryCount": 10
+    },
+    {
+      "url": "https://krebsonsecurity.com/feed/",
+      "checkedAt": "2026-10-21T06:50:39.795092+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://krebsonsecurity.com/feed/",
+      "format": "rss",
+      "title": "Krebs on Security",
+      "entryCount": 10
+    },
+    {
+      "url": "https://news.mit.edu/rss/topic/artificial-intelligence2",
+      "checkedAt": "2026-10-21T06:50:39.411984+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://news.mit.edu/rss/topic/artificial-intelligence2",
+      "format": "rss",
+      "title": "MIT News - Artificial intelligence",
+      "entryCount": 50
+    },
+    {
+      "url": "https://rss.dw.com/xml/rss-ar-all",
+      "checkedAt": "2026-10-21T06:50:36.466255+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://rss.dw.com/xml/rss-ar-all",
+      "format": "rss",
+      "title": "Deutsche Welle: DW-WORLD.DE",
+      "entryCount": 44
+    },
+    {
+      "url": "https://www.carbonbrief.org/feed/",
+      "checkedAt": "2026-10-21T06:50:39.976430+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.carbonbrief.org/feed",
+      "format": "rss",
+      "title": "Carbon Brief",
+      "entryCount": 12
+    },
+    {
+      "url": "https://www.eff.org/rss/updates.xml",
+      "checkedAt": "2026-10-21T06:50:39.797393+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.eff.org/rss/updates.xml",
+      "format": "rss",
+      "title": "Deeplinks",
+      "entryCount": 50
+    },
+    {
+      "url": "https://www.eia.gov/rss/todayinenergy.xml",
+      "checkedAt": "2026-10-21T06:50:39.838114+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.eia.gov/rss/todayinenergy.xml",
+      "format": "rss",
+      "title": "Today in Energy",
+      "entryCount": 19
+    },
+    {
+      "url": "https://www.france24.com/ar/rss",
+      "checkedAt": "2026-10-21T06:50:36.345304+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.france24.com/ar/rss",
+      "format": "rss",
+      "title": "فرانس 24 – الأخبار والأحداث الدولية على مدار الساعة",
+      "entryCount": 24
+    },
+    {
+      "url": "https://www.france24.com/fr/rss",
+      "checkedAt": "2026-10-21T06:50:36.333423+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.france24.com/fr/rss",
+      "format": "rss",
+      "title": "France 24 - Infos, news & actualités - L'information internationale en direct",
+      "entryCount": 24
+    },
+    {
+      "url": "https://www.lemonde.fr/economie/rss_full.xml",
+      "checkedAt": "2026-10-21T06:50:36.246589+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.lemonde.fr/economie/rss_full.xml",
+      "format": "rss",
+      "title": "Économie : Toute l’actualité sur Le Monde.fr.",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.nasa.gov/feed/",
+      "checkedAt": "2026-10-21T06:50:39.280699+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.nasa.gov/feed/",
+      "format": "rss",
+      "title": "NASA",
+      "entryCount": 10
+    },
+    {
+      "url": "https://www.nature.com/nature.rss",
+      "checkedAt": "2026-10-21T06:50:39.945786+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.nature.com/nature.rss",
+      "format": "RDF",
+      "title": "Nature",
+      "entryCount": 75
+    },
+    {
+      "url": "https://www.phoronix.com/rss.php",
+      "checkedAt": "2026-10-21T06:54:16.752479+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.phoronix.com/rss.php",
+      "format": "rss",
+      "title": "Phoronix",
+      "entryCount": 32
+    },
+    {
+      "url": "https://www.sciencedaily.com/rss/top/science.xml",
+      "checkedAt": "2026-10-21T06:50:39.840134+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.sciencedaily.com/rss/top/science.xml",
+      "format": "rss",
+      "title": "All Top News -- ScienceDaily",
+      "entryCount": 60
+    },
+    {
+      "url": "https://www.theguardian.com/business/energy-industry/rss",
+      "checkedAt": "2026-10-21T06:50:35.897990+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/business/energy-industry/rss",
+      "format": "rss",
+      "title": "Energy industry | The Guardian",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.theguardian.com/business/supply-chain-crisis/rss",
+      "checkedAt": "2026-10-21T06:54:17.728061+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/business/supply-chain-crisis/rss",
+      "format": "rss",
+      "title": "Supply chain crisis | The Guardian",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.theguardian.com/culture/rss",
+      "checkedAt": "2026-10-21T06:50:36.155993+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/uk/culture/rss",
+      "format": "rss",
+      "title": "Culture | The Guardian",
+      "entryCount": 65
+    },
+    {
+      "url": "https://www.theguardian.com/education/rss",
+      "checkedAt": "2026-10-21T06:50:35.947794+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/education/rss",
+      "format": "rss",
+      "title": "Education | The Guardian",
+      "entryCount": 16
+    },
+    {
+      "url": "https://www.theguardian.com/environment/oceans/rss",
+      "checkedAt": "2026-10-21T06:54:16.755452+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/environment/oceans/rss",
+      "format": "rss",
+      "title": "Oceans | The Guardian",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.theguardian.com/environment/rss",
+      "checkedAt": "2026-10-21T06:50:35.878647+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/uk/environment/rss",
+      "format": "rss",
+      "title": "Environment | The Guardian",
+      "entryCount": 25
+    },
+    {
+      "url": "https://www.theguardian.com/environment/wildlife/rss",
+      "checkedAt": "2026-10-21T06:54:16.756640+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/environment/wildlife/rss",
+      "format": "rss",
+      "title": "Wildlife | The Guardian",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.theguardian.com/global-development/rss",
+      "checkedAt": "2026-10-21T06:50:35.934734+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/global-development/rss",
+      "format": "rss",
+      "title": "Global development | The Guardian",
+      "entryCount": 45
+    },
+    {
+      "url": "https://www.theguardian.com/law/rss",
+      "checkedAt": "2026-10-21T06:54:17.548874+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/law/rss",
+      "format": "rss",
+      "title": "Law | The Guardian",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.theguardian.com/media/rss",
+      "checkedAt": "2026-10-21T06:54:17.588057+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/uk/media/rss",
+      "format": "rss",
+      "title": "Media | The Guardian",
+      "entryCount": 13
+    },
+    {
+      "url": "https://www.theguardian.com/science/archaeology/rss",
+      "checkedAt": "2026-10-21T06:54:17.582685+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/science/archaeology/rss",
+      "format": "rss",
+      "title": "Archaeology | The Guardian",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.theguardian.com/science/rss",
+      "checkedAt": "2026-10-21T06:50:36.144325+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/science/rss",
+      "format": "rss",
+      "title": "Science | The Guardian",
+      "entryCount": 28
+    },
+    {
+      "url": "https://www.theguardian.com/society/charities/rss",
+      "checkedAt": "2026-10-21T06:54:17.820255+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/society/charities/rss",
+      "format": "rss",
+      "title": "Charities | The Guardian",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.theguardian.com/society/disability/rss",
+      "checkedAt": "2026-10-21T06:54:16.760661+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/world/disability/rss",
+      "format": "rss",
+      "title": "Disability | The Guardian",
+      "entryCount": 20
+    },
+    {
+      "url": "https://www.theguardian.com/society/housing/rss",
+      "checkedAt": "2026-10-21T06:54:16.754537+00:00",
+      "ok": true,
+      "status": 200,
+      "finalUrl": "https://www.theguardian.com/society/housing/rss",
+      "format": "rss",
+      "title": "Housing | The Guardian",
+      "entryCount": 20
+    }
+  ]
+}

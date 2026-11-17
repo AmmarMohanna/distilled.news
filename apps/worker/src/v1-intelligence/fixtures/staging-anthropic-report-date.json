@@ -1,0 +1,167 @@
+{
+  "facts": [
+    {
+      "id": "59e41a894004e4b6a5a0799e0c21b05ef8f3b45c82b0067c0bb021d66016ee8d",
+      "propositionId": "59e41a894004e4b6a5a0799e0c21b05ef8f3b45c82b0067c0bb021d66016ee8d",
+      "text": "Anthropic changes usage policy to ban model abuse and election interference",
+      "evidenceRevisionIds": [
+        "3c66e6be-84da-4112-b9c4-9584f63060ff"
+      ],
+      "claimMentionIds": [
+        "ea7b318524358d674c4138ae7575ae42d9ade2a0f65fc13a504b0584997c43f9"
+      ],
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": []
+      },
+      "reportTime": "2026-10-08T18:16:24.000Z",
+      "timing": {
+        "sourcePublishedAt": "2026-10-08T18:16:24.000Z",
+        "reportTime": "2026-10-08T18:16:24.000Z",
+        "firstSeenByFeedAt": "2026-10-08T18:23:44.569Z",
+        "observedAt": "2026-10-08T18:23:44.569Z",
+        "framingRequired": false
+      },
+      "selfContained": "YES"
+    },
+    {
+      "id": "8e6dd59662f5fa9fa18f1d35149f85a12b7a8933f1960318af19b23b042df87a",
+      "propositionId": "8e6dd59662f5fa9fa18f1d35149f85a12b7a8933f1960318af19b23b042df87a",
+      "text": "Anthropic's updated usage policy explicitly prohibits users from repeatedly abusing Claude in extreme cases, though ordinary frustration and criticism are still allowed.",
+      "evidenceRevisionIds": [
+        "3c66e6be-84da-4112-b9c4-9584f63060ff"
+      ],
+      "claimMentionIds": [
+        "0863088fbf260ed185d361f2108a25f5c89b512c7b322270e6f162e37d732658"
+      ],
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": []
+      },
+      "reportTime": "2026-10-08T18:16:24.000Z",
+      "timing": {
+        "sourcePublishedAt": "2026-10-08T18:16:24.000Z",
+        "reportTime": "2026-10-08T18:16:24.000Z",
+        "firstSeenByFeedAt": "2026-10-08T18:23:44.569Z",
+        "observedAt": "2026-10-08T18:23:44.569Z",
+        "framingRequired": false
+      },
+      "selfContained": "YES"
+    },
+    {
+      "id": "27bd30f42bf3df4440b2be5fae09e59b6890692d8af8c6b7d643395b1664257d",
+      "propositionId": "27bd30f42bf3df4440b2be5fae09e59b6890692d8af8c6b7d643395b1664257d",
+      "text": "The new rules also address election interference, deceptive campaigns, weapons software, and surveillance.",
+      "evidenceRevisionIds": [
+        "3c66e6be-84da-4112-b9c4-9584f63060ff"
+      ],
+      "claimMentionIds": [
+        "e200bb0196b2dbf6253e8ae2a796b980e95b0a9390ec1649e3e6eac2e1f66fbd"
+      ],
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": []
+      },
+      "reportTime": "2026-10-08T18:16:24.000Z",
+      "timing": {
+        "sourcePublishedAt": "2026-10-08T18:16:24.000Z",
+        "reportTime": "2026-10-08T18:16:24.000Z",
+        "firstSeenByFeedAt": "2026-10-08T18:23:44.569Z",
+        "observedAt": "2026-10-08T18:23:44.569Z",
+        "framingRequired": false
+      },
+      "selfContained": "YES"
+    }
+  ],
+  "claim": "On October 8, 2026, Anthropic updated its usage policy to explicitly ban repeated extreme abuse of its AI model Claude, while still permitting ordinary frustration and criticism. The revised policy also prohibits activities related to election interference, deceptive campaigns, weapons software, and surveillance.",
+  "persistedVerification": {
+    "semanticChecks": [
+      {
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No previous same-story facts; this is the first communication of this fact in the story.",
+          "previousFactTexts": []
+        },
+        "factId": "59e41a894004e4b6a5a0799e0c21b05ef8f3b45c82b0067c0bb021d66016ee8d",
+        "communicated": true,
+        "attribution": true,
+        "certainty": true,
+        "temporal": true,
+        "qualifiers": true,
+        "nonRepetitive": true,
+        "reason": "The prose clearly states that Anthropic changed its usage policy to ban model abuse and election interference, matching the fact exactly without repetition.",
+        "readerSpans": [
+          {
+            "claimId": "673eb1532365fd64a7995a213b95207b12c5bf4772ff3c87f0c3a09e0411a96e",
+            "text": "On October 8, 2026, Anthropic updated its usage policy to explicitly ban repeated extreme abuse of its AI model Claude, while still permitting ordinary frustration and criticism. The revised policy also prohibits activities related to election interference, deceptive campaigns, weapons software, and surveillance."
+          }
+        ]
+      },
+      {
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No prior same-story facts; this is newly communicated in the story.",
+          "previousFactTexts": []
+        },
+        "factId": "8e6dd59662f5fa9fa18f1d35149f85a12b7a8933f1960318af19b23b042df87a",
+        "communicated": true,
+        "attribution": true,
+        "certainty": true,
+        "temporal": true,
+        "qualifiers": true,
+        "nonRepetitive": true,
+        "reason": "The prose explicitly communicates the prohibition on repeated extreme abuse of Claude while allowing ordinary frustration and criticism, preserving all qualifiers and certainty.",
+        "readerSpans": [
+          {
+            "claimId": "673eb1532365fd64a7995a213b95207b12c5bf4772ff3c87f0c3a09e0411a96e",
+            "text": "On October 8, 2026, Anthropic updated its usage policy to explicitly ban repeated extreme abuse of its AI model Claude, while still permitting ordinary frustration and criticism. The revised policy also prohibits activities related to election interference, deceptive campaigns, weapons software, and surveillance."
+          }
+        ]
+      },
+      {
+        "readerNovelty": {
+          "status": "NEW",
+          "reason": "No previous same-story facts; this is newly communicated.",
+          "previousFactTexts": []
+        },
+        "factId": "27bd30f42bf3df4440b2be5fae09e59b6890692d8af8c6b7d643395b1664257d",
+        "communicated": true,
+        "attribution": true,
+        "certainty": true,
+        "temporal": true,
+        "qualifiers": true,
+        "nonRepetitive": true,
+        "reason": "The prose clearly lists the additional prohibitions on election interference, deceptive campaigns, weapons software, and surveillance, matching the fact fully and without repetition.",
+        "readerSpans": [
+          {
+            "claimId": "673eb1532365fd64a7995a213b95207b12c5bf4772ff3c87f0c3a09e0411a96e",
+            "text": "On October 8, 2026, Anthropic updated its usage policy to explicitly ban repeated extreme abuse of its AI model Claude, while still permitting ordinary frustration and criticism. The revised policy also prohibits activities related to election interference, deceptive campaigns, weapons software, and surveillance."
+          }
+        ]
+      }
+    ],
+    "claimEntailment": [
+      {
+        "claimId": "673eb1532365fd64a7995a213b95207b12c5bf4772ff3c87f0c3a09e0411a96e",
+        "fullyEntailed": true,
+        "reason": "The claim's semantic components, including the date of policy update, explicit ban on repeated extreme abuse while allowing ordinary frustration and criticism, and prohibitions on election interference, deceptive campaigns, weapons software, and surveillance, are all fully supported by the facts and their communicated prose.",
+        "unsupportedMeaning": []
+      }
+    ],
+    "preservedFactIds": [
+      "59e41a894004e4b6a5a0799e0c21b05ef8f3b45c82b0067c0bb021d66016ee8d",
+      "8e6dd59662f5fa9fa18f1d35149f85a12b7a8933f1960318af19b23b042df87a",
+      "27bd30f42bf3df4440b2be5fae09e59b6890692d8af8c6b7d643395b1664257d"
+    ]
+  },
+  "persistedClaimSupport": [
+    {
+      "evidenceRevisionId": "3c66e6be-84da-4112-b9c4-9584f63060ff",
+      "quote": "Anthropic's updated usage policy explicitly prohibits users from repeatedly abusing Claude in extreme cases, though ordinary frustration and criticism are still allowed. The new rules also address election interference, deceptive campaigns, weapons software, and surveillance."
+    },
+    {
+      "evidenceRevisionId": "3c66e6be-84da-4112-b9c4-9584f63060ff",
+      "quote": "Anthropic changes usage policy to ban model abuse and election interference"
+    }
+  ]
+}

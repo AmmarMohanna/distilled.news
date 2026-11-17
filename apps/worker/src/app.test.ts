@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app";
-import { hashPassword } from "./auth";
-import { publishDueBriefingEditions, publishManualBriefingEdition } from "./editions";
+import { hashPassword, hashToken } from "./auth";
+import { publishDueBriefingEditions } from "./editions";
 import { processQueueMessage } from "./processor";
 import { ingestPublicTelegramChannel } from "./publicTelegram";
 import { InMemoryRepository } from "./repository";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
 import type { BriefingEdition, BriefingItem, EventReviewAdapter, NormalizedMessage, SummaryAdapter } from "@distilled/core";
 import type { DistilledQueueMessage, Env, ProcessingJobMessage } from "./types";
+import {rememberSourceAssessment} from './source-assessment-cache';
+import * as searchRelevance from './source-search-relevance';
 
 class FakeBucket {
   objects = new Map<string, string>();
@@ -80,6 +82,82 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it.each([1,50,75])('marks whether the legacy feed snapshot covers searchable history (%s editions)',async(count)=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo});
+    const user=await createVerifiedUser(app,repo,'history@example.invalid','History Owner');
+    const briefing=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+    for(let i=0;i<count;i++){
+      const at=new Date(Date.now()-(i+1)*60000).toISOString();
+      await repo.saveBriefingEdition({id:'history-'+i,briefingId:briefing.id,cadence:'hourly',windowStart:at,windowEnd:at,title:'Archive development '+i,summary:'The coastal road reopened after an overnight security closure.',sections:[{title:'Infrastructure',summary:'The coastal road reopened after an overnight security closure.',evidence:[]}],status:'published',publishedAt:at,createdAt:at,updatedAt:at});
+    }
+    const response=await app.request('/api/feed/history-owner/personal',{},env());expect(response.status).toBe(200);
+    const payload=await response.json() as {editionsComplete:boolean;publicationVersion:string;editions:unknown[]};
+    expect(payload.editions).toHaveLength(Math.min(count,50));expect(payload.editionsComplete).toBe(count<=50);expect(payload.publicationVersion).toEqual(expect.any(String));
+    expect((await(await app.request('/api/feed/history-owner/personal',{},env())).json() as typeof payload).publicationVersion).toBe(payload.publicationVersion);
+    const search=await app.request('/api/feed/history-owner/personal/search?q=coastal',{},env());
+    expect((await search.json() as {editions:unknown[]}).editions).toHaveLength(count);
+    if(count===75){
+      const old=(await repo.getBriefingEdition(briefing.id,'history-74'))!;
+      await repo.saveBriefingEdition({...old,status:'empty',updatedAt:new Date().toISOString()});
+      const changed=await(await app.request('/api/feed/history-owner/personal',{},env())).json() as typeof payload;
+      expect(changed.editions).toEqual(payload.editions);expect(changed.publicationVersion).not.toBe(payload.publicationVersion);
+      const after=await(await app.request('/api/feed/history-owner/personal/search?q=coastal',{},env())).json() as {editions:Array<{id:string}>};
+      expect(after.editions.some(edition=>edition.id===old.id)).toBe(false);
+    }
+  });
+  it('rejects invalid retrieval budgets and never spends on an ordinary blocked source check',async()=>{
+    const fetcher=vi.fn<typeof fetch>(async()=>new Response('Blocked',{status:403})),app=createApp({repository:new InMemoryRepository(),fetcher});
+    const target={...env(),SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_PAID_VERIFICATION_ENABLED:'true',OPENROUTER_API_KEY:'test',ZYTE_API_KEY:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0.05}'};
+    const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'retrieval@example.com',username:'retrieval-budget',password:'password123',setupToken:'setup-token'})},target);
+    const headers={cookie:setup.headers.get('set-cookie')!.split(';')[0],'content-type':'application/json'},body={title:'Georges Khabbaz',description:'Film and theater',source:'https://lovin.co/'};
+    for(const approvedRetrievalBudgetUsd of [0.01,0.10,0.20])expect((await app.request('/api/me/sources/assess',{method:'POST',headers,body:JSON.stringify({...body,approvedRetrievalBudgetUsd})},target)).status).toBe(400);
+    const response=await app.request('/api/me/sources/assess',{method:'POST',headers,body:JSON.stringify(body)},target);
+    expect(await response.json()).toMatchObject({assessment:{status:'unverified',freeAccessUnavailable:true}});
+    expect(fetcher.mock.calls.every(([url])=>String(url)==='https://lovin.co/')).toBe(true);
+  });
+  it('reuses an owner-scoped accepted assessment without repeating source or model requests',async()=>{
+    const fetcher=vi.fn<typeof fetch>(),repo=new InMemoryRepository(),app=createApp({repository:repo,fetcher});
+    const values=new Map<string,string>();
+    const target={...env(),SOURCE_ASSESSMENT_ENABLED:'true',RAW_ARCHIVE:{put:async(key:string,value:string)=>{values.set(key,value);},get:async(key:string)=>values.has(key)?{json:async()=>JSON.parse(values.get(key)!)}:null}} as unknown as Env;
+    const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'cache@example.com',username:'assessment-cache',password:'password123',setupToken:'setup-token'})},target);
+    const owner=(await setup.json() as {account:{id:string}}).account.id;
+    const context={title:'Georges Khabbaz',description:'Films and theater'},source='https://publisher.example/';
+    await rememberSourceAssessment(target,owner,context,{input:source,status:'accepted',reason:'Verified article passage.',checkedAt:new Date().toISOString(),evidenceQuote:'A substantive interview about films and theater.',evidenceUrl:source});
+    const response=await app.request('/api/me/sources/assess',{method:'POST',headers:{cookie:setup.headers.get('set-cookie')!.split(';')[0],'content-type':'application/json'},body:JSON.stringify({...context,source})},target);
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({assessment:{status:'accepted',input:source}});
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('protects source search with authentication, validation and an independent bounded rate limit',async()=>{
+    const fetcher=vi.fn<typeof fetch>(async()=>new Response('Public source reporting. '.repeat(8)));
+    const app=createApp({repository:new InMemoryRepository(),fetcher});
+    const target={...env(),SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'};
+    expect((await app.request('/api/me/sources/search?q=aljadded',{},target)).status).toBe(401);
+    const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'search@example.com',username:'source-search',password:'password123',setupToken:'setup-token'})},target);
+    const headers={cookie:setup.headers.get('set-cookie')!.split(';')[0]};
+    expect((await app.request('/api/me/sources/search?q=a',{headers},target)).status).toBe(400);
+    for(let i=0;i<30;i++){
+      const response=await app.request('/api/me/sources/search?q=aljadded',{headers},target);
+      expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toMatchObject({results:[{source:'https://www.aljadeed.tv/'}]});
+    }
+    expect((await app.request('/api/me/sources/search?q=aljadded',{headers},target)).status).toBe(429);
+    expect(fetcher).toHaveBeenCalledTimes(30);
+  });
+  it('accepts topic-scoped search in a POST body and excludes off-topic indexed articles',async()=>{
+    const relevance=vi.spyOn(searchRelevance,'alignedSearchResults').mockResolvedValueOnce({results:[],unavailable:false});
+    try{
+    const fetcher=vi.fn<typeof fetch>(async()=>new Response('<rss><channel><item><guid>1</guid><title>AI workforce trends</title><link>https://news.google.com/rss/articles/1</link><source url="https://publisher.example">Publisher</source></item></channel></rss>'));
+    const app=createApp({repository:new InMemoryRepository(),fetcher}),target={...env(),SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'};
+    const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'topic@example.com',username:'topic-search',password:'password123',setupToken:'setup-token'})},target);
+    const headers={cookie:setup.headers.get('set-cookie')!.split(';')[0],'content-type':'application/json'};
+    const response=await app.request('/api/me/sources/search',{method:'POST',headers,body:JSON.stringify({q:'AI',title:'Ammar Mohanna',description:'Latest news about Ammar Mohanna'})},target);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({results:[],topicMismatch:true});
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(relevance).toHaveBeenCalledWith(target,'AI',{title:'Ammar Mohanna',description:'Latest news about Ammar Mohanna'},expect.arrayContaining([expect.objectContaining({title:'AI workforce trends'})]),fetcher,expect.any(String));
+    expect((await app.request('/api/me/sources/search',{method:'POST',headers,body:JSON.stringify({q:'AI',title:'Ammar'})},target)).status).toBe(400);
+    }finally{relevance.mockRestore();}
+  });
   it("sets up the first verified admin account and session", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -109,6 +187,7 @@ describe("worker app accounts", () => {
       }
     });
     expect(await repo.countAdmins()).toBe(1);
+    expect(await repo.listBriefings()).toEqual([]);
   });
 
   it("prevents multiple accounts for the same email and reserves usernames", async () => {
@@ -238,6 +317,13 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(verifyResponse.status).toBe(200);
+    const verifiedAccount=(await repo.getAccountByEmail('user@test.com'))!;
+    expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
+    const sessionHeaders={cookie:verifyResponse.headers.get('set-cookie')!.split(';')[0]};
+    expect(await (await app.request('/api/me/briefings',{headers:sessionHeaders},env(email))).json()).toEqual({briefings:[]});
+    // Legacy source/health reads cannot create the old default feed either.
+    for(const path of ['/api/me/sources','/api/me/health'])expect((await app.request(path,{headers:sessionHeaders},env(email))).status).toBe(404);
+    expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
 
     const repeatedVerifyResponse = await app.request(
       "/api/auth/verify-email",
@@ -249,6 +335,7 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(repeatedVerifyResponse.status).toBe(200);
+    expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
     expect(await repeatedVerifyResponse.json()).toMatchObject({
       account: {
         email: "user@test.com",
@@ -287,6 +374,40 @@ describe("worker app accounts", () => {
       env(email)
     );
     expect(loginResponse.status).toBe(200);
+  });
+
+  it("keeps expired verification/reset tokens unusable and password resets single-use",async()=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo}),mail=new FakeEmail(),config=env(mail);
+    await app.request("/api/auth/register",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:"expiry@test.com",username:"expiry",password:"original-pass123"})},config);
+    const account=(await repo.getAccountByEmail("expiry@test.com"))!;
+    for(const purpose of ["email_verification","password_reset"] as const){
+      const token="expired-"+purpose;await repo.createAuthToken({accountId:account.id,purpose,tokenHash:await hashToken(token),expiresAt:new Date(Date.now()-1000).toISOString()});
+      const endpoint=purpose==="email_verification"?"/api/auth/verify-email":"/api/auth/password/reset";
+      expect((await app.request(endpoint,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token,password:"changed-pass123"})},config)).status).toBe(400);
+    }
+    const verify=tokenFromMessage(mail.messages[0].text);await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);
+    const replay=await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);expect(replay.status).toBe(200);expect(replay.headers.get("set-cookie")).toBeNull();
+    await app.request("/api/auth/password/forgot",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email})},config);
+    const reset=tokenFromMessage(mail.messages[1].text),body=JSON.stringify({token:reset,password:"changed-pass123"});
+    expect((await app.request("/api/auth/password/reset",{method:"POST",headers:{"content-type":"application/json"},body},config)).status).toBe(200);
+    expect((await app.request("/api/auth/password/reset",{method:"POST",headers:{"content-type":"application/json"},body},config)).status).toBe(400);
+    for(const [password,status] of [["original-pass123",401],["changed-pass123",200]] as const)expect((await app.request("/api/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email,password})},config)).status).toBe(status);
+  });
+
+  it("allows deleting the last feed without recreating it on read", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "empty@test.com", "Empty User");
+    const headers = { cookie: user.cookie };
+    const initial = await app.request("/api/me/briefings", { headers }, env());
+    const { briefings } = await initial.json() as { briefings: Array<{ id: string }> };
+    expect(briefings).toHaveLength(1);
+    const deleted = await app.request(`/api/me/briefings/${briefings[0].id}`, { method: "DELETE", headers }, env());
+    expect(deleted.status).toBe(200);
+    const remaining = await app.request("/api/me/briefings", { headers }, env());
+    expect(await remaining.json()).toEqual({ briefings: [] });
+    for(const path of ['/api/me/sources','/api/me/health'])expect((await app.request(path,{headers},env())).status).toBe(404);
+    expect(await repo.listBriefings(user.account.id)).toEqual([]);
   });
 
   it("scopes user feed management to the logged-in account", async () => {
@@ -372,6 +493,21 @@ describe("worker app accounts", () => {
       env()
     );
     expect(createCollision.status).toBe(409);
+  });
+
+  it("limits feed names at the API boundary", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo, bucket: new FakeBucket(), queue: new FakeQueue() });
+    const user = await createVerifiedUser(app, repo, "title-limit@test.com", "Title Limit");
+    for (const length of [24, 25]) {
+      const response = await app.request("/api/me/briefings", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: user.cookie },
+        body: JSON.stringify({ id: `title_limit_${length}`, title: "W".repeat(length), interestProfile: "Technology news" })
+      }, env());
+      expect(response.status).toBe(length === 24 ? 200 : 400);
+      expect(Boolean(await repo.getBriefingById(`title_limit_${length}`))).toBe(length === 24);
+    }
   });
 
   it("ingests enabled sources into the owner-scoped public feed", async () => {
@@ -487,156 +623,10 @@ describe("worker app accounts", () => {
     expect((await repo.getBriefingById(scheduledBriefing.id))?.nextBriefingAt).toBe("2026-06-16T10:00:00.000Z");
   });
 
-  it("lets public feed readers request a manual brief without moving the cadence", async () => {
-    const repo = new InMemoryRepository();
-    const app = createApp({
-      repository: repo,
-      now: () => new Date("2026-06-16T09:30:00.000Z")
-    });
-    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
-    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
-    expect(briefing).not.toBeNull();
-    const scheduledBriefing = await repo.upsertBriefing({
-      ...briefing!,
-      interestProfile: "Track Lebanese infrastructure and public service updates.",
-      nextBriefingAt: "2026-06-16T10:00:00.000Z"
-    });
-
-    await repo.saveBriefingEdition({
-      id: "edition_previous",
-      briefingId: scheduledBriefing.id,
-      cadence: "hourly",
-      windowStart: "2026-06-16T08:00:00.000Z",
-      windowEnd: "2026-06-16T09:00:00.000Z",
-      title: "Verified updates",
-      summary: "Verified updates: Earlier public service update [1].",
-      sections: [
-        {
-          title: "Infrastructure",
-          summary: "Earlier public service update.",
-          evidence: []
-        }
-      ],
-      status: "published",
-      publishedAt: "2026-06-16T09:00:00.000Z",
-      createdAt: "2026-06-16T09:00:00.000Z",
-      updatedAt: "2026-06-16T09:00:00.000Z"
-    });
-    await repo.saveRawMessage(scheduledBriefing.id, {
-      id: `${scheduledBriefing.id}::manual_power_update`,
-      source: { id: "src_power", title: "Power Wire", type: "channel", provider: "telegram", kind: "telegram_channel" },
-      messageId: "manual-power-update",
-      text: "Electricite du Liban confirmed two extra hours of power supply tonight.",
-      links: [],
-      media: [],
-      postedAt: "2026-06-16T09:15:00.000Z",
-      receivedAt: "2026-06-16T09:15:10.000Z",
-      sourceUrl: "https://t.me/power/2",
-      expiresAt: "2026-07-01T09:15:00.000Z"
-    });
-
-    const response = await app.request(
-      "/api/feed/feed-owner/personal/request-summary",
-      { method: "POST" },
-      env()
-    );
-    expect(response.status).toBe(200);
-    const payload = (await response.json()) as {
-      edition: { windowStart: string; windowEnd: string; summary: string; sections: unknown[] } | null;
-      message: string;
-    };
-    expect(payload.message).toBe("new brief published");
-    expect(payload.edition?.windowStart).toBe("2026-06-16T09:00:00.000Z");
-    expect(payload.edition?.windowEnd).toBe("2026-06-16T09:30:00.000Z");
-    expect(payload.edition?.summary).toContain("Electricite du Liban");
-    expect(payload.edition?.sections).toEqual([]);
-    expect((await repo.getBriefingById(scheduledBriefing.id))?.nextBriefingAt).toBe("2026-06-16T10:00:00.000Z");
-  });
-
-  it("starts the next scheduled brief after a manual brief without shifting the scheduled time", async () => {
-    const repo = new InMemoryRepository();
-    const app = createApp({ repository: repo });
-    const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
-    const briefing = await repo.getBriefingBySlug(user.account.id, "personal");
-    expect(briefing).not.toBeNull();
-    const scheduledBriefing = await repo.upsertBriefing({
-      ...briefing!,
-      interestProfile: "Track Lebanese infrastructure and public service updates.",
-      nextBriefingAt: "2026-06-16T10:00:00.000Z"
-    });
-
-    await repo.saveBriefingEdition({
-      id: "edition_previous",
-      briefingId: scheduledBriefing.id,
-      cadence: "hourly",
-      windowStart: "2026-06-16T08:00:00.000Z",
-      windowEnd: "2026-06-16T09:00:00.000Z",
-      title: "Verified updates",
-      summary: "Verified updates: Earlier public service update [1].",
-      sections: [
-        {
-          title: "Infrastructure",
-          summary: "Earlier public service update.",
-          evidence: []
-        }
-      ],
-      status: "published",
-      publishedAt: "2026-06-16T09:00:00.000Z",
-      createdAt: "2026-06-16T09:00:00.000Z",
-      updatedAt: "2026-06-16T09:00:00.000Z"
-    });
-
-    await repo.saveRawMessage(scheduledBriefing.id, {
-      id: `${scheduledBriefing.id}::manual_power_update`,
-      source: { id: "src_power", title: "Power Wire", type: "channel", provider: "telegram", kind: "telegram_channel" },
-      messageId: "manual-power-update",
-      text: "Electricite du Liban confirmed two extra hours of power supply tonight.",
-      links: [],
-      media: [],
-      postedAt: "2026-06-16T09:15:00.000Z",
-      receivedAt: "2026-06-16T09:15:10.000Z",
-      sourceUrl: "https://t.me/power/2",
-      expiresAt: "2026-07-01T09:15:00.000Z"
-    });
-    await repo.saveRawMessage(scheduledBriefing.id, {
-      id: `${scheduledBriefing.id}::scheduled_water_update`,
-      source: { id: "src_water", title: "Water Wire", type: "channel", provider: "telegram", kind: "telegram_channel" },
-      messageId: "scheduled-water-update",
-      text: "Beirut Water Authority announced a maintenance outage from 10 p.m. tonight.",
-      links: [],
-      media: [],
-      postedAt: "2026-06-16T09:45:00.000Z",
-      receivedAt: "2026-06-16T09:45:10.000Z",
-      sourceUrl: "https://t.me/water/3",
-      expiresAt: "2026-07-01T09:45:00.000Z"
-    });
-
-    const manual = await publishManualBriefingEdition({
-      repo,
-      briefing: scheduledBriefing,
-      now: new Date("2026-06-16T09:30:00.000Z")
-    });
-    expect(manual?.windowStart).toBe("2026-06-16T09:00:00.000Z");
-    expect(manual?.windowEnd).toBe("2026-06-16T09:30:00.000Z");
-
-    const published = await publishDueBriefingEditions({
-      repo,
-      briefings: [(await repo.getBriefingById(scheduledBriefing.id))!],
-      now: new Date("2026-06-16T10:00:00.000Z")
-    });
-    expect(published).toBe(1);
-
-    const editions = await repo.listBriefingEditions(
-      scheduledBriefing.id,
-      true,
-      new Date("2026-06-16T10:01:00.000Z"),
-      5
-    );
-    expect(editions[0].windowStart).toBe("2026-06-16T09:30:00.000Z");
-    expect(editions[0].windowEnd).toBe("2026-06-16T10:00:00.000Z");
-    expect(editions[0].summary).toContain("Beirut Water Authority");
-    expect(editions[0].summary).not.toContain("Electricite du Liban");
-    expect((await repo.getBriefingById(scheduledBriefing.id))?.nextBriefingAt).toBe("2026-06-16T11:00:00.000Z");
+  it("retired manual endpoint cannot publish or alter the feed schedule in legacy mode", async () => {
+    const repo=new InMemoryRepository(), app=createApp({repository:repo});
+    const response=await app.request("/api/feed/unknown/personal/request-summary",{method:"POST"},env());
+    expect(response.status).toBe(410);
   });
 
   it("skips stale catch-up windows and publishes the latest settled window", async () => {
@@ -772,6 +762,15 @@ describe("worker app accounts", () => {
     };
     expect(payload.briefing.briefingCadence).toBe("weekly");
     expect(payload.briefing.briefingTimeOfDay).toBe("00:00");
+  });
+  it('preserves an authorized stored delivery anchor on an ordinary feed title edit',async()=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo});
+    const user=await createVerifiedUser(app,repo,'anchor-owner@test.com','Anchor Owner');
+    const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+    const configured=await repo.upsertBriefing({...original,briefingTimeOfDay:'16:30',briefingTimezone:'Asia/Beirut'});
+    const response=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...configured,title:'Updated title',briefingTimeOfDay:'00:00'})},env());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({briefing:{title:'Updated title',briefingTimeOfDay:'16:30',briefingTimezone:'Asia/Beirut'}});
   });
 
   it("serves synthesized public summaries for old count-style edition rows", async () => {
@@ -1840,7 +1839,7 @@ describe("worker app accounts", () => {
     expect(queue.messages).toHaveLength(0);
   });
 
-  it("serves feed links without auth even when an old row has the removed private flag", async () => {
+  it("denies anonymous access to historical private rows and preserves owner reads", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const user = await createVerifiedUser(app, repo, "owner@test.com", "Feed Owner");
@@ -1871,17 +1870,19 @@ describe("worker app accounts", () => {
     await repo.saveBriefingEdition(edition);
 
     const feedResponse = await app.request("/api/feed/feed-owner/personal", {}, env());
-    expect(feedResponse.status).toBe(200);
-    const feed = (await feedResponse.json()) as {
+    expect(feedResponse.status).toBe(404);
+    const ownerResponse = await app.request("/api/feed/feed-owner/personal", { headers: { cookie: user.cookie } }, env());
+    expect(ownerResponse.status).toBe(200);
+    const feed = (await ownerResponse.json()) as {
       briefing: { publicFeedEnabled: boolean; retentionDays: number };
       editions: Array<{ summary: string }>;
     };
-    expect(feed.briefing.publicFeedEnabled).toBe(true);
+    expect(feed.briefing.publicFeedEnabled).toBe(false);
     expect(feed.briefing.retentionDays).toBe(15);
     expect(feed.editions[0].summary).toContain("Old private rows");
 
     const searchResponse = await app.request("/api/feed/feed-owner/personal/search?q=private", {}, env());
-    expect(searchResponse.status).toBe(200);
+    expect(searchResponse.status).toBe(404);
 
     const starResponse = await app.request(
       "/api/feed/feed-owner/personal/star",
@@ -1892,7 +1893,7 @@ describe("worker app accounts", () => {
       },
       env()
     );
-    expect(starResponse.status).toBe(200);
+    expect(starResponse.status).toBe(404);
   });
 
   it("merges saved items that reuse the same raw evidence", async () => {
@@ -1971,9 +1972,178 @@ describe("worker app accounts", () => {
     const response = await app.request("/api/explore/feeds", {}, env());
     expect(response.status).toBe(200);
     const payload = (await response.json()) as { feeds: Array<{ title: string; stars: number }> };
-    expect(payload.feeds).toHaveLength(10);
+    expect(payload.feeds).toHaveLength(11);
     expect(payload.feeds.map((feed) => feed.title).slice(0, 3)).toEqual(["Top Feed", "Older Tie", "Newer Tie"]);
     expect(payload.feeds.some((feed) => feed.title === "Disabled Feed")).toBe(false);
+  });
+
+  it("streams verified recommendations while preserving the JSON endpoint for other clients", async () => {
+    const repo=new InMemoryRepository();
+    const app=createApp({repository:repo,fetcher:async(url,init)=>{
+      if(!String(url).includes('openrouter.ai'))return new Response('<rss><channel><title>Solar news</title><item><guid>one</guid><title>Solar energy policy and new technology</title><description>Substantive reporting on solar installation policy and technology developments.</description><link>https://publisher.example/story</link></item></channel></rss>',{headers:{'content-type':'application/rss+xml'}});
+      const request=JSON.parse(init!.body as string);
+      return Response.json({choices:[{message:{content:JSON.stringify(request.messages[0].content.startsWith('Suggest')?{sources:['https://publisher.example/feed.xml']}:{realWorldInterest:'YES',exactTopic:'YES',concern:'NO',reason:'Solar reporting matches the requested interest.',evidenceId:'E1'})}}]});
+    }});
+    const owner=await createVerifiedUser(app,repo,'stream-sources@test.com','Stream Sources');
+    const response=await app.request('/api/me/sources/recommend',{method:'POST',headers:{cookie:owner.cookie,'content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({title:'Solar',description:'Solar technology and policy'})},{...env(),SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test'});
+    expect(response.headers.get('content-type')).toContain('application/x-ndjson');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    const events=(await response.text()).trim().split('\n').map(line=>JSON.parse(line));
+    expect(events[0]).toMatchObject({type:'progress',sources:['https://publisher.example/feed.xml']});
+    expect(events.at(-1)).toMatchObject({type:'complete',sources:['https://publisher.example/feed.xml']});
+    const diagnostic=await app.request('/api/internal/collectors/recommend',{method:'POST',headers:{'x-distilled-internal':'internal-secret','content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({ownerAccountId:owner.account.id,title:'Solar',description:'Solar technology and policy'})},{...env(),SOURCE_RECOMMENDATIONS_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test'});
+    expect(diagnostic.headers.get('content-type')).toContain('application/x-ndjson');
+    expect(diagnostic.headers.get('cache-control')).toBe('private, no-store');
+    const diagnosticEvents=(await diagnostic.text()).trim().split('\n').map(line=>JSON.parse(line));
+    expect(diagnosticEvents[0]).toMatchObject({type:'progress',sources:['https://publisher.example/feed.xml']});
+    expect(diagnosticEvents.at(-1)).toMatchObject({type:'complete',sources:['https://publisher.example/feed.xml'],budget:{configured:false}});
+  });
+  it("allows three source recommendations per user in a rolling five-hour window", async () => {
+    const repo = new InMemoryRepository();
+    let calls = 0;
+    const app = createApp({ repository: repo, fetcher: async input => {
+      if(!String(input).includes('openrouter.ai'))return new Response('<rss><channel><title>World</title><item><guid>one</guid><title>World news</title><link>https://publisher.example/story</link></item></channel></rss>',{headers:{'content-type':'application/rss+xml'}});
+      calls++;
+      return Response.json({ choices: [{ message: { content: JSON.stringify({ sources: ["https://feeds.bbci.co.uk/news/world/rss.xml"] }) } }] });
+    } });
+    const owner = await createVerifiedUser(app, repo, "source-limit@test.com", "Source Limit");
+    await repo.recordAuthAttempt({ key: `source-recommend:${owner.account.id}`, action: "source_recommend" }, new Date(Date.now() - 6 * 60 * 60 * 1000));
+    for (let index = 0; index < 3; index++) {
+      const response = await app.request("/api/me/sources/recommend", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ title: "World", description: "World news" }) }, { ...env(), SOURCE_RECOMMENDATIONS_ENABLED: "true", SOURCE_CONNECTORS_ENABLED: "true", OPENROUTER_API_KEY: "test" });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ sources: ["https://feeds.bbci.co.uk/news/world/rss.xml"] });
+    }
+    const blocked = await app.request("/api/me/sources/recommend", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ title: "World", description: "World news" }) }, { ...env(), SOURCE_RECOMMENDATIONS_ENABLED: "true", SOURCE_CONNECTORS_ENABLED: "true", OPENROUTER_API_KEY: "test" });
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("Retry-After")).toBe("18000");
+    expect(await blocked.json()).toMatchObject({ error: expect.stringContaining("three times every five hours") });
+    expect(calls).toBe(3);
+  });
+
+  it('persists recently recommended sources using their exact owner-scoped evidence',async()=>{
+    const repo=new InMemoryRepository();
+    const fetcher=vi.fn<typeof fetch>(async()=>{throw Error('A second model verdict must not replace the recent assessment');});
+    const app=createApp({repository:repo,fetcher});
+    const owner=await createVerifiedUser(app,repo,'recommendation-save@test.com','Recommendation Save');
+    const original=(await repo.listBriefings(owner.account.id))[0];
+    await repo.upsertBriefing({...original,paused:true});
+    const objects=new Map<string,string>();
+    const statement={bind:()=>statement,first:async()=>null,run:async()=>({meta:{changes:1}})};
+    const configured={...env(),PRODUCT_FEEDS_ENABLED:'true',SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_ASSESSMENT_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test',
+      DB:{prepare:()=>statement},RAW_ARCHIVE:{put:async(key:string,text:string)=>{objects.set(key,text);},get:async(key:string)=>objects.has(key)?{json:async()=>JSON.parse(objects.get(key)!)}:null,head:async()=>null}} as unknown as Env;
+    const source='rss: https://solar.example/feed/';
+    await rememberSourceAssessment(configured,owner.account.id,{title:'Solar',description:'Solar energy projects'},
+      {input:source,status:'accepted',reason:'Directly relevant fetched evidence.',checkedAt:new Date().toISOString(),evidenceQuote:'Solar energy projects are expanding in the region.',evidenceUrl:'https://solar.example/feed/'});
+    const response=await app.request('/api/me/feeds',{method:'POST',headers:{cookie:owner.cookie,'content-type':'application/json'},body:JSON.stringify({id:original.id,title:'Solar',interestProfile:'Solar energy projects',sourceInputs:[source],publicFeedEnabled:true,updateIntervalMinutes:60,briefingTimezone:'UTC',language:'en'})},configured);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({briefing:{paused:true,title:'Solar'}});
+    expect(await repo.listSources(original.id)).toHaveLength(1);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("blocks unassessed sources before creating a feed or changing its existing sources", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "source-assessment@test.com", "Source Assessment");
+    const configured = { ...env(), PRODUCT_FEEDS_ENABLED: "true", SOURCE_ASSESSMENT_ENABLED: "true", SOURCE_CONNECTORS_ENABLED: "true", OPENROUTER_API_KEY: "test" };
+    const before = await repo.listBriefings(owner.account.id);
+    const response = await app.request("/api/me/feeds", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ id: "unsafe-feed", title: "World", interestProfile: "World news", sourceInputs: ["https://x.com/BBCWorld"], publicFeedEnabled: true, updateIntervalMinutes: 60, briefingTimezone: "UTC", language: "en" }) }, configured);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ checks: [expect.objectContaining({ status: "unavailable" })] });
+    expect(await repo.getBriefingById("unsafe-feed")).toBeNull();
+    expect(await repo.listBriefings(owner.account.id)).toEqual(before);
+    const manual = await app.request("/api/me/sources", { method: "POST", headers: { cookie: owner.cookie, "content-type": "application/json" }, body: JSON.stringify({ briefingId: before[0].id, input: "https://x.com/BBCWorld" }) }, configured);
+    expect(manual.status).toBe(422);
+    expect(await repo.listSources(before[0].id)).toEqual([]);
+  });
+
+  it("pages through all public feeds without requiring stars or featuring", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "public-list@test.com", "Public List");
+    const original = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    for (let index = 0; index < 105; index++) {
+      await repo.upsertBriefing({ ...original, id: `public-${index}`, slug: `public-${index}`, publicFeedEnabled: true, stars: 0, exploreFeatured: false });
+    }
+    const first = await (await app.request("/api/explore/feeds", {}, env())).json() as { feeds: Array<{ id: string }>; nextOffset: number | null };
+    expect(first.feeds).toHaveLength(100);
+    expect(first.nextOffset).toBe(100);
+    const second = await (await app.request(`/api/explore/feeds?offset=${first.nextOffset}`, {}, env())).json() as typeof first;
+    expect(second.nextOffset).toBeNull();
+    const ids = new Set([...first.feeds, ...second.feeds].map(feed => feed.id));
+    for (let index = 0; index < 105; index++) expect(ids.has(`public-${index}`)).toBe(true);
+    expect(ids.size).toBe(first.feeds.length + second.feeds.length);
+  });
+
+  it("lets admins feature public feeds without controlling Explore membership", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const admin = await createVerifiedUser(app, repo, "curator@test.com", "Curator", "admin");
+    const owner = await createVerifiedUser(app, repo, "publisher@test.com", "Publisher");
+    const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    const url = `/api/admin/briefings/${feed.id}/explore`;
+    const request = (cookie: string, featured: boolean) => app.request(url, {
+      method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ featured })
+    }, env());
+
+    expect((await request(owner.cookie, true)).status).toBe(401);
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: false });
+    expect((await request(admin.cookie, true)).status).toBe(400);
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true });
+    expect((await request(admin.cookie, true)).status).toBe(200);
+    expect((await repo.listExploreBriefings(10)).map(item => item.id)).toContain(feed.id);
+    expect((await repo.getBriefingById(feed.id))?.stars).toBe(0);
+    expect((await request(admin.cookie, false)).status).toBe(200);
+    expect((await repo.listExploreBriefings(10)).map(item => item.id)).toContain(feed.id);
+  });
+
+  it('checks push ownership for the signed-in account only', async()=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo});
+    const owner=await createVerifiedUser(app,repo,'push-status@test.com','Push Status');
+    const bindings:unknown[][]=[];let found=true;
+    const statusEnv={...env(),DB:{prepare:()=>({bind:(...args:unknown[])=>{bindings.push(args);return {first:async()=>found?{endpoint:args[0]}:null};}})}} as unknown as Env;
+    const request=()=>app.request('/api/me/push/status',{method:'POST',headers:{'content-type':'application/json',cookie:owner.cookie},body:JSON.stringify({endpoint:'https://fcm.googleapis.com/fcm/send/status'})},statusEnv);
+    expect(await(await request()).json()).toEqual({subscribed:true});found=false;expect(await(await request()).json()).toEqual({subscribed:false});
+    expect(bindings[0]).toHaveLength(2);expect(bindings[0][1]).toBe((await repo.getAccountByEmail('push-status@test.com'))!.id);expect(bindings[0][1]).toBe(bindings[1][1]);
+    expect((await app.request('/api/me/push/status',{method:'POST'},statusEnv)).status).toBe(401);
+  });
+
+  it("stores and removes an authenticated browser push subscription", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "alerts@test.com", "Alerts Owner");
+    const writes: string[] = [];
+    const pushEnv = { ...env(), VAPID_PUBLIC_KEY: "public-key", VAPID_PRIVATE_KEY: "private-key", VAPID_SUBJECT: "mailto:alerts@example.com",
+      DB: { prepare: (sql: string) => ({ bind: () => ({ run: async () => { writes.push(sql); return { meta: { changes: 1 } }; } }) }) } } as unknown as Env;
+    const headers = { "content-type": "application/json", cookie: owner.cookie };
+    const config = await app.request("/api/me/push", { headers: { cookie: owner.cookie } }, pushEnv);
+    expect(await config.json()).toEqual({ publicKey: "public-key" });
+    const subscription = { endpoint: "https://fcm.googleapis.com/fcm/send/test", expirationTime: null,
+      keys: { p256dh: "a".repeat(87), auth: "b".repeat(22) } };
+    const saved = await app.request("/api/me/push", { method: "POST", headers, body: JSON.stringify({ subscription, language: "en" }) }, pushEnv);
+    expect(saved.status).toBe(200);
+    const removed = await app.request("/api/me/push", { method: "DELETE", headers, body: JSON.stringify({ endpoint: subscription.endpoint }) }, pushEnv);
+    expect(removed.status).toBe(200);
+    expect(writes).toHaveLength(2);
+  });
+
+  it.each(["جود-سنان", "élodie-françois"])("supports Unicode account creation, renaming and encoded feed aliases: %s", async (username) => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const user = await createVerifiedUser(app, repo, "unicode@test.com", username);
+    expect((await repo.resolveUsernameAlias(username))?.account.username).toBe(username);
+    const rename = await app.request("/api/me/account", {
+      method: "PATCH", headers: { "content-type": "application/json", cookie: user.cookie },
+      body: JSON.stringify({ username: `${username}-2` })
+    }, env());
+    expect(rename.status).toBe(200);
+    expect(await rename.json()).toMatchObject({ account: { username: `${username}-2` } });
+    const apiRedirect = await app.request(`/api/feed/${encodeURIComponent(username)}/personal`, {}, env());
+    expect(apiRedirect.status).toBe(301);
+    expect(decodeURI(apiRedirect.headers.get("location")!)).toContain(`/${username}-2/personal`);
+    const pageRedirect = await app.request(`/${encodeURIComponent(username)}/personal/`, {}, env());
+    expect(pageRedirect.status).toBe(301);
+    expect(decodeURI(pageRedirect.headers.get("location")!)).toContain(`/${username}-2/personal/`);
   });
 
   it("redirects reserved old usernames after username changes", async () => {
@@ -2307,8 +2477,89 @@ async function createVerifiedUser(
   return { account, cookie: login.headers.get("set-cookie")?.split(";")[0] ?? "" };
 }
 
+it('uses each request language for signup and reset mail independently', async () => {
+  const repo = new InMemoryRepository(), app = createApp({repository: repo}), mail = new FakeEmail(), config = env(mail);
+  const post = (path: string, body: unknown) => app.request(path, {method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify(body)}, config);
+  expect((await post('/api/auth/register', {email:'language@example.com',username:'Home',password:'local-fixture-123',language:'ar'})).status).toBe(200);
+  expect(mail.messages[0].subject).toContain('تأكيد');
+  expect(mail.messages[0].html).toContain('lang="ar" dir="rtl"');
+  expect((await post('/api/auth/verify-email', {token:tokenFromMessage(mail.messages[0].text)})).status).toBe(200);
+  expect((await post('/api/auth/password/forgot', {email:'language@example.com',language:'fr'})).status).toBe(200);
+  expect(mail.messages[1].subject).toContain('Réinitialisez');
+  expect(mail.messages[1].text).toContain('&lang=fr');
+  expect((await post('/api/auth/password/reset', {token:tokenFromMessage(mail.messages[1].text),password:'another-local-fixture'})).status).toBe(200);
+});
+
 function tokenFromMessage(text: string | undefined): string {
-  const token = text?.match(/token=([^\s]+)/)?.[1];
+  const token = text?.match(/token=([^&\s]+)/)?.[1];
   if (!token) throw new Error("token not found in email");
   return decodeURIComponent(token);
 }
+
+it('creates clock-aligned schedules only for new feeds and preserves them on ordinary edits',async()=>{
+ let at=new Date('2026-10-22T16:05:40.123Z');
+ const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>at});
+ const user=await createVerifiedUser(app,repo,'relative-owner@test.com','Relative Owner');
+ const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+ const save=async(input:Record<string,unknown>)=>{
+  const r=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify(input)},env());
+  expect(r.status).toBe(200);return (await r.json() as {briefing:import('@distilled/core').BriefingConfig}).briefing;
+ };
+ const feed=await save({...original,id:'relative-feed',slug:'relative',updateIntervalMinutes:30});
+ expect(feed.briefingScheduleOriginAt).toBeUndefined();expect(feed.briefingScheduleClockStartAt).toBe('2026-10-22T16:05:40.123Z');expect(feed.nextBriefingAt).toBe('2026-10-22T16:30:00.000Z');
+ expect(feed.briefingSchedulePolicy).toBe('clock-aligned-delivery-v2');
+ at=new Date('2026-10-22T16:45:00Z');
+ const title=await save({...feed,title:'Renamed'});expect(title.nextBriefingAt).toBe(feed.nextBriefingAt);expect(title.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);
+ const zone=await save({...title,briefingTimezone:'America/New_York'});expect(zone.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(zone.nextBriefingAt).toBe('2026-10-22T17:00:00.000Z');
+ const hourly=await save({...zone,updateIntervalMinutes:60});
+ expect(hourly.briefingScheduleOriginAt).toBe(feed.briefingScheduleOriginAt);expect(hourly.nextBriefingAt).toBe('2026-10-22T17:00:00.000Z');
+ const again=await save({...hourly,title:'Renamed again'});expect(again.briefingScheduleOriginAt).toBe(hourly.briefingScheduleOriginAt);expect(again.nextBriefingAt).toBe(hourly.nextBriefingAt);
+ expect(again.briefingScheduleClockStartAt).toBe(feed.briefingScheduleClockStartAt);
+ expect(again.briefingSchedulePolicy).toBe('clock-aligned-delivery-v2');
+ const invalid=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...feed,id:'clock-daily-invalid',slug:'clock-daily-invalid',updateIntervalMinutes:1440,briefingTimeOfDay:'08:15'})},env());
+ expect(invalid.status).toBe(400);
+ const daily=await save({...feed,id:'clock-daily',slug:'clock-daily',updateIntervalMinutes:1440,briefingTimeOfDay:'08:30'});
+ expect(daily.nextBriefingAt).toContain(':30:00.000Z');expect(daily.briefingScheduleClockStartAt).toBe(at.toISOString());
+});
+it.each([
+ [1440,'07:40:00','2026-10-31T08:00:00.000Z'],
+ [1440,'07:50:00','2026-11-01T08:00:00.000Z'],
+ [1440,'08:11:00','2026-11-01T08:00:00.000Z'],
+ [60,'03:11:00','2026-10-31T04:00:00.000Z']
+] as const)('new feed API persists the preparation policy for %i minutes created at %s',async(updateIntervalMinutes,time,expected)=>{
+ const at=new Date(`2026-10-31T${time}Z`),repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>at});
+ const user=await createVerifiedUser(app,repo,'preparation-owner@test.com','Preparation Owner');
+ const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+ const response=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...original,id:'prepared-feed',slug:'prepared-feed',updateIntervalMinutes,briefingTimezone:'UTC',briefingTimeOfDay:'08:00'})},env());
+ expect(response.status).toBe(200);
+ const {briefing}=await response.json() as any;
+ expect(briefing).toMatchObject({briefingSchedulePolicy:'clock-aligned-delivery-v2',briefingScheduleClockStartAt:at.toISOString(),nextBriefingAt:expected});
+ expect(await repo.getBriefingById('prepared-feed')).toMatchObject({briefingSchedulePolicy:'clock-aligned-delivery-v2',nextBriefingAt:expected});
+});
+it('editing an existing clock-aligned feed does not opt it into relative scheduling',async()=>{
+ const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>new Date('2026-10-22T16:05:40Z')});
+ const user=await createVerifiedUser(app,repo,'legacy-owner@test.com','Legacy Owner');
+ const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+ const legacy=await repo.upsertBriefing({...original,updateIntervalMinutes:30,nextBriefingAt:'2026-10-22T17:00:00.000Z'});
+ const r=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...legacy,title:'Still legacy'})},env());
+ expect(r.status).toBe(200);expect((await r.json() as any).briefing).toMatchObject({nextBriefingAt:legacy.nextBriefingAt});
+ expect((await repo.getBriefingById(original.id))?.briefingScheduleOriginAt).toBeUndefined();
+ expect((await repo.getBriefingById(original.id))?.briefingScheduleClockStartAt).toBeUndefined();
+ const originAt='2026-10-22T16:05:40.123Z';
+ const relative=await repo.upsertBriefing({...legacy,briefingScheduleOriginAt:originAt,nextBriefingAt:'2026-10-22T16:35:40.123Z'});
+ const renamed=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...relative,title:'Still relative'})},env());
+ expect(renamed.status).toBe(200);expect((await renamed.json() as any).briefing).toMatchObject({briefingScheduleOriginAt:originAt,nextBriefingAt:relative.nextBriefingAt});
+ expect((await repo.getBriefingById(original.id))?.briefingScheduleClockStartAt).toBeUndefined();
+});
+it('ordinary edits cannot reclassify an existing v1 clock feed into preparation admission',async()=>{
+ const at=new Date('2026-10-31T03:11:00Z'),repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>at});
+ const user=await createVerifiedUser(app,repo,'retained-clock@test.com','Retained Clock');
+ const original=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+ const retained=await repo.upsertBriefing({...original,updateIntervalMinutes:60,briefingTimezone:'UTC',briefingScheduleClockStartAt:at.toISOString(),nextBriefingAt:'2026-10-31T05:00:00.000Z'});
+ const response=await app.request('/api/me/briefings',{method:'POST',headers:{'content-type':'application/json',cookie:user.cookie},body:JSON.stringify({...retained,title:'Renamed',briefingSchedulePolicy:'clock-aligned-delivery-v2'})},env());
+ expect(response.status).toBe(200);
+ const {briefing}=await response.json() as {briefing:import('@distilled/core').BriefingConfig};
+ expect(briefing.nextBriefingAt).toBe(retained.nextBriefingAt);
+ expect(briefing.briefingScheduleClockStartAt).toBe(retained.briefingScheduleClockStartAt);
+ expect(briefing.briefingSchedulePolicy).toBeUndefined();
+});

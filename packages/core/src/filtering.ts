@@ -1,5 +1,6 @@
 import type { BriefingConfig, NormalizedMessage, SuppressedMessage } from "./types";
 import { eventTokens, jaccardSimilarity, normalizeEventText, normalizeText, significantTokens } from "./text";
+import {sameDocument} from "./developments";
 
 const RUMOR_PATTERNS = [
   /\brumou?rs?\b/i,
@@ -29,6 +30,7 @@ const POLITICAL_SPEECH_PATTERNS = [
 ];
 
 const FACT_PATTERNS = [
+  /\b(scrapped|withdrawn|cancelled|canceled|resigned|rejected|died|banned|stepped down|released on bail)\b/i,
   /\b(deploy|deployed|strike|strikes|hit|killed|injured|arrested|closed|opened|approved|signed|launched|resumed|halted|evacuated|entered|left|announced)\b/i,
   /\b\d+([.,]\d+)?\b/,
   /\b(percent|%|usd|dollar|lira|euro|km|people|soldiers|civilians|hours|minutes)\b/i,
@@ -246,6 +248,7 @@ export function findDuplicate(
   const tokens = eventTokens(message.text);
 
   return acceptedMessages.find((candidate) => {
+    if(message.news||candidate.news)return sameDocument(message,candidate);
     if (normalizeText(candidate.text) === normalized) return true;
     if (normalizeEventText(candidate.text) === eventNormalized) return true;
     const similarity = Math.max(

@@ -1,0 +1,136 @@
+{
+  "baseline": "2e46fa9",
+  "currentBeforeOuterDiagnostic": "cf6ca33",
+  "rounds": 2,
+  "unchangedTestLimitMs": 5000,
+  "unchangedHookLimitMs": 10000,
+  "baselineSource": "Test-only Vite loader uses immutable git show for all worker TypeScript, label validator and selected offline test. Packages/lockfile unchanged.",
+  "rows": [
+    {
+      "round": 1,
+      "case": 1,
+      "variant": "baseline",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 7313.5019,
+      "processWallMs": 17699.855599959847,
+      "timeout": false
+    },
+    {
+      "round": 1,
+      "case": 1,
+      "variant": "current",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 5515.7639,
+      "processWallMs": 10593.399500008672,
+      "timeout": false
+    },
+    {
+      "round": 1,
+      "case": 2,
+      "variant": "current",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 2960.8574,
+      "processWallMs": 7058.622800046578,
+      "timeout": false
+    },
+    {
+      "round": 1,
+      "case": 2,
+      "variant": "baseline",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 3057.4806999999996,
+      "processWallMs": 8216.39379998669,
+      "timeout": false
+    },
+    {
+      "round": 1,
+      "case": 3,
+      "variant": "baseline",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 682.0772999999999,
+      "processWallMs": 5975.840299972333,
+      "timeout": false
+    },
+    {
+      "round": 1,
+      "case": 3,
+      "variant": "current",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 751.5061999999998,
+      "processWallMs": 4385.611200006679,
+      "timeout": false
+    },
+    {
+      "round": 2,
+      "case": 1,
+      "variant": "current",
+      "exitCode": 1,
+      "status": "failed",
+      "durationMs": 6056.1633999999995,
+      "processWallMs": 11115.731599973515,
+      "timeout": true
+    },
+    {
+      "round": 2,
+      "case": 1,
+      "variant": "baseline",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 6012.8133,
+      "processWallMs": 15927.621700044256,
+      "timeout": false
+    },
+    {
+      "round": 2,
+      "case": 2,
+      "variant": "baseline",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 3040.9977000000003,
+      "processWallMs": 8221.405900025275,
+      "timeout": false
+    },
+    {
+      "round": 2,
+      "case": 2,
+      "variant": "current",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 2989.0597,
+      "processWallMs": 6958.590599999297,
+      "timeout": false
+    },
+    {
+      "round": 2,
+      "case": 3,
+      "variant": "current",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 644.5454,
+      "processWallMs": 4116.308299999218,
+      "timeout": false
+    },
+    {
+      "round": 2,
+      "case": 3,
+      "variant": "baseline",
+      "exitCode": 0,
+      "status": "passed",
+      "durationMs": 668.0807,
+      "processWallMs": 5473.741800000425,
+      "timeout": false
+    }
+  ],
+  "caveats": [
+    "Vitest assertion durations include hooks and are not completed callback times on timeout.",
+    "Restart: baseline 2/2, current 1/2. Small additional regression is not excluded.",
+    "Store batch and offline routing: both revisions 2/2. Prior failures are baseline/environment sensitive; no runtime regression reproduced.",
+    "No retry-until-green or repository timeout edits."
+  ]
+}

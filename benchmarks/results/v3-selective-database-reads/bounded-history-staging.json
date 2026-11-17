@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-28T19:26:15.290Z",
+  "worker": "distilled-news-staging",
+  "version": "0b529271-161c-4a20-8c57-b8b65104a5cd",
+  "backfill": {
+    "completed": true,
+    "readyFeeds": 33,
+    "results": 1576,
+    "blocked": 0
+  },
+  "carryAudit": {
+    "feeds": 33,
+    "results": 1578,
+    "decisions": 16094,
+    "allVersionsStable": true,
+    "allEqual": true,
+    "carried": 1
+  },
+  "financialUnchanged": true,
+  "archive": {
+    "sampleOriginalBytes": 864703,
+    "sampleCompactBytes": 9171,
+    "independentR2BytesEqual": true,
+    "maintenance": {
+      "archived": 12,
+      "bytesOffloaded": 10157790,
+      "expired": 0,
+      "updatedAt": "2026-10-28T19:21:17.496Z"
+    }
+  },
+  "probes": [
+    {
+      "path": "/",
+      "requests": 5,
+      "failures": 0,
+      "p50": 230,
+      "p95": 1234
+    },
+    {
+      "path": "/api/auth/session",
+      "requests": 5,
+      "failures": 0,
+      "p50": 98,
+      "p95": 222
+    },
+    {
+      "path": "/api/explore/feeds",
+      "requests": 5,
+      "failures": 0,
+      "p50": 277,
+      "p95": 733
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news",
+      "requests": 5,
+      "failures": 0,
+      "p50": 702,
+      "p95": 953
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news2",
+      "requests": 5,
+      "failures": 0,
+      "p50": 622,
+      "p95": 710
+    }
+  ],
+  "manualPaidInferenceCalls": 0,
+  "manualNotificationsSent": 0
+}

@@ -1,0 +1,60 @@
+import { AuthenticatedBootstrapError,AuthenticatedBrowserBridgeError,AuthenticatedBrowserBridgeExecutor,BrowserAllocationError,BrowserPreDispatchError,AuthenticatedBrowserLifecycle,AuthenticatedProfileService,ChallengeCoordinator,DetectOnlyBrowserChallengeProvider,HttpAuthenticatedBrowserBridgeClient,ProfileEnvelopeCrypto,XAuthenticatedSiteAdapter,assertProductionChallengeProvider,issueAuthenticatedProfileCapability,makeId,selectBrowserBackend,type AuthenticatedBootstrapFailureCode,type AuthenticatedBootstrapObserver,type AuthenticatedBootstrapSafeMetadata,type AuthenticatedBootstrapStage,type AuthAuditEvent,type BrowserAllocation,type AuthenticatedBrowserExecutorPort } from "@distilled/agent-runtime";
+import { z } from "zod";
+import { D1AccountTenantOwnershipPolicy,D1AuthenticatedProfileRepository,D1AuthenticationChallengeStore,R2AuthenticatedSecretStore } from "./authenticated-profile-store";
+import type { Env } from "./types";
+import { workerCloudflareBrowser } from "./web-operator-runtime";
+import {CloudflareContainerBrowserBridgeTransport} from "./cloudflare-container-browser-transport";
+
+const inputSchema=z.object({authenticatedProfileId:z.string().startsWith("authenticated_profile_"),tenantId:z.string().startsWith("account_"),ownerId:z.string().startsWith("account_")}).strict();
+export type AuthenticatedProfileBootstrapInput=z.infer<typeof inputSchema>;
+
+export async function bootstrapAuthenticatedProfile(request:Request,env:Env,dependencies:{selectBackend?:()=>ReturnType<typeof selectBrowserBackend>}={}){
+  if(!await authorized(request,env.AUTH_PROFILE_BOOTSTRAP_TOKEN??env.WEB_OPERATOR_RUNTIME_TOKEN))return Response.json({error:"unauthorized"},{status:401});
+  const parsed=inputSchema.safeParse(await request.json().catch(()=>null));if(!parsed.success)return Response.json({error:"invalid_request"},{status:400});
+  return executeAuthenticatedProfileBootstrap(parsed.data,env,dependencies);
+}
+
+export async function executeAuthenticatedProfileBootstrap(parsedData:AuthenticatedProfileBootstrapInput,env:Env,dependencies:{selectBackend?:()=>ReturnType<typeof selectBrowserBackend>;bootstrapRequestId?:string}={}){
+  if(!env.AUTH_PROFILE_ENCRYPTION_KEYS||!env.AUTH_PROFILE_ACTIVE_KEY_ID)return Response.json({error:"authenticated_profile_storage_not_configured"},{status:503});
+  let keys:Record<string,string>;try{keys=JSON.parse(env.AUTH_PROFILE_ENCRYPTION_KEYS) as Record<string,string>}catch{return Response.json({error:"authenticated_profile_keyring_invalid"},{status:503})}
+  const repository=new D1AuthenticatedProfileRepository(env.DB);const profile=await repository.getSiteProfile(parsedData.authenticatedProfileId);if(!profile)return Response.json({error:"authenticated_profile_not_found"},{status:404});
+  if(profile.tenantId!==parsedData.tenantId||profile.ownerId!==parsedData.ownerId)return Response.json({error:"authenticated_profile_owner_denied"},{status:403});
+  const adapter=new XAuthenticatedSiteAdapter();const runId=makeId("authenticated_bootstrap",profile.id,dependencies.bootstrapRequestId??crypto.randomUUID());const selected=dependencies.selectBackend?.()??authenticatedBackend(env,{runId,bootstrapRequestId:dependencies.bootstrapRequestId??runId,profile,adapter});const browser:AuthenticatedBrowserExecutorPort=selected.executor;const startedAt=Date.now();let lastSuccessfulStage:AuthenticatedBootstrapStage="profile_resolved";let allocation:BrowserAllocation|undefined;
+  const baseMetadata=()=>({profileId:profile.id,profileVersion:profile.version,browserBackend:selected.backend,browserProvider:selected.providerIdentity??(selected.backend==="cloudflare"?"CLOUDFLARE_BROWSER":"SELF_HOSTED_CHROMIUM"),browserGeneration:allocation?.generation??1,elapsedMs:Date.now()-startedAt});
+  const record=async(type:AuthAuditEvent["type"],metadata:AuthenticatedBootstrapSafeMetadata)=>repository.appendAuthAudit({id:crypto.randomUUID(),profileId:profile.id,tenantId:profile.tenantId,runId,type,safeMetadata:{...baseMetadata(),...metadata},createdAt:new Date().toISOString()});
+  const observer:AuthenticatedBootstrapObserver={stage:async(stage,metadata)=>{lastSuccessfulStage=stage;await record("BOOTSTRAP_PROGRESS",{lastSuccessfulStage:stage,...metadata})}};await observer.stage("profile_resolved");
+  let result:Awaited<ReturnType<AuthenticatedBrowserLifecycle["attach"]>>;
+  try{
+    allocation=await browser.allocate({runId,tenantId:profile.tenantId,generation:1,allowedOrigins:[...(adapter.authenticationNetworkOrigins??adapter.allowedOrigins)]});await observer.stage("browser_allocated");await observer.stage("browser_context_initialized");
+    assertProductionChallengeProvider(selected.challengeProvider);const challengeCoordinator=new ChallengeCoordinator(new D1AuthenticationChallengeStore(env.DB),selected.challengeProvider,{overallTimeoutMs:30_000,pollingIntervalMs:500});
+    const service=new AuthenticatedProfileService(repository,new R2AuthenticatedSecretStore(env.AUTHENTICATED_SECRETS),new ProfileEnvelopeCrypto(keys,env.AUTH_PROFILE_ACTIVE_KEY_ID),new D1AccountTenantOwnershipPolicy(env.DB));
+    const lifecycle=new AuthenticatedBrowserLifecycle(repository,service,browser,new Map([[adapter.siteFamily,adapter]]));const capability=issueAuthenticatedProfileCapability(profile,{tenantId:profile.tenantId,ownerId:profile.ownerId,runId:allocation.runId,browserGeneration:allocation.generation,ttlMs:120_000});
+    result=await lifecycle.attach({capability,scope:allocation,ownerId:profile.ownerId,observer,challengeCoordinator,bootstrapRequestId:dependencies.bootstrapRequestId??runId});
+  }catch(error){const failure=diagnosticFailure(error,lastSuccessfulStage);const safe={lastSuccessfulStage,failureStage:failure.stage,failureCode:failure.code,...failure.safeMetadata,...baseMetadata()};await record("BOOTSTRAP_FAILED",safe).catch(()=>undefined);console.error(JSON.stringify({message:"authenticated profile bootstrap failed",...safe}));return Response.json({error:"authenticated_profile_bootstrap_failed",diagnostic:safe},{status:500});}
+  finally{if(allocation)await browser.close(allocation).catch(()=>undefined)}
+  return Response.json({authenticatedProfileId:profile.id,site:profile.siteFamily,status:result.detection.state,reason:result.detection.reason,challengeKind:result.detection.challengeKind,challengePhase:result.detection.challengePhase,challengeProviderOutcome:result.detection.challengeProviderOutcome,sessionReused:result.sessionReused,browserClosed:true});
+}
+
+function bridgeMetadata(error:unknown):AuthenticatedBootstrapSafeMetadata{const bridge=error instanceof AuthenticatedBrowserBridgeError?error:error instanceof Error&&error.cause instanceof AuthenticatedBrowserBridgeError?error.cause:undefined;return bridge?{bridgeFailureCode:bridge.code,...(bridge.code==="BRIDGE_EFFECT_UNKNOWN"?{effectUnknown:true}:{})}:{}}
+function diagnosticFailure(error:unknown,last:AuthenticatedBootstrapStage):{code:AuthenticatedBootstrapFailureCode;stage:AuthenticatedBootstrapStage;safeMetadata:AuthenticatedBootstrapSafeMetadata}{if(error instanceof AuthenticatedBootstrapError)return{code:error.code,stage:error.stage,safeMetadata:{...error.safeMetadata,...bridgeMetadata(error)}};if(error instanceof BrowserAllocationError)return{code:error.code,stage:last,safeMetadata:{}};if(error instanceof BrowserPreDispatchError)return{code:"NETWORK_POLICY_DENIED",stage:last,safeMetadata:{}};return{code:"BOOTSTRAP_INFRASTRUCTURE_FAILED",stage:last,safeMetadata:bridgeMetadata(error)}}
+
+export async function authorized(request:Request,expected:string|undefined){if(!expected)return false;const encoder=new TextEncoder();const [providedHash,expectedHash]=await Promise.all([crypto.subtle.digest("SHA-256",encoder.encode(request.headers.get("authorization")?.replace(/^Bearer\s+/i,"")??"")),crypto.subtle.digest("SHA-256",encoder.encode(expected))]);const a=new Uint8Array(providedHash),b=new Uint8Array(expectedHash);let mismatch=0;for(let i=0;i<a.length;i++)mismatch|=a[i]^b[i];return mismatch===0;}
+
+/** Self-hosted execution is opt-in and fail-closed: loopback HTTP is honoured only when ENVIRONMENT is explicitly "development". */
+export function authenticatedBackend(env:Env,input:{runId:string;bootstrapRequestId:string;profile:{id:string;tenantId:string;ownerId:string;version:number};adapter:XAuthenticatedSiteAdapter}){
+  const provider=(env.DISTILLED_BROWSER_PROVIDER??env.DISTILLED_BROWSER_BACKEND).trim().toLowerCase();
+  if(provider==="cloudflare_container"){
+    if(!env.AUTHENTICATED_BROWSER_CONTAINER)throw new Error("cloudflare container browser provider requires a Container binding");
+    return bridgeBackend(new CloudflareContainerBrowserBridgeTransport(env.AUTHENTICATED_BROWSER_CONTAINER),input,"container","CLOUDFLARE_CONTAINER");
+  }
+  if(provider!=="self_hosted")return selectBrowserBackend({environment:env,cloudflare:workerCloudflareBrowser(env)});
+  if(!env.SELF_HOSTED_BROWSER_BRIDGE_URL?.trim()||!env.SELF_HOSTED_BROWSER_BRIDGE_AUTH?.trim())throw new Error("self-hosted browser provider requires bridge URL and dedicated authentication");
+  const transport=new HttpAuthenticatedBrowserBridgeClient({url:env.SELF_HOSTED_BROWSER_BRIDGE_URL.trim(),serviceCredential:env.SELF_HOSTED_BROWSER_BRIDGE_AUTH.trim(),allowLoopbackHttp:env.ENVIRONMENT==="development"});
+  return bridgeBackend(transport,input,"local","SELF_HOSTED_CHROMIUM");
+}
+
+function bridgeBackend(transport:ConstructorParameters<typeof AuthenticatedBrowserBridgeExecutor>[0],input:{runId:string;bootstrapRequestId:string;profile:{id:string;tenantId:string;ownerId:string;version:number};adapter:XAuthenticatedSiteAdapter},backend:"local"|"container",providerIdentity:"SELF_HOSTED_CHROMIUM"|"CLOUDFLARE_CONTAINER"){
+  const {adapter,profile}=input;const entry=adapter.authenticationEntryPoint!.url;
+  const executor=new AuthenticatedBrowserBridgeExecutor(transport,allocation=>{const contextId=makeId("browser_context",allocation.runId,allocation.tenantId,allocation.generation);const issuedAt=Date.now();return{bridgeExecutionId:makeId("bridge_execution",input.bootstrapRequestId,allocation.runId,allocation.generation),bootstrapRequestId:input.bootstrapRequestId,runId:allocation.runId,tenantId:allocation.tenantId,ownerId:profile.ownerId,profileId:profile.id,expectedProfileVersion:profile.version,browserGeneration:allocation.generation,authFlowId:makeId("auth_flow",allocation.runId,profile.id,profile.version,allocation.generation,contextId),siteKind:adapter.siteFamily,authEntryPoint:entry,sessionProbeUrl:adapter.loginOrigin==="https://x.com"?"https://x.com/home":adapter.loginOrigin,allowedOrigins:allocation.allowedOrigins,writeOrigins:[...(adapter.authenticationWriteOrigins??adapter.allowedOrigins)],issuedAt:new Date(issuedAt).toISOString(),expiresAt:new Date(issuedAt+120_000).toISOString(),operationBudget:32}});
+  return{backend,providerIdentity,executor,challengeProvider:new DetectOnlyBrowserChallengeProvider("self_hosted_chromium")};
+}

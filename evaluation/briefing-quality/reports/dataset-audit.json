@@ -1,0 +1,78 @@
+{
+  "archiveSha256": "8fadc205f5f77529d430eb6037b0c43ee8e4be3cc8aa4a2b6834f37358462652",
+  "snapshotSha256": "cdba80b052b5c86285daa8cb635683caf747725076da002ad03aa76e04305ed2",
+  "checksumsVerified": 103,
+  "cases": 95,
+  "uniqueAcquiredIds": 565,
+  "occurrences": 817,
+  "feeds": 13,
+  "emptyCases": 12,
+  "byOutputLanguage": {
+    "en": {
+      "cases": 75,
+      "uniqueAcquiredIds": 336,
+      "occurrences": 428,
+      "emptyCases": 11,
+      "splitCases": {
+        "validation": 15,
+        "development": 54,
+        "held-out": 6
+      },
+      "independentGroups": {
+        "development": 2,
+        "validation": 2,
+        "held-out": 1
+      },
+      "languageMeaning": "Requested output language; article language is not independently certified"
+    },
+    "fr": {
+      "cases": 6,
+      "uniqueAcquiredIds": 40,
+      "occurrences": 40,
+      "emptyCases": 0,
+      "splitCases": {
+        "development": 3,
+        "validation": 3
+      },
+      "independentGroups": {
+        "development": 1,
+        "validation": 1
+      },
+      "languageMeaning": "Requested output language; article language is not independently certified"
+    },
+    "ar": {
+      "cases": 14,
+      "uniqueAcquiredIds": 189,
+      "occurrences": 349,
+      "emptyCases": 1,
+      "splitCases": {
+        "validation": 8,
+        "held-out": 3,
+        "development": 3
+      },
+      "independentGroups": {
+        "development": 1,
+        "validation": 1,
+        "held-out": 1
+      },
+      "languageMeaning": "Requested output language; article language is not independently certified"
+    }
+  },
+  "sourceOccurrences": {
+    "rss_feed": 598,
+    "google_news": 70,
+    "linkedin_company": 69,
+    "x_profile": 56,
+    "web_page": 18,
+    "telegram_channel": 6
+  },
+  "flags": [
+    "fr: insufficient independent groups for three-way coverage; collect additional independent data"
+  ],
+  "splitStatus": "provisional; exact identity leakage blocked; human semantic story review required before freeze",
+  "qualityStatus": "NOT EVALUATED: no adjudicated human labels or current V3 outputs",
+  "humanStudyStatus": "NOT CONDUCTED",
+  "paidModelCalls": 0,
+  "maxArticlesPerCase": 93,
+  "gitRevision": "c5f6b08aea98406d26474c49e77f82f4cd150786"
+}

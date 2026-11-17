@@ -1,0 +1,102 @@
+{
+  "operationId": "c71ecdca40c611c5476686e401de5d8aea208efe4e369a3c4e0b113421e9d753",
+  "source": {
+    "id": "332ef09a-9870-4d81-acd4-7ded199804b1",
+    "text": "Meta’s AI agent Muse is now available on iPad, just a month after its mobile debut, as the company rapidly expands the assistant’s reach and integrations."
+  },
+  "events": [
+    {
+      "id": "8e8e18f8-cc2a-4142-97dd-e09ac0ad68c9",
+      "versionId": "3993a5c9-dddd-424f-907a-8d663643452a",
+      "state": "The AI lab's personal assistant is an operating system from the future designed to compete with Muse, Dots, and Instinct."
+    },
+    {
+      "id": "6522516f-e2de-4323-8d7b-a1d21504d1b6",
+      "versionId": "7aad985d-1449-4d01-9a81-2cf1f68b0e33",
+      "state": "TikTok describes its new Shopping Assistant as a conversational AI agent designed to help users discover and purchase products."
+    },
+    {
+      "id": "67768d83-488d-408a-b239-77b654e1b946",
+      "versionId": "45a52dd4-3904-4aa9-805f-0bce69867689",
+      "state": "OpenAI’s Alexander Embiricos is coming to the AI Stage at TechCrunch Disrupt 2026, just days after the launch of Dots. Join this conversation by registering for your pass. Get you pass now to save up to $100 and get a second at 50% off."
+    },
+    {
+      "id": "b8fc79ac-aec5-40c6-8c29-0e948a2920ba",
+      "versionId": "7c6fbfdf-04f4-443b-8a99-f288590772ee",
+      "state": "The new ads will begin to appear later this month in the U.S. only for now, and will feature products and services from an initial test group of advertisers."
+    }
+  ],
+  "storylines": [
+    {
+      "id": "f1af1dbc-337d-419f-89e6-362191bb7844",
+      "state": "The person was sentenced to 28 months in prison after an investigation found the claims were made up, the insurance trade body, the ABI said."
+    },
+    {
+      "id": "f24b9ceb-3031-449e-b174-dc5a1d1f9a1d",
+      "state": "The financing includes an $8M seed round co-led by Sequoia Capital and First Round Capital, and a $30 million Series A led by Hummingbird Ventures."
+    },
+    {
+      "id": "f815172c-2c42-43c4-9a89-9b4c5ad3de3b",
+      "state": "Personal AI agents promise to shop, book flights, and make reservations for you. But deliberate blocks and anti-bot defenses are getting in the way, leaving consumers caught in the middle. A new standard aims to help."
+    },
+    {
+      "id": "fc222b15-8a6b-4e24-accf-e64374dd1a29",
+      "state": "The president wants AI to be called super intelligence - or SI - the same initials used by Slovenian domains."
+    }
+  ],
+  "claimMentions": [
+    {
+      "id": "0c4e4caa8deba236c2d374846c8bf54a541fdf99cc4747641f6457e24e42ea6f",
+      "text": "Meta’s AI agent Muse is now available on iPad, just a month after its mobile debut, as the company rapidly expands the assistant’s reach and integrations.",
+      "reportingRoleHint": "OTHER_UNCERTAIN",
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": []
+      }
+    }
+  ],
+  "stage": "CONSTRUCTION_BINDING",
+  "response": {
+    "confidence": 0.39,
+    "originDependencyLabel": null,
+    "groups": [
+      {
+        "claimMentionIds": [
+          "0c4e4caa8deba236c2d374846c8bf54a541fdf99cc4747641f6457e24e42ea6f"
+        ],
+        "eventId": "8e8e18f8-cc2a-4142-97dd-e09ac0ad68c9",
+        "storylineId": null,
+        "structuralRelation": "NEW_EVENT_EXISTING_STORYLINE",
+        "epistemicEffects": [
+          "ADDS_DETAIL"
+        ],
+        "entities": [
+          {
+            "canonicalLabel": "Meta’s AI agent Muse",
+            "aliases": [
+              "Muse"
+            ],
+            "claimMentionIds": [
+              "0c4e4caa8deba236c2d374846c8bf54a541fdf99cc4747641f6457e24e42ea6f"
+            ]
+          }
+        ],
+        "storylineState": {
+          "lifecycle": "ACTIVE",
+          "openQuestionMentionIds": [
+            "0c4e4caa8deba236c2d374846c8bf54a541fdf99cc4747641f6457e24e42ea6f"
+          ],
+          "expectedNextDate": null
+        },
+        "slots": []
+      }
+    ],
+    "backgroundMentionIds": [
+      "0c4e4caa8deba236c2d374846c8bf54a541fdf99cc4747641f6457e24e42ea6f"
+    ]
+  },
+  "rejection": {
+    "name": "Error",
+    "code": "SCOPE_DENIED"
+  }
+}

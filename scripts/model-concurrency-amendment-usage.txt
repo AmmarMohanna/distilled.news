@@ -1,0 +1,23 @@
+Model concurrency amendments
+
+Operator primitive: amendModelConcurrency(db, approval), in model-spending-amendments.ts.
+The caller must be an explicitly authorized operator. There is no public mutation route.
+Approval identifies the existing grant, expected current limit, new limit, operator,
+approval reference and timestamp. This changes concurrency only, not exposure,
+expiry, model scope, paid identities, UNKNOWN results or existing reservations.
+
+Apply migration0052 only after backing up and reviewing the target D1 database.
+Missing migration retains the original limit and refuses amendment activation.
+Amendments are append-only and idempotent. Concurrent amendments and admissions
+validate their revision atomically. The base grant remains immutable.
+
+For staging, the user approved21 ->25 on2026-10-13 under the unchanged$50 seven-day
+grant. The21 historical unknown operations still occupy21 slots and retain their
+financial liabilities. This leaves four shared new-work slots, not25 free slots.
+Do not reset old windows, change models, create another grant or retry UNKNOWN
+questions as part of this change.
+
+Rollback: an older Worker enforces the original21-slot limit, preserving safety.
+An authorized append-only amendment can restore21. Never delete amendment history.
+Decreases below the immutable base require a separately reviewed/drained-runtime
+transition because older binaries cannot enforce a below-base amendment.

@@ -17,6 +17,8 @@ export interface BuildBriefingEditionInput {
   windowStart: string;
   windowEnd: string;
   now: Date;
+  /** Already processed developments; never run their synthesis again for publication. */
+  processedItems?: BriefingItem[];
 }
 
 const REFERENCE_LIMITS: Record<BriefingConfig["briefingCadence"], number> = {
@@ -34,7 +36,7 @@ const SUMMARY_WORD_LIMITS: Record<BriefingConfig["briefingCadence"], number> = {
 };
 
 export function buildBriefingEdition(input: BuildBriefingEditionInput): BriefingEdition {
-  const result = processMessages({
+  const result = input.processedItems ? {publishedItems:input.processedItems} : processMessages({
     briefing: input.briefing,
     messages: input.messages,
     existingItems: [],
@@ -81,7 +83,11 @@ function itemToSection(item: BriefingItem, language: BriefingConfig["language"])
   return {
     title: sectionTitle(item, language),
     summary: sanitizeSummary(item.summary, language),
-    evidence: item.evidence.map((entry) => sanitizeEvidenceForLanguage(entry, language))
+    evidence: item.evidence.map((entry) => sanitizeEvidenceForLanguage(entry, language)),
+    developmentId:item.development?item.id:undefined,
+    claims:item.development?.claims,
+    changes:item.development?.changes,
+    ranking:item.development?.ranking
   };
 }
 
@@ -256,7 +262,7 @@ function editionHaystack(edition: BriefingEdition): string {
   ].join(" ").toLowerCase();
 }
 
-function editionId(briefingId: string, cadence: string, windowStart: string, windowEnd: string): string {
+export function editionId(briefingId: string, cadence: string, windowStart: string, windowEnd: string): string {
   return `edition_${stableHash(`${briefingId}:${cadence}:${windowStart}:${windowEnd}`)}`;
 }
 
@@ -268,7 +274,7 @@ function stableHash(input: string): string {
   return (hash >>> 0).toString(36);
 }
 
-function editionTitle(cadence: BriefingConfig["briefingCadence"], language: BriefingConfig["language"]): string {
+export function editionTitle(cadence: BriefingConfig["briefingCadence"], language: BriefingConfig["language"]): string {
   if (language === "ar") {
     if (cadence === "daily") return "الموجز اليومي";
     if (cadence === "weekly") return "الموجز الأسبوعي";

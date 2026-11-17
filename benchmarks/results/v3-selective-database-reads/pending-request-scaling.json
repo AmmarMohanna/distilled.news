@@ -1,0 +1,38 @@
+{
+  "scope": "Synthetic local D1. Equal pending and runnable decisions; no inference.",
+  "reports": [
+    {
+      "history": 0,
+      "baseline": {
+        "rows": 9,
+        "bytes": 1323
+      },
+      "pending": {
+        "rows": 9,
+        "bytes": 887
+      }
+    },
+    {
+      "history": 1000,
+      "baseline": {
+        "rows": 1009,
+        "bytes": 4295213
+      },
+      "pending": {
+        "rows": 9,
+        "bytes": 887
+      }
+    },
+    {
+      "history": 5000,
+      "baseline": {
+        "rows": 5009,
+        "bytes": 21475213
+      },
+      "pending": {
+        "rows": 9,
+        "bytes": 887
+      }
+    }
+  ]
+}

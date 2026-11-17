@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-28T22:35:48.017Z",
+  "scope": "One user-authorized existing quarantine re-evaluation against isolated staging D1, through existing runtime payload verifier, feed write turn and intake resolution transaction. Exact R2 payload independently downloaded; no authority granted for replacement.",
+  "receipt": {
+    "decision": "REPLAY",
+    "reason": "REPLAY_IDENTICAL",
+    "checkpointResolution": "RESOLVED",
+    "replayDiagnostic": "VERIFIED_IDENTICAL_CONTENT_ORDERING_PRESERVED",
+    "preservedReceiptId": true
+  },
+  "canonicalUnchanged": true,
+  "newTargetJobs": 0,
+  "recheckStates": [
+    "DONE"
+  ],
+  "storedReceiptMatches": true,
+  "collector": {
+    "state": "BLOCKED",
+    "lastError": "RETRY_LIMIT",
+    "savedCheckpoint": "BLOCKED",
+    "checkpointAdvancementProven": false
+  },
+  "manualPaidCalls": 0
+}

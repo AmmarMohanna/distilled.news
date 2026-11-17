@@ -1,0 +1,239 @@
+import {parse} from 'parse5';
+import {primaryTextContainer,primaryDescendants} from './primary-text';
+import {discoverWebsiteArticles,isWebsiteListingUrl} from './website-discovery';
+import {isArticleSchemaType,matchesOpaqueArticlePage,sameArticleUrl} from './article-schema';
+type Node={tagName?:string;nodeName?:string;value?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node};
+const attr=(n:Node,name:string)=>n.attrs?.find(a=>a.name===name)?.value??'';
+const excluded=new Set(['script','style','noscript','nav','header','footer','aside','form','button','svg']);
+export const PUBLIC_ARTICLE_HTML_MAX_BYTES=15_000_000;
+/** Assessment samples Wikipedia prose, not maintenance notices or navigation.
+ * Collection still retains the original page and its full extracted evidence.
+ */
+export function wikipediaArticlePassages(html:string,url:string):string[] {
+ let target:URL;try{target=new URL(url);}catch{return [];}
+ if(!/^[a-z][a-z0-9-]*\.wikipedia\.org$/i.test(target.hostname)||!target.pathname.startsWith('/wiki/')||new TextEncoder().encode(html).length>2_000_000)return [];
+ const root=parse(html) as Node,all:Node[]=[],stack=[root];
+ while(stack.length&&all.length<100000){const node=stack.pop()!;all.push(node);stack.push(...[...(node.childNodes??[])].reverse());}
+ if(stack.length)return [];
+ const bodies=all.filter(node=>attr(node,'class').split(/\s+/).includes('mw-parser-output'));
+ if(bodies.length!==1)return [];
+ const ignored=new Set(['ambox','tmbox','cmbox','ombox','fmbox','imbox','hatnote','navbox','infobox','metadata','mw-editsection','mw-message-box']);
+ const passages:string[]=[],pending=[bodies[0]];
+ while(pending.length&&passages.length<12){
+  const node=pending.pop()!;
+  if(excluded.has(node.tagName??'')||node.tagName==='table'||attr(node,'role')==='note'||attr(node,'class').split(/\s+/).some(name=>ignored.has(name)))continue;
+  if(node.tagName==='p'){
+   const value=text(node);
+   if(value.length>=80)passages.push(value.slice(0,1500));
+  }else pending.push(...[...(node.childNodes??[])].reverse());
+ }
+ return passages;
+}
+function text(root:Node,skip=true,keepHeader=false):string {
+ const parts:string[]=[],stack=[root];let seen=0;
+ while(stack.length&&seen++<100000){const n=stack.pop()!;if(skip&&excluded.has(n.tagName??'')&&!(keepHeader&&n.tagName==='header'))continue;if(n.nodeName==='#text')parts.push(n.value??'');else stack.push(...[...(n.childNodes??[])].reverse());}
+ return parts.join(' ').replace(/\s+/g,' ').trim();
+}
+function visibleText(root:Node):string {
+ const parts:string[]=[],pending=[root];
+ while(pending.length){
+  const node=pending.pop()!;
+  if(excluded.has(node.tagName??'')||node.tagName==='template'||node.attrs?.some(a=>a.name==='hidden')||attr(node,'aria-hidden')==='true'||/\bdisplay\s*:\s*none\b/i.test(attr(node,'style')))continue;
+  if(node.nodeName==='#text')parts.push(node.value??'');
+  else pending.push(...[...(node.childNodes??[])].reverse());
+ }
+ return parts.join(' ').replace(/\s+/g,' ').trim();
+}
+/** Narrow rules for publisher pages whose prose is split across components.
+ * Only visible paragraphs inside a single article-owned scope are admitted. */
+function scopedPublisherParagraphs(root:Node,skipClasses:RegExp):string {
+ const paragraphs:string[]=[],pending=[root];
+ while(pending.length&&paragraphs.length<100){
+  const node=pending.pop()!,classes=attr(node,'class');
+  if(excluded.has(node.tagName??'')||node.tagName==='template'||node.attrs?.some(a=>a.name==='hidden')||attr(node,'aria-hidden')==='true'||/\bdisplay\s*:\s*none\b/i.test(attr(node,'style'))||skipClasses.test(classes))continue;
+  if(node.tagName==='p'){
+   const value=visibleText(node);
+   if(value.length>=20&&!/^(?:categories|tags)\s*:/i.test(value))paragraphs.push(value);
+   continue;
+  }
+  pending.push(...[...(node.childNodes??[])].reverse());
+ }
+ return paragraphs.join('\n\n');
+}
+/** Deterministic public HTML extraction. Dates come only from publisher
+ * publication metadata; missing dates and content remain explicitly missing. */
+export function extractPublicHtml(html:string,url:string){
+ if(new TextEncoder().encode(html).length>PUBLIC_ARTICLE_HTML_MAX_BYTES)throw Error('SOURCE_TOO_LARGE');
+ // Large publisher pages often consist mostly of scripts. They were already
+ // excluded from article text; discard them before DOM construction while
+ // retaining structured article/date/restriction metadata.
+ const source=html.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi,(full,attrs:string)=>/\btype\s*=\s*(?:"application\/ld\+json"|'application\/ld\+json'|application\/ld\+json(?=\s|$))/i.test(attrs)?full:'').replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi,'');
+ let tags=0;for(const _ of source.matchAll(/<[a-zA-Z][\w:-]*\b/g))if(++tags>100000)throw Error('SOURCE_TOO_COMPLEX');
+ const root=parse(source) as Node,all:Node[]=[],stack=[root];
+ while(stack.length&&all.length<100000){const n=stack.pop()!;all.push(n);stack.push(...[...(n.childNodes??[])].reverse());}
+ if(stack.length)throw Error('SOURCE_TOO_COMPLEX');
+ const meta=(key:string)=>all.find(n=>n.tagName==='meta'&&(attr(n,'property').toLowerCase()===key||attr(n,'name').toLowerCase()===key));
+ const metadata=(key:string)=>{const n=meta(key);return n?attr(n,'content'):undefined};
+ const canonical=all.find(n=>n.tagName==='link'&&attr(n,'rel').split(/\s+/).includes('canonical'));
+ let publishedAt=metadata('article:published_time')??metadata('datepublished');
+ let title=text(all.find(n=>n.tagName==='h1')??{})||metadata('og:title')||text(all.find(n=>n.tagName==='title')??{});
+ let structuredBody:string|undefined,collectionDescription:string|undefined,videoDescription:string|undefined,articleMetadata=metadata('og:type')==='article',foreignArticleMetadata=false,restrictedMetadata=false,softwareMetadata=false,catalogueMetadata=false,productMetadata=false;
+ const samePage=(identity:unknown)=>{if(typeof identity!=='string')return false;try{const a=new URL(identity,url),b=new URL(url);return !a.username&&!a.password&&a.origin===b.origin&&a.pathname.replace(/\/$/,'')===b.pathname.replace(/\/$/,'')&&a.search===b.search}catch{return false}};
+ for(const script of all.filter(n=>n.tagName==='script'&&attr(n,'type')==='application/ld+json').slice(0,10)){
+  const raw=text(script,false);if(raw.length>128000)continue;
+  try{
+   const pending:unknown[]=[JSON.parse(raw)];let seen=0;
+   while(pending.length&&seen++<2000){const item=pending.pop();if(Array.isArray(item)){pending.push(...item);continue}if(!item||typeof item!=='object')continue;
+    const value=item as Record<string,unknown>,types=[value['@type']].flat();
+    if(types.includes('VideoObject')){
+     const entity=value.mainEntityOfPage,identity=value.url??value['@id']??(typeof entity==='string'?entity:entity&&typeof entity==='object'?(entity as Record<string,unknown>)['@id']:undefined);
+     if(samePage(identity)&&typeof value.description==='string'&&value.description.trim().length>=80){videoDescription=value.description;if(!title&&typeof value.name==='string')title=value.name;}
+    }
+    if(types.includes('Collection')){
+     const identity=value.url??value['@id'];
+     let bound=samePage(identity);
+     try{const base=new URL(String(identity),url),page=new URL(url);bound ||= base.origin===page.origin&&!base.search&&page.pathname===base.pathname.replace(/\/$/,'')+'/magazine';}catch{/* Unknown identity cannot supply a collection description. */}
+     const description=value.about??value.description;
+     if(bound&&typeof description==='string'&&description.trim().length>=200){collectionDescription=description;if(!title&&typeof value.name==='string')title=value.name;}
+    }
+    if(samePage(value.url??value['@id'])){
+     const entity=value.mainEntity as {itemListElement?:unknown[]}|undefined;
+     if(types.includes('CollectionPage')&&Array.isArray(entity?.itemListElement)&&entity.itemListElement.some(entry=>{
+      if(!entry||typeof entry!=='object')return false;const e=entry as Record<string,unknown>,p=(e.item??e) as Record<string,unknown>;
+      return p&&[p['@type']].flat().includes('Product');
+     }))catalogueMetadata=true;
+     if(types.includes('Product'))productMetadata=true;
+     if(types.some(t=>['CollectionPage','Product'].includes(String(t)))&&typeof value.datePublished==='string'&&!publishedAt)publishedAt=value.datePublished;
+     if(types.some(t=>['CollectionPage','Product'].includes(String(t)))&&value.isAccessibleForFree===false)restrictedMetadata=true;
+    }
+    if(types.includes('SoftwareApplication'))softwareMetadata=true;
+    if(types.some(t=>t==='WebPage'||isArticleSchemaType(t))&&(value.isAccessibleForFree===false||value.isAccessibleForFree==='False'||value.isAccessibleForFree==='false'))restrictedMetadata=true;
+    if(types.some(isArticleSchemaType)){
+     const entity=value.mainEntityOfPage,identity=typeof value.url==='string'?value.url:typeof entity==='string'?entity:entity&&typeof entity==='object'?(entity as Record<string,unknown>)['@id']:typeof value['@id']==='string'&&!/^\d+$/.test(value['@id'])?value['@id']:undefined;
+     if(typeof identity==='string'&&!sameArticleUrl(new URL(identity,url).href,url)&&!matchesOpaqueArticlePage(value,url,canonical?attr(canonical,'href'):undefined,title)){foreignArticleMetadata=true;continue;}
+     if(!identity&&value['@id']&&!matchesOpaqueArticlePage(value,url,canonical?attr(canonical,'href'):undefined,title)){foreignArticleMetadata=true;continue;}
+     articleMetadata=true;
+     if(!publishedAt&&typeof value.datePublished==='string')publishedAt=value.datePublished;
+     if(!title&&typeof value.headline==='string')title=value.headline;
+     if(typeof value.articleBody==='string')structuredBody=value.articleBody;
+    }
+    pending.push(...Object.values(value));
+   }
+  }catch{/* Malformed metadata cannot supply evidence. */}
+ }
+ const listing=discoverWebsiteArticles(source,url);
+ const article=all.find(n=>n.tagName==='article'),main=all.find(n=>n.tagName==='main'||attr(n,'role')==='main');
+ // Some publishers use an explicit article-body div instead of <article>.
+ // Require article metadata and one unambiguous content container; never read
+ // the entire page or mistake a listing's generic content div for reporting.
+ const bodyCandidates=articleMetadata?all.filter(n=>attr(n,'itemprop').split(/\s+/).includes('articleBody')||n.tagName==='div'&&(attr(n,'class').split(/\s+/).some(c=>['entry-content','article-body','article_body','field--name-body'].includes(c))||attr(n,'id')==='article-start'&&attr(n,'class').split(/\s+/).includes('content-box'))):[];
+ // Nested CMS wrappers describe one body; sibling bodies remain ambiguous.
+ const bodySet=new Set(bodyCandidates);
+ const articleBodies=bodyCandidates.filter(n=>{for(let p=n.parentNode;p;p=p.parentNode)if(bodySet.has(p))return false;return true;});
+ // Some Article microdata publishers (including Naharnet) put the reporting
+ // in itemprop=description. Admit only a multi-paragraph description owned by
+ // an Article container; a generic description/meta teaser is not a body.
+ // A direct schema Article description also supports publishers with one
+ // substantive paragraph, while remote ancestors require multiple paragraphs.
+ const descriptions=articleMetadata&&!articleBodies.length?all.filter(n=>{
+  if(!attr(n,'itemprop').split(/\s+/).includes('description'))return false;
+  const directArticle=attr(n.parentNode??{},'itemtype').split(/\s+/).some(t=>/^https?:\/\/schema\.org\/Article$/.test(t));
+  if(directArticle&&text(n).length>=200)return true;
+  if((n.childNodes??[]).filter(c=>c.tagName==='p'&&text(c)).length<2)return false;
+  for(let parent=n.parentNode;parent;parent=parent.parentNode)if(attr(parent,'itemtype').split(/\s+/).some(t=>/^https?:\/\/schema\.org\/(?:Article|NewsArticle|BlogPosting)$/.test(t)))return true;
+  return false;
+ }):[];
+ if(descriptions.length===1)articleBodies.push(descriptions[0]);
+ // TechSpot's software RSS entries are detail pages, not news articles. Retain
+ // their actual description and release notes, without inventing publication
+ // dates from dateModified or promoting the site's download index.
+ if(softwareMetadata&&new URL(url).hostname==='www.techspot.com'&&/^\/downloads\/\d+-[^/]+\.html$/.test(new URL(url).pathname)){
+  const details=all.filter(n=>n.tagName==='div'&&attr(n,'class').split(/\s+/).includes('product-details')&&attr(n,'class').split(/\s+/).includes('articleBody'));
+  if(details.length===1){articleBodies.push(details[0]);articleMetadata=true;}
+ }
+ const unboundDescription=!articleBodies.length&&all.some(n=>attr(n,'itemprop').split(/\s+/).includes('description'));
+ const lovinLanding=new URL(url).hostname.replace(/^www\./,'')==='lovin.co'&&isWebsiteListingUrl(url);
+ const primary=lovinLanding||(!articleMetadata&&foreignArticleMetadata)||unboundDescription?undefined:primaryTextContainer(all);
+ const content=articleBodies.length===1?articleBodies[0]:primary;
+ const explicitPreview=all.some(n=>attr(n,'data-test')==='institution-access-preview'&&/preview of subscription content/i.test(text(n))||attr(n,'class').split(/\s+/).includes('paywall-content')&&/^preview this article\b/i.test(text(n)));
+ const accessRestricted=restrictedMetadata&&(explicitPreview||!structuredBody&&!content&&!article&&all.some(n=>/(?:^|[\s_-])paywall(?:$|[\s_-])/i.test(attr(n,'class')+' '+attr(n,'id'))));
+ const visibleBody=articleBodies.length===1?text(articleBodies[0]):undefined;
+ // Some publishers label a teaser as JSON-LD articleBody. A substantial,
+ // unambiguous visible article body must not be replaced by that short teaser.
+ const visibleParagraphs=articleBodies.length===1?primaryDescendants(articleBodies[0]).filter(n=>n.tagName==='p'&&text(n).length>=40).length:0;
+ const preferVisible=!!structuredBody&&structuredBody.length<=300&&!!visibleBody&&visibleBody.length>=400&&visibleBody.length>structuredBody.length*2&&visibleParagraphs>=2;
+ let body=preferVisible?visibleBody!:structuredBody??(articleBodies.length>1?'':primary&&content===primary?primaryDescendants(primary).filter(n=>n.nodeName==='#text').map(n=>n.value??'').join(' ').replace(/\s+/g,' ').trim():content||article||main?text(content??article??main!):'');
+ let contentKind:'PRODUCT_DETAIL'|'CATALOGUE'|undefined;
+ const within=(n:Node,parent:Node)=>{for(let p:Node|undefined=n;p;p=p.parentNode)if(p===parent)return true;return false};
+ // Retain a resource's own description, not an invented article/transcript or
+ // the text of the unrelated cards displayed underneath it.
+ const videoDescriptions=main&&all.filter(n=>n.tagName==='h1').length===1&&/\/(?:videos?|watch)\//i.test(new URL(url).pathname)?all.filter(n=>within(n,main)&&attr(n,'class').split(/\s+/).includes('video-description')&&text(n).length>=200):[];
+ if(videoDescription){body=videoDescription;contentKind='CATALOGUE';}
+ else if(collectionDescription){body=collectionDescription;contentKind='CATALOGUE';}
+ else if(videoDescriptions.length===1){body=text(videoDescriptions[0]);contentKind='CATALOGUE';}
+ // A primary Product scope owns its visible name/description. Related product
+ // cards and a bare navigation index cannot become the current page's evidence.
+ const productScopes:Node[]=[];
+ for(let n=all.find(n=>n.tagName==='h1');n;n=n.parentNode)if(n.attrs?.some(a=>a.name==='itemscope')&&attr(n,'itemtype').split(/\s+/).some(t=>/^https?:\/\/schema\.org\/Product$/.test(t))&&(!attr(n,'itemid')||samePage(attr(n,'itemid'))))productScopes.push(n);
+ const primaryProducts=productScopes.length===1&&all.filter(n=>n.tagName==='h1').length===1?productScopes.filter(p=>all.filter(n=>attr(n,'itemprop').split(/\s+/).includes('description')).slice(0,20).some(n=>within(n,p)&&text(n).length>=100)):[];
+ if(!contentKind&&!articleMetadata&&!article&&primaryProducts.length===1){body=text(primaryProducts[0],true,true);contentKind='PRODUCT_DETAIL';}
+ else if(!contentKind&&!articleMetadata&&!article&&main&&all.some(n=>n.tagName==='h1'&&within(n,main))&&(productMetadata||catalogueMetadata&&listing&&listing.articles.length>0)){
+  body=text(main,true,true);contentKind=productMetadata?'PRODUCT_DETAIL':'CATALOGUE';
+ }
+ let canonicalUrl=url;try{const candidate=new URL(canonical?attr(canonical,'href'):url,url);if(candidate.origin===new URL(url).origin&&candidate.pathname!=='/')canonicalUrl=candidate.href}catch{}
+ let publisherScoped=false;
+ const explicitCanonical=attr(canonical??{},'href');
+ let publisherIdentity=false;
+ try {
+  publisherIdentity=!!explicitCanonical&&sameArticleUrl(new URL(explicitCanonical,url).href,url);
+ }catch{/* Invalid canonical metadata cannot admit these layouts. */}
+ // Google Research's article prose is divided among multiple rich-text blocks.
+ // The blog-detail wrapper binds those blocks to this page; global rich-text
+ // searches could otherwise select navigation and recommendation cards.
+ const host=new URL(url).hostname.replace(/^www\./,'');
+ if(!restrictedMetadata&&publisherIdentity&&!structuredBody&&articleBodies.length!==1&&host==='research.google'&&/^\/blog\/[^/]+\/?$/.test(new URL(url).pathname)&&title){
+  const wrappers=all.filter(n=>attr(n,'class').split(/\s+/).includes('blog-detail-wrapper'));
+  const heading=all.find(n=>n.tagName==='h1'&&text(n).trim()===title.trim());
+  if(wrappers.length===1&&heading){
+   const prose=scopedPublisherParagraphs(wrappers[0],/(?:^|\s)(?:quicklinks|related|share|card|caption)(?:\s|$)/i);
+   if(prose.length>=200){body=prose;publisherScoped=true;}
+  }
+ }
+ // Advanced Television puts its story under a nested main/section and uses an
+ // H3 for the headline. Stop before its related-post and advertising widgets.
+ if(!restrictedMetadata&&publisherIdentity&&!structuredBody&&articleBodies.length!==1&&host==='advanced-television.com'&&/^\/\d{4}\/\d{2}\/\d{2}\/[^/]+\/?$/.test(new URL(url).pathname)&&title){
+  const headings=all.filter(n=>{
+   if(n.tagName!=='h3'||!attr(n,'class').split(/\s+/).includes('h1'))return false;
+   const headline=text(n).trim();return headline.length>=20&&(headline===title.trim()||title.trim().startsWith(headline+' |'));
+  });
+  if(headings.length===1){
+   let section:Node|undefined=headings[0];
+   while(section&&section.tagName!=='section')section=section.parentNode;
+   if(section){
+    const prose=scopedPublisherParagraphs(section,/(?:^|\s)(?:yarpp|code-block|advert|addtoany|related)(?:\s|$)/i);
+    if(prose.length>=200){body=prose;title=text(headings[0]).trim();publisherScoped=true;}
+   }
+  }
+ }
+ // MTV's article prose is a raw-text div; its login modal contains the first
+ // H1. Bind the explicit body to the publisher's numeric article identity.
+ const pageUrl=new URL(url),mtvId=/^\/News\/[^/]+\/(\d+)\/[^/]+\/?$/.exec(pageUrl.pathname)?.[1];
+ if(pageUrl.protocol==='https:'&&pageUrl.hostname==='www.mtv.com.lb'&&mtvId&&articleMetadata){
+  const owners=all.filter(n=>attr(n,'id')==='articleParams'&&attr(n,'articleid')===mtvId);
+  const owner=owners.length===1?owners[0]:undefined;
+  const inside=(n:Node)=>{for(let p:Node|undefined=n;p;p=p.parentNode)if(p===owner)return true;return false};
+  const reports=owner?all.filter(n=>inside(n)&&attr(n,'class').split(/\s+/).includes('articles-report')):[];
+  const expectedCanonical=new URL('/news/'+mtvId,pageUrl.origin).href;
+  if(owner&&reports.length===1&&canonicalUrl===expectedCanonical&&metadata('og:url')===expectedCanonical&&attr(owner,'articletitle').trim()&&attr(owner,'articletitle')===metadata('og:title')){
+   const parts:string[]=[],pending=[reports[0]];
+   while(pending.length){const n=pending.pop()!;if(excluded.has(n.tagName??'')||attr(n,'class').split(/\s+/).includes('article-ad'))continue;if(n.nodeName==='#text')parts.push(n.value??'');else pending.push(...[...(n.childNodes??[])].reverse());}
+   const prose=parts.join(' ').replace(/\s+/g,' ').trim();
+   if(prose.length>=200){body=prose;title=attr(owner,'articletitle');canonicalUrl=url;}
+  }
+ }
+ const partialSummary=!!primary&&/\/liveblog\//i.test(new URL(url).pathname)&&primaryDescendants(primary).some(n=>n.tagName==='li')&&!primaryDescendants(primary).some(n=>n.tagName==='p');
+ const shortArticle=articleMetadata&&body.length>=80&&body.length<200&&(structuredBody!==undefined||articleBodies.length===1);
+ return {title,body,...(partialSummary||shortArticle?{contentCompleteness:'PARTIAL' as const}:{}),...(contentKind?{contentKind}:{}),...(accessRestricted?{accessRestricted:true}:{}),publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,canonicalUrl,
+  language:attr(all.find(n=>n.tagName==='html')??{},'lang')||undefined,
+  pageKind:contentKind?'catalogue':primary||publisherScoped?'article':listing?'listing':articleMetadata||article?'article':'unknown',articleLinks:listing?.articles.map(a=>a.url)??[]};
+}

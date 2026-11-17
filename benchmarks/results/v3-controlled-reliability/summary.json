@@ -1,0 +1,1371 @@
+{
+  "createdAt": "2026-10-23T13:01:46.172Z",
+  "models": [
+    {
+      "model": "openai/gpt-4.1-mini",
+      "calls": 5,
+      "actualCostUsd": 0.007215600000000001,
+      "wallMs": 15965,
+      "inputTokens": 17987,
+      "outputTokens": 949,
+      "heldout": [
+        {
+          "name": "heldout-bad:openai/gpt-4.1-mini",
+          "total": 11,
+          "falseApprovals": 0,
+          "falseRejections": 0,
+          "missedExpected": 0
+        },
+        {
+          "name": "heldout-good:openai/gpt-4.1-mini",
+          "total": 10,
+          "falseApprovals": 0,
+          "falseRejections": 0,
+          "missedExpected": 0
+        },
+        {
+          "name": "heldout-ordinary:openai/gpt-4.1-mini",
+          "total": 7,
+          "falseApprovals": 0,
+          "falseRejections": 0,
+          "missedExpected": 0
+        }
+      ]
+    },
+    {
+      "model": "google/gemini-2.5-flash",
+      "calls": 5,
+      "actualCostUsd": 0.00942,
+      "wallMs": 16213,
+      "inputTokens": 18945,
+      "outputTokens": 2256,
+      "heldout": [
+        {
+          "name": "heldout-bad:google/gemini-2.5-flash",
+          "total": 11,
+          "falseApprovals": 0,
+          "falseRejections": 0,
+          "missedExpected": 0
+        },
+        {
+          "name": "heldout-good:google/gemini-2.5-flash",
+          "total": 10,
+          "falseApprovals": 0,
+          "falseRejections": 0,
+          "missedExpected": 0
+        },
+        {
+          "name": "heldout-ordinary:google/gemini-2.5-flash",
+          "total": 7,
+          "falseApprovals": 0,
+          "falseRejections": 0,
+          "missedExpected": 0
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "name": "development-bad:openai/gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "9a5ae5383bebc3268f0a94cafa2eb22c50906d9ca1aadf2ad14ed2f873ef4d2a",
+      "wallMs": 3229,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\"},{\"i\":1,\"verdict\":\"ok\"},{\"i\":2,\"verdict\":\"ok\"},{\"i\":3,\"verdict\":\"redundant\",\"issues\":[\"repeats information about Google and Microsoft security guidance and bug bounty rewards already covered in item #2\"]}]}"
+      },
+      "usage": {
+        "prompt_tokens": 6262,
+        "completion_tokens": 68,
+        "total_tokens": 6330,
+        "cost": 0.0026136,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0026136,
+          "upstream_inference_prompt_cost": 0.0025048,
+          "upstream_inference_completions_cost": 0.0001088
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "anthropic-retained-today",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": false,
+          "falseApproval": true,
+          "falseRejection": false
+        },
+        {
+          "id": "replit-retained-timing",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": false,
+          "falseApproval": true,
+          "falseRejection": false
+        },
+        {
+          "id": "security-retained-scope",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": false,
+          "falseApproval": true,
+          "falseRejection": false
+        },
+        {
+          "id": "security-retained-joint-attribution",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "redundant",
+          "issues": [
+            "repeats information about Google and Microsoft security guidance and bug bounty rewards already covered in item #2"
+          ],
+          "pass": false,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "development-bad:google/gemini-2.5-flash",
+      "model": "google/gemini-2.5-flash",
+      "requestSha256": "aa70c40306a837e0ac83e6f220dca88836ac80f4c8a01b08153b71e84d65fee1",
+      "wallMs": 4816,
+      "response": {
+        "text": "{\n  \"results\": [\n    {\n      \"i\": 0,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 1,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"Replit CEO Amjad Masad said at TechCrunch Disrupt on October 16 -> Replit CEO and co-founder Amjad Masad said Thursday while onstage at TechCrunch Disrupt. (S1, publication date 2026-10-17, so Thursday is Oct 16)\",\n        \"replacing Anthropic's Claude models due to cost, performance, and partnership factors. -> Masad said the decision was made for a number of different reasons, including cost. ... It was a decision based on both cost, partnership, and performance. (S1, Replit relied on Anthropic's Claude models prior to striking a deal with OpenAI, but the source does not explicitly state that OpenAI's ChatGPT is *replacing* Claude models due to these factors, only that it is now the default and Replit is 'no longer working with Anthropic' in the CEO's onstage comments, which were later clarified.)\",\n        \"Masad stated that enterprise contracts now make up about 15% of Replit's revenue, up from 2% last year, and expects more than half of revenue to come from enterprise and government customers in 2027. -> Masad said, \\\"enterprise was like 2% of revenue last year. This year, I would say like 15% of our revenue is enterprise contracts, and more than 50% of our revenue is B2B.\\\" Backstage, Masad told TechCrunch that he expects more than half of Replit’s revenue to come from enterprise and government customers in 2027. (S1, The item blends two separate statements: one made onstage about current B2B revenue, and one made backstage about future enterprise and government revenue.)\"\n      ]\n    },\n    {\n      \"i\": 2,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs. -> Google has announced that it's raising bug bounty rewards for some Chrome vulnerabilities, with a focus on memory safety issues. ... Microsoft is urging organizations to prepare their certificate systems for post-quantum authentication, stating that public key infrastructure (PKI), hardware security modules (HSMs), and security appliances need testing before deployment. (S3, Google raised bug bounties, but Microsoft issued guidance on post-quantum readiness, not general 'new security guidance' or 'raised bug bounty rewards'.)\"\n      ]\n    },\n    {\n      \"i\": 3,\n      \"verdict\": \"redundant\",\n      \"issues\": [\n        \"Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs. -> Google has announced that it's raising bug bounty rewards for some Chrome vulnerabilities, with a focus on memory safety issues. ... Microsoft is urging organizations to prepare their certificate systems for post-quantum authentication, stating that public key infrastructure (PKI), hardware security modules (HSMs), and security appliances need testing before deployment. (S3, This item is a subset of item #2 and does not provide any new material information.)\"\n      ]\n    }\n  ]\n}"
+      },
+      "usage": {
+        "prompt_tokens": 6564,
+        "completion_tokens": 737,
+        "total_tokens": 7301,
+        "cost": 0.0038117,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0038117,
+          "upstream_inference_prompt_cost": 0.0019692,
+          "upstream_inference_completions_cost": 0.0018425
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "anthropic-retained-today",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": false,
+          "falseApproval": true,
+          "falseRejection": false
+        },
+        {
+          "id": "replit-retained-timing",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Replit CEO Amjad Masad said at TechCrunch Disrupt on October 16 -> Replit CEO and co-founder Amjad Masad said Thursday while onstage at TechCrunch Disrupt. (S1, publication date 2026-10-17, so Thursday is Oct 16)",
+            "replacing Anthropic's Claude models due to cost, performance, and partnership factors. -> Masad said the decision was made for a number of different reasons, including cost. ... It was a decision based on both cost, partnership, and performance. (S1, Replit relied on Anthropic's Claude models prior to striking a deal with OpenAI, but the source does not explicitly state that OpenAI's ChatGPT is *replacing* Claude models due to these factors, only that it is now the default and Replit is 'no longer working with Anthropic' in the CEO's onstage comments, which were later clarified.)",
+            "Masad stated that enterprise contracts now make up about 15% of Replit's revenue, up from 2% last year, and expects more than half of revenue to come from enterprise and government customers in 2027. -> Masad said, \"enterprise was like 2% of revenue last year. This year, I would say like 15% of our revenue is enterprise contracts, and more than 50% of our revenue is B2B.\" Backstage, Masad told TechCrunch that he expects more than half of Replit’s revenue to come from enterprise and government customers in 2027. (S1, The item blends two separate statements: one made onstage about current B2B revenue, and one made backstage about future enterprise and government revenue.)"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-retained-scope",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs. -> Google has announced that it's raising bug bounty rewards for some Chrome vulnerabilities, with a focus on memory safety issues. ... Microsoft is urging organizations to prepare their certificate systems for post-quantum authentication, stating that public key infrastructure (PKI), hardware security modules (HSMs), and security appliances need testing before deployment. (S3, Google raised bug bounties, but Microsoft issued guidance on post-quantum readiness, not general 'new security guidance' or 'raised bug bounty rewards'.)"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-retained-joint-attribution",
+          "expected": [
+            "fix",
+            "drop"
+          ],
+          "verdict": "redundant",
+          "issues": [
+            "Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs. -> Google has announced that it's raising bug bounty rewards for some Chrome vulnerabilities, with a focus on memory safety issues. ... Microsoft is urging organizations to prepare their certificate systems for post-quantum authentication, stating that public key infrastructure (PKI), hardware security modules (HSMs), and security appliances need testing before deployment. (S3, This item is a subset of item #2 and does not provide any new material information.)"
+          ],
+          "pass": false,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "development-good:openai/gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "5a1b8cde86a9f274ce25ac9a3e2e6e87794c9b097dda66a2a88c4627aa11b755",
+      "wallMs": 3587,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\"},{\"i\":1,\"verdict\":\"redundant\"},{\"i\":2,\"verdict\":\"fix\",\"issues\":[\"Amjad Masad initially said at TechCrunch Disrupt that the company was no longer working with Anthropic -> Masad said onstage that Replit is no longer working with Anthropic, but backstage clarified customers can still access Anthropic models\",\"Insiders disputed that the partnership had ended -> insiders said the partnership was still in place\",\"Enterprise contracts account for about 15% of revenue, up from 2% last year -> enterprise was 2% last year, about 15% this year\",\"Masad expects more than half of revenue to come from enterprise and government customers in 2027 -> Masad expects more than half of revenue to come from enterprise and government customers in 2027\"]},{\"i\":3,\"verdict\":\"fix\",\"issues\":[\"The shift could significantly reduce Replit's spending with Anthropic -> The shift could significantly reduce Replit’s spend with Anthropic since most customers stick with the default rather than selecting a model themselves\"]},{\"i\":4,\"verdict\":\"ok\"},{\"i\":5,\"verdict\":\"ok\"},{\"i\":6,\"verdict\":\"ok\"}]}"
+      },
+      "usage": {
+        "prompt_tokens": 6454,
+        "completion_tokens": 257,
+        "total_tokens": 6711,
+        "cost": 0.0014952,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 4992,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0014952,
+          "upstream_inference_prompt_cost": 0.001084,
+          "upstream_inference_completions_cost": 0.0004112
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "anthropic-anchored",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "anthropic-concise",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "redundant",
+          "issues": [],
+          "pass": false,
+          "falseApproval": false,
+          "falseRejection": true
+        },
+        {
+          "id": "replit-corrected-sequence",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Amjad Masad initially said at TechCrunch Disrupt that the company was no longer working with Anthropic -> Masad said onstage that Replit is no longer working with Anthropic, but backstage clarified customers can still access Anthropic models",
+            "Insiders disputed that the partnership had ended -> insiders said the partnership was still in place",
+            "Enterprise contracts account for about 15% of revenue, up from 2% last year -> enterprise was 2% last year, about 15% this year",
+            "Masad expects more than half of revenue to come from enterprise and government customers in 2027 -> Masad expects more than half of revenue to come from enterprise and government customers in 2027"
+          ],
+          "pass": false,
+          "falseApproval": false,
+          "falseRejection": true
+        },
+        {
+          "id": "replit-concise-paraphrase",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The shift could significantly reduce Replit's spending with Anthropic -> The shift could significantly reduce Replit’s spend with Anthropic since most customers stick with the default rather than selecting a model themselves"
+          ],
+          "pass": false,
+          "falseApproval": false,
+          "falseRejection": true
+        },
+        {
+          "id": "security-corrected-full",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-concise-states",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-corrected-joint-attribution",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "development-good:google/gemini-2.5-flash",
+      "model": "google/gemini-2.5-flash",
+      "requestSha256": "e67936af90be6a4e6e4a2584877e68f1f219504a2d71043747e9d5774ca00130",
+      "wallMs": 2596,
+      "response": {
+        "text": "{\n  \"results\": [\n    {\n      \"i\": 0,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 1,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 2,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 3,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 4,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 5,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 6,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    }\n  ]\n}"
+      },
+      "usage": {
+        "prompt_tokens": 6764,
+        "completion_tokens": 213,
+        "total_tokens": 6977,
+        "cost": 0.00092307,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 6069,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00092307,
+          "upstream_inference_prompt_cost": 0.00039057,
+          "upstream_inference_completions_cost": 0.0005325
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "anthropic-anchored",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "anthropic-concise",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "replit-corrected-sequence",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "replit-concise-paraphrase",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-corrected-full",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-concise-states",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "security-corrected-joint-attribution",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-bad:openai/gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "eee6508fb4d7cb42bbbc50dd89722fa36c2a39778aac5b1c25100abd5f39e1fa",
+      "wallMs": 4925,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"fix\",\"issues\":[\"The Health Ministry announced a port safety inspection -> The Interior Ministry announced a port safety inspection\"]},{\"i\":1,\"verdict\":\"fix\",\"issues\":[\"Both ministries announced a port inspection and denied a hospital closure -> The Interior Ministry announced a port safety inspection; the Health Ministry denied reports of a hospital closure\"]},{\"i\":2,\"verdict\":\"fix\",\"issues\":[\"The utility guarantees six hours of daily electricity from November 2 -> The utility plans to restore supply for up to six hours daily from November 2, but the schedule is not guaranteed\"]},{\"i\":3,\"verdict\":\"fix\",\"issues\":[\"Cedar Bank confirmed freezing withdrawals -> Cedar Bank denied freezing customer withdrawals\"]},{\"i\":4,\"verdict\":\"fix\",\"issues\":[\"Regulators concluded Cedar Bank is insolvent -> Regulators said they are reviewing the bank but have not concluded it is insolvent\"]},{\"i\":5,\"verdict\":\"fix\",\"issues\":[\"The mountain road reopened to all traffic -> The mountain road reopened but heavy trucks remain prohibited\"]},{\"i\":6,\"verdict\":\"fix\",\"issues\":[\"Food prices have risen 8% this year -> Food prices could increase by up to 8% next year (forecast)\"]},{\"i\":7,\"verdict\":\"fix\",\"issues\":[\"The council approved the bridge permit on October 23 -> The council approved the bridge permit on October 19\"]},{\"i\":8,\"verdict\":\"fix\",\"issues\":[\"The bridge opens on November 1 -> Construction has not begun and no opening date has been announced\"]},{\"i\":9,\"verdict\":\"redundant\",\"issues\":[\"The mountain road closed on October 22 -> Already told to the reader\"]},{\"i\":10,\"verdict\":\"fix\",\"issues\":[\"The agency inspected 13 more buildings -> The agency corrected its earlier report from 30 to 13 inspected buildings; no new inspections occurred\"]}]}"
+      },
+      "usage": {
+        "prompt_tokens": 1764,
+        "completion_tokens": 395,
+        "total_tokens": 2159,
+        "cost": 0.0013376,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0013376,
+          "upstream_inference_prompt_cost": 0.0007056,
+          "upstream_inference_completions_cost": 0.000632
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The Health Ministry announced a port safety inspection -> The Interior Ministry announced a port safety inspection"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "scope-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Both ministries announced a port inspection and denied a hospital closure -> The Interior Ministry announced a port safety inspection; the Health Ministry denied reports of a hospital closure"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The utility guarantees six hours of daily electricity from November 2 -> The utility plans to restore supply for up to six hours daily from November 2, but the schedule is not guaranteed"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Cedar Bank confirmed freezing withdrawals -> Cedar Bank denied freezing customer withdrawals"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "conclusion-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Regulators concluded Cedar Bank is insolvent -> Regulators said they are reviewing the bank but have not concluded it is insolvent"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "restriction-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The mountain road reopened to all traffic -> The mountain road reopened but heavy trucks remain prohibited"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Food prices have risen 8% this year -> Food prices could increase by up to 8% next year (forecast)"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "date-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The council approved the bridge permit on October 23 -> The council approved the bridge permit on October 19"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "opening-bad",
+          "expected": [
+            "drop",
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The bridge opens on November 1 -> Construction has not begun and no opening date has been announced"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "repeat",
+          "expected": [
+            "redundant"
+          ],
+          "verdict": "redundant",
+          "issues": [
+            "The mountain road closed on October 22 -> Already told to the reader"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The agency inspected 13 more buildings -> The agency corrected its earlier report from 30 to 13 inspected buildings; no new inspections occurred"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-bad:google/gemini-2.5-flash",
+      "model": "google/gemini-2.5-flash",
+      "requestSha256": "5cd43ed099690df546eb548c7ed1eb4f0cc3a7b2935ac2362c25bc88b9def1ea",
+      "wallMs": 4272,
+      "response": {
+        "text": "{\n  \"results\": [\n    {\n      \"i\": 0,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"The Health Ministry announced a port safety inspection. -> The Interior Ministry announced a port safety inspection. Separately, the Health Ministry denied reports that the central hospital would close.\"\n      ]\n    },\n    {\n      \"i\": 1,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"Both ministries announced a port inspection and denied a hospital closure. -> The Interior Ministry announced a port safety inspection. Separately, the Health Ministry denied reports that the central hospital would close. The two announcements concern separate decisions.\"\n      ]\n    },\n    {\n      \"i\": 2,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"The utility guarantees six hours of daily electricity from November 2. -> The electricity utility plans to restore supply for up to six hours daily from November 2, subject to receiving fuel. Its director said the schedule is not guaranteed.\"\n      ]\n    },\n    {\n      \"i\": 3,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"Cedar Bank confirmed freezing withdrawals. -> Cedar Bank denied freezing customer withdrawals.\"\n      ]\n    },\n    {\n      \"i\": 4,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"Regulators concluded Cedar Bank is insolvent. -> Regulators said they are reviewing the bank but have not concluded that it is insolvent.\"\n      ]\n    },\n    {\n      \"i\": 5,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"The mountain road reopened to all traffic. -> The mountain road reopened at 09:00 UTC on October 23 after repairs. Heavy trucks remain prohibited.\"\n      ]\n    },\n    {\n      \"i\": 6,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"Food prices have risen 8% this year. -> A university research team forecasts that food prices could increase by up to 8% next year. This is a forecast, not an observed increase.\"\n      ]\n    },\n    {\n      \"i\": 7,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"The council approved the bridge permit on October 23. -> The council approved the bridge permit on October 19.\"\n      ]\n    },\n    {\n      \"i\": 8,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"The bridge opens on November 1. -> No opening date has been announced.\"\n      ]\n    },\n    {\n      \"i\": 9,\n      \"verdict\": \"redundant\",\n      \"issues\": [\n        \"The mountain road closed on October 22. -> The mountain road closed on October 22.\"\n      ]\n    },\n    {\n      \"i\": 10,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"The agency inspected 13 more buildings. -> The agency corrected its earlier report of 30 inspected buildings to 13. The earlier number was a transcription error, not a new inspection campaign.\"\n      ]\n    }\n  ]\n}"
+      },
+      "usage": {
+        "prompt_tokens": 1878,
+        "completion_tokens": 732,
+        "total_tokens": 2610,
+        "cost": 0.0023934,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0023934,
+          "upstream_inference_prompt_cost": 0.0005634,
+          "upstream_inference_completions_cost": 0.00183
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The Health Ministry announced a port safety inspection. -> The Interior Ministry announced a port safety inspection. Separately, the Health Ministry denied reports that the central hospital would close."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "scope-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Both ministries announced a port inspection and denied a hospital closure. -> The Interior Ministry announced a port safety inspection. Separately, the Health Ministry denied reports that the central hospital would close. The two announcements concern separate decisions."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The utility guarantees six hours of daily electricity from November 2. -> The electricity utility plans to restore supply for up to six hours daily from November 2, subject to receiving fuel. Its director said the schedule is not guaranteed."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Cedar Bank confirmed freezing withdrawals. -> Cedar Bank denied freezing customer withdrawals."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "conclusion-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Regulators concluded Cedar Bank is insolvent. -> Regulators said they are reviewing the bank but have not concluded that it is insolvent."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "restriction-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The mountain road reopened to all traffic. -> The mountain road reopened at 09:00 UTC on October 23 after repairs. Heavy trucks remain prohibited."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Food prices have risen 8% this year. -> A university research team forecasts that food prices could increase by up to 8% next year. This is a forecast, not an observed increase."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "date-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The council approved the bridge permit on October 23. -> The council approved the bridge permit on October 19."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "opening-bad",
+          "expected": [
+            "drop",
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The bridge opens on November 1. -> No opening date has been announced."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "repeat",
+          "expected": [
+            "redundant"
+          ],
+          "verdict": "redundant",
+          "issues": [
+            "The mountain road closed on October 22. -> The mountain road closed on October 22."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "The agency inspected 13 more buildings. -> The agency corrected its earlier report of 30 inspected buildings to 13. The earlier number was a transcription error, not a new inspection campaign."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-good:openai/gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "f81092d8b69d263cdb8fb905f4ab95df883e953a8368e2d840876f202666a7da",
+      "wallMs": 1983,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\"},{\"i\":1,\"verdict\":\"ok\"},{\"i\":2,\"verdict\":\"ok\"},{\"i\":3,\"verdict\":\"ok\"},{\"i\":4,\"verdict\":\"ok\"},{\"i\":5,\"verdict\":\"ok\"},{\"i\":6,\"verdict\":\"ok\"},{\"i\":7,\"verdict\":\"ok\"},{\"i\":8,\"verdict\":\"ok\"},{\"i\":9,\"verdict\":\"ok\"}]}"
+      },
+      "usage": {
+        "prompt_tokens": 1806,
+        "completion_tokens": 96,
+        "total_tokens": 1902,
+        "cost": 0.000876,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.000876,
+          "upstream_inference_prompt_cost": 0.0007224,
+          "upstream_inference_completions_cost": 0.0001536
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "scope-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "update-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "date-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "no-date-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "hospital-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-good:google/gemini-2.5-flash",
+      "model": "google/gemini-2.5-flash",
+      "requestSha256": "2d01084da78e06449e8cb46c07cb22612e77cf7f6af14090f2d02645a1e78491",
+      "wallMs": 2248,
+      "response": {
+        "text": "{\n  \"results\": [\n    {\n      \"i\": 0,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 1,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 2,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 3,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 4,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 5,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 6,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 7,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 8,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 9,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    }\n  ]\n}"
+      },
+      "usage": {
+        "prompt_tokens": 1924,
+        "completion_tokens": 296,
+        "total_tokens": 2220,
+        "cost": 0.00105233,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 981,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00105233,
+          "upstream_inference_prompt_cost": 0.00031233,
+          "upstream_inference_completions_cost": 0.00074
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "scope-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "update-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "date-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "no-date-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "hospital-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-ordinary:openai/gpt-4.1-mini",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "45f345e90bb82960839f045cf04c3b5f04f632118f6a63c8f258220b5f37aefb",
+      "wallMs": 2241,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"fix\",\"issues\":[\"Cedar Bank confirmed freezing withdrawals -> Cedar Bank denied freezing customer withdrawals\"]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]},{\"i\":4,\"verdict\":\"ok\",\"issues\":[]},{\"i\":5,\"verdict\":\"fix\",\"issues\":[\"Food prices have risen 8% this year -> Food prices could increase by up to 8% next year (forecast, not observed)\"]},{\"i\":6,\"verdict\":\"ok\",\"issues\":[]}]}"
+      },
+      "usage": {
+        "prompt_tokens": 1701,
+        "completion_tokens": 133,
+        "total_tokens": 1834,
+        "cost": 0.0008932,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0008932,
+          "upstream_inference_prompt_cost": 0.0006804,
+          "upstream_inference_completions_cost": 0.0002128
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "hospital-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Cedar Bank confirmed freezing withdrawals -> Cedar Bank denied freezing customer withdrawals"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "update-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Food prices have risen 8% this year -> Food prices could increase by up to 8% next year (forecast, not observed)"
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    },
+    {
+      "name": "heldout-ordinary:google/gemini-2.5-flash",
+      "model": "google/gemini-2.5-flash",
+      "requestSha256": "fdfc2dc923cb35462f9647752da8721925c4ad8b32cc9af452e621af0b0f097a",
+      "wallMs": 2281,
+      "response": {
+        "text": "{\n  \"results\": [\n    {\n      \"i\": 0,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 1,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 2,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"Cedar Bank confirmed freezing withdrawals. -> Cedar Bank denied freezing customer withdrawals.\"\n      ]\n    },\n    {\n      \"i\": 3,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 4,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    },\n    {\n      \"i\": 5,\n      \"verdict\": \"fix\",\n      \"issues\": [\n        \"Food prices have risen 8% this year. -> A university research team forecasts that food prices could increase by up to 8% next year. This is a forecast, not an observed increase.\"\n      ]\n    },\n    {\n      \"i\": 6,\n      \"verdict\": \"ok\",\n      \"issues\": []\n    }\n  ]\n}"
+      },
+      "usage": {
+        "prompt_tokens": 1815,
+        "completion_tokens": 278,
+        "total_tokens": 2093,
+        "cost": 0.0012395,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0012395,
+          "upstream_inference_prompt_cost": 0.0005445,
+          "upstream_inference_completions_cost": 0.000695
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "rows": [
+        {
+          "id": "actor-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "hospital-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "negation-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Cedar Bank confirmed freezing withdrawals. -> Cedar Bank denied freezing customer withdrawals."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "condition-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "update-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "forecast-bad",
+          "expected": [
+            "fix"
+          ],
+          "verdict": "fix",
+          "issues": [
+            "Food prices have risen 8% this year. -> A university research team forecasts that food prices could increase by up to 8% next year. This is a forecast, not an observed increase."
+          ],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        },
+        {
+          "id": "correction-good",
+          "expected": [
+            "ok"
+          ],
+          "verdict": "ok",
+          "issues": [],
+          "pass": true,
+          "falseApproval": false,
+          "falseRejection": false
+        }
+      ]
+    }
+  ],
+  "actualAdditionalUsd": 0.0166356,
+  "paidCalls": 10,
+  "allSettled": true,
+  "newOutstandingHolds": 0,
+  "authorizedMaximumUsd": 0.11,
+  "authorizedMaximumCalls": 10,
+  "sourcePolicy": "Development real acquired sources referenced by frozen fixture hashes; held-out cases explicitly synthetic, labels assistant-reviewed rather than independent human gold.",
+  "freshWindowReadback": [],
+  "twentyArticleCost": {
+    "baselineActualTotalUsd": 0.07238560000000001,
+    "baselineActualVerifier": {
+      "tokensIn": 16221,
+      "tokensOut": 137,
+      "costUsd": 0.006707599999999999
+    },
+    "candidateVerifierSameTokensEstimateUsd": 0.0052087999999999995,
+    "candidateTotalSameEditorRepairTokensEstimateUsd": 0.07088680000000001,
+    "warning": "Counterfactual pricing only: model tokenization, caching, repair frequency and output accuracy may differ; no candidate pipeline run."
+  },
+  "productionChangesRetained": [
+    "Reject duplicate or nonnumeric verifier item indices through existing bounded JSON retry"
+  ],
+  "routingChanged": false,
+  "promptsChanged": false,
+  "deployment": false
+}

@@ -1,0 +1,64 @@
+{
+  "checkedAt": "2026-10-20T07:16:19.966Z",
+  "permissions": {
+    "resolved": true,
+    "cloudflareScopeNames": [
+      "ai:read",
+      "aig:read"
+    ],
+    "newWritePermissionsGranted": false
+  },
+  "readOnlyAccess": [
+    {
+      "path": "/ai-gateway/gateways",
+      "status": 200,
+      "gatewayCount": 0
+    },
+    {
+      "path": "/ai-gateway/billing/credit-balance",
+      "status": 200,
+      "prepaidBalance": 0,
+      "autoTopupAmount": 0,
+      "autoTopupThreshold": 0
+    }
+  ],
+  "scopeInstallation": {
+    "at": "2026-10-20T07:13:45.377Z",
+    "grantId": "gpt41-comparison:2b495b561f83fd3c4b90",
+    "priorGrantsUnchanged": true,
+    "unresolvedHoldsUnchanged": true,
+    "newPaidCalls": 0,
+    "validFrom": "2026-10-20T08:49:53.079Z",
+    "newCallLimit": 11,
+    "newReservationCapUsd": 0.542196,
+    "accountCeilingUsd": 73
+  },
+  "financialPreflight": {
+    "heldSlots": 50,
+    "heldUsd": 5.3441524893,
+    "lifetimeExposureUsd": 64.8379690953,
+    "priorEvaluationCalls": 3,
+    "priorEvaluationReservationsUsd": 0.058390195299999996
+  },
+  "realExecutorPreflight": {
+    "reached": true,
+    "stoppedBeforePaidReservation": true,
+    "error": "COMPARISON_AUTHORIZATION_WINDOW",
+    "at": "2026-10-20T07:16:19.966Z",
+    "validFrom": "2026-10-20T08:49:53.079Z",
+    "validUntil": "2026-10-20T12:49:53.079Z",
+    "gatewayStatus": 404,
+    "billingStatus": 200,
+    "balance": 0,
+    "byokOnly": false
+  },
+  "freshPaidCalls": 0,
+  "productionQualified": false,
+  "offlineChecks": {
+    "passed": 7,
+    "failed": 0,
+    "operatorGatesSkipped": 2,
+    "benchmarkTypecheck": "PASSED"
+  },
+  "realScopeInstallationCheck": "PASSED; historical grants and unresolved hold rows identical"
+}

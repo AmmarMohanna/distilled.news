@@ -1,0 +1,58 @@
+[
+ {
+  "id": "nw-recall-a",
+  "source": "Trade Wire",
+  "title": "Northwind Robotics recalls 12,000 warehouse robots over battery fault",
+  "url": "https://example.invalid/nw-recall-a",
+  "publishedAt": "2026-10-19T09:02:00Z",
+  "text": "Northwind Robotics said on Monday it is recalling about 12,000 of its Atlas warehouse robots after a battery fault caused overheating in several units. The company said the affected robots were sold between March and August and that customers should stop charging them until a firmware update is installed.\n\nNorthwind said it had received 14 reports of overheating worldwide. \"No injuries have been reported,\" a spokesperson said. The firmware update is expected to be available within two weeks, the company said. Northwind shares fell 6% in early trading."
+ },
+ {
+  "id": "nw-recall-b",
+  "source": "Logistics Daily",
+  "title": "Atlas robot recall: what warehouse operators should know",
+  "url": "https://example.invalid/nw-recall-b",
+  "publishedAt": "2026-10-19T09:20:00Z",
+  "text": "Warehouse operators using Northwind Robotics' Atlas robots were told to stop charging affected units after the company announced a recall of roughly 12,000 robots on Monday. The recall follows 14 reports of overheating linked to a battery fault.\n\nAccording to Northwind, robots sold between March and August are affected. The company has not said how much the recall will cost. A firmware fix is due in about two weeks, and operators can check serial numbers on the company's support page. No injuries were reported, Northwind said."
+ },
+ {
+  "id": "nw-plant",
+  "source": "Trade Wire",
+  "title": "Northwind plans Ohio factory next year",
+  "url": "https://example.invalid/nw-plant",
+  "publishedAt": "2026-10-19T09:40:00Z",
+  "text": "Northwind Robotics plans to build a second assembly plant in Ohio next year, the company said, though construction depends on state permits that have not yet been granted. The plant would add capacity for Atlas robots if approved. Northwind did not give a cost estimate or a hiring target."
+ },
+ {
+  "id": "celeb-noise",
+  "source": "Showbiz Today",
+  "title": "Pop star spotted at charity gala",
+  "url": "https://example.invalid/celeb-noise",
+  "publishedAt": "2026-10-19T09:50:00Z",
+  "text": "A well-known pop star attended a charity gala on Sunday night, wearing a gold dress and posing for photographers. Organisers said the event raised funds for children's hospitals."
+ },
+ {
+  "id": "nw-update",
+  "source": "Trade Wire",
+  "title": "Northwind expands Atlas recall to 18,000 robots; regulator opens inquiry",
+  "url": "https://example.invalid/nw-update",
+  "publishedAt": "2026-10-20T11:00:00Z",
+  "text": "Northwind Robotics on Tuesday expanded its recall of Atlas warehouse robots to about 18,000 units, up from the roughly 12,000 it announced on Monday, saying further testing found the battery fault in robots sold as early as January. The company said the initial figure had been based on a narrower production range.\n\nThe Consumer Product Safety regulator said it has opened an inquiry into the overheating reports but has not determined a cause. The company reported 31 overheating incidents in total, up from 14, and said there were still no injuries. The firmware update date is unchanged."
+ },
+ {
+  "id": "nw-recap",
+  "source": "Market Digest",
+  "title": "Northwind in focus after robot recall",
+  "url": "https://example.invalid/nw-recap",
+  "publishedAt": "2026-10-20T11:30:00Z",
+  "text": "Northwind Robotics is in focus this week after announcing a recall of Atlas warehouse robots over a battery fault that caused overheating. The company said the affected robots were sold between March and August and that a firmware update is coming. No injuries have been reported. Analysts said the stock has been volatile."
+ },
+ {
+  "id": "nw-rumor",
+  "source": "Deal Whispers",
+  "title": "Northwind said to be exploring sale",
+  "url": "https://example.invalid/nw-rumor",
+  "publishedAt": "2026-10-20T11:45:00Z",
+  "text": "Northwind Robotics is exploring a sale of the company, according to two people familiar with the matter who asked not to be named. Talks are at an early stage and no deal is certain, the people said. Northwind declined to comment."
+ }
+]

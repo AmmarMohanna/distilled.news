@@ -1,0 +1,72 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createSourceExecutionServer} from './source-execution-server.mjs';
+const token='test-only-credential-'.repeat(3);
+test('authenticated status reports active capacity without request inputs or credentials',async t=>{
+ let release,entered;const started=new Promise(resolve=>{entered=resolve});
+ const url=await server(t,async()=>{entered();return new Promise(resolve=>{release=()=>resolve({ok:true})})});
+ const pending=fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'public_article',input:{url:'https://private-user-input.example/secret'}})});
+ await started;
+ assert.equal((await fetch(url+'/status')).status,401);
+ const status=await (await fetch(url+'/status',{headers:{authorization:`Bearer ${token}`}})).json();
+ assert.equal(status.active,1);assert.equal(status.maxConcurrent,2);assert.equal(status.requests[0].kind,'public_article');
+ assert.equal(JSON.stringify(status).includes('private-user-input'),false);assert.equal(JSON.stringify(status).includes(token),false);
+ release();await (await pending).body.cancel();
+ assert.equal((await (await fetch(url+'/status',{headers:{authorization:`Bearer ${token}`}})).json()).active,0);
+});
+async function server(t,execute){
+  const instance=createSourceExecutionServer({token,execution:{execute}});
+  await new Promise(resolve=>instance.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>{instance.closeAllConnections();instance.close(resolve);}));
+  return `http://127.0.0.1:${instance.address().port}/v1/source-execution`;
+}
+
+test('bounded Telegram queue serializes concurrent recommendations without sharing the session',async t=>{
+ let active=0,peak=0;
+ const instance=createSourceExecutionServer({token,maxConcurrent:8,telegramQueueMs:1000,execution:{execute:async()=>{
+  active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,20));active--;return {channelId:'-100123456',username:'telegram'};
+ }}});
+ await new Promise(resolve=>instance.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>{instance.closeAllConnections();instance.close(resolve);}));
+ const responses=await Promise.all(Array.from({length:5},()=>fetch(`http://127.0.0.1:${instance.address().port}/v1/source-execution`,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'telegram_resolve',input:{username:'telegram'}})})));
+ assert.deepEqual(responses.map(response=>response.status),[200,200,200,200,200]);assert.equal(peak,1);
+ await Promise.all(responses.map(response=>response.body.cancel()));
+});
+test('rejects unauthenticated execution and unknown operations before spawning',async t=>{
+  let calls=0;const url=await server(t,async()=>{calls++;});
+  assert.equal((await fetch(url,{method:'POST',body:'{}'})).status,401);
+  assert.equal((await fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'shell',input:{}})})).status,400);
+  assert.equal(calls,0);
+});
+test('executes authorized structured requests and sanitizes failures',async t=>{
+  const url=await server(t,async(kind,input)=>{if(input.fail)throw new Error('secret details');assert.equal(kind,'extract');return {body:'article'};});
+  const call=input=>fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'extract',input})});
+  assert.deepEqual(await (await call({})).json(),{body:'article'});
+  const failure=await call({fail:true});assert.equal(failure.status,502);assert.equal(await failure.text(),'{"error":"EXECUTION_FAILED"}');
+});
+test('passes a bounded public feed request to the private executor',async t=>{
+  const feed='https://www.theguardian.com/technology/nvidia/rss';
+  const url=await server(t,async(kind,input)=>{
+    assert.equal(kind,'public_feed');assert.deepEqual(input,{url:feed});
+    return {status:200,xml:'<rss><channel/></rss>',requests:1};
+  });
+  const response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'public_feed',input:{url:feed}})});
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).status,200);
+});
+test('passes only an authenticated Telegram username to private resolution',async t=>{
+  const url=await server(t,async(kind,input)=>{assert.equal(kind,'telegram_resolve');assert.deepEqual(input,{username:'examplechannel'});return {channelId:'-1001234567890',username:'examplechannel'};});
+  const response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'telegram_resolve',input:{username:'examplechannel'}})});
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{channelId:'-1001234567890',username:'examplechannel'});
+});
+test('serializes one Telegram session and reports retryable backpressure while allowing extraction',async t=>{
+  let release,entered;
+  const started=new Promise(resolve=>{entered=resolve});
+  const url=await server(t,async kind=>{if(kind==='telethon'){entered();return new Promise(resolve=>{release=()=>resolve({records:[]})})}return {body:'article'};});
+  const call=kind=>fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind,input:{}})});
+  const first=call('telethon');await started;
+  const busy=await call('telegram_resolve');assert.equal(busy.status,503);assert.equal(busy.headers.get('retry-after'),'5');
+  assert.equal((await call('extract')).status,200);
+  release();assert.equal((await first).status,200);
+});

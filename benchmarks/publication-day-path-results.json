@@ -1,0 +1,389 @@
+{
+  "scope": "Two paired complete LOCAL V2 publishSelection paths from ready selection to persisted edition, synthetic model ports. Does not include upstream planning/collection or actual inference. Not proof of product latency target.",
+  "baseline": "dd88f5c",
+  "rows": [
+    {
+      "pair": 1,
+      "variant": "baseline",
+      "exitCode": 0,
+      "success": true,
+      "record": {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "feed-1",
+        "phase": "PUBLICATION",
+        "windowId": "controlled-v2",
+        "outcome": "SUCCEEDED",
+        "durationMs": 7559.355999999998,
+        "counts": {
+          "casAttempts": 13,
+          "documentReads": 52,
+          "listReads": 38,
+          "revisionReads": 9,
+          "preloadQueries": 45,
+          "validationMs": 23,
+          "documentWrites": 22,
+          "jobWrites": 0,
+          "publicationInputLoads": 9,
+          "publicationCatalogTargets": 9,
+          "publicationHistoryRevisionIds": 0,
+          "publicationActiveRevisionIds": 9,
+          "publicationSelectedSemanticVersions": 9,
+          "validationFactualWarnings": 1,
+          "validationPacketsPlanned": 1,
+          "validationRequestBytes": 3638,
+          "validationReservationCeilingUsd": 0.02
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 13,
+            "durationMs": 278.9104000000043
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 13,
+            "durationMs": 3914.0233000000007
+          },
+          "GRAPH_VALIDATION": {
+            "count": 13,
+            "durationMs": 22.520000000007713
+          },
+          "CAS_COMMIT": {
+            "count": 13,
+            "durationMs": 734.3285000000051
+          },
+          "PUBLICATION_ACTIVE_IDENTITIES": {
+            "count": 9,
+            "durationMs": 205.26420000000144
+          },
+          "PUBLICATION_CANDIDATE_LOAD": {
+            "count": 9,
+            "durationMs": 1386.0765000000047
+          },
+          "PUBLICATION_HISTORY_IDENTITIES": {
+            "count": 9,
+            "durationMs": 0.6826000000019121
+          },
+          "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+            "count": 9,
+            "durationMs": 373.34559999999874
+          },
+          "PUBLICATION_INPUT_LOAD": {
+            "count": 9,
+            "durationMs": 3171.7131000000063
+          },
+          "MODEL_OPERATION": {
+            "count": 2,
+            "durationMs": 2103.5655000000006
+          },
+          "PUBLICATION_RESULT_PERSISTENCE": {
+            "count": 4,
+            "durationMs": 88.55949999999393
+          },
+          "PUBLICATION_PRECHECKS": {
+            "count": 1,
+            "durationMs": 12.071100000001024
+          },
+          "V2_SEMANTIC_VERIFICATION": {
+            "count": 1,
+            "durationMs": 2066.0321999999996
+          },
+          "V2_VERDICT_REDUCTION": {
+            "count": 1,
+            "durationMs": 2.044399999998859
+          },
+          "EDITION_PERSISTENCE": {
+            "count": 1,
+            "durationMs": 672.9831999999988
+          }
+        }
+      }
+    },
+    {
+      "pair": 1,
+      "variant": "current",
+      "exitCode": 0,
+      "success": true,
+      "record": {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "feed-1",
+        "phase": "PUBLICATION",
+        "windowId": "controlled-v2",
+        "outcome": "SUCCEEDED",
+        "durationMs": 6713.025100000001,
+        "counts": {
+          "casAttempts": 13,
+          "documentReads": 48,
+          "listReads": 30,
+          "revisionReads": 7,
+          "preloadQueries": 35,
+          "validationMs": 19,
+          "documentWrites": 22,
+          "jobWrites": 0,
+          "publicationInputLoads": 7,
+          "publicationCatalogTargets": 7,
+          "publicationHistoryRevisionIds": 0,
+          "publicationActiveRevisionIds": 7,
+          "publicationSelectedSemanticVersions": 7,
+          "validationFactualWarnings": 0,
+          "validationPacketsPlanned": 1,
+          "validationRequestBytes": 3638,
+          "validationReservationCeilingUsd": 0.02
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 13,
+            "durationMs": 271.07360000000335
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 13,
+            "durationMs": 3127.581900000001
+          },
+          "GRAPH_VALIDATION": {
+            "count": 13,
+            "durationMs": 19.317500000003747
+          },
+          "CAS_COMMIT": {
+            "count": 13,
+            "durationMs": 646.4421000000048
+          },
+          "PUBLICATION_ACTIVE_IDENTITIES": {
+            "count": 7,
+            "durationMs": 168.85009999999966
+          },
+          "PUBLICATION_CANDIDATE_LOAD": {
+            "count": 7,
+            "durationMs": 970.329700000002
+          },
+          "PUBLICATION_HISTORY_IDENTITIES": {
+            "count": 7,
+            "durationMs": 0.5613000000012107
+          },
+          "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+            "count": 7,
+            "durationMs": 273.0697999999993
+          },
+          "PUBLICATION_INPUT_LOAD": {
+            "count": 7,
+            "durationMs": 2386.0846
+          },
+          "MODEL_OPERATION": {
+            "count": 2,
+            "durationMs": 2228.3218000000006
+          },
+          "PUBLICATION_RESULT_PERSISTENCE": {
+            "count": 4,
+            "durationMs": 99.12930000000233
+          },
+          "PUBLICATION_PRECHECKS": {
+            "count": 1,
+            "durationMs": 1.1440999999995256
+          },
+          "V2_SEMANTIC_VERIFICATION": {
+            "count": 1,
+            "durationMs": 1769.087599999999
+          },
+          "V2_VERDICT_REDUCTION": {
+            "count": 1,
+            "durationMs": 3.55199999999968
+          },
+          "EDITION_PERSISTENCE": {
+            "count": 1,
+            "durationMs": 598.5661
+          }
+        }
+      }
+    },
+    {
+      "pair": 2,
+      "variant": "current",
+      "exitCode": 0,
+      "success": true,
+      "record": {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "feed-1",
+        "phase": "PUBLICATION",
+        "windowId": "controlled-v2",
+        "outcome": "SUCCEEDED",
+        "durationMs": 6637.5115000000005,
+        "counts": {
+          "casAttempts": 13,
+          "documentReads": 48,
+          "listReads": 30,
+          "revisionReads": 7,
+          "preloadQueries": 35,
+          "validationMs": 17,
+          "documentWrites": 22,
+          "jobWrites": 0,
+          "publicationInputLoads": 7,
+          "publicationCatalogTargets": 7,
+          "publicationHistoryRevisionIds": 0,
+          "publicationActiveRevisionIds": 7,
+          "publicationSelectedSemanticVersions": 7,
+          "validationFactualWarnings": 0,
+          "validationPacketsPlanned": 1,
+          "validationRequestBytes": 3638,
+          "validationReservationCeilingUsd": 0.02
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 13,
+            "durationMs": 259.55480000000534
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 13,
+            "durationMs": 2990.6183999999967
+          },
+          "GRAPH_VALIDATION": {
+            "count": 13,
+            "durationMs": 16.93619999999646
+          },
+          "CAS_COMMIT": {
+            "count": 13,
+            "durationMs": 633.3834999999999
+          },
+          "PUBLICATION_ACTIVE_IDENTITIES": {
+            "count": 7,
+            "durationMs": 151.1367999999975
+          },
+          "PUBLICATION_CANDIDATE_LOAD": {
+            "count": 7,
+            "durationMs": 939.2078999999994
+          },
+          "PUBLICATION_HISTORY_IDENTITIES": {
+            "count": 7,
+            "durationMs": 0.6546000000025742
+          },
+          "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+            "count": 7,
+            "durationMs": 246.53989999999794
+          },
+          "PUBLICATION_INPUT_LOAD": {
+            "count": 7,
+            "durationMs": 2240.533000000002
+          },
+          "MODEL_OPERATION": {
+            "count": 2,
+            "durationMs": 2324.7169000000013
+          },
+          "PUBLICATION_RESULT_PERSISTENCE": {
+            "count": 4,
+            "durationMs": 87.39880000000085
+          },
+          "PUBLICATION_PRECHECKS": {
+            "count": 1,
+            "durationMs": 2.618800000000192
+          },
+          "V2_SEMANTIC_VERIFICATION": {
+            "count": 1,
+            "durationMs": 1965.0241999999998
+          },
+          "V2_VERDICT_REDUCTION": {
+            "count": 1,
+            "durationMs": 3.9729999999999563
+          },
+          "EDITION_PERSISTENCE": {
+            "count": 1,
+            "durationMs": 659.0617000000002
+          }
+        }
+      }
+    },
+    {
+      "pair": 2,
+      "variant": "baseline",
+      "exitCode": 0,
+      "success": true,
+      "record": {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "feed-1",
+        "phase": "PUBLICATION",
+        "windowId": "controlled-v2",
+        "outcome": "SUCCEEDED",
+        "durationMs": 8782.0689,
+        "counts": {
+          "casAttempts": 13,
+          "documentReads": 52,
+          "listReads": 38,
+          "revisionReads": 9,
+          "preloadQueries": 45,
+          "validationMs": 26,
+          "documentWrites": 22,
+          "jobWrites": 0,
+          "publicationInputLoads": 9,
+          "publicationCatalogTargets": 9,
+          "publicationHistoryRevisionIds": 0,
+          "publicationActiveRevisionIds": 9,
+          "publicationSelectedSemanticVersions": 9,
+          "validationFactualWarnings": 1,
+          "validationPacketsPlanned": 1,
+          "validationRequestBytes": 3638,
+          "validationReservationCeilingUsd": 0.02
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 13,
+            "durationMs": 302.9947000000011
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 13,
+            "durationMs": 4805.261799999993
+          },
+          "GRAPH_VALIDATION": {
+            "count": 13,
+            "durationMs": 25.63350000000173
+          },
+          "CAS_COMMIT": {
+            "count": 13,
+            "durationMs": 735.6123999999927
+          },
+          "PUBLICATION_ACTIVE_IDENTITIES": {
+            "count": 9,
+            "durationMs": 234.7671999999966
+          },
+          "PUBLICATION_CANDIDATE_LOAD": {
+            "count": 9,
+            "durationMs": 1891.4327999999969
+          },
+          "PUBLICATION_HISTORY_IDENTITIES": {
+            "count": 9,
+            "durationMs": 0.7515000000039436
+          },
+          "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+            "count": 9,
+            "durationMs": 398.6079000000009
+          },
+          "PUBLICATION_INPUT_LOAD": {
+            "count": 9,
+            "durationMs": 3957.835000000001
+          },
+          "MODEL_OPERATION": {
+            "count": 2,
+            "durationMs": 2378.777399999999
+          },
+          "PUBLICATION_RESULT_PERSISTENCE": {
+            "count": 4,
+            "durationMs": 90.15100000000166
+          },
+          "PUBLICATION_PRECHECKS": {
+            "count": 1,
+            "durationMs": 14.790500000000975
+          },
+          "V2_SEMANTIC_VERIFICATION": {
+            "count": 1,
+            "durationMs": 2527.9899000000005
+          },
+          "V2_VERDICT_REDUCTION": {
+            "count": 1,
+            "durationMs": 4.047699999999168
+          },
+          "EDITION_PERSISTENCE": {
+            "count": 1,
+            "durationMs": 679.1851000000024
+          }
+        }
+      }
+    }
+  ],
+  "medianBeforeMs": 8170.712449999999,
+  "medianAfterMs": 6675.268300000001,
+  "providerCalls": 0
+}

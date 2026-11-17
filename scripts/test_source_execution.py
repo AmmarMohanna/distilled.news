@@ -1,0 +1,472 @@
+"""Synthetic execution tests; no provider credentials, imports or network required."""
+import asyncio
+import datetime
+import json
+import importlib.util
+import io
+import tempfile
+import types
+import unittest
+from pathlib import Path
+from unittest.mock import patch, AsyncMock
+
+spec = importlib.util.spec_from_file_location('source_execution', Path(__file__).with_name('source-execution.py'))
+runtime = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(runtime)
+
+
+class RuntimeTests(unittest.TestCase):
+    def test_public_feed_fetches_one_bounded_unchanged_url_and_rejects_redirects(self):
+        url = 'https://www.theguardian.com/technology/nvidia/rss'
+        response = io.BytesIO(b'<rss><channel/></rss>')
+        response.status = 200
+        calls = []
+        def open_request(request, timeout):
+            calls.append((request.full_url, timeout))
+            return response
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=open_request)):
+            result = runtime.fetch_public_feed({'url':url})
+            self.assertEqual(result['status'], 200)
+            self.assertEqual(result['xml'], '<rss><channel/></rss>')
+            self.assertEqual(calls, [(url, 12)])
+            blocked = runtime.urllib.error.HTTPError(url, 302, 'redirect', {'location':'https://other.example/rss'}, None)
+            with patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *args, **kwargs: (_ for _ in ()).throw(blocked))):
+                self.assertEqual(runtime.fetch_public_feed({'url':url})['status'], 302)
+
+    def test_public_feed_rejects_private_or_credentialed_targets(self):
+        for url in ['http://publisher.example/rss', 'https://user:pass@publisher.example/rss', 'https://publisher.example:8443/rss', 'https://publisher.example/rss#fragment']:
+            with self.assertRaises(ValueError): runtime.fetch_public_feed({'url':url})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url', side_effect=ValueError('NONPUBLIC_ADDRESS')), patch.object(runtime.urllib.request, 'build_opener') as opener:
+            with self.assertRaises(ValueError): runtime.fetch_public_feed({'url':'https://127.0.0.1/rss'})
+            opener.assert_not_called()
+
+    def test_cbs_exact_browser_blocks_third_party_resources_and_bounds_requests(self):
+        url = 'https://www.cbsnews.com/projects/2026/verified-report/'
+        routes, frame = [], object()
+        page = types.SimpleNamespace(url=url, main_frame=frame)
+        async def goto(*args, **kwargs):
+            targets = ['https://third-party.example/script.js'] + [url + 'app.js'] * 81
+            for index, target in enumerate(targets):
+                request = types.SimpleNamespace(request=types.SimpleNamespace(
+                    resource_type='script', is_navigation_request=lambda: False,
+                    frame=frame, url=target), abort=AsyncMock(), continue_=AsyncMock())
+                await routes[0](request)
+                self.assertEqual(request.abort.await_count, int(index == 0 or index == 81))
+            return types.SimpleNamespace(status=200, headers={})
+        page.goto = goto
+        page.content = AsyncMock(return_value='<article>Verified reporting</article>')
+        async def route(_pattern, handler): routes.append(handler)
+        context = types.SimpleNamespace(route=route, new_page=AsyncMock(return_value=page), close=AsyncMock())
+        browser = types.SimpleNamespace(new_context=AsyncMock(return_value=context), close=AsyncMock())
+        engine = types.SimpleNamespace(chromium=types.SimpleNamespace(launch=AsyncMock(return_value=browser)))
+        manager = AsyncMock()
+        manager.__aenter__.return_value = engine
+        module = types.SimpleNamespace(async_playwright=lambda: manager)
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url') as validate, patch.dict('sys.modules', {'playwright.async_api':module}):
+            result = asyncio.run(runtime.browser({'url':url, 'exactCandidateOnly':True}))
+        validate.assert_called_once_with(url)
+        self.assertEqual(result['requests'], 81)
+        self.assertEqual(result['url'], url)
+        context.close.assert_awaited_once()
+        browser.close.assert_awaited_once()
+
+    def test_exact_article_browser_blocks_other_navigation_and_reports_final_url(self):
+        url = 'https://publisher.example/news/one'
+        routes = []
+        frame = object()
+        page = types.SimpleNamespace(url=url, main_frame=frame)
+        async def goto(*args, **kwargs):
+            for target in [url, url + '/other']:
+                request = types.SimpleNamespace(request=types.SimpleNamespace(
+                    resource_type='document', is_navigation_request=lambda: True,
+                    frame=frame, url=target), abort=AsyncMock(), continue_=AsyncMock())
+                await routes[0](request)
+                self.assertEqual(request.abort.await_count, int(target != url))
+                self.assertEqual(request.continue_.await_count, int(target == url))
+            return types.SimpleNamespace(status=200, headers={})
+        page.goto = goto
+        page.content = AsyncMock(return_value='<article>Original article</article>')
+        page.wait_for_function = AsyncMock()
+        async def route(_pattern, handler): routes.append(handler)
+        context = types.SimpleNamespace(route=route, new_page=AsyncMock(return_value=page), close=AsyncMock())
+        browser = types.SimpleNamespace(new_context=AsyncMock(return_value=context), close=AsyncMock())
+        engine = types.SimpleNamespace(chromium=types.SimpleNamespace(launch=AsyncMock(return_value=browser)))
+        manager = AsyncMock()
+        manager.__aenter__.return_value = engine
+        module = types.SimpleNamespace(async_playwright=lambda: manager)
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.dict('sys.modules', {'playwright.async_api':module}):
+            result = asyncio.run(runtime.browser({'url':url, 'exactCandidateOnly':True, 'waitForArticleText':True}))
+        self.assertEqual(result['url'], url)
+        self.assertFalse(result['authenticationRequired'])
+        page.wait_for_function.assert_awaited_once()
+        self.assertEqual(page.wait_for_function.call_args.kwargs['timeout'], 3500)
+        context.close.assert_awaited_once()
+        browser.close.assert_awaited_once()
+
+    def test_public_article_fetch_is_anonymous_bounded_and_exact(self):
+        class Response:
+            status = 200
+            headers = {'Content-Type': 'text/html'}
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, limit): return b'<article>Permitted article</article>'[:limit]
+        calls = []
+        def open_request(request, timeout):
+            calls.append(request)
+            self.assertEqual(timeout, 15)
+            self.assertIsNone(request.get_header('Authorization'))
+            self.assertIsNone(request.get_header('Cookie'))
+            return Response()
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=open_request)), patch.object(runtime, 'extract', return_value={'body':'Article', 'pageKind':'article'}):
+            result = runtime.fetch_public_article({'url':'https://publisher.example/news/one'})
+        self.assertEqual(result['url'], 'https://publisher.example/news/one')
+        self.assertEqual(result['status'], 200)
+        self.assertEqual(len(calls), 1)
+
+    def test_public_article_rejects_credentials_private_dns_and_redirects(self):
+        for url in ['http://publisher.example/story', 'https://user:pass@publisher.example/story', 'https://publisher.example:443/story']:
+            with self.assertRaises(ValueError): runtime.fetch_public_article({'url':url})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url', side_effect=ValueError('NONPUBLIC_ADDRESS')), patch.object(runtime.urllib.request, 'build_opener') as opener:
+            with self.assertRaises(ValueError): runtime.fetch_public_article({'url':'https://127.0.0.1/story'})
+            opener.assert_not_called()
+        for status in (301, 401, 403, 429, 451):
+            error = runtime.urllib.error.HTTPError('https://publisher.example/story', status, 'blocked', {}, None)
+            with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *a, **kw: (_ for _ in ()).throw(error))):
+                self.assertEqual(runtime.fetch_public_article({'url':'https://publisher.example/story'}), {'status':status, 'failureOrigin':'upstream_http'})
+
+    def test_public_article_connection_failure_preserves_origin(self):
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=types.SimpleNamespace(open=lambda *a, **kw: (_ for _ in ()).throw(TimeoutError()))):
+            self.assertEqual(runtime.fetch_public_article({'url':'https://publisher.example/story'}), {'error':'TRANSIENT', 'failureOrigin':'upstream_transport'})
+
+    def test_article_inventory_is_same_origin_and_does_not_follow_body_references(self):
+        links = runtime.ArticleLinks('https://publisher.example/')
+        links.feed('<a href="/navigation">Navigation</a><article><a href="/one">One</a></article>'
+                   '<article><a href="https://external.example/two">External</a><a href="/two">Two</a></article>'
+                   '<link rel="canonical" href="https://publisher.example/">')
+        self.assertEqual(links.links, ['https://publisher.example/one', 'https://publisher.example/two'])
+        self.assertEqual(links.article_count, 2)
+        self.assertEqual(links.canonical, 'https://publisher.example/')
+
+    def test_article_canonical_cannot_point_to_another_origin(self):
+        links = runtime.ArticleLinks('https://publisher.example/article')
+        links.feed('<link rel="canonical" href="https://private.example/article">')
+        self.assertIsNone(links.canonical)
+
+    def test_single_undated_article_does_not_emit_its_body_references(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Article text', 'date': None})
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/news/story', 'html': '<article><p>News <a href="/other-story">reference</a></p></article>'})
+        self.assertEqual(result['pageKind'], 'article')
+        self.assertEqual(result['articleLinks'], [])
+        self.assertIsNone(result['publishedAt'])
+
+    def test_dated_homepage_lead_story_still_emits_a_listing(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Lead story', 'date': '2026-10-14'})
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/', 'html': '<article><a href="/news/lead">Lead story</a></article>'})
+        self.assertEqual(result['pageKind'], 'listing')
+        self.assertEqual(result['articleLinks'], ['https://publisher.example/news/lead'])
+
+    def test_original_publication_wins_over_a_generic_extracted_update_date(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Readable full article', 'date': '2026-10-21'})
+        page = '<meta property="article:modified_time" content="2026-10-21"><script type="application/ld+json">' + json.dumps({
+            '@type': 'NewsArticle', 'url': 'https://publisher.example/roman', 'datePublished': '2026-08-31', 'dateModified': '2026-10-21'
+        }) + '</script><article>Original reporting</article>'
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/roman', 'html': page})
+        self.assertEqual(result['publishedAt'], '2026-08-31T00:00:00Z')
+        self.assertEqual(result['updatedAt'], '2026-10-21T00:00:00Z')
+        self.assertEqual(result['extractedDate'], '2026-10-21')
+        self.assertFalse(result['dateMetadata']['publicationConflict'])
+        self.assertEqual(result['contentCompleteness'], 'UNKNOWN')
+
+    def test_modified_only_and_heuristic_dates_do_not_establish_publication(self):
+        fake = types.SimpleNamespace(bare_extraction=lambda *args, **kwargs: {'text': 'Readable article', 'date': '2026-10-21'})
+        with patch.dict('sys.modules', {'trafilatura': fake}):
+            result = runtime.extract({'url': 'https://publisher.example/story', 'html': '<meta itemprop="dateModified" content="2026-10-21"><article>Reporting</article>'})
+        self.assertIsNone(result['publishedAt'])
+        self.assertEqual(result['updatedAt'], '2026-10-21T00:00:00Z')
+        self.assertEqual(result['extractedDate'], '2026-10-21')
+
+    def test_conflicting_publication_metadata_stays_unresolved(self):
+        dates = runtime.ArticleDates('https://publisher.example/story')
+        dates.feed('<meta property="article:published_time" content="2026-10-21"><meta itemprop="datePublished" content="2026-08-31">')
+        result = dates.result()
+        self.assertIsNone(result['publishedAt'])
+        self.assertTrue(result['publicationConflict'])
+        self.assertEqual(len(result['candidates']), 2)
+
+    def test_related_article_and_webpage_dates_do_not_establish_publication(self):
+        dates = runtime.ArticleDates('https://publisher.example/story')
+        dates.feed('<script type="application/ld+json">' + json.dumps({'@graph': [
+            {'@type': 'NewsArticle', 'url': 'https://publisher.example/other', 'datePublished': '2026-10-21'},
+            {'@type': 'WebPage', 'datePublished': '2026-10-21'}
+        ]}) + '</script>')
+        self.assertIsNone(dates.result()['publishedAt'])
+
+    def test_google_feed_cannot_be_used_as_an_arbitrary_url_proxy(self):
+        for url in ['https://127.0.0.1/rss/search', 'https://news.google.com/other', 'https://user@news.google.com/rss/search', 'http://news.google.com/rss/search']:
+            with self.assertRaises(ValueError): runtime.fetch_google_feed({'url': url})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'false'}):
+            self.assertEqual(runtime.fetch_google_feed({'url': 'https://news.google.com/rss/search?q=energy'})['error'], 'UNAVAILABLE')
+
+    def test_google_resolution_stays_on_google_and_parses_only_the_expected_rpc(self):
+        class Response:
+            def __init__(self, body): self.body = body
+            def __enter__(self): return self
+            def __exit__(self, *args): pass
+            def read(self, limit): return self.body[:limit]
+        calls = []
+        def open_request(request, timeout):
+            calls.append(request)
+            self.assertGreater(timeout, 0)
+            self.assertLessEqual(timeout, 10)
+            if request.get_method() == 'POST':
+                return Response((")]}'\n\n" + json.dumps([['wrb.fr', 'Fbv4je', json.dumps(['garturlres', 'https://publisher.example/article'])]])).encode())
+            return Response(b'<div data-n-a-sg="signed_public_value" data-n-a-ts="1234"></div>')
+        opener = types.SimpleNamespace(open=open_request)
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=opener):
+            result = runtime.resolve_google_article({'url': 'https://news.google.com/rss/articles/CBMiabc'})
+        self.assertEqual(result['url'], 'https://publisher.example/article')
+        self.assertEqual(result['requests'], 2)
+        self.assertEqual([runtime.urlsplit(r.full_url).hostname for r in calls], ['news.google.com'] * 2)
+
+    def test_google_resolution_rejects_private_or_changed_protocol_without_fetching_a_publisher(self):
+        with self.assertRaises(ValueError):
+            runtime.resolve_google_article({'url': 'https://127.0.0.1/articles/CBMiabc'})
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url', side_effect=ValueError('NONPUBLIC_ADDRESS')), patch.object(runtime.urllib.request, 'build_opener') as opener:
+            result = runtime.resolve_google_article({'url': 'https://news.google.com/rss/articles/CBMiabc'})
+            self.assertEqual(result['error'], 'UNAVAILABLE')
+            self.assertEqual(result['requests'], 0)
+            opener.return_value.open.assert_not_called()
+
+    def test_feedparser_identity_without_guid_matches_native_url_key(self):
+        entry = {'link': 'https://publisher.example/post', 'summary': '<p>Hello &amp; world</p>'}
+        fake = types.SimpleNamespace(parse=lambda xml: types.SimpleNamespace(bozo=False, entries=[entry]))
+        with patch.dict('sys.modules', {'feedparser': fake}):
+            result = runtime.parse_feed({'xml': '<rss/>', 'url': 'https://publisher.example/rss'})
+        self.assertEqual(result['items'][0]['key'], 'url:https://publisher.example/post')
+        self.assertEqual(result['items'][0]['body'], 'Hello & world')
+        self.assertIsNone(result['items'][0]['publishedAt'])
+
+    def test_feedparser_rejects_dtd(self):
+        with patch.dict('sys.modules', {'feedparser': types.SimpleNamespace()}):
+            with self.assertRaises(ValueError):
+                runtime.parse_feed({'xml': '<!DOCTYPE rss><rss/>', 'url': 'https://example.com'})
+
+    def run_telegram(self, recheck=False, deleted=False, authorized=True, interrupted=False, edited=False, after_id=1, album=False):
+        calls = []
+        stamp = datetime.datetime(2026, 10, 4, tzinfo=datetime.timezone.utc)
+        messages = [types.SimpleNamespace(id=i, message='Text', date=stamp, edit_date=None) for i in (2, 3, 4)]
+        if album:
+            messages = [types.SimpleNamespace(id=i,message='Album caption' if i==2 else '',date=stamp,edit_date=None) for i in (2,3,4)]
+        class Client:
+            def __init__(self, *args, **kwargs):
+                pass
+            async def connect(self):
+                if interrupted: raise ConnectionError('synthetic disconnect')
+            async def disconnect(self):
+                pass
+            async def is_user_authorized(self):
+                return authorized
+            async def get_input_entity(self, peer):
+                return peer
+            async def get_messages(self, peer, **kwargs):
+                calls.append(kwargs)
+                if 'ids' in kwargs:
+                    return [types.SimpleNamespace(id=i,message='Corrected old post',date=stamp,edit_date=stamp) if edited else None for i in kwargs['ids']]
+                if 'min_id' not in kwargs:
+                    return list(reversed(messages))[:kwargs['limit']]
+                return messages
+        class FloodWaitError(Exception):
+            seconds = 1
+        telethon = types.SimpleNamespace(TelegramClient=Client, utils=types.SimpleNamespace(get_peer_id=lambda p: p))
+        with tempfile.TemporaryDirectory() as directory:
+            session = Path(directory) / 'private.session'
+            session.touch()
+            journal = runtime.sqlite3.connect(':memory:')
+            journal.execute('CREATE TABLE channel_deletes(channel TEXT,message_id INTEGER,exported INTEGER DEFAULT 0)')
+            journal.execute('CREATE TABLE channel_edits(channel TEXT,message_id INTEGER,exported INTEGER DEFAULT 0)')
+            if deleted:
+                journal.execute('INSERT INTO channel_deletes(channel,message_id) VALUES(?,?)', ('-100123',10))
+                journal.commit()
+            if edited:
+                journal.execute('INSERT INTO channel_edits(channel,message_id) VALUES(?,?)', ('-100123',10))
+                journal.commit()
+            with patch.dict('sys.modules', {'telethon': telethon, 'telethon.errors': types.SimpleNamespace(FloodWaitError=FloodWaitError, AuthKeyError=type('AuthKeyError',(Exception,),{}), UnauthorizedError=type('UnauthorizedError',(Exception,),{}))}), \
+                 patch.object(runtime, 'telegram_deletions', AsyncMock(return_value=(journal, 'CURRENT'))), \
+                 patch.dict('os.environ', {'TELEGRAM_SESSION_PATH': str(session), 'TELEGRAM_API_ID': '1', 'TELEGRAM_API_HASH': 'synthetic'}):
+                result = asyncio.run(runtime.telegram({'channelId': '-100123', 'afterId': after_id, 'limit': 2,
+                                                       **({'recheckIds': [10]} if recheck else {})}))
+            journal.close()
+        return result, calls
+
+    def test_telegram_requests_oldest_unseen_first_and_looks_ahead(self):
+        result, calls = self.run_telegram()
+        self.assertEqual(calls[0], {'min_id': 1, 'reverse': True, 'limit': 3})
+        self.assertEqual([r['id'] for r in result['records']], [2, 3])
+        self.assertFalse(result['exhausted'])
+        self.assertTrue(result['orderedFromCheckpoint'])
+
+    def test_telegram_cold_start_selects_recent_slice_without_backfill_continuation(self):
+        result, calls = self.run_telegram(after_id=0)
+        self.assertEqual(calls[0], {'limit': 12})
+        self.assertTrue(result['bootstrapRecent'])
+        self.assertTrue(result['exhausted'])
+        self.assertEqual([r['id'] for r in result['records']], [3, 4])
+
+    def test_telegram_bootstrap_includes_caption_before_trailing_album_media(self):
+        result, calls = self.run_telegram(after_id=0, album=True)
+        self.assertEqual(calls[0], {'limit': 12})
+        self.assertEqual([r['id'] for r in result['records']], [2])
+        self.assertEqual(result['records'][0]['text'], 'Album caption')
+        self.assertTrue(result['bootstrapRecent'])
+
+    def test_google_batch_correlates_results_and_retains_individual_failures(self):
+        urls = ['https://news.google.com/rss/articles/one', 'https://news.google.com/rss/articles/two']
+        def resolve(data):
+            return {'url': 'https://publisher.example/post', 'requests': 2} if data['url'] == urls[0] else {'error':'UNAVAILABLE', 'requests':1}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', side_effect=resolve) as resolver:
+            result = runtime.resolve_google_articles({'urls': urls})
+            replay = runtime.resolve_google_articles({'urls': urls})
+            self.assertEqual(resolver.call_count, 3)
+            self.assertTrue(replay['results'][0]['cached'])
+        self.assertEqual(result['results'][0]['inputUrl'], urls[0])
+        self.assertEqual(result['results'][0]['url'], 'https://publisher.example/post')
+        self.assertEqual(result['results'][1]['error'], 'UNAVAILABLE')
+        with self.assertRaises(ValueError):
+            runtime.resolve_google_articles({'urls': ['https://127.0.0.1/private']})
+
+    def test_google_search_batch_passes_its_short_budget_to_each_decode(self):
+        urls = ['https://news.google.com/rss/articles/one', 'https://news.google.com/rss/articles/two']
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', return_value={'url':'https://publisher.example/post','requests':2}) as resolver:
+            result = runtime.resolve_google_articles({'urls':urls, 'timeoutSeconds':2})
+            self.assertEqual(sum('url' in row for row in result['results']), 2)
+            for call in resolver.call_args_list:
+                self.assertGreaterEqual(call.args[0]['timeoutSeconds'], 1)
+                self.assertLessEqual(call.args[0]['timeoutSeconds'], 2)
+        for budget in [0, 36, True, '2', float('nan')]:
+            with self.assertRaises(ValueError):
+                runtime.resolve_google_articles({'urls':urls, 'timeoutSeconds':budget})
+
+    def test_google_cache_makes_progress_beyond_first_thirty_links_without_unbounded_network_work(self):
+        urls = [f'https://news.google.com/rss/articles/id{i}' for i in range(40)]
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', return_value={'url':'https://publisher.example/post','requests':2}) as resolver:
+            first = runtime.resolve_google_articles({'urls':urls})
+            self.assertEqual(resolver.call_count,30)
+            self.assertEqual(sum('url' in row for row in first['results']),30)
+            second = runtime.resolve_google_articles({'urls':urls})
+            self.assertEqual(resolver.call_count,40)
+            self.assertEqual(sum('url' in row for row in second['results']),40)
+            self.assertEqual(sum(row.get('cached',False) for row in second['results']),30)
+
+    def test_search_batch_attempts_uncached_articles_after_position_thirty(self):
+        urls = [f'https://news.google.com/rss/articles/id{i}' for i in range(60)]
+        def decode(data):
+            return {'url':'https://publisher.example/last','requests':2} if data['url'] == urls[-1] else {'error':'UNAVAILABLE','requests':1}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', side_effect=decode) as resolver:
+            result = runtime.resolve_google_articles({'urls':urls, 'timeoutSeconds':2, 'maxFreshDecodes':60})
+            self.assertEqual(resolver.call_count,60)
+            self.assertEqual(result['results'][-1]['url'],'https://publisher.example/last')
+        for limit in [0, 61, True, 1.5]:
+            with self.assertRaises(ValueError):
+                runtime.resolve_google_articles({'urls':urls, 'maxFreshDecodes':limit})
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'resolve_google_article', return_value={'error':'UNAVAILABLE','requests':1}) as resolver:
+            result = runtime.resolve_google_articles({'urls':urls, 'maxFreshDecodes':1})
+            self.assertEqual(resolver.call_count,1)
+            self.assertEqual(len(result['results']),60)
+
+    def test_missing_telegram_recheck_does_not_invent_deletion(self):
+        result, calls = self.run_telegram(True)
+        self.assertEqual(calls[0], {'ids': [10]})
+        self.assertEqual(result['records'], [])
+        self.assertFalse(result['orderedFromCheckpoint'])
+
+    def test_explicit_telegram_deletes_are_delivered_in_rechecks_and_normal_polls(self):
+        for recheck in [True, False]:
+            result, _ = self.run_telegram(recheck, deleted=True)
+            deleted = [r for r in result['records'] if r.get('deleted')]
+            self.assertEqual(deleted, [{'id':10, 'deleted':True, 'explicitDeletion':True}])
+            if not recheck:
+                self.assertEqual([r['id'] for r in result['records'] if not r.get('deleted')], [2,3])
+
+    def test_disconnected_session_is_retryable_and_next_execution_reconnects(self):
+        result, _ = self.run_telegram(interrupted=True)
+        self.assertEqual(result, {'error':'TRANSIENT'})
+        recovered, _ = self.run_telegram()
+        self.assertEqual(len(recovered['records']), 2)
+
+    def test_explicit_edit_rechecks_an_older_post_without_replacing_the_new_message_prefix(self):
+        result, _ = self.run_telegram(edited=True)
+        self.assertEqual([r['id'] for r in result['records'] if not r.get('rechecked')], [2,3])
+        self.assertEqual(result['records'][-1]['text'], 'Corrected old post')
+        self.assertTrue(result['records'][-1]['rechecked'])
+
+    def test_revoked_session_requires_authorization_and_does_not_collect(self):
+        result, calls = self.run_telegram(authorized=False)
+        self.assertEqual(result, {'error':'AUTH_REQUIRED'})
+        self.assertEqual(calls, [])
+
+    def test_google_legacy_embedded_url_is_decoded_without_network_fetch(self):
+        target = b'https://publisher.example/article'
+        encoded = runtime.base64.urlsafe_b64encode(b'\x08\x13\x22' + bytes([len(target)]) + target).decode().rstrip('=')
+        with patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener') as opener:
+            result = runtime.resolve_google_article({'url': 'https://news.google.com/rss/articles/' + encoded})
+        self.assertEqual(result['url'], target.decode())
+        self.assertEqual(result['requests'], 0)
+        opener.assert_not_called()
+
+    def test_google_dns_time_counts_towards_the_resolution_budget(self):
+        clock = [0]
+        def dns(_): clock[0]=9
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED':'true'}), patch.object(runtime.time,'monotonic',side_effect=lambda:clock[0]), patch.object(runtime,'public_url',side_effect=dns), patch.object(runtime.urllib.request,'build_opener') as opener:
+            result = runtime.resolve_google_article({'url':'https://news.google.com/rss/articles/opaque','timeoutSeconds':8})
+        self.assertEqual(result['error'],'UNAVAILABLE')
+        self.assertEqual(result['requests'],0)
+        opener.return_value.open.assert_not_called()
+
+    def test_google_publisher_redirect_is_returned_without_following_it(self):
+        error = runtime.urllib.error.HTTPError('https://news.google.com/rss/articles/id', 302, 'redirect', {'Location': 'https://publisher.example/article'}, io.BytesIO())
+        opener = types.SimpleNamespace(open=lambda *args, **kwargs: (_ for _ in ()).throw(error))
+        with patch.dict(runtime.os.environ, {'SOURCE_BROWSER_EGRESS_CONFIRMED': 'true'}), patch.object(runtime, 'public_url'), patch.object(runtime.urllib.request, 'build_opener', return_value=opener):
+            result = runtime.resolve_google_article({'url': 'https://news.google.com/rss/articles/id'})
+        self.assertEqual(result['url'], 'https://publisher.example/article')
+        self.assertEqual(result['requests'], 1)
+        error.close()
+
+    def test_telegram_delete_journal_survives_response_loss_and_does_not_invent_gap_deletes(self):
+        class Request:
+            def __init__(self, *args, **kwargs): self.__dict__.update(kwargs)
+        class Difference:
+            def __init__(self, pts, updates=()): self.pts, self.other_updates, self.final = pts, updates, True
+        class Empty(Difference): pass
+        class TooLong:
+            final = True
+            dialog = types.SimpleNamespace(pts=30)
+        class Delete:
+            channel_id, messages, pts = 123, [10], 20
+        class Edit:
+            message = types.SimpleNamespace(id=11,peer_id=types.SimpleNamespace(channel_id=123))
+            pts = 20
+        modules = {
+            'telethon.tl.functions.channels': types.SimpleNamespace(GetFullChannelRequest=Request),
+            'telethon.tl.functions.updates': types.SimpleNamespace(GetChannelDifferenceRequest=Request),
+            'telethon.tl.types': types.SimpleNamespace(ChannelMessagesFilterEmpty=Request, UpdateDeleteChannelMessages=Delete,UpdateEditChannelMessage=Edit),
+            'telethon.tl.types.updates': types.SimpleNamespace(ChannelDifference=Difference, ChannelDifferenceEmpty=Empty, ChannelDifferenceTooLong=TooLong),
+        }
+        responses = [types.SimpleNamespace(full_chat=types.SimpleNamespace(pts=10)), Difference(20, [Delete(),Edit()]), TooLong(), Empty(30)]
+        async def client(request): return responses.pop(0)
+        peer = types.SimpleNamespace(channel_id=123)
+        with tempfile.TemporaryDirectory() as directory, patch.dict('sys.modules', modules):
+            session = Path(directory) / 'private.session'
+            for expected in ['INITIALIZED', 'CURRENT', 'GAP', 'GAP']:
+                journal, state = asyncio.run(runtime.telegram_deletions(client, peer, '-100123', session))
+                self.assertEqual(state, expected)
+                rows = journal.execute('SELECT message_id FROM channel_deletes').fetchall()
+                self.assertEqual(rows, [] if expected == 'INITIALIZED' else [(10,)])
+                self.assertEqual(journal.execute('SELECT message_id FROM channel_edits').fetchall(), [] if expected=='INITIALIZED' else [(11,)])
+                journal.close()  # Simulate process restart or a lost delivery response.
+
+
+if __name__ == '__main__':
+    unittest.main()

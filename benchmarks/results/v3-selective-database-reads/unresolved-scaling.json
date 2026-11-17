@@ -1,0 +1,36 @@
+{
+  "kind": "local Miniflare D1 synthetic metadata benchmark; no paid calls or live mutations",
+  "measurements": [
+    {
+      "terminalHistory": 0,
+      "baselineRowsRead": 1,
+      "selectiveRowsRead": 1,
+      "baselineResponseBytes": 134,
+      "selectiveResponseBytes": 106,
+      "baselineDurationMs": 0,
+      "selectiveDurationMs": 0
+    },
+    {
+      "terminalHistory": 100,
+      "baselineRowsRead": 101,
+      "selectiveRowsRead": 1,
+      "baselineResponseBytes": 426534,
+      "selectiveResponseBytes": 106,
+      "baselineDurationMs": 1,
+      "selectiveDurationMs": 1
+    },
+    {
+      "terminalHistory": 1000,
+      "baselineRowsRead": 1001,
+      "selectiveRowsRead": 1,
+      "baselineResponseBytes": 4264134,
+      "selectiveResponseBytes": 106,
+      "baselineDurationMs": 15,
+      "selectiveDurationMs": 0
+    }
+  ],
+  "quiet": {
+    "rowsRead": 0,
+    "returned": 0
+  }
+}

@@ -16,13 +16,17 @@ export async function runRetentionCleanup(
   now = new Date()
 ): Promise<RetentionResult> {
   const archiveKeys = await repo.listExpiredRawPayloadKeys(now);
+  // Journal every object before removing the SQL rows that identify it. A crash or
+  // R2 failure leaves durable work for the next run, including after process restart.
+  for (const key of archiveKeys) await repo.queueArchiveDeletion(key, now);
   const deleted = await repo.deleteExpired(now);
   let archivesDeleted = 0;
   let archiveDeleteFailures = 0;
 
-  for (const key of archiveKeys) {
+  for (const key of await repo.listPendingArchiveDeletions(now)) {
     try {
       await bucket.delete(key);
+      await repo.completeArchiveDeletion(key);
       archivesDeleted += 1;
     } catch (error) {
       archiveDeleteFailures += 1;

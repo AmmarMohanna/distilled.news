@@ -1,0 +1,89 @@
+{
+  "request": {
+    "id": "d9452264acf7e5659ec79dcf508845fd89ecc3fa30967df955fcf0ebff6158d6",
+    "feedId": "briefing_57e20692-10f1-4f90-a363-42275d902c4c",
+    "window": {
+      "start": "2026-10-07T23:00:00.000Z",
+      "end": "2026-10-08T01:00:00.000Z",
+      "kind": "HOURLY",
+      "durationMinutes": 120,
+      "timezone": "Asia/Beirut",
+      "deliveryAnchor": "00:00",
+      "schedulePolicy": "local-calendar-anchors-v1"
+    },
+    "state": "FAILED",
+    "attempts": 1,
+    "createdAt": "2026-10-08T01:00:33.295Z",
+    "requireModel": true,
+    "nextAttemptAt": "2026-10-08T01:04:13.436Z",
+    "failure": "INVALID_REQUEST",
+    "_kind": "briefing_requests"
+  },
+  "selectionId": "9f9008634c5f1936e60ee64d44022d3f2e4ab7262607aebc993102c8c80ff400",
+  "verification": [
+    {
+      "id": "9f9008634c5f1936e60ee64d44022d3f2e4ab7262607aebc993102c8c80ff400",
+      "feedId": "briefing_57e20692-10f1-4f90-a363-42275d902c4c",
+      "supportedClaimIds": [
+        "4cf27e7ad0cb1746288f2265f5d0dd9e5f66263c0fd006403535e5062b8b0a16",
+        "1d460d2f6b9e2786f0241a4e068c240adeb65f23c47475ab55032cf549f64adb"
+      ],
+      "preservedFactIds": [
+        "5404486b84e9e980d21ab0aae7ea876f537b5f5c4d35e5fadc7853153e98515a",
+        "7572c49da820986bd5133678c6891c8903522094089519ad48d55a9947b5540c"
+      ],
+      "addressedCorrectionObligationIds": [],
+      "novelFactIds": [
+        "5404486b84e9e980d21ab0aae7ea876f537b5f5c4d35e5fadc7853153e98515a"
+      ],
+      "semanticChecks": [
+        {
+          "readerNovelty": {
+            "status": "NEW",
+            "reason": "No previous reader claims or facts communicated this proposition before.",
+            "previousFactTexts": []
+          },
+          "factId": "5404486b84e9e980d21ab0aae7ea876f537b5f5c4d35e5fadc7853153e98515a",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The reader claim text exactly matches the fact text, fully conveying the proposition without repetition.",
+          "readerSpans": [
+            {
+              "claimId": "4cf27e7ad0cb1746288f2265f5d0dd9e5f66263c0fd006403535e5062b8b0a16",
+              "text": "OpenAI is launching a new user interface that will bring interactive visuals to ChatGPT."
+            }
+          ]
+        },
+        {
+          "readerNovelty": {
+            "status": "ALREADY_COMMUNICATED",
+            "reason": "The previous reader claim 'The developer of the Hermes agent has successfully raised $90 million in a Series B funding round.' fully entails this fact.",
+            "previousFactTexts": [
+              "The developer of the Hermes agent has successfully raised $90 million in a Series B funding round."
+            ]
+          },
+          "factId": "7572c49da820986bd5133678c6891c8903522094089519ad48d55a9947b5540c",
+          "communicated": true,
+          "attribution": true,
+          "certainty": true,
+          "temporal": true,
+          "qualifiers": true,
+          "nonRepetitive": true,
+          "reason": "The reader claim text fully conveys the fact proposition with identical meaning and no repetition.",
+          "readerSpans": [
+            {
+              "claimId": "1d460d2f6b9e2786f0241a4e068c240adeb65f23c47475ab55032cf549f64adb",
+              "text": "The developer of Hermes Agent raised a $90 million Series B funding round."
+            }
+          ]
+        }
+      ],
+      "createdAt": "2026-10-08T01:02:57.130Z",
+      "_kind": "verification_results"
+    }
+  ]
+}

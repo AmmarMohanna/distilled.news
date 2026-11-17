@@ -1,0 +1,14 @@
+// Optional alternative to direct Worker OTLP export. Reuse an EXISTING Alloy;
+// no new host is required by the evaluator. Use only one ingestion path.
+prometheus.scrape "briefing_quality" {
+  targets = [{"__address__" = "distilled-briefing-quality.distillednews-platform.workers.dev"}]
+  scheme = "https"
+  metrics_path = "/metrics"
+  scrape_interval = "5m"
+  authorization {
+    type = "Bearer"
+    credentials = sys.env("DISTILLED_EVAL_METRICS_TOKEN")
+  }
+  // Replace with your EXISTING Grafana remote_write receiver.
+  forward_to = [prometheus.remote_write.grafana.receiver]
+}

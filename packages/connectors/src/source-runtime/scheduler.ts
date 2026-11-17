@@ -1,0 +1,86 @@
+import { sha256, HandoffError } from '@distilled/contracts';
+import type { RssRequest } from './ports';
+import type { SqlDatabase } from './storage';
+import type { RssCollectionResult, RssSourceCollector } from './rss';
+import {SourceHandoffWait,isSourceDatabaseUnavailable} from './handoff-wait';
+
+/** Separate schema proposal; install with the source schema only after migration coordination. */
+export const RSS_POLL_SCHEMA = `CREATE TABLE IF NOT EXISTS connector_rss_poll_jobs (
+ job_id TEXT PRIMARY KEY, request TEXT NOT NULL, request_hash TEXT NOT NULL,
+ due_at TEXT NOT NULL, scheduled_at TEXT NOT NULL DEFAULT '', lease_until TEXT, lease_version INTEGER NOT NULL DEFAULT 0,
+ offset INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0,
+ state TEXT NOT NULL DEFAULT 'PENDING', result TEXT, last_error TEXT);`;
+interface PollJob {
+  job_id: string; request: string; lease_version: number; offset: number; attempts: number;last_error:string|null;
+}
+
+/** Backend service, not a deployed cron or queue consumer. Enqueue each periodic poll
+ * with a new stable job/run identity; retries/continuations preserve the saved request. */
+export class D1RssPollScheduler {
+  constructor(private readonly db: SqlDatabase, private readonly collector: Pick<RssSourceCollector,'collect'>,
+    private readonly authorize: (request:RssRequest)=>Promise<boolean>,
+    private readonly now:()=>number = Date.now,private readonly coalescePending=false) {}
+
+  async schedule(jobId:string,request:RssRequest,dueAt:string):Promise<void> {
+    if (!jobId || !Number.isFinite(Date.parse(dueAt))) throw new Error('INVALID_SCHEDULE');
+    const data=JSON.stringify(request), hash=await sha256(data);
+    await this.db.prepare(`INSERT INTO connector_rss_poll_jobs(job_id,request,request_hash,due_at,scheduled_at)
+      SELECT ?,?,?,?,? ${this.coalescePending?`WHERE NOT EXISTS(SELECT 1 FROM connector_rss_poll_jobs WHERE state='PENDING'
+      AND json_extract(request,'$.scope.feedSourceId')=? AND json_extract(request,'$.configurationRevision') IS ? AND job_id<>?)`:''} ON CONFLICT DO NOTHING`)
+      .bind(jobId,data,hash,new Date(dueAt).toISOString(),new Date(dueAt).toISOString(),...(this.coalescePending?[request.scope.feedSourceId,request.configurationRevision??null,jobId]:[])).run();
+    const existing=await this.db.prepare('SELECT request_hash FROM connector_rss_poll_jobs WHERE job_id=?').bind(jobId).first<{request_hash:string}>();
+    if(!existing&&this.coalescePending)return;
+    if (existing?.request_hash !== hash) throw new HandoffError('IDEMPOTENCY_CONFLICT');
+  }
+
+  async runOne(leaseMs=120_000,jobId?:string|readonly string[]):Promise<'IDLE'|'DONE'|'RETRY'|'BLOCKED'|'CANCELLED'|'LEASE_LOST'> {
+    if (!Number.isSafeInteger(leaseMs) || leaseMs < 1000 || leaseMs > 600_000) throw new Error('INVALID_LEASE');
+    const now=new Date(this.now()).toISOString(), until=new Date(this.now()+leaseMs).toISOString();
+    const job=await this.db.prepare(`UPDATE connector_rss_poll_jobs SET lease_until=?,lease_version=lease_version+1,attempts=attempts+1
+      WHERE job_id=(SELECT j.job_id FROM connector_rss_poll_jobs j WHERE j.state='PENDING' AND j.due_at<=? AND (j.lease_until IS NULL OR j.lease_until<=?)
+        AND NOT EXISTS(SELECT 1 FROM connector_rss_poll_jobs active WHERE active.state='PENDING' AND active.lease_until>?
+          AND json_extract(active.request,'$.scope.feedSourceId')=json_extract(j.request,'$.scope.feedSourceId'))
+        ${typeof jobId==='string'?'AND j.job_id=?':''} ORDER BY CASE WHEN j.job_id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END,CASE WHEN CAST(strftime('%M',?) AS INTEGER)%4=0 OR j.offset=0 THEN 0 ELSE 1 END,j.due_at,j.job_id LIMIT 1)
+      RETURNING job_id,request,lease_version,offset,attempts,last_error`).bind(until,now,now,now,...(typeof jobId==='string'?[jobId]:[]),JSON.stringify(Array.isArray(jobId)?jobId:[]),now).first<PollJob>();
+    if (!job) return 'IDLE';
+    const heartbeat=setInterval(()=>{void this.db.prepare("UPDATE connector_rss_poll_jobs SET lease_until=? WHERE job_id=? AND lease_version=? AND state='PENDING' AND lease_until>?").bind(new Date(this.now()+leaseMs).toISOString(),job.job_id,job.lease_version,new Date(this.now()).toISOString()).run().catch(()=>{});},Math.max(250,Math.floor(leaseMs/3)));
+    try{
+    if (job.attempts > 8) return await this.finish(job,'BLOCKED',null,'RETRY_LIMIT'+(job.last_error?':'+job.last_error:'')) ? 'BLOCKED' : 'LEASE_LOST';
+    const request:RssRequest=JSON.parse(job.request);
+    try {
+      // Caller checks current FeedSource approval/config revision AND that old polling is disabled.
+      if (!await this.authorize(request)) return await this.finish(job,'CANCELLED',null) ? 'CANCELLED' : 'LEASE_LOST';
+      const result=await this.collector.collect(request,job.offset);
+      if (result.checkpoint === 'CAS_CONFLICT') return await this.finish(job,'BLOCKED',result) ? 'BLOCKED' : 'LEASE_LOST';
+      if (result.checkpoint === 'BLOCKED' || result.coverage.failureReason !== 'NONE') {
+        // Auth/invalid feeds need operator/config repair; rate limits/transient failures are rescheduled.
+        if (['AUTH_REQUIRED','UNKNOWN'].includes(result.coverage.failureReason ?? 'NONE')) return await this.finish(job,'BLOCKED',result) ? 'BLOCKED' : 'LEASE_LOST';
+        const next={...request,runId:result.checkpoint === 'BLOCKED' ? request.runId : `${request.runId}:retry:${job.attempts}`};
+        const cooldown=result.coverage.failureReason==='RATE_LIMIT'&&result.telemetry?.requests===0;
+        return await this.retry(job,next,job.offset,result,undefined,false,result.coverage.failureReason,cooldown) ? 'RETRY' : 'LEASE_LOST';
+      }
+      if (result.nextOffset !== undefined) return await this.retry(job,request,result.nextOffset,result,0,true) ? 'RETRY' : 'LEASE_LOST';
+      return await this.finish(job,'DONE',result) ? 'DONE' : 'LEASE_LOST';
+    } catch (error) {
+      if(error instanceof SourceHandoffWait)return await this.retry(job,JSON.parse(job.request),job.offset,null,5000,false,error.code,true)?'RETRY':'LEASE_LOST';
+      if(isSourceDatabaseUnavailable(error))return await this.retry(job,JSON.parse(job.request),job.offset,null,5000,false,'TEMPORARY_UNAVAILABLE',true)?'RETRY':'LEASE_LOST';
+      console.warn(JSON.stringify({type:'CONNECTOR_POLL_FAILURE',family:'rss',jobId:job.job_id,attempt:job.attempts,cause:error instanceof HandoffError?error.code:'INTERNAL_FAILURE'}));
+      // An invalid boundary response/identity conflict must be investigated, never auto-accepted.
+      if (error instanceof HandoffError && !error.retryable) return await this.finish(job,'BLOCKED',null,error.code) ? 'BLOCKED' : 'LEASE_LOST';
+      const unknown=error instanceof Error && /FETCH_OUTCOME_UNKNOWN|FETCH_ALREADY_CLAIMED/.test(error.message);
+      const next=unknown ? {...request,runId:`${request.runId}:retry:${job.attempts}`} : request;
+      return await this.retry(job,next,unknown ? 0 : job.offset,null,undefined,false,error instanceof HandoffError?error.code:unknown?'FETCH_OUTCOME_UNKNOWN':'INTERNAL_FAILURE') ? 'RETRY' : 'LEASE_LOST';
+    }
+    }finally{clearInterval(heartbeat);}
+  }
+  private async finish(job:PollJob,state:string,result:RssCollectionResult|null,error?:string) {
+    return await this.db.prepare('UPDATE connector_rss_poll_jobs SET state=?,result=COALESCE(?,result),last_error=?,lease_until=NULL WHERE job_id=? AND lease_version=? AND lease_until>? RETURNING job_id')
+      .bind(state,result===null?null:JSON.stringify(result),error ?? null,job.job_id,job.lease_version,new Date(this.now()).toISOString()).first() !== null;
+  }
+  private async retry(job:PollJob,request:RssRequest,offset:number,result:RssCollectionResult|null,delay?:number,reset=false,error?:string,wait=false) {
+    const due=new Date(Math.max(this.now()+(delay ?? Math.min(300_000,1000*2**Math.min(job.attempts,8))),
+      result?.retryNotBefore ? Date.parse(result.retryNotBefore) : 0)).toISOString();
+    return await this.db.prepare('UPDATE connector_rss_poll_jobs SET request=?,offset=?,due_at=?,result=COALESCE(?,result),last_error=?,attempts=?,lease_until=NULL WHERE job_id=? AND lease_version=? AND lease_until>? RETURNING job_id')
+      .bind(JSON.stringify(request),offset,due,result===null?null:JSON.stringify(result),error??null,reset?0:wait?Math.max(0,job.attempts-1):job.attempts,job.job_id,job.lease_version,new Date(this.now()).toISOString()).first() !== null;
+  }
+}

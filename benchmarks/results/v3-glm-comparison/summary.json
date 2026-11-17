@@ -1,0 +1,264 @@
+{
+  "at": "2026-10-24T16:49:24.173Z",
+  "status": "STOPPED_PROVIDER_ERROR_WITH_UNREPORTED_CHARGE",
+  "approvedCalls": 12,
+  "attemptedCalls": 3,
+  "completedCalls": 2,
+  "unexecutedCalls": 9,
+  "approvedMaximumUsd": 0.47,
+  "actualSettledUsd": 0.007456,
+  "unresolvedReservedUsd": 0.005,
+  "parentMaximumUsd": 2,
+  "parentActualSettledUsd": 0.14072914999999997,
+  "glm": {
+    "model": "z-ai/glm-5.3-flash",
+    "reasoning": {
+      "effort": "low"
+    },
+    "maxOutputTokens": 4000,
+    "provider": "Darkbloom",
+    "httpStatus": 522,
+    "providerError": "Provider returned error: error code 522",
+    "usageReported": false,
+    "returnedModelText": false,
+    "approxRequestElapsedMs": 20571.402587890625,
+    "timingCaveat": "Filesystem write times of durable pre-send attempt and saved error, not the normal successful-call provider timer.",
+    "interpretation": "Upstream provider/route failure. No model text, so semantic accuracy, JSON reliability and successful inference latency cannot be scored."
+  },
+  "completed": [
+    {
+      "name": "edit-en-openai_gpt-4.1",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "e16ad89a1b80686884a3d92bf7a613a824fe01f0906b9447822c1dbf7883eb03",
+      "output": {
+        "items": [
+          {
+            "headline": "U.S. Embassy in Beirut warns of unstable security and advises against travel",
+            "body": "The U.S. Embassy in Beirut has strongly advised American citizens to avoid travel to Beirut, including the Dahieh area, citing an unstable security environment and significant risks of gunfire, rocket attacks, and other armed violence.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Airstrike reported on Kfartibnit",
+            "body": "An airstrike reportedly targeted the area of Kfartibnit. No further details were provided.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "headline": "Airstrike reported on Wadi al-Hujayr",
+            "body": "An airstrike was reported to have targeted Wadi al-Hujayr. No additional information was given.",
+            "sources": [
+              "S3"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 3
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "off-topic; no Lebanon-specific developments"
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 2798,
+      "admissionMs": 2403,
+      "totalMs": 5566,
+      "requestAndSettlementMs": 3163,
+      "usage": {
+        "prompt_tokens": 2038,
+        "completion_tokens": 292,
+        "total_tokens": 2330,
+        "cost": 0.006412,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.006412,
+          "upstream_inference_prompt_cost": 0.004076,
+          "upstream_inference_completions_cost": 0.002336
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI"
+    },
+    {
+      "name": "edit-en-openai_gpt-4.1-mini",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "4b5a014d54f24f24a86c6892cccf0c21711beac1532a09670726175a8c0ac8ff",
+      "output": {
+        "items": [
+          {
+            "headline": "US Embassy in Beirut advises Americans to avoid travel amid unstable security",
+            "body": "The US Embassy in Beirut warned American citizens to avoid travel to Beirut, including the Dahieh area, due to unstable security conditions and risks of gunfire, missile attacks, and armed violence. A raid targeted Kfartabnit, and another raid struck Wadi al-Hujair, indicating ongoing violence.",
+            "sources": [
+              "S1",
+              "S3"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "focuses on regional security outside Lebanon, mainly Saudi Arabia, Iraq, Yemen, and Iran, not directly about Lebanon"
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 2973,
+      "admissionMs": 1631,
+      "totalMs": 5261,
+      "requestAndSettlementMs": 3630,
+      "usage": {
+        "prompt_tokens": 2038,
+        "completion_tokens": 143,
+        "total_tokens": 2181,
+        "cost": 0.001044,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.001044,
+          "upstream_inference_prompt_cost": 0.0008152,
+          "upstream_inference_completions_cost": 0.0002288
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI"
+    }
+  ],
+  "editorReview": [
+    {
+      "model": "openai/gpt-4.1",
+      "observations": [
+        "All three developments retained as separate items, with S1/S3 ownership preserved.",
+        "Two strike bodies include routine missing-detail filler despite no publication history.",
+        "No independent complete factual audit or final verification was run."
+      ]
+    },
+    {
+      "model": "openai/gpt-4.1-mini",
+      "observations": [
+        "All three developments appear, bundled under a single embassy-warning item.",
+        "Adds \"indicating ongoing violence\" as editorial inference.",
+        "Bundling is a product/editorial concern; this is not evidence of a canonical false event merge.",
+        "No independent complete factual audit or final verification was run."
+      ]
+    }
+  ],
+  "decision": "No winner selected. Keep existing routing unchanged.",
+  "retries": 0,
+  "repairs": 0,
+  "publication": false,
+  "deployment": false,
+  "outputCleanup": false,
+  "limitations": [
+    "English editor results only; Arabic editing and all verification comparisons were not executed.",
+    "One upstream GLM failure is not evidence that the model itself is inaccurate or universally unavailable.",
+    "The unresolved $0.005 reservation is preserved; no assumption of zero cost or settlement reset.",
+    "No new paid requests after the uncertain charge."
+  ],
+  "requestHashes": [
+    {
+      "name": "edit-en-openai_gpt-4.1",
+      "requestSha256": "e16ad89a1b80686884a3d92bf7a613a824fe01f0906b9447822c1dbf7883eb03",
+      "executed": true
+    },
+    {
+      "name": "edit-en-openai_gpt-4.1-mini",
+      "requestSha256": "4b5a014d54f24f24a86c6892cccf0c21711beac1532a09670726175a8c0ac8ff",
+      "executed": true
+    },
+    {
+      "name": "edit-en-z-ai_glm-5.3-flash",
+      "requestSha256": "5bd07d19a90985e5fbcdfbee964b55f362756741f0de96a54699ce3094a675be",
+      "executed": true
+    },
+    {
+      "name": "edit-ar-openai_gpt-4.1",
+      "requestSha256": "fa489628d0b986a04d72f370c7752e5b6596276b6b3f90681c3eea0814df641c",
+      "executed": false
+    },
+    {
+      "name": "edit-ar-openai_gpt-4.1-mini",
+      "requestSha256": "7c0964581b9ef7b6a98cfb5f997c62413eb2c1ff4142cd3d9ea6cd229aa2e889",
+      "executed": false
+    },
+    {
+      "name": "edit-ar-z-ai_glm-5.3-flash",
+      "requestSha256": "01636ccb02e50179a24d72834264b0709fbed0429ff640f38dcfea96c476b687",
+      "executed": false
+    },
+    {
+      "name": "verify-incorrect-openai_gpt-4.1",
+      "requestSha256": "11e0bcaf727a4bd618150312c2cd65abc1d166473f23368a763e8ebe57ebbeba",
+      "executed": false
+    },
+    {
+      "name": "verify-incorrect-openai_gpt-4.1-mini",
+      "requestSha256": "371698a9c2ddf0d9a5525dd4d1e2988984f5d882b133304a30ec0a4195c0677f",
+      "executed": false
+    },
+    {
+      "name": "verify-incorrect-z-ai_glm-5.3-flash",
+      "requestSha256": "5e7df9107020a42dd6d7782466d28be88677412e256316529cccd0b22a22570d",
+      "executed": false
+    },
+    {
+      "name": "verify-supported-openai_gpt-4.1",
+      "requestSha256": "efab7925c53bd30ac4954a3977ed7f968594a7bf102a077b21d35df49fbb0476",
+      "executed": false
+    },
+    {
+      "name": "verify-supported-openai_gpt-4.1-mini",
+      "requestSha256": "c1e7e35e5ef3c69eac2e8a05f2ed52a61e688b6094940735e7856c5279985afa",
+      "executed": false
+    },
+    {
+      "name": "verify-supported-z-ai_glm-5.3-flash",
+      "requestSha256": "c2f72024a215726c98ae3a1096b6251a18b07f3ddad1237e3482a29f64c57340",
+      "executed": false
+    }
+  ]
+}

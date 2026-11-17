@@ -1,0 +1,248 @@
+{
+  "schemaVersion": "agentops-local-validation.v1",
+  "evidence": "Synthetic loopback fixture only. Not application, Cloudflare, provider or production capacity.",
+  "codeHead": "cd967db28f64031de2b51d01215452dee077f481",
+  "workload": "evaluation/performance-reliability/k6/WORKLOAD.v1.md",
+  "results": [
+    {
+      "profile": "smoke",
+      "mode": "OFFLINE_CONTRACT",
+      "commit": "cd967db28f64031de2b51d01215452dee077f481",
+      "harnessSha256": "981d8b6fdf9eafb20887014f0674919a9dee2251015dd8f7648119c914796bfe",
+      "k6Version": "k6.exe v1.3.0 (commit/5870e99ae8, go1.25.1, windows/amd64)",
+      "workingTreeDirty": false,
+      "startedAt": "2026-10-30T07:38:09.899Z",
+      "finishedAt": "2026-10-30T07:38:16.457Z",
+      "exitCode": 0,
+      "expectedThresholdFailure": false,
+      "measuredRequests": 10,
+      "journeySuccess": {
+        "rate": 1,
+        "passes": 10,
+        "fails": 0
+      },
+      "droppedIterations": 0,
+      "latencyR7": {
+        "unit": "ms",
+        "n": 10,
+        "p50": 1.10005,
+        "p95": 1.7010349999999996,
+        "min": 0.5335,
+        "max": 1.8143,
+        "method": "Hyndman-Fan-R7",
+        "inference": "descriptive-only",
+        "tailWarning": "Fewer than 100 completed observations; tail estimate is exploratory."
+      }
+    },
+    {
+      "profile": "load",
+      "mode": "OFFLINE_CONTRACT",
+      "commit": "cd967db28f64031de2b51d01215452dee077f481",
+      "harnessSha256": "981d8b6fdf9eafb20887014f0674919a9dee2251015dd8f7648119c914796bfe",
+      "k6Version": "k6.exe v1.3.0 (commit/5870e99ae8, go1.25.1, windows/amd64)",
+      "workingTreeDirty": false,
+      "startedAt": "2026-10-30T07:38:16.778Z",
+      "finishedAt": "2026-10-30T07:38:55.087Z",
+      "exitCode": 0,
+      "expectedThresholdFailure": false,
+      "measuredRequests": 61,
+      "journeySuccess": {
+        "rate": 1,
+        "passes": 61,
+        "fails": 0
+      },
+      "droppedIterations": 0,
+      "latencyR7": {
+        "unit": "ms",
+        "n": 61,
+        "p50": 0.6285,
+        "p95": 1.2623,
+        "min": 0,
+        "max": 2.5683,
+        "method": "Hyndman-Fan-R7",
+        "inference": "descriptive-only",
+        "tailWarning": "Fewer than 100 completed observations; tail estimate is exploratory."
+      }
+    },
+    {
+      "profile": "spike",
+      "mode": "OFFLINE_CONTRACT",
+      "commit": "cd967db28f64031de2b51d01215452dee077f481",
+      "harnessSha256": "981d8b6fdf9eafb20887014f0674919a9dee2251015dd8f7648119c914796bfe",
+      "k6Version": "k6.exe v1.3.0 (commit/5870e99ae8, go1.25.1, windows/amd64)",
+      "workingTreeDirty": false,
+      "startedAt": "2026-10-30T07:38:55.255Z",
+      "finishedAt": "2026-10-30T07:39:20.656Z",
+      "exitCode": 0,
+      "expectedThresholdFailure": false,
+      "measuredRequests": 72,
+      "journeySuccess": {
+        "rate": 1,
+        "passes": 72,
+        "fails": 0
+      },
+      "droppedIterations": 0,
+      "latencyR7": {
+        "unit": "ms",
+        "n": 72,
+        "p50": 0.4304,
+        "p95": 1.141,
+        "min": 0,
+        "max": 1.6252,
+        "method": "Hyndman-Fan-R7",
+        "inference": "descriptive-only",
+        "tailWarning": "Fewer than 100 completed observations; tail estimate is exploratory."
+      }
+    },
+    {
+      "profile": "fault-proof",
+      "mode": "OFFLINE_CONTRACT",
+      "commit": "cd967db28f64031de2b51d01215452dee077f481",
+      "harnessSha256": "981d8b6fdf9eafb20887014f0674919a9dee2251015dd8f7648119c914796bfe",
+      "k6Version": "k6.exe v1.3.0 (commit/5870e99ae8, go1.25.1, windows/amd64)",
+      "workingTreeDirty": false,
+      "startedAt": "2026-10-30T07:39:20.819Z",
+      "finishedAt": "2026-10-30T07:39:27.786Z",
+      "exitCode": 99,
+      "expectedThresholdFailure": true,
+      "measuredRequests": 10,
+      "journeySuccess": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 10
+      },
+      "droppedIterations": 0,
+      "latencyR7": {
+        "unit": "ms",
+        "n": 10,
+        "p50": 0.5595000000000001,
+        "p95": 1.1559799999999996,
+        "min": 0,
+        "max": 1.3493,
+        "method": "Hyndman-Fan-R7",
+        "inference": "descriptive-only",
+        "tailWarning": "Fewer than 100 completed observations; tail estimate is exploratory."
+      }
+    },
+    {
+      "profile": "fault",
+      "mode": "OFFLINE_CONTRACT",
+      "commit": "cd967db28f64031de2b51d01215452dee077f481",
+      "harnessSha256": "981d8b6fdf9eafb20887014f0674919a9dee2251015dd8f7648119c914796bfe",
+      "k6Version": "k6.exe v1.3.0 (commit/5870e99ae8, go1.25.1, windows/amd64)",
+      "workingTreeDirty": false,
+      "startedAt": "2026-10-30T07:39:27.930Z",
+      "finishedAt": "2026-10-30T07:39:31.726Z",
+      "exitCode": 0,
+      "expectedThresholdFailure": false,
+      "measuredRequests": 12,
+      "journeySuccess": {
+        "fails": 0,
+        "rate": 1,
+        "passes": 12
+      },
+      "droppedIterations": 0,
+      "latencyR7": {
+        "unit": "ms",
+        "n": 12,
+        "p50": 1.0108000000000001,
+        "p95": 2.659189999999999,
+        "min": 0.4601,
+        "max": 3.6691,
+        "method": "Hyndman-Fan-R7",
+        "inference": "descriptive-only",
+        "tailWarning": "Fewer than 100 completed observations; tail estimate is exploratory."
+      }
+    },
+    {
+      "profile": "stress",
+      "mode": "OFFLINE_CONTRACT",
+      "commit": "cd967db28f64031de2b51d01215452dee077f481",
+      "harnessSha256": "981d8b6fdf9eafb20887014f0674919a9dee2251015dd8f7648119c914796bfe",
+      "k6Version": "k6.exe v1.3.0 (commit/5870e99ae8, go1.25.1, windows/amd64)",
+      "workingTreeDirty": false,
+      "startedAt": "2026-10-30T07:39:31.908Z",
+      "finishedAt": "2026-10-30T07:41:40.188Z",
+      "exitCode": 0,
+      "expectedThresholdFailure": false,
+      "measuredRequests": 1080,
+      "journeySuccess": {
+        "rate": 1,
+        "passes": 1080,
+        "fails": 0
+      },
+      "droppedIterations": 0,
+      "latencyR7": {
+        "unit": "ms",
+        "n": 1080,
+        "p50": 1.08935,
+        "p95": 1.9872449999999993,
+        "min": 0,
+        "max": 6.0203,
+        "method": "Hyndman-Fan-R7",
+        "inference": "descriptive-only",
+        "tailWarning": "Sample size alone does not establish tail precision or independence."
+      }
+    },
+    {
+      "profile": "soak",
+      "mode": "OFFLINE_CONTRACT",
+      "commit": "cd967db28f64031de2b51d01215452dee077f481",
+      "harnessSha256": "981d8b6fdf9eafb20887014f0674919a9dee2251015dd8f7648119c914796bfe",
+      "k6Version": "k6.exe v1.3.0 (commit/5870e99ae8, go1.25.1, windows/amd64)",
+      "workingTreeDirty": false,
+      "startedAt": "2026-10-30T07:41:40.345Z",
+      "finishedAt": "2026-10-30T07:46:48.616Z",
+      "exitCode": 0,
+      "expectedThresholdFailure": false,
+      "measuredRequests": 1500,
+      "journeySuccess": {
+        "fails": 0,
+        "rate": 1,
+        "passes": 1500
+      },
+      "droppedIterations": 0,
+      "latencyR7": {
+        "unit": "ms",
+        "n": 1500,
+        "p50": 1.04315,
+        "p95": 1.9143149999999998,
+        "min": 0,
+        "max": 5.2115,
+        "method": "Hyndman-Fan-R7",
+        "inference": "descriptive-only",
+        "tailWarning": "Sample size alone does not establish tail precision or independence."
+      }
+    },
+    {
+      "profile": "recovery",
+      "mode": "OFFLINE_CONTRACT",
+      "commit": "cd967db28f64031de2b51d01215452dee077f481",
+      "harnessSha256": "981d8b6fdf9eafb20887014f0674919a9dee2251015dd8f7648119c914796bfe",
+      "k6Version": "k6.exe v1.3.0 (commit/5870e99ae8, go1.25.1, windows/amd64)",
+      "workingTreeDirty": false,
+      "startedAt": "2026-10-30T07:46:48.783Z",
+      "finishedAt": "2026-10-30T07:47:11.496Z",
+      "exitCode": 0,
+      "expectedThresholdFailure": false,
+      "measuredRequests": 16,
+      "journeySuccess": {
+        "passes": 16,
+        "fails": 0,
+        "rate": 1
+      },
+      "droppedIterations": 0,
+      "latencyR7": {
+        "unit": "ms",
+        "n": 16,
+        "p50": 1.4855999999999998,
+        "p95": 2.572975,
+        "min": 0.5145,
+        "max": 3.0598,
+        "method": "Hyndman-Fan-R7",
+        "inference": "descriptive-only",
+        "tailWarning": "Fewer than 100 completed observations; tail estimate is exploratory."
+      }
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import type {
   SourceProvider,
   SourceType
 } from "@distilled/core";
+import type {AuthenticatedBrowserContainer} from "./cloudflare-container-browser";
 
 export type ProcessingJobState = "queued" | "completed" | "failed";
 export type SourceRunState = "queued" | "running" | "succeeded" | "failed";
@@ -47,6 +48,8 @@ export interface AuthTokenRecord {
 }
 
 export interface ProcessingJobRecord {
+  leaseUntil?:string;
+  attempts?:number;
   id: string;
   briefingId: string;
   rawMessageId: string;
@@ -55,34 +58,232 @@ export interface ProcessingJobRecord {
   updatedAt: string;
 }
 
-export interface Env {
-  DB: D1Database;
-  RAW_ARCHIVE: R2Bucket;
+export interface Env extends Cloudflare.Env {
+  AGENTOPS_ENABLED?: string;
+  MAIL_TRANSPORT?: "CLOUDFLARE" | "OUTLOOK_GRAPH";
+  VERIFICATION_MAIL_TRANSPORT?: "GMAIL_API" | "CLOUDFLARE" | "OUTLOOK_GRAPH";
+  GMAIL_FROM?: string;
+  GMAIL_CLIENT_ID?: string;
+  GMAIL_CLIENT_SECRET?: string;
+  GMAIL_REFRESH_TOKEN?: string;
+  OUTLOOK_CLIENT_ID?: string;
+  OUTLOOK_REFRESH_TOKEN?: string;
+  OUTLOOK_TOKEN_ENCRYPTION_KEY?: string;
+  PRODUCT_FEEDS_ENABLED?: string;
+  SOURCE_RECOMMENDATIONS_ENABLED?: string;
+  SOURCE_DISCOVERY_MODEL?: string;
+  SOURCE_RECOMMENDATIONS_FAST_CATALOG?: string;
+  SOURCE_RECOMMENDATIONS_WEB_SEARCH?: string;
+  SOURCE_RECOMMENDATIONS_WEB_HTML?: string;
+  SOURCE_RECOMMENDATIONS_GOOGLE_NEWS?: string;
+  SOURCE_ASSESSMENT_ENABLED?: string;
+  SOURCE_CONNECTORS_ENABLED?: string;
+  SOURCE_QUEUE_SCHEDULING_ENABLED?: string;
+  V1_REVIEW_PREPARATION_ISOLATED?: string;
+  SOURCE_SHARED_PUBLIC_FETCH_ENABLED?: string;
+  SOURCE_FULL_ARTICLES_ENABLED?: string;
+  SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS?: string;
+  SOURCE_COLLECTION_BUDGET_MODE?: 'limited'|'unlimited';
+  SOURCE_PER_PROVIDER_BUDGET_USD?: string;
+  SOURCE_COLLECTION_INTERVAL_MS?: string;
+  SOURCE_COLLECTION_QUEUE?: Queue<import('./connector-scheduling').ConnectorQueueMessage>;
+  SOURCE_SCHEDULING_QUEUE?: Queue<import('./connector-scheduling').ConnectorQueueMessage>;
+  SOURCE_POLL_MAX_JOBS_PER_TICK?: string;
+  SOURCE_POLL_TICK_BUDGET_MS?: string;
+  STAGING_ASSETS_PREFIX?: string;
+  STAGING_MISSION_FEED_ID?: string;
+  STAGING_GROUPING_RUN_POLICY?: string;
+  STAGING_MISSION_TOKEN?: string;
+  SOURCE_LEGACY_POLLING_ENABLED?: string;
+  SOURCE_OPERATION_CEILINGS_JSON?: string;
+  SOURCE_PROVIDER_BUDGETS_JSON?: string;
+  SOURCE_PER_SOURCE_BUDGET_USD?: string;
+  SOURCE_EXECUTION_URL?: string;
+  SOURCE_EXECUTION_TOKEN?: string;
+  SOURCE_GOOGLE_RESOLUTION_ENABLED?: string;
+  SOURCE_QA_MAINTENANCE_TOKEN?: string;
+  SOURCE_EXECUTION_SERVICE?: Fetcher;
+  TWITTERAPI_IO_API_KEY?: string;
+  ZYTE_API_KEY?: string;
+  V1_DOWNSTREAM_ENABLED?: string;
+  V1_EDITORIAL_PLAN_ENABLED?: string;
+  /** Default LEGACY. No Wrangler environment enables v2. */
+  V1_PUBLICATION_VALIDATION_CONTRACT?: 'LEGACY'|'EVIDENCE_GROUNDED_V2';
+  V1_PUBLICATION_PREPARATION_ISOLATED?:string;
+    V1_EDITORIAL_MODEL_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
+    V1_EDITORIAL_RANKING_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
+    V1_REAL_MODEL_REQUIRED?: string;
+  V1_SYNTHESIS_MODEL_ENABLED?: string;
+  V1_SALIENCE_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
+  V1_SEMANTIC_POLICY?: 'DETERMINISTIC'|'SEMANTIC';
+  V1_SEMANTIC_STRONG_MODEL?: string;
+  V1_MODEL_CAPABILITIES_JSON?: string;
+  V1_INFERENCE_CONCURRENCY?: string;
+  V1_RECONCILIATION_MODE?: 'CLAIMS'|'DEVELOPMENTS';
+  V1_LLM_ROUTES_JSON?: string;
+  V1_PROVIDER_MAX_CONCURRENCY?: string;
+  V1_MODEL_UNCERTAIN_EXECUTION_POLICY?: 'isolate-after-5m-v1';
+  V1_PROVIDER_REQUESTS_PER_MINUTE?: string;
+  AI?: import("./workers-ai").WorkersAiBinding;
+  V1_JEV_SALIENCE_MODEL?: string;
+  V1_GPT_SALIENCE_MODEL?: string;
+  V1_BROWSER_ACQUISITION_ENABLED?: string;
+  V1_DOWNSTREAM_FEED_SOURCE_IDS?: string;
+  DISTILLED_NEWS_PIPELINE_EVALUATION?:string;
+  DISTILLED_DISCOVERY_DECISION_MODE?:"GENERATIVE_ONLY"|"JEV_HYBRID";
+  DISTILLED_JEV_MODEL?:string;
+  SOURCE_ASSESSMENT_MODEL?:string;
+  SOURCE_ASSESSMENT_SHARED_MODEL_CAPACITY_ENABLED?:string;
+  DISTILLED_JEV_CONFIDENCE_THRESHOLD?:string;
+  BROWSER: Cloudflare.Env["BROWSER"];
+  AUTHENTICATED_BROWSER_CONTAINER: DurableObjectNamespace<AuthenticatedBrowserContainer>;
   PROCESSING_QUEUE: Queue<DistilledQueueMessage>;
-  EMAIL?: SendEmail;
-  ASSETS?: Fetcher;
+  IMAGE_QUEUE?: Queue<import('./feed-sketch-jobs').FeedSketchMessage>;
+  V1_PROCESSING_QUEUE?: Queue<DistilledQueueMessage>;
+  V1_ACQUISITION_QUEUE?: Queue<DistilledQueueMessage>;
+  WEB_OPERATOR_QUEUE: Queue<WebOperatorQueueMessage>;
+  WEB_OPERATOR_RUNTIME_URL: string;
+  WEB_OPERATOR_RUNTIME_TOKEN?: string;
+  AUTHENTICATED_SECRETS: R2Bucket;
+  AUTH_PROFILE_ENCRYPTION_KEYS?: string;
+  AUTH_PROFILE_ACTIVE_KEY_ID?: string;
+  AUTH_PROFILE_BOOTSTRAP_TOKEN?: string;
   ADMIN_SESSION_SECRET?: string;
   ADMIN_SETUP_TOKEN?: string;
   INTERNAL_MAINTENANCE_SECRET?: string;
-  EMAIL_FROM?: string;
-  PUBLIC_API_BASE_URL?: string;
-  PUBLIC_WEB_BASE_URL?: string;
+  STORAGE_MAINTENANCE_ENABLED?: string;
+  SOURCE_DAILY_BUDGET_USD?: string;
+  SOURCE_BUDGET_TIME_ZONE?: string;
+  SOURCE_PAID_VERIFICATION_ENABLED?: string;
+  SOURCE_NATIVE_EXECUTION_ENABLED?: string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
-  CLOUDFLARE_ACCOUNT_ID?: string;
-  CLOUDFLARE_AI_GATEWAY_ID?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
   CLOUDFLARE_AI_GATEWAY_TOKEN?: string;
+  CLOUDFLARE_IMAGE_ACCOUNT_ID?: string;
+  CLOUDFLARE_IMAGE_API_TOKEN?: string;
   OPENAI_API_KEY?: string;
-  OPENAI_MODEL?: string;
   OPENAI_INPUT_PRICE_USD_PER_MILLION_TOKENS?: string;
   OPENAI_OUTPUT_PRICE_USD_PER_MILLION_TOKENS?: string;
   APIFY_API_TOKEN?: string;
-  APIFY_GOOGLE_NEWS_ACTOR_ID?: string;
-  APIFY_X_ACTOR_ID?: string;
-  APIFY_LINKEDIN_COMPANY_ACTOR_ID?: string;
-  APIFY_LINKEDIN_PROFILE_ACTOR_ID?: string;
   APIFY_X_PRICE_USD_PER_1000_RESULTS?: string;
+  DISTILLED_LLM_MODE: string;
+  DISTILLED_LLM_API_GATEWAY: string;
+  DISTILLED_LLM_GATEWAY?: string;
+  DISTILLED_BROWSER_BACKEND: string;
+  DISTILLED_BROWSER_PROVIDER?: string;
+  SELF_HOSTED_BROWSER_BRIDGE_URL?: string;
+  SELF_HOSTED_BROWSER_BRIDGE_AUTH?: string;
+  BRIDGE_PREFLIGHT_TOKEN?: string;
+  ENVIRONMENT?: string;
+  DISTILLED_MODEL_CALL_TIMEOUT_MS: string;
+  DISTILLED_RUN_SETTLEMENT_RESERVE_MS: string;
+  DISTILLED_SELF_HOSTED_BASE_URL?: string;
+  DISTILLED_SELF_HOSTED_API_KEY?: string;
+  OPENROUTER_API_KEY?: string;
+  /** "v3" switches scheduled editions to the V3 briefing engine; anything else keeps the legacy path. */
+  BRIEFING_ENGINE?: string;
+  V3_BACKLOG_CATCHUP_ENABLED?: string;
+  CUTOFF_EDITIONS_ENABLED?: string;
+  WINDOW_READINESS_MODE?: 'shadow'|'relay';
+  WINDOW_READINESS_FEED_IDS?: string;
+  EDITION_ARTIFACTS_ENABLED?: string;
+  /** "true" caches feed-page reads per isolate, keyed by v1_feed_read_versions (0095). Off by default. */
+  FEED_READ_CACHE_ENABLED?: string;
+  /** Seconds the feed page's collection status may be reused (0–120, default 15). */
+  FEED_STATUS_CACHE_SECONDS?: string;
+  /** "true" (with EDITION_ARTIFACTS_ENABLED) backfills R2 copies of published V3 editions in Cron, a few per tick. */
+  EDITION_ARTIFACT_BACKFILL_ENABLED?: string;
+  /** "true" sends read-only routes through a D1 session that read replicas may serve. Needs read replication on the database. */
+  D1_READ_SESSIONS_ENABLED?: string;
+  /** Admin pipeline traces one isolate runs at once before answering 429 (1-10, default 2). */
+  ADMIN_TRACE_MAX_CONCURRENT?: string;
+  VERIFIED_ARCHIVE_ENABLED?: string;
+  /** Isolated performance deployment only. All are disabled by default. */
+  AGENTOPS_CAMPAIGN_ENABLED?: string;
+  AGENTOPS_CAMPAIGN_ISOLATED?: string;
+  AGENTOPS_CAMPAIGN_ALLOW_FAULTS?: string;
+  UNREAD_SUMMARY_ENABLED?: string;
+  /** Version 5 is opt-in pending real novelty/false-rejection qualification. */
+  BRIEFING_PROMPT_VERSION?: "4" | "5" | "6";
+  BRIEFING_WORDING_FIDELITY_ENABLED?: string;
+  BRIEFING_TOPIC_SELECTION_ENABLED?: string;
+  BRIEFING_EDITOR_MODEL?: string;
+  BRIEFING_VERIFIER_MODEL?: string;
+  /** Required for V3: rolling 24h dollar ceiling across all feeds. V3 does not run without it. */
+  BRIEFING_V3_DAILY_BUDGET_USD?: string;
+  /** Optional ceiling for one feed window (default $0.50, never above the daily cap). */
+  BRIEFING_V3_RUN_BUDGET_USD?: string;
+  /** Optional JSON {"model":{"input":usdPerMTok,"output":usdPerMTok}} for models not in the built-in table. */
+  BRIEFING_PRICES_JSON?: string;
+  ANTHROPIC_API_KEY?: string;
+  DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE?: string;
+  DISTILLED_LIVE_PUBLIC_CANDIDATE_URL?: string;
+  DISTILLED_LIVE_OPENROUTER_MODEL?: string;
+  DISTILLED_LIVE_OPENROUTER_PROVIDER?: string;
+  DISTILLED_LIVE_OPENROUTER_PROVIDER_ROUTING?: string;
+  DISTILLED_LIVE_OPENROUTER_PROVIDER_ENDPOINTS_JSON?: string;
+  DISTILLED_LIVE_OPENROUTER_INPUT_COST_PER_MILLION?: string;
+  DISTILLED_LIVE_OPENROUTER_OUTPUT_COST_PER_MILLION?: string;
+  DISTILLED_LIVE_MODEL_CALL_LIMIT?: string;
+  DISTILLED_LIVE_INPUT_TOKEN_LIMIT?: string;
+  DISTILLED_LIVE_OUTPUT_TOKEN_LIMIT?: string;
+  DISTILLED_LIVE_MODEL_COST_LIMIT_USD?: string;
+  DISTILLED_LIVE_BROWSER_ACTION_LIMIT?: string;
+  DISTILLED_LIVE_NAVIGATION_LIMIT?: string;
+  DISTILLED_LIVE_WALL_CLOCK_LIMIT_MS?: string;
+  DISTILLED_OPENROUTER_DIAGNOSTIC_ENABLED?: string;
+  DISTILLED_OPENROUTER_DIAGNOSTIC_TIMEOUT_MS?: string;
+  DISTILLED_OPENROUTER_DIAGNOSTIC_START_STAGE?: string;
+  DISTILLED_OPENROUTER_DIAGNOSTIC_PROFILE?: string;
+  DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY?: string;
+  DISTILLED_MODEL_ROLE_NAVIGATION_FAST_PRIMARY_DEPLOYMENT?: string;
+  DISTILLED_MODEL_ROLE_NAVIGATION_FAST_FALLBACKS_JSON?: string;
+  DISTILLED_MODEL_ROLE_EXTRACTION_FAST_PRIMARY?: string;
+  DISTILLED_MODEL_ROLE_EXTRACTION_FAST_PRIMARY_DEPLOYMENT?: string;
+  DISTILLED_MODEL_ROLE_EXTRACTION_FAST_FALLBACKS_JSON?: string;
+  DISTILLED_MODEL_ROLE_VISION_FAST_PRIMARY?: string;
+  DISTILLED_MODEL_ROLE_VISION_FAST_PRIMARY_DEPLOYMENT?: string;
+  DISTILLED_MODEL_ROLE_VISION_FAST_FALLBACKS_JSON?: string;
+  DISTILLED_MODEL_ROLE_REASONING_STANDARD_PRIMARY?: string;
+  DISTILLED_MODEL_ROLE_REASONING_STANDARD_PRIMARY_DEPLOYMENT?: string;
+  DISTILLED_MODEL_ROLE_REASONING_STANDARD_FALLBACKS_JSON?: string;
+  DISTILLED_MODEL_ROLE_REASONING_STRONG_PRIMARY?: string;
+  DISTILLED_MODEL_ROLE_REASONING_STRONG_PRIMARY_DEPLOYMENT?: string;
+  DISTILLED_MODEL_ROLE_REASONING_STRONG_FALLBACKS_JSON?: string;
+  DISTILLED_MODEL_ROLE_VISION_STRONG_PRIMARY?: string;
+  DISTILLED_MODEL_ROLE_VISION_STRONG_PRIMARY_DEPLOYMENT?: string;
+  DISTILLED_MODEL_ROLE_VISION_STRONG_FALLBACKS_JSON?: string;
+  DISTILLED_MODEL_ROLE_ADAPTER_REPAIR_PRIMARY?: string;
+  DISTILLED_MODEL_ROLE_ADAPTER_REPAIR_PRIMARY_DEPLOYMENT?: string;
+  DISTILLED_MODEL_ROLE_ADAPTER_REPAIR_FALLBACKS_JSON?: string;
+  DISTILLED_MODEL_ROLE_SEMANTIC_VERIFIER_PRIMARY?: string;
+  DISTILLED_MODEL_ROLE_SEMANTIC_VERIFIER_PRIMARY_DEPLOYMENT?: string;
+  DISTILLED_MODEL_ROLE_SEMANTIC_VERIFIER_FALLBACKS_JSON?: string;
 }
+
+export interface WebOperatorRunMessage {
+  type: "web_operator_run";
+  runId: string;
+}
+
+export interface WebOperatorLiveSmokeMessage {
+  type: "live_public_acquisition_smoke";
+  requestId: string;
+}
+export interface PublicAcquisitionRequestMessage { type: "public_acquisition_request"; requestId: string }
+export interface AuthenticatedXAcquisitionRequestMessage { type: "authenticated_x_acquisition_request"; requestId: string }
+
+export interface OpenRouterModelDiagnosticMessage {
+  type:"openrouter_model_diagnostic";
+  requestId:string;
+}
+export interface AuthenticatedProfileBootstrapMessage{type:"authenticated_profile_bootstrap";requestId:string}
+export interface AuthenticatedSurfaceDiagnosticMessage{type:"authenticated_surface_diagnostic";requestId:string}
+
+export type WebOperatorQueueMessage = WebOperatorRunMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | AuthenticatedXAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | AuthenticatedSurfaceDiagnosticMessage;
 
 export interface ProcessingJobMessage {
   type?: "process_raw_message";
@@ -98,7 +299,7 @@ export interface SourceRefreshJobMessage {
   force?: boolean;
 }
 
-export type DistilledQueueMessage = ProcessingJobMessage | SourceRefreshJobMessage;
+export type DistilledQueueMessage = import('./feed-sketch-jobs').FeedSketchMessage | import('./connector-scheduling').ConnectorQueueMessage | {type:'v1_manual_briefing';feedId:string;requestId:string} | ProcessingJobMessage | SourceRefreshJobMessage | WebOperatorLiveSmokeMessage | PublicAcquisitionRequestMessage | OpenRouterModelDiagnosticMessage | AuthenticatedProfileBootstrapMessage | {type:'v1_acquisition'|'v1_reassess';jobId:string} | {type:'v1_rematch';feedId:string;requestId:string} | import('./v1-intelligence/runtime').V1BriefingMessage | import('./v1-intelligence/window-readiness').WindowReadinessWake;
 
 export interface SourceRecord {
   id: string;
@@ -186,13 +387,16 @@ export interface Repository {
   countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number>;
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
-  listBriefings(accountId?: string): Promise<BriefingConfig[]>;
-  listExploreBriefings(limit: number): Promise<BriefingConfig[]>;
+  listBriefings(accountId?: string, voterId?: string): Promise<BriefingConfig[]>;
+  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>>;
+  getExploreRevision(): Promise<string>;
+  setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;
   getBriefingBySlug(ownerAccountId: string, slug: string): Promise<BriefingConfig | null>;
   hasBriefingStar(briefingId: string, voterId: string): Promise<boolean>;
   setBriefingStar(briefingId: string, voterId: string, starred: boolean, now?: Date): Promise<number>;
   upsertBriefing(input: BriefingConfig, now?: Date): Promise<BriefingConfig>;
+  saveFeedConfiguration(input:BriefingConfig,sources:Parameters<Repository['upsertConfiguredSource']>[0][],previous:BriefingConfig|null,now?:Date):Promise<{briefing:BriefingConfig;sourceIds:string[]}>;
   deleteBriefing(id: string, now?: Date): Promise<void>;
   listSources(briefingId: string): Promise<SourceRecord[]>;
   getSource(sourceId: string): Promise<SourceRecord | null>;
@@ -200,6 +404,7 @@ export interface Repository {
   deleteSource(sourceId: string): Promise<void>;
   upsertConfiguredSource(input: {
     briefingId: string;
+    identityKey?: string;
     title: string;
     type?: SourceType;
     provider: SourceProvider;
@@ -225,10 +430,14 @@ export interface Repository {
   }, now?: Date): Promise<void>;
   upsertSourceFromMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<SourceRecord>;
   saveRawMessage(briefingId: string, message: NormalizedMessage, now?: Date): Promise<void>;
+  updateRawMessage(message: NormalizedMessage): Promise<void>;
   getRawMessage(id: string): Promise<NormalizedMessage | null>;
   listRecentRawMessages(briefingId: string, now?: Date, limit?: number): Promise<NormalizedMessage[]>;
   listRawMessagesForWindow(briefingId: string, windowStart: string, windowEnd: string, limit?: number): Promise<NormalizedMessage[]>;
   createProcessingJob(briefingId: string, rawMessageId: string, now?: Date): Promise<string>;
+  recordProcessingOutcome(jobId:string,result:Record<string,unknown>):Promise<void>;
+  getProcessingJob(jobId:string):Promise<ProcessingJobRecord|null>;
+  claimProcessingJob(jobId:string,briefingId:string,now?:Date):Promise<boolean>;
   completeProcessingJob(jobId: string, now?: Date): Promise<void>;
   failProcessingJob(jobId: string, error: string, now?: Date): Promise<void>;
   listProcessingJobs(input?: {
@@ -283,6 +492,7 @@ export interface Repository {
     since: string;
   }): Promise<number>;
   recordLlmUsage(input: {
+    provider?:string;phase?:string;outcome?:string;latencyMs?:number;reportedCostUsd?:number;
     briefingId: string;
     model: string;
     purpose: "summary" | "importance_review" | "event_review";
@@ -297,5 +507,8 @@ export interface Repository {
   getSetting(key: string): Promise<string | null>;
   setSetting(key: string, value: string, now?: Date): Promise<void>;
   listExpiredRawPayloadKeys(now?: Date): Promise<string[]>;
+  queueArchiveDeletion(key: string, now?: Date): Promise<void>;
+  listPendingArchiveDeletions(now?: Date): Promise<string[]>;
+  completeArchiveDeletion(key: string): Promise<void>;
   deleteExpired(now?: Date): Promise<number>;
 }

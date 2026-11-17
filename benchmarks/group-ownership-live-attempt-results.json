@@ -1,0 +1,148 @@
+{
+  "commit": "e38af92",
+  "workerVersion": "521ef96a-cc4a-431e-8f80-a0a7f764e6bf",
+  "feedId": "staging-fresh-20261019-run1",
+  "published": false,
+  "newCostUsd": 0.0054448,
+  "priorCostUsd": 0.0035884,
+  "totalCostUsd": 0.0090332,
+  "ceilingUsd": 0.2,
+  "clientWallMs": 18251.1799,
+  "workerWallMs": 17425,
+  "rematchWallMs": 17180,
+  "semanticPreparationMs": 16704,
+  "providerLatencyMs": 14347,
+  "database": {
+    "queries": 129,
+    "sqlCpuMs": 180.8884,
+    "responseBytes": 141617,
+    "wallMs": 3504
+  },
+  "publicationStagesNotReached": [
+    "editorial planning",
+    "writing",
+    "verification",
+    "edition persistence"
+  ],
+  "unknownOperations": 0,
+  "editionCount": 0,
+  "deliveryCount": 0,
+  "pushCount": 0,
+  "records": [
+    {
+      "id": "237998190838c0723c05ff42b26ec6e3a95046a140b0268966733c55810c7388",
+      "status": "DEFERRED",
+      "failure": "SEMANTIC_CONSTRUCTION_REJECTED",
+      "rejection": {
+        "name": "Error",
+        "code": "SCOPE_DENIED"
+      },
+      "background": [
+        "C6",
+        "C7"
+      ],
+      "groups": [
+        {
+          "groupId": "G0",
+          "ownedPassageIds": [
+            "C0",
+            "C1",
+            "C2"
+          ]
+        },
+        {
+          "groupId": "G1",
+          "ownedPassageIds": [
+            "C3"
+          ]
+        },
+        {
+          "groupId": "G2",
+          "ownedPassageIds": [
+            "C4",
+            "C5",
+            "C6"
+          ]
+        },
+        {
+          "groupId": "G3",
+          "ownedPassageIds": [
+            "C7"
+          ]
+        },
+        {
+          "groupId": "G4",
+          "ownedPassageIds": [
+            "C8"
+          ]
+        }
+      ],
+      "usage": {
+        "calls": 1,
+        "tokensIn": 3405,
+        "tokensOut": 707,
+        "costUsd": 0.0024932,
+        "reported": true
+      },
+      "latencyMs": 7369
+    },
+    {
+      "id": "39a47baf04890a3406644da4f923c39aa805e450651dd7941171f93e9d8dae18",
+      "status": "DEFERRED",
+      "failure": "SEMANTIC_CONSTRUCTION_REJECTED",
+      "rejection": {
+        "name": "Error",
+        "code": "SCOPE_DENIED"
+      },
+      "background": [
+        "C6",
+        "C7"
+      ],
+      "groups": [
+        {
+          "groupId": "G0",
+          "ownedPassageIds": [
+            "C0",
+            "C1",
+            "C2"
+          ]
+        },
+        {
+          "groupId": "G1",
+          "ownedPassageIds": [
+            "C3"
+          ]
+        },
+        {
+          "groupId": "G2",
+          "ownedPassageIds": [
+            "C4",
+            "C5",
+            "C6"
+          ]
+        },
+        {
+          "groupId": "G3",
+          "ownedPassageIds": [
+            "C7"
+          ]
+        },
+        {
+          "groupId": "G4",
+          "ownedPassageIds": [
+            "C8"
+          ]
+        }
+      ],
+      "usage": {
+        "calls": 1,
+        "tokensIn": 4551,
+        "tokensOut": 707,
+        "costUsd": 0.0029516,
+        "reported": true
+      },
+      "latencyMs": 6978
+    }
+  ],
+  "privateEvidenceSha256": "4458a2e8a4472aa73d88fc2f9cb74725cc6e71189fa4f759634b0713479df15a"
+}

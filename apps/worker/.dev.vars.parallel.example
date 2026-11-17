@@ -1,0 +1,21 @@
+# Feature candidate defaults. New Cloudflare routes remain qualification-gated.
+DISTILLED_LLM_API_GATEWAY=cloudflare
+CLOUDFLARE_ACCOUNT_ID=<32-character-account-id>
+CLOUDFLARE_AI_GATEWAY_ID=default
+# CLOUDFLARE_AI_GATEWAY_TOKEN=<server-side-token-with-Workers-AI-Read-and-AI-Gateway-Read>
+# Gateway Write is needed only for separately authorized gateway provisioning.
+V1_SEMANTIC_STRONG_MODEL=openai/gpt-4.1
+V1_INFERENCE_CONCURRENCY=2
+V1_PROVIDER_MAX_CONCURRENCY=3
+V1_PROVIDER_REQUESTS_PER_MINUTE=20
+V1_RECONCILIATION_MODE=DEVELOPMENTS
+# Explicit historical alternative:
+# DISTILLED_LLM_API_GATEWAY=openrouter
+# V1_SEMANTIC_STRONG_MODEL=openai/gpt-4.1-mini
+# DISTILLED_LIVE_OPENROUTER_MODEL=openai/gpt-4.1-mini
+# OPENROUTER_API_KEY=<server-side-secret>
+# V1_LLM_ROUTES_JSON={"verification":{"provider":"openrouter","model":"openai/gpt-4.1"}}
+# Apply migration 0064 only after deployment permission. Valid spending authority remains required.
+
+# Optional native hosted Qwen, independently qualified per task:
+# V1_LLM_ROUTES_JSON={"construction":{"provider":"workers_ai","model":"@cf/qwen/qwen3-30b-a3b-fp8"}}

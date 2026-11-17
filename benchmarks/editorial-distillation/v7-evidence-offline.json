@@ -1,0 +1,150 @@
+{
+  "phase": "OFFLINE_ONLY",
+  "nativeReservationEstimates": [
+    {
+      "id": "controls-en-shared",
+      "reservationUsd": 0.012951999999999998,
+      "inputTokenUpperBound": 20380
+    },
+    {
+      "id": "controls-en-item-local",
+      "reservationUsd": 0.015022,
+      "inputTokenUpperBound": 25555
+    },
+    {
+      "id": "controls-ar-shared",
+      "reservationUsd": 0.012063999999999998,
+      "inputTokenUpperBound": 18160
+    },
+    {
+      "id": "controls-ar-item-local",
+      "reservationUsd": 0.0133816,
+      "inputTokenUpperBound": 21454
+    },
+    {
+      "id": "retained-en-shared",
+      "reservationUsd": 0.013206799999999998,
+      "inputTokenUpperBound": 21017
+    },
+    {
+      "id": "retained-en-item-local",
+      "reservationUsd": 0.013495999999999998,
+      "inputTokenUpperBound": 21740
+    },
+    {
+      "id": "retained-ar-shared",
+      "reservationUsd": 0.0128052,
+      "inputTokenUpperBound": 20013
+    },
+    {
+      "id": "retained-ar-item-local",
+      "reservationUsd": 0.013086,
+      "inputTokenUpperBound": 20715
+    }
+  ],
+  "paidCalls": 0,
+  "actualUsd": 0,
+  "modelQuality": null,
+  "modelLatency": null,
+  "fullPipelineCost": null,
+  "sizes": [
+    {
+      "id": "controls-en-shared",
+      "kind": "controlled-mixed",
+      "layout": "shared",
+      "bytes": 19648,
+      "maximumPlanningUsd": 0.0142976
+    },
+    {
+      "id": "controls-en-item-local",
+      "kind": "controlled-mixed",
+      "layout": "item-local",
+      "bytes": 23818,
+      "maximumPlanningUsd": 0.0159656
+    },
+    {
+      "id": "controls-ar-shared",
+      "kind": "controlled-mixed",
+      "layout": "shared",
+      "bytes": 17458,
+      "maximumPlanningUsd": 0.013421599999999999
+    },
+    {
+      "id": "controls-ar-item-local",
+      "kind": "controlled-mixed",
+      "layout": "item-local",
+      "bytes": 20265,
+      "maximumPlanningUsd": 0.014544399999999999
+    },
+    {
+      "id": "retained-en-shared",
+      "kind": "retained-production-shaped",
+      "layout": "shared",
+      "bytes": 20326,
+      "maximumPlanningUsd": 0.0145688
+    },
+    {
+      "id": "retained-en-item-local",
+      "kind": "retained-production-shaped",
+      "layout": "item-local",
+      "bytes": 20681,
+      "maximumPlanningUsd": 0.0147108
+    },
+    {
+      "id": "retained-ar-shared",
+      "kind": "retained-production-shaped",
+      "layout": "shared",
+      "bytes": 19331,
+      "maximumPlanningUsd": 0.0141708
+    },
+    {
+      "id": "retained-ar-item-local",
+      "kind": "retained-production-shaped",
+      "layout": "item-local",
+      "bytes": 19708,
+      "maximumPlanningUsd": 0.0143216
+    }
+  ],
+  "overhead": [
+    {
+      "id": "controls-en-item-local",
+      "baselineBytes": 19648,
+      "candidateBytes": 23818,
+      "deltaBytes": 4170,
+      "ratio": 1.212235342019544
+    },
+    {
+      "id": "controls-ar-item-local",
+      "baselineBytes": 17458,
+      "candidateBytes": 20265,
+      "deltaBytes": 2807,
+      "ratio": 1.1607858861267042
+    },
+    {
+      "id": "retained-en-item-local",
+      "baselineBytes": 20326,
+      "candidateBytes": 20681,
+      "deltaBytes": 355,
+      "ratio": 1.0174653153596378
+    },
+    {
+      "id": "retained-ar-item-local",
+      "baselineBytes": 19331,
+      "candidateBytes": 19708,
+      "deltaBytes": 377,
+      "ratio": 1.019502353732347
+    }
+  ],
+  "writerOverhead": [
+    {
+      "caseId": "ai-multisource-en",
+      "addedBytes": 527
+    },
+    {
+      "caseId": "ai-multisource-ar",
+      "addedBytes": 527
+    }
+  ],
+  "estimatedMaximumUsd": 0.1160012,
+  "qualification": "UTF-8 byte upper bounds, not observed token usage. Only paid comparison can establish semantic improvement."
+}

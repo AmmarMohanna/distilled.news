@@ -1,0 +1,62 @@
+{
+  "facts": [
+    {
+      "id": "cf57a0b00290e8073ab918e2b0748083006c6bbddc8b19a1dc6ce664dfba27f5",
+      "propositionId": "cf57a0b00290e8073ab918e2b0748083006c6bbddc8b19a1dc6ce664dfba27f5",
+      "text": "OpenAI’s revenue is reportedly $20 billion less than previously projected",
+      "evidenceRevisionIds": [
+        "84258959-f33d-4c6a-9a35-37a594a16052"
+      ],
+      "claimMentionIds": [
+        "6592f19bd671d45dfc2e1b6836241975c67d505de4848e60bac5f83ae710297c"
+      ],
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": [
+          "reportedly"
+        ]
+      },
+      "reportTime": "2026-10-08T18:19:42.000Z",
+      "timing": {
+        "sourcePublishedAt": "2026-10-08T18:19:42.000Z",
+        "reportTime": "2026-10-08T18:19:42.000Z",
+        "firstSeenByFeedAt": "2026-10-08T18:23:39.212Z",
+        "observedAt": "2026-10-08T18:23:39.212Z",
+        "framingRequired": false
+      },
+      "selfContained": "YES"
+    },
+    {
+      "id": "a43af91b726d578ac5c1e17ef07c77e944a01c04ebac89a19a4a65720494e4eb",
+      "propositionId": "a43af91b726d578ac5c1e17ef07c77e944a01c04ebac89a19a4a65720494e4eb",
+      "text": "It had previously been reported that the AI lab's annualized revenue was some $70 billion, but a new report claims it's a whole lot less than that.",
+      "evidenceRevisionIds": [
+        "84258959-f33d-4c6a-9a35-37a594a16052"
+      ],
+      "claimMentionIds": [
+        "dec938ad450edfb5f87511f96c3aacef60665656d60d2d7e5ed7666294b0236f"
+      ],
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": []
+      },
+      "attribution": "It had previously been",
+      "reportTime": "2026-10-08T18:19:42.000Z",
+      "timing": {
+        "sourcePublishedAt": "2026-10-08T18:19:42.000Z",
+        "reportTime": "2026-10-08T18:19:42.000Z",
+        "firstSeenByFeedAt": "2026-10-08T18:23:39.212Z",
+        "observedAt": "2026-10-08T18:23:39.212Z",
+        "framingRequired": false
+      },
+      "selfContained": "RESOLVED_BY_CONTEXT",
+      "context": {
+        "evidenceRevisionId": "84258959-f33d-4c6a-9a35-37a594a16052",
+        "field": "title",
+        "text": "OpenAI’s revenue is reportedly $20 billion less than previously projected"
+      }
+    }
+  ],
+  "originalDraft": "A recent report from TechCrunch dated October 8, 2026, indicates that OpenAI's revenue is reportedly $20 billion less than previously projected. Earlier reports had suggested that the AI lab's annualized revenue was approximately $70 billion, but this new information significantly lowers that figure.",
+  "publishedClaim": "TechCrunch reported on October 8, 2026, that OpenAI's revenue is reportedly $20 billion less than previously projected. It had previously been reported that the AI lab's annualized revenue was some $70 billion, but the new report claims it is significantly lower than that."
+}

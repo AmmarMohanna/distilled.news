@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BriefingConfig } from "@distilled/core";
-import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
+import { deriveBriefingSlug, editionDisplayTime, formatClock, formatDayHeading, formatFeedUpdated, formatTime, publicFeedUrl, slugify, uniqueSlug } from "./helpers";
 
 const baseBriefing: BriefingConfig = {
   id: "briefing_default",
@@ -22,6 +22,24 @@ const baseBriefing: BriefingConfig = {
 };
 
 describe("web helpers", () => {
+  it('labels a delayed edition by scheduled delivery while keeping its actual publication timestamp', () => {
+    const edition = {scheduledFor:'2026-10-29T00:00:00Z', publishedAt:'2026-10-29T00:02:00Z'};
+    expect(editionDisplayTime(edition)).toBe(edition.scheduledFor);
+    expect(edition.publishedAt).toBe('2026-10-29T00:02:00Z');
+    expect(editionDisplayTime({publishedAt:edition.publishedAt})).toBe(edition.publishedAt);
+    expect(editionDisplayTime({scheduledFor:'2026-10-28T23:30:00Z',publishedAt:edition.publishedAt})).toBe('2026-10-28T23:30:00Z');
+  });
+  it("formats feed freshness across time boundaries and languages", () => {
+    const now = Date.parse("2026-10-02T14:00:00Z");
+    expect(formatFeedUpdated("2026-10-02T12:00:00Z", "en", now)).toBe("Updated 2 hours ago");
+    expect(formatFeedUpdated("2026-10-02T13:00:00Z", "en", now)).toBe("Updated 1 hour ago");
+    expect(formatFeedUpdated("2026-10-02T13:59:00Z", "en", now)).toBe("Updated 1 minute ago");
+    expect(formatFeedUpdated("2026-10-01T14:00:00Z", "en", now)).toBe("Updated 1 day ago");
+    expect(formatFeedUpdated("2026-10-02T15:00:00Z", "en", now)).toBe("Updated just now");
+    expect(formatFeedUpdated("invalid", "en", now)).toBe("");
+    expect(formatFeedUpdated("2026-10-02T12:00:00Z", "fr", now)).toBe("Mis à jour il y a 2 heures");
+    expect(formatFeedUpdated("2026-10-02T12:00:00Z", "ar", now)).toMatch(/^تم التحديث /);
+  });
   it("slugifies feed names conservatively", () => {
     expect(slugify(" Beirut / Security Feed ")).toBe("beirut-security-feed");
     expect(slugify("###")).toBe("briefing");
@@ -52,5 +70,18 @@ describe("web helpers", () => {
     expect(french).toMatch(/\d{1,2} [A-Za-zÀ-ÖØ-öø-ÿ]+, \d{2}:\d{2}/u);
     expect(french).not.toBe(english);
     expect(english).not.toMatch(/am|pm/i);
+  });
+
+  it("labels briefing days relative to now and formats the time of day", () => {
+    const now = new Date(2026, 9, 15, 18, 0).getTime();
+    const at = (day: number, hour = 9, minute = 5) => new Date(2026, 9, day, hour, minute).toISOString();
+    expect(formatDayHeading(at(15), "en", now)).toBe("Today");
+    expect(formatDayHeading(at(14), "en", now)).toBe("Yesterday");
+    expect(formatDayHeading(at(14), "fr", now)).toBe("Hier");
+    expect(formatDayHeading(at(12), "en", now)).toBe("Monday");
+    expect(formatDayHeading(at(1), "en", now)).toBe("October 1");
+    expect(formatDayHeading(new Date(2025, 11, 30).toISOString(), "en", now)).toBe("December 30, 2025");
+    expect(formatClock(at(15, 9, 5), "en")).toBe("09:05");
+    expect(formatClock(at(15, 16, 57), "fr")).toBe("16:57");
   });
 });

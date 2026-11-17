@@ -1,0 +1,2435 @@
+{
+  "caveats": [
+    "Files are separate observations; overlapping retained captures are not pooled.",
+    "Invocation CPU/wall is not attributable solely to a nested publication stage.",
+    "No publication record means not observed, not zero latency.",
+    "Stages overlap; do not sum nested durations."
+  ],
+  "files": [
+    {
+      "file": "followup-live-tail-observed.jsonl",
+      "sha256": "9942958420941912ff74e13a9dcc07a4ae74b9eb49fbc7a2d588a62e7798aeab",
+      "events": 13,
+      "recordTypes": {
+        "V1_QUEUE_LATENCY": 1
+      },
+      "workerVersions": [
+        "45f475b8-0d2a-4da3-9b44-bffc113ffdcb"
+      ],
+      "queueOutcomes": {
+        "TEMPORARY_UNAVAILABLE": 1
+      },
+      "queueWaitMs": {
+        "n": 1,
+        "p50": 1119,
+        "p95": 1119
+      },
+      "publicationSamples": [],
+      "casRejectedCauses": {}
+    },
+    {
+      "file": "tail-metadata-release.jsonl",
+      "sha256": "03b94c88397d297aab98ea68737c52ce009e55b3f5298ac78b3867caf98c32be",
+      "events": 580,
+      "recordTypes": {
+        "V1_PROVIDER_ACCOUNTING_RECOVERY": 16,
+        "V1_FEED_TRANSACTION_TIMING": 33,
+        "V1_PIPELINE_LATENCY": 226,
+        "V1_QUEUE_LATENCY": 134,
+        "V1_SEMANTIC_BACKPRESSURE": 1,
+        "V1_FEED_CAS_REJECTED": 3,
+        "CONNECTOR_POLL_FAILURE": 1,
+        "V1_SEMANTIC_PREPARATION_CONTEXT": 1,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY_FAILED": 1,
+        "V1_BRIEFING_ATTEMPT_FAILED": 1
+      },
+      "workerVersions": [
+        "2d8f4495-3233-4841-9f5b-5918be2023ec",
+        "7ec08976-c164-461d-886f-9b29d48d4688"
+      ],
+      "queueOutcomes": {
+        "SUCCEEDED": 8,
+        "FEED_TURN_BUSY": 19,
+        "TEMPORARY_UNAVAILABLE": 94,
+        "FAILED": 13
+      },
+      "queueWaitMs": {
+        "n": 134,
+        "p50": 1283,
+        "p95": 131436
+      },
+      "publicationSamples": [
+        {
+          "eventTimestamp": 1792311151668,
+          "workerVersion": "7ec08976-c164-461d-886f-9b29d48d4688",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 206814,
+          "counts": {
+            "windowClosedAgeMs": 151952882,
+            "casAttempts": 7,
+            "documentReads": 229,
+            "listReads": 32,
+            "revisionReads": 22,
+            "preloadQueries": 52,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 1170
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 171357
+            },
+            "GRAPH_VALIDATION": {
+              "count": 7,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 7,
+              "durationMs": 28579
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 634
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 9454
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 2363
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 173829
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 426
+            }
+          },
+          "containingInvocationCpuMs": 9778,
+          "containingInvocationWallMs": 208770
+        },
+        {
+          "eventTimestamp": 1792311403448,
+          "workerVersion": "7ec08976-c164-461d-886f-9b29d48d4688",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 248944,
+          "counts": {
+            "windowClosedAgeMs": 152204578,
+            "casAttempts": 7,
+            "documentReads": 229,
+            "listReads": 32,
+            "revisionReads": 22,
+            "preloadQueries": 52,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 1136
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 187952
+            },
+            "GRAPH_VALIDATION": {
+              "count": 7,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 7,
+              "durationMs": 27625
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 664
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 36823
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 2909
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 190829
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 26867
+            }
+          },
+          "containingInvocationCpuMs": 8428,
+          "containingInvocationWallMs": 250764
+        },
+        {
+          "eventTimestamp": 1792311666130,
+          "workerVersion": "7ec08976-c164-461d-886f-9b29d48d4688",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 248651,
+          "counts": {
+            "windowClosedAgeMs": 152467109,
+            "casAttempts": 7,
+            "documentReads": 229,
+            "listReads": 32,
+            "revisionReads": 22,
+            "preloadQueries": 52,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 1564
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 213810
+            },
+            "GRAPH_VALIDATION": {
+              "count": 7,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 7,
+              "durationMs": 1277
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 621
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 35867
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 2612
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 190498
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 339
+            }
+          },
+          "containingInvocationCpuMs": 7994,
+          "containingInvocationWallMs": 250300
+        },
+        {
+          "eventTimestamp": 1792312138419,
+          "workerVersion": "7ec08976-c164-461d-886f-9b29d48d4688",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 123449,
+          "counts": {
+            "windowClosedAgeMs": 152966919,
+            "casAttempts": 5,
+            "documentReads": 115,
+            "listReads": 16,
+            "revisionReads": 11,
+            "preloadQueries": 26,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 6,
+              "durationMs": 1243
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 5,
+              "durationMs": 115967
+            },
+            "GRAPH_VALIDATION": {
+              "count": 5,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 5,
+              "durationMs": 1469
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 643
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 10309
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 2738
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 119215
+            }
+          },
+          "containingInvocationCpuMs": 10009,
+          "containingInvocationWallMs": 152558
+        }
+      ],
+      "casRejectedCauses": {
+        "UNKNOWN": 3
+      }
+    },
+    {
+      "file": "tail-post-topup.jsonl",
+      "sha256": "49609b7848bfcb16af86f02adced2d9aadc5157ea6c3ceb22d60b7d3c403f08e",
+      "events": 310,
+      "recordTypes": {
+        "V1_QUEUE_LATENCY": 92,
+        "V1_PIPELINE_LATENCY": 42,
+        "CONNECTOR_POLL_FAILURE": 18,
+        "V1_SEMANTIC_PREPARATION_CONTEXT": 10,
+        "V1_FEED_TRANSACTION_TIMING": 10,
+        "V1_FEED_BATCH_FAILED": 2,
+        "V1_BRIEFING_ATTEMPT_FAILED": 8,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY_FAILED": 10,
+        "V1_FEED_CAS_REJECTED": 4,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY": 6,
+        "V1_DISPATCH_MAINTENANCE_FAILED": 4,
+        "V1_SEMANTIC_BACKPRESSURE": 1,
+        "V1_INTAKE_LOOKUP_FAILED": 1
+      },
+      "workerVersions": [
+        "81de8398-b6b3-4a20-8ea1-260c02540563"
+      ],
+      "queueOutcomes": {
+        "FAILED": 47,
+        "TEMPORARY_UNAVAILABLE": 21,
+        "SUCCEEDED": 9,
+        "FEED_TURN_BUSY": 15
+      },
+      "queueWaitMs": {
+        "n": 92,
+        "p50": 98138,
+        "p95": 773904
+      },
+      "publicationSamples": [
+        {
+          "eventTimestamp": 1792329133421,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 95237,
+          "counts": {
+            "windowClosedAgeMs": 169934429,
+            "casAttempts": 4,
+            "documentReads": 5,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 36,
+            "ledgerSupportIdentities": 35
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 5,
+              "durationMs": 5005
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 5,
+              "durationMs": 53248
+            },
+            "GRAPH_VALIDATION": {
+              "count": 4,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 4,
+              "durationMs": 34812
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 34759
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 1,
+              "durationMs": 5040
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 54339
+            }
+          },
+          "containingInvocationCpuMs": 308,
+          "containingInvocationWallMs": 96739
+        },
+        {
+          "eventTimestamp": 1792329289934,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 39292,
+          "counts": {
+            "windowClosedAgeMs": 173690948,
+            "casAttempts": 4,
+            "documentReads": 5,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 4,
+              "durationMs": 638
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 4,
+              "durationMs": 958
+            },
+            "GRAPH_VALIDATION": {
+              "count": 4,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 4,
+              "durationMs": 708
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 661
+            }
+          },
+          "containingInvocationCpuMs": 30,
+          "containingInvocationWallMs": 40902
+        },
+        {
+          "eventTimestamp": 1792329389884,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 44708,
+          "counts": {
+            "windowClosedAgeMs": 173790924,
+            "casAttempts": 4,
+            "documentReads": 5,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 5,
+            "ledgerSupportIdentities": 4
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 5,
+              "durationMs": 864
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 5,
+              "durationMs": 41188
+            },
+            "GRAPH_VALIDATION": {
+              "count": 4,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 4,
+              "durationMs": 942
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 711
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 1,
+              "durationMs": 344
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 40378
+            }
+          },
+          "containingInvocationCpuMs": 226,
+          "containingInvocationWallMs": 46266
+        },
+        {
+          "eventTimestamp": 1792329451667,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 36964,
+          "counts": {
+            "windowClosedAgeMs": 166652806,
+            "casAttempts": 1,
+            "documentReads": 1,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 1,
+              "durationMs": 1134
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 1,
+              "durationMs": 158
+            },
+            "GRAPH_VALIDATION": {
+              "count": 1,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 1,
+              "durationMs": 163
+            }
+          },
+          "containingInvocationCpuMs": 12,
+          "containingInvocationWallMs": 38878
+        },
+        {
+          "eventTimestamp": 1792329450932,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 37834,
+          "counts": {
+            "windowClosedAgeMs": 173851940,
+            "casAttempts": 2,
+            "documentReads": 2,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 3,
+              "durationMs": 36016
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 2,
+              "durationMs": 1291
+            },
+            "GRAPH_VALIDATION": {
+              "count": 2,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 2,
+              "durationMs": 378
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 35639
+            }
+          },
+          "containingInvocationCpuMs": 30,
+          "containingInvocationWallMs": 39622
+        },
+        {
+          "eventTimestamp": 1792329501299,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 36420,
+          "counts": {
+            "windowClosedAgeMs": 172102396,
+            "casAttempts": 1,
+            "documentReads": 1,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 2,
+              "durationMs": 320
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 2,
+              "durationMs": 35769
+            },
+            "GRAPH_VALIDATION": {
+              "count": 1,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 1,
+              "durationMs": 172
+            }
+          },
+          "containingInvocationCpuMs": 33,
+          "containingInvocationWallMs": 38205
+        },
+        {
+          "eventTimestamp": 1792329685735,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 36025,
+          "counts": {
+            "windowClosedAgeMs": 166886725,
+            "casAttempts": 1,
+            "documentReads": 1,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 1,
+              "durationMs": 159
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 1,
+              "durationMs": 204
+            },
+            "GRAPH_VALIDATION": {
+              "count": 1,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 1,
+              "durationMs": 179
+            }
+          },
+          "containingInvocationCpuMs": 18,
+          "containingInvocationWallMs": 37672
+        },
+        {
+          "eventTimestamp": 1792329670704,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 52005,
+          "counts": {
+            "windowClosedAgeMs": 174071671,
+            "casAttempts": 4,
+            "documentReads": 5,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 5,
+            "ledgerSupportIdentities": 4
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 5,
+              "durationMs": 829
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 5,
+              "durationMs": 48818
+            },
+            "GRAPH_VALIDATION": {
+              "count": 4,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 4,
+              "durationMs": 721
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 725
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 1,
+              "durationMs": 335
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 48016
+            }
+          },
+          "containingInvocationCpuMs": 327,
+          "containingInvocationWallMs": 53498
+        },
+        {
+          "eventTimestamp": 1792329783574,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 42307,
+          "counts": {
+            "windowClosedAgeMs": 167005361,
+            "casAttempts": 4,
+            "documentReads": 5,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 36,
+            "ledgerSupportIdentities": 35
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 5,
+              "durationMs": 662
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 5,
+              "durationMs": 39033
+            },
+            "GRAPH_VALIDATION": {
+              "count": 4,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 4,
+              "durationMs": 598
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 582
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 1,
+              "durationMs": 35603
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 38036
+            }
+          },
+          "containingInvocationCpuMs": 104,
+          "containingInvocationWallMs": 64503
+        },
+        {
+          "eventTimestamp": 1792329730030,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 116734,
+          "counts": {
+            "windowClosedAgeMs": 71531065,
+            "casAttempts": 4,
+            "documentReads": 5,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 5,
+            "ledgerSupportIdentities": 4
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 5,
+              "durationMs": 854
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 5,
+              "durationMs": 113274
+            },
+            "GRAPH_VALIDATION": {
+              "count": 4,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 4,
+              "durationMs": 734
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 642
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 1,
+              "durationMs": 403
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 112491
+            }
+          },
+          "containingInvocationCpuMs": 4504,
+          "containingInvocationWallMs": 118277
+        },
+        {
+          "eventTimestamp": 1792329903388,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 39041,
+          "counts": {
+            "windowClosedAgeMs": 167104181,
+            "casAttempts": 4,
+            "documentReads": 5,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 4,
+              "durationMs": 502
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 4,
+              "durationMs": 782
+            },
+            "GRAPH_VALIDATION": {
+              "count": 4,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 4,
+              "durationMs": 615
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 571
+            }
+          },
+          "containingInvocationCpuMs": 19,
+          "containingInvocationWallMs": 40237
+        },
+        {
+          "eventTimestamp": 1792329961598,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 36194,
+          "counts": {
+            "windowClosedAgeMs": 163562701,
+            "casAttempts": 1,
+            "documentReads": 1,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 1,
+              "durationMs": 151
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 1,
+              "durationMs": 197
+            },
+            "GRAPH_VALIDATION": {
+              "count": 1,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 1,
+              "durationMs": 171
+            }
+          },
+          "containingInvocationCpuMs": 33,
+          "containingInvocationWallMs": 37864
+        },
+        {
+          "eventTimestamp": 1792330060954,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 36922,
+          "counts": {
+            "windowClosedAgeMs": 172661939,
+            "casAttempts": 1,
+            "documentReads": 1,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 2,
+              "durationMs": 426
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 2,
+              "durationMs": 36181
+            },
+            "GRAPH_VALIDATION": {
+              "count": 1,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 1,
+              "durationMs": 167
+            }
+          },
+          "containingInvocationCpuMs": 61,
+          "containingInvocationWallMs": 38562
+        },
+        {
+          "eventTimestamp": 1792330059531,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 39305,
+          "counts": {
+            "windowClosedAgeMs": 163660492,
+            "casAttempts": 4,
+            "documentReads": 5,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 4,
+              "durationMs": 615
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 4,
+              "durationMs": 937
+            },
+            "GRAPH_VALIDATION": {
+              "count": 4,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 4,
+              "durationMs": 712
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 682
+            }
+          },
+          "containingInvocationCpuMs": 34,
+          "containingInvocationWallMs": 40770
+        }
+      ],
+      "casRejectedCauses": {
+        "UNKNOWN": 4
+      }
+    },
+    {
+      "file": "tail-final-release.jsonl",
+      "sha256": "680406d92979528cccbcad33ce28453aa0f5938932dac11898cd5c1e4966712a",
+      "events": 316,
+      "recordTypes": {
+        "V1_QUEUE_LATENCY": 66,
+        "CONNECTOR_POLL_FAILURE": 7,
+        "V1_PIPELINE_LATENCY": 55,
+        "V1_SEMANTIC_PREPARATION_CONTEXT": 11,
+        "V1_FEED_TRANSACTION_TIMING": 30,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY_FAILED": 5,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY": 12,
+        "V1_FEED_CAS_REJECTED": 4,
+        "V1_BRIEFING_ATTEMPT_FAILED": 1,
+        "V1_DISPATCH_MAINTENANCE_FAILED": 1,
+        "V1_INTAKE_LOOKUP_FAILED": 1
+      },
+      "workerVersions": [
+        "81de8398-b6b3-4a20-8ea1-260c02540563"
+      ],
+      "queueOutcomes": {
+        "FAILED": 25,
+        "FEED_TURN_BUSY": 27,
+        "TEMPORARY_UNAVAILABLE": 5,
+        "SUCCEEDED": 9
+      },
+      "queueWaitMs": {
+        "n": 66,
+        "p50": 1856,
+        "p95": 469747
+      },
+      "publicationSamples": [
+        {
+          "eventTimestamp": 1792327839777,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 150186,
+          "counts": {
+            "windowClosedAgeMs": 168640755,
+            "casAttempts": 7,
+            "documentReads": 242,
+            "listReads": 32,
+            "revisionReads": 22,
+            "preloadQueries": 52,
+            "validationMs": 0,
+            "documentWrites": 13,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 33343
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 109746
+            },
+            "GRAPH_VALIDATION": {
+              "count": 7,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 7,
+              "durationMs": 1035
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 561
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 9110
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 3011
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 112683
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 333
+            }
+          },
+          "containingInvocationCpuMs": 2248,
+          "containingInvocationWallMs": 151579
+        },
+        {
+          "eventTimestamp": 1792327929471,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 240667,
+          "counts": {
+            "windowClosedAgeMs": 116530421,
+            "casAttempts": 6,
+            "documentReads": 60,
+            "listReads": 32,
+            "revisionReads": 0,
+            "preloadQueries": 62,
+            "validationMs": 0,
+            "documentWrites": 5,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 15,
+            "ledgerSupportIdentities": 12,
+            "casConflicts": 1
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 1229
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 219200
+            },
+            "GRAPH_VALIDATION": {
+              "count": 6,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 6,
+              "durationMs": 2668
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 801
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 3,
+              "durationMs": 953
+            },
+            "MODEL_OPERATION": {
+              "count": 17,
+              "durationMs": 15898
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 236811
+            }
+          },
+          "containingInvocationCpuMs": 15367,
+          "containingInvocationWallMs": 242100
+        },
+        {
+          "eventTimestamp": 1792328231531,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 36461,
+          "counts": {
+            "windowClosedAgeMs": 169032595,
+            "casAttempts": 2,
+            "documentReads": 2,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 3,
+              "durationMs": 35640
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 2,
+              "durationMs": 329
+            },
+            "GRAPH_VALIDATION": {
+              "count": 2,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 2,
+              "durationMs": 335
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 35328
+            }
+          },
+          "containingInvocationCpuMs": 22,
+          "containingInvocationWallMs": 38111
+        },
+        {
+          "eventTimestamp": 1792328276525,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 108199,
+          "counts": {
+            "windowClosedAgeMs": 169077686,
+            "casAttempts": 7,
+            "documentReads": 229,
+            "listReads": 32,
+            "revisionReads": 22,
+            "preloadQueries": 52,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 957
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 100631
+            },
+            "GRAPH_VALIDATION": {
+              "count": 7,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 7,
+              "durationMs": 1164
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 662
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 8738
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 3228
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 71880
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 280
+            }
+          },
+          "containingInvocationCpuMs": 2194,
+          "containingInvocationWallMs": 109827
+        },
+        {
+          "eventTimestamp": 1792328352267,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 79095,
+          "counts": {
+            "windowClosedAgeMs": 116953226,
+            "casAttempts": 3,
+            "documentReads": 3,
+            "listReads": 0,
+            "revisionReads": 0,
+            "preloadQueries": 0,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 5,
+            "ledgerSupportIdentities": 4
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 4,
+              "durationMs": 667
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 4,
+              "durationMs": 76417
+            },
+            "GRAPH_VALIDATION": {
+              "count": 3,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 3,
+              "durationMs": 514
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 638
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 1,
+              "durationMs": 601
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 75974
+            }
+          },
+          "containingInvocationCpuMs": 3817,
+          "containingInvocationWallMs": 80092
+        },
+        {
+          "eventTimestamp": 1792328507993,
+          "workerVersion": "81de8398-b6b3-4a20-8ea1-260c02540563",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 292275,
+          "counts": {
+            "windowClosedAgeMs": 169308953,
+            "casAttempts": 8,
+            "documentReads": 341,
+            "listReads": 48,
+            "revisionReads": 33,
+            "preloadQueries": 78,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 108,
+            "ledgerSupportIdentities": 105,
+            "casConflicts": 1
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 8,
+              "durationMs": 1434
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 8,
+              "durationMs": 250026
+            },
+            "GRAPH_VALIDATION": {
+              "count": 8,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 8,
+              "durationMs": 1760
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 652
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 3,
+              "durationMs": 14828
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 3781
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 254390
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 361
+            }
+          },
+          "containingInvocationCpuMs": 6309,
+          "containingInvocationWallMs": 293796
+        }
+      ],
+      "casRejectedCauses": {
+        "UNKNOWN": 4
+      }
+    },
+    {
+      "file": "tail-after-deployment.jsonl",
+      "sha256": "f6561ab2765ca2c21f5365bc9fce49229b84ecc392541b52f570c07b9f8153fa",
+      "events": 338,
+      "recordTypes": {
+        "V1_QUEUE_LATENCY": 22,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY": 8,
+        "V1_FEED_TRANSACTION_TIMING": 3,
+        "V1_PIPELINE_LATENCY": 18
+      },
+      "workerVersions": [
+        "2d8f4495-3233-4841-9f5b-5918be2023ec"
+      ],
+      "queueOutcomes": {
+        "FEED_TURN_BUSY": 22
+      },
+      "queueWaitMs": {
+        "n": 22,
+        "p50": 1349,
+        "p95": 401057
+      },
+      "publicationSamples": [],
+      "casRejectedCauses": {}
+    },
+    {
+      "file": "tail-before-final.jsonl",
+      "sha256": "408f6da0927a909f7588e488c22df0c1ecf909ef0aaf466091e250de4f19f88e",
+      "events": 41,
+      "recordTypes": {
+        "CONNECTOR_POLL_FAILURE": 8
+      },
+      "workerVersions": [
+        "82451fc7-b513-4bf0-8bb6-c9da1cfe6156"
+      ],
+      "queueOutcomes": {},
+      "queueWaitMs": {
+        "n": 0,
+        "p50": null,
+        "p95": null
+      },
+      "publicationSamples": [],
+      "casRejectedCauses": {}
+    },
+    {
+      "file": "tail-pre-cpu-release.jsonl",
+      "sha256": "cf3e13597b54802896668dbc3e4b0517580c8711efe3372a2717afa7a4b8ca22",
+      "events": 153,
+      "recordTypes": {
+        "V1_SEMANTIC_PREPARATION_CONTEXT": 1,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY": 8,
+        "V1_SEMANTIC_BACKPRESSURE": 1,
+        "V1_PIPELINE_LATENCY": 3,
+        "V1_QUEUE_LATENCY": 55
+      },
+      "workerVersions": [
+        "7ec08976-c164-461d-886f-9b29d48d4688"
+      ],
+      "queueOutcomes": {
+        "TEMPORARY_UNAVAILABLE": 3,
+        "FEED_TURN_BUSY": 52
+      },
+      "queueWaitMs": {
+        "n": 55,
+        "p50": 1480,
+        "p95": 2342
+      },
+      "publicationSamples": [],
+      "casRejectedCauses": {}
+    },
+    {
+      "file": "tail-recovery-query-release.jsonl",
+      "sha256": "6081f6d13ef63bb56365dda04a3dbce2c5241d2f628b326629f3a0b52a52d4b1",
+      "events": 636,
+      "recordTypes": {
+        "V1_QUEUE_LATENCY": 181,
+        "V1_PIPELINE_LATENCY": 166,
+        "V1_SEMANTIC_PREPARATION_CONTEXT": 26,
+        "V1_FEED_TRANSACTION_TIMING": 70,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY_FAILED": 2,
+        "V1_DISPATCH_MAINTENANCE_FAILED": 2,
+        "V1_FEED_CAS_REJECTED": 19,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY": 21,
+        "V1_SEMANTIC_BACKPRESSURE": 2,
+        "V1_BRIEFING_ATTEMPT_FAILED": 4
+      },
+      "workerVersions": [
+        "45f475b8-0d2a-4da3-9b44-bffc113ffdcb",
+        "81de8398-b6b3-4a20-8ea1-260c02540563"
+      ],
+      "queueOutcomes": {
+        "FEED_TURN_BUSY": 145,
+        "TEMPORARY_UNAVAILABLE": 11,
+        "SUCCEEDED": 24,
+        "INVALID_REQUEST": 1
+      },
+      "queueWaitMs": {
+        "n": 181,
+        "p50": 1433,
+        "p95": 459574
+      },
+      "publicationSamples": [
+        {
+          "eventTimestamp": 1792331074108,
+          "workerVersion": "45f475b8-0d2a-4da3-9b44-bffc113ffdcb",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 188579,
+          "counts": {
+            "windowClosedAgeMs": 94474958,
+            "casAttempts": 9,
+            "documentReads": 88,
+            "listReads": 35,
+            "revisionReads": 0,
+            "preloadQueries": 62,
+            "validationMs": 0,
+            "documentWrites": 22,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 10,
+            "ledgerSupportIdentities": 8
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 9,
+              "durationMs": 1328
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 9,
+              "durationMs": 84212
+            },
+            "GRAPH_VALIDATION": {
+              "count": 9,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 9,
+              "durationMs": 1937
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 574
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 579
+            },
+            "MODEL_OPERATION": {
+              "count": 20,
+              "durationMs": 97803
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 95836
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 87975
+            }
+          },
+          "containingInvocationCpuMs": 7856,
+          "containingInvocationWallMs": 189889
+        },
+        {
+          "eventTimestamp": 1792331324072,
+          "workerVersion": "45f475b8-0d2a-4da3-9b44-bffc113ffdcb",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 146725,
+          "counts": {
+            "windowClosedAgeMs": 94725019,
+            "casAttempts": 10,
+            "documentReads": 97,
+            "listReads": 51,
+            "revisionReads": 0,
+            "preloadQueries": 93,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 15,
+            "ledgerSupportIdentities": 12,
+            "casConflicts": 1
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 10,
+              "durationMs": 1793
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 10,
+              "durationMs": 118354
+            },
+            "GRAPH_VALIDATION": {
+              "count": 10,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 10,
+              "durationMs": 2090
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 659
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 3,
+              "durationMs": 1008
+            },
+            "MODEL_OPERATION": {
+              "count": 20,
+              "durationMs": 21402
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 134562
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 7623
+            }
+          },
+          "containingInvocationCpuMs": 10534,
+          "containingInvocationWallMs": 148480
+        },
+        {
+          "eventTimestamp": 1792331593023,
+          "workerVersion": "45f475b8-0d2a-4da3-9b44-bffc113ffdcb",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 122053,
+          "counts": {
+            "windowClosedAgeMs": 94994055,
+            "casAttempts": 9,
+            "documentReads": 68,
+            "listReads": 35,
+            "revisionReads": 0,
+            "preloadQueries": 62,
+            "validationMs": 0,
+            "documentWrites": 1,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 10,
+            "ledgerSupportIdentities": 8
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 9,
+              "durationMs": 1617
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 9,
+              "durationMs": 89988
+            },
+            "GRAPH_VALIDATION": {
+              "count": 9,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 9,
+              "durationMs": 2014
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 696
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 699
+            },
+            "MODEL_OPERATION": {
+              "count": 20,
+              "durationMs": 23934
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 104430
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 11507
+            }
+          },
+          "containingInvocationCpuMs": 8457,
+          "containingInvocationWallMs": 123680
+        },
+        {
+          "eventTimestamp": 1792331118560,
+          "workerVersion": "45f475b8-0d2a-4da3-9b44-bffc113ffdcb",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 661592,
+          "counts": {
+            "windowClosedAgeMs": 161119707,
+            "casAttempts": 41,
+            "documentReads": 1640,
+            "listReads": 256,
+            "revisionReads": 248,
+            "preloadQueries": 623,
+            "validationMs": 0,
+            "documentWrites": 179,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 252,
+            "ledgerSupportIdentities": 245,
+            "casConflicts": 17
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 41,
+              "durationMs": 5533
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 41,
+              "durationMs": 516201
+            },
+            "GRAPH_VALIDATION": {
+              "count": 41,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 41,
+              "durationMs": 11516
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 544
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 7,
+              "durationMs": 29210
+            },
+            "MODEL_OPERATION": {
+              "count": 5,
+              "durationMs": 120659
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 240361
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 43423
+            },
+            "RANKING_SELECTION": {
+              "count": 1,
+              "durationMs": 56077
+            },
+            "SYNTHESIS_VERIFICATION_PUBLICATION": {
+              "count": 1,
+              "durationMs": 317624
+            }
+          },
+          "containingInvocationCpuMs": 15316,
+          "containingInvocationWallMs": 663037
+        },
+        {
+          "eventTimestamp": 1792331783618,
+          "workerVersion": "45f475b8-0d2a-4da3-9b44-bffc113ffdcb",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 84401,
+          "counts": {
+            "windowClosedAgeMs": 104184552,
+            "casAttempts": 7,
+            "documentReads": 229,
+            "listReads": 32,
+            "revisionReads": 22,
+            "preloadQueries": 52,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 1194
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 75605
+            },
+            "GRAPH_VALIDATION": {
+              "count": 7,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 7,
+              "durationMs": 1310
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 654
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 9547
+            },
+            "MODEL_OPERATION": {
+              "count": 2,
+              "durationMs": 4072
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 79634
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 399
+            }
+          },
+          "containingInvocationCpuMs": 4207,
+          "containingInvocationWallMs": 86092
+        }
+      ],
+      "casRejectedCauses": {
+        "UNKNOWN": 19
+      }
+    },
+    {
+      "file": "tail-resume-pre-cpu.jsonl",
+      "sha256": "decb261d2397c129831d28a2069d903706cb17a95fc75c820e18b5d9ab0f13d7",
+      "events": 196,
+      "recordTypes": {
+        "V1_QUEUE_LATENCY": 49,
+        "V1_PROVIDER_ACCOUNTING_RECOVERY": 6,
+        "V1_SEMANTIC_PREPARATION_CONTEXT": 10,
+        "V1_FEED_TRANSACTION_TIMING": 28,
+        "V1_PIPELINE_LATENCY": 74,
+        "V1_FEED_CAS_REJECTED": 3,
+        "CONNECTOR_POLL_FAILURE": 3,
+        "V1_BRIEFING_ATTEMPT_FAILED": 2
+      },
+      "workerVersions": [
+        "7ec08976-c164-461d-886f-9b29d48d4688"
+      ],
+      "queueOutcomes": {
+        "FEED_TURN_BUSY": 34,
+        "SUCCEEDED": 3,
+        "TEMPORARY_UNAVAILABLE": 12
+      },
+      "queueWaitMs": {
+        "n": 49,
+        "p50": 1539,
+        "p95": 197542
+      },
+      "publicationSamples": [
+        {
+          "eventTimestamp": 1792322309940,
+          "workerVersion": "7ec08976-c164-461d-886f-9b29d48d4688",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 125722,
+          "counts": {
+            "windowClosedAgeMs": 163169113,
+            "casAttempts": 7,
+            "documentReads": 235,
+            "listReads": 32,
+            "revisionReads": 22,
+            "preloadQueries": 52,
+            "validationMs": 0,
+            "documentWrites": 6,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 1125
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 116965
+            },
+            "GRAPH_VALIDATION": {
+              "count": 7,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 7,
+              "durationMs": 1240
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 634
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 10688
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 3170
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 120064
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 397
+            }
+          },
+          "containingInvocationCpuMs": 6108,
+          "containingInvocationWallMs": 185627
+        },
+        {
+          "eventTimestamp": 1792322577780,
+          "workerVersion": "7ec08976-c164-461d-886f-9b29d48d4688",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "wallMs": 121977,
+          "counts": {
+            "windowClosedAgeMs": 163378730,
+            "casAttempts": 7,
+            "documentReads": 229,
+            "listReads": 32,
+            "revisionReads": 22,
+            "preloadQueries": 52,
+            "validationMs": 0,
+            "documentWrites": 0,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 3,
+            "ledgerEntriesInspected": 72,
+            "ledgerSupportIdentities": 70
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 32132
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 83338
+            },
+            "GRAPH_VALIDATION": {
+              "count": 7,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 7,
+              "durationMs": 1210
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 615
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 10537
+            },
+            "MODEL_OPERATION": {
+              "count": 1,
+              "durationMs": 3089
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 86338
+            },
+            "EDITORIAL_PLAN": {
+              "count": 1,
+              "durationMs": 402
+            }
+          },
+          "containingInvocationCpuMs": 5920,
+          "containingInvocationWallMs": 123644
+        },
+        {
+          "eventTimestamp": 1792322671775,
+          "workerVersion": "7ec08976-c164-461d-886f-9b29d48d4688",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 145646,
+          "counts": {
+            "windowClosedAgeMs": 60872765,
+            "casAttempts": 5,
+            "documentReads": 31,
+            "listReads": 16,
+            "revisionReads": 0,
+            "preloadQueries": 31,
+            "validationMs": 0,
+            "documentWrites": 3,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 1,
+            "ledgerEntriesInspected": 5,
+            "ledgerSupportIdentities": 4
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 5,
+              "durationMs": 785
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 5,
+              "durationMs": 41316
+            },
+            "GRAPH_VALIDATION": {
+              "count": 5,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 5,
+              "durationMs": 880
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 604
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 1,
+              "durationMs": 316
+            },
+            "MODEL_OPERATION": {
+              "count": 16,
+              "durationMs": 101185
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 142069
+            }
+          },
+          "containingInvocationCpuMs": 5373,
+          "containingInvocationWallMs": 147121
+        },
+        {
+          "eventTimestamp": 1792322307178,
+          "workerVersion": "7ec08976-c164-461d-886f-9b29d48d4688",
+          "phase": "PUBLICATION",
+          "outcome": "FAILED",
+          "wallMs": 511091,
+          "counts": {
+            "windowClosedAgeMs": 231508198,
+            "casAttempts": 6,
+            "documentReads": 34,
+            "listReads": 16,
+            "revisionReads": 0,
+            "preloadQueries": 71,
+            "validationMs": 0,
+            "documentWrites": 2,
+            "jobWrites": 0,
+            "pendingJobs": 0,
+            "failedJobs": 171,
+            "ledgerEntriesInspected": 32,
+            "ledgerSupportIdentities": 38,
+            "casConflicts": 2
+          },
+          "stages": {
+            "DB_SNAPSHOT": {
+              "count": 7,
+              "durationMs": 29682
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 7,
+              "durationMs": 477779
+            },
+            "GRAPH_VALIDATION": {
+              "count": 6,
+              "durationMs": 0
+            },
+            "CAS_COMMIT": {
+              "count": 6,
+              "durationMs": 2099
+            },
+            "WINDOW_READINESS": {
+              "count": 1,
+              "durationMs": 58848
+            },
+            "SOURCE_CORRECTION_REFRESH": {
+              "count": 2,
+              "durationMs": 665
+            },
+            "SEMANTIC_SHORTLIST": {
+              "count": 1,
+              "durationMs": 447930
+            }
+          },
+          "containingInvocationCpuMs": 8877,
+          "containingInvocationWallMs": 512604
+        }
+      ],
+      "casRejectedCauses": {
+        "UNKNOWN": 3
+      }
+    }
+  ],
+  "slowAttemptCorrelated": {
+    "nestedModelRecords": [
+      {
+        "phase": "MODEL",
+        "durationMs": 2610,
+        "counts": {
+          "casAttempts": 1,
+          "documentReads": 4,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 9,
+          "validationMs": 0,
+          "documentWrites": 0,
+          "jobWrites": 0,
+          "receiptProviderCalls": 0,
+          "receiptReportedCostUsd": 0,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 0
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 1,
+            "durationMs": 137
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 1,
+            "durationMs": 2193
+          },
+          "GRAPH_VALIDATION": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 1,
+            "durationMs": 146
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 2476
+          }
+        }
+      },
+      {
+        "phase": "MODEL",
+        "durationMs": 689,
+        "counts": {
+          "casAttempts": 1,
+          "documentReads": 1,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 0,
+          "validationMs": 0,
+          "documentWrites": 0,
+          "jobWrites": 0,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.000243516,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 953
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 1,
+            "durationMs": 124
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 1,
+            "durationMs": 272
+          },
+          "GRAPH_VALIDATION": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 1,
+            "durationMs": 152
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 548
+          }
+        }
+      },
+      {
+        "phase": "MODEL",
+        "durationMs": 35477,
+        "counts": {
+          "casAttempts": 3,
+          "documentReads": 6,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 1,
+          "validationMs": 0,
+          "documentWrites": 3,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.0474136,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 29045
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 3,
+            "durationMs": 565
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 3,
+            "durationMs": 2461
+          },
+          "GRAPH_VALIDATION": {
+            "count": 3,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 3,
+            "durationMs": 2039
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 3136
+          },
+          "COMPARATIVE_EDITORIAL_PLAN": {
+            "count": 1,
+            "durationMs": 29045
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 1743
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 1394
+          }
+        }
+      },
+      {
+        "phase": "MODEL",
+        "durationMs": 40321,
+        "counts": {
+          "casAttempts": 3,
+          "documentReads": 27,
+          "listReads": 6,
+          "revisionReads": 9,
+          "preloadQueries": 22,
+          "validationMs": 0,
+          "documentWrites": 3,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.03267,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 35115
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 3,
+            "durationMs": 395
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 3,
+            "durationMs": 11954
+          },
+          "GRAPH_VALIDATION": {
+            "count": 3,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 3,
+            "durationMs": 2482
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 2586
+          },
+          "PUBLICATION_SYNTHESIS": {
+            "count": 1,
+            "durationMs": 35115
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 1224
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 1263
+          }
+        }
+      },
+      {
+        "phase": "MODEL",
+        "durationMs": 41562,
+        "counts": {
+          "casAttempts": 3,
+          "documentReads": 27,
+          "listReads": 6,
+          "revisionReads": 9,
+          "preloadQueries": 22,
+          "validationMs": 0,
+          "documentWrites": 3,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.034454,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 35046
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 3,
+            "durationMs": 617
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 3,
+            "durationMs": 12487
+          },
+          "GRAPH_VALIDATION": {
+            "count": 3,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 3,
+            "durationMs": 2614
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 2626
+          },
+          "PUBLICATION_REPAIR": {
+            "count": 1,
+            "durationMs": 35046
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 1715
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 2047
+          }
+        }
+      }
+    ],
+    "casRejections": [
+      {
+        "type": "V1_FEED_CAS_REJECTED",
+        "attempt": 1,
+        "epoch": 5756,
+        "writes": 0,
+        "jobs": 0,
+        "computationMs": 38817,
+        "queries": {
+          "documentReads": 112,
+          "listReads": 16,
+          "revisionReads": 11,
+          "preloadQueries": 26,
+          "validationMs": 0
+        },
+        "observedAfterRejection": true,
+        "feedEpochChanged": true,
+        "feedUnavailable": false,
+        "scopeSetChanged": false,
+        "scopeChanges": []
+      },
+      {
+        "type": "V1_FEED_CAS_REJECTED",
+        "attempt": 1,
+        "epoch": 5774,
+        "writes": 67,
+        "jobs": 0,
+        "computationMs": 27778,
+        "queries": {
+          "documentReads": 151,
+          "listReads": 10,
+          "revisionReads": 0,
+          "preloadQueries": 21,
+          "validationMs": 0
+        },
+        "observedAfterRejection": true,
+        "feedEpochChanged": true,
+        "feedUnavailable": false,
+        "scopeSetChanged": false,
+        "scopeChanges": []
+      },
+      {
+        "type": "V1_FEED_CAS_REJECTED",
+        "attempt": 1,
+        "epoch": 5786,
+        "writes": 3,
+        "jobs": 0,
+        "computationMs": 9939,
+        "queries": {
+          "documentReads": 24,
+          "listReads": 6,
+          "revisionReads": 9,
+          "preloadQueries": 21,
+          "validationMs": 0
+        },
+        "observedAfterRejection": true,
+        "feedEpochChanged": true,
+        "feedUnavailable": false,
+        "scopeSetChanged": false,
+        "scopeChanges": []
+      },
+      {
+        "type": "V1_FEED_CAS_REJECTED",
+        "attempt": 1,
+        "epoch": 5792,
+        "writes": 1,
+        "jobs": 0,
+        "computationMs": 2486,
+        "queries": {
+          "documentReads": 18,
+          "listReads": 1,
+          "revisionReads": 0,
+          "preloadQueries": 0,
+          "validationMs": 0
+        },
+        "observedAfterRejection": true,
+        "feedEpochChanged": true,
+        "feedUnavailable": false,
+        "scopeSetChanged": false,
+        "scopeChanges": []
+      },
+      {
+        "type": "V1_FEED_CAS_REJECTED",
+        "attempt": 1,
+        "epoch": 5795,
+        "writes": 1,
+        "jobs": 0,
+        "computationMs": 10930,
+        "queries": {
+          "documentReads": 22,
+          "listReads": 6,
+          "revisionReads": 9,
+          "preloadQueries": 21,
+          "validationMs": 0
+        },
+        "observedAfterRejection": true,
+        "feedEpochChanged": true,
+        "feedUnavailable": false,
+        "scopeSetChanged": false,
+        "scopeChanges": []
+      },
+      {
+        "type": "V1_FEED_CAS_REJECTED",
+        "attempt": 1,
+        "epoch": 5801,
+        "writes": 1,
+        "jobs": 0,
+        "computationMs": 11052,
+        "queries": {
+          "documentReads": 22,
+          "listReads": 6,
+          "revisionReads": 9,
+          "preloadQueries": 21,
+          "validationMs": 0
+        },
+        "observedAfterRejection": true,
+        "feedEpochChanged": true,
+        "feedUnavailable": false,
+        "scopeSetChanged": false,
+        "scopeChanges": []
+      }
+    ]
+  },
+  "slowAttemptDiagnosticCoverage": {
+    "conflictsInAggregate": 17,
+    "loggedRejectionDiagnostics": 6,
+    "feedEpochChangedObserved": 6,
+    "scopeChangesObserved": 0,
+    "discardedComputationInLoggedRejectionsMs": 101002,
+    "discardedDocumentReadsInLoggedRejections": 349,
+    "discardedPreloadsInLoggedRejections": 110,
+    "reason": "Rejection diagnostics are sampled at attempts 1 and 12. Observed state after rejection does not identify the racing writer."
+  }
+}

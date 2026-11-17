@@ -1,0 +1,138 @@
+import {it,expect} from 'vitest';
+import {checkReaderFidelity,verifiedCorrectionDelivery} from './fidelity';
+import ordinalDates from './fixtures/staging-writer-ordinal-dates.json';
+import temporalFalsePass from './fixtures/staging-temporal-false-pass.json';
+import googleReportDate from './fixtures/staging-google-report-date.json';
+import anthropicReportDate from './fixtures/staging-anthropic-report-date.json';
+import revenueReportDate from './fixtures/staging-openai-revenue-report-date.json';
+const fact=(text:string)=>({id:'fact',text,evidenceRevisionIds:['r']});
+const positiveChecks=(facts:{id:string}[])=>facts.map(f=>({factId:f.id,communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Permissive verifier approval.'}));
+it('permits the exact first post-fix live reporting date without licensing an event date',()=>{
+ const facts=revenueReportDate.facts,checks=positiveChecks(facts);
+ expect(checkReaderFidelity([revenueReportDate.originalDraft],facts,facts,true,{checks}).passed).toBe(true);
+ expect(checkReaderFidelity([revenueReportDate.publishedClaim],facts,facts,true,{checks}).passed).toBe(true);
+ expect(checkReaderFidelity(['A report from TechCrunch dated October 8, 2026 says revenue fell on October 8, 2026.'],[],facts,true,{checks}).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 8, 2026'});
+ expect(checkReaderFidelity(['TechCrunch reports revenue fell on October 8, 2026.'],[],facts,true,{checks}).passed).toBe(false);
+});
+it('also rejects the later naturally published Anthropic policy-update date false pass',()=>{
+ const facts=anthropicReportDate.facts;
+ expect(checkReaderFidelity([anthropicReportDate.claim],facts,facts,true,{checks:positiveChecks(facts)}).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 8, 2026'});
+});
+it('rejects the persisted Google report date used as a release date despite verifier approval',()=>{
+ const facts=googleReportDate.facts;
+ expect(checkReaderFidelity([googleReportDate.claim],facts,facts,true,{checks:positiveChecks(facts)}).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 8, 2026'});
+ for(const text of ['A report published on October 8, 2026 describes Google releasing AI Edge Foresight.','Google released AI Edge Foresight, according to a report dated October 8, 2026.'])expect(checkReaderFidelity([text],[],facts,true).passed).toBe(true);
+ expect(checkReaderFidelity(['Google reportedly released AI Edge Foresight on October 8, 2026.'],[],facts,true,{checks:positiveChecks(facts)}).passed).toBe(false);
+ expect(checkReaderFidelity(['Google published on October 8, 2026 a new AI Edge Foresight app.'],[],facts,true,{checks:positiveChecks(facts)}).passed).toBe(false);
+ expect(checkReaderFidelity(['A report published on October 8, 2026 says Google released it on October 8, 2026.'],[],facts,true).passed).toBe(false);
+});
+it('keeps report, observation and supported event dates distinct',()=>{
+ const f={...fact('Google released a product.'),timing:{sourcePublishedAt:'2026-10-08T13:28:39Z',reportTime:'2026-10-08T13:28:39Z',firstSeenByFeedAt:'2026-10-09T07:00:00Z',observedAt:'2026-10-09T07:00:00Z',framingRequired:false}};
+ expect(checkReaderFidelity(['Google released a product on October 9, 2026.'],[f],[f],true).passed).toBe(false);
+ expect(checkReaderFidelity(['Google released a product.'],[f],[f],true).passed).toBe(true);
+ expect(checkReaderFidelity(['Google released a product on October 7, 2026.'],[f],[{...f,timing:{...f.timing,eventTime:'2026-10-07T12:00:00Z'}}],true).passed).toBe(true);
+ const explicit=fact('Google released a product on October 7, 2026.');
+ expect(checkReaderFidelity(['On October 7, 2026, Google released a product.'],[explicit],[explicit],true).passed).toBe(true);
+ const reporting=fact('A report published on October 8, 2026 says Google released a product.');
+ expect(checkReaderFidelity(['Google released a product on October 8, 2026.'],[],[reporting],true).passed).toBe(false);
+});
+it('does not turn relative event sequence or ingestion time into calendar or deictic event dates',()=>{
+ const f={...fact('The product launched two days after the announcement.'),timing:{sourcePublishedAt:'2026-10-08T12:00:00Z',firstSeenByFeedAt:'2026-10-09T07:00:00Z',observedAt:'2026-10-09T07:00:00Z',framingRequired:false}};
+ expect(checkReaderFidelity([f.text],[f],[f],true).passed).toBe(true);
+ for(const text of ['The product launched two days after the announcement, on October 8, 2026.','The product launched today, two days after the announcement.','The product launched yesterday, two days after the announcement.'])expect(checkReaderFidelity([text],[f],[f],true,{checks:positiveChecks([f])}).passed).toBe(false);
+ const explicit=fact('The product launched yesterday.');
+ expect(checkReaderFidelity([explicit.text],[explicit],[explicit],true).passed).toBe(true);
+});
+it('an explicit old event date does not substitute for old source-report framing',()=>{
+ const f={...fact('Google released the product on September 30, 2026.'),timing:{sourcePublishedAt:'2026-10-02T12:00:00Z',eventTime:'2026-09-30T12:00:00Z',firstSeenByFeedAt:'2026-10-09T07:00:00Z',observedAt:'2026-10-09T07:00:00Z',framingRequired:true}},checks=positiveChecks([f]);
+ expect(checkReaderFidelity(['A report says Google released the product on September 30, 2026.'],[f],[f],true,{checks}).failures).toContainEqual({code:'TEMPORAL_FRAMING_REQUIRED',factId:'fact'});
+ expect(checkReaderFidelity(['An October 2, 2026 report says Google released the product on September 30, 2026.'],[f],[f],true,{checks}).passed).toBe(true);
+});
+it('rejects the exact persisted Mangione false pass despite real verifier approval',()=>{
+ const f=temporalFalsePass.fact;
+ expect(f.timing.framingRequired).toBe(true);
+ expect(checkReaderFidelity([temporalFalsePass.claim],[f],[f],true,{checks:temporalFalsePass.semanticChecks}).failures).toContainEqual({code:'TEMPORAL_FRAMING_REQUIRED',factId:f.id});
+});
+it('a positive verifier cannot confuse old reporting age with relative event sequence',()=>{
+ const source='Bodycam footage shows an officer finding a gun, days after the killing.',approved={...fact(source),timing:{sourcePublishedAt:'2026-10-02T20:37:34Z',firstSeenByFeedAt:'2026-10-06T16:52:43Z',observedAt:'2026-10-06T16:52:43Z',framingRequired:true}};
+ const checks=[{factId:'fact',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Permissive positive verdict.'}];
+ expect(checkReaderFidelity([source],[approved],[approved],true,{checks}).failures).toContainEqual({code:'TEMPORAL_FRAMING_REQUIRED',factId:'fact'});
+ expect(checkReaderFidelity(['A prior Distilled briefing that reported bodycam footage showing an officer finding a gun has been withdrawn. Bodycam footage shows an officer finding a gun, days after the killing.'],[approved],[approved],true,{checks}).failures).toContainEqual({code:'TEMPORAL_FRAMING_REQUIRED',factId:'fact'});
+ expect(checkReaderFidelity(['An earlier report shows an officer finding a gun, days after the killing.'],[approved],[approved],true,{checks}).passed).toBe(true);
+ expect(checkReaderFidelity([source],[{...approved,timing:{...approved.timing,framingRequired:false}}],[approved],true,{checks}).passed).toBe(true);
+});
+it('rejects invented quantities, magnitudes and dates even with a supplied supporting quote',()=>{
+ for(const [source,text] of [['Officials reported 12 people affected.','Officials reported 40 people affected.'],['The cost is 12 million.','The cost is 12 billion.'],['The vote is on 2026-10-03.','The vote is on 2026-10-04.']])expect(checkReaderFidelity([text],[fact(source)],[fact(source)],true).passed).toBe(false);
+ expect(checkReaderFidelity(['People were affected.'],[fact('Officials reported 40 people affected.')],[fact('Officials reported 40 people affected.')],true).passed).toBe(false);
+ expect(checkReaderFidelity(['The cost is 12000000.'],[fact('The cost is 12 million.')],[fact('The cost is 12 million.')],true).passed).toBe(true);
+});
+it('preserves visible uncertainty, negation, temporal bounds and attributed disagreement',()=>{
+ for(const [source,text] of [['The cabinet may approve the bill.','The cabinet approved the bill.'],['The court did not confirm the decision.','The court confirmed the decision.'],['Officials reported at least 40 people affected.','Officials reported 40 people affected.']])expect(checkReaderFidelity([text],[fact(source)],[fact(source)],true).passed).toBe(false);
+ expect(checkReaderFidelity(['Police reported 12 people; hospitals reported 40 people.'],[fact('Police reported 12 people.'),{...fact('Hospitals reported 40 people.'),id:'other'}],[fact('Police reported 12 people.'),fact('Hospitals reported 40 people.')],true).passed).toBe(true);
+});
+
+it('correction resolution requires both actual verified delivery and visible corrective context',()=>{
+ expect(verifiedCorrectionDelivery(['Officials confirmed 12 people.'],'o',[],true)).toBe(false);
+ expect(verifiedCorrectionDelivery(['Officials confirmed 12 people.'],'o',['o'],true)).toBe(false);
+ expect(verifiedCorrectionDelivery(['Earlier briefing reported 12; officials now report 40.'],'o',['o'],true)).toBe(true);
+});
+it('does not mistake URL identifiers for missing quantities or approved calendar dates',()=>{
+ const source='The death toll rose to 40. https://example.invalid/report/2026-10-03/483';
+ expect(checkReaderFidelity(['Forty people have now died.'],[fact(source)],[fact(source)],true).passed).toBe(true);
+ expect(checkReaderFidelity(['Forty people died on 2026-10-03.'],[fact(source)],[fact(source)],true).passed).toBe(false);
+});
+it('allows equivalent exact ages but rejects newly invented numerical bounds even with a positive semantic verdict',()=>{
+ const source='The watch is a hundred-year-old keepsake.',approved=fact(source),checks=[{factId:'fact',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Controlled positive verdict.'}];
+ for(const text of ['The keepsake watch is a century old.','The watch is 100 years old.'])expect(checkReaderFidelity([text],[approved],[approved],true,{checks}).passed).toBe(true);
+ for(const text of ['The watch is over a century old.','The watch is more than one hundred years old.','The watch is under 100 years old.'])expect(checkReaderFidelity([text],[approved],[approved],true,{checks}).passed).toBe(false);
+ expect(checkReaderFidelity(['No fewer than forty people died.'],[fact('At least 40 people died.')],[fact('At least 40 people died.')],true).passed).toBe(true);
+ expect(checkReaderFidelity(['The cost exceeded expectations at over 12000000.'],[fact('The cost is over 12 million.')],[fact('The cost is over 12 million.')],true).passed).toBe(true);
+});
+it('preserves the same age bound when the source says under the age of eight',()=>{
+ const approved=fact('Women who have children under the age of eight will receive leave.'),checks=[{factId:'fact',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Same age restriction.'}];
+ expect(checkReaderFidelity(['Women with children under eight will receive leave.'],[approved],[approved],true,{checks}).passed).toBe(true);
+ expect(checkReaderFidelity(['Women with children under nine will receive leave.'],[approved],[approved],true,{checks}).passed).toBe(false);
+});
+
+const retainedOrdinalFacts=ordinalDates.facts.map(f=>({...f,evidenceRevisionIds:f.support.map(s=>s.evidenceRevisionId)}));
+it('retained first-day wording preserves Day 1 and Oct. 13 without accepting its other writer failures',()=>{
+ const required=retainedOrdinalFacts.filter(f=>f.text.includes('Day 1'));
+ const text=ordinalDates.claims.find(c=>c.texts.some(t=>t.includes('first day')))!.texts;
+ const failures=checkReaderFidelity(text,required,retainedOrdinalFacts,true).failures;
+ for(const value of ['1','13'])expect(failures.some(f=>f.code==='LOST_QUANTITY'&&f.value===value)).toBe(false);
+ expect(failures).toContainEqual({code:'UNSUPPORTED_QUANTITY',value:'>10000'});
+ expect(failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 15'});
+});
+it('retained second-day prose communicates Day 2 while an invented calendar date still fails',()=>{
+ const facts=retainedOrdinalFacts.filter(f=>f.text.includes('Day 2'));
+ const text=ordinalDates.claims.find(c=>c.texts.some(t=>t.startsWith('TechCrunch Disrupt 2026 entered its second day')))!.texts;
+ expect(checkReaderFidelity(text,facts,facts,true).passed).toBe(true);
+ expect(checkReaderFidelity(['On October 14, 2026, '+text[0]],facts,facts,true).failures).toContainEqual({code:'UNSUPPORTED_DATE',value:'october 14, 2026'});
+});
+it('day ordinals cannot substitute a wrong day or a quantity of days',()=>{
+ const approved=fact('TechCrunch Disrupt 2026: Day 1');
+ expect(checkReaderFidelity(['TechCrunch Disrupt 2026 reached its third day.'],[approved],[approved],true).passed).toBe(false);
+ expect(checkReaderFidelity(['One day of TechCrunch Disrupt 2026.'],[fact('Two days of TechCrunch Disrupt 2026.')],[fact('Two days of TechCrunch Disrupt 2026.')],true).passed).toBe(false);
+});
+it('Oct. and October share exact dates while report metadata cannot license an event date',()=>{
+ const approved=fact('The event begins on Oct. 13.');
+ expect(checkReaderFidelity(['The event begins on October 13.'],[approved],[approved],true).passed).toBe(true);
+ expect(checkReaderFidelity(['Thirteen people attended.'],[],[approved],true).passed).toBe(false);
+ const reporting=fact('A report dated Oct. 13 describes the event.');
+ expect(checkReaderFidelity(['The event begins on October 13.'],[],[reporting],true).passed).toBe(false);
+ expect(checkReaderFidelity(['A report dated October 13 describes the event.'],[reporting],[reporting],true).passed).toBe(true);
+});
+
+it('rejects developing-to-operational capability strengthening despite a permissive semantic verdict',()=>{
+ const f=fact('The unique selling point is the AI agents the startup is developing to automatically design corner cases.');
+ const draft='Its AI agents automatically create challenging, rare scenarios known as corner cases.';
+ expect(checkReaderFidelity([draft],[f],[f],true,{checks:positiveChecks([f])}).failures.some(f=>f.code==='UNSUPPORTED_ACTION_STRENGTH')).toBe(true);
+ expect(checkReaderFidelity(['The startup is developing AI agents to automatically design corner cases.'],[f],[f],true,{checks:positiveChecks([f])}).passed).toBe(true);
+});
+
+it('does not let an unrelated existing capability license the developing capability',()=>{
+ const f=fact('The AI agents the startup is developing to automatically design corner cases.');
+ const logs={...fact('AI agents generate logs.'),id:'logs'};
+ expect(checkReaderFidelity(['AI agents automatically design corner cases.'],[f],[f,logs],true,{checks:positiveChecks([f,logs])}).passed).toBe(false);
+ expect(checkReaderFidelity(['The startup is developing AI agents that automatically design corner cases.'],[f],[f,logs],true,{checks:positiveChecks([f,logs])}).passed).toBe(true);
+});

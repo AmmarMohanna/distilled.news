@@ -1,0 +1,39 @@
+{
+  "operations": {
+    "news-e2e:d8651e44c878a0738b3b:cloudflare:7f728f564357d0300437930cdc3e2f293af0ff69a1aa5602276b03bc5bac8f96": "AI_CURATED_DOWNSTREAM_CONTROL",
+    "news-e2e:d8651e44c878a0738b3b:cloudflare:ff67fedf0a3880f3a4b0bb1b165bad496b72c648dbb21e91d92e4fe946e7ca4e": "AI_CURATED_DOWNSTREAM_CONTROL",
+    "news-e2e:d8651e44c878a0738b3b:openrouter:10aba6a74c084625447028a5e86cbdf98fe98550104b90f536dfcf432594cd17": "AI_CURATED_DOWNSTREAM_CONTROL",
+    "news-e2e:d8651e44c878a0738b3b:openrouter:202a66f643b90f00c5fceed0b6512bd801ae58ff88e7e0a4b009c917bdf624a5": "AI_CURATED_DOWNSTREAM_CONTROL"
+  },
+  "bindings": [
+    {
+      "key": "cloudflare:SYNTHESIS",
+      "operationId": "news-e2e:d8651e44c878a0738b3b:cloudflare:7f728f564357d0300437930cdc3e2f293af0ff69a1aa5602276b03bc5bac8f96",
+      "requestHash": "7f728f564357d0300437930cdc3e2f293af0ff69a1aa5602276b03bc5bac8f96",
+      "inputHash": "90a85b638f55b04fccf631ee1700aae55567636bd3809582d60d8bc3bf8bbe15",
+      "scope": "AI_CURATED_DOWNSTREAM_CONTROL"
+    },
+    {
+      "key": "cloudflare:GROUNDING",
+      "operationId": "news-e2e:d8651e44c878a0738b3b:cloudflare:ff67fedf0a3880f3a4b0bb1b165bad496b72c648dbb21e91d92e4fe946e7ca4e",
+      "requestHash": "ff67fedf0a3880f3a4b0bb1b165bad496b72c648dbb21e91d92e4fe946e7ca4e",
+      "inputHash": "90a85b638f55b04fccf631ee1700aae55567636bd3809582d60d8bc3bf8bbe15",
+      "scope": "AI_CURATED_DOWNSTREAM_CONTROL"
+    },
+    {
+      "key": "openrouter:GROUNDING",
+      "operationId": "news-e2e:d8651e44c878a0738b3b:openrouter:10aba6a74c084625447028a5e86cbdf98fe98550104b90f536dfcf432594cd17",
+      "requestHash": "10aba6a74c084625447028a5e86cbdf98fe98550104b90f536dfcf432594cd17",
+      "inputHash": "90a85b638f55b04fccf631ee1700aae55567636bd3809582d60d8bc3bf8bbe15",
+      "scope": "AI_CURATED_DOWNSTREAM_CONTROL"
+    },
+    {
+      "key": "openrouter:SYNTHESIS",
+      "operationId": "news-e2e:d8651e44c878a0738b3b:openrouter:202a66f643b90f00c5fceed0b6512bd801ae58ff88e7e0a4b009c917bdf624a5",
+      "requestHash": "202a66f643b90f00c5fceed0b6512bd801ae58ff88e7e0a4b009c917bdf624a5",
+      "inputHash": "90a85b638f55b04fccf631ee1700aae55567636bd3809582d60d8bc3bf8bbe15",
+      "scope": "AI_CURATED_DOWNSTREAM_CONTROL"
+    }
+  ],
+  "binding": "Exact frozen request hash and all 12 owned control facts; primary pipeline never entered paid writing/verification; no original receipt changed."
+}

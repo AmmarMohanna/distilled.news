@@ -1,0 +1,166 @@
+{
+  "checks": [
+    {
+      "originalRevisionId": "22230b5f-de57-42fb-9340-d92521921977",
+      "localRevisionId": "d1e1db3e-794b-4404-b1ff-aa22d63b6c56",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "0523053e77d14fb9549a92b4c09809cd41fc4a889c435eba5ad5b833dbef4d8d",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "c828d471-23bb-4810-8c88-fbd6324a5997",
+      "localRevisionId": "f56c5526-3c70-4c76-8a20-d4dbcda07ac8",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "9c60d5fc5676088d845a7c67bac7a2fb859f9cb1db6d1b49a2eb2ea1d444cb47",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "279b9bd1-5d72-4e3b-b922-d10ca0ce040b",
+      "localRevisionId": "02002641-a6d5-4954-affc-8a66e3c87514",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "cb3515abab06044c6fd9ce2ad3c40ecd89cf1a92ae634888fd0e8f1389e23b2b",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "70a64a4a-eefe-49b1-ad74-ce39d871fd83",
+      "localRevisionId": "52284b2e-6c16-46c6-9641-27f216a93dc8",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "c9cbe6f30dec5e9741d44b644aecdd7466713927fcf1550bb4d4061859007b3b",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "1710a6bb-c480-4634-9e79-45e574584acf",
+      "localRevisionId": "ea56e6dc-0429-4124-9971-9b00bce53604",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "99dcfc3e6c931c1e255be69d97ae3085a522e9e23642069df67752875f51b9ea",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "203304e4-87e6-4303-ab13-70257b1b5614",
+      "localRevisionId": "f0b4978f-c609-4259-a71d-d9295e14f2c0",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "4ece963986b964cc8db25b21e104b0ebe6bb324ea8e0bff98bd40c0aba50d9c3",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "4353a6b0-f30e-4ae4-9f13-e06301025b55",
+      "localRevisionId": "2cebc4f7-6266-40eb-a74e-e0f2db14094c",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "6f42b4b190e31c517548d74ac737a806f1ca4bad3fe06e4730f877db12f50e85",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "b5be2d5d-1f80-479e-9887-99a4bb908074",
+      "localRevisionId": "9cd0b072-b5f5-42b3-99c4-9e6d0618c250",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "c78326fd6027ebb2885d8a32a7f5ef3a709be9148b654b8dd8b4e1e7d9d25b34",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "3bb439ea-9048-4bdf-b3af-0ae789c89d2c",
+      "localRevisionId": "fd9da245-d8f6-4376-9bd9-c02ef7749974",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "086b7f7b7b43b80046d51f243eba83294db4eebf9631578429a14dc1886ea882",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "eb22ece6-571e-43b4-965c-5898f71fbe72",
+      "localRevisionId": "9703429a-aa00-458f-abf0-d843cd3f539d",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "fd9251dff5d9861dad749b72cf909c497c03842da0fd0fe60fa7cb619c10beaa",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "96d5bf23-f17c-48db-83a5-cdc4597868dd",
+      "localRevisionId": "bb34efce-39c1-4345-8148-fa94413a5678",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "60b50a0a6a3397c30796c1d43583452db41312a4578e2eeafed8b66f185df3b0",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "10255c9f-5663-4f23-be61-73c717cba800",
+      "localRevisionId": "33bf3469-7921-4b1c-93eb-058f22ac756f",
+      "sourceId": "bc0543c4ba562dce776076e5ea357e66687189d7d4b38ced08580c1aa91f426a",
+      "sourceFeedSourceId": "qads_20261021_08::rss_google_news_1rh7vce",
+      "bodySha256": "3ba95c7a763a0e65be2f5a34d84fe9c751f22f2cadbd56756d8e1f2131f57108",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "3cc5f30b-c316-400e-bc02-578e3ef24dbf",
+      "localRevisionId": "f3455c1d-bffd-4f91-aff7-f5b155c51732",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "aee5951e1bc5a41c1d49f85d64a8d272a59d39eca785cbdadf935c807f986050",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "752ac255-0c0b-4d73-a827-d30b5d8a5753",
+      "localRevisionId": "b53cfdf1-f372-4275-8d2e-72e3442ff240",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "db04643ffee99ae5f85d785799e8f5f8025f8951c9d1fa25feb958023fd9efee",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "4e798d2c-226e-4478-9041-d0431eec2207",
+      "localRevisionId": "56f3ce1d-fe02-4433-afc5-d10f63aa53a8",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "5909b1bb8401086d6dae1576adb9cf2e516236189d88855190c44f26158dbdda",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "2480d6dc-9516-43da-a1fc-1985ebdeaa40",
+      "localRevisionId": "7ba46c8a-9d3f-48d2-9157-0324a27641a2",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "bf6cf5364cca364ef77b78bde4ca0318d37e46a4ea9d6380ac08077b66c82e8a",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "dffb9da5-c1ae-4743-aa87-65bbafd3f3c9",
+      "localRevisionId": "0f8a9684-230f-422d-a997-389b74b29029",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "f4dce1d98b3d8ae8dc99bbe80403917666babcefc5348e972200263e20f30b36",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "94983f4f-b127-45d3-aeaf-64372d9ad917",
+      "localRevisionId": "2f17f815-eb39-41fd-a25a-c4836961693a",
+      "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_1sfl002",
+      "bodySha256": "d579772b3d6d5352f7014459f2a4405d2cb067e1d7f9b55f280a6f52495899a7",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "ed6feaaf-8dde-40bd-83b1-bb91d1d4867b",
+      "localRevisionId": "4bae73ae-c613-4a89-bea8-65dc906ede2c",
+      "sourceId": "fda8b7bfd7e853e346581ba3e41c32dde56559e4d78f4dc3f31d763e693add9e",
+      "sourceFeedSourceId": "qads_20261021_08::rss_rss_feed_ee7srg",
+      "bodySha256": "5dbc35fbef4e498d36a990ee668c0a092e2a3efa184f0218e6b308e3f760c083",
+      "bodyTitleUrlPublicationPreserved": true
+    },
+    {
+      "originalRevisionId": "d8728d2b-4369-4cc5-a5a3-87a30fc70b26",
+      "localRevisionId": "e5b4e117-0902-48c8-a95f-07f4110d063f",
+      "sourceId": "bc0543c4ba562dce776076e5ea357e66687189d7d4b38ced08580c1aa91f426a",
+      "sourceFeedSourceId": "qads_20261021_08::rss_google_news_1rh7vce",
+      "bodySha256": "0293e9e7ad5b11504a3c0e3cd8d25485df7c873b5f1b0b7319b13a8da5041d41",
+      "bodyTitleUrlPublicationPreserved": true
+    }
+  ],
+  "allPreserved": true,
+  "offeredToV3": 20
+}

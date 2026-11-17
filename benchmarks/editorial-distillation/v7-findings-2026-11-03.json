@@ -1,0 +1,101 @@
+{
+  "authority": "AI-assisted engineering source review; not human gold. Exact quotes validated; interpretations remain reviewable.",
+  "findings": [
+    {
+      "id": "v4-ar-event-merge",
+      "caseId": "lebanon-roundup-ar",
+      "version": 4,
+      "severity": "material",
+      "kind": "event-grouping",
+      "status": "problem",
+      "wording": "غارات إسرائيلية تستهدف جنوب لبنان وتحذيرات من هجمات إضافية",
+      "sourceId": "d54d92e1-3175-4465-8f47-09031a4de464",
+      "quote": "سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة",
+      "explanation": "A separate regional-council prospective announcement is combined with the earlier Baraachit occurrence. V7 retains two separate items."
+    },
+    {
+      "id": "v4-en-future-completed",
+      "caseId": "ai-multisource-en",
+      "version": 4,
+      "severity": "material",
+      "kind": "temporal-status",
+      "status": "problem",
+      "wording": "about 20% of Anthropic shares are now dedicated",
+      "sourceId": "public-benefit-fund",
+      "quote": "roughly 20% of Anthropic shares will be dedicated to the public good",
+      "explanation": "Present completed dedication replaces future dedication. V4 verifier approved. V7 English uses future plus approval condition."
+    },
+    {
+      "id": "v7-ar-approval-omitted",
+      "caseId": "ai-multisource-ar",
+      "version": 7,
+      "severity": "material",
+      "kind": "condition",
+      "status": "problem",
+      "wording": "سيحصل مبدئياً على 5% من أسهم الشركة",
+      "sourceId": "public-benefit-fund",
+      "quote": "Subject to stockholder approval, 5% of Anthropic’s shares will be committed today",
+      "explanation": "The whole fund item omits stockholder approval, a condition on its central 5% commitment. The verifier approved it."
+    },
+    {
+      "id": "v7-ar-board-discretion-omitted",
+      "caseId": "ai-multisource-ar",
+      "version": 7,
+      "severity": "moderate",
+      "kind": "condition",
+      "status": "unresolved",
+      "wording": "مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50%",
+      "sourceId": "public-benefit-fund",
+      "quote": "with an additional 2% added at the board’s discretion for every 50% increase",
+      "explanation": "The Arabic retains possibility, not an automatic escalator, but omits who decides. Board identity may be optional in a concise account; do not count this as a confirmed factual error or require the optional escalator. Review separately from the definite missing stockholder-approval condition."
+    },
+    {
+      "id": "v7-ar-metr-veto",
+      "caseId": "ai-multisource-ar",
+      "version": 7,
+      "severity": "material",
+      "kind": "scope",
+      "status": "problem",
+      "wording": "ولا يمكن لـ Anthropic منع النشر إلا في حالات محددة",
+      "sourceId": "an-update-on-independent-evaluators",
+      "quote": "Anthropic can’t veto publication, but we can require them to redact information",
+      "explanation": "Arabic permits exceptions to a publication veto; the source permits redactions, not vetoing publication. V4 Arabic describes redactions. V7 verifier approved."
+    },
+    {
+      "id": "v7-ar-future-now",
+      "caseId": "ai-multisource-ar",
+      "version": 7,
+      "severity": "moderate",
+      "kind": "writing-and-time",
+      "status": "unresolved",
+      "wording": "سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة حتى الآن",
+      "sourceId": "public-benefit-fund",
+      "quote": "roughly 20% of Anthropic shares will be dedicated to the public good",
+      "explanation": "Future سيخصص with حتى الآن is unnatural and temporally confusing. Not counted as a separate confirmed completed-transfer assertion."
+    },
+    {
+      "id": "v7-en-conditional-headline",
+      "caseId": "ai-multisource-en",
+      "version": 7,
+      "severity": "moderate",
+      "kind": "headline-qualification",
+      "status": "unresolved",
+      "wording": "Anthropic commits 5% of company shares",
+      "sourceId": "public-benefit-fund",
+      "quote": "Subject to stockholder approval, 5% of Anthropic’s shares will be committed today",
+      "explanation": "The body retains approval, but a flat headline can overstate it. Since commitment is not necessarily completed transfer, treat this as unresolved rather than automatically scoring a false completion."
+    },
+    {
+      "id": "v4-ar-insider-attribution",
+      "caseId": "ai-multisource-ar",
+      "version": 4,
+      "severity": "moderate",
+      "kind": "actor-attribution",
+      "status": "problem",
+      "wording": "لم تؤكد مصادر من أنثروبيك إنهاء الشراكة بالكامل",
+      "sourceId": "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+      "quote": "One person familiar, who asked not to be named, said the partnership was still in place.",
+      "explanation": "An insider familiar with the partnership affirming continuation becomes sources from Anthropic not confirming termination. Source does not identify them as Anthropic sources."
+    }
+  ]
+}

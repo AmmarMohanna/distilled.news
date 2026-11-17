@@ -1,0 +1,95 @@
+{
+  "status": "OFFLINE_PREPARED_NO_MODEL_QUALIFICATION",
+  "corpusHash": "e12c91d69c7bc9696379c7c5580107e35a3bf349c4347e9219cbbb3baf681e63",
+  "snapshotHash": "ad48e5b7a3245ab62477e8d227ec3c9ad73ee71db492b6532fef1b972e577312",
+  "quantityFixtureHash": "6ce7ffaaa435ffcbf9ad36bfce8810815765db3a005ee2775d0e8f5917cfda69",
+  "candidates": [
+    {
+      "id": "explicit-source-accounting",
+      "stage": "editor",
+      "instruction": "Every supplied article reference must occur in items.sources or left_out.sources. Group refs with the same exclusion reason; use one short reason. Accounting does not require publishing each source: duplicates, irrelevant, optional or lower-priority material may be left out. Preserve distinct consequential new developments."
+    },
+    {
+      "id": "useful-information-density",
+      "stage": "editor",
+      "instruction": "Communicate the main change and only the supporting evidence needed to understand it accurately. Omit optional elaboration, repeated headline content and background that does not change that understanding. Keep essential attribution, uncertainty, conditions and disagreements; do not add analysis or consequences absent from the evidence."
+    },
+    {
+      "id": "quantity-and-commitment",
+      "stage": "verify",
+      "instruction": "A fixed amount conditional on approval is not an up-to range; a proposed or future commitment is not a completed allocation. Check these meanings in the headline and body together. Accept concise paraphrases preserving the quantity, condition and timing; do not demand optional background."
+    }
+  ],
+  "combinedCandidate": "NOT_PREPARED_REQUIRES_INDIVIDUAL_GAINS",
+  "sourceAudit": {
+    "retainedV6Unaccounted": [
+      {
+        "ref": "S4",
+        "sourceIds": [
+          "f619024d-bab6-4a88-8d82-31222f97521d"
+        ]
+      },
+      {
+        "ref": "S9",
+        "sourceIds": [
+          "3c52259a-6f75-4df0-a273-0f8574ec0557"
+        ]
+      },
+      {
+        "ref": "S11",
+        "sourceIds": [
+          "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e"
+        ]
+      },
+      {
+        "ref": "S12",
+        "sourceIds": [
+          "69c9f685-3339-4057-ba7e-07678a33816e"
+        ]
+      },
+      {
+        "ref": "S13",
+        "sourceIds": [
+          "d54d92e1-3175-4465-8f47-09031a4de464"
+        ]
+      },
+      {
+        "ref": "S15",
+        "sourceIds": [
+          "1e764cd1-5749-4428-8449-8e09d5e86751"
+        ]
+      }
+    ],
+    "classification": "Reference absence only; includes optional or irrelevant inputs, not a count of important omissions.",
+    "meanMsOver1000ReplayIterations": 0.008763900000000035,
+    "extraModelCalls": 0,
+    "blocksPublication": false
+  },
+  "evaluationAudit": {
+    "version": "source-evidence-v2",
+    "retainedArabicCoverageWithoutEvidence": "REJECTED",
+    "retainedEnglishParaphrasedQuote": "REJECTED_BY_EXISTING_EXACT_QUOTE_CHECK"
+  },
+  "editorRequests": 36,
+  "developmentEditorRequests": 12,
+  "transferEditorRequests": 24,
+  "verifierRequests": 4,
+  "verifierCases": 14,
+  "ambiguousCasesExcluded": 1,
+  "verifierPlanningMaximumUsd": 0.029904,
+  "paidCalls": 0,
+  "actualUsd": 0,
+  "semanticCandidateResults": null,
+  "fullPipelineCost": null,
+  "modelLatency": null,
+  "repairFrequency": null,
+  "qualityMetrics": null,
+  "acceptance": {
+    "maximumCostRatio": 1.1,
+    "maximumLatencyRatio": 1.1,
+    "materialFactualRegressions": 0,
+    "materialRecallRegressions": 0,
+    "materialGroupingRegressions": 0
+  },
+  "qualification": "Planning uses previously checked prices, not an authorization or native reservation. Refresh prices and obtain a new applicable scope before paid testing. Synthetic multi-item verifier batches are controlled tests, not real published editions."
+}

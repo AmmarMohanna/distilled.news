@@ -1,0 +1,184 @@
+{
+  "date": "2026-10-21",
+  "qualification": "NOT_QUALIFIED_FOR_STAGING_PROMOTION",
+  "previousCode": "4e02e8f",
+  "evidenceHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+  "offlineEvidenceIntegrity": [
+    {
+      "source": "1e466ebb-1191-49fb-99f5-a482add9e302",
+      "oldSentenceUnits": 48,
+      "oldPreFiltered": 0,
+      "newPassageUnits": 2,
+      "completeNonWhitespaceCoverage": true,
+      "oldMs": 46.27779999999996,
+      "indexMs": 0.8143999999999778,
+      "enumOccurrences": 25,
+      "modelCalls": 0,
+      "providerCostUsd": 0
+    },
+    {
+      "source": "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+      "oldSentenceUnits": 32,
+      "oldPreFiltered": 0,
+      "newPassageUnits": 2,
+      "completeNonWhitespaceCoverage": true,
+      "oldMs": 6.253500000000031,
+      "indexMs": 0.38800000000003365,
+      "enumOccurrences": 25,
+      "modelCalls": 0,
+      "providerCostUsd": 0
+    },
+    {
+      "source": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+      "oldSentenceUnits": 9,
+      "oldPreFiltered": 0,
+      "newPassageUnits": 2,
+      "completeNonWhitespaceCoverage": true,
+      "oldMs": 1.859899999999925,
+      "indexMs": 0.6866999999999734,
+      "enumOccurrences": 25,
+      "modelCalls": 0,
+      "providerCostUsd": 0
+    }
+  ],
+  "mini": {
+    "original": {
+      "status": "FAILED",
+      "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_CONSTRUCTION_REJECTED",
+      "wallMs": 46213.222299999994,
+      "providerCalls": 3,
+      "actualUsd": 0.0227628,
+      "database": {
+        "reads": 255,
+        "writes": 343
+      },
+      "persistedBriefings": 0
+    },
+    "articleFirst": {
+      "status": "FAILED",
+      "error": "ARTICLE_SEMANTICS_DEFERRED:SEMANTIC_CONSTRUCTION_REJECTED",
+      "wallMs": 39907.5253,
+      "providerCalls": 4,
+      "actualUsd": 0.0161624,
+      "database": {
+        "reads": 244,
+        "writes": 189
+      },
+      "persistedBriefings": 0
+    }
+  },
+  "specialized": {
+    "original": {
+      "status": "FAILED",
+      "error": "TEMPORARY_UNAVAILABLE",
+      "wallMs": 362410.85020000004,
+      "providerCalls": 7,
+      "actualUsd": 0.034252231,
+      "database": {
+        "reads": 722,
+        "writes": 576
+      },
+      "persistedBriefings": 0
+    },
+    "articleFirst": {
+      "status": "BLOCKED_BEFORE_PROVIDER_SEND",
+      "providerCalls": 0,
+      "actualUsd": 0,
+      "reason": "ACCOUNT_RESERVATION_REJECTED",
+      "remoteReservationCreated": false
+    }
+  },
+  "newPaidCalls": [
+    {
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "model": "openai/gpt-4.1-mini",
+      "usage": {
+        "tokensIn": 9641,
+        "tokensOut": 405,
+        "cost": 0.0045044,
+        "confirmed": true
+      },
+      "wallMs": 5404.398399999998,
+      "operationHash": "083dc3da17ddb4c8e98583e84e9389c64273e549168a092fb24dbeeaebf6e39a"
+    },
+    {
+      "phase": "SEMANTIC_EVENT_IDENTITY_REVIEW",
+      "model": "openai/gpt-4.1-mini",
+      "usage": {
+        "tokensIn": 14136,
+        "tokensOut": 609,
+        "cost": 0.0066288,
+        "confirmed": true
+      },
+      "wallMs": 9816.170300000005,
+      "operationHash": "8762d2275d95f86ee7e744b9904386cef3c1a77e5f2516cdfe74a853ccdad59b"
+    },
+    {
+      "phase": "SEMANTIC_CONSTRUCTION_REPAIR",
+      "model": "openai/gpt-4.1-mini",
+      "usage": {
+        "tokensIn": 10719,
+        "tokensOut": 417,
+        "cost": 0.0028428,
+        "confirmed": true
+      },
+      "wallMs": 5583.662299999996,
+      "operationHash": "a246a7f6d8720d8f96bdd291314ecfcc6732deff8d21d4fe4232593e93fb6213"
+    },
+    {
+      "phase": "SEMANTIC_CONSTRUCTION",
+      "model": "openai/gpt-4.1-mini",
+      "usage": {
+        "tokensIn": 4642,
+        "tokensOut": 206,
+        "cost": 0.0021864,
+        "confirmed": true
+      },
+      "wallMs": 5552.650399999999,
+      "operationHash": "b9d8c47e32372ac6ac2b583287d614b924219e0baec443175b8a2e90b3140ac8"
+    }
+  ],
+  "comparisonLedger": {
+    "at": "2026-10-21T14:42:56.196Z",
+    "calls": 36,
+    "actualUsd": 0.21592802900000002,
+    "unsettled": 0
+  },
+  "jev": {
+    "at": "2026-10-21T14:47:04.860Z",
+    "status": 200,
+    "query": "output_modalities=decisions",
+    "models": [
+      {
+        "id": "typesafe/jev-1.14",
+        "context_length": 262144,
+        "pricing": {
+          "prompt": "0.000000042",
+          "completion": "0"
+        },
+        "output_modalities": [
+          "decisions"
+        ]
+      },
+      {
+        "id": "typesafe/jev-1.13",
+        "context_length": 262144,
+        "pricing": {
+          "prompt": "0.000000042",
+          "completion": "0"
+        },
+        "output_modalities": [
+          "decisions"
+        ]
+      }
+    ]
+  },
+  "limits": [
+    "No validated persisted revised briefing: quality and publication improvement unproven.",
+    "Faster failed mini result is not successful briefing latency.",
+    "Single model sample, not reliability or accuracy statistics.",
+    "Actual three-source baseline had no prefiltered sentence units; new design removes the heuristic gate, not a demonstrated missing-fact loss on these sources.",
+    "Multilingual and multi-sentence checks are controlled offline fixtures, not real model multilingual qualification.",
+    "Private source bodies, original paid responses and financial receipts remain local; historical receipts were not rewritten."
+  ]
+}

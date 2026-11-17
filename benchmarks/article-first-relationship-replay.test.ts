@@ -1,0 +1,30 @@
+import {it,expect} from 'vitest';
+import {existsSync,readdirSync} from 'node:fs';
+import {comparisonRoot,load,save} from './v2-comparison-transport';
+import {applyIdentityReview} from '../apps/worker/src/v1-intelligence/event-identity-review';
+import {hash} from './news-end-to-end';
+it.skipIf(!existsSync(comparisonRoot+'/C-article-first-report.json'))('distinguishes a proposed semantic false merge from duplicate handles and an inconsistent independent review',()=>{
+ const report=load(comparisonRoot+'/C-article-first-report.json'),calls=report.paidCalls,find=(phase:string)=>calls.find((r:any)=>r.phase===phase&&r.result?.groups?.[0]?.occurrence?.includes('Replit'));
+ const initial=find('SEMANTIC_CONSTRUCTION'),repair=find('SEMANTIC_CONSTRUCTION_REPAIR'),review=calls.find((r:any)=>r.phase==='SEMANTIC_EVENT_IDENTITY_REVIEW');
+ const intent=(call:any)=>load(comparisonRoot+'/C-article-first-'+call.operationHash.slice(0,24)+'-intent.json');
+ expect(new Set(initial.result.groups.map((g:any)=>g.groupId)).size).toBe(1);expect(initial.result.groups).toHaveLength(4);
+ const proposed=repair.result.groups.find((g:any)=>g.structuralRelation==='SAME_EVENT'),target=intent(repair).payload.events.find((e:any)=>e.id===proposed.eventId);expect(target.state).toContain('Laplace');expect(proposed.occurrence).toContain('Replit');expect(new Set(repair.result.groups.map((g:any)=>g.groupId)).size).toBe(4);
+ const state=intent(review).payload,corpus=load('.local-reports/news-end-to-end/corpus.json');expect(state.source.body).toBe(corpus.find((c:any)=>c.title.startsWith('Replit')).body);
+ expect(Object.values(review.result.groups).every((g:any)=>g.structuralRelation==='NEW_STORYLINE'&&g.eventId!==null&&g.sourceWitness===null&&g.targetWitness===null)).toBe(true);
+ const construction:any={groups:Object.values(state.groups).map((g:any)=>({claimMentionIds:g.claims.map((c:any)=>c.id),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[]})),backgroundMentionIds:[],provenance:{scorer:'RETAINED_RESPONSE_REPLAY',policyVersion:'no-semantic-promotion'}};
+ const mentions:any=[...new Map(Object.values(state.groups).flatMap((g:any)=>g.claims).map((c:any)=>[c.id,{id:c.id,sourceText:c.text}])).values()],input:any={revision:state.source,candidates:state.events.map((e:any)=>({id:e.id,version:{id:e.versionId,state:e.state},evidenceRevisionIds:e.evidence.map((r:any)=>r.id),newestAt:'2026-10-21T00:00:00Z'})),storylineIds:state.storylines.map((s:any)=>s.id)};
+ const before=hash(review.result);expect(()=>applyIdentityReview(construction,review.result,input,'retained-rejected-review',state.storylines,mentions)).toThrow('IDENTITY_REVIEW_RELATION_ID_CONFLICT');expect(hash(review.result)).toBe(before);
+ save(comparisonRoot+'/article-first-relationship-diagnosis.json',{sourceHash:hash(state.source.body),initial:{responseHash:hash(initial.result),formatFailure:'DUPLICATE_GROUP_ID',uniqueHandles:1,groups:4},repair:{responseHash:hash(repair.result),uniqueHandles:4,genuineFalseMergeProposed:true,source:'Replit model-selection and partnership reporting',selectedTarget:'Laplace physical-AI red-teaming'},independentReview:{responseHash:before,semanticRelationship:'NEW_STORYLINE for every group; reasons explicitly distinguish Replit and Laplace',failure:'IDENTITY_REVIEW_RELATION_ID_CONFLICT',retainedForeignIds:true},committedAcceptedFalseMerge:false,newPaidCalls:0});
+});
+
+it.skipIf(!existsSync(comparisonRoot+'/J-article-first-report.json'))('retains the real Anthropic false-identity review and distinguishes the duplicate-target commit rejection',()=>{
+ const report=load(comparisonRoot+'/J-article-first-report.json'),review=report.paidCalls.find((r:any)=>r.phase==='SEMANTIC_EVENT_IDENTITY_REVIEW'&&Object.values(r.result.groups).some((g:any)=>String(g.reason).includes('public benefit fund')));
+ expect(review).toBeDefined();const request=load(comparisonRoot+'/J-article-first-'+review.operationHash.slice(0,24)+'-intent.json').payload,answers:any[]=Object.values(review.result.groups);
+ const source=load('.local-reports/news-end-to-end/corpus.json').find((c:any)=>c.title.startsWith('Anthropic'));expect(request.source.body).toBe(source.body);expect(answers).toHaveLength(4);expect(answers.every(g=>g.structuralRelation==='SAME_EVENT')).toBe(true);expect(new Set(answers.map(g=>g.eventId)).size).toBe(1);
+ const target=request.events.find((e:any)=>e.id===answers[0].eventId);expect(target.state).toContain('Replit makes OpenAI its default');expect(target.state).not.toContain('public benefit fund');
+ const construction:any={groups:Object.values(request.groups).map((g:any)=>({claimMentionIds:g.claims.map((c:any)=>c.id),eventId:null,storylineId:null,structuralRelation:'NEW_STORYLINE',epistemicEffects:[],entities:[],slots:[]})),backgroundMentionIds:[],provenance:{scorer:'REPLAY',policyVersion:'retained'}};
+ const mentions:any=Object.values(request.groups).flatMap((g:any)=>g.claims.map((c:any)=>({id:c.id,sourceText:c.text}))),input:any={revision:request.source,candidates:request.events.map((e:any)=>({id:e.id,version:{id:e.versionId,state:e.state},evidenceRevisionIds:e.evidence.map((r:any)=>r.id),newestAt:'2026-10-21T00:00:00Z'})),storylineIds:request.storylines.map((s:any)=>s.id)};
+ const accepted=applyIdentityReview(construction,review.result,input,'retained-false-review',request.storylines,mentions);expect(accepted.groups.every(g=>g.eventId===target.id)).toBe(true);
+ expect(report.status).toBe('FAILED');expect(report.stages.find((s:any)=>s.name==='CANONICAL_COMMIT:["REASSESS","observation-3",""]').error).toBe('SCOPE_DENIED');
+ save(comparisonRoot+'/article-first-anthropic-diagnosis.json',{sourceHash:hash(source.body),responseHash:hash(review.result),genuineFalseMergeProposed:true,structuralValidationPassed:true,source:'Anthropic public benefit fund',target:'Replit default model partnership',groups:4,distinctSelectedEvents:1,canonicalCommit:'SCOPE_DENIED',guard:'engine.ts rejects selecting the same canonical event twice in one construction',acceptedFalseMergeCommitted:false,newPaidCalls:0});
+});

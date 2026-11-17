@@ -1,7 +1,31 @@
+import {cadenceMetaLabel,formatCountdown,nextBriefingText} from './briefing-labels';
+import {useReadProgress} from './useReadProgress';
+import {ApiError, toUiError, type UiMessage} from './api-errors';
+import {FEED_REFRESH_INTERVAL_MS, afterFeedRefresh, initialFeedRefreshState, mayRefreshFeed} from './feed-refresh-policy';
+import {SourceHealth} from './SourceHealth';
+import { useFeedViewer } from './useFeedViewer';
+import { usePageMagnification } from './usePageMagnification';
+import { NewsBriefing } from "./NewsBriefing";
+import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
+import { BriefingText } from "./BriefingText";
 import React, { useEffect, useRef, useState } from "react";
+import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
+import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
+import { FeedArt } from "./FeedArt";
+import { UnreadSummary } from './UnreadSummary';
 import { createRoot } from "react-dom/client";
+import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import {
   Activity,
+  Ban,
+  Eye,
+  EyeOff,
+  Mail,
+  LockKeyhole,
+  ArrowRight,
+  Ellipsis,
+  Check,
+  Layers,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -15,14 +39,15 @@ import {
   Globe,
   Github,
   HelpCircle,
-  Languages,
   LayoutDashboard,
   ListChecks,
   LogIn,
   LogOut,
   Moon,
+  MoreHorizontal,
   Newspaper,
   Pause,
+  Pencil,
   Play,
   Plus,
   RadioTower,
@@ -30,6 +55,7 @@ import {
   Save,
   Search,
   Settings,
+  Share,
   ShieldCheck,
   Sparkles,
   Star,
@@ -39,11 +65,10 @@ import {
   X
 } from "lucide-react";
 import type { BriefingConfig, BriefingEdition, BriefingEditionSection, BriefingEvidence } from "@distilled/core";
-import { personalNewsBriefing } from "@distilled/core";
+import { personalNewsBriefing, FEED_TITLE_MAX_LENGTH } from "@distilled/core";
 import {
   addSource,
   deleteBriefing,
-  deleteAdminAccount,
   deleteAdminBriefing,
   deleteSource,
   forgotPassword,
@@ -60,10 +85,10 @@ import {
   logout,
   refreshPublicTelegramSources,
   register,
-  requestFeedSummary,
   resetPassword,
   retryProcessing,
   saveBriefing,
+  saveFeed,
   searchFeed,
   setFeedStar,
   setSourceEnabled,
@@ -75,9 +100,30 @@ import {
   type SourceIngestResult,
   type SourceRefreshResult
 } from "./api";
-import { deriveBriefingSlug, formatTime, publicFeedUrl, slugify } from "./helpers";
+import { deriveBriefingSlug, editionDisplayTime, formatClock, formatDayHeading, formatTime, publicFeedUrl, slugify } from "./helpers";
+import { normalizeUsername } from "@distilled/core";
+import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
+import { accountInitials, AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
+import { LanguageControl, preferredLanguage, useLanguage, languageNames, setWebsiteLanguage } from "./LanguageControl";
+import { FeedEditor, type FeedInput } from "./FeedEditor";
+import {FeedSettingsSelect} from './FeedLanguageSelect';
+import { Dialog } from "./Dialog";
+import { useConfirmation } from "./useConfirmation";
+import { ThemeToggle } from "./ThemeToggle";
+import { ScreenPages } from "./ScreenPages";
+import "./experience.css";
+import "./product.css";
+import "./apple.css";
+
+document.documentElement.classList.add("apple-ui");
+// Email links carry the language chosen when the message was requested,
+// including when opened on a different browser or device.
+if (['/reset-password', '/verify-email'].includes(window.location.pathname)) {
+  const linkLanguage = new URLSearchParams(window.location.search).get('lang');
+  if (linkLanguage === 'en' || linkLanguage === 'fr' || linkLanguage === 'ar') setWebsiteLanguage(linkLanguage);
+}
 
 const FEED_BATCH_SIZE = 20;
 
@@ -111,11 +157,13 @@ declare global {
 }
 
 function App() {
+  usePageMagnification();
   const path = window.location.pathname;
+  if (path === "/explore" || path === "/explore/") return <AdminPage initialTab="explore"/>;
   if (path === "/verify-email") return <VerifyEmailPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   if (path === "/reset-password") return <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   const feedMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
-  if (feedMatch && !["api", "admin", "auth", "feed"].includes(feedMatch[1])) {
+  if (feedMatch && !["api", "auth", "feed"].includes(feedMatch[1])) {
     return <FeedPage username={decodeURIComponent(feedMatch[1])} slug={decodeURIComponent(feedMatch[2])} />;
   }
   return <AdminPage />;
@@ -127,9 +175,16 @@ function languageLabel(language: "en" | "ar" | "fr"): string {
   return "english";
 }
 
-function AdminPage() {
+function AdminPage(props: { initialTab?: "home" | "explore" }) {
+  const { t } = useLanguage();
+  const { language: interfaceLanguage } = useLanguage();
+  useEffect(() => { document.documentElement.lang = interfaceLanguage; document.documentElement.dir = interfaceLanguage === "ar" ? "rtl" : "ltr"; }, [interfaceLanguage]);
   const [session, setSession] = useState<SessionStatus | null>(null);
+  const [authOpen, setAuthOpen] = useState(window.location.pathname === "/login" || new URLSearchParams(window.location.search).has("signup"));
+  const [creationOpen, setCreationOpen] = useState(false);
+  const [createAfterLogin, setCreateAfterLogin] = useState(false);
   const [briefings, setBriefings] = useState<BriefingConfig[]>([]);
+  const [briefingsState, setBriefingsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selectedBriefingId, setSelectedBriefingId] = useState<string | null>(null);
   const [sources, setSources] = useState<SourceRecord[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -138,18 +193,18 @@ function AdminPage() {
   const [sourceStatus, setSourceStatus] = useState("");
   const [sourceToggleBusyId, setSourceToggleBusyId] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [feedSettingsOpen, setFeedSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
-  const [scopedDataReady, setScopedDataReady] = useState(false);
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const selectedBriefingIdRef = useRef<string | null>(null);
   const briefingsRef = useRef<BriefingConfig[]>([]);
   const autosaveTimerRef = useRef<number | null>(null);
   const autosaveRunRef = useRef(0);
+  const briefingsLoadingRef = useRef(false);
 
   const account = session?.account ?? null;
   const briefing = briefings.find((item) => item.id === selectedBriefingId) ?? null;
@@ -179,20 +234,42 @@ function AdminPage() {
       .then(async (nextSession) => {
         setSession(nextSession);
         if (nextSession.authenticated) {
-          await loadBriefings();
-          if (nextSession.account?.role === "admin") setAccounts(await listAccounts());
+          try { await loadBriefings(); } catch { return; } // The feed state owns its retry UI.
         }
       })
-      .catch((cause) => setError(String(cause)));
+      .catch((cause) => setError(toUiError(cause)));
   }, []);
 
   useEffect(() => {
-    if (!selectedBriefingId || !session?.authenticated) return;
-    setScopedDataReady(false);
-    loadScopedData(selectedBriefingId).catch((cause) =>
-      setError(cause instanceof Error ? cause.message : String(cause))
-    ).finally(() => setScopedDataReady(true));
-  }, [selectedBriefingId, session?.authenticated]);
+    if (!account || creationOpen || feedSettingsOpen || accountDialogOpen || busyAction || autosaveState === "saving" || autosaveState === "error") return;
+    let active = true;
+    const update = async () => {
+      if (document.visibilityState !== "visible" || briefingsLoadingRef.current) return;
+      briefingsLoadingRef.current = true;
+      try {
+        const next = await getBriefings();
+        if (!active) return;
+        setBriefings(next);
+        setBriefingsState('ready');
+        setSelectedBriefingId(current => current && next.some(feed => feed.id === current) ? current : next[0]?.id ?? null);
+      } catch {
+        // A background failure must not clear the working list or interrupt a draft.
+      } finally {
+        briefingsLoadingRef.current = false;
+      }
+    };
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
+    window.addEventListener("online", update);
+    window.addEventListener("pageshow", update);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
+      window.removeEventListener("online", update);
+      window.removeEventListener("pageshow", update);
+    };
+  }, [account?.id, creationOpen, feedSettingsOpen, accountDialogOpen, busyAction, autosaveState]);
 
   async function refreshSession() {
     const next = await getSession();
@@ -201,13 +278,23 @@ function AdminPage() {
   }
 
   async function loadBriefings(preferredId?: string) {
-    const nextBriefings = await getBriefings();
-    setBriefings(nextBriefings);
-    const activeId =
-      preferredId && nextBriefings.some((item) => item.id === preferredId)
-        ? preferredId
-        : nextBriefings[0]?.id ?? null;
-    setSelectedBriefingId(activeId);
+    briefingsLoadingRef.current = true;
+    if (!briefingsRef.current.length) setBriefingsState('loading');
+    try {
+      const nextBriefings = await getBriefings();
+      setBriefings(nextBriefings);
+      setBriefingsState('ready');
+      const activeId =
+        preferredId && nextBriefings.some((item) => item.id === preferredId)
+          ? preferredId
+          : nextBriefings[0]?.id ?? null;
+      setSelectedBriefingId(activeId);
+    } catch (cause) {
+      setBriefingsState('error');
+      throw cause;
+    } finally {
+      briefingsLoadingRef.current = false;
+    }
   }
 
   async function loadScopedData(briefingId: string) {
@@ -245,21 +332,24 @@ function AdminPage() {
         if (autosaveRunRef.current === runId) {
           setAutosaveState("error");
           setStatus("");
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(toUiError(cause));
         }
       }
     }, 650);
   }
 
-  async function createBriefing() {
+  async function createBriefing(input?: FeedInput) {
     if (!account) return;
     setError("");
     setBusyAction("create-feed");
     try {
-      const draft = createBriefingDraft(briefings, account);
-      const created = await persistBriefing(draft, "feed created");
+      const draft = { ...createBriefingDraft(briefings, account), language: preferredLanguage(), ...input };
+      const created = input ? await saveFeed(input) : await persistBriefing(draft, "feed created");
+      if ("sourceActivation" in created && created.sourceActivation === "pending") window.alert(t("Feed saved. Some sources are awaiting activation. Check source health for updates."));
       await loadBriefings(created.id);
-      setFeedSettingsOpen(true);
+      if (input) {
+        window.location.href = `/${created.ownerUsername}/${created.slug}/`;
+      }
     } finally {
       setBusyAction(null);
     }
@@ -277,11 +367,13 @@ function AdminPage() {
   }
 
   async function handleLogout() {
+    const result = await logout();
     setAccountDialogOpen(false);
     setFeedSettingsOpen(false);
-    await logout();
+    if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
     setSession({ authenticated: false, setupRequired: false });
     setBriefings([]);
+    setBriefingsState('loading');
     setSelectedBriefingId(null);
     setSources([]);
     setHealth(null);
@@ -304,15 +396,6 @@ function AdminPage() {
     />
   ) : null;
 
-  const onboardingOpen = Boolean(
-    account &&
-      briefing &&
-      scopedDataReady &&
-      sources.length === 0 &&
-      !onboardingDismissed &&
-      isFirstRunBriefing(briefing)
-  );
-
   async function dismissOnboarding() {
     if (account) localStorage.setItem(onboardingStorageKey(account.id), "1");
     setOnboardingDismissed(true);
@@ -330,7 +413,7 @@ function AdminPage() {
     try {
       let nextAccount = account;
       let nextBriefings = briefingsRef.current;
-      if (slugify(input.username) !== account.username) {
+      if (normalizeUsername(input.username) !== account.username) {
         const result = await updateAccount({ username: input.username });
         nextAccount = result.account;
         nextBriefings = result.briefings;
@@ -346,7 +429,7 @@ function AdminPage() {
           ownerUsername: nextAccount.username,
           title: input.title,
           interestProfile: input.interestProfile,
-          publicFeedEnabled: true,
+          publicFeedEnabled: latestBriefing.publicFeedEnabled,
           intensity: latestBriefing.intensity ?? "medium",
           retentionDays: 15
         },
@@ -375,346 +458,63 @@ function AdminPage() {
     if (autosave) scheduleBriefingAutosave(next);
   }
 
-  if (!session) {
-    return (
-      <Shell title="create">
-        <p className="muted">loading</p>
-      </Shell>
-    );
-  }
+  if (!session && !error) return null;
 
-  if (!session.authenticated) {
+  if (!session?.authenticated) {
     return (
-      <Shell title="Distilled.news">
-        <div className="auth-layout">
-          <AuthPanel
-            setupRequired={session.setupRequired}
-            turnstileSiteKey={session.turnstileSiteKey}
-            onAuthenticated={async () => {
-              const next = await refreshSession();
-              if (next.authenticated) {
-                await loadBriefings();
-                if (next.account?.role === "admin") setAccounts(await listAccounts());
-              }
-            }}
-          />
-          {!session.setupRequired ? <ExploreFeedsPanel /> : null}
-        </div>
-        {error ? <p className="error">{error}</p> : null}
-      </Shell>
+      <>
+        <AppExperience account={null} briefings={[]} initialTab="explore"
+          onAccount={() => setAuthOpen(true)} onHelp={() => {}}
+          onCreate={() => { setCreateAfterLogin(true); setAuthOpen(true); }}
+          error={error ? "We couldn’t load your session. Please refresh and try again." : undefined}/>
+        {authOpen && (session || error) && <Dialog label={t(!session && error ? "Sign-in Unavailable" : "Login or sign up")} className={`auth-dialog${!session && error ? ' auth-unavailable-dialog' : ''}`} onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
+          <div className="auth-experience auth-modal-content">
+            <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={() => { setAuthOpen(false); setCreateAfterLogin(false); }}><X size={20}/></button>
+            {session ? <AuthPanel
+              setupRequired={session.setupRequired}
+              turnstileSiteKey={session.turnstileSiteKey}
+              onAuthenticated={async () => {
+                const next = await getSession();
+                if (next.authenticated) {
+                  setSession(next);
+                  setCreationOpen(createAfterLogin);
+                  setAuthOpen(false);
+                  setCreateAfterLogin(false);
+                  try { await loadBriefings(); } catch { /* Feed-list state owns its error and retry. */ }
+                }
+              }}
+            /> : error ? <section className="auth-unavailable" role="alert" aria-labelledby="auth-unavailable-title" dir="ltr">
+              <span className="auth-unavailable-icon" aria-hidden="true"><X size={36} strokeWidth={2}/></span>
+              <h2 id="auth-unavailable-title">{t("Sign-in Unavailable")}</h2>
+              <p>{t("Sign-in is unavailable right now. Please refresh and try again.")}</p>
+            </section> : null}
+          </div>
+        </Dialog>}
+      </>
     );
   }
 
   if (!account) {
     return (
-      <Shell title="create" onLogout={handleLogout}>
-        <p className="error">session account unavailable</p>
+      <Shell title={t("create")} onLogout={handleLogout}>
+        <p className="error">{t("session account unavailable")}</p>
       </Shell>
-    );
-  }
-
-  if (!briefing) {
-    return (
-      <>
-        <Shell title="create" onAccount={() => setAccountDialogOpen(true)}>
-          <section className="section">
-            <div className="section-title">
-              <Globe size={16} aria-hidden />
-              <h2>feeds</h2>
-            </div>
-            <button type="button" title="new feed" onClick={() => createBriefing()}>
-              <Plus size={15} aria-hidden /> new feed
-            </button>
-          </section>
-        </Shell>
-        {accountDialog}
-      </>
     );
   }
 
   return (
     <>
-      <Shell title="create" onAccount={() => setAccountDialogOpen(true)} feed={briefing}>
-        <div className="admin-stack">
-          <AdminCommandPanel
-            briefing={briefing}
-            sources={sources}
-            health={health}
-            status={status}
-            sourceStatus={sourceStatus}
-            onOpenSettings={() => setFeedSettingsOpen(true)}
-            onCopy={() => copyFeedUrl(briefing)}
-          />
-
-          <section className="section feed-section">
-            <div className="section-title">
-              <Globe size={16} aria-hidden />
-              <h2>feeds</h2>
-            </div>
-            <div className="actions">
-              <button type="button" className="primary-button" title="new feed" disabled={busyAction === "create-feed"} onClick={() => createBriefing()}>
-                <Plus size={15} aria-hidden /> new feed
-              </button>
-              {status || autosaveState !== "idle" ? (
-                <span className={`save-state ${autosaveState === "error" ? "error" : ""}`}>{formatAutosaveStatus(autosaveState, status)}</span>
-              ) : null}
-            </div>
-            <div className="feed-list">
-              {orderedBriefings.map((item) => (
-                <div key={item.id} className={`feed-row${item.id === briefing.id ? " active" : ""}`}>
-                  <button type="button" className="feed-select" title={`select ${item.title}`} onClick={() => setSelectedBriefingId(item.id)}>
-                    <span className="feed-title">{item.title}</span>
-                  </button>
-                  <div className="feed-flags">
-                    <span className="star-count"><Star size={13} aria-hidden /> {item.stars}</span>
-                    <span className="pill">{languageLabel(item.language)}</span>
-                    {item.paused ? <span className="pill">paused</span> : null}
-                  </div>
-                  <div className="row-actions">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`feed settings for ${item.title}`}
-                      title="feed settings"
-                      onClick={() => {
-                        setSelectedBriefingId(item.id);
-                        setFeedSettingsOpen(true);
-                      }}
-                    >
-                      <Settings size={15} aria-hidden />
-                    </button>
-                    <a className="button-link icon-button" href={`/${item.ownerUsername}/${item.slug}/`} aria-label={`open ${item.title}`} title="open feed">
-                      <ExternalLink size={15} aria-hidden />
-                    </a>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`copy URL for ${item.title}`}
-                      title="copy feed url"
-                      onClick={() => copyFeedUrl(item)}
-                    >
-                      <Copy size={15} aria-hidden />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="section source-panel">
-            <div className="source-header">
-              <div className="section-title">
-                <RefreshCw size={16} aria-hidden />
-                <h2>sources</h2>
-              </div>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="feed help"
-                  title="feed help"
-                  onClick={() => setHelpOpen(true)}
-                >
-                  <HelpCircle size={15} aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="fetch latest"
-                  title="refresh"
-                  disabled={briefing.paused || busyAction === "refresh-source"}
-                  onClick={async () => {
-                    setError("");
-                    try {
-                      setBusyAction("refresh-source");
-                      setSourceStatus("checking enabled sources");
-                      const response = await refreshPublicTelegramSources(briefing.id);
-                      applySourceResponse(response);
-                      setStatus("latest fetched");
-                      void pollHealthUntilSettled(briefing.id, response.health);
-                    } catch (cause) {
-                      setStatus("");
-                      setError(cause instanceof Error ? cause.message : String(cause));
-                      setSourceStatus("");
-                    } finally {
-                      setBusyAction(null);
-                    }
-                  }}
-                >
-                  <RefreshCw size={15} aria-hidden />
-                </button>
-              </div>
-            </div>
-            <div className="source-add">
-              <label>
-                source
-                <input
-                  dir="ltr"
-                  value={sourceUrl}
-                  onChange={(event) => setSourceUrl(event.target.value)}
-                  placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Lebanon electricity"
-                />
-              </label>
-              <div className="source-examples" aria-label="source examples">
-                {sourceInputExamples.map((example) => (
-                  <button
-                    key={example.label}
-                    type="button"
-                    title={example.value}
-                    onClick={() => setSourceUrl(example.value)}
-                  >
-                    {example.label}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                className="primary-button"
-                title="add source"
-                disabled={!sourceUrl.trim() || briefing.paused || busyAction === "add-source"}
-                onClick={async () => {
-                  setError("");
-                  try {
-                    setBusyAction("add-source");
-                    setSourceStatus(`checking ${sourceInputKind(sourceUrl)}`);
-                    const response = await addSource(briefing.id, sourceUrl.trim());
-                    applySourceResponse(response);
-                    setSourceUrl("");
-                    setStatus("source added");
-                    void pollHealthUntilSettled(briefing.id, response.health);
-                  } catch (cause) {
-                    setStatus("");
-                    setError(cause instanceof Error ? cause.message : String(cause));
-                    setSourceStatus("");
-                  } finally {
-                    setBusyAction(null);
-                  }
-                }}
-              >
-                <Plus size={15} aria-hidden /> add
-              </button>
-            </div>
-            <HealthSummary
-              briefing={briefing}
-              health={health}
-              activity={sourceStatus}
-              retryBusy={busyAction === "retry-processing"}
-              onRetryProcessing={async () => {
-                setBusyAction("retry-processing");
-                try {
-                  const response = await retryProcessing(briefing.id);
-                  setHealth(response.health);
-                  setStatus(response.retried > 0 ? `retried ${response.retried} job(s)` : "no stale jobs to retry");
-                } finally {
-                  setBusyAction(null);
-                }
-              }}
-            />
-            <div className="source-list">
-              {sources.length === 0 ? <p className="muted">paste a full source URL or type a topic</p> : null}
-              {sources.map((source) => (
-                <div key={source.id} className="source-row">
-                  <div className="source-copy">
-                    <label className="source-toggle">
-                      <input
-                        type="checkbox"
-                        checked={source.enabled}
-                        disabled={sourceToggleBusyId === source.id}
-                        onChange={async (event) => {
-                          const enabled = event.target.checked;
-                          const previousSources = sources;
-                          setError("");
-                          setSourceToggleBusyId(source.id);
-                          setSources((current) => current.map((item) => (item.id === source.id ? { ...item, enabled } : item)));
-                          try {
-                            const nextSources = await setSourceEnabled(briefing.id, source.id, enabled);
-                            const updatedSource = nextSources.find((item) => item.id === source.id);
-                            setSources(nextSources);
-                            setStatus((updatedSource ? updatedSource.enabled : enabled) ? "source enabled" : "source paused");
-                            setSourceStatus("");
-                          } catch (cause) {
-                            setSources(previousSources);
-                            setStatus("");
-                            setError(cause instanceof Error ? cause.message : String(cause));
-                          } finally {
-                            setSourceToggleBusyId((current) => (current === source.id ? null : current));
-                          }
-                        }}
-                      />
-                      <span className="source-title" title={source.title}><bdi>{source.title}</bdi></span>
-                    </label>
-                    <span className="source-link" dir="ltr">{sourceProviderLabel(source)}</span>
-                    {source.url || source.sourceUrl ? <a className="source-link" href={source.url ?? source.sourceUrl} target="_blank" rel="noreferrer" dir="ltr">{source.username ?? "open"}</a> : null}
-                    <SourceStatusNote source={source} />
-                  </div>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`remove ${source.title}`}
-                    title="remove source"
-                    onClick={async () => {
-                      const response = await deleteSource(briefing.id, source.id);
-                      setSources(response.sources);
-                      setHealth(response.health);
-                      setSourceStatus("source removed");
-                    }}
-                  >
-                    <Trash2 size={15} aria-hidden />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {account.role === "admin" ? (
-            <AdminAccountsSection
-              accounts={accounts}
-              currentAccountId={account.id}
-              onAccountsChanged={(nextAccounts) => setAccounts(nextAccounts)}
-            />
-          ) : null}
-        </div>
-      </Shell>
+      <AppExperience key="account" account={account} briefings={orderedBriefings} briefingsState={briefingsState} briefing={briefing ?? undefined} health={health} initialTab={props.initialTab}
+        onAccount={() => setAccountDialogOpen(true)}
+        onRetryBriefings={async () => { if (!briefingsLoadingRef.current) await loadBriefings(selectedBriefingIdRef.current ?? undefined); }}
+        onResumeFeed={async feed => { await persistBriefing({...feed,paused:false}, "resumed", null); window.dispatchEvent(new Event("dn-explore-changed")); }}
+        onCreate={() => setCreationOpen(true)} onHelp={() => setHelpOpen(true)} error={error}>
+{account.role === "admin" ? <AdminAccountsSection accounts={accounts} currentAccountId={account.id} onAccountsChanged={setAccounts}/> : null}
+      </AppExperience>
       {accountDialog}
-      {feedSettingsOpen ? (
-        <FeedSettingsSheet
-          briefing={briefing}
-          briefings={briefings}
-          autosaveState={autosaveState}
-          status={status}
-          canDelete={briefings.length > 1}
-          onClose={() => setFeedSettingsOpen(false)}
-          onPatch={(patch) => patchSelectedBriefing(patch)}
-          onCopy={() => copyFeedUrl(briefing)}
-          onPauseToggle={async () => {
-            try {
-              await persistBriefing({ ...briefing, paused: !briefing.paused }, briefing.paused ? "feed resumed" : "feed paused", "pause-feed");
-            } catch (cause) {
-              setStatus("");
-              setError(cause instanceof Error ? cause.message : String(cause));
-            }
-          }}
-          onDelete={async () => {
-            if (briefings.length <= 1) return;
-            if (!window.confirm(`Delete "${briefing.title}" and all of its sources and published items?`)) return;
-            const remaining = await deleteBriefing(briefing.id);
-            setBriefings(remaining);
-            setSelectedBriefingId(remaining[0]?.id ?? null);
-            setFeedSettingsOpen(false);
-            setStatus("feed deleted");
-          }}
-        />
-      ) : null}
+      {creationOpen && <FeedEditor onClose={() => setCreationOpen(false)} onSave={async input => { await createBriefing(input); setCreationOpen(false); }}/>}
       {helpOpen ? <FeedHelpSheet onClose={() => setHelpOpen(false)} /> : null}
-      {onboardingOpen && account && briefing ? (
-        <FirstRunSetupSheet
-          account={account}
-          briefing={briefing}
-          busy={busyAction === "setup-feed"}
-          onClose={() => void dismissOnboarding()}
-          onComplete={completeOnboarding}
-        />
-      ) : null}
+
     </>
   );
 
@@ -751,6 +551,7 @@ function AdminCommandPanel(props: {
   onOpenSettings: () => void;
   onCopy: () => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const enabledSources = props.sources.filter((source) => source.enabled).length;
   const queuedJobs = props.health?.processing.queued ?? 0;
   const failedJobs = props.health?.processing.failed ?? 0;
@@ -760,58 +561,59 @@ function AdminCommandPanel(props: {
   const sourceCopy = `${enabledSources}/${props.sources.length} enabled`;
 
   return (
-    <section className="command-panel" aria-label="feed command center">
+    <section className="command-panel" aria-label={t("feed command center")}>
       <div className="command-panel-main">
-        <span className="eyebrow">public console</span>
+        <span className="eyebrow">{t("public console")}</span>
         <div className="command-title-row">
           <span className={`status-dot ${props.briefing.paused ? "paused" : "live"}`} aria-hidden />
           <h2><bdi>{props.briefing.title}</bdi></h2>
         </div>
         <code className="command-url">/{props.briefing.ownerUsername}/{props.briefing.slug}/</code>
         <div className="command-actions">
-          <a className="button-link primary-button" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
-            <ExternalLink size={15} aria-hidden /> open feed
-          </a>
-          <button type="button" title="feed settings" onClick={props.onOpenSettings}>
-            <Settings size={15} aria-hidden /> settings
-          </button>
-          <button type="button" title="copy feed url" onClick={() => void props.onCopy()}>
-            <Copy size={15} aria-hidden /> copy url
-          </button>
+          <a className="button-link primary-button" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title={t("open feed")}>
+            <ExternalLink size={15} aria-hidden /> {t("open feed")}</a>
+          <button type="button" title={t("feed settings")} onClick={props.onOpenSettings}>
+            <Settings size={15} aria-hidden /> {t("settings")}</button>
+          <button type="button" title={t("copy feed url")} onClick={() => void props.onCopy()}>
+            <Copy size={15} aria-hidden /> {t("copy url")}</button>
         </div>
       </div>
-      <div className="command-metrics" aria-label="feed signals">
+      <div className="command-metrics" aria-label={t("feed signals")}>
         <div className="metric-tile">
           <RadioTower size={18} aria-hidden />
-          <span>state</span>
+          <span>{t("state")}</span>
           <strong>{props.briefing.paused ? "paused" : "live"}</strong>
         </div>
         <div className="metric-tile">
           <ListChecks size={18} aria-hidden />
-          <span>sources</span>
+          <span>{t("sources")}</span>
           <strong>{sourceCopy}</strong>
         </div>
         <div className="metric-tile">
           <Activity size={18} aria-hidden />
-          <span>queue</span>
-          <strong>{queuedJobs} queued / {failedJobs} failed</strong>
+          <span>{t("queue")}</span>
+          <strong>{queuedJobs} {t("queued /")}{failedJobs} {t("failed")}</strong>
         </div>
         <div className="metric-tile">
           <Clock3 size={18} aria-hidden />
-          <span>next</span>
-          <strong>{props.briefing.paused ? pausedScheduleLabel(props.briefing.language) : nextBriefingAt ? <Timestamp value={nextBriefingAt} language={props.briefing.language} /> : "after save"}</strong>
+          <span>{t("next")}</span>
+          <strong>{props.briefing.paused ? pausedScheduleLabel(props.briefing.language) : nextBriefingAt ? <Timestamp value={nextBriefingAt} language={props.briefing.language} /> : t("after save")}</strong>
         </div>
       </div>
       <div className="command-footer">
         <span><ShieldCheck size={15} aria-hidden /> {activity}</span>
-        <span>{latestPublishedAt ? <>latest <Timestamp value={latestPublishedAt} language={props.briefing.language} /></> : "no published brief yet"}</span>
+        <span>{latestPublishedAt ? <>{t("latest")}<Timestamp value={latestPublishedAt} language={props.briefing.language} /></> : t("no published brief yet")}</span>
       </div>
     </section>
   );
 }
 
 function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
-  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired ? "register" : "login");
+  const { t } = useLanguage();
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "register" : "login");
+  const [authStep, setAuthStep] = useState<"email" | "details">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "details" : "email");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -819,11 +621,11 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const copy = getAuthPanelCopy(props.setupRequired, mode);
-  const submitLabel = getAuthSubmitLabel(props.setupRequired, mode);
+  const [error, setError] = useState<UiMessage>("");
+  const copy = authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
+  const submitLabel = authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
-  const usernamePreview = username.trim() ? slugify(username) : "";
+  const usernamePreview = username.trim() ? normalizeUsername(username) : "";
 
   function resetTurnstile() {
     if (!requiresTurnstile) return;
@@ -833,14 +635,19 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
 
   return (
     <form
-      className="login"
+      className={`login auth-${authStep}-step ${props.setupRequired ? "admin-setup" : ""}`}
       onSubmit={async (event) => {
         event.preventDefault();
         setError("");
         setMessage("");
+        if (authStep === "email") {
+          setAuthStep("details");
+          return;
+        }
+        setSubmitting(true);
         try {
           if (requiresTurnstile && !turnstileToken) {
-            setError("complete the verification check");
+            setError("Complete the verification check.");
             return;
           }
           if (props.setupRequired) {
@@ -851,71 +658,75 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           if (mode === "register") {
             await register({ email, username, password, turnstileToken });
             setPassword("");
-            setMessage("verification email sent. Check your inbox and spam folder. The link expires in 24 hours.");
+            setMessage("Verification email sent. Check your inbox and spam folder. The link expires in 24 hours.");
             resetTurnstile();
             return;
           }
           if (mode === "forgot") {
             await forgotPassword(email, turnstileToken);
-            setMessage("if the account exists, a reset email was sent");
+            setMessage("If the account exists, a reset email was sent.");
             resetTurnstile();
             return;
           }
           await login(email, password, turnstileToken);
           await props.onAuthenticated();
         } catch (cause) {
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(toUiError(cause));
           resetTurnstile();
+        } finally {
+          setSubmitting(false);
         }
       }}
     >
+      {authStep === "email" ? <div className="auth-brand-mark" aria-hidden="true"><img src="/favicon.svg" alt="" /></div> : null}
       <div className="auth-copy">
-        <strong>{copy.title}</strong>
-        <p>{copy.description}</p>
+        <h2>{t(copy.title)}</h2>
+        <p>{t(copy.description)}</p>
       </div>
       {props.setupRequired ? (
         <label>
-          setup token
-          <input autoComplete="one-time-code" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
+          {t("Admin Setup Token")}<input type="password" autoComplete="off" aria-describedby="admin-setup-token-help" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} />
+          <span className="field-help" id="admin-setup-token-help">{t("Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.")}</span>
         </label>
       ) : null}
-      <label>
-        email
-        <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+      <label className="auth-input">
+        <span className="sr-only">{t("email")}</span><Mail size={21} aria-hidden/>
+        <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
-      {(mode === "register" || props.setupRequired) ? (
+      {authStep === "details" && (mode === "register" || props.setupRequired) ? (
         <label>
-          username
-          <input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} />
-          <span className="field-help">{usernamePreview ? `your feed URLs start with /${usernamePreview}/` : "letters and numbers become your feed URL name"}</span>
+          <span className="auth-input"><span className="sr-only">{t("username")}</span><User size={21} aria-hidden/>
+          <input required aria-label={t("username")} aria-describedby={usernamePreview ? "auth-username-help" : undefined} placeholder={t("Username")} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></span>
+          {usernamePreview ? <span className="field-help" id="auth-username-help">{t("Your feed URLs start with")} <bdi>/{usernamePreview}/</bdi></span> : null}
         </label>
       ) : null}
-      {mode !== "forgot" ? (
-        <label>
-          password
+      {authStep === "details" && mode !== "forgot" ? (
+        <div className="auth-password-field"><div className="auth-input">
+          <LockKeyhole size={21} aria-hidden/>
           <input
-            type="password"
+            aria-label={t("password")}
+            placeholder={t("Password")}
+            required
+            type={showPassword ? "text" : "password"}
             autoComplete={mode === "register" || props.setupRequired ? "new-password" : "current-password"}
             minLength={8}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <span className="field-help">at least 8 characters</span>
-        </label>
+          <button type="button" className="quiet-icon" aria-label={t(showPassword ? "Hide password" : "Show password")} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
+        </div>{(mode === "register" || props.setupRequired) && <span className="field-help">{t("At least 8 characters")}</span>}</div>
       ) : null}
-      {requiresTurnstile && props.turnstileSiteKey ? (
+      {authStep === "details" && requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
-      <button type="submit" className="primary-button" title={submitLabel}><LogIn size={15} aria-hidden /> {submitLabel}</button>
-      {!props.setupRequired ? (
-        <div className="auth-switch">
-          {mode !== "login" ? <button type="button" title="login" onClick={() => setMode("login")}>login</button> : null}
-          {mode !== "register" ? <button type="button" title="new account" onClick={() => setMode("register")}>new account</button> : null}
-          {mode !== "forgot" ? <button type="button" title="forgot password" onClick={() => setMode("forgot")}>forgot password</button> : null}
-        </div>
-      ) : null}
-      {message ? <p className="muted">{message}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+      {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
+      <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
+      <div className="auth-feedback" aria-live="polite">
+        {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
+      </div>
+      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
+      {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
+
     </form>
   );
 }
@@ -923,33 +734,33 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
 function getAuthPanelCopy(setupRequired: boolean, mode: "login" | "register" | "forgot"): { title: string; description: string } {
   if (setupRequired) {
     return {
-      title: "create the first account",
-      description: "This account can create feeds and manage the service."
+      title: "One-Time Administrator Setup",
+      description: "The site owner must complete setup before users can join. After setup, users can create an account and sign in with email and password."
     };
   }
   if (mode === "register") {
     return {
-      title: "create your feed",
+      title: "Create your Account",
       description: "Choose a username, then verify your email before signing in."
     };
   }
   if (mode === "forgot") {
     return {
-      title: "reset password",
+      title: "Reset Password",
       description: "Enter your email and we will send a reset link if the account exists."
     };
   }
   return {
-    title: "sign in",
-    description: "Open your feeds, sources, and account settings."
+    title: "Welcome back",
+    description: "Log in to your Distilled News account."
   };
 }
 
 function getAuthSubmitLabel(setupRequired: boolean, mode: "login" | "register" | "forgot"): string {
-  if (setupRequired) return "create first account";
-  if (mode === "register") return "create account";
-  if (mode === "forgot") return "send reset link";
-  return "login";
+  if (setupRequired) return "Create Admin Account";
+  if (mode === "register") return "Create Account";
+  if (mode === "forgot") return "Send Reset Link";
+  return "Login";
 }
 
 function TurnstileField(props: { siteKey: string; resetSignal: number; onToken: (token: string) => void }) {
@@ -1005,52 +816,54 @@ function TurnstileField(props: { siteKey: string; resetSignal: number; onToken: 
 }
 
 function ExploreFeedsPanel() {
+  const { t } = useLanguage();
   return (
     <section className="section explore-section" aria-labelledby="explore-feeds-title">
       <div className="section-title">
         <Compass size={16} aria-hidden />
-        <h2 id="explore-feeds-title">explore</h2>
+        <h2 id="explore-feeds-title">{t("explore")}</h2>
       </div>
       <ExploreFeedList />
     </section>
   );
 }
 
-function ExploreFeedsSheet(props: { currentFeed?: PublicBriefing; language?: "en" | "ar" | "fr"; onClose: () => void }) {
-  const language = props.language ?? "en";
-  return (
-    <Sheet title={exploreControlLabel(language).toLowerCase()} closeLabel={closeExploreLabel(language)} icon={<Compass size={16} aria-hidden />} onClose={props.onClose}>
-      <ExploreFeedList currentFeed={props.currentFeed} language={language} />
-    </Sheet>
-  );
-}
-
 function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" | "ar" | "fr" }) {
+  const { t } = useLanguage();
   const [feeds, setFeeds] = useState<PublicBriefing[] | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const language = props.language ?? "en";
 
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const failedOffset = useRef(0);
+  const loader = useRef<(offset?: number) => Promise<void>>(async () => {});
   useEffect(() => {
-    let active = true;
-    getExploreFeeds()
-      .then((nextFeeds) => {
-        if (active) setFeeds(nextFeeds);
-      })
-      .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : String(cause));
-      });
-    return () => {
-      active = false;
-    };
+    let active = true, inFlight = false;
+    async function load(offset = 0) {
+      if (inFlight) return;
+      inFlight = true; failedOffset.current = offset;
+      setLoading(true); setError("");
+      try {
+        const page = await getExploreFeeds(offset);
+        if (active) {
+          setFeeds(current => offset === 0 ? page.feeds : [...new Map([...(current ?? []), ...page.feeds].map(feed => [feed.id, feed])).values()]);
+          setNextOffset(page.nextOffset);
+        }
+      } catch (cause) { if (active) setError(toUiError(cause)); }
+      finally { inFlight = false; if (active) setLoading(false); }
+    }
+    loader.current = load; void load();
+    return () => { active = false; };
   }, []);
 
-  if (error) return <p className="error">{error}</p>;
-  if (!feeds) return <p className="muted">{loadingFeedsLabel(language)}</p>;
-  if (feeds.length === 0) return <p className="muted">{noStarredFeedsLabel(language)}</p>;
+  if (!feeds && !error) return null;
+  if (feeds?.length === 0 && !error) return <p className="muted">{noFeaturedFeedsLabel(language)}</p>;
 
   return (
     <div className="explore-list">
-      {feeds.map((feed) => {
+      {error && <div role="alert">{Boolean(feeds?.length) && <p>{t("Some feeds could not be loaded. Previously loaded feeds are still available.")}</p>}<p className="error">{t(error)}</p><button type="button" disabled={loading} onClick={() => void loader.current(failedOffset.current)}>{t("Try Again")}</button></div>}
+      {(feeds ?? []).map((feed) => {
         const href = `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
         const isCurrent = props.currentFeed?.id === feed.id;
         return (
@@ -1059,74 +872,98 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
               <strong className="explore-title"><bdi>{feed.title}</bdi></strong>
               <span className="explore-meta">@{feed.ownerUsername}</span>
             </span>
-            <span className="explore-stars" aria-label={`${feed.stars} stars`}>
+            <span className="explore-stars" aria-label={t("{count} stars", {count: feed.stars})}>
               <Star size={13} aria-hidden /> {feed.stars}
             </span>
           </a>
         );
       })}
+      {nextOffset !== null && !error && <button type="button" disabled={loading} onClick={() => void loader.current(nextOffset)}>{t("Load more feeds")}</button>}
     </div>
   );
 }
 
 function VerifyEmailPage(props: { token: string }) {
-  const [message, setMessage] = useState("");
+  const { t } = useLanguage();
+  const [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<UiMessage>("");
   return (
-    <Shell title="verify email">
-      <section className="section notice">
-        <p>{message || "confirm this email address"}</p>
-        <div className="actions">
+    <main className="email-verification-page">
+      <section className="email-verification-panel" aria-labelledby="email-verification-title">
+        <div className="email-verification-brand" aria-hidden="true"><img src="/favicon.svg" alt="" /></div>
+        <h1 id="email-verification-title" aria-live="polite">{t(verified ? "Email Verified" : "Verify Email")}</h1>
+        {!verified && <>
+        <p className="email-verification-description">{t("Confirm this email address")}</p>
+        <div className="email-verification-actions">
           <button
             type="button"
-            title="verify email"
+            className="email-verification-submit"
+            title={t("Verify Email")}
             disabled={busy || !props.token}
             onClick={async () => {
               setBusy(true);
-              setMessage("");
+              setError("");
               try {
                 await verifyEmail(props.token);
-                setMessage("email verified");
+                setVerified(true);
               } catch (cause) {
-                setMessage(cause instanceof Error ? cause.message : String(cause));
+                setError(toUiError(cause));
               } finally {
                 setBusy(false);
               }
             }}
           >
-            verify email
+            {t(busy ? "Verifying…" : "Verify Email")}
           </button>
-          <a className="button-link" href="/" title="create">create</a>
+          <div className="auth-feedback" aria-live="polite">{error ? <p className="auth-error" role="alert">{t(error)}</p> : null}</div>
+          <a className="email-verification-create" href="/" title={t("Create")}>{t("Create")}</a>
         </div>
+        </>}
       </section>
-    </Shell>
+    </main>
   );
 }
 
 function ResetPasswordPage(props: { token: string }) {
+  const { language, t } = useLanguage();
   const [password, setPassword] = useState("");
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { document.title = `${t('Reset Password')} · Distilled.News`; }, [language]);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   return (
-    <Shell title="reset password">
-      <form className="login" onSubmit={async (event) => {
+    <main className="experience product-refresh guest-browse guest-landing landing-no-menu reset-password-page" lang={language} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+      <AppHeader account={null} onAccount={() => {}} />
+      <section className="reset-password-content" aria-labelledby="reset-password-title">
+      <div className="reset-password-heading"><h1 id="reset-password-title">{t('Reset Password')}</h1><p>{t('Account recovery.')}</p></div>
+      <form className="reset-password-form" onSubmit={async (event) => {
         event.preventDefault();
+        if (busy) return;
+        setBusy(true); setError(''); setMessage('');
         try {
           await resetPassword(props.token, password);
-          setMessage("password reset");
+          setMessage("Password reset successfully.");
         } catch (cause) {
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(toUiError(cause));
+        } finally {
+          setBusy(false);
         }
       }}>
         <label>
-          new password
-          <input type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
+          {t('New Password')}
+          <span className="reset-password-input">
+          <input type={visible ? 'text' : 'password'} autoComplete="new-password" required minLength={8} placeholder={t('Enter your new password')} value={password} onChange={(event) => setPassword(event.target.value)} />
+          <button type="button" aria-label={t(visible ? 'Hide password' : 'Show password')} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={24} aria-hidden /> : <Eye size={24} aria-hidden />}</button>
+          </span>
         </label>
-        <button type="submit" title="save password"><Save size={15} aria-hidden /> save password</button>
-        {message ? <p className="muted">{message}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        <button className="reset-password-save" type="submit" disabled={busy || !props.token}>{t(busy ? 'Saving...' : 'Save')}</button>
+        {message ? <p role="status">{t(message)}</p> : null}
+        {error ? <p className="error" role="alert">{t(error)}</p> : null}
       </form>
-    </Shell>
+      </section>
+    </main>
   );
 }
 
@@ -1138,22 +975,9 @@ function Sheet(props: {
   onClose: () => void;
   wide?: boolean;
 }) {
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") props.onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [props.onClose]);
-
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) props.onClose();
-      }}
-    >
-      <section className={`sheet${props.wide ? " sheet-wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={`${slugify(props.title)}-sheet-title`}>
+    <Dialog label={props.title} className={`sheet-dialog${props.wide ? " sheet-dialog-wide" : ""}`} onClose={props.onClose}>
+      <section className="sheet">
         <div className="sheet-head">
           <div className="section-title">
             {props.icon}
@@ -1165,7 +989,7 @@ function Sheet(props: {
         </div>
         {props.children}
       </section>
-    </div>
+    </Dialog>
   );
 }
 
@@ -1181,134 +1005,17 @@ function FeedSettingsSheet(props: {
   onPauseToggle: () => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
-  const previewSlug = deriveBriefingSlug(props.briefings, props.briefing.title, props.briefing.id);
-  const titleRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    titleRef.current?.focus();
-  }, []);
-
-  return (
-    <Sheet title="feed settings" closeLabel="close feed settings" icon={<Settings size={16} aria-hidden />} onClose={props.onClose} wide>
-      <div className="sheet-status">
-        <span className={props.autosaveState === "error" ? "error" : "muted"}>{formatAutosaveStatus(props.autosaveState, props.status)}</span>
-      </div>
-      <div className="settings-grid">
-        <label>
-          title
-          <input ref={titleRef} dir="ltr" value={props.briefing.title} onChange={(event) => props.onPatch({ title: event.target.value })} />
-        </label>
-        <div className="field-group">
-          <span>slug</span>
-          <code className="generated-slug">/{props.briefing.ownerUsername}/{previewSlug}/</code>
-        </div>
-        <div className="field-group">
-          <span>language</span>
-          <div className="segmented" role="group" aria-label="feed language">
-            {(["en", "fr", "ar"] as const).map((language) => (
-              <button
-                key={language}
-                type="button"
-                className={props.briefing.language === language ? "active" : ""}
-                aria-pressed={props.briefing.language === language}
-                title={languageLabel(language)}
-                onClick={() => props.onPatch({ language })}
-              >
-                <Languages size={15} aria-hidden /> {languageLabel(language)}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="field-group">
-          <span>update rhythm</span>
-          <div className="segmented" role="group" aria-label="briefing rhythm">
-            {(["hourly", "daily", "weekly"] as const).map((briefingCadence) => (
-              <button
-                key={briefingCadence}
-                type="button"
-                className={visibleBriefingCadence(props.briefing.briefingCadence) === briefingCadence ? "active" : ""}
-                aria-pressed={visibleBriefingCadence(props.briefing.briefingCadence) === briefingCadence}
-                title={`${briefingCadence} briefing`}
-                onClick={() => props.onPatch({ briefingCadence })}
-              >
-                {briefingCadence}
-              </button>
-            ))}
-          </div>
-        </div>
-        <label>
-          timezone
-          <input
-            dir="ltr"
-            value={props.briefing.briefingTimezone}
-            onChange={(event) => props.onPatch({ briefingTimezone: event.target.value || "UTC" })}
-          />
-        </label>
-        <div className="field-group">
-          <span>next briefing</span>
-          <code className="generated-slug">{props.briefing.nextBriefingAt ? formatTime(props.briefing.nextBriefingAt, props.briefing.language) : "after save"}</code>
-        </div>
-        <label>
-          interest profile
-          <textarea
-            dir="ltr"
-            required
-            rows={6}
-            value={props.briefing.interestProfile}
-            onChange={(event) => props.onPatch({ interestProfile: event.target.value })}
-          />
-        </label>
-        <label>
-          style instruction
-          <textarea
-            dir="ltr"
-            rows={3}
-            value={props.briefing.styleInstruction ?? ""}
-            onChange={(event) => props.onPatch({ styleInstruction: event.target.value })}
-          />
-        </label>
-      </div>
-      <div className="sheet-actions">
-        <button type="button" title={props.briefing.paused ? "resume feed" : "pause feed"} onClick={() => void props.onPauseToggle()}>
-          {props.briefing.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
-          {props.briefing.paused ? "resume feed" : "pause feed"}
-        </button>
-        <a className="button-link" href={`/${props.briefing.ownerUsername}/${props.briefing.slug}/`} title="open feed">
-          <ExternalLink size={15} aria-hidden /> open feed
-        </a>
-        <button type="button" title="copy feed url" onClick={() => void props.onCopy()}>
-          <Copy size={15} aria-hidden /> copy url
-        </button>
-        <button type="button" className="danger-button" title="delete feed" disabled={!props.canDelete} onClick={() => void props.onDelete()}>
-          <Trash2 size={15} aria-hidden /> delete feed
-        </button>
-      </div>
-    </Sheet>
-  );
+  return <FeedEditor feed={props.briefing} onClose={props.onClose} onSave={async input => { props.onPatch(input); props.onClose(); }} onCopy={props.onCopy} onPause={props.onPauseToggle} onDelete={props.canDelete ? props.onDelete : undefined}/>;
 }
 
 function FeedHelpSheet(props: { onClose: () => void }) {
+  const { t } = useLanguage();
   return (
-    <Sheet title="feed help" closeLabel="close feed help" icon={<HelpCircle size={16} aria-hidden />} onClose={props.onClose}>
-      <ol className="help-steps">
-        <li>
-          <strong>name</strong>
-          <span>Choose a short feed name. The URL updates from that name.</span>
-        </li>
-        <li>
-          <strong>profile</strong>
-          <span>Write the exact kind of updates that should make it through.</span>
-        </li>
-        <li>
-          <strong>sources</strong>
-          <span>Paste a Telegram or X URL, or type a search topic.</span>
-        </li>
-        <li>
-          <strong>share</strong>
-          <span>Copy the feed URL when you want someone to read it.</span>
-        </li>
-      </ol>
-    </Sheet>
+    <Dialog label={t("Help & Support")} className="support-dialog" onClose={props.onClose}><section className="dialog-inner"><button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={props.onClose}><X size={22}/></button><h2>{t("Help & Support")}</h2>
+      <p>{t("Email us for help and support.")}</p>
+      <p><a href="mailto:distillednews.platform@gmail.com">distillednews.platform@gmail.com</a></p>
+      <p><a href="mailto:distilled.news@outlook.com">distilled.news@outlook.com</a></p>
+    </section></Dialog>
   );
 }
 
@@ -1319,11 +1026,12 @@ function FirstRunSetupSheet(props: {
   onClose: () => void;
   onComplete: (input: { username: string; title: string; interestProfile: string; sourceUrl: string }) => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const [username, setUsername] = useState(props.account.username);
   const [title, setTitle] = useState(props.briefing.title);
   const [interestProfile, setInterestProfile] = useState(props.briefing.interestProfile);
   const [sourceUrl, setSourceUrl] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const usernameRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -1331,7 +1039,7 @@ function FirstRunSetupSheet(props: {
   }, []);
 
   return (
-    <Sheet title="setup feed" closeLabel="skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
+    <Sheet title={t("Set up feed")} closeLabel="Skip feed setup" icon={<Globe size={16} aria-hidden />} onClose={props.onClose} wide>
       <form
         className="settings-grid"
         onSubmit={async (event) => {
@@ -1340,21 +1048,18 @@ function FirstRunSetupSheet(props: {
           try {
             await props.onComplete({ username, title, interestProfile, sourceUrl });
           } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
+            setError(toUiError(cause));
           }
         }}
       >
         <label>
-          username
-          <input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
+          {t("username")}<input ref={usernameRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
         </label>
         <label>
-          feed name
-          <input dir="ltr" required value={title} onChange={(event) => setTitle(event.target.value)} />
+          {t("feed name")}<input dir="ltr" required maxLength={FEED_TITLE_MAX_LENGTH} value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <label>
-          interest profile
-          <textarea
+          {t("interest profile")}<textarea
             dir="ltr"
             required
             rows={6}
@@ -1363,33 +1068,31 @@ function FirstRunSetupSheet(props: {
           />
         </label>
         <label>
-          first source
-          <input
+          {t("first source")}<input
             dir="ltr"
             value={sourceUrl}
             onChange={(event) => setSourceUrl(event.target.value)}
-            placeholder="https://t.me/LebUpdate, https://x.com/NASA, or Beirut power"
+            placeholder={t("https://t.me/LebUpdate, https://x.com/NASA, or Beirut power")}
           />
         </label>
-        <div className="source-examples" aria-label="source examples">
+        <div className="source-examples" aria-label={t("source examples")}>
           {sourceInputExamples.map((example) => (
             <button
-              key={example.label}
+              key={t(example.label)}
               type="button"
               title={example.value}
               onClick={() => setSourceUrl(example.value)}
             >
-              {example.label}
+              {t(example.label)}
             </button>
           ))}
         </div>
         <div className="sheet-actions">
-          <button type="submit" className="primary-button" title="finish setup" disabled={props.busy || !title.trim() || !interestProfile.trim()}>
-            <Save size={15} aria-hidden /> finish setup
-          </button>
-          <button type="button" title="skip setup" onClick={props.onClose}>skip</button>
+          <button type="submit" className="primary-button" title={t("finish setup")} disabled={props.busy || !title.trim() || !interestProfile.trim()}>
+            <Save size={15} aria-hidden /> {t("finish setup")}</button>
+          <button type="button" title={t("skip setup")} onClick={props.onClose}>{t("skip")}</button>
         </div>
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
       </form>
     </Sheet>
   );
@@ -1402,6 +1105,7 @@ function HealthSummary(props: {
   retryBusy: boolean;
   onRetryProcessing: () => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const summary = getHealthSummaryParts(props.briefing, props.health);
   const failedJobs = props.health?.processing.failed ?? 0;
   const isPaused = props.briefing.paused;
@@ -1415,7 +1119,7 @@ function HealthSummary(props: {
       : "after save";
   return (
     <details className="health-summary">
-      <summary className="health-summary-line" title="source status">
+      <summary className="health-summary-line" title={t("source status")}>
         <span className={`status-dot ${isPaused ? "paused" : "live"}`} aria-hidden />
         <span className="health-summary-copy">
           <strong>{summary.feedState}</strong>
@@ -1447,9 +1151,8 @@ function HealthSummary(props: {
         <StatusLine label="status" value={props.briefing.paused ? "paused" : "live"} />
         {failedJobs > 0 ? (
           <div className="health-actions">
-            <button type="button" title="retry processing" disabled={props.retryBusy} onClick={() => void props.onRetryProcessing()}>
-              <RefreshCw size={15} aria-hidden /> retry processing
-            </button>
+            <button type="button" title={t("retry processing")} disabled={props.retryBusy} onClick={() => void props.onRetryProcessing()}>
+              <RefreshCw size={15} aria-hidden /> {t("retry processing")}</button>
           </div>
         ) : null}
       </div>
@@ -1463,11 +1166,14 @@ function AccountDialog(props: {
   onLogout: () => Promise<void>;
   onSaved: (account: AccountRecord, briefings: BriefingConfig[], message: string) => Promise<void>;
 }) {
+  const { t } = useLanguage();
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
   const [username, setUsername] = useState(props.account.username);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const [busy, setBusy] = useState<"username" | "password" | "logout" | null>(null);
   const usernameFieldRef = useRef<HTMLInputElement | null>(null);
 
@@ -1476,14 +1182,17 @@ function AccountDialog(props: {
   }, [props.account.username]);
 
   useEffect(() => {
-    usernameFieldRef.current?.focus();
-  }, []);
+    if (editingUsername) usernameFieldRef.current?.focus();
+  }, [editingUsername]);
 
   return (
-    <Sheet title="account" closeLabel="close account settings" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
-      <div className="account-meta">
-        <span>{props.account.email}</span>
-        <span>{props.account.role}</span>
+    <Dialog label={t("account")} className="profile-dialog" onClose={props.onClose}>
+      <section className="profile-dialog-content">
+      <button type="button" className="dialog-close" aria-label={t("close account settings")} onClick={props.onClose}><X size={22}/></button>
+      <div className="profile-identity">
+        <span className="profile-avatar" aria-hidden="true">{accountInitials(props.account.username)}</span>
+        <span className="profile-email">{props.account.email}</span>
+        <span className="profile-role">{t(props.account.role === "admin" ? "Admin" : "User")}</span>
       </div>
 
       <form
@@ -1497,23 +1206,23 @@ function AccountDialog(props: {
             const result = await updateAccount({ username });
             await props.onSaved(result.account, result.briefings, "username saved");
             setMessage("username saved");
+            setEditingUsername(false);
           } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
+            setError(toUiError(cause));
           } finally {
             setBusy(null);
           }
         }}
       >
-        <label>
-          username
-          <input ref={usernameFieldRef} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <button type="submit" title="save username" disabled={busy === "username"}>
-          <Save size={15} aria-hidden /> save username
+        <div className="profile-card-heading"><span className="profile-card-icon" aria-hidden="true"><User size={28}/></span><div><label htmlFor="profile-username">{t("Username")}</label><p>{t("Your account username")}</p></div></div>
+        <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
+        <button hidden={!editingUsername} type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "username"}>
+          {t("Save")}
         </button>
       </form>
 
-      <form
+      <div className="profile-password-section"><button type="button" className="password-disclosure" aria-expanded={passwordOpen} aria-controls="change-password-form" onClick={() => setPasswordOpen(value => !value)}><span className="profile-card-icon" aria-hidden="true"><LockKeyhole size={28}/></span><span className="profile-security-copy"><strong>{t("Security")}</strong><small>{t("Update your account password")}</small></span><ChevronRight size={24}/></button>
+      <form id="change-password-form" hidden={!passwordOpen}
         className="account-form"
         onSubmit={async (event) => {
           event.preventDefault();
@@ -1526,15 +1235,16 @@ function AccountDialog(props: {
             setCurrentPassword("");
             setNewPassword("");
             setMessage("password changed");
+            setPasswordOpen(false);
           } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
+            setError(toUiError(cause));
           } finally {
             setBusy(null);
           }
         }}
       >
         <label>
-          current password
+          {t("Current Password")}
           <input
             type="password"
             autoComplete="current-password"
@@ -1544,7 +1254,7 @@ function AccountDialog(props: {
           />
         </label>
         <label>
-          new password
+          {t("New Password")}
           <input
             type="password"
             autoComplete="new-password"
@@ -1554,27 +1264,30 @@ function AccountDialog(props: {
             onChange={(event) => setNewPassword(event.target.value)}
           />
         </label>
-        <button type="submit" title="change password" disabled={busy === "password"}>
-          <Save size={15} aria-hidden /> change password
+        <button type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "password"}>
+          {t("Save")}
         </button>
       </form>
-
+      </div>
       <div className="account-actions">
         <button
           type="button"
-          title="logout"
+          title={t("logout")}
           disabled={busy === "logout"}
           onClick={async () => {
-            setBusy("logout");
-            await props.onLogout();
+            setBusy("logout"); setError("");
+            try { await props.onLogout(); }
+            catch (cause) { setError(toUiError(cause)); }
+            finally { setBusy(null); }
           }}
         >
-          <LogOut size={15} aria-hidden /> logout
+          <LogOut size={22} aria-hidden /> {t("Log out")}
         </button>
-        {message ? <p className="muted">{message}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {message ? <p className="muted">{t(message)}</p> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
       </div>
-    </Sheet>
+      </section>
+    </Dialog>
   );
 }
 
@@ -1583,13 +1296,31 @@ function AdminAccountsSection(props: {
   currentAccountId: string;
   onAccountsChanged: (accounts: AccountWithStats[]) => void;
 }) {
+  const { t } = useLanguage();
+  const onAccountsChanged = props.onAccountsChanged;
+  const [accountsError, setAccountsError] = useState<UiMessage>("");
+  const [accountLoad, setAccountLoad] = useState(0);
+  const [accountsReady, setAccountsReady] = useState(false);
+  const [query, setQuery] = useState("");
+  const [role, setRole] = useState("all");
+  const [sortAscending, setSortAscending] = useState(true);
   const [managedAccountId, setManagedAccountId] = useState<string | null>(null);
   const [adminBriefings, setAdminBriefings] = useState<BriefingConfig[]>([]);
   const [loadingFeeds, setLoadingFeeds] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const managedAccount = props.accounts.find((account) => account.id === managedAccountId) ?? null;
 
   useEffect(() => {
+    let active = true;
+    setAccountsError("");
+    void listAccounts()
+      .then(accounts => { if (active) { onAccountsChanged(accounts); setAccountsReady(true); } })
+      .catch(cause => { if (active) setAccountsError(toUiError(cause)); });
+    return () => { active = false; };
+  }, [accountLoad, onAccountsChanged]);
+
+  useEffect(() => {
+    if (!accountsReady) return;
     let cancelled = false;
     async function loadAdminBriefings() {
       setLoadingFeeds(true);
@@ -1598,7 +1329,7 @@ function AdminAccountsSection(props: {
         const nextBriefings = await listAdminBriefings();
         if (!cancelled) setAdminBriefings(nextBriefings);
       } catch (cause) {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
+        if (!cancelled) setError(toUiError(cause));
       } finally {
         if (!cancelled) setLoadingFeeds(false);
       }
@@ -1607,7 +1338,7 @@ function AdminAccountsSection(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.accounts]);
+  }, [accountsReady, props.accounts]);
 
   useEffect(() => {
     if (managedAccountId && !props.accounts.some((account) => account.id === managedAccountId)) {
@@ -1620,43 +1351,33 @@ function AdminAccountsSection(props: {
     setAdminBriefings(nextBriefings);
   }
 
+  const visibleAccounts = props.accounts.filter(account => (role === "all" || account.role === role) && `${account.username} ${account.email}`.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => (sortAscending ? 1 : -1) * a.username.localeCompare(b.username));
+  const feedCountFor = (account: AccountWithStats) => loadingFeeds || error ? account.briefingCount : adminBriefings.filter(feed => feed.ownerAccountId === account.id).length;
+
   return (
     <>
-      <details className="section accounts-section">
-        <summary className="section-title accounts-summary" title="accounts">
+      <details className="accounts-section">
+        <summary className="accounts-summary" title={t("accounts")}>
           <User size={16} aria-hidden />
-          <h2>accounts</h2>
-          <span className="pill">{props.accounts.length}</span>
-          <span className="pill">{adminBriefings.length} feeds</span>
+          <span className="accounts-back-label">{t("Settings")}</span><ChevronRight size={18}/><span className="accounts-label">{t("User Management")}</span>
         </summary>
-        {loadingFeeds ? <p className="muted">loading feeds</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-        <div className="source-list">
-          {props.accounts.map((account) => {
-            const feedCount = adminBriefings.filter((briefing) => briefing.ownerAccountId === account.id).length;
-            return (
-              <div key={account.id} className="source-row">
-                <div className="source-copy">
-                  <strong>{account.username}</strong>
-                  <span className="muted">{account.email} / {account.role} / feeds {feedCount || account.briefingCount}</span>
-                  <span className="muted">{account.disabledAt ? "disabled" : account.emailVerifiedAt ? "verified" : "unverified"}</span>
-                </div>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label={`manage ${account.username}`}
-                  title="manage account"
-                  onClick={() => setManagedAccountId(account.id)}
-                >
-                  <Settings size={15} aria-hidden />
-                </button>
-              </div>
-            );
-          })}
+        <div className={`user-management ${managedAccount ? "has-selection" : ""}`}>
+        <div className="user-management-main">
+        <div className="user-management-heading"><h1>{t("User Management")}</h1><p>{t("Manage registered users and their feeds.")}</p></div>
+        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><span id="users-role-filter-label" className="sr-only">{t("Filter users by role")}</span><FeedSettingsSelect kind="role" value={role} onChange={setRole} labelId="users-role-filter-label" options={[{value:'all',label:t('All Roles')},{value:'admin',label:t('Admin')},{value:'user',label:t('User')}]}/></span><div className="users-counts"><span>{t("{count} users",{count:props.accounts.length})}</span><span>{t("{count} feeds",{count:props.accounts.reduce((total, account) => total + feedCountFor(account), 0)})}</span></div></div>
+
+        {accountsError ? <div role="alert"><p className="error">{t(accountsError)}</p><button type="button" className="feed-state-retry" onClick={() => setAccountLoad(current => current + 1)}>{t("Try Again")}</button></div> : null}
+        {error ? <p className="error">{t(error)}</p> : null}
+        <div className="users-table-scroll"><table className="users-table"><thead><tr><th><button type="button" onClick={() => setSortAscending(value => !value)}>{t("Name")} <ChevronDown size={14} style={{ transform: sortAscending ? "none" : "rotate(180deg)" }}/></button></th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Feeds")}</th><th>{t("Status")}</th><th><span className="sr-only">{t("Actions")}</span></th></tr></thead><tbody>{visibleAccounts.map(account => <tr key={account.id} className={account.id === managedAccountId ? "selected" : ""}>
+          <td><button className="user-name-button" type="button" style={{ background: "transparent" }} aria-label={t("View {name}", {name: account.username})} onClick={() => setManagedAccountId(account.id)}><span className={`user-row-avatar ${account.role === "admin" ? "admin" : ""}`}>{accountInitials(account.username)}</span><span>{account.username}</span></button></td><td title={account.email}>{account.email}</td><td><span className={`user-role-badge ${account.role}`}>{t(account.role === "admin" ? "Admin" : "User")}</span></td><td>{feedCountFor(account)}</td><td><span className={`user-status ${account.disabledAt ? "suspended" : ""}`}>{t(account.disabledAt ? "Suspended" : account.emailVerifiedAt ? "Verified" : "Pending")}</span></td><td>{!managedAccount && <button type="button" className="user-manage-button" aria-label={`manage ${account.username}`} onClick={() => setManagedAccountId(account.id)}><MoreHorizontal size={20} aria-hidden /></button>}</td>
+        </tr>)}</tbody></table>{visibleAccounts.length === 0 && <p className="users-empty">{t("No users found.")}</p>}</div>
         </div>
-      </details>
       {managedAccount ? (
         <AdminAccountDialog
+          key={managedAccount.id}
+          inline
+          feedCount={feedCountFor(managedAccount)}
           account={managedAccount}
           currentAccountId={props.currentAccountId}
           briefings={adminBriefings.filter((briefing) => briefing.ownerAccountId === managedAccount.id)}
@@ -1666,11 +1387,15 @@ function AdminAccountsSection(props: {
           onRefreshBriefings={refreshAdminBriefings}
         />
       ) : null}
+        </div>
+      </details>
     </>
   );
 }
 
 function AdminAccountDialog(props: {
+  inline?: boolean;
+  feedCount?: number;
   account: AccountWithStats;
   currentAccountId: string;
   briefings: BriefingConfig[];
@@ -1679,22 +1404,17 @@ function AdminAccountDialog(props: {
   onBriefingsChanged: (briefings: BriefingConfig[]) => void;
   onRefreshBriefings: () => Promise<void>;
 }) {
-  const [username, setUsername] = useState(props.account.username);
+  const { language, t } = useLanguage();
+  const { confirm, confirmation } = useConfirmation();
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<UiMessage>("");
   const [busy, setBusy] = useState<string | null>(null);
-  const usernameFieldRef = useRef<HTMLInputElement | null>(null);
   const isSignedInAdmin = props.account.id === props.currentAccountId;
+  const Panel = props.inline ? InlineAccountPanel : Sheet;
+  const joinedAt = props.account.createdAt && Number.isFinite(Date.parse(props.account.createdAt))
+    ? new Intl.DateTimeFormat(language, { year: "numeric", month: "short", day: "numeric" }).format(new Date(props.account.createdAt)) : t("Unavailable");
 
-  useEffect(() => {
-    setUsername(props.account.username);
-  }, [props.account.username]);
-
-  useEffect(() => {
-    usernameFieldRef.current?.focus();
-  }, []);
-
-  async function updateAccountAndRefresh(input: { username?: string; role?: "admin" | "user"; disabled?: boolean }, nextMessage: string) {
+  async function updateAccountAndRefresh(input: { role?: "admin" | "user"; disabled?: boolean }, nextMessage: string) {
     setError("");
     setMessage("");
     const result = await updateAdminAccount(props.account.id, input);
@@ -1713,14 +1433,14 @@ function AdminAccountDialog(props: {
       props.onBriefingsChanged(result.briefings);
       setMessage(feed.paused ? "feed resumed" : "feed paused");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(toUiError(cause));
     } finally {
       setBusy(null);
     }
   }
 
   async function removeAdminBriefing(feed: BriefingConfig) {
-    if (!window.confirm(`Delete "${feed.title}" and all of its sources and published items?`)) return;
+    if (!await confirm(t('Delete "{name}" and all of its sources and published items?', {name: feed.title}))) return;
     setBusy(`feed:${feed.id}:delete`);
     setError("");
     setMessage("");
@@ -1730,289 +1450,234 @@ function AdminAccountDialog(props: {
       props.onBriefingsChanged(result.briefings);
       setMessage("feed deleted");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function removeAccount() {
-    if (isSignedInAdmin) {
-      setError("cannot delete the signed-in admin");
-      return;
-    }
-    if (!window.confirm(`Delete "${props.account.username}" and all of this user's feeds, sources, and published items?`)) return;
-    setBusy("delete-account");
-    setError("");
-    setMessage("");
-    try {
-      const result = await deleteAdminAccount(props.account.id);
-      props.onAccountsChanged(result.accounts);
-      props.onBriefingsChanged(result.briefings);
-      props.onClose();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(toUiError(cause));
     } finally {
       setBusy(null);
     }
   }
 
   return (
-    <Sheet title="manage account" closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
-      <div className="account-meta">
-        <span>{props.account.email}</span>
-        <span>{props.account.disabledAt ? "disabled" : props.account.emailVerifiedAt ? "verified" : "unverified"}</span>
-        <span>{props.briefings.length} feed{props.briefings.length === 1 ? "" : "s"}</span>
-        {isSignedInAdmin ? <span>current admin</span> : null}
-      </div>
-
-      <form
-        className="account-form"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setBusy("username");
-          try {
-            await updateAccountAndRefresh({ username }, "username saved");
-          } catch (cause) {
-            setError(cause instanceof Error ? cause.message : String(cause));
-          } finally {
-            setBusy(null);
-          }
-        }}
-      >
-        <label>
-          username
-          <input ref={usernameFieldRef} value={username} onChange={(event) => setUsername(event.target.value)} />
-        </label>
-        <button type="submit" title="save username" disabled={busy === "username"}>
-          <Save size={15} aria-hidden /> save username
-        </button>
-      </form>
-
-      <div className="account-form">
-        <div className="field-group">
-          <span>role</span>
-          <div className="segmented" role="group" aria-label={`role for ${props.account.username}`}>
-            {(["user", "admin"] as const).map((role) => (
-              <button
-                key={role}
-                type="button"
-                className={props.account.role === role ? "active" : ""}
-                disabled={busy === "role"}
-                aria-pressed={props.account.role === role}
-                title={`set role ${role}`}
-                onClick={async () => {
-                  if (props.account.role === role) return;
-                  setBusy("role");
-                  try {
-                    await updateAccountAndRefresh({ role }, `role changed to ${role}`);
-                  } catch (cause) {
-                    setError(cause instanceof Error ? cause.message : String(cause));
-                  } finally {
-                    setBusy(null);
-                  }
-                }}
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-        </div>
-        <button
-          type="button"
-          className={props.account.disabledAt ? "" : "danger-button"}
-          title={props.account.disabledAt ? "enable account" : "disable account"}
-          disabled={busy === "disabled"}
-          onClick={async () => {
-            setBusy("disabled");
-            try {
-              await updateAccountAndRefresh(
-                { disabled: !props.account.disabledAt },
-                props.account.disabledAt ? "account enabled" : "account disabled"
-              );
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : String(cause));
-            } finally {
-              setBusy(null);
-            }
-          }}
-        >
-          {props.account.disabledAt ? "enable account" : "disable account"}
-        </button>
-      </div>
-
-      <div className="account-form admin-feed-control">
-        <div className="field-group">
-          <span>feeds</span>
-          {props.briefings.length > 0 ? (
-            <div className="admin-feed-list">
-              {props.briefings.map((feed) => (
-                <div key={feed.id} className="admin-feed-row">
-                  <div className="admin-feed-copy">
-                    <strong><bdi>{feed.title}</bdi></strong>
-                    <span className="muted">/{feed.ownerUsername}/{feed.slug}/</span>
-                    <span className="muted">{feed.paused ? "paused" : "live"} / {feed.briefingCadence} / {feed.stars} stars</span>
-                  </div>
-                  <div className="row-actions">
-                    <button
-                      type="button"
-                      title={feed.paused ? "resume feed" : "pause feed"}
-                      disabled={busy === `feed:${feed.id}:pause`}
-                      onClick={() => void toggleAdminBriefing(feed)}
-                    >
-                      {feed.paused ? <Play size={15} aria-hidden /> : <Pause size={15} aria-hidden />}
-                      {feed.paused ? "resume" : "pause"}
-                    </button>
-                    <a className="button-link icon-button" href={`/${feed.ownerUsername}/${feed.slug}/`} aria-label={`open ${feed.title}`} title="open feed">
-                      <ExternalLink size={15} aria-hidden />
-                    </a>
-                    <button
-                      type="button"
-                      className="danger-button"
-                      title="delete feed"
-                      disabled={busy === `feed:${feed.id}:delete`}
-                      onClick={() => void removeAdminBriefing(feed)}
-                    >
-                      <Trash2 size={15} aria-hidden /> delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">no feeds</p>
-          )}
-        </div>
-      </div>
-
-      <div className="account-form account-danger-zone">
-        <div className="field-group">
-          <span>danger zone</span>
-          <p className="muted">Deleting an account removes its feeds, sources, tokens, and published history.</p>
-        </div>
-        <button
-          type="button"
-          className="danger-button"
-          title={isSignedInAdmin ? "cannot delete the signed-in admin" : "delete account"}
-          disabled={isSignedInAdmin || busy === "delete-account"}
-          onClick={() => void removeAccount()}
-        >
-          <Trash2 size={15} aria-hidden /> delete account
-        </button>
-      </div>
-
-      {message ? <p className="muted">{message}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-    </Sheet>
+    <Panel title={t("manage account")} closeLabel="close account management" icon={<User size={16} aria-hidden />} onClose={props.onClose}>
+      {confirmation}
+      <div className="managed-user-identity"><span className="profile-avatar">{accountInitials(props.account.username)}</span><h2>{props.account.username}</h2><p>{props.account.email}</p><span className={`user-role-badge ${props.account.role}`}>{t(props.account.role === "admin" ? "Admin" : "User")}</span></div>
+      <div className="managed-user-stats"><span>{t("Feeds")}<strong>{props.feedCount ?? props.briefings.length}</strong></span><span>{t("Joined")}<strong>{joinedAt}</strong></span></div>
+      <details className="managed-user-settings"><summary><Pencil size={20}/>{t("Account Settings")}<ChevronRight size={18}/></summary>
+        <fieldset className="account-role-options"><legend>{t("Role")}</legend>{(["user", "admin"] as const).map(role => <label key={role}><input type="radio" name={`role-${props.account.id}`} checked={props.account.role === role} disabled={busy !== null} onChange={async () => { setBusy("role"); try { await updateAccountAndRefresh({ role }, `role changed to ${role}`); } catch (cause) { setError(toUiError(cause)); } finally { setBusy(null); } }}/>{t(role === "admin" ? "Admin" : "User")}</label>)}</fieldset>
+      </details>
+      <details className="managed-user-feeds"><summary><Newspaper size={22}/>{t("View Feeds")}<ChevronRight size={18}/></summary>
+        <div className="admin-feed-list">{props.briefings.map(feed => <div key={feed.id} className="admin-feed-row"><strong title={feed.title}><bdi>{feed.title}</bdi></strong><div className="row-actions"><a className="icon-button" href={`/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`} target="_blank" rel="noopener noreferrer" aria-label={t("Open {name} in new tab", {name: feed.title})}><ExternalLink size={18}/></a><details className="feed-options"><summary aria-label={t("Options for {name}", {name: feed.title})}><MoreHorizontal size={20} aria-hidden /></summary><div className="feed-options-popover admin-feed-actions"><button type="button" aria-label={t(feed.paused ? "Resume feed" : "Pause feed")} title={t(feed.paused ? "Resume feed" : "Pause feed")} disabled={busy !== null} onClick={() => void toggleAdminBriefing(feed)}>{feed.paused ? <Play size={16}/> : <Pause size={16}/>}</button><button type="button" className="danger-button" aria-label={t("Delete feed")} title={t("Delete feed")} disabled={busy !== null} onClick={() => void removeAdminBriefing(feed)}><Trash2 size={18}/></button></div></details></div></div>)}</div>
+      </details>
+      <button type="button" className="managed-user-suspend" disabled={busy !== null || isSignedInAdmin} onClick={async () => {
+        setBusy("disabled");
+        try { await updateAccountAndRefresh({ disabled: !props.account.disabledAt }, props.account.disabledAt ? "account enabled" : "account disabled"); }
+        catch (cause) { setError(toUiError(cause)); }
+        finally { setBusy(null); }
+      }}><Ban size={24}/><span>{t(props.account.disabledAt ? "Enable Account" : "Suspend Account")}</span><ChevronRight size={18}/></button>
+      {message ? <p className="muted">{t(message)}</p> : null}
+      {error ? <p className="error">{t(error)}</p> : null}
+    </Panel>
   );
 }
 
+function InlineAccountPanel(props: { title: string; closeLabel: string; icon: React.ReactNode; children: React.ReactNode; onClose: () => void }) {
+  return <aside className="managed-user-panel" aria-label={props.title}><button type="button" className="managed-user-close" aria-label={props.closeLabel} onClick={props.onClose}><X size={22}/></button>{props.children}</aside>;
+}
+
 function FeedPage(props: { username: string; slug: string }) {
-  const [payload, setPayload] = useState<FeedPayload | null>(null);
+  const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
+  const { language: uiLanguage, t } = useLanguage();
+  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading, readerId, sessionState, retrySession, ownershipState, retryOwnership } = useFeedViewer(props.username, props.slug);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
+  const feedKey = `${props.username}/${props.slug}`;
+  const feedIdentity = useRef(feedKey);
+  const feedRequest = useRef(0);
+  const feedRead = useRef<AbortController | null>(null);
+  const searchRequest = useRef(0);
+  const latestQuery = useRef("");
+  const loadedFeed = useRef<string | null>(null);
+  const visibleEditionIds = useRef(new Set<string>());
+  const publicationVersion = useRef<string|undefined>(undefined);
+  if (feedIdentity.current !== feedKey) {
+    feedIdentity.current = feedKey; feedRequest.current++; searchRequest.current++;
+    publicationVersion.current=undefined;
+  }
+  const [feedResult, setFeedResult] = useState<{ key: string; value: FeedPayload } | null>(null);
+  const payload = feedResult?.key === feedKey ? feedResult.value : null;
+  const [readState, setReadState] = useState<{ key: string; state: "loading" | "loaded" | "failed" }>({ key: feedKey, state: "loading" });
+  const initialLoading = !payload && (readState.key !== feedKey || readState.state === "loading");
+  const readerLoading = initialLoading || viewerLoading;
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
+  const [editionSource,setEditionSource]=useState<{key:string;text:string}|null>(null);
   const [query, setQuery] = useState("");
-  const [error, setError] = useState("");
+  const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
+  const [error, setError] = useState<UiMessage>("");
+  const [searchError,setSearchError]=useState<{key:string;text:string;message:UiMessage}|null>(null);
   const [starBusy, setStarBusy] = useState(false);
-  const [summaryBusy, setSummaryBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
-  const [exploreOpen, setExploreOpen] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload ? [
+    ...payload.editions.map(edition=>edition.id),
+    ...(editionSource?.key===feedKey?editions.map(edition=>edition.id):[])
+  ] : []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
   const [editionDetails, setEditionDetails] = useState<Map<string, BriefingEdition>>(() => new Map());
 
-  async function refresh() {
-    setError("");
-    setSummaryMessage("");
-    const next = await getFeed(props.username, props.slug);
-    setPayload(next);
-    setEditions(next.editions);
-    setExpanded(new Set());
-    setEditionBusyIds(new Set());
-    setEditionDetails(new Map());
-    setVisibleUnreadCount(FEED_BATCH_SIZE);
-    setSelectedReport(null);
-  }
-
-  async function requestSummaryNow() {
-    if (!payload) return;
-    setError("");
-    setSummaryMessage("");
-    setSummaryBusy(true);
+  async function refresh(silent = false) {
+    if (silent && feedRead.current) return;
+    feedRead.current?.abort();
+    const read = new AbortController();
+    feedRead.current = read;
+    const key = feedKey, request = ++feedRequest.current;
+    if (!silent || loadedFeed.current !== key) { setError(""); setSummaryMessage(""); }
+    if (loadedFeed.current !== key) setReadState({ key, state: "loading" });
     try {
-      const result = await requestFeedSummary(props.username, props.slug);
-      setQuery("");
-      await refresh();
-      setSummaryMessage(result.edition ? summaryPublishedLabel(language) : summaryEmptyLabel(language));
+      const next = await getFeed(props.username, props.slug, {
+        signal: read.signal,
+        retryInitialRead: loadedFeed.current !== key,
+      });
+      if (feedIdentity.current !== key || request !== feedRequest.current) return;
+      loadedFeed.current = key;
+      const searching=Boolean(latestQuery.current.trim()),complete=next.editionsComplete===true;
+      const changed=searching&&!complete&&(next.publicationVersion===undefined||next.publicationVersion!==publicationVersion.current);
+      publicationVersion.current=next.publicationVersion;
+      visibleEditionIds.current = new Set([
+        ...(searching&&!complete&&!changed?visibleEditionIds.current:[]),
+        ...next.editions.map(edition => edition.id)
+      ]);
+      setFeedResult({ key, value: next }); setReadState({ key, state: "loaded" });
+      const sourceNotice = sessionStorage.getItem(`feed-notice:${next.briefing.id}`);
+      setError(sourceNotice ?? "");
+      if (sourceNotice) sessionStorage.removeItem(`feed-notice:${next.briefing.id}`);
+      // Only a complete searchable snapshot can prove an edition was withdrawn.
+      if(!searching||complete||changed)searchRequest.current++;
+      const ids = visibleEditionIds.current;
+      // Refresh visibility without discarding pagination, search or loaded detail.
+      // Changed or unknown publication state must not leave stale search prose
+      // visible while its authoritative replacement is pending or unavailable.
+      setEditions(current => searching ? (changed?[]:complete?current.filter(edition => ids.has(edition.id)):current) : next.editions);
+      if(!searching)setEditionSource({key,text:latestQuery.current});
+      if(changed){setEditionSource(null);setSettledSearch(null);setSelectedReport(null);setEditionDetails(new Map());}
+      setEditionDetails(current => new Map([...current].filter(([id]) => ids.has(id))));
+      setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (feedIdentity.current !== key || request !== feedRequest.current) return;
+      if (!silent || loadedFeed.current !== key) {
+        setReadState({ key, state: "failed" }); setError(toUiError(cause));
+      }
+      return cause instanceof ApiError ? cause.uiMessage.details : {};
     } finally {
-      setSummaryBusy(false);
+      if (feedRead.current === read) feedRead.current = null;
     }
   }
 
   useEffect(() => {
-    refresh().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+    setError("");setSearchError(null);setEditionSource(null); setSummaryMessage(""); latestQuery.current = "";
+    setQuery(""); setEditions([]); setEditionBusyIds(new Set());
+    setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
+    visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
+    void refresh();
+    return () => {
+      feedRead.current?.abort();
+      feedRead.current = null;
+      feedRequest.current++; searchRequest.current++;
+    };
   }, [props.username, props.slug]);
 
   useEffect(() => {
-    const raw = localStorage.getItem(`ln_read:${props.username}:${props.slug}`);
-    setReadIds(new Set(raw ? (JSON.parse(raw) as string[]) : []));
+    let pending = false;
+    // After an overload answer or a network failure, every trigger waits 30,
+    // 60, then 120 seconds. Healthy refreshes stay immediate, and coming back
+    // online always retries.
+    let policy = initialFeedRefreshState();
+    const update = async () => {
+      if (document.visibilityState !== "visible" || pending || !mayRefreshFeed(policy, Date.now())) return;
+      pending = true;
+      try { policy = afterFeedRefresh(policy, Date.now(), await refresh(true)); } finally { pending = false; }
+    };
+    const online = () => { policy = initialFeedRefreshState(); void update(); };
+    const interval = window.setInterval(() => void update(), FEED_REFRESH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", update); window.addEventListener("focus", update); window.addEventListener("online", online);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); window.removeEventListener("focus", update); window.removeEventListener("online", online); };
   }, [props.username, props.slug]);
-
-  useEffect(() => {
-    localStorage.setItem(`ln_read:${props.username}:${props.slug}`, JSON.stringify(Array.from(readIds)));
-  }, [props.username, props.slug, readIds]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 60_000);
     return () => window.clearInterval(interval);
   }, []);
 
+  // A status refresh must not undo pages explicitly loaded by the reader.
+  // Reset pagination only when the search or feed navigation changes.
   useEffect(() => {
-    if (!payload) return;
-    let active = true;
-    const timeout = window.setTimeout(async () => {
-      try {
-        setError("");
-        const nextEditions = query.trim() ? await searchFeed(props.username, props.slug, query) : payload.editions;
-        if (active) {
-          setEditions(nextEditions);
-          setVisibleUnreadCount(FEED_BATCH_SIZE);
-        }
-      } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : String(cause));
-      }
-    }, 250);
-    return () => {
-      active = false;
-      window.clearTimeout(timeout);
-    };
-  }, [payload, props.username, props.slug, query]);
+    setVisibleUnreadCount(FEED_BATCH_SIZE);
+  }, [props.username, props.slug, query]);
 
-  const unreadEditions = editions.filter((edition) => !readIds.has(edition.id));
-  const visibleUnreadEditions = unreadEditions.slice(0, visibleUnreadCount);
-  const hiddenUnreadCount = Math.max(0, unreadEditions.length - visibleUnreadEditions.length);
-  const archivedReadEditions = editions.filter((edition) => readIds.has(edition.id));
-  const language = payload?.briefing.language ?? "en";
+  async function applySearch(text: string, request: number) {
+    if (!payload) return;
+    const key = feedKey;
+    try {
+      const next = text.trim() ? await searchFeed(props.username, props.slug, text) : payload?.editions ?? [];
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) {
+        visibleEditionIds.current = new Set([...visibleEditionIds.current, ...next.map(edition => edition.id)]);
+        setSearchError(null); setEditions(next);setEditionSource({key,text}); setSettledSearch({ key, text });
+      }
+    } catch (cause) {
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { setSearchError({key,text,message:toUiError(cause)}); setSettledSearch({key,text}); }
+    }
+  }
+
+  const searchSnapshot=payload?.editionsComplete===false&&payload.publicationVersion!==undefined?payload.publicationVersion:payload;
+  useEffect(() => {
+    const request = ++searchRequest.current;
+    if (!payload) return;
+    if (!query.trim()) { setSearchError(null); setEditions(payload.editions);setEditionSource({key:feedKey,text:query}); return; }
+    const timeout = window.setTimeout(() => {
+      if (request === searchRequest.current && feedIdentity.current === feedKey && query === latestQuery.current) void applySearch(query, request);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [searchSnapshot, props.username, props.slug, query]);
+
+  const editionMatchesQuery=editionSource?.key===feedKey&&editionSource.text===query;
+  const currentEditions = payload&&editionMatchesQuery ? editions : [];
+  const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
+  const activeSearchError=searchError?.key===feedKey&&searchError.text===query?searchError.message:null;
+  const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
+  const filteredEditions = [
+    ...currentEditions.filter(edition => !readIds.has(edition.id)),
+    ...archivedReadEditions,
+  ];
+  const visibleUnreadEditions = filteredEditions.slice(0, visibleUnreadCount);
+  const hiddenUnreadCount = Math.max(0, filteredEditions.length - visibleUnreadEditions.length);
+  const language = uiLanguage;
   const pageDir = textDirection(language);
   const canStar = Boolean(payload);
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
-  const reportEdition = selectedReport
+  const compactFeedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language, true) : "";
+  const reportEdition = editionMatchesQuery&&selectedReport
     ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
     : undefined;
-  const reportSection = reportEdition && selectedReport ? reportEdition.sections[selectedReport.sectionIndex] : undefined;
   const feedTitle = payload ? (
     <span className="feed-page-title">
-      <span className={`status-dot ${payload.briefing.paused ? "paused" : "live"}`} aria-hidden />
       <span>{payload.briefing.title}</span>
     </span>
-  ) : "briefing";
+  ) : initialLoading ? null : "briefing";
+
+  async function shareFeed() {
+    const url = window.location.origin + window.location.pathname;
+    if (navigator.share) {
+      try { await navigator.share({ title: payload?.briefing.title, url }); }
+      catch (cause) { if (!(cause instanceof DOMException && cause.name === "AbortError")) setError("Could not copy URL"); }
+      return;
+    }
+    try { await navigator.clipboard.writeText(url); setSummaryMessage(t("URL copied")); }
+    catch { setError("Could not copy URL"); }
+  }
 
   async function loadEditionDetail(edition: BriefingEdition): Promise<BriefingEdition | null> {
+    const key = feedKey;
+    if (!visibleEditionIds.current.has(edition.id)) return null;
     const cached = editionDetails.get(edition.id);
     if (cached) return cached;
     if (edition.sections.length > 0) {
@@ -2023,28 +1688,19 @@ function FeedPage(props: { username: string; slug: string }) {
     setEditionBusyIds((current) => new Set(current).add(edition.id));
     try {
       const detailed = await getFeedEdition(props.username, props.slug, edition.id);
+      if (feedIdentity.current !== key || !visibleEditionIds.current.has(edition.id)) return null;
       setEditionDetails((current) => new Map(current).set(edition.id, detailed));
       return detailed;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (feedIdentity.current === key) setError(toUiError(cause));
       return null;
     } finally {
-      setEditionBusyIds((current) => {
+      if (feedIdentity.current === key) setEditionBusyIds((current) => {
         const next = new Set(current);
         next.delete(edition.id);
         return next;
       });
     }
-  }
-
-  async function toggleEditionExpanded(edition: BriefingEdition) {
-    if (expanded.has(edition.id)) {
-      toggleSetValue(expanded, setExpanded, edition.id);
-      return;
-    }
-
-    toggleSetValue(expanded, setExpanded, edition.id);
-    await loadEditionDetail(edition);
   }
 
   async function openEditionReport(edition: BriefingEdition, sectionIndex: number) {
@@ -2053,67 +1709,93 @@ function FeedPage(props: { username: string; slug: string }) {
     setSelectedReport({ editionId: edition.id, sectionIndex });
   }
 
+  const { theme, setTheme } = useTheme();
+  const nextLanguage = ({ en: "fr", fr: "ar", ar: "en" } as const)[language];
+  const feedActions = (
+    <div className="feed-header-actions">
+      <button
+        type="button"
+        className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
+        title={starTitleLabel(payload?.viewerHasStarred ?? false, language)}
+        disabled={!canStar || starBusy || !payload}
+        aria-pressed={payload?.viewerHasStarred ?? false}
+        onClick={async () => {
+          if (!payload) return;
+          setStarBusy(true); setError("");
+          try {
+            const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
+            setFeedResult(current => current?.key === feedKey && feedIdentity.current === feedKey ? {
+              key: feedKey, value: { ...current.value, briefing: { ...current.value.briefing, stars: result.stars }, viewerHasStarred: result.viewerHasStarred }
+            } : current);
+          } catch (cause) {
+            setError(toUiError(cause));
+          } finally {
+            setStarBusy(false);
+          }
+        }}
+      >
+        <Star size={20} aria-hidden fill={payload?.viewerHasStarred ? "currentColor" : "none"} />
+        <span className="action-label">{starControlLabel(payload?.viewerHasStarred ?? false, language)}</span>{" "}
+        <span className="action-count">{payload?.briefing.stars ?? 0}</span>
+      </button>
+      <button type="button" title={t("Share")} aria-label={t("Share")} disabled={!payload?.briefing.publicFeedEnabled} onClick={() => void shareFeed()}><Share size={20} aria-hidden /></button>
+      {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={20} aria-hidden /></button> : null}
+    </div>
+  );
+
   return (
     <Shell
+      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
-      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : loadingFeedLabel(language)}
-      feed={payload?.briefing}
+      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
+      headingFooter={feedActions}
+      headingLoading={readerLoading}
+      feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
     >
-      {payload ? (
-        <FeedSignalPanel
-          briefing={payload.briefing}
-          editionCount={editions.length}
-          unreadCount={unreadEditions.length}
-          language={language}
-          nowMs={clock}
-        />
-      ) : null}
-      <div className="feed-tools" dir={pageDir}>
-        <div className="feed-actions">
-          <button type="button" title={refreshControlLabel(language)} onClick={() => refresh()}><RefreshCw size={15} aria-hidden /> {refreshControlLabel(language)}</button>
-          <button
-            type="button"
-            title={summaryRequestTitleLabel(language)}
-            disabled={!payload || summaryBusy}
-            onClick={() => void requestSummaryNow()}
-          >
-            <Newspaper size={15} aria-hidden /> {summaryBusy ? summaryBusyLabel(language) : summaryRequestLabel(language)}
-          </button>
-          <button
-            type="button"
-            className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
-            title={starTitleLabel(payload?.viewerHasStarred ?? false, language)}
-            disabled={!canStar || starBusy || !payload}
-            aria-pressed={payload?.viewerHasStarred ?? false}
-            onClick={async () => {
-              if (!payload) return;
-              setStarBusy(true);
-              try {
-                const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
-                setPayload({
-                  ...payload,
-                  briefing: { ...payload.briefing, stars: result.stars },
-                  viewerHasStarred: result.viewerHasStarred
-                });
-              } finally {
-                setStarBusy(false);
-              }
-            }}
-          >
-            <Star size={15} aria-hidden />
-            {starControlLabel(payload?.viewerHasStarred ?? false, language)} {payload?.briefing.stars ?? 0}
-          </button>
-        </div>
+      {sessionState==='error' && <div role="alert" className="feed-session-error">
+        <p>{t("We couldn’t confirm your session. Retry to restore your account and read progress.")}</p>
+        <button type="button" onClick={retrySession}>{t("Retry session")}</button>
+      </div>}
+      {sessionState==='authenticated'&&ownershipState==='error'&&<div role="alert">
+        <p>{t('Could not load feed-management controls. Retry to restore access to settings.')}</p>
+        <button type="button" onClick={retryOwnership}>{t('Retry feed controls')}</button>
+      </div>}
+      {sessionState==='authenticated'&&!viewerLoading&&ownershipState==='loading'&&<p role="status">{t('Loading feed controls…')}</p>}
+      {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
+      {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
+        onLogout={async () => {
+          const result = await logout();
+          feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
+          visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
+          setFeedResult(null);setEditions([]);setEditionSource(null);setEditionDetails(new Map());setSelectedReport(null);
+          setQuery('');setSettledSearch(null);setSearchError(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
+          setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
+          if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
+          window.location.replace('/');
+        }}
+        onSaved={async (nextAccount, nextBriefings) => {
+          setAccount(nextAccount);
+          const nextOwned=nextBriefings.find(feed=>feed.id===(ownedFeed?.id??payload?.briefing.id)&&feed.ownerAccountId===nextAccount.id)??null;
+          setOwnedFeed(nextOwned);
+          if(nextAccount.username!==props.username&&nextOwned){
+            window.location.replace(`/${encodeURIComponent(nextAccount.username)}/${encodeURIComponent(nextOwned.slug)}/`);
+          }
+        }}/>}
+      {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
+        const saved = await saveFeed(input);
+        if (saved.sourceActivation === "pending") window.alert(t("Feed saved. Some sources are awaiting activation. Check source health for updates."));
+        setOwnedFeed(saved); setEditorOpen(false);
+        if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
+        else await refresh();
+      }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
+      <div className={`feed-tools${payload?.editions.length ? "" : " is-empty-feed"}`} dir={pageDir}>
         <div className="feed-side-actions">
-          <button type="button" title={exploreFeedsLabel(language)} onClick={() => setExploreOpen(true)}><Compass size={15} aria-hidden /> {exploreControlLabel(language)}</button>
           <form
             className="search"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              setEditions(query.trim() ? await searchFeed(props.username, props.slug, query) : payload?.editions ?? []);
-              setVisibleUnreadCount(FEED_BATCH_SIZE);
+            onSubmit={(event) => {
+              event.preventDefault(); void applySearch(latestQuery.current, ++searchRequest.current);
             }}
           >
             <Search size={15} aria-hidden />
@@ -2121,57 +1803,78 @@ function FeedPage(props: { username: string; slug: string }) {
               aria-label={searchPublishedLabel(language)}
               dir={pageDir}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => { latestQuery.current = event.target.value; searchRequest.current++; setQuery(event.target.value); }}
               placeholder={searchPublishedLabel(language)}
             />
           </form>
         </div>
+        {feedStatusMessage&&<span className={`feed-check-status${compactFeedStatusMessage !== feedStatusMessage ? " has-compact-label" : ""}`} role="status" aria-label={feedStatusMessage} title={feedStatusMessage}><Clock3 size={18} aria-hidden/><span className="feed-check-status-full" aria-hidden>{feedStatusMessage}</span><span className="feed-check-status-compact" aria-hidden>{compactFeedStatusMessage}</span></span>}
+        {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
+          key={JSON.stringify([account.id,props.username,props.slug])}
+          readerId={account.id}
+          summaryTarget={summaryTarget}
+          hasUnread={payload.editions.some(edition=>!readIds.has(edition.id)&&Date.parse(edition.publishedAt)>Date.now()-86_400_000&&Date.parse(edition.publishedAt)<=Date.now())}
+          username={props.username} slug={props.slug}
+          readIds={payload.editions.filter(edition=>readIds.has(edition.id)).map(edition=>edition.id)}
+          contentKey={JSON.stringify([payload.briefing.language,...payload.editions.filter(edition=>Date.parse(edition.publishedAt)>Date.now()-86_400_000).map(edition=>[edition.id,edition.summary])])}
+        />}
       </div>
-      {exploreOpen ? <ExploreFeedsSheet currentFeed={payload?.briefing} language={language} onClose={() => setExploreOpen(false)} /> : null}
-      {reportEdition && reportSection ? (
-        <ReportSheet
+      <div className="unread-summary-slot" ref={setSummaryTarget}/>
+      {reportEdition && selectedReport ? (
+        <SourcesSheet
           edition={reportEdition}
-          section={reportSection}
+          selectedIndex={selectedReport.sectionIndex}
           language={language}
           onClose={() => setSelectedReport(null)}
         />
       ) : null}
-      {error ? <FeedNotice message={error} language={language} /> : null}
+      {error ? <FeedNotice message={t(error)} language={language} /> : null}
+      {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
+      <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
+      <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
+      {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
+      {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>
         </p>
       ) : null}
-      {feedStatusMessage ? (
-        <p className="muted feed-status-message" lang={language} dir={pageDir}>
-          <bdi dir={pageDir}>{feedStatusMessage}</bdi>
-        </p>
-      ) : null}
+
+      {searchLoading && !error && !activeSearchError && currentEditions.length === 0 ? <FeedLoadingSkeleton label={loadingFeedLabel(language)}/> : null}
       <div className="news-line">
-        {visibleUnreadEditions.map((edition) => (
-          <FeedEditionRow
-            key={edition.id}
-            edition={edition}
-            detailEdition={editionDetails.get(edition.id) ?? (edition.sections.length > 0 ? edition : undefined)}
-            language={language}
-            isExpanded={expanded.has(edition.id)}
-            isLoading={editionBusyIds.has(edition.id)}
-            isRead={false}
-            onToggleExpanded={() => void toggleEditionExpanded(edition)}
-            onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, true)}
-            onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
-          />
+        {groupEditionsByDay(visibleUnreadEditions, language, clock).map(group => (
+          <section className="news-day-group" key={group.key}>
+            <h2 className="news-day">{group.day}</h2>
+            <div className="news-day-cards">
+              {group.editions.map(edition => (
+                <FeedEditionRow
+                  key={edition.id}
+                  edition={edition}
+                  detailEdition={editionDetails.get(edition.id)}
+                  language={language}
+                  contentLanguage={payload?.briefing.language ?? language}
+                  isLoading={editionBusyIds.has(edition.id)}
+                  isRead={readIds.has(edition.id)}
+                  readProgressUnavailable={readerId===undefined}
+                  onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
+                  onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
+                />
+              ))}
+            </div>
+          </section>
         ))}
         {hiddenUnreadCount > 0 ? (
           <div className="load-more-row">
             <button type="button" title={loadMoreLabel(language)} onClick={() => setVisibleUnreadCount((count) => count + FEED_BATCH_SIZE)}>
               {loadMoreLabel(language)}
+              <ChevronDown size={18} aria-hidden="true"/>
             </button>
             <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
           </div>
         ) : null}
-        {unreadEditions.length === 0 && !error ? (
-          <div className="empty-state">
+        {payload && !initialLoading && !searchLoading && filteredEditions.length === 0 && !error && !activeSearchError ? (
+          <div className="empty-state feed-empty-state">
+            {archivedReadEditions.length === 0 && <span className="feed-empty-icon" aria-hidden="true"><Newspaper size={32} strokeWidth={1.5}/></span>}
             <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
             <p className="muted">
               {emptyFeedMessage(archivedReadEditions.length, language)}
@@ -2179,27 +1882,7 @@ function FeedPage(props: { username: string; slug: string }) {
           </div>
         ) : null}
       </div>
-      {archivedReadEditions.length > 0 ? (
-        <details className="section read-section">
-          <summary>{readSectionLabel(archivedReadEditions.length, language)}</summary>
-          <div className="news-line news-line-read">
-            {archivedReadEditions.map((edition) => (
-              <FeedEditionRow
-                key={edition.id}
-                edition={edition}
-                detailEdition={editionDetails.get(edition.id) ?? (edition.sections.length > 0 ? edition : undefined)}
-                language={language}
-                isExpanded={expanded.has(edition.id)}
-                isLoading={editionBusyIds.has(edition.id)}
-                isRead={true}
-                onToggleExpanded={() => void toggleEditionExpanded(edition)}
-                onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, false)}
-                onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
-              />
-            ))}
-          </div>
-        </details>
-      ) : null}
+      </>}
     </Shell>
   );
 }
@@ -2211,13 +1894,14 @@ function FeedSignalPanel(props: {
   language: "en" | "ar" | "fr";
   nowMs: number;
 }) {
+  const { t } = useLanguage();
   const nextValue = props.briefing.paused
     ? pausedScheduleLabel(props.language)
     : props.briefing.nextBriefingAt
       ? formatCountdown(props.briefing.nextBriefingAt, props.nowMs, props.language)
       : summaryPublishedLabel(props.language);
   return (
-    <section className="feed-signal-panel" aria-label="feed signal">
+    <section className="feed-signal-panel" aria-label={t("feed signal")}>
       <div className="feed-signal-primary">
         <span className="eyebrow">{cadenceMetaLabel(props.briefing.briefingCadence, props.language)}</span>
         <strong><bdi>{props.briefing.title}</bdi></strong>
@@ -2249,162 +1933,97 @@ function FeedSignalPanel(props: {
   );
 }
 
+function groupEditionsByDay(editions: BriefingEdition[], language: "en" | "ar" | "fr", now: number) {
+  const groups: { key: string; day: string; editions: BriefingEdition[] }[] = [];
+  for (const edition of editions) {
+    const day = formatDayHeading(editionDisplayTime(edition), language, now);
+    const last = groups[groups.length - 1];
+    if (last && last.day === day) last.editions.push(edition);
+    else groups.push({ key: `${day}:${edition.id}`, day, editions: [edition] });
+  }
+  return groups;
+}
+
 function FeedEditionRow(props: {
   edition: BriefingEdition;
   detailEdition?: BriefingEdition;
   language: "en" | "ar" | "fr";
-  isExpanded: boolean;
+  contentLanguage: "en" | "ar" | "fr";
   isLoading: boolean;
   isRead: boolean;
-  onToggleExpanded: () => void;
   onToggleRead: () => void;
+  readProgressUnavailable?: boolean;
   onOpenReport: (sectionIndex: number) => void;
 }) {
-  const textDir = textDirection(props.language);
-  const detailEdition = props.detailEdition ?? props.edition;
-  const surfaceSummary = surfaceBriefSummary(props.edition.summary);
-  const referenceCount = Math.max(detailEdition.sections.length, highestReferenceNumber(props.edition.summary));
-  const closedIcon = textDir === "rtl" ? <ChevronLeft size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />;
+  const { edition, language } = props;
+  const textDir = textDirection(props.contentLanguage);
+  const retainedLines = edition.summary.trim().split(/\r?\n/).filter(line => line.trim());
+  const retainedHeadline = retainedLines.length > 1 && retainedLines[0].length <= 240 ? retainedLines[0].trim() : undefined;
+  const headline = (edition.sections.length === 1 ? edition.sections[0].title || retainedHeadline : undefined) || edition.title;
+  const narrative = normalizeSummary(edition.summary);
+  const summary = headline && narrative.startsWith(headline) ? narrative.slice(headline.length).trimStart() : narrative;
+  const referenceCount = Math.max(props.detailEdition?.sections.length ?? 0, edition.sections.length, highestReferenceNumber(edition.summary));
+  const citedNumbers = [...new Set(referenceTextParts(edition.summary).flatMap(part => part.kind === 'reference' && part.value > 0 ? [part.value] : []))];
+  const referenceNumbers = citedNumbers.length ? citedNumbers : Array.from({length: referenceCount}, (_, index) => index + 1);
+  const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
   return (
-    <article className={`news-item${props.isRead ? " is-read" : ""}`}>
-      <div className="news-rail" aria-hidden>
-        <span className="news-node" />
+    <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
+      <div className="news-head">
+        {props.isRead ? null : <span className="news-unread" aria-hidden />}
+        <time dateTime={editionDisplayTime(edition)}>{formatClock(editionDisplayTime(edition), language)}</time>
       </div>
-      <div className="news-copy" lang={props.language} dir={textDir}>
-        <div className="news-topline">
-          <div className="news-meta" dir={textDir}>
-            <Timestamp value={props.edition.publishedAt} language={props.language} />
-            <span className="muted">{cadenceMetaLabel(props.edition.cadence, props.language)}</span>
-          </div>
-          <div className="news-row-actions" dir="ltr">
-            <button
-              type="button"
-              className="read-button icon-button quiet-icon"
-              title={readToggleTitle(props.isRead, props.language)}
-              aria-label={readToggleAria(props.edition.title, props.isRead, props.language)}
-              onClick={props.onToggleRead}
-            >
-              {props.isRead ? <Circle size={16} aria-hidden /> : <CircleCheck size={16} aria-hidden />}
-              <span className="sr-only">{readToggleText(props.isRead, props.language)}</span>
-            </button>
-            <button
-              type="button"
-              className="expand icon-button quiet-icon"
-              title={briefingToggleTitle(props.isExpanded, props.language)}
-              aria-expanded={props.isExpanded}
-              aria-label={briefingToggleAria(props.edition.title, props.isExpanded, props.language)}
-              onClick={props.onToggleExpanded}
-            >
-              {props.isExpanded ? <ChevronDown size={15} aria-hidden /> : closedIcon}
-            </button>
-          </div>
-        </div>
-        <ReferenceParagraph
+      <BriefingText
+        hideBody
+        summary={edition.summary}
+        fallbackHeadline={headline}
+        fallbackSummary={summary}
+        sections={edition.sections}
+        direction={textDir}
+        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : [sectionIndex + 1]).map(number => <button
+          key={number}
+          type="button"
+          className="briefing-reference"
+          aria-label={referenceButtonLabel(number, language)}
+          aria-busy={props.isLoading}
+          onClick={() => props.onOpenReport(number - 1)}
+        ><bdi dir="ltr">[{number}]</bdi></button>)}
+        renderBody={text=><ReferenceParagraph
           className="news-summary"
-          text={surfaceSummary}
-          language={props.language}
+          text={text}
+          language={language}
+          direction={textDir}
           referenceCount={referenceCount}
           onOpenReference={props.onOpenReport}
-        />
-        {props.isExpanded ? (
-          <EditionSections
-            edition={detailEdition}
-            surfaceSummary={surfaceSummary}
-            language={props.language}
-            loading={props.isLoading}
-            onOpenReport={props.onOpenReport}
-          />
-        ) : null}
+        />}
+      />
+      <div className="news-foot">
+        <span />
+        <button
+          type="button"
+          className="read-button"
+          disabled={props.readProgressUnavailable}
+          aria-pressed={props.isRead}
+          onClick={props.onToggleRead}
+        >
+          <Check size={16} aria-hidden />
+          {markReadLabel(props.isRead, language)}
+        </button>
       </div>
     </article>
   );
 }
 
-function EditionSections(props: {
-  edition: BriefingEdition;
-  surfaceSummary: string;
-  language: "en" | "ar" | "fr";
-  loading: boolean;
-  onOpenReport: (sectionIndex: number) => void;
-}) {
-  const textDir = textDirection(props.language);
-  if (props.loading) return <p className="muted evidence-loading">{loadingBriefingLabel(props.language)}</p>;
-  if (props.edition.sections.length === 0) return <p className="muted evidence-loading">{noBriefingDetailLabel(props.language)}</p>;
-  const fullSummary = props.edition.summary.trim();
-  const showFullSummary = Boolean(fullSummary) && normalizeSummary(fullSummary) !== normalizeSummary(props.surfaceSummary);
-  const referenceCount = Math.max(props.edition.sections.length, highestReferenceNumber(props.edition.summary));
-  return (
-    <div className="brief-synthesis">
-      {showFullSummary ? (
-        <div className="full-brief-block">
-          <div className="brief-list-head">
-            <span>{fullBriefLabel(props.language)}</span>
-          </div>
-          <ReferenceParagraph
-            className="full-brief-summary"
-            text={fullSummary}
-            language={props.language}
-            referenceCount={referenceCount}
-            onOpenReference={props.onOpenReport}
-          />
-        </div>
-      ) : null}
-      <div className="brief-list-head">
-        <span>{referencesLabel(props.language)}</span>
-        <span className="muted">{referenceLabel(props.edition.sections.length, props.language)}</span>
-      </div>
-      <div className="reference-digest-list" aria-label={referencesLabel(props.language)} dir={textDir}>
-        {props.edition.sections.map((section, sectionIndex) => {
-          const timeRange = referenceTimeRange(section.evidence, props.language);
-          return (
-            <article
-              key={`${section.title}:${sectionIndex}`}
-              className="reference-digest-row"
-            >
-              <button
-                type="button"
-                className="reference-digest-index"
-                title={referenceButtonLabel(sectionIndex + 1, props.language)}
-                aria-label={referenceButtonLabel(sectionIndex + 1, props.language)}
-                onClick={() => props.onOpenReport(sectionIndex)}
-              >
-                <span dir="ltr">[{sectionIndex + 1}]</span>
-              </button>
-              <div className="reference-digest-copy">
-                <div className="reference-digest-meta" dir="ltr">
-                  <bdi>{referencePreview(section)}</bdi>
-                  {timeRange ? <span>{timeRange}</span> : null}
-                  {section.evidence.length > 0 ? <span>{referenceLabel(section.evidence.length, props.language)}</span> : null}
-                </div>
-                <p className="reference-digest-summary" dir={textDir}>
-                  <bdi dir={textDir}>{referenceDigestSummary(section.summary)}</bdi>
-                </p>
-              </div>
-              <button
-                type="button"
-                className="reference-digest-action"
-                title={openReportLabel(sectionIndex + 1, props.language)}
-                onClick={() => props.onOpenReport(sectionIndex)}
-              >
-                <ExternalLink size={14} aria-hidden />
-                {reportLabel(props.language)}
-              </button>
-            </article>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+const trailingPunctuation = /^[.,;:!?)\]…،؛؟]+/u;
 
 function ReferenceParagraph(props: {
   text: string;
   language: "en" | "ar" | "fr";
+  direction: "ltr" | "rtl";
   referenceCount: number;
   className: string;
   onOpenReference: (sectionIndex: number) => void;
 }) {
-  const textDir = textDirection(props.language);
+  const textDir = props.direction;
   const parts = referenceTextParts(props.text);
   if (parts.length === 0) {
     return <p className={props.className} dir={textDir}><bdi dir={textDir}>{props.text}</bdi></p>;
@@ -2413,9 +2032,19 @@ function ReferenceParagraph(props: {
   return (
     <p className={props.className} dir={textDir}>
       {parts.map((part, index) => {
-        if (part.kind === "text") return <bdi key={`${part.value}:${index}`} dir={textDir}>{part.value}</bdi>;
+        if (part.kind === "text") {
+          // A marker hugs the word before it, like a footnote.
+          const next = parts[index + 1];
+          const previous = parts[index - 1];
+          let value = next?.kind === "reference" ? part.value.replace(/\s+$/u, "") : part.value;
+          // Punctuation right after a marker stays on the marker's line.
+          if (previous?.kind === "reference") value = value.replace(trailingPunctuation, "");
+          return value ? <bdi key={`${part.value}:${index}`} dir={textDir}>{value}</bdi> : null;
+        }
         const canOpen = part.value >= 1 && part.value <= props.referenceCount;
-        return (
+        const following = parts[index + 1];
+        const punctuation = following?.kind === "text" ? following.value.match(trailingPunctuation)?.[0] ?? "" : "";
+        const marker = (
           <button
             key={`reference-${part.value}-${index}`}
             type="button"
@@ -2425,76 +2054,17 @@ function ReferenceParagraph(props: {
             aria-label={referenceButtonLabel(part.value, props.language)}
             onClick={() => props.onOpenReference(part.value - 1)}
           >
-            [{part.value}]
+            {part.value}
           </button>
         );
+        return punctuation ? <span key={`cluster-${part.value}-${index}`} className="reference-cluster">{marker}<bdi dir={textDir}>{punctuation}</bdi></span> : marker;
       })}
     </p>
   );
 }
 
-function ReportSheet(props: {
-  edition: BriefingEdition;
-  section: BriefingEditionSection;
-  language: "en" | "ar" | "fr";
-  onClose: () => void;
-}) {
-  const textDir = textDirection(props.language);
-  return (
-    <Sheet
-      title={reportLabel(props.language)}
-      closeLabel={closeReportLabel(props.language)}
-      icon={<ExternalLink size={17} aria-hidden />}
-      onClose={props.onClose}
-      wide
-    >
-      <div className="report-module" lang={props.language} dir={textDir}>
-        <div className="report-meta" dir="ltr">
-          <Timestamp value={props.edition.publishedAt} language={props.language} />
-          <span>{referenceLabel(props.section.evidence.length, props.language)}</span>
-        </div>
-        <div className="report-summary-block">
-          <strong><bdi>{props.section.title}</bdi></strong>
-          <p className="report-summary" dir={textDir}><bdi dir={textDir}>{props.section.summary}</bdi></p>
-        </div>
-        <div className="report-reference-list">
-          {props.section.evidence.map((entry, index) => (
-            <ReportEvidenceRow key={`${entry.messageId}:${entry.postedAt}:${index}`} entry={entry} language={props.language} />
-          ))}
-          {props.section.evidence.length === 0 ? <p className="muted">{noReferencesLabel(props.language)}</p> : null}
-        </div>
-      </div>
-    </Sheet>
-  );
-}
-
-function ReportEvidenceRow(props: { entry: BriefingEvidence; language: "en" | "ar" | "fr" }) {
-  const textDir = textDirection(props.language);
-  return (
-    <article className="report-reference">
-      <div className="evidence-head" dir="ltr">
-        <strong className="evidence-title"><bdi>{props.entry.sourceTitle}</bdi></strong>
-        <Timestamp value={props.entry.postedAt} language={props.language} />
-      </div>
-      <div className="evidence-links">
-        {props.entry.sourceUrl ? <a href={props.entry.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden /> {originalPostLabel(props.language)}</a> : null}
-        {props.entry.links.map((link) => <a key={link} href={link} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden /> {linkLabel(props.language)}</a>)}
-        {props.entry.media.map((media, index) =>
-          media.url ? (
-            <a key={`${media.url}-${index}`} href={media.url} target="_blank" rel="noreferrer">
-              <ExternalLink size={14} aria-hidden /> {mediaDisplayLabel(media, props.language)}
-            </a>
-          ) : (
-            <span key={`${media.fileId}-${index}`} className="muted">{mediaDisplayLabel(media, props.language)}</span>
-          )
-        )}
-      </div>
-      <details className="report-excerpt">
-        <summary>{sourceTextLabel(props.language)}</summary>
-        <p className="evidence-text" dir={textDir}><bdi dir={textDir}>{props.entry.text}</bdi></p>
-      </details>
-    </article>
-  );
+function SourcesSheet(props: {edition: BriefingEdition; selectedIndex: number; language: "en" | "ar" | "fr"; onClose: () => void}) {
+  return <NewsBriefing {...props} mediaLabel={media => mediaDisplayLabel(media, props.language)}/>;
 }
 
 function Timestamp(props: { value: string; language: "en" | "ar" | "fr" }) {
@@ -2514,82 +2084,101 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
   );
 }
 
-function FeedNotice(props: { message: string; language: "en" | "ar" | "fr" }) {
+function FeedBackLink({ language }: { language: "en" | "ar" | "fr" }) {
+  const label = language === "ar" ? "رجوع" : language === "fr" ? "Retour" : "Back";
+  return <a className="feed-nav-back" href="/" onClick={event => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
+  }}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
+}
+
+function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  useVisibleFeedMenu(ref);
+  const close = () => { if (ref.current) ref.current.open = false; };
+  useEffect(() => {
+    const down = (event: PointerEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) close(); };
+    document.addEventListener("pointerdown", down);
+    return () => document.removeEventListener("pointerdown", down);
+  }, []);
   return (
-    <section className="section notice">
-      <h2>{feedUnavailableLabel(props.language)}</h2>
-      <p>{props.message}</p>
-    </section>
+    <details
+      ref={ref}
+      className="feed-options feed-more"
+      onKeyDown={event => { if (event.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) close(); }}
+    >
+      <summary aria-label={props.label} title={props.label}><Ellipsis size={22} aria-hidden /></summary>
+      <div className="feed-options-popover">{props.children(close)}</div>
+    </details>
   );
 }
 
 function Shell(props: {
+  header?: React.ReactNode;
   title: React.ReactNode;
   titleText?: string;
   children: React.ReactNode;
   meta?: React.ReactNode;
+  description?: React.ReactNode;
   feed?: Pick<BriefingConfig, "ownerUsername" | "slug" | "title">;
   onAccount?: () => void;
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";
+  headingAction?: React.ReactNode;
+  headingFooter?: React.ReactNode;
+  headingLoading?: boolean;
 }) {
-  const [theme, setTheme] = useState(() => (localStorage.getItem("dn_theme") === "dark" ? "dark" : "light"));
+  const { t } = useLanguage();
+  const { language: selectedLanguage } = useLanguage();
   const titleText = props.titleText ?? (typeof props.title === "string" ? props.title : "briefing");
-  const shellLanguage = props.pageLanguage ?? "en";
+  const shellLanguage = selectedLanguage;
   const shellMode = props.feed ? "feed-shell" : props.onAccount ? "admin-shell" : "auth-shell";
-  const showCreateNav = shellMode !== "auth-shell";
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("dn_theme", theme);
-  }, [theme]);
 
   useEffect(() => {
-    document.documentElement.lang = props.pageLanguage ?? "en";
-    document.documentElement.dir = textDirection(props.pageLanguage ?? "en");
-    document.title = titleText === "Distilled.news" ? "Distilled.news" : `${titleText} · Distilled.news`;
+    document.documentElement.lang = selectedLanguage;
+    document.documentElement.dir = selectedLanguage === "ar" ? "rtl" : "ltr";
+    document.title = titleText.toLowerCase() === "distilled.news" ? "Distilled.News" : `${titleText} · Distilled.News`;
     const manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (manifest) {
       manifest.href = props.feed
         ? `/manifest.webmanifest?user=${encodeURIComponent(props.feed.ownerUsername)}&feed=${encodeURIComponent(props.feed.slug)}`
         : "/manifest.webmanifest";
     }
-  }, [props.feed, props.pageLanguage, titleText]);
+  }, [props.feed, selectedLanguage, titleText]);
 
   return (
-    <main className={`shell ${shellMode}`}>
-      <header>
+    <main className={`shell ${shellMode}`}><PublicNavigation/>
+      {props.header ?? <header>
         <div className="header-primary">
           <div className="brand-lockup">
-            <a href="/" className="brand" aria-label="Distilled.news" title="Distilled.news">
-              <img className="brand-logo" src="/logo.svg" alt="" />
-            </a>
-            <a href="https://github.com/AmmarMohanna/distilled.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label="Open GitHub repository" title="open GitHub repository">
+            <div className="brand" aria-label="Distilled.news" title="Distilled.news">
+              <span className="experience-brand"><BrandMark/></span>
+            </div>
+            <a href="https://github.com/AmmarMohanna/distilled.news" target="_blank" rel="noreferrer" className="brand-icon" aria-label={t("Open GitHub repository")} title={t("open GitHub repository")}>
               <Github size={16} aria-hidden />
             </a>
           </div>
         </div>
         <div className="header-actions">
-          <nav>
-            {showCreateNav ? <a href="/" title={createNavLabel(shellLanguage)}>{createNavLabel(shellLanguage)}</a> : null}
-            {props.feed ? <span className="nav-separator" aria-hidden="true">|</span> : null}
-            {props.feed ? <a href={`/${props.feed.ownerUsername}/${props.feed.slug}/`}>{feedNavLabel(shellLanguage)}</a> : null}
-          </nav>
           <div className="header-controls">
+            <LanguageControl/>
             {props.onAccount ? (
-              <button type="button" className="icon-button" aria-label="account settings" title="account settings" onClick={props.onAccount}>
+              <button type="button" className="icon-button" aria-label={t("account settings")} title={t("account settings")} onClick={props.onAccount}>
                 <User size={16} aria-hidden />
               </button>
             ) : null}
-            <button type="button" className="icon-button" aria-label={`switch to ${theme === "dark" ? "light" : "dark"} mode`} title="switch theme" onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}>
-              {theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
-            </button>
-            {props.onLogout ? <button type="button" title="logout" onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> logout</button> : null}
+            <ThemeToggle/>
+            {props.onLogout ? <button type="button" title={t("logout")} onClick={() => { void props.onLogout?.().catch(() => window.alert(t("Could not complete the request. Try again."))); }}><LogOut size={15} aria-hidden /> {t("logout")}</button> : null}
           </div>
         </div>
-      </header>
-      <div className="page-heading">
-        <h1>{props.title}</h1>
-        <p>{props.meta ?? getPageMeta(titleText)}</p>
+      </header>}
+      <div className="page-heading" aria-busy={props.headingLoading || undefined} style={props.headingLoading ? {visibility: 'hidden'} : undefined}>
+        {props.feed && <div className="feed-hero-art"><FeedArt feed={props.feed}/></div>}
+        <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
+        <p>{props.meta ?? (props.feed ? null : getPageMeta(titleText))}</p>
+        {props.headingFooter}
+        {props.description && <div className="feed-page-description">{props.description}</div>}
       </div>
       {props.children}
     </main>
@@ -2601,7 +2190,7 @@ function getPageMeta(title: string): string {
   if (title === "briefing") return "Published briefing items only.";
   if (title.includes("Briefing")) return "Published briefing items only.";
   if (title === "verify email") return "Account verification.";
-  if (title === "reset password") return "Account recovery.";
+  if (title === "Reset Password") return "Account recovery.";
   return "Less clutter. Personalized news, to the point.";
 }
 
@@ -2666,17 +2255,6 @@ function createBriefingDraft(existing: BriefingConfig[], account: AccountRecord)
 
 function visibleBriefingCadence(cadence: BriefingConfig["briefingCadence"]): Exclude<BriefingConfig["briefingCadence"], "monthly"> {
   return cadence === "monthly" ? "weekly" : cadence;
-}
-
-function toggleSetValue(
-  current: Set<string>,
-  setValue: React.Dispatch<React.SetStateAction<Set<string>>>,
-  id: string
-) {
-  const next = new Set(current);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
-  setValue(next);
 }
 
 function toggleRead(
@@ -2793,123 +2371,105 @@ function bylineLabel(language: "en" | "ar" | "fr"): string {
 }
 
 function loadingFeedLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار تحميل الموجز";
-  if (language === "fr") return "chargement du fil";
+  if (language === "ar") return "جارٍ تحميل الخلاصة";
+  if (language === "fr") return "Chargement du fil";
   return "loading feed";
 }
 
 function refreshControlLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "تحديث";
-  if (language === "fr") return "actualiser";
-  return "refresh";
-}
-
-function summaryRequestLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "موجز الآن";
-  if (language === "fr") return "brief maintenant";
-  return "brief now";
-}
-
-function summaryRequestTitleLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "إنشاء موجز منذ آخر خبر";
-  if (language === "fr") return "créer un brief depuis le dernier";
-  return "create a brief since the last one";
-}
-
-function summaryBusyLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار الإنشاء";
-  if (language === "fr") return "création";
-  return "building";
+  if (language === "fr") return "Actualiser";
+  return "Refresh";
 }
 
 function summaryPublishedLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "تم نشر موجز جديد.";
-  if (language === "fr") return "nouveau brief publié.";
+  if (language === "fr") return "Nouveau brief publié.";
   return "new brief published.";
 }
 
-function summaryEmptyLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "لا توجد تحديثات موثوقة منذ آخر موجز.";
-  if (language === "fr") return "aucune mise à jour vérifiée depuis le dernier brief.";
-  return "no verified updates since the last brief.";
-}
-
 function starControlLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return starred ? "مميّز" : "تمييز";
-  if (language === "fr") return starred ? "favori" : "favoriser";
-  return starred ? "starred" : "star";
+  if (language === "ar") return starred ? "في المفضلة" : "إضافة للمفضلة";
+  if (language === "fr") return starred ? "Favori" : "Ajouter aux favoris";
+  return starred ? "Starred" : "Star";
 }
 
 function starTitleLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return starred ? "إزالة التمييز" : "تمييز الموجز";
-  if (language === "fr") return starred ? "retirer le favori" : "favoriser le fil";
+  if (language === "ar") return starred ? "إزالة من المفضلة" : "إضافة الخلاصة إلى المفضلة";
+  if (language === "fr") return starred ? "Retirer des favoris" : "Ajouter le fil aux favoris";
   return starred ? "remove star" : "star feed";
 }
 
-function exploreControlLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "استكشاف";
-  if (language === "fr") return "Explorer";
-  return "Explore";
-}
-
-function exploreFeedsLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "استكشاف الموجزات";
-  if (language === "fr") return "explorer les fils";
-  return "explore feeds";
-}
-
-function closeExploreLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "إغلاق الاستكشاف";
-  if (language === "fr") return "fermer l'exploration";
-  return "close explore";
-}
-
 function loadingFeedsLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار تحميل الموجزات";
-  if (language === "fr") return "chargement des fils";
+  if (language === "ar") return "جارٍ تحميل الخلاصات";
+  if (language === "fr") return "Chargement des fils";
   return "loading feeds";
 }
 
-function noStarredFeedsLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "لا توجد موجزات مميّزة بعد";
-  if (language === "fr") return "aucun fil favori pour l'instant";
-  return "no starred feeds yet";
+function noFeaturedFeedsLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "لم يتم نشر أي خلاصات في الاستكشاف بعد.";
+  if (language === "fr") return "Aucun fil n’a encore été publié dans Explorer.";
+  return "No feeds have been published to Explore yet.";
+}
+
+function filterLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "تصفية الموجزات";
+  if (language === "fr") return "Filtrer les briefs";
+  return "Filter briefings";
+}
+
+function allFilterLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "الكل";
+  if (language === "fr") return "Tous";
+  return "All";
+}
+
+function unreadFilterLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "غير المقروءة";
+  if (language === "fr") return "Non lus";
+  return "Unread";
 }
 
 function searchPublishedLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "ابحث في الموجز المنشور";
-  if (language === "fr") return "chercher dans le brief publié";
-  return "search published briefing";
+  if (language === "ar") return "البحث في الموجزات";
+  if (language === "fr") return "Chercher dans les briefs";
+  return "Search briefings";
 }
 
 function loadMoreLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "عرض المزيد";
-  if (language === "fr") return "afficher plus";
-  return "load more";
+  if (language === "fr") return "Afficher plus";
+  return "Load More";
 }
 
 function moreCountLabel(count: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `${count} إضافية`;
+  if (language === "ar") return `المزيد: ${count}`;
   if (language === "fr") return `${count} de plus`;
   return `${count} more`;
 }
 
 function emptyFeedTitle(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "كل الموجزات الظاهرة مقروءة" : "لا توجد موجزات منشورة";
-  if (language === "fr") return readCount > 0 ? "tous les briefs visibles sont lus" : "aucun brief publié";
+  if (language === "ar") return readCount > 0 ? "جميع الموجزات المعروضة مقروءة" : "لا توجد موجزات منشورة";
+  if (language === "fr") return readCount > 0 ? "Tous les briefs affichés sont lus" : "Aucun brief publié";
   return readCount > 0 ? "all visible briefings are read" : "no published briefings";
 }
 
 function emptyFeedMessage(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "افتح قسم المقروء للعودة إلى الموجزات السابقة." : "سيظهر الموجز المجدول التالي هنا.";
-  if (language === "fr") return readCount > 0 ? "Ouvrez la section lue pour revoir les anciens briefs." : "Le prochain brief programmé apparaîtra ici.";
+  if (language === "ar") return readCount > 0 ? "افتح قسم «المقروءة» للاطلاع على الموجزات السابقة." : "سيظهر الموجز المجدول التالي هنا.";
+  if (language === "fr") return readCount > 0 ? "Ouvrez la section « Lus » pour consulter les briefs précédents." : "Le prochain brief programmé apparaîtra ici.";
   return readCount > 0 ? "Open the read section below to revisit archived briefings." : "The next scheduled briefing will appear here.";
 }
 
 function readSectionLabel(count: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `مقروء ${count}`;
-  if (language === "fr") return `lus ${count}`;
-  return `read ${count}`;
+  if (language === "ar") return `المقروءة · ${count}`;
+  if (language === "fr") return `Lus · ${count}`;
+  return `Read · ${count}`;
+}
+
+function markReadLabel(isRead: boolean, language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return isRead ? "تعيين كغير مقروء" : "تعيين كمقروء";
+  if (language === "fr") return isRead ? "Marquer comme non lu" : "Marquer comme lu";
+  return isRead ? "Mark as unread" : "Mark as read";
 }
 
 function readToggleText(isRead: boolean, language: "en" | "ar" | "fr"): string {
@@ -2919,51 +2479,15 @@ function readToggleText(isRead: boolean, language: "en" | "ar" | "fr"): string {
 }
 
 function readToggleTitle(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "وضع كغير مقروء" : "وضع كمقروء";
-  if (language === "fr") return isRead ? "marquer non lu" : "marquer lu";
+  if (language === "ar") return isRead ? "تعيين كغير مقروء" : "تعيين كمقروء";
+  if (language === "fr") return isRead ? "Marquer comme non lu" : "Marquer comme lu";
   return isRead ? "mark unread" : "mark read";
 }
 
 function readToggleAria(title: string, isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? `وضع ${title} كغير مقروء` : `وضع ${title} كمقروء`;
-  if (language === "fr") return isRead ? `marquer ${title} non lu` : `marquer ${title} lu`;
+  if (language === "ar") return isRead ? `تعيين «${title}» كغير مقروء` : `تعيين «${title}» كمقروء`;
+  if (language === "fr") return isRead ? `Marquer « ${title} » comme non lu` : `Marquer « ${title} » comme lu`;
   return isRead ? `mark ${title} unread` : `mark ${title} read`;
-}
-
-function briefingToggleTitle(isExpanded: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isExpanded ? "إخفاء الموجز" : "عرض الموجز";
-  if (language === "fr") return isExpanded ? "masquer le brief" : "afficher le brief";
-  return isExpanded ? "hide briefing" : "show briefing";
-}
-
-function briefingToggleAria(title: string, isExpanded: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isExpanded ? `إخفاء ${title}` : `عرض ${title}`;
-  if (language === "fr") return isExpanded ? `masquer ${title}` : `afficher ${title}`;
-  return isExpanded ? `hide ${title}` : `show ${title}`;
-}
-
-function loadingBriefingLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار تحميل الموجز";
-  if (language === "fr") return "chargement du brief";
-  return "loading briefing";
-}
-
-function noBriefingDetailLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "لا توجد تفاصيل لهذا الموجز";
-  if (language === "fr") return "aucun détail disponible";
-  return "no briefing detail available";
-}
-
-function feedUnavailableLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "الموجز غير متاح";
-  if (language === "fr") return "fil indisponible";
-  return "feed unavailable";
-}
-
-function fullBriefLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "الموجز الكامل";
-  if (language === "fr") return "brief complet";
-  return "full brief";
 }
 
 function pausedScheduleLabel(language: "en" | "ar" | "fr"): string {
@@ -2979,46 +2503,22 @@ function formatAutosaveStatus(state: "idle" | "saving" | "saved" | "error", stat
   return status || "ready";
 }
 
-function formatCountdown(isoDate: string, nowMs: number, language: "en" | "ar" | "fr" = "en"): string {
-  const diffMs = new Date(isoDate).getTime() - nowMs;
-  if (!Number.isFinite(diffMs)) return "";
-  if (diffMs <= 0) {
-    if (language === "ar") return "مستحق الآن";
-    if (language === "fr") return "maintenant";
-    return "is due";
-  }
-  const minutes = Math.ceil(diffMs / 60_000);
-  if (minutes < 60) {
-    if (language === "ar") return `بعد ${minutes} د`;
-    if (language === "fr") return `dans ${minutes} min`;
-    return `in ${minutes} min`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (hours < 24) {
-    if (language === "ar") return remainder === 0 ? `بعد ${hours} س` : `بعد ${hours} س ${remainder} د`;
-    if (language === "fr") return remainder === 0 ? `dans ${hours}h` : `dans ${hours}h ${remainder}m`;
-    return remainder === 0 ? `in ${hours}h` : `in ${hours}h ${remainder}m`;
-  }
-  const days = Math.floor(hours / 24);
-  if (language === "ar") return `بعد ${days} يوم`;
-  if (language === "fr") return `dans ${days}j`;
-  return `in ${days}d`;
-}
 
-function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr"): string {
+
+function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr", compact = false): string {
   if (briefing.paused) return pausedFeedMessage(language);
   if (!briefing.nextBriefingAt) return "";
   const nextAt = new Date(briefing.nextBriefingAt).getTime();
   if (!Number.isFinite(nextAt)) return "";
   if (nextAt <= nowMs) return awaitingAcceptedBriefMessage(briefing.briefingCadence, language);
-  const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language);
+  const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language, compact);
+  if (compact && countdown) return `${language === "ar" ? "التالي" : language === "fr" ? (briefing.briefingCadence === "hourly" ? "Vérif." : "Brief") : "Next"} ${countdown}`;
   return countdown ? nextBriefingText(briefing.briefingCadence, countdown, language) : "";
 }
 
 function pausedFeedMessage(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "الموجز متوقف مؤقتاً؛ لن تُنشر موجزات جديدة حتى يُستأنف.";
-  if (language === "fr") return "fil en pause; aucun nouveau brief ne sera publié avant reprise.";
+  if (language === "ar") return "الخلاصة متوقفة مؤقتًا. لن تُنشر فيها موجزات جديدة حتى استئنافها.";
+  if (language === "fr") return "Fil en pause. Aucun nouveau brief ne sera publié avant sa reprise.";
   return "feed paused; no new briefings will publish until it resumes.";
 }
 
@@ -3026,173 +2526,71 @@ function awaitingAcceptedBriefMessage(
   cadence: BriefingConfig["briefingCadence"],
   language: "en" | "ar" | "fr"
 ): string {
-  if (language === "ar") return cadence === "hourly" ? "بانتظار التحديث المقبول التالي." : `بانتظار الموجز المقبول التالي (${cadenceMetaLabel(cadence, language)}).`;
-  if (language === "fr") return cadence === "hourly" ? "en attente de la prochaine mise à jour acceptée." : `en attente du prochain brief ${cadenceMetaLabel(cadence, language)} accepté.`;
+  if (language === "ar") return cadence === "hourly" ? "بانتظار تحديث جديد بعد مراجعته." : `بانتظار الموجز ال${cadenceMetaLabel(cadence, language)} التالي بعد مراجعته.`;
+  if (language === "fr") return cadence === "hourly" ? "En attente d’une nouvelle mise à jour validée." : `En attente du prochain brief ${cadenceMetaLabel(cadence, language)} validé.`;
   return cadence === "hourly" ? "waiting for the next accepted update." : `waiting for the next accepted ${cadence} brief.`;
 }
 
-function uniqueSourceTitles(evidence: BriefingEvidence[]): string[] {
-  const titles: string[] = [];
-  const seen = new Set<string>();
-  for (const entry of evidence) {
-    const title = entry.sourceTitle.trim();
-    const key = title.toLowerCase();
-    if (!title || seen.has(key)) continue;
-    seen.add(key);
-    titles.push(title);
-  }
-  return titles;
-}
-
-function referencePreview(section: BriefingEditionSection): string {
-  const sources = uniqueSourceTitles(section.evidence);
-  if (sources.length === 0) return section.title;
-  const visible = sources.slice(0, 2).join(", ");
-  const hidden = sources.length - 2;
-  return hidden > 0 ? `${visible} +${hidden}` : visible;
-}
-
-function referenceTimeRange(evidence: BriefingEvidence[], language: "en" | "ar" | "fr"): string {
-  const times = evidence
-    .map((entry) => entry.postedAt)
-    .filter(Boolean)
-    .sort();
-  if (times.length === 0) return "";
-  const first = formatTime(times[0], language);
-  const last = formatTime(times[times.length - 1], language);
-  return first === last ? first : `${first} - ${last}`;
-}
-
-function referenceDigestSummary(summary: string): string {
-  const words = summary.trim().split(/\s+/u).filter(Boolean);
-  if (words.length <= 34) return summary;
-  return `${words.slice(0, 34).join(" ").replace(/[,.،;:]+$/u, "")}...`;
-}
-
-function surfaceBriefSummary(summary: string): string {
-  const sentences = summarySentences(summary);
-  if (sentences.length <= 2) return normalizeSummary(summary);
-  return normalizeSummary(sentences.slice(0, 2).join(" "));
-}
-
-function summarySentences(summary: string): string[] {
-  const normalized = normalizeSummary(summary);
-  if (!normalized) return [];
-  const matches = normalized.match(/[^.!؟?]+(?:[.!؟?]+|$)/gu) ?? [normalized];
-  return matches.map((sentence) => sentence.trim()).filter(Boolean);
-}
-
-function normalizeSummary(summary: string): string {
-  return summary.trim().replace(/\s+/gu, " ");
-}
-
-function highestReferenceNumber(text: string): number {
-  let highest = 0;
-  for (const match of text.matchAll(/\[(\d{1,3})\]/g)) {
-    highest = Math.max(highest, Number(match[1]));
-  }
-  return highest;
-}
-
-function referenceTextParts(text: string): Array<{ kind: "text"; value: string } | { kind: "reference"; value: number }> {
-  const parts: Array<{ kind: "text"; value: string } | { kind: "reference"; value: number }> = [];
-  const pattern = /\[(\d{1,3})\]/g;
-  let cursor = 0;
-  for (const match of text.matchAll(pattern)) {
-    if (match.index === undefined) continue;
-    if (match.index > cursor) parts.push({ kind: "text", value: text.slice(cursor, match.index) });
-    parts.push({ kind: "reference", value: Number(match[1]) });
-    cursor = match.index + match[0].length;
-  }
-  if (cursor < text.length) parts.push({ kind: "text", value: text.slice(cursor) });
-  return parts;
-}
-
-function referencesLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "المراجع";
-  if (language === "fr") return "références";
-  return "references";
-}
-
 function referenceButtonLabel(referenceNumber: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `فتح المرجع ${referenceNumber}`;
-  if (language === "fr") return `ouvrir la référence ${referenceNumber}`;
-  return `open reference ${referenceNumber}`;
+  if (language === "ar") return `المصدر ${referenceNumber}`;
+  if (language === "fr") return `Source ${referenceNumber}`;
+  return `Source ${referenceNumber}`;
 }
 
-function openReportLabel(referenceNumber: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `فتح تقرير المرجع ${referenceNumber}`;
-  if (language === "fr") return `ouvrir le rapport de la référence ${referenceNumber}`;
-  return `open reference ${referenceNumber} report`;
+function linkHostLabel(link: string, language: "en" | "ar" | "fr"): string {
+  try { return new URL(link).hostname.replace(/^www\./u, "") || linkLabel(language); }
+  catch { return linkLabel(language); }
 }
 
-function reportLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "تقرير";
-  if (language === "fr") return "rapport";
-  return "report";
+function sourcesLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "المصادر";
+  return "Sources";
 }
 
-function closeReportLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "إغلاق التقرير";
-  if (language === "fr") return "fermer le rapport";
-  return "close report";
+function closeSourcesLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "إغلاق";
+  if (language === "fr") return "Fermer";
+  return "Close";
 }
 
-function referenceLabel(count: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return count === 1 ? "مرجع واحد" : `${count} مراجع`;
-  if (language === "fr") return `${count} référence${count === 1 ? "" : "s"}`;
-  return `${count} reference${count === 1 ? "" : "s"}`;
+function openPostLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "فتح المنشور";
+  if (language === "fr") return "Ouvrir la publication";
+  return "Open post";
 }
 
-function cadenceMetaLabel(cadence: BriefingConfig["briefingCadence"], language: "en" | "ar" | "fr"): string {
-  if (language === "ar") {
-    if (cadence === "daily") return "يومي";
-    if (cadence === "weekly") return "أسبوعي";
-    if (cadence === "monthly") return "شهري";
-    return "تحديثات";
-  }
-  if (language === "fr") {
-    if (cadence === "daily") return "quotidien";
-    if (cadence === "weekly") return "hebdomadaire";
-    if (cadence === "monthly") return "mensuel";
-    return "mises à jour";
-  }
-  if (cadence === "hourly") return "updates";
-  return cadence;
+function showMoreLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "عرض المزيد";
+  if (language === "fr") return "Voir plus";
+  return "Show more";
 }
 
-function nextBriefingText(
-  cadence: BriefingConfig["briefingCadence"],
-  countdown: string,
-  language: "en" | "ar" | "fr"
-): string {
-  if (language === "ar") return cadence === "hourly" ? `الفحص التالي ${countdown}` : `الموجز التالي ${countdown}`;
-  if (language === "fr") return `prochain brief ${cadenceMetaLabel(cadence, language)} ${countdown}`;
-  return cadence === "hourly" ? `next check ${countdown}` : `next ${cadence} brief ${countdown}`;
+function showLessLabel(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "عرض أقل";
+  if (language === "fr") return "Voir moins";
+  return "Show less";
 }
+
+
+
+
 
 function noReferencesLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "لا توجد مراجع لهذا التحديث.";
-  if (language === "fr") return "Aucune référence pour cette mise à jour.";
-  return "No references for this update.";
+  if (language === "ar") return "لا توجد مصادر لهذا الخبر.";
+  if (language === "fr") return "Aucune source pour cet article.";
+  return "No sources for this story.";
 }
 
 function originalPostLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "المنشور الأصلي";
-  if (language === "fr") return "publication originale";
+  if (language === "fr") return "Publication originale";
   return "original post";
 }
 
 function linkLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "رابط";
-  if (language === "fr") return "lien";
-  return "link";
-}
-
-function sourceTextLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "نص المصدر";
-  if (language === "fr") return "texte source";
-  return "source text";
+  if (language === "fr") return "Lien";
+  return "Link";
 }
 
 function mediaDisplayLabel(media: BriefingEvidence["media"][number], language: "en" | "ar" | "fr"): string {
@@ -3240,7 +2638,7 @@ function prepareBriefingForSave(briefing: BriefingConfig, existing: BriefingConf
   return {
     ...briefing,
     slug: slugify(nextSlug),
-    publicFeedEnabled: true,
+    publicFeedEnabled: briefing.publicFeedEnabled,
     intensity: briefing.intensity ?? "medium",
     briefingCadence: visibleBriefingCadence(briefing.briefingCadence ?? "hourly"),
     briefingTimeOfDay: "00:00",
@@ -3256,4 +2654,4 @@ function sortBriefings(briefings: BriefingConfig[]): BriefingConfig[] {
   });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<ScreenPages><App /></ScreenPages>);

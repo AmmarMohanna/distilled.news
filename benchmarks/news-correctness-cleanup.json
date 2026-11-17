@@ -1,0 +1,15 @@
+{
+  "database": "STAGING_EVALUATION_ONLY",
+  "authorization": "USER_EXPLICITLY_ALLOWED_DATABASE_CONTENT_DELETION",
+  "targetKind": "semantic_resource_waits",
+  "recordsDeleted": 10066,
+  "payloadBytesRemoved": 5416685534,
+  "paidCallsInDeletedRecords": 0,
+  "remainingRecords": 0,
+  "databaseBytesBefore": 9999998976,
+  "databaseBytesAfter": 4568223744,
+  "financialLedgerDeleted": false,
+  "articleEvidenceDeleted": false,
+  "original50HoldsUnchanged": true,
+  "ceilingUsd": 73
+}

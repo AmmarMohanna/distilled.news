@@ -1,0 +1,404 @@
+"""Bounded Browser Use Path 3 discovery worker. Stdin/stdout carry only source URLs.
+
+This process is not an authority boundary: its output must be checked against
+Distilled's trusted Chromium observations before a workflow can be promoted.
+"""
+
+import asyncio
+import contextlib
+import json
+import os
+import re
+import sys
+import traceback
+import urllib.error
+import urllib.request
+import uuid
+from urllib.parse import urlparse
+
+
+class DiscoveryFailure(Exception):
+    def __init__(self, category: str, bridge_code: str | None = None, bridge_status: int | None = None,
+                 policy_rule: str | None = None, denied_hostname: str | None = None, bridge_operation: str | None = None):
+        self.category = category
+        self.bridge_code = bridge_code
+        self.bridge_status = bridge_status
+        self.policy_rule = policy_rule
+        self.denied_hostname = denied_hostname
+        self.bridge_operation = bridge_operation
+        super().__init__(category)
+
+
+def safe_exception_type(error: BaseException | None) -> str | None:
+    if error is None:
+        return None
+    value = f"{type(error).__module__}.{type(error).__name__}"
+    return value if len(value) <= 120 and all(character.isalnum() or character in "._" for character in value) else None
+
+
+def safe_trace(error: BaseException | None) -> list[str]:
+    if error is None:
+        return []
+    frames = traceback.extract_tb(error.__traceback__)[-4:]
+    values = [f"{os.path.basename(frame.filename)}.{frame.name}" for frame in frames]
+    return [value for value in values if len(value) <= 100 and all(character.isalnum() or character in "._" for character in value)]
+
+
+def runtime_hint(error: BaseException | None) -> str | None:
+    if not isinstance(error, RuntimeError):
+        return None
+    message = str(error).lower()
+    cases = (
+        ("failed to launch browser", "BROWSER_LAUNCH"),
+        ("no local chrome", "BROWSER_EXECUTABLE"),
+        ("no local browser path", "BROWSER_EXECUTABLE"),
+        ("chrome profile directory", "BROWSER_PROFILE"),
+        ("cdp client not initialized", "CDP_INITIALIZATION"),
+        ("failed to establish cdp", "CDP_INITIALIZATION"),
+        ("failed to get session for initial target", "CDP_INITIALIZATION"),
+        ("no active page", "PAGE_TARGET"),
+        ("no page targets", "PAGE_TARGET"),
+        ("sessionmanager not initialized", "SESSION_MANAGER"),
+        ("failed to load system prompt", "PROMPT_TEMPLATE"),
+        ("cannot be called from a running event loop", "EVENT_LOOP"),
+        ("connection error", "MODEL_CONNECTION"),
+        ("browser not connected", "BROWSER_DISCONNECTED"),
+    )
+    return next((category for phrase, category in cases if phrase in message), "OTHER_RUNTIME")
+
+
+def admitted(value: str, origin: str) -> bool:
+    parsed = urlparse(value)
+    source = urlparse(origin)
+    return (
+        parsed.scheme == source.scheme == "https"
+        and parsed.hostname == source.hostname
+        and parsed.port == source.port
+        and not parsed.username
+        and not parsed.password
+        and len(value) <= 2048
+    )
+
+
+def article_candidate_score(value: str) -> int:
+    """Rank only URLs already observed by the fenced browser, without page JS."""
+    path = urlparse(value).path.lower()
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 2 or re.search(r"\.(?:js|mjs|css|json|xml|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|map)$", path):
+        return -100
+    if parts[0] in {"account", "search", "login", "signin", "tag", "tags", "author"}:
+        return -100
+    dated = re.search(r"/((?:20)\d{2})/(\d{1,2})/(\d{1,2})/", path)
+    calendar_hint = 0
+    if dated:
+        year, month, day = map(int, dated.groups())
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            calendar_hint = (year * 10000 + month * 100 + day) * 100
+    return calendar_hint + (100 if dated else 0) + min(30, len(parts[-1]) // 4) + min(20, len(parts) * 4)
+
+
+async def discover(payload: dict) -> dict:
+    try:
+        from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult
+        from browser_use.browser.profile import BrowserProfile
+        from pydantic import BaseModel, Field
+    except Exception as error:
+        raise DiscoveryFailure("BROWSER_USE_IMPORT_FAILED") from error
+
+    site_mode = payload.get("siteMode", "PUBLIC")
+    if site_mode not in {"PUBLIC", "X_TIMELINE"}:
+        raise ValueError("invalid_discovery_input")
+
+    class Discovery(BaseModel):
+        listing_urls: list[str] = Field(max_length=16)
+        # Workflow compilation needs two independent dated samples. Requiring
+        # two hypotheses prevents a premature empty Agent completion; each is
+        # still checked against observed links and reverified by Distilled.
+        article_urls: list[str] = Field(min_length=0 if site_mode == "X_TIMELINE" else 2, max_length=32)
+        continuation: str
+        timestamp_hints: list[str] = Field(max_length=16)
+        challenge_observed: bool
+
+    source_url = payload["sourceUrl"]
+    origin = payload["allowedOrigin"]
+    run_id = payload["runId"]
+    if not isinstance(run_id, str) or len(run_id) > 128 or not admitted(source_url, origin):
+        raise ValueError("invalid_discovery_input")
+    if site_mode == "X_TIMELINE" and (urlparse(source_url).hostname != "x.com" or not re.fullmatch(r"/[A-Za-z0-9_]{1,15}/?", urlparse(source_url).path)):
+        raise ValueError("invalid_discovery_input")
+    model = payload.get("modelRef", "")
+    max_steps = payload.get("maxSteps", 0)
+    capability = payload.get("capability")
+    bridge_url = os.environ.get("DISTILLED_BRIDGE_URL", "")
+    if not isinstance(model, str) or not 1 <= len(model) <= 128 or not isinstance(max_steps, int) or not 1 <= max_steps <= 16 or not isinstance(capability, dict) or capability.get("runId") != run_id or bridge_url != "http://127.0.0.1:8080/v1/internal-authenticated-browser":
+        raise ValueError("invalid_discovery_input")
+    if not model or not os.environ.get("OPENAI_API_KEY"):
+        raise DiscoveryFailure("MODEL_CONFIGURATION_FAILED")
+    # All site traffic goes through the existing fenced Distilled bridge. The
+    # Browser Use native browser has no navigation actions or source authority.
+    browser = Browser(browser_profile=BrowserProfile(
+        allowed_domains=["invalid.invalid"], block_ip_addresses=True,
+        executable_path=os.environ.get("DISTILLED_BROWSER_USE_CHROMIUM"),
+        headless=True, chromium_sandbox=True, enable_default_extensions=False))
+    tools = Tools(exclude_actions=["search", "navigate", "go_back", "wait", "click", "input",
+                                   "upload_file", "scroll", "find_text", "send_keys", "evaluate",
+                                   "switch", "close", "extract", "screenshot", "dropdown_options",
+                                   "select_dropdown", "write_file", "read_file", "replace_file"])
+    visited: list[str] = []
+    observed_links: set[str] = set()
+    model_calls = 0
+    browser_actions = 0
+    agent_actions = 0
+    jev_calls = 0
+    decision_fallbacks = 0
+
+    def progress(stage: str):
+        # Fixed stage names and integer counters only. Package logs and model
+        # messages are deliberately not forwarded across this channel.
+        sys.stderr.write("DISTILLED_PROGRESS " + json.dumps({"stage": stage, "modelCalls": model_calls,
+                         "browserOperations": browser_actions, "agentBrowserActions": agent_actions,
+                         "jevCalls": jev_calls, "decisionFallbacks": decision_fallbacks}) + "\n")
+        sys.stderr.flush()
+
+    class CountedChatOpenAI(ChatOpenAI):
+        async def ainvoke(self, *args, **kwargs):
+            nonlocal model_calls
+            progress("MODEL_REQUEST")
+            result = await super().ainvoke(*args, **kwargs)
+            model_calls += 1
+            progress("MODEL_COMPLETED")
+            return result
+
+    def bridge(operation: str, **arguments: object) -> dict:
+        nonlocal browser_actions
+        body = json.dumps({"protocol": "v1", "operationId": str(uuid.uuid4()),
+                           "capability": capability, "operation": operation, **arguments}).encode()
+        request = urllib.request.Request(bridge_url, data=body, headers={"content-type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=25) as response:
+                envelope = json.load(response)
+        except urllib.error.HTTPError as error:
+            try:
+                failure = json.loads(error.read(4096))
+                detail = failure.get("error", {})
+                code = detail.get("code")
+                diagnostic = detail.get("diagnostic") or {}
+            except (ValueError, TypeError, AttributeError):
+                code = None
+                diagnostic = {}
+            allowed = {"BRIDGE_UNAVAILABLE", "BRIDGE_UNAUTHORIZED", "BRIDGE_REPLAY_REJECTED", "BRIDGE_EXECUTION_EXPIRED",
+                       "BRIDGE_FENCE_MISMATCH", "BRIDGE_OBSERVATION_STALE", "BRIDGE_NETWORK_POLICY_DENIED",
+                       "BRIDGE_EFFECT_UNKNOWN", "BRIDGE_BROWSER_FAILURE", "BRIDGE_PROTOCOL_UNSUPPORTED",
+                       "BRIDGE_PAYLOAD_TOO_LARGE", "BRIDGE_OPERATION_UNKNOWN"}
+            rules = {"ORIGIN_NOT_ADMITTED", "REDIRECT_ORIGIN_NOT_ADMITTED", "FINAL_ORIGIN_NOT_ADMITTED",
+                     "SCHEME_NOT_ALLOWED", "PRIVATE_OR_UNRESOLVED_ORIGIN", "METHOD_NOT_ALLOWED", "REQUEST_BLOCKED", "REQUEST_BUDGET_EXCEEDED"}
+            rule = diagnostic.get("policyRule") if isinstance(diagnostic, dict) else None
+            hostname = diagnostic.get("deniedHostname") if isinstance(diagnostic, dict) else None
+            raise DiscoveryFailure("ACTION_BRIDGE_FAILED", code if isinstance(code, str) and code in allowed else None,
+                                   error.code, rule if rule in rules else None,
+                                   hostname if isinstance(hostname, str) and re.fullmatch(r"[A-Za-z0-9.-]{1,253}", hostname) else None,
+                                   operation) from error
+        if envelope.get("ok") is not True:
+            raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
+        result = envelope["result"]
+        if operation == "ADVANCE_PUBLIC_DISCOVERY":
+            browser_actions += 1
+            observation = result.get("observation")
+            if isinstance(observation, dict):
+                if not admitted(observation.get("url", ""), origin):
+                    raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
+                if observation["url"] not in visited:
+                    visited.append(observation["url"])
+                for value in observation.get("listingLinks", []):
+                    if isinstance(value, str) and admitted(value, origin):
+                        observed_links.add(value)
+            return result
+        if not isinstance(result, dict) or not admitted(result.get("url", ""), origin):
+            raise DiscoveryFailure("ACTION_BRIDGE_FAILED")
+        if result["url"] not in visited:
+            visited.append(result["url"])
+        for value in result.get("listingLinks", []):
+            if isinstance(value, str) and admitted(value, origin):
+                observed_links.add(value)
+        for control in result.get("controls", []):
+            if isinstance(control, dict) and isinstance(control.get("destinationUrl"), str) and admitted(control["destinationUrl"], origin):
+                observed_links.add(control["destinationUrl"])
+        browser_actions += 1
+        return result
+
+    def summary(result: dict) -> str:
+        if site_mode == "X_TIMELINE":
+            posts = result.get("timelinePosts") or []
+            safe_posts = [{"id": item.get("sourceItemId"), "publishedAt": item.get("publishedAt")}
+                          for item in posts[:30] if isinstance(item, dict)]
+            return json.dumps({"url": result["url"], "posts": safe_posts,
+                               "challengeState": result.get("challengeState")}, separators=(",", ":"))[:12000]
+        controls = result.get("controls", [])
+        links = [value for value in result.get("listingLinks", []) if isinstance(value, str) and admitted(value, origin)]
+        links += [control.get("destinationUrl") for control in controls if isinstance(control, dict) and isinstance(control.get("destinationUrl"), str) and admitted(control["destinationUrl"], origin)]
+        article = result.get("article") or {}
+        return json.dumps({"url": result["url"], "title": result.get("title", "")[:200],
+                           "links": sorted(set(links), key=lambda value: (-article_candidate_score(value), value))[:40],
+                           "articleCanonical": article.get("canonicalUrl"),
+                           "articlePublished": article.get("publisherTimestamp"),
+                           "challengeState": result.get("challengeState")}, separators=(",", ":"))[:12000]
+
+    @tools.action("Navigate to a public same-origin page through Distilled's fenced Chromium browser")
+    async def navigate_source(url: str) -> ActionResult:
+        nonlocal agent_actions
+        if not admitted(url, origin) or (site_mode == "X_TIMELINE" and url != source_url):
+            return ActionResult(extracted_content="Navigation denied by Distilled origin policy")
+        result = await asyncio.to_thread(bridge, "NAVIGATE_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "NAVIGATE_PUBLIC_PAGE", **({"sourceUrl": url} if site_mode == "X_TIMELINE" else {"url": url}))
+        agent_actions += 1
+        return ActionResult(extracted_content=summary(result))
+
+    @tools.action("Scroll the current Distilled public page by up to 1200 pixels and inspect it")
+    async def scroll_source() -> ActionResult:
+        nonlocal agent_actions
+        result = await asyncio.to_thread(bridge, "SCROLL_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "SCROLL_PUBLIC_PAGE", deltaY=1200)
+        agent_actions += 1
+        return ActionResult(extracted_content=summary(result))
+
+    @tools.action("Observe the current Distilled public page")
+    async def observe_source() -> ActionResult:
+        nonlocal agent_actions
+        result = await asyncio.to_thread(bridge, "OBSERVE_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "OBSERVE_PUBLIC_PAGE")
+        agent_actions += 1
+        return ActionResult(extracted_content=summary(result))
+    # A bounded, fenced listing probe gives the agent real links on sites that
+    # render items only after scrolling. These are hints, never trusted evidence.
+    progress("FENCED_PROBE")
+    initial = await asyncio.to_thread(bridge, "NAVIGATE_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "NAVIGATE_PUBLIC_PAGE", **({"sourceUrl": source_url} if site_mode == "X_TIMELINE" else {"url": source_url}))
+    initial_observations = [summary(initial)]
+    if (not initial.get("challengeState") or initial.get("challengeState") == "NO_CHALLENGE") and (site_mode == "X_TIMELINE" or sum(article_candidate_score(url) >= 100 for url in observed_links) < 2):
+        for _ in range(2):
+            initial = await asyncio.to_thread(bridge, "SCROLL_AUTH_SOURCE" if site_mode == "X_TIMELINE" else "SCROLL_PUBLIC_PAGE", deltaY=1200)
+            initial_observations.append(summary(initial))
+            if initial.get("challengeState") and initial.get("challengeState") != "NO_CHALLENGE":
+                break
+            if site_mode != "X_TIMELINE" and sum(article_candidate_score(url) >= 100 for url in observed_links) >= 2:
+                break
+    initial_listing_links = set(observed_links)
+    # An optional bounded experiment. The runtime, not Python or Jev, enumerates
+    # observed targets, checks revision/generation, and executes the selected
+    # read-only action. Failure hands the same state back to Browser Use.
+    if payload.get("decisionMode") == "JEV_HYBRID" and site_mode == "PUBLIC" and initial.get("challengeState") == "NO_CHALLENGE":
+        for _ in range(5):
+            jev_calls += 1
+            try:
+                advanced = await asyncio.to_thread(bridge, "ADVANCE_PUBLIC_DISCOVERY", pageRevision=initial["pageRevision"])
+            except DiscoveryFailure as error:
+                if error.bridge_code != "BRIDGE_OBSERVATION_STALE":
+                    raise
+                # No action was executed. Refresh the trusted state and hand
+                # discovery back to the generative agent; never relax fencing.
+                initial = await asyncio.to_thread(bridge, "OBSERVE_PUBLIC_PAGE")
+                initial_observations.append(summary(initial))
+                decision_fallbacks += 1
+                break
+            if advanced.get("fallback"):
+                decision_fallbacks += 1
+                break
+            if advanced.get("action") == "STOP":
+                break
+            observation = advanced.get("observation")
+            if not isinstance(observation, dict):
+                decision_fallbacks += 1
+                break
+            initial = observation
+            initial_observations.append(summary(initial))
+            if initial.get("challengeState") != "NO_CHALLENGE":
+                break
+    try:
+        progress("AGENT_INITIALIZATION")
+        agent = Agent(
+            task=((f"Inspect the authorized public X profile timeline {source_url} using only navigate_source, scroll_source and observe_source. "
+                   f"Distilled observed bounded post IDs and timestamps: {initial_observations}. "
+                   "Propose listing_urls containing only the profile URL, an empty article_urls list, and whether scrolling continues to reveal posts. "
+                   "Do not authenticate, submit forms, visit messages or settings, or claim a challenge was solved.") if site_mode == "X_TIMELINE" else
+                  f"Explore the public news listing {source_url} using navigate_source, scroll_source and observe_source. "
+                  f"Distilled already observed these bounded listing states: {initial_observations}. "
+                  "Select article_urls from the observed listing links; propose at least two when two are visible. "
+                  "You may use navigate_source, scroll_source and observe_source to investigate further. "
+                  "Distilled will visit your proposed article URLs through its fenced browser and verify them independently. "
+                  "Identify listing and article URLs, continuation, timestamp hints, and visible challenges. "
+                  "Do not submit forms, authenticate, or claim a challenge was solved."),
+            llm=CountedChatOpenAI(model=model, api_key=os.environ["OPENAI_API_KEY"],
+                           base_url=os.environ["OPENAI_BASE_URL"], reasoning_effort=None),
+            browser=browser, tools=tools,
+            output_model_schema=Discovery, use_vision=False, directly_open_url=False,
+        )
+    except Exception as error:
+        raise DiscoveryFailure("AGENT_INITIALIZATION_FAILED") from error
+    try:
+        progress("AGENT_RUN")
+        history = await agent.run(max_steps=max_steps)
+    except DiscoveryFailure:
+        raise
+    except Exception as error:
+        category = "MODEL_REQUEST_FAILED" if type(error).__name__ in {"APIStatusError", "AuthenticationError", "APIConnectionError", "RateLimitError"} else "AGENT_RUN_FAILED"
+        raise DiscoveryFailure(category) from error
+    result = history.structured_output
+    progress("AGENT_COMPLETED")
+    if result is None:
+        raise DiscoveryFailure("STRUCTURED_OUTPUT_INVALID")
+    visited = visited[:32]
+    structured = result.model_dump()
+    listings = [url for url in structured["listing_urls"] if url in visited]
+    # The model selects hypotheses only from links actually seen by the fenced
+    # browser. Execute selected visits here; the Worker later re-observes them
+    # in a fresh session before compiling any workflow.
+    articles = []
+    model_hints = [url for url in structured["article_urls"] if url in observed_links]
+    observed_candidates = sorted((url for url in initial_listing_links if article_candidate_score(url) >= 20),
+                                 key=lambda value: (-article_candidate_score(value), value))
+    ranked_hints = sorted(set(model_hints + observed_candidates),
+                          key=lambda value: (-article_candidate_score(value), value))
+    for url in ([] if site_mode == "X_TIMELINE" else ranked_hints[:4]):
+        if url not in observed_links:
+            continue
+        if url not in visited:
+            await asyncio.to_thread(bridge, "NAVIGATE_PUBLIC_PAGE", url=url)
+        if url in visited:
+            articles.append(url)
+    continuation = structured["continuation"]
+    if continuation not in {"none", "pagination", "load_more", "scroll"}:
+        continuation = "none"
+    return {
+        "protocol": "distilled.browser-use.discovery.v1", "runId": run_id,
+        "visitedUrls": visited, "listingUrls": listings, "articleUrls": articles,
+        "continuation": continuation,
+        "timestampHints": structured["timestamp_hints"][:16],
+        "steps": min(32, history.number_of_steps()),
+        "modelCalls": min(32, model_calls),
+        "browserActions": min(64, browser_actions),
+        "agentBrowserActions": min(32, agent_actions),
+        "jevCalls": jev_calls,
+        "decisionFallbacks": decision_fallbacks,
+        "decisionMode": payload.get("decisionMode", "GENERATIVE_ONLY"),
+        "challengeObserved": structured["challenge_observed"],
+    }
+
+
+if __name__ == "__main__":
+    try:
+        request = json.loads(sys.stdin.read(8192))
+        with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
+            result = asyncio.run(discover(request))
+        print(json.dumps(result, separators=(",", ":")))
+    except Exception as error:
+        # Only a fixed exception category crosses this boundary. Exception text
+        # can contain model responses, URLs, or provider credentials.
+        category = error.category if isinstance(error, DiscoveryFailure) else "AGENT_RUN_FAILED"
+        origin = error.__cause__ if isinstance(error, DiscoveryFailure) else error
+        print(json.dumps({"error": "browser_use_discovery_failed", "category": category,
+                          "failureType": safe_exception_type(origin),
+                          "causeType": safe_exception_type(origin.__cause__ if origin else None),
+                          "failureTrace": safe_trace(origin),
+                          "runtimeHint": runtime_hint(origin),
+                          "bridgeFailureCode": error.bridge_code if isinstance(error, DiscoveryFailure) else None,
+                          "bridgeHttpStatus": error.bridge_status if isinstance(error, DiscoveryFailure) else None,
+                          "policyRule": error.policy_rule if isinstance(error, DiscoveryFailure) else None,
+                          "deniedHostname": error.denied_hostname if isinstance(error, DiscoveryFailure) else None,
+                          "bridgeOperation": error.bridge_operation if isinstance(error, DiscoveryFailure) else None}))
+        sys.exit(1)

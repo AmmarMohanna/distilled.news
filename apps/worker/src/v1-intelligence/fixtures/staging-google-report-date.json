@@ -1,0 +1,53 @@
+{
+  "facts": [
+    {
+      "id": "283daaaf5eee771fcf08921bac43dba11e694d0bcdac299a986c484ed6f83ecb",
+      "propositionId": "283daaaf5eee771fcf08921bac43dba11e694d0bcdac299a986c484ed6f83ecb",
+      "text": "Google releases a new local-first Granola competitor",
+      "evidenceRevisionIds": [
+        "bd33cdf5-3c9d-49ee-a2bf-fdfd1e2c33f3"
+      ],
+      "claimMentionIds": [
+        "614e84c6e7180a9bbbcfb26cc0b3a3d5b6a603df67dbae57eb39f1bf4482df08"
+      ],
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": []
+      },
+      "reportTime": "2026-10-08T13:28:39.000Z",
+      "timing": {
+        "sourcePublishedAt": "2026-10-08T13:28:39.000Z",
+        "reportTime": "2026-10-08T13:28:39.000Z",
+        "firstSeenByFeedAt": "2026-10-08T13:35:28.568Z",
+        "observedAt": "2026-10-08T13:35:28.568Z",
+        "framingRequired": false
+      },
+      "selfContained": "YES"
+    },
+    {
+      "id": "354735eae8fb8f4f199a5d99c46dd082b5bddff1cee3e81e2d4ce56e0b240d4e",
+      "propositionId": "354735eae8fb8f4f199a5d99c46dd082b5bddff1cee3e81e2d4ce56e0b240d4e",
+      "text": "Google’s new AI Edge Foresight app takes on Granola with an offline meeting note-taker that can transcribe conversations, generate notes, and answer questions using on-device AI.",
+      "evidenceRevisionIds": [
+        "bd33cdf5-3c9d-49ee-a2bf-fdfd1e2c33f3"
+      ],
+      "claimMentionIds": [
+        "8e4f1d9f2e4e00ea113278ed257a98e3b0452c9819a27d52005ea0aa8ca1ded6"
+      ],
+      "certainty": {
+        "kind": "UNSPECIFIED",
+        "hedges": []
+      },
+      "reportTime": "2026-10-08T13:28:39.000Z",
+      "timing": {
+        "sourcePublishedAt": "2026-10-08T13:28:39.000Z",
+        "reportTime": "2026-10-08T13:28:39.000Z",
+        "firstSeenByFeedAt": "2026-10-08T13:35:28.568Z",
+        "observedAt": "2026-10-08T13:35:28.568Z",
+        "framingRequired": false
+      },
+      "selfContained": "YES"
+    }
+  ],
+  "claim": "On October 8, 2026, Google released a new local-first competitor to Granola called AI Edge Foresight. This app functions as an offline meeting note-taker capable of transcribing conversations, generating notes, and answering questions using on-device AI."
+}

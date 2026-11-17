@@ -1,0 +1,118 @@
+{
+  "authority": "Provisional AI-assisted expectations; retained sources unchanged; no model execution.",
+  "cases": [
+    {
+      "id": "retained-fund-en",
+      "language": "en",
+      "kind": "fund",
+      "headline": "Anthropic commits 5% of company shares to new Public Benefit Fund, with potential for further increases",
+      "body": "Anthropic is establishing the Anthropic Public Benefit Fund, initially committing 5% of company shares, with an additional 2% to be added for every 50% increase in company value, subject to board discretion and stockholder approval. The fund, structured as a wholly-owned LLC, will support projects for societal good, including potential large donations or direct distributions. Combined with prior equity donation commitments, about 20% of Anthropic shares will be dedicated to public benefit if the plan is approved. The fund will not be used for lobbying or political giving.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "expected": null,
+      "expectedAuthority": "AI-assisted source-linked engineering review; ambiguous English headlines excluded",
+      "essentialEvidence": "Subject to stockholder approval, 5% of Anthropic’s shares will be committed today",
+      "intendedError": null
+    },
+    {
+      "id": "concise-supported-fund-en",
+      "language": "en",
+      "kind": "fund",
+      "headline": "Anthropic plans to commit 5% of its shares to a benefit fund, subject to stockholder approval",
+      "body": "",
+      "sourceIds": [
+        "public-benefit-fund"
+      ],
+      "expected": "ok",
+      "expectedAuthority": "AI-assisted control; not human ground truth",
+      "essentialEvidence": "Subject to stockholder approval, 5% of Anthropic’s shares will be committed today",
+      "intendedError": null
+    },
+    {
+      "id": "retained-metr-en",
+      "language": "en",
+      "kind": "metr",
+      "headline": "Anthropic grants employee-like access to METR for independent AI risk evaluation",
+      "body": "Anthropic has begun providing a team from the nonprofit METR with access to internal tools, systems, and information comparable to its own risk assessment teams, excluding certain sensitive categories. METR will independently publish risk assessments of Anthropic's models and practices, with Anthropic able to require redactions only for predefined confidential information. Anthropic is also working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights. This move is part of Anthropic's commitment to stronger independent oversight and aligns with its pledge under the White House Accord on Super Intelligence.",
+      "sourceIds": [
+        "an-update-on-independent-evaluators"
+      ],
+      "expected": "ok",
+      "expectedAuthority": "AI-assisted source-linked engineering review; ambiguous English headlines excluded",
+      "essentialEvidence": "Anthropic can’t veto publication, but we can require them to redact information",
+      "intendedError": null
+    },
+    {
+      "id": "concise-supported-metr-en",
+      "language": "en",
+      "kind": "metr",
+      "headline": "METR can publish independently; Anthropic may require defined redactions but cannot veto publication",
+      "body": "",
+      "sourceIds": [
+        "an-update-on-independent-evaluators"
+      ],
+      "expected": "ok",
+      "expectedAuthority": "AI-assisted control; not human ground truth",
+      "essentialEvidence": "Anthropic can’t veto publication, but we can require them to redact information",
+      "intendedError": null
+    },
+    {
+      "id": "retained-fund-ar",
+      "language": "ar",
+      "kind": "fund",
+      "headline": "Anthropic تخصص 5% من أسهمها لصندوق منفعة عامة مع إمكانية زيادة النسبة مع نمو الشركة",
+      "body": "أعلنت Anthropic عن تأسيس صندوق منفعة عامة جديد سيحصل مبدئياً على 5% من أسهم الشركة، مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة فوق خط أساس محدد. يهدف الصندوق إلى دعم مشاريع ذات منفعة مجتمعية بمرونة أكبر، ولن تُستخدم الأسهم المخصصة في أنشطة الضغط السياسي. مع التزامات سابقة من المؤسسين والموظفين، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة حتى الآن.",
+      "sourceIds": [
+        "public-benefit-fund"
+      ],
+      "expected": "fix",
+      "expectedAuthority": "AI-assisted source-linked engineering review; ambiguous English headlines excluded",
+      "essentialEvidence": "Subject to stockholder approval, 5% of Anthropic’s shares will be committed today",
+      "intendedError": "Missing stockholder approval on initial 5% commitment, not missing optional escalator."
+    },
+    {
+      "id": "concise-supported-fund-ar",
+      "language": "ar",
+      "kind": "fund",
+      "headline": "أنثروبيك تعتزم تخصيص 5% من أسهمها لصندوق منفعة عامة بشرط موافقة المساهمين",
+      "body": "",
+      "sourceIds": [
+        "public-benefit-fund"
+      ],
+      "expected": "ok",
+      "expectedAuthority": "AI-assisted control; not human ground truth",
+      "essentialEvidence": "Subject to stockholder approval, 5% of Anthropic’s shares will be committed today",
+      "intendedError": null
+    },
+    {
+      "id": "retained-metr-ar",
+      "language": "ar",
+      "kind": "metr",
+      "headline": "Anthropic تمنح فريق METR المستقل وصولاً شبيهاً بالموظفين لتقييم مخاطر الذكاء الاصطناعي",
+      "body": "أعلنت Anthropic أنها بدأت في منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي الخاصة بها. سيقوم فريق METR بنشر نتائج تقييماته بشكل مستقل، ولا يمكن لـ Anthropic منع النشر إلا في حالات محددة تتعلق بالملكية الفكرية أو المعلومات الحساسة. كما تعمل Anthropic مع SecureBio وAccenture كمقيمين خارجيين، وتخطط لتوسيع الشراكات مع منظمات أخرى. تم توضيح أن هناك ثلاث مستويات من الوصول للمقيمين، مع منح METR أعلى مستوى حالياً.",
+      "sourceIds": [
+        "an-update-on-independent-evaluators"
+      ],
+      "expected": "fix",
+      "expectedAuthority": "AI-assisted source-linked engineering review; ambiguous English headlines excluded",
+      "essentialEvidence": "Anthropic can’t veto publication, but we can require them to redact information",
+      "intendedError": "Permission to redact is misstated as an exception to publication veto."
+    },
+    {
+      "id": "concise-supported-metr-ar",
+      "language": "ar",
+      "kind": "metr",
+      "headline": "تقييمات METR مستقلة النشر مع حجب معلومات محددة، دون حق لأنثروبيك في نقض النشر",
+      "body": "",
+      "sourceIds": [
+        "an-update-on-independent-evaluators"
+      ],
+      "expected": "ok",
+      "expectedAuthority": "AI-assisted control; not human ground truth",
+      "essentialEvidence": "Anthropic can’t veto publication, but we can require them to redact information",
+      "intendedError": null
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "$schema": "../../../apps/worker/node_modules/wrangler/config-schema.json",
+  "name": "distilled-news-production-quality",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "account_id": "e32b564514d4f9b9e383b7dd30dbb026",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.1
+    }
+  },
+  "limits": {
+    "cpu_ms": 30000
+  },
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
+  "vars": {
+    "ENROLL_FROM": "2026-11-01T00:00:00Z",
+    "EVALUATION_ENABLED": "true",
+    "GRAFANA_EXPORT_ENABLED": "true",
+    "GRAFANA_OTLP_METRICS_URL": "https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics",
+    "INPUT_USD_PER_MILLION_CEILING": "2",
+    "JUDGE_MODEL": "openai/gpt-4.1",
+    "MAX_OUTPUT_TOKENS": "6000",
+    "MAX_REQUEST_BYTES": "2000000",
+    "OUTPUT_USD_PER_MILLION_CEILING": "8",
+    "RETENTION_DAYS": "90",
+    "SOURCE_LABEL": "distilled-news-production",
+    "SPENDING_MODE": "unlimited",
+    "UNCERTAIN_REVIEW_RECOVERY": "isolate-after-20m-v1",
+    "DEPLOYMENT_ENVIRONMENT": "production"
+  },
+  "secrets": {
+    "required": [
+      "DASHBOARD_TOKEN",
+      "EVALUATION_OPENROUTER_KEY",
+      "GRAFANA_INGEST_TOKEN",
+      "GRAFANA_OTLP_BASE_URL",
+      "GRAFANA_OTLP_INSTANCE_ID",
+      "METRICS_TOKEN"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "EVAL_DB",
+      "database_name": "distilled-news-production-quality",
+      "database_id": "60c4b47e-55cc-4e50-bc81-0a5ef7ecf39e",
+      "migrations_dir": "migrations"
+    },
+    {
+      "binding": "SOURCE_DB",
+      "database_name": "distilled-news-production",
+      "database_id": "070dcb92-88e1-463b-bb93-b95b81203810"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "EVIDENCE",
+      "bucket_name": "distilled-news-production-quality-private"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "REVIEWS",
+        "queue": "distilled-news-production-quality"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "distilled-news-production-quality",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "max_concurrency": 1,
+        "dead_letter_queue": "distilled-news-production-quality-dlq"
+      }
+    ]
+  }
+}

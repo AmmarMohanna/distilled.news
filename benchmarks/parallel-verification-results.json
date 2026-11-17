@@ -1,0 +1,60 @@
+{
+  "mode": "OFFLINE",
+  "paidProviderCalls": 0,
+  "testBatches": [
+    {
+      "report": "parallel-final-focused.json",
+      "passed": 17,
+      "failed": 0
+    },
+    {
+      "report": "parallel-publication-regressions.json",
+      "passed": 69,
+      "failed": 0
+    },
+    {
+      "report": "parallel-semantic-preparation-final.json",
+      "passed": 17,
+      "failed": 0
+    }
+  ],
+  "typechecks": [
+    {
+      "project": "packages/contracts",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "project": "packages/core",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "project": "packages/connectors",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "project": "packages/agent-runtime",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "project": "packages/browser-bridge",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "project": "apps/web",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "project": "apps/worker",
+      "exitCode": 0,
+      "output": ""
+    }
+  ],
+  "additionalRegressionBatches": "OpenRouter model/V2 contract, provider recovery, salience, acquisition, minimal construction transport and bounded concurrency passed during implementation; see implementation report. No claim of complete monorepo test execution.",
+  "review": "Read-only independent review confirmed three fixes and found no further concrete blockers."
+}

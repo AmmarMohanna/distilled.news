@@ -1,0 +1,749 @@
+{
+  "schemaVersion": "private-publication-success-v1",
+  "published": true,
+  "edition": {
+    "provisionalSemanticStates": [],
+    "id": "3e39977bb370f406507aee95ab9451fe3c5bc75b51e7b4dcab7aaa20141657ff",
+    "feedId": "staging-fresh-20261019-run1",
+    "feedRevision": 1,
+    "windowStart": "2026-10-19T12:31:27.028Z",
+    "windowEnd": "2026-10-19T17:50:49.795Z",
+    "language": "en",
+    "selectionId": "90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327",
+    "selectedCandidateIds": [
+      "[\"90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327\",\"EVENT\",\"159385e0-d112-4873-a0f3-035fa55107f9\"]"
+    ],
+    "eventVersionIds": [
+      "159385e0-d112-4873-a0f3-035fa55107f9"
+    ],
+    "storylineVersionIds": [],
+    "evidenceRevisionIds": [
+      "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+    ],
+    "stories": [
+      {
+        "candidateId": "[\"90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327\",\"EVENT\",\"159385e0-d112-4873-a0f3-035fa55107f9\"]",
+        "claims": [
+          {
+            "id": "e5c3ba6f7c639fae1e24972d7426d05089768ac1a3105739d6b56f98fba1b088",
+            "text": "Anthropic announced on October 18, 2026, that it is creating a 'public benefit fund' designed to provide the company with increased flexibility and scale to support projects aimed at societal good. The company is committing 5% of its shares to this fund, which will be structured as a wholly-owned entity within Anthropic. Additionally, Anthropic has the option to contribute an extra 2% of its shares to the fund for every 50% increase in the company's value.",
+            "communicatedFactIds": [
+              "[\"editorial-proposition-v2\",\"159385e0-d112-4873-a0f3-035fa55107f9\",\"bf95bbb4bf6718fd1239ef66c64069c8b689d65682d70cac0a1a7358a3775fb7\",0,74]",
+              "[\"editorial-proposition-v2\",\"159385e0-d112-4873-a0f3-035fa55107f9\",\"62b135189bc65526629f1fc7cc8aac6d736b150edda97a17c1b102d792a09824\",0,214]",
+              "[\"editorial-proposition-v2\",\"159385e0-d112-4873-a0f3-035fa55107f9\",\"96a54605b0b51b92dd999c392f980f7e7cc27d0cd97afa4c37810c115d0dde62\",0,168]"
+            ],
+            "support": [
+              {
+                "evidenceRevisionId": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+                "quote": "Anthropic announced today that it\u2019s creating a \u201cpublic benefit fund\u201d that will give the company \u201cincreased flexibility and scale\u201d to support projects for societal good.\nAnthropic said that it will commit 5% of its shares to the fund \u2014 structured as a wholly-owned entity within the company \u2014 with the option to contribute an additional 2% for every 50% increase in Anthropic\u2019s value."
+              },
+              {
+                "evidenceRevisionId": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+                "quote": "Anthropic says it\u2019s committing 5% of its shares to a \u2018public benefit fund\u2019"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "generation": {
+      "model": "openai/gpt-4.1-mini",
+      "provider": "OPENROUTER",
+      "promptVersion": "approved-propositions-reader-anchor-v5",
+      "routerVersion": "stored-evidence-only-v1",
+      "tokensIn": 4719,
+      "tokensOut": 832,
+      "cost": 0.0032188,
+      "latencyMs": 26575,
+      "repairCount": 0,
+      "draftId": "90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327",
+      "verificationId": "90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327",
+      "usageConfirmed": true
+    },
+    "selectionPolicyVersion": "bounded-selection-editorial-v7",
+    "groundingPolicyVersion": "approved-spans-semantic-coverage-v4",
+    "createdAt": "2026-10-19T17:52:09.458Z"
+  },
+  "verification": {
+    "id": "[\"90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327\",\"publication-validation-v2\"]",
+    "feedId": "staging-fresh-20261019-run1",
+    "editionId": "3e39977bb370f406507aee95ab9451fe3c5bc75b51e7b4dcab7aaa20141657ff",
+    "draftKey": "90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327",
+    "contract": "EVIDENCE_GROUNDED_V2",
+    "status": "ACCEPT",
+    "reasons": [],
+    "readerSpans": [
+      {
+        "propositionId": "[\"editorial-proposition-v2\",\"159385e0-d112-4873-a0f3-035fa55107f9\",\"bf95bbb4bf6718fd1239ef66c64069c8b689d65682d70cac0a1a7358a3775fb7\",0,74]",
+        "candidateId": "[\"90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327\",\"EVENT\",\"159385e0-d112-4873-a0f3-035fa55107f9\"]",
+        "claimId": "e5c3ba6f7c639fae1e24972d7426d05089768ac1a3105739d6b56f98fba1b088",
+        "text": "The company is committing 5% of its shares to this fund",
+        "start": 198,
+        "end": 253
+      },
+      {
+        "propositionId": "[\"editorial-proposition-v2\",\"159385e0-d112-4873-a0f3-035fa55107f9\",\"62b135189bc65526629f1fc7cc8aac6d736b150edda97a17c1b102d792a09824\",0,214]",
+        "candidateId": "[\"90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327\",\"EVENT\",\"159385e0-d112-4873-a0f3-035fa55107f9\"]",
+        "claimId": "e5c3ba6f7c639fae1e24972d7426d05089768ac1a3105739d6b56f98fba1b088",
+        "text": "The company is committing 5% of its shares to this fund, which will be structured as a wholly-owned entity within Anthropic. Additionally, Anthropic has the option to contribute an extra 2% of its shares to the fund for every 50% increase in the company's value.",
+        "start": 198,
+        "end": 460
+      },
+      {
+        "propositionId": "[\"editorial-proposition-v2\",\"159385e0-d112-4873-a0f3-035fa55107f9\",\"96a54605b0b51b92dd999c392f980f7e7cc27d0cd97afa4c37810c115d0dde62\",0,168]",
+        "candidateId": "[\"90795d5208a77c9bed3563ab3cf580a057a92f42c5b399724e94f3fb5c05e327\",\"EVENT\",\"159385e0-d112-4873-a0f3-035fa55107f9\"]",
+        "claimId": "e5c3ba6f7c639fae1e24972d7426d05089768ac1a3105739d6b56f98fba1b088",
+        "text": "Anthropic announced on October 18, 2026, that it is creating a 'public benefit fund' designed to provide the company with increased flexibility and scale to support projects aimed at societal good.",
+        "start": 0,
+        "end": 197
+      }
+    ],
+    "createdAt": "2026-10-19T17:52:06.722Z"
+  },
+  "deployedCommit": "036d782",
+  "workerVersion": "e6d88d8c-10b1-46b0-9f0a-8ec08b976b43",
+  "rollbackVersion": "45bc741c-d8fc-4424-860c-d61e4249209c",
+  "priorExperimentCostUsd": 0.052803734,
+  "successfulAttemptNewProviderCostUsd": 0.010726,
+  "cumulativeExperimentProviderCostUsd": 0.063529734,
+  "successfulAttemptCostsUsd": {
+    "planning": 0.0075072,
+    "writer": 0.0009964,
+    "verification": 0.0022224,
+    "repair": 0
+  },
+  "reusedIntelligenceCostsUsd": {
+    "relation": 9.744e-05,
+    "construction": 0.0025876,
+    "ranking": 4.9266e-05
+  },
+  "successfulPathIncludingReusedIntelligenceCostUsd": 0.013460306,
+  "allChargesSettled": true,
+  "settledOperations": 25,
+  "feedUnknownOutcomes": 0,
+  "infrastructureCostUsd": null,
+  "clientTiming": {
+    "at": "2026-10-19T17:50:48.064Z",
+    "scope": "autonomous-20261019-7",
+    "wallMs": 84174.09330000001,
+    "requests": [
+      {
+        "action": "review-disposition-v1",
+        "httpStatus": 200,
+        "clientWallMs": 1389.0068,
+        "workerWallMs": 1007,
+        "databaseMetrics": {
+          "queries": 20,
+          "sqlCpuMs": 43.52439999999999,
+          "responseBytes": 42775,
+          "wallMs": 1178,
+          "rowsRead": 26548,
+          "rowsWritten": 6
+        }
+      },
+      {
+        "action": "publish-disposition-v1",
+        "httpStatus": 200,
+        "clientWallMs": 82782.18,
+        "workerWallMs": 82510,
+        "databaseMetrics": {
+          "queries": 695,
+          "sqlCpuMs": 2301.9422999999992,
+          "responseBytes": 2103480,
+          "wallMs": 37264,
+          "rowsRead": 962696,
+          "rowsWritten": 381
+        }
+      }
+    ]
+  },
+  "traces": {
+    "requests": [
+      {
+        "cpuTime": 14,
+        "wallTime": 1207,
+        "outcome": "ok",
+        "scriptVersion": {
+          "id": "e6d88d8c-10b1-46b0-9f0a-8ec08b976b43"
+        },
+        "exceptions": []
+      },
+      {
+        "cpuTime": 1062,
+        "wallTime": 82715,
+        "outcome": "ok",
+        "scriptVersion": {
+          "id": "e6d88d8c-10b1-46b0-9f0a-8ec08b976b43"
+        },
+        "exceptions": []
+      }
+    ],
+    "traces": [
+      {
+        "type": "STAGING_MISSION_DB_METRICS",
+        "feedId": "staging-fresh-20261019-run1",
+        "action": "review-disposition-v1",
+        "queries": 17,
+        "sqlCpuMs": 39.4217,
+        "responseBytes": 39109,
+        "wallMs": 1007,
+        "rowsRead": 25633,
+        "rowsWritten": 6
+      },
+      {
+        "type": "V1_FEED_TRANSACTION_TIMING",
+        "feedId": "staging-fresh-20261019-run1",
+        "attempts": 1,
+        "durationMs": 2469,
+        "computationMs": 2345,
+        "writes": 0,
+        "jobs": 0,
+        "queries": {
+          "documentReads": 16,
+          "listReads": 15,
+          "revisionReads": 0,
+          "preloadQueries": 4,
+          "validationMs": 0
+        }
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "MODEL",
+        "windowId": "3e39977bb370f406507aee95ab9451fe3c5bc75b51e7b4dcab7aaa20141657ff",
+        "operationId": "3161acbedd2c6d89f9e5c56ecb1826f343c05c534b4c18cbd57a56260019b0ef",
+        "outcome": "SUCCEEDED",
+        "durationMs": 296,
+        "counts": {
+          "casAttempts": 1,
+          "documentReads": 1,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 0,
+          "validationMs": 0,
+          "documentWrites": 0,
+          "jobWrites": 0,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 4.9266e-05,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 593
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 1,
+            "durationMs": 66
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 1,
+            "durationMs": 108
+          },
+          "GRAPH_VALIDATION": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 1,
+            "durationMs": 67
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 241
+          }
+        },
+        "receiptOperationId": "3161acbedd2c6d89f9e5c56ecb1826f343c05c534b4c18cbd57a56260019b0ef"
+      },
+      {
+        "type": "V1_FEED_TRANSACTION_TIMING",
+        "feedId": "staging-fresh-20261019-run1",
+        "attempts": 1,
+        "durationMs": 2519,
+        "computationMs": 2387,
+        "writes": 1,
+        "jobs": 0,
+        "queries": {
+          "documentReads": 16,
+          "listReads": 15,
+          "revisionReads": 0,
+          "preloadQueries": 4,
+          "validationMs": 0
+        }
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "MODEL",
+        "windowId": "3e39977bb370f406507aee95ab9451fe3c5bc75b51e7b4dcab7aaa20141657ff",
+        "operationId": "bc454e0699c214ec751c89e72c9b5aa8da532d2799bde6243d66f7b75264558d",
+        "outcome": "SUCCEEDED",
+        "durationMs": 39006,
+        "counts": {
+          "casAttempts": 3,
+          "documentReads": 6,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 6,
+          "validationMs": 0,
+          "documentWrites": 3,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.0075072,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 37122
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 3,
+            "durationMs": 163
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 3,
+            "durationMs": 1010
+          },
+          "GRAPH_VALIDATION": {
+            "count": 3,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 3,
+            "durationMs": 554
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 1197
+          },
+          "COMPARATIVE_EDITORIAL_PLAN": {
+            "count": 1,
+            "durationMs": 37122
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 319
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 310
+          }
+        },
+        "receiptOperationId": "bc454e0699c214ec751c89e72c9b5aa8da532d2799bde6243d66f7b75264558d"
+      },
+      {
+        "type": "V1_FEED_TRANSACTION_TIMING",
+        "feedId": "staging-fresh-20261019-run1",
+        "attempts": 1,
+        "durationMs": 3023,
+        "computationMs": 2878,
+        "writes": 14,
+        "jobs": 0,
+        "queries": {
+          "documentReads": 30,
+          "listReads": 9,
+          "revisionReads": 0,
+          "preloadQueries": 5,
+          "validationMs": 0
+        }
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "MODEL",
+        "windowId": "3e39977bb370f406507aee95ab9451fe3c5bc75b51e7b4dcab7aaa20141657ff",
+        "operationId": "ab6322fa222c139244e1f5ae419191f672fe815a4e85808f389d59eb372fa2f6",
+        "outcome": "SUCCEEDED",
+        "durationMs": 5364,
+        "counts": {
+          "casAttempts": 3,
+          "documentReads": 8,
+          "listReads": 4,
+          "revisionReads": 1,
+          "preloadQueries": 6,
+          "validationMs": 0,
+          "documentWrites": 3,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "publicationInputLoads": 1,
+          "publicationCatalogTargets": 2,
+          "publicationHistoryRevisionIds": 0,
+          "publicationActiveRevisionIds": 1,
+          "publicationSelectedSemanticVersions": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.0009964,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 3751
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 3,
+            "durationMs": 358
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 3,
+            "durationMs": 1588
+          },
+          "GRAPH_VALIDATION": {
+            "count": 3,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 3,
+            "durationMs": 528
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 966
+          },
+          "PUBLICATION_ACTIVE_IDENTITIES": {
+            "count": 1,
+            "durationMs": 55
+          },
+          "PUBLICATION_CANDIDATE_LOAD": {
+            "count": 1,
+            "durationMs": 535
+          },
+          "PUBLICATION_HISTORY_IDENTITIES": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+            "count": 1,
+            "durationMs": 111
+          },
+          "PUBLICATION_INPUT_LOAD": {
+            "count": 1,
+            "durationMs": 1035
+          },
+          "PUBLICATION_PROVIDER_SYNTHESIS": {
+            "count": 1,
+            "durationMs": 2540
+          },
+          "PUBLICATION_SYNTHESIS": {
+            "count": 1,
+            "durationMs": 3751
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 295
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 297
+          }
+        },
+        "receiptOperationId": "ab6322fa222c139244e1f5ae419191f672fe815a4e85808f389d59eb372fa2f6"
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "MODEL",
+        "windowId": "3e39977bb370f406507aee95ab9451fe3c5bc75b51e7b4dcab7aaa20141657ff",
+        "operationId": "987045c4b9b5905f70cf7c492f8682da26b1eee84d895fc27c6ca0acad2d91d5",
+        "outcome": "SUCCEEDED",
+        "durationMs": 10229,
+        "counts": {
+          "casAttempts": 3,
+          "documentReads": 8,
+          "listReads": 4,
+          "revisionReads": 1,
+          "preloadQueries": 6,
+          "validationMs": 0,
+          "documentWrites": 3,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "publicationInputLoads": 1,
+          "publicationCatalogTargets": 2,
+          "publicationHistoryRevisionIds": 0,
+          "publicationActiveRevisionIds": 1,
+          "publicationSelectedSemanticVersions": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.0022224,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 8103
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 3,
+            "durationMs": 166
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 3,
+            "durationMs": 1662
+          },
+          "GRAPH_VALIDATION": {
+            "count": 3,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 3,
+            "durationMs": 529
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 800
+          },
+          "PUBLICATION_ACTIVE_IDENTITIES": {
+            "count": 1,
+            "durationMs": 57
+          },
+          "PUBLICATION_CANDIDATE_LOAD": {
+            "count": 1,
+            "durationMs": 525
+          },
+          "PUBLICATION_HISTORY_IDENTITIES": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+            "count": 1,
+            "durationMs": 108
+          },
+          "PUBLICATION_INPUT_LOAD": {
+            "count": 1,
+            "durationMs": 1030
+          },
+          "PUBLICATION_PROVIDER_GROUNDING": {
+            "count": 1,
+            "durationMs": 6891
+          },
+          "PUBLICATION_GROUNDING": {
+            "count": 1,
+            "durationMs": 8103
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 926
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 345
+          }
+        },
+        "receiptOperationId": "987045c4b9b5905f70cf7c492f8682da26b1eee84d895fc27c6ca0acad2d91d5"
+      },
+      {
+        "type": "V1_FEED_TRANSACTION_TIMING",
+        "feedId": "staging-fresh-20261019-run1",
+        "attempts": 1,
+        "durationMs": 2030,
+        "computationMs": 1827,
+        "writes": 8,
+        "jobs": 0,
+        "queries": {
+          "documentReads": 14,
+          "listReads": 6,
+          "revisionReads": 1,
+          "preloadQueries": 5,
+          "validationMs": 58
+        }
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "PUBLICATION",
+        "windowId": "3e39977bb370f406507aee95ab9451fe3c5bc75b51e7b4dcab7aaa20141657ff",
+        "outcome": "SUCCEEDED",
+        "durationMs": 81252,
+        "counts": {
+          "windowClosedAgeMs": 1090,
+          "casAttempts": 23,
+          "documentReads": 129,
+          "listReads": 70,
+          "revisionReads": 7,
+          "preloadQueries": 48,
+          "validationMs": 58,
+          "documentWrites": 53,
+          "jobWrites": 0,
+          "pendingJobs": 0,
+          "failedJobs": 0,
+          "ledgerEntriesInspected": 0,
+          "ledgerSupportIdentities": 0,
+          "publicationInputLoads": 7,
+          "publicationCatalogTargets": 14,
+          "publicationHistoryRevisionIds": 0,
+          "publicationActiveRevisionIds": 7,
+          "publicationSelectedSemanticVersions": 7,
+          "validationFactualWarnings": 0,
+          "validationPacketsPlanned": 1,
+          "validationRequestBytes": 12177,
+          "validationReservationCeilingUsd": 0.0183052,
+          "publicationPublished": 1,
+          "windowCloseToPublicationMs": 79663,
+          "firstObservedToPublicationMs": 19106239,
+          "firstAcceptedToPublicationMs": 18358500
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 23,
+            "durationMs": 1322
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 23,
+            "durationMs": 19053
+          },
+          "GRAPH_VALIDATION": {
+            "count": 23,
+            "durationMs": 58
+          },
+          "CAS_COMMIT": {
+            "count": 23,
+            "durationMs": 2242
+          },
+          "WINDOW_READINESS": {
+            "count": 1,
+            "durationMs": 230
+          },
+          "SOURCE_CORRECTION_REFRESH": {
+            "count": 2,
+            "durationMs": 114
+          },
+          "MODEL_OPERATION": {
+            "count": 4,
+            "durationMs": 54895
+          },
+          "SEMANTIC_SHORTLIST": {
+            "count": 1,
+            "durationMs": 5349
+          },
+          "EDITORIAL_PLAN": {
+            "count": 1,
+            "durationMs": 40124
+          },
+          "RANKING_SELECTION": {
+            "count": 1,
+            "durationMs": 3023
+          },
+          "PUBLICATION_ACTIVE_IDENTITIES": {
+            "count": 7,
+            "durationMs": 472
+          },
+          "PUBLICATION_CANDIDATE_LOAD": {
+            "count": 7,
+            "durationMs": 3758
+          },
+          "PUBLICATION_HISTORY_IDENTITIES": {
+            "count": 7,
+            "durationMs": 0
+          },
+          "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+            "count": 7,
+            "durationMs": 942
+          },
+          "PUBLICATION_INPUT_LOAD": {
+            "count": 7,
+            "durationMs": 7903
+          },
+          "PUBLICATION_RESULT_PERSISTENCE": {
+            "count": 4,
+            "durationMs": 227
+          },
+          "PUBLICATION_PRECHECKS": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "V2_SEMANTIC_VERIFICATION": {
+            "count": 1,
+            "durationMs": 12257
+          },
+          "V2_VERDICT_REDUCTION": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "EDITION_PERSISTENCE": {
+            "count": 1,
+            "durationMs": 2030
+          },
+          "SYNTHESIS_VERIFICATION_PUBLICATION": {
+            "count": 1,
+            "durationMs": 29012
+          }
+        }
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "PUBLICATION_TURN",
+        "outcome": "SUCCEEDED",
+        "durationMs": 81671,
+        "counts": {},
+        "stages": {
+          "FEED_TURN_ADMISSION": {
+            "count": 1,
+            "durationMs": 65
+          },
+          "FEED_TURN_HELD": {
+            "count": 1,
+            "durationMs": 81475
+          },
+          "PUBLICATION_EXCLUSIVE_TURN": {
+            "count": 1,
+            "durationMs": 81671
+          }
+        }
+      },
+      {
+        "type": "STAGING_MISSION_DB_METRICS",
+        "feedId": "staging-fresh-20261019-run1",
+        "action": "publish-disposition-v1",
+        "queries": 692,
+        "sqlCpuMs": 2297.122999999999,
+        "responseBytes": 2090594,
+        "wallMs": 37094,
+        "rowsRead": 961776,
+        "rowsWritten": 381
+      }
+    ]
+  },
+  "publicAccessDenied": true,
+  "notificationReceipts": 0,
+  "deliveryJob": {
+    "state": "PENDING",
+    "attempts": 0,
+    "notificationGuard": "ELIGIBLE_PUSH_SQL requires public_feed_enabled=1; test feed remains 0"
+  },
+  "source": "https://techcrunch.com/2026/10/18/anthropic-says-its-committing-5-of-its-shares-to-a-public-benefit-fund/",
+  "limitations": [
+    "Single retained article, not fresh collection under the successful attempt.",
+    "Source collection is bounded one-article partial coverage, not exhaustive source check.",
+    "No independent human review or multi-source consolidation test in live run.",
+    "No p95 from one success.",
+    "Under-60-second target missed.",
+    "Feed exclusive turn held 81.475s; seven publication input loads remain."
+  ],
+  "artifacts": [
+    {
+      "name": "autonomous-20261019-5-evidence.json",
+      "sha256": "8507604270e0128a96d7a77f7942fb967c1112526d39392c08f1ed8f140a9c7e"
+    },
+    {
+      "name": "autonomous-20261019-5-traces.json",
+      "sha256": "b57c1d7c4b1ac605e451d53209bd75fa85c7e49a832b7d009670ff134edc92aa"
+    },
+    {
+      "name": "autonomous-20261019-5-client-timing.json",
+      "sha256": "a67d7a087fe1d4b954ae24ecb4fcbad99cd13c10c51bbe027e8e6d69ec86919e"
+    },
+    {
+      "name": "autonomous-20261019-6-evidence.json",
+      "sha256": "04c3739740aa0b80fa9cddc8c6eaa26c207e50a87ae65b393346c13938d3ba43"
+    },
+    {
+      "name": "autonomous-20261019-6-traces.json",
+      "sha256": "75dc6dcda1acf238a4519d34fd2f2f50c1007330368230530c8ca7873dfebcaf"
+    },
+    {
+      "name": "autonomous-20261019-6-client-timing.json",
+      "sha256": "e7a438142d62cdbca3fa0e53d7ccd75adcd3f76d6fd6146f5213ab560f606198"
+    },
+    {
+      "name": "autonomous-20261019-7-evidence.json",
+      "sha256": "a972c4922673286e08cedfcb5fb5222326e17420c62e05fd4cae73522fd078cc"
+    },
+    {
+      "name": "autonomous-20261019-7-traces.json",
+      "sha256": "a5edf333763792131ca189ebab69ff8e573ffbd2c1b99f1232b0aa9c249e3133"
+    },
+    {
+      "name": "autonomous-20261019-7-client-timing.json",
+      "sha256": "6a0349168d3e9425db0acb1209054a775cac292aa3ec0ef807d027d7c2237a26"
+    }
+  ]
+}

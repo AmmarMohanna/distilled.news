@@ -1,0 +1,1322 @@
+{
+  "model": "openai/gpt-4.1-mini",
+  "provider": "OPENROUTER",
+  "promptVersion": "approved-propositions-reader-witness-v3",
+  "validationContract": "EVIDENCE_GROUNDED_V2",
+  "manifestHash": "5e26357eb5897c3b6ce9a71b275cf654a9912bc131909dd45939a755197465f1",
+  "judgeProvenance": "BLINDED_AI_ASSISTED_SAME_MODEL_FAMILY_NOT_INDEPENDENT_HUMAN",
+  "judgeCaseMap": [
+    {
+      "id": "X01",
+      "caseId": "T04"
+    },
+    {
+      "id": "X02",
+      "caseId": "T01"
+    },
+    {
+      "id": "X03",
+      "caseId": "T16"
+    },
+    {
+      "id": "X04",
+      "caseId": "T10"
+    },
+    {
+      "id": "X05",
+      "caseId": "T06"
+    },
+    {
+      "id": "X06",
+      "caseId": "T02"
+    },
+    {
+      "id": "X07",
+      "caseId": "T24"
+    },
+    {
+      "id": "X08",
+      "caseId": "T18"
+    },
+    {
+      "id": "X09",
+      "caseId": "T03"
+    },
+    {
+      "id": "X10",
+      "caseId": "T05"
+    },
+    {
+      "id": "X11",
+      "caseId": "T08"
+    },
+    {
+      "id": "X12",
+      "caseId": "T21"
+    }
+  ],
+  "judge": {
+    "caseId": "BLINDED_JUDGE",
+    "requestHash": "674d6cdbd1911861950c6257aa7b5f65dcba2c3a353a3bfc6b490467f2afbef1",
+    "operationId": "compatible-eval:5e26357eb5897c3b:BLINDED_JUDGE",
+    "result": {
+      "cases": [
+        {
+          "id": "X01",
+          "label": "NEGATIVE",
+          "reason": "Reader states the court confirmed the decision, but source explicitly says the court did not confirm it."
+        },
+        {
+          "id": "X02",
+          "label": "POSITIVE",
+          "reason": "Reader states the product launched, which is fully supported by the source; date is optional and not required."
+        },
+        {
+          "id": "X03",
+          "label": "NEGATIVE",
+          "reason": "Reader specifies launch date October 8, 2026, but source only states the product launched without date."
+        },
+        {
+          "id": "X04",
+          "label": "POSITIVE",
+          "reason": "Reader states the vote is on October 8, 2026, exactly matching the source."
+        },
+        {
+          "id": "X05",
+          "label": "NEGATIVE",
+          "reason": "Reader claims the investigation caused the resignation, but source only states resignation followed investigation without causation."
+        },
+        {
+          "id": "X06",
+          "label": "POSITIVE",
+          "reason": "Reader's claim about approximately a thousand users over two days matches source exactly."
+        },
+        {
+          "id": "X07",
+          "label": "NEGATIVE",
+          "reason": "Reader reports 40 injuries, but source states only 12 injuries."
+        },
+        {
+          "id": "X08",
+          "label": "POSITIVE",
+          "reason": "Reader states revenue rose 20 percent, matching source exactly."
+        },
+        {
+          "id": "X09",
+          "label": "NEGATIVE",
+          "reason": "Reader reverses who welcomed the policy and who raised concerns compared to source."
+        },
+        {
+          "id": "X10",
+          "label": "POSITIVE",
+          "reason": "Reader's cost of 12,000,000 dollars matches source's 12 million dollars equivalently."
+        },
+        {
+          "id": "X11",
+          "label": "NEGATIVE",
+          "reason": "Reader omits that the bridge remains closed, which is required coverage."
+        },
+        {
+          "id": "X12",
+          "label": "POSITIVE",
+          "reason": "Reader quotes Alice saying 'the plan is ready' exactly as in source."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "provider": "OPENROUTER",
+        "model": "openai/gpt-4.1-mini",
+        "stage": "HEADERS",
+        "httpStatus": 200,
+        "generationId": "gen-1792399340-9ZPkhr5oevlz1uvYNe6k"
+      },
+      {
+        "provider": "OPENROUTER",
+        "model": "openai/gpt-4.1-mini",
+        "stage": "USAGE",
+        "httpStatus": 200,
+        "generationId": "gen-1792399340-9ZPkhr5oevlz1uvYNe6k",
+        "reportedCostUsd": 0.0010136,
+        "inputTokens": 1062,
+        "outputTokens": 368,
+        "finishReason": "stop"
+      }
+    ],
+    "usage": {
+      "tokensIn": 1062,
+      "tokensOut": 368,
+      "cost": 0.0010136,
+      "confirmed": true
+    },
+    "headersMs": 1483.5890000000004,
+    "wallMs": 3562.9423999999995,
+    "providerCalls": 1,
+    "settled": true
+  },
+  "cases": [
+    {
+      "caseId": "T01",
+      "requestHash": "7f7b97bd7f23c2e8b8824213ae1ad55f01f9f9af86d25845d75c2e090e46575c",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T01",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T01:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim's text 'The product launched.' is fully supported by the fact and the reader prose, preserving all semantic components including attribution and timing.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T01:claim:1"
+        ],
+        "preservedFactIds": [
+          "T01:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": true,
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact; the prose offers a faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T01:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.",
+            "readerSpans": [],
+            "preservedInSummary": true,
+            "candidateId": "T01:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1362,
+          "tokensOut": 232,
+          "cost": 0.000916,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "FACT_VERDICT_CONFLICT",
+          "INVALID_READER_WITNESS",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399346-qsEIuItuLAncDv0q1cT1"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399346-qsEIuItuLAncDv0q1cT1",
+          "reportedCostUsd": 0.000916,
+          "inputTokens": 1362,
+          "outputTokens": 232,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1362,
+        "tokensOut": 232,
+        "cost": 0.000916,
+        "confirmed": true
+      },
+      "headersMs": 856.3516,
+      "wallMs": 2175.8508999999995,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "e1d002592a0bb1a8ec0527d2b780c616bc18d54173f7dad1f2b916951d6c1123",
+      "wireHash": "0bda145543f9b085c160f0cef2600fefc7196774c99687c4404be83712f3aecf",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T02",
+      "requestHash": "8b5612fa68dd70f27e043962377c07be0e3f812220b6334011be1c5ec7d485e0",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T02",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T02:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim is fully supported by the fact and the reader prose communicates all semantic components including quantity, time frame, and subject without adding or omitting meaning.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T02:claim:1"
+        ],
+        "preservedFactIds": [
+          "T02:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": true,
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this proposition; the reader prose offers this fact faithfully as new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T02:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.",
+            "readerSpans": [],
+            "preservedInSummary": true,
+            "candidateId": "T02:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1350,
+          "tokensOut": 252,
+          "cost": 0.0009432,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "FACT_VERDICT_CONFLICT",
+          "INVALID_READER_WITNESS",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399351-2v7fv9sJPcz1bMWN2V9X"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399351-2v7fv9sJPcz1bMWN2V9X",
+          "reportedCostUsd": 0.0009432,
+          "inputTokens": 1350,
+          "outputTokens": 252,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1350,
+        "tokensOut": 252,
+        "cost": 0.0009432,
+        "confirmed": true
+      },
+      "headersMs": 722.0774000000001,
+      "wallMs": 2184.2430000000004,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "182889ce1634f7d447134f97c3641aece26e58006a1d9cafc61bebdeba628f2c",
+      "wireHash": "c2f840312982d7a311196caea5a54626ec9f5ee86eba03475480f6b99e8c05e2",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T05",
+      "requestHash": "9c97e85c43371d57a8a84890d8df77693f4635986d8d172016ecb64e77a7aeed",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T05",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T05:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim 'The cost is 12000000 dollars.' is fully entailed by the fact 'The cost is 12 million dollars.' with all semantic components preserved including exact quantity, subject, predicate, and certainty.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T05:claim:1"
+        ],
+        "preservedFactIds": [
+          "T05:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": true,
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "There are no previous same-story ledger facts or reader claims communicating this fact; the prose offers a faithful new understanding of the cost amount.",
+              "previousFactTexts": []
+            },
+            "factId": "T05:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The reader prose 'The cost is 12000000 dollars.' fully communicates the fact that the cost is 12 million dollars, preserving the exact quantity, subject, predicate, and modality without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T05:claim:1",
+                "text": "12000000",
+                "start": 12,
+                "end": 20
+              }
+            ],
+            "preservedInSummary": true,
+            "candidateId": "T05:story"
+          }
+        ],
+        "novelFactIds": [
+          "T05:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1336,
+          "tokensOut": 275,
+          "cost": 0.0009744,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "ACCEPT",
+        "reasons": [],
+        "readerSpans": [
+          {
+            "propositionId": "T05:fact:0",
+            "candidateId": "T05:story",
+            "claimId": "T05:claim:1",
+            "text": "12000000",
+            "start": 12,
+            "end": 20
+          }
+        ]
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399357-JIH2yHGvA157yRYNhVxp"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399357-JIH2yHGvA157yRYNhVxp",
+          "reportedCostUsd": 0.0009744,
+          "inputTokens": 1336,
+          "outputTokens": 275,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1336,
+        "tokensOut": 275,
+        "cost": 0.0009744,
+        "confirmed": true
+      },
+      "headersMs": 720.2344000000012,
+      "wallMs": 2548.2365000000027,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "1c6fb92cafbcca04c241b52b83a63e7043c2257c9b37b8a07cb3fc289e797b3f",
+      "wireHash": "a508a054fc9d96cd77cd710ee95c0a81e09069b4087f366bfac041b038651cad",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T10",
+      "requestHash": "9bc26a24eeeb058c7fa356a80cdf45a4cc354561b9f9ef1919d1d507d213c54f",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T10",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T10:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim's date matches the fact exactly, with full source support and complete reader communication preserving all semantic components.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T10:claim:1"
+        ],
+        "preservedFactIds": [
+          "T10:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": true,
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact; the prose offers a faithful new understanding of the vote date.",
+              "previousFactTexts": []
+            },
+            "factId": "T10:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.",
+            "readerSpans": [],
+            "preservedInSummary": true,
+            "candidateId": "T10:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1347,
+          "tokensOut": 236,
+          "cost": 0.0009164,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "FACT_VERDICT_CONFLICT",
+          "INVALID_READER_WITNESS",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399362-pkVEYn3vkerSFI3CXfrq"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399362-pkVEYn3vkerSFI3CXfrq",
+          "reportedCostUsd": 0.0009164,
+          "inputTokens": 1347,
+          "outputTokens": 236,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1347,
+        "tokensOut": 236,
+        "cost": 0.0009164,
+        "confirmed": true
+      },
+      "headersMs": 914.5002999999997,
+      "wallMs": 2287.6083999999973,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "167b9fc01b76032df63ce09ab277805ab8abd03d734c7bd641e440b310c6dfb9",
+      "wireHash": "58c881287abd95753b4b9194bf9933cbcff046f399070fb054e99fa9d56d42bc",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T18",
+      "requestHash": "3ceb619a9bdd1b5371711e5ede27bed29e8905f151286a8cb008f0ea6431a027",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T18",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T18:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim 'Revenue rose 20 percent.' is fully supported by the fact 'Revenue rose 20%.' with matching subject, predicate, quantity, and certainty; the reader prose communicates the entire proposition without loss or addition.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T18:claim:1"
+        ],
+        "preservedFactIds": [
+          "T18:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": true,
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or reader claims communicate this fact; the prose offers a faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T18:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.",
+            "readerSpans": [],
+            "preservedInSummary": true,
+            "candidateId": "T18:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1329,
+          "tokensOut": 264,
+          "cost": 0.000954,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "FACT_VERDICT_CONFLICT",
+          "INVALID_READER_WITNESS",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399367-GfsYcXrEtjVNdif1BYWe"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399367-GfsYcXrEtjVNdif1BYWe",
+          "reportedCostUsd": 0.000954,
+          "inputTokens": 1329,
+          "outputTokens": 264,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1329,
+        "tokensOut": 264,
+        "cost": 0.000954,
+        "confirmed": true
+      },
+      "headersMs": 742.8790000000008,
+      "wallMs": 2305.630399999998,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "7567c5dde79e0a71fe261bea7d2946754690d30d0996cfafa70216086575e40b",
+      "wireHash": "76e309e7dd4d9e0f07532b1f65e300f1ded646ef32c37f8c606b35ca388dfeda",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T21",
+      "requestHash": "c958d9f08eb1ddb94f972b2d4775b05f86bf9da358338e1838803e5978e42192",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T21",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T21:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim is fully supported by the fact and the reader prose exactly communicates the proposition with correct attribution, certainty, and temporal context.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T21:claim:1"
+        ],
+        "preservedFactIds": [
+          "T21:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": true,
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this proposition; the reader prose faithfully offers new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T21:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.",
+            "readerSpans": [],
+            "preservedInSummary": true,
+            "candidateId": "T21:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1338,
+          "tokensOut": 231,
+          "cost": 0.0009048,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "FACT_VERDICT_CONFLICT",
+          "INVALID_READER_WITNESS",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399373-ZHtlHzD5T6PPQ6BijCeR"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399373-ZHtlHzD5T6PPQ6BijCeR",
+          "reportedCostUsd": 0.0009048,
+          "inputTokens": 1338,
+          "outputTokens": 231,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1338,
+        "tokensOut": 231,
+        "cost": 0.0009048,
+        "confirmed": true
+      },
+      "headersMs": 891.3073000000004,
+      "wallMs": 2256.9017999999996,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "beb90ebab89657138afed3c6632f1e675de691ee7f480908422903d248744f42",
+      "wireHash": "be2166416eeb25ead86fbb26dafdb70dd47f246f6ea1fb1da19ecfb9ad1b3393",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T03",
+      "requestHash": "54a95f40881d66a1f0688cadda09a0979fa2347431013260ebbfc626f8b39636",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T03",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T03:claim:1",
+            "fullyEntailed": false,
+            "reason": "The reader prose reverses the actors for the two facts: it says Bob welcomed the policy and Alice raised enforcement concerns, whereas the facts say Alice welcomed the policy and Bob raised enforcement concerns. Therefore, the claim is not fully entailed by the reader prose.",
+            "unsupportedMeaning": [
+              "Incorrect attribution of who welcomed the policy",
+              "Incorrect attribution of who raised enforcement concerns"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": false,
+            "readerNovelty": {
+              "status": "NOT_COMMUNICATED",
+              "reason": "No reader prose communicates this fact.",
+              "previousFactTexts": []
+            },
+            "factId": "T03:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The reader prose does not communicate that Alice welcomed the policy; it states that Bob welcomed the policy instead, which is a different actor and thus does not communicate this fact.",
+            "readerSpans": [],
+            "preservedInSummary": false,
+            "candidateId": "T03:story"
+          },
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": false,
+            "readerNovelty": {
+              "status": "NOT_COMMUNICATED",
+              "reason": "No reader prose communicates this fact.",
+              "previousFactTexts": []
+            },
+            "factId": "T03:fact:1",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The reader prose does not communicate that Bob raised enforcement concerns; it states that Alice raised enforcement concerns instead, which is a different actor and thus does not communicate this fact.",
+            "readerSpans": [],
+            "preservedInSummary": false,
+            "candidateId": "T03:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1402,
+          "tokensOut": 372,
+          "cost": 0.001156,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "REJECT",
+        "reasons": [
+          "CLAIM_NOT_ENTAILED",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399378-Rmw6hFmquJYll8JMkVau"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399378-Rmw6hFmquJYll8JMkVau",
+          "reportedCostUsd": 0.001156,
+          "inputTokens": 1402,
+          "outputTokens": 372,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1402,
+        "tokensOut": 372,
+        "cost": 0.001156,
+        "confirmed": true
+      },
+      "headersMs": 841.4867999999988,
+      "wallMs": 2924.994200000001,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "5ddb6c0e16d2cc4b401accf898db3ae631f43055088223b597b4d1b7fd3897f1",
+      "wireHash": "966d8bed2b4a3b4a5d1283ab5c16e3b8c490fad8737bb4d9e8e61e7c36e2452c",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T04",
+      "requestHash": "8168228b635b2c6147e3c85e0bb19126c64af795b0b2f9a9081c2ed6652ffe63",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T04",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T04:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim states that 'The court confirmed the decision,' but the supported fact and evidence state the opposite: 'The court did not confirm the decision.' This contradiction means the claim is not fully entailed by the evidence.",
+            "unsupportedMeaning": [
+              "The court confirmed the decision"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": false,
+            "readerNovelty": {
+              "status": "UNRESOLVED",
+              "reason": "INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.",
+              "previousFactTexts": []
+            },
+            "factId": "T04:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The reader prose states 'The court confirmed the decision,' which contradicts the fact 'The court did not confirm the decision.' Therefore, the fact is not communicated by the reader prose.",
+            "readerSpans": [],
+            "preservedInSummary": false,
+            "candidateId": "T04:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1333,
+          "tokensOut": 237,
+          "cost": 0.0009124,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "INCOMPLETE_NOVELTY_VERDICT",
+          "CLAIM_NOT_ENTAILED",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399383-mt7pCUUCrdhSG0Vmy7DH"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399383-mt7pCUUCrdhSG0Vmy7DH",
+          "reportedCostUsd": 0.0009124,
+          "inputTokens": 1333,
+          "outputTokens": 237,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1333,
+        "tokensOut": 237,
+        "cost": 0.0009124,
+        "confirmed": true
+      },
+      "headersMs": 741.119399999996,
+      "wallMs": 2230.3139999999985,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "702d601eb5c7b264763b6c326c654171a4bde2b4d61b3a48855e30e7f9b43b39",
+      "wireHash": "53c350641f2bfdd0444b8ced575573c117c1baed8b1c9c44f1922c3d94aab1dd",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T06",
+      "requestHash": "5757ef242a2c62b1b9eba05c5ed8a49a67acacba954d8199d4cf11e21ca1b815",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T06",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T06:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim asserts causation ('caused the resignation'), but the source fact and reader prose only support temporal sequence ('followed the investigation'), not causation.",
+            "unsupportedMeaning": [
+              "causation"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [
+          "T06:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": false,
+            "readerNovelty": {
+              "status": "UNRESOLVED",
+              "reason": "INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.",
+              "previousFactTexts": []
+            },
+            "factId": "T06:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The reader prose does not explicitly state causation, only temporal sequence ('followed').",
+            "readerSpans": [],
+            "preservedInSummary": true,
+            "candidateId": "T06:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1329,
+          "tokensOut": 208,
+          "cost": 0.0008644,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "FACT_VERDICT_CONFLICT",
+          "INCOMPLETE_NOVELTY_VERDICT",
+          "CLAIM_NOT_ENTAILED",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399388-p94GCmNMUm8MfyseLwh9"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399388-p94GCmNMUm8MfyseLwh9",
+          "reportedCostUsd": 0.0008644,
+          "inputTokens": 1329,
+          "outputTokens": 208,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1329,
+        "tokensOut": 208,
+        "cost": 0.0008644,
+        "confirmed": true
+      },
+      "headersMs": 1614.1879999999946,
+      "wallMs": 2791.2888999999996,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "4585a16b3c5a169a86b54eb92455ecef068a37ab9ef6df31ccf1c89800185985",
+      "wireHash": "ddfac0834e3e3fe681db51e6c388849502cee403ec9f7509cd004d68bf23195b",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T08",
+      "requestHash": "a7bf887772abd8967cda0d129f4e75ef456ea71842a44a078d46ef266e4ceb7b",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T08",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T08:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim states 'The road reopened.' which is supported and communicated, but the claim also implicitly excludes the fact that 'The bridge remains closed.' which is a required fact and is not communicated or entailed by the reader prose.",
+            "unsupportedMeaning": [
+              "The bridge remains closed"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": true,
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact.",
+              "previousFactTexts": []
+            },
+            "factId": "T08:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "INVALID_READER_WITNESS: coverage cited source-only, wrong-story or unsupported prose.",
+            "readerSpans": [],
+            "preservedInSummary": false,
+            "candidateId": "T08:story"
+          },
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": false,
+            "readerNovelty": {
+              "status": "UNRESOLVED",
+              "reason": "INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.",
+              "previousFactTexts": []
+            },
+            "factId": "T08:fact:1",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The reader prose does not mention that the bridge remains closed; it is omitted.",
+            "readerSpans": [],
+            "preservedInSummary": false,
+            "candidateId": "T08:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1393,
+          "tokensOut": 353,
+          "cost": 0.001122,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "INCOMPLETE_NOVELTY_VERDICT",
+          "INVALID_READER_WITNESS",
+          "CLAIM_NOT_ENTAILED",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399394-niPR6buXXVBmmjziRXHq"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399394-niPR6buXXVBmmjziRXHq",
+          "reportedCostUsd": 0.001122,
+          "inputTokens": 1393,
+          "outputTokens": 353,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1393,
+        "tokensOut": 353,
+        "cost": 0.001122,
+        "confirmed": true
+      },
+      "headersMs": 764.6108999999997,
+      "wallMs": 2675.367099999996,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "0044956ac8fa6163ebf1a72d53b79249b4c1758b35a43cd5e2b73ca9adc1203f",
+      "wireHash": "0af726710df9ed2d9779db479a2194fd0972430d859bd517a383613397e4d360",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T16",
+      "requestHash": "92df980121ec1c95bed322eebe8a21ba3c78658f0cc0848c568d18de14f50f97",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T16",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T16:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim includes a specific launch date 'October 8, 2026' which is not communicated or entailed by the reader prose that only states 'The product launched.'",
+            "unsupportedMeaning": [
+              "The product launched on October 8, 2026"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": false,
+            "readerNovelty": {
+              "status": "UNRESOLVED",
+              "reason": "INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.",
+              "previousFactTexts": []
+            },
+            "factId": "T16:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": false,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The reader prose does not explicitly mention the launch date 'October 8, 2026', only that the product launched.",
+            "readerSpans": [],
+            "preservedInSummary": false,
+            "candidateId": "T16:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1358,
+          "tokensOut": 217,
+          "cost": 0.0008904,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "INCOMPLETE_NOVELTY_VERDICT",
+          "CLAIM_NOT_ENTAILED",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399401-0OTuSHl0StZF6Z5KrRkT"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399401-0OTuSHl0StZF6Z5KrRkT",
+          "reportedCostUsd": 0.0008904,
+          "inputTokens": 1358,
+          "outputTokens": 217,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1358,
+        "tokensOut": 217,
+        "cost": 0.0008904,
+        "confirmed": true
+      },
+      "headersMs": 879.9665999999925,
+      "wallMs": 2127.295100000003,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "a8453dfab4e5bfd2a856b0d48988450e53e1f6df232b6afddea8c070e174ec7b",
+      "wireHash": "c7968045abceae95a1c3ac6a19c410c38c3870326daee787f7bf064e60bdb3e0",
+      "maxOutputTokens": 32768
+    },
+    {
+      "caseId": "T24",
+      "requestHash": "4bea35841c15cf6805c07d5b461540517a4b27dae55e202f78439a090c7266ee",
+      "operationId": "compatible-eval:5e26357eb5897c3b:T24",
+      "result": {
+        "claimEntailment": [
+          {
+            "claimId": "T24:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim states officials reported 40 injuries, but the only supported fact is that officials reported 12 injuries. The quantity differs and is unsupported by the evidence, so the claim is not fully entailed.",
+            "unsupportedMeaning": [
+              "Officials reported 40 injuries"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [],
+        "semanticChecks": [
+          {
+            "sourceSupported": true,
+            "readerEntailsProposition": false,
+            "readerNovelty": {
+              "status": "UNRESOLVED",
+              "reason": "INVALID_READER_NOVELTY_COVERAGE: verdict does not match offered supported communication.",
+              "previousFactTexts": []
+            },
+            "factId": "T24:fact:0",
+            "communicated": false,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The reader prose does not communicate the fact that officials reported 12 injuries; it states 40 injuries instead, which is a different quantity and thus does not communicate the fact.",
+            "readerSpans": [],
+            "preservedInSummary": false,
+            "candidateId": "T24:story"
+          }
+        ],
+        "novelFactIds": [],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1329,
+          "tokensOut": 232,
+          "cost": 0.0009028,
+          "confirmed": true
+        }
+      },
+      "decision": {
+        "status": "UNRESOLVED",
+        "reasons": [
+          "INCOMPLETE_NOVELTY_VERDICT",
+          "CLAIM_NOT_ENTAILED",
+          "MISSING_MANDATORY_COVERAGE"
+        ],
+        "readerSpans": []
+      },
+      "receipts": [
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "HEADERS",
+          "httpStatus": 200,
+          "generationId": "gen-1792399406-sWQKP6l3e8m6QFLFNKhn"
+        },
+        {
+          "provider": "OPENROUTER",
+          "model": "openai/gpt-4.1-mini",
+          "stage": "USAGE",
+          "httpStatus": 200,
+          "generationId": "gen-1792399406-sWQKP6l3e8m6QFLFNKhn",
+          "reportedCostUsd": 0.0009028,
+          "inputTokens": 1329,
+          "outputTokens": 232,
+          "finishReason": "stop"
+        }
+      ],
+      "usage": {
+        "tokensIn": 1329,
+        "tokensOut": 232,
+        "cost": 0.0009028,
+        "confirmed": true
+      },
+      "headersMs": 820.0528999999951,
+      "wallMs": 2195.804700000008,
+      "providerCalls": 1,
+      "settled": true,
+      "questionHash": "a592a1d938b39c5082dc06818daccba17db4f2b9ec9190d707bf7e75f52e604b",
+      "wireHash": "39e5795a2a1bbef14a7e69b3fff452873fec3a16d12a8eb026c9755d9049326d",
+      "maxOutputTokens": 32768
+    }
+  ],
+  "blindingLimitation": "Judge saw no old labels or verifier outputs; outer X IDs shuffled, but original T-case source evidence handles remained. Partially anonymized, same-family AI review."
+}

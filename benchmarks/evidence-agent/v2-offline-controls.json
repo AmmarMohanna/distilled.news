@@ -1,0 +1,957 @@
+{
+  "schemaVersion": 1,
+  "status": "OFFLINE_MODIFIED_FIXTURES_ONLY",
+  "architecture": "evidence-first-v2",
+  "sourceTrial": "trial-results-2026-11-04.json",
+  "sourceTrialHash": "b6f8228e3d763188f8cf093774aa015e4bca99d28a7bfcd42861d4e226e5b205",
+  "transformation": "Remove copied source quotations; map only exact non-null canonical prior references to compact aliases. Preserve prose and factual statements; never infer null updates.",
+  "verifier": "SCRIPTED_OK_NOT_A_REAL_MODEL_VERDICT",
+  "additionalPaidCalls": 0,
+  "actualModelCostUsd": null,
+  "realModelLatencyMs": null,
+  "modelQuality": null,
+  "rows": [
+    {
+      "caseId": "lebanon-roundup-en",
+      "evidenceHash": "5eb5747de9d4694c8fe22544792c222e51c483a2be136c077ada90115451b4a6",
+      "originalResponseHash": "9c48f263f3336a59d591531226956d0948f1a95a38086abd3be4d735e045b3f6",
+      "fixtureHash": "417a90c35a4634e8a35f410868799187014c42f6c23eca0b6139dfc51b30a939",
+      "originalCompactResponseChars": 4276,
+      "modifiedFixtureChars": 3789,
+      "fixture": {
+        "items": [
+          {
+            "developmentId": "D1",
+            "headline": "Lebanon's electricity company to cut power to public entities behind on payments from November 2",
+            "body": "The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2."
+          },
+          {
+            "developmentId": "D2",
+            "headline": "Israeli airstrike targets outskirts of Barashit near Kounin in southern Lebanon",
+            "body": "An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon."
+          },
+          {
+            "developmentId": "D3",
+            "headline": "Large explosion reported in Qantara shakes southern Lebanon",
+            "body": "A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon."
+          },
+          {
+            "developmentId": "D4",
+            "headline": "Israeli regional council announces imminent airstrikes on Lebanese front",
+            "body": "The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area."
+          }
+        ],
+        "developments": [
+          {
+            "id": "D1",
+            "occurrence": "The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2,
+            "essentialClaims": [
+              {
+                "id": "C1",
+                "statement": "The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "planned",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S14.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D2",
+            "occurrence": "An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2,
+            "essentialClaims": [
+              {
+                "id": "C2",
+                "statement": "An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "reported",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S10.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D3",
+            "occurrence": "A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2,
+            "essentialClaims": [
+              {
+                "id": "C3",
+                "statement": "A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "reported",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S7.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D4",
+            "occurrence": "The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2,
+            "essentialClaims": [
+              {
+                "id": "C4",
+                "statement": "The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "planned",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S13.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S8",
+              "S9",
+              "S11",
+              "S12",
+              "S15"
+            ],
+            "why": "No new or significant developments directly affecting Lebanon's politics, government, security, economy, banking, public services, electricity, infrastructure, or major social developments within the specified window."
+          }
+        ]
+      },
+      "requestHashes": [
+        "276497cf9c54c9097f5753799a44b760ee8ffc1d9225477084a70d1f86fab1e9",
+        "ffddd9a889f7b427fd831c3f637b426f4f5cd2d2df9833684b886ecb6565d8e3"
+      ],
+      "requestChars": [
+        12236,
+        16823
+      ],
+      "mockContractResult": {
+        "calls": 2,
+        "selectedItemCount": 4,
+        "recordFailures": []
+      },
+      "semanticQuality": null
+    },
+    {
+      "caseId": "lebanon-roundup-ar",
+      "evidenceHash": "dd8eb0da38f1348a36c4d78a3b66ef59ff2ad006cd23b83dac6aab2eb86bf42e",
+      "originalResponseHash": "e7ae5af10f327e7a63fbb96270f3385656e69806b1d0cd85f301449b9e00844a",
+      "fixtureHash": "6e63145ae4d1eef50d22f73411c16a06bca1ec1c406e5ab726636c19bfb8f6c2",
+      "originalCompactResponseChars": 3666,
+      "modifiedFixtureChars": 3179,
+      "fixture": {
+        "items": [
+          {
+            "developmentId": "D1",
+            "headline": "مؤسسة كهرباء لبنان تقرر قطع التيار عن المؤسسات العامة المتخلفة عن السداد بدءاً من 2 تشرين الثاني",
+            "body": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتباراً من 2 تشرين الثاني."
+          },
+          {
+            "developmentId": "D2",
+            "headline": "تفجير إسرائيلي ضخم يهز بلدة القنطرة جنوب لبنان",
+            "body": "وقع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة، ما أدى إلى هز جنوب لبنان."
+          },
+          {
+            "developmentId": "D3",
+            "headline": "غارة جوية إسرائيلية تستهدف أطراف بلدة برعشيت باتجاه كونين",
+            "body": "نفذت طائرات حربية إسرائيلية غارة استهدفت أطراف بلدة برعشيت لجهة كونين."
+          },
+          {
+            "developmentId": "D4",
+            "headline": "المجلس الإقليمي للجليل الأعلى يعلن عن غارات جوية مرتقبة على الجبهة اللبنانية خلال ساعات",
+            "body": "أعلن المجلس الإقليمي للجليل الأعلى عن شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة."
+          }
+        ],
+        "developments": [
+          {
+            "id": "D1",
+            "occurrence": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني",
+            "relation": "new",
+            "updates": null,
+            "importance": 3,
+            "essentialClaims": [
+              {
+                "id": "C1",
+                "statement": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "planned",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S14.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D2",
+            "occurrence": "وقع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة، ما أدى إلى هز جنوب لبنان",
+            "relation": "new",
+            "updates": null,
+            "importance": 3,
+            "essentialClaims": [
+              {
+                "id": "C2",
+                "statement": "تفجير ضخم نفذه العدو الإسرائيلي في بلدة القنطرة هز جنوب لبنان",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "reported",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S7.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D3",
+            "occurrence": "نفذت طائرات حربية إسرائيلية غارة استهدفت أطراف بلدة برعشيت لجهة كونين",
+            "relation": "new",
+            "updates": null,
+            "importance": 2,
+            "essentialClaims": [
+              {
+                "id": "C3",
+                "statement": "غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "reported",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S10.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D4",
+            "occurrence": "أعلن المجلس الإقليمي للجليل الأعلى عن شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة",
+            "relation": "new",
+            "updates": null,
+            "importance": 2,
+            "essentialClaims": [
+              {
+                "id": "C4",
+                "statement": "المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "planned",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S13.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S8",
+              "S9",
+              "S11",
+              "S12",
+              "S15"
+            ],
+            "why": "لا تتعلق بتطورات جديدة أو مؤثرة تخص لبنان بشكل مباشر ضمن مجالات السياسة، الحكومة، الأمن، الاقتصاد، الخدمات العامة، الكهرباء، البنية التحتية أو التطورات الاجتماعية الكبرى خلال نافذة الوقت المحددة."
+          }
+        ]
+      },
+      "requestHashes": [
+        "da8c13a2f5ce9d0a40a5e47e0b12bbd232a6866c1b32e357192828006ffcf256",
+        "e5f8f3f63f9adab33968233c641a0c2f2c73622d33aa264794c88ef25bc0c4d8"
+      ],
+      "requestChars": [
+        12236,
+        16213
+      ],
+      "mockContractResult": {
+        "calls": 2,
+        "selectedItemCount": 4,
+        "recordFailures": []
+      },
+      "semanticQuality": null
+    },
+    {
+      "caseId": "ai-multisource-en",
+      "evidenceHash": "d6ed61176a250539ee2705634b657122f095bff95f8c82e3aad98ec4aac19854",
+      "originalResponseHash": "89149e65d43ee188a6011d5ed39a5319f8ed57637d59eb712d6ce616224e38bc",
+      "fixtureHash": "1b33ee8833280b846f9b5fdfac526fa5d2b935538428cd937385c7b3811e9556",
+      "originalCompactResponseChars": 8451,
+      "modifiedFixtureChars": 6314,
+      "fixture": {
+        "items": [
+          {
+            "developmentId": "D1",
+            "headline": "Anthropic launches Public Benefit Fund, commits 5% of shares with potential for more",
+            "body": "Anthropic has announced the creation of the Anthropic Public Benefit Fund, initially committing 5% of its shares, with the possibility of increasing this by 2% for every 50% rise in company value above a set baseline, subject to stockholder approval. The Fund, structured as a wholly-owned LLC, is designed to support public benefit initiatives with flexibility, including large donations to nonprofits or direct distributions. Combined with previous equity donation pledges and programs, about 20% of Anthropic shares are now dedicated to public good, with further increases possible if valuation milestones are met. The Fund will not use equity for lobbying or political giving. Details on governance and valuation milestones will be shared in the coming months."
+          },
+          {
+            "developmentId": "D2",
+            "headline": "Anthropic grants METR employee-like access for independent AI risk evaluation",
+            "body": "Anthropic has begun providing a team from the nonprofit METR with employee-like access to internal tools, systems, and information (excluding certain sensitive categories) to enable independent risk assessment of its AI models. METR will publish its risk assessment results, and Anthropic cannot veto publication but may require redactions in predefined categories. Anthropic is also working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights. The company is developing a three-tier access system for evaluators, aiming for robust, independent oversight of its AI safety practices."
+          },
+          {
+            "developmentId": "D3",
+            "headline": "Replit shifts default AI partner from Anthropic to OpenAI, citing performance and cost",
+            "body": "Replit has made OpenAI's ChatGPT its default AI model over Anthropic's Claude, citing performance, cost, and partnership strength as reasons. While Anthropic models remain available on the platform, this change is expected to significantly reduce Replit's spend with Anthropic, as most users stick with the default. Replit's CEO emphasized the company's model-agnostic approach and noted that enterprise and government contracts are becoming a larger share of revenue."
+          }
+        ],
+        "developments": [
+          {
+            "id": "D1",
+            "occurrence": "Anthropic announced the creation of the Anthropic Public Benefit Fund, committing 5% of its shares with potential for further increases tied to company valuation milestones, and outlined the Fund's structure and intended uses.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1,
+            "essentialClaims": [
+              {
+                "id": "C1",
+                "statement": "Anthropic is committing a portion of its shares to the Anthropic Public Benefit Fund, with 5% committed today and an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline, subject to stockholder approval.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "proposed",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S1.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C2",
+                "statement": "The Fund is structured as a wholly-owned LLC to allow flexibility in forms of giving, and none of the equity held by the LLC will be used for lobbying or political giving.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "proposed",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S1.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C3",
+                "statement": "Combined with previous equity donation pledges and programs, roughly 20% of Anthropic shares will be dedicated to the public good, with further increases possible if valuation milestones are met.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "proposed",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S1.B2"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C4",
+                "statement": "Anthropic will share more about the Fund’s structure, governance, and valuation milestones in the coming months.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "planned",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S1.B2"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D2",
+            "occurrence": "Anthropic has started giving a team from METR employee-like access to internal systems for independent risk assessment of its AI models, with METR to publish results and Anthropic able to require redactions only in predefined categories.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1,
+            "essentialClaims": [
+              {
+                "id": "C5",
+                "statement": "Anthropic has started to give employee-like access to a team from METR, a nonprofit that evaluates frontier AI models.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "ongoing",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S4.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C6",
+                "statement": "METR will publish the results of its risk assessments, and Anthropic cannot veto publication but can require redactions if information falls into predefined categories.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "planned",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S4.B2"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C7",
+                "statement": "Anthropic is working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights, and is developing a three-tier access system for evaluators.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "ongoing",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S4.B3"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D3",
+            "occurrence": "Replit has made OpenAI's ChatGPT its default AI model over Anthropic's Claude, citing performance, cost, and partnership strength, though Anthropic models remain available on the platform.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1,
+            "essentialClaims": [
+              {
+                "id": "C8",
+                "statement": "Replit is no longer working with Anthropic as its default AI provider, making OpenAI's ChatGPT the default due to performance, cost, and partnership considerations, though Anthropic models remain available.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "completed",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S3.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C9",
+                "statement": "This change is expected to significantly reduce Replit’s spend with Anthropic, as most customers stick with the default model.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "planned",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S3.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "All developments in S2 are fully covered by S1, which provides more detailed and direct evidence."
+          }
+        ]
+      },
+      "requestHashes": [
+        "d2fbfe7a27e002460ab99c53d6f1823080ac9c13e8e0b27309e335919b5a1617",
+        "43f1f1ca6f699d734a6be11b0a73600aec17262553c02897e5b93bdb00e71e37"
+      ],
+      "requestChars": [
+        19442,
+        27020
+      ],
+      "mockContractResult": {
+        "calls": 2,
+        "selectedItemCount": 3,
+        "recordFailures": []
+      },
+      "semanticQuality": null
+    },
+    {
+      "caseId": "ai-multisource-ar",
+      "evidenceHash": "71811c9715bc003d82fc98c0d565bfd5fddea34558e073d6ce5e4f6465169c58",
+      "originalResponseHash": "b74114d430cb11cd3afe75e0f44028c9ff491741ae1c978958586d894275917e",
+      "fixtureHash": "28d8f828cc2ffc22168b4bafcaed964a338a6bcc1f4150ec3fa8a93d8e68524f",
+      "originalCompactResponseChars": 8007,
+      "modifiedFixtureChars": 5472,
+      "fixture": {
+        "items": [
+          {
+            "developmentId": "D1",
+            "headline": "Anthropic تؤسس صندوق منفعة عامة وتخصص له حصة متزايدة من أسهمها",
+            "body": "أعلنت Anthropic عن التزامها بتخصيص 5% من أسهمها لصندوق منفعة عامة جديد، مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة فوق خط أساس محدد، وذلك بعد موافقة المساهمين. سيمنح الصندوق مرونة أكبر لدعم مشاريع ذات منفعة مجتمعية، مثل التبرعات الكبيرة للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. لن تُستخدم أسهم الصندوق في الضغط السياسي أو التبرعات السياسية. مع هذا الإعلان، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة، مع إمكانية زيادة النسبة عند تحقيق الشركة لمعايير تقييم محددة."
+          },
+          {
+            "developmentId": "D2",
+            "headline": "Anthropic تمنح فريق METR حق وصول شبيه بالموظفين لتقييم سلامة نماذجها بشكل مستقل",
+            "body": "بدأت Anthropic في منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أدواتها وأنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي الخاصة بها. سيقوم METR بنشر نتائج تقييماته للمخاطر، ولا تملك Anthropic حق الاعتراض على النشر، لكنها تستطيع طلب حجب معلومات ضمن فئات محددة مثل الأسرار التجارية. تعمل Anthropic أيضاً مع SecureBio وAccenture كمقيمين، وتجري محادثات أولية مع منظمات أخرى مثل Hugging Face. تهدف الشركة إلى تطوير ثلاث مستويات من الوصول للمقيمين المستقلين، مع منح أعلى مستوى وصول وحقوق نشر لفريق METR حالياً."
+          },
+          {
+            "developmentId": "D3",
+            "headline": "منصة Replit تعتمد OpenAI شريكاً مفضلاً بدلاً من Anthropic وتغير نموذجها الافتراضي",
+            "body": "أعلن الرئيس التنفيذي لمنصة Replit أن الشركة لم تعد تتعاون مع Anthropic، وأن OpenAI أصبح الشريك المفضل لتشغيل وكيل Replit Agent، وذلك بناءً على الأداء والتكلفة وقوة الشراكة. رغم ذلك، لا تزال نماذج Anthropic متاحة للعملاء، لكن OpenAI أصبح الخيار الافتراضي، ما قد يقلل بشكل كبير من إنفاق Replit مع Anthropic. هناك تضارب في التصريحات حول استمرار الشراكة، حيث أشار مصدر مطلع إلى أن الشراكة لا تزال قائمة، وتظهر أدلة حديثة على استمرار استخدام منتجات Anthropic في المنصة."
+          }
+        ],
+        "developments": [
+          {
+            "id": "D1",
+            "occurrence": "إعلان Anthropic عن تأسيس صندوق منفعة عامة وتخصيص حصة متزايدة من أسهمها له",
+            "relation": "new",
+            "updates": null,
+            "importance": 1,
+            "essentialClaims": [
+              {
+                "id": "C1",
+                "statement": "تلتزم Anthropic بتخصيص 5% من أسهمها لصندوق منفعة عامة جديد، مع إمكانية إضافة 2% لكل زيادة بنسبة 50% في قيمة الشركة فوق خط أساس محدد، وذلك بعد موافقة المساهمين.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "proposed",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S1.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C2",
+                "statement": "لن تُستخدم أسهم الصندوق في الضغط السياسي أو التبرعات السياسية داخل الولايات المتحدة أو خارجها.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "proposed",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S1.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C3",
+                "statement": "مع هذا الإعلان، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة، مع إمكانية زيادة النسبة عند تحقيق الشركة لمعايير تقييم محددة.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "proposed",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S1.B2"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D2",
+            "occurrence": "منح Anthropic فريق METR وصولاً شبيهاً بالموظفين لتقييم نماذجها وسلامتها بشكل مستقل",
+            "relation": "new",
+            "updates": null,
+            "importance": 1,
+            "essentialClaims": [
+              {
+                "id": "C4",
+                "statement": "بدأت Anthropic في منح فريق من METR وصولاً شبيهاً بالموظفين إلى أدواتها وأنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي الخاصة بها.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "ongoing",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S4.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C5",
+                "statement": "سيقوم METR بنشر نتائج تقييماته للمخاطر، ولا تملك Anthropic حق الاعتراض على النشر، لكنها تستطيع طلب حجب معلومات ضمن فئات محددة مثل الأسرار التجارية.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "ongoing",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S4.B2"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C6",
+                "statement": "تعمل Anthropic أيضاً مع SecureBio وAccenture كمقيمين، وتجري محادثات أولية مع منظمات أخرى مثل Hugging Face.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "ongoing",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S4.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C7",
+                "statement": "تطور Anthropic ثلاث مستويات من الوصول للمقيمين المستقلين، مع منح أعلى مستوى وصول وحقوق نشر لفريق METR حالياً.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "ongoing",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S4.B3"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "D3",
+            "occurrence": "Replit تعتمد OpenAI شريكاً مفضلاً بدلاً من Anthropic وتغير النموذج الافتراضي",
+            "relation": "new",
+            "updates": null,
+            "importance": 1,
+            "essentialClaims": [
+              {
+                "id": "C8",
+                "statement": "أعلن الرئيس التنفيذي لمنصة Replit أن الشركة لم تعد تتعاون مع Anthropic، وأن OpenAI أصبح الشريك المفضل لتشغيل وكيل Replit Agent، وذلك بناءً على الأداء والتكلفة وقوة الشراكة.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "completed",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S3.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C9",
+                "statement": "لا تزال نماذج Anthropic متاحة للعملاء، لكن OpenAI أصبح الخيار الافتراضي، ما قد يقلل بشكل كبير من إنفاق Replit مع Anthropic.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "ongoing",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S3.B1"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "C10",
+                "statement": "هناك تضارب في التصريحات حول استمرار الشراكة، حيث أشار مصدر مطلع إلى أن الشراكة لا تزال قائمة، وتظهر أدلة حديثة على استمرار استخدام منتجات Anthropic في المنصة.",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "ongoing",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S3.B2"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "يغطي المصدر S2 نفس التطورات الجوهرية حول صندوق المنفعة العامة لـ Anthropic كما في S1، دون إضافة تفاصيل استراتيجية أو قرارات مستقلة جديدة."
+          }
+        ]
+      },
+      "requestHashes": [
+        "e0333d82c3b880fb8dcd23a11fb25ffb5e246d1b9fc76bd0d68414ef3703acbf",
+        "fb29fe1d8b082602bcd70c1cc8136939adc44d66d50dc35483f4196927abc654"
+      ],
+      "requestChars": [
+        19442,
+        26369
+      ],
+      "mockContractResult": {
+        "calls": 2,
+        "selectedItemCount": 3,
+        "recordFailures": []
+      },
+      "semanticQuality": null
+    },
+    {
+      "caseId": "casualty-update-en",
+      "evidenceHash": "597d33cd53a6138a5dcac3eed4af9a86f8700c78cd452662312521a3cfe80dc1",
+      "originalResponseHash": "0f6f859d315de3711344d85b288ba1c33c821caf027197572abbacd3ca40b6b9",
+      "fixtureHash": "00c1d7275055c5af7a88822040dfd047204c5dfa5bebed8802bdcad1cf74ae3b",
+      "originalCompactResponseChars": 1318,
+      "modifiedFixtureChars": 1197,
+      "fixture": {
+        "items": [
+          {
+            "developmentId": "D1",
+            "headline": "Jordanian government: 6 killed, 28 injured in Karak church funeral attack",
+            "body": "The Jordanian government spokesperson reported that 6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate."
+          }
+        ],
+        "developments": [
+          {
+            "id": "D1",
+            "occurrence": "Jordanian government spokesperson announced that 6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1,
+            "essentialClaims": [
+              {
+                "id": "C1",
+                "statement": "6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate, according to the Jordanian government spokesperson.",
+                "conditions": [],
+                "attribution": "Jordanian government spokesperson",
+                "uncertainty": null,
+                "temporalStatus": "reported",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S2.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1"
+            ],
+            "why": "Earlier, less precise casualty figures (at least 7 dead) superseded by official government update."
+          },
+          {
+            "sources": [
+              "S3"
+            ],
+            "why": "Video evidence of the attack's occurrence already covered in previous briefing; no new details or casualty information."
+          }
+        ]
+      },
+      "requestHashes": [
+        "6258569c49a70a58571006035006da1afb06c90a53cb400bf4791c15eb6be774",
+        "03ba2787cdbc972b13738ccbc8bc5769fb0eb8c7e6373457bda11d4145886e2d"
+      ],
+      "requestChars": [
+        4579,
+        5724
+      ],
+      "mockContractResult": {
+        "calls": 2,
+        "selectedItemCount": 1,
+        "recordFailures": []
+      },
+      "semanticQuality": null
+    },
+    {
+      "caseId": "casualty-update-ar",
+      "evidenceHash": "0c8256f2497c3c2ef06cce20ac3d7c9e1402b341b8eaf31e2e96c109f826384e",
+      "originalResponseHash": "8c651bba72a3166a360c3928a6dcf8bf62a4ce60438ec65ee5947454e24fc77d",
+      "fixtureHash": "fc8640df3de4df4f9defc86d4e2db173ecb10dbf561c00cda2513577b51c666f",
+      "originalCompactResponseChars": 1089,
+      "modifiedFixtureChars": 968,
+      "fixture": {
+        "items": [
+          {
+            "developmentId": "D1",
+            "headline": "الحكومة الأردنية: 6 قتلى و28 جريحاً في حادث إطلاق نار خلال جنازة بمحافظة الكرك",
+            "body": "أعلن الناطق باسم الحكومة الأردنية أن حصيلة الحادث الإجرامي الذي وقع خلال جنازة في محافظة الكرك بلغت 6 قتلى و28 جريحاً."
+          }
+        ],
+        "developments": [
+          {
+            "id": "D1",
+            "occurrence": "الناطق باسم الحكومة الأردنية أعلن أن حصيلة الحادث الإجرامي الذي وقع خلال جنازة بمحافظة الكرك بلغت 6 قتلى و28 جريحاً.",
+            "relation": "update",
+            "updates": null,
+            "importance": 1,
+            "essentialClaims": [
+              {
+                "id": "C1",
+                "statement": "الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجرامي الذي وقع خلال جنازة بمحافظة الكرك",
+                "conditions": [],
+                "attribution": null,
+                "uncertainty": null,
+                "temporalStatus": "reported",
+                "time": null,
+                "evidence": [
+                  {
+                    "passages": [
+                      "S2.B1"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1"
+            ],
+            "why": "تغطية عدد القتلى في S1 تم تحديثها بمعلومات رسمية أكثر دقة في S2."
+          },
+          {
+            "sources": [
+              "S3"
+            ],
+            "why": "لا يحتوي على تطورات جديدة أو تفاصيل إضافية عن الإصابات أو الضحايا مقارنة بالتغطية السابقة."
+          }
+        ]
+      },
+      "requestHashes": [
+        "1b3c4a7bb958df9dfee0c9ed8f4cf397472d4a20ca493302ef71e996915b4701"
+      ],
+      "requestChars": [
+        4579
+      ],
+      "mockContractResult": {
+        "calls": 1,
+        "selectedItemCount": 0,
+        "recordFailures": [
+          {
+            "developmentId": "D1",
+            "reason": "INVALID_PRIOR_RELATION",
+            "sourceIds": [
+              "78a8013d-f33c-4c96-a435-8776f78c5f57"
+            ]
+          }
+        ]
+      },
+      "semanticQuality": null
+    }
+  ]
+}

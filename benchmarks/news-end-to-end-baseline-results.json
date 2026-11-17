@@ -1,0 +1,151 @@
+{
+  "mode": "REAL_PAID_LOCAL_SOURCE_TO_BRIEFING_CASE_STUDY",
+  "corpusHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+  "sourceArticles": 3,
+  "sourceClaimMentions": 89,
+  "routes": [
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4.1",
+      "status": "FAILED",
+      "error": "SEMANTIC_EDITORIAL_REJECTED",
+      "usefulBriefing": false,
+      "timeToUsefulBriefingMs": null,
+      "cumulativeActiveWallMs": 203097.96140000003,
+      "elapsedSinceSnapshotImportMs": 971306,
+      "calls": 4,
+      "costUsd": 0.143186,
+      "conservativeReservationsUsd": 0.561674,
+      "inputTokens": 51833,
+      "outputTokens": 4940,
+      "medianResponseAndValidationMs": 7563.389849999989,
+      "billingConfirmationMs": 0,
+      "evaluationScopeWaitMs": 84019.679,
+      "database": {
+        "reads": 366,
+        "writes": 366
+      },
+      "exclusiveTurnHeldMs": 50850.49449999999,
+      "casConflicts": 0,
+      "rejected": [
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "code": "UNDISPOSED_PARENT_FACT"
+        }
+      ],
+      "phases": [
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "calls": 3,
+          "costUsd": 0.075466,
+          "responseAndValidationMs": 21213.361999999972,
+          "billingConfirmationMs": 0
+        },
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "calls": 1,
+          "costUsd": 0.06772,
+          "responseAndValidationMs": 32586.315300000002,
+          "billingConfirmationMs": 0
+        }
+      ],
+      "reachedStages": [
+        "EXISTING_EDITION_LOOKUP",
+        "ACQUISITION_IMPORT",
+        "ARTICLE_SEMANTIC",
+        "CANONICAL_COMMIT",
+        "ARTICLE_LEASE",
+        "SHORTLIST",
+        "EDITORIAL_SELECTION",
+        "BRIEFING_EXCLUSIVE_TURN"
+      ],
+      "qualification": "UNQUALIFIED",
+      "qualityReview": "AI_ASSISTED_PRELIMINARY_NOT_INDEPENDENT_HUMAN_GOLD"
+    },
+    {
+      "provider": "cloudflare",
+      "model": "openai/gpt-4.1",
+      "status": "FAILED",
+      "error": "SEMANTIC_EDITORIAL_REJECTED",
+      "usefulBriefing": false,
+      "timeToUsefulBriefingMs": null,
+      "cumulativeActiveWallMs": 952907.7723000001,
+      "elapsedSinceSnapshotImportMs": 1046531,
+      "calls": 5,
+      "costUsd": 0.22959,
+      "conservativeReservationsUsd": 0.7589840999999999,
+      "inputTokens": 69943,
+      "outputTokens": 11213,
+      "medianResponseAndValidationMs": 7553.784299999999,
+      "billingConfirmationMs": 758136.1701,
+      "evaluationScopeWaitMs": 41015.18109999999,
+      "database": {
+        "reads": 435,
+        "writes": 427
+      },
+      "exclusiveTurnHeldMs": 249198.14429999993,
+      "casConflicts": 0,
+      "rejected": [
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "code": "UNDISPOSED_PARENT_FACT"
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "code": "CONSTRUCTION_CONTRACT_INVALID"
+        }
+      ],
+      "phases": [
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "calls": 3,
+          "costUsd": 0.082094,
+          "responseAndValidationMs": 26344.769900000043,
+          "billingConfirmationMs": 444694.7652000001
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION_REPAIR",
+          "calls": 1,
+          "costUsd": 0.0318,
+          "responseAndValidationMs": 6335.165700000012,
+          "billingConfirmationMs": 160331.1644
+        },
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "calls": 1,
+          "costUsd": 0.115696,
+          "responseAndValidationMs": 61472.34939999999,
+          "billingConfirmationMs": 153110.24049999999
+        }
+      ],
+      "reachedStages": [
+        "EXISTING_EDITION_LOOKUP",
+        "ACQUISITION_IMPORT",
+        "ARTICLE_SEMANTIC",
+        "CANONICAL_COMMIT",
+        "ARTICLE_LEASE",
+        "SHORTLIST",
+        "EDITORIAL_SELECTION",
+        "BRIEFING_EXCLUSIVE_TURN"
+      ],
+      "qualification": "UNQUALIFIED",
+      "qualityReview": "AI_ASSISTED_PRELIMINARY_NOT_INDEPENDENT_HUMAN_GOLD"
+    }
+  ],
+  "accounting": {
+    "calls": 9,
+    "actualCostUsd": 0.372776,
+    "conservativeReservationsUsd": 1.3206581,
+    "unsettledNewOperations": 0,
+    "maxCalls": 24,
+    "maxReservationsUsd": 2.5
+  },
+  "limitations": [
+    "Three saved sources, one cohort per route; no statistical equivalence or production throughput claim.",
+    "Article graphs and downstream questions depend on each route; only acquired source evidence and configured model are matched.",
+    "Harness recovery and serial billing confirmation are included and reported separately; no latency to a useful briefing exists for failed runs.",
+    "Natural compacted schemas admitted direct construction. This run does not qualify real parallel packet reconciliation.",
+    "An orchestration test passing means results were captured, not that a briefing passed publication or quality checks.",
+    "Full source bodies, provider responses and any local editions remain private local artifacts."
+  ]
+}

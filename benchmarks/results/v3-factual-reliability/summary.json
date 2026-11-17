@@ -1,0 +1,90 @@
+{
+  "at": "2026-10-22T04:25:10.894641+00:00",
+  "baseCommit": "2f69242e4bab526db61ae022466b8d78fafa0c3d",
+  "branch": "feat/v3-factual-reliability",
+  "runs": [
+    {
+      "name": "baseline-incorrect",
+      "cases": 4,
+      "falseApprovals": 3,
+      "falseRejections": 0,
+      "missedErrors": 4,
+      "costUsd": 0.0025164,
+      "inputTokens": 6031,
+      "outputTokens": 65,
+      "wallMs": 5150
+    },
+    {
+      "name": "baseline-correct",
+      "cases": 7,
+      "falseApprovals": 0,
+      "falseRejections": 2,
+      "missedErrors": 0,
+      "costUsd": 0.0012996,
+      "inputTokens": 6237,
+      "outputTokens": 189,
+      "wallMs": 4635
+    },
+    {
+      "name": "revised-incorrect",
+      "cases": 4,
+      "falseApprovals": 3,
+      "falseRejections": 0,
+      "missedErrors": 4,
+      "costUsd": 0.0025752,
+      "inputTokens": 6262,
+      "outputTokens": 44,
+      "wallMs": 3280
+    },
+    {
+      "name": "revised-correct",
+      "cases": 7,
+      "falseApprovals": 0,
+      "falseRejections": 2,
+      "missedErrors": 0,
+      "costUsd": 0.0014104,
+      "inputTokens": 6454,
+      "outputTokens": 204,
+      "wallMs": 4238
+    },
+    {
+      "name": "gpt41-incorrect",
+      "cases": 4,
+      "falseApprovals": 3,
+      "falseRejections": 0,
+      "missedErrors": 4,
+      "costUsd": 0.013332,
+      "inputTokens": 6262,
+      "outputTokens": 101,
+      "wallMs": 4541
+    },
+    {
+      "name": "gpt41-correct",
+      "cases": 7,
+      "falseApprovals": 0,
+      "falseRejections": 0,
+      "missedErrors": 0,
+      "costUsd": 0.006196,
+      "inputTokens": 6454,
+      "outputTokens": 97,
+      "wallMs": 3957
+    }
+  ],
+  "accounting": {
+    "at": "2026-10-22T04:22:08.147Z",
+    "sentCalls": 6,
+    "baselineTaskActualUsd": 0.3587004,
+    "taskActualUsd": 0.38602999999999993,
+    "actualAdditionalUsd": 0.027329599999999954,
+    "outstandingUsd": 0,
+    "conservativeExposureUsd": 1.3860299999999999
+  },
+  "limitations": [
+    "No improvement demonstrated in rejection of the retained material errors.",
+    "Fourth incorrect example overlaps the full security item and is marked redundant; this does not demonstrate attribution checking.",
+    "One full-security corrected control retains an arguable metric generalization (distillation attacks versus data harvested). Its revised-mini fix is disputed, not a certain false rejection.",
+    "Single batched diagnostic per setting; not a broad quality estimate.",
+    "No real repair was invoked because neither mini verifier run returned fix on incorrect examples. Sparse repair flow tested offline.",
+    "No deployment or routing change."
+  ]
+}

@@ -1,0 +1,378 @@
+{
+  "schema": "editor-source-selection-qualification-v1",
+  "date": "2026-11-14",
+  "evidenceType": "retained_real_public_sources",
+  "publication": "qualification only; outputs never published",
+  "gold": "manual same-development supporting/non-supporting labels; narrow test set, not a general factual truth benchmark",
+  "models": {
+    "editor": "openai/gpt-4.1",
+    "verifier": "openai/gpt-4.1-mini"
+  },
+  "limitations": [
+    "Curated retained subsets, not a production cost or latency benchmark.",
+    "Provider caching differs between arms.",
+    "External D1 transport, contention, and continuation affect wall time.",
+    "Initial cross-chunk candidate missed a short supporting report and was rejected.",
+    "Second candidate preserved sources but was suppressed by novelty; it was rejected.",
+    "Final partial-draft and concise consolidation changes were qualified before deployment.",
+    "Old near-miss replay encountered ordinary admission contention; only the final controlled new-path result is reported for that case."
+  ],
+  "evidence": [
+    {
+      "id": "07f3eb44-9791-4620-9aba-6c0a04456dc4",
+      "url": "https://www.aljazeera.com/video/newsfeed/2026/11/12/manchester-united-sacked-manager-michael-carrick?traffic_source=rss",
+      "publishedAt": "2026-11-12T15:21:43.000Z",
+      "sha256": "4c4f224c800daacba5a7d5efcb621de945fd3ba322b4e4349958a37771de41cd"
+    },
+    {
+      "id": "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+      "url": "https://x.com/i/status/2121299521561076059",
+      "publishedAt": "2026-11-13T17:49:52.000Z",
+      "sha256": "37dc44cee6a3bbf7745defbcd0be6a2d258ac7c0d75b93a1b3efba75e2b87c9c"
+    },
+    {
+      "id": "419a0a72-9aad-4cb1-b9b5-808d05337fb8",
+      "url": "https://x.com/i/status/2120606387738968572",
+      "publishedAt": "2026-11-11T19:55:36.000Z",
+      "sha256": "09add653485a3c1a13c0b99887b927b31fbd6f764917f1ba6b3255f19fcfa459"
+    },
+    {
+      "id": "600555e4-4c4d-42c8-a8fa-4dfb5b67673c",
+      "url": "https://x.com/i/status/2121150441048408429",
+      "publishedAt": "2026-11-13T07:57:28.000Z",
+      "sha256": "00f51c8f4392bfcf2ff827e2899711a53095f34161d42efc761ede73bb563a90"
+    },
+    {
+      "id": "dc153c15-c3e9-4094-9b7d-0b80aabaaa31",
+      "url": "https://x.com/i/status/2121292244884041742",
+      "publishedAt": "2026-11-13T17:20:57.000Z",
+      "sha256": "5776fc4a9ce982d78c3dc303e79ed79f444301b1f270599cce17fac90664e29e"
+    },
+    {
+      "id": "e0f6dd7b-8dc1-4aba-bde6-340469861649",
+      "url": "https://x.com/i/status/2121223778286141709",
+      "publishedAt": "2026-11-13T12:48:53.000Z",
+      "sha256": "4c1ea7e7d2d111e3d9c2a8f7f8c99ae6b17c9ae34b9b786304f6203404bf0689"
+    }
+  ],
+  "results": {
+    "multi_outlet_old": {
+      "summary": {
+        "case": "electricity-multi-outlet",
+        "arm": "legacy",
+        "qualificationOnly": true,
+        "sourceIds": [
+          "07f3eb44-9791-4620-9aba-6c0a04456dc4",
+          "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+          "dc153c15-c3e9-4094-9b7d-0b80aabaaa31"
+        ],
+        "positive": [
+          "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+          "dc153c15-c3e9-4094-9b7d-0b80aabaaa31"
+        ],
+        "negative": [
+          "07f3eb44-9791-4620-9aba-6c0a04456dc4"
+        ],
+        "status": "published",
+        "itemCount": 1,
+        "missing": [],
+        "unrelated": [],
+        "sourceRecall": 1,
+        "citationPrecision": 1,
+        "latencyMs": 185165,
+        "usage": {
+          "calls": 4,
+          "inputTokens": 6765,
+          "outputTokens": 238,
+          "costUsd": 0.0117268
+        },
+        "stages": {
+          "edit": 75151,
+          "novelty": 24974,
+          "source_coverage": 33845,
+          "verify": 45389
+        },
+        "sourceAuditCalls": 1,
+        "headlines": [
+          "Lebanese government approves electricity sector plan and continues talks with Qatar"
+        ]
+      },
+      "items": [
+        {
+          "headline": "Lebanese government approves electricity sector plan and continues talks with Qatar",
+          "body": "Justice Minister Adel Nassar said after a cabinet session that the government approved an electricity sector plan and will continue consultations with the Qatari side.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "dc153c15-c3e9-4094-9b7d-0b80aabaaa31",
+            "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c"
+          ]
+        }
+      ],
+      "dropped": [],
+      "operationIds": [
+        "6f07ef4403a8762207fa1f8f09c5658badff5d88cff119614a2bff5ea8a7b42c",
+        "18ed5d202a2e5fb78e1d0b9ed858acd9ce55ade2fce96e76933b3527395ec769",
+        "fdc4d7ac69e2eb30f460fe50ee7a1a4a0848e853d1bc044d49f645d1e4bd5d57",
+        "a56caff5a7bbae1395b94a3cfc5c821b76fbf83a4e2dcd15aab419488312e1fd"
+      ]
+    },
+    "multi_outlet_new": {
+      "summary": {
+        "case": "electricity-multi-outlet",
+        "arm": "editor",
+        "qualificationOnly": true,
+        "externalD1Transport": true,
+        "transportContinuations": 1,
+        "continuationRequired": true,
+        "sourceIds": [
+          "07f3eb44-9791-4620-9aba-6c0a04456dc4",
+          "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+          "dc153c15-c3e9-4094-9b7d-0b80aabaaa31"
+        ],
+        "positive": [
+          "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+          "dc153c15-c3e9-4094-9b7d-0b80aabaaa31"
+        ],
+        "negative": [
+          "07f3eb44-9791-4620-9aba-6c0a04456dc4"
+        ],
+        "status": "published",
+        "itemCount": 1,
+        "missing": [],
+        "unrelated": [],
+        "sourceRecall": 1,
+        "citationPrecision": 1,
+        "latencyMs": 279896,
+        "usage": {
+          "calls": 3,
+          "inputTokens": 6496,
+          "outputTokens": 155,
+          "costUsd": 0.009836800000000001
+        },
+        "stages": {
+          "edit": 2072,
+          "novelty": 41802,
+          "verify": 18722
+        },
+        "sourceDecisions": 3,
+        "sourceAuditCalls": 0,
+        "headlines": [
+          "Lebanese government approves electricity sector plan and will continue talks with Qatar"
+        ]
+      },
+      "items": [
+        {
+          "headline": "Lebanese government approves electricity sector plan and will continue talks with Qatar",
+          "body": "Justice Minister Adel Nassar said after a cabinet session that the government approved an electricity sector plan and will continue consultations with the Qatari side.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "dc153c15-c3e9-4094-9b7d-0b80aabaaa31",
+            "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c"
+          ]
+        }
+      ],
+      "dropped": [],
+      "operationIds": [
+        "b3e2cff1527cd90cb5ca840e20607d25bfb321933a82ab2c157fc3145c601634",
+        "0bfc49fbe24aa1bc2cbd7eb39006d1f91bb764de3d71b56ef2c5b148d016ce34",
+        "0b01487c2b850df3c61831f79fbac5442174400c5216ec7b3986b805b2c16c00"
+      ]
+    },
+    "cross_chunk_old": {
+      "summary": {
+        "case": "electricity-cross-chunk",
+        "arm": "legacy",
+        "qualificationOnly": true,
+        "sourceIds": [
+          "07f3eb44-9791-4620-9aba-6c0a04456dc4",
+          "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+          "dc153c15-c3e9-4094-9b7d-0b80aabaaa31"
+        ],
+        "positive": [
+          "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+          "dc153c15-c3e9-4094-9b7d-0b80aabaaa31"
+        ],
+        "negative": [
+          "07f3eb44-9791-4620-9aba-6c0a04456dc4"
+        ],
+        "status": "published",
+        "itemCount": 1,
+        "missing": [],
+        "unrelated": [],
+        "sourceRecall": 1,
+        "citationPrecision": 1,
+        "latencyMs": 174478,
+        "usage": {
+          "calls": 8,
+          "inputTokens": 11411,
+          "outputTokens": 253,
+          "costUsd": 0.018246000000000002
+        },
+        "stages": {
+          "edit": 77184,
+          "novelty": 39562,
+          "source_coverage": 37572,
+          "verify": 18554
+        },
+        "sourceAuditCalls": 3,
+        "headlines": [
+          "Lebanese government approves electricity plan and will continue talks with Qatar"
+        ]
+      },
+      "items": [
+        {
+          "headline": "Lebanese government approves electricity plan and will continue talks with Qatar",
+          "body": "Justice Minister Adel Nassar said after a cabinet session that the government approved an electricity plan and agreed to continue consultations with Qatar.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "dc153c15-c3e9-4094-9b7d-0b80aabaaa31",
+            "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c"
+          ]
+        }
+      ],
+      "dropped": [],
+      "operationIds": [
+        "6c3ca1583137d754a392014ca853353696a76fc879c57afd175246a29f44f0bf",
+        "6e7d9774afa64d43f07b943246c25d8aeb9b307ce25070b7c29cdaced40a8d57",
+        "b9f142e2f1e8d8c0cdd26841e24adbfdf336237e2418174d5a9bb12441828a0a",
+        "543b938bce01a7b85c5a38d62faef5bbcf0633baa518527d8c66b0871538a6bd",
+        "94a60de7177ef2c59efaad35cf59e24760eebde2517e56a57b29cb624f4dd244",
+        "30a92d63e3d0aed1003e8a5f8962bf353bb9f4a045e74bd8ab99feeae9e3822c",
+        "5e2ba59fc772671fd69cdca22b4c91c779a5d931e17a36456147a3852fd3682f",
+        "f95fff343a20cab02e823223e7996a0e424f7f1381e86cf8a27a0d37e9788612"
+      ]
+    },
+    "cross_chunk_new": {
+      "summary": {
+        "case": "electricity-cross-chunk",
+        "arm": "editor",
+        "qualificationOnly": true,
+        "externalD1Transport": true,
+        "transportContinuations": 0,
+        "continuationRequired": false,
+        "sourceIds": [
+          "07f3eb44-9791-4620-9aba-6c0a04456dc4",
+          "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+          "dc153c15-c3e9-4094-9b7d-0b80aabaaa31"
+        ],
+        "positive": [
+          "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c",
+          "dc153c15-c3e9-4094-9b7d-0b80aabaaa31"
+        ],
+        "negative": [
+          "07f3eb44-9791-4620-9aba-6c0a04456dc4"
+        ],
+        "status": "published",
+        "itemCount": 1,
+        "missing": [],
+        "unrelated": [],
+        "sourceRecall": 1,
+        "citationPrecision": 1,
+        "latencyMs": 157737,
+        "usage": {
+          "calls": 6,
+          "inputTokens": 12741,
+          "outputTokens": 315,
+          "costUsd": 0.0116868
+        },
+        "stages": {
+          "edit": 9946,
+          "consolidate": 11555,
+          "novelty": 53524,
+          "verify": 28557
+        },
+        "sourceDecisions": 3,
+        "sourceAuditCalls": 0,
+        "headlines": [
+          "Government approves electricity plan, to continue talks with Qatar"
+        ]
+      },
+      "items": [
+        {
+          "headline": "Government approves electricity plan, to continue talks with Qatar",
+          "body": "Justice Minister Adel Nassar stated after a cabinet session that the government approved an electricity plan and will continue consultations with the Qatari side. The session reportedly addressed an integrated plan for Lebanon's electricity sector.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "dc153c15-c3e9-4094-9b7d-0b80aabaaa31",
+            "36ad0f06-6ba0-4a92-ad1c-d1f746fdff1c"
+          ]
+        }
+      ],
+      "dropped": [],
+      "operationIds": [
+        "e893b405f58cda1f341a71fc3881fe1b6031b54d22514a6aa65a9e3e89867e34",
+        "90229c720e610c2c59afe9439ed4f11bf7ed93a353ac4f62c515bb3b39837e79",
+        "6ad69ca2124f1f72df11c6a1159e156f7d9d458adc773d25ea6bd147182fcaa9",
+        "b6c1f6e77fd424fa53a30b78a600d165bbdd2a244dd2ced5dcd0ce87eef3397c",
+        "0828bd58b5f3a07bf0ef81dc997ac68d0d208c469352e7dcb9a94e512b80348a",
+        "df7e258daf912cea0fade7f687c45263900453fa3135244ea563926573ed3e07"
+      ]
+    },
+    "near_miss_new": {
+      "summary": {
+        "case": "russia-near-miss-controls",
+        "arm": "editor",
+        "qualificationOnly": true,
+        "externalD1Transport": true,
+        "transportContinuations": 2,
+        "continuationRequired": true,
+        "sourceIds": [
+          "419a0a72-9aad-4cb1-b9b5-808d05337fb8",
+          "600555e4-4c4d-42c8-a8fa-4dfb5b67673c",
+          "e0f6dd7b-8dc1-4aba-bde6-340469861649"
+        ],
+        "positive": [
+          "e0f6dd7b-8dc1-4aba-bde6-340469861649"
+        ],
+        "negative": [
+          "419a0a72-9aad-4cb1-b9b5-808d05337fb8",
+          "600555e4-4c4d-42c8-a8fa-4dfb5b67673c"
+        ],
+        "status": "published",
+        "itemCount": 1,
+        "missing": [],
+        "unrelated": [],
+        "sourceRecall": 1,
+        "citationPrecision": 1,
+        "latencyMs": 109075,
+        "usage": {
+          "calls": 3,
+          "inputTokens": 6632,
+          "outputTokens": 192,
+          "costUsd": 0.0087168
+        },
+        "stages": {
+          "edit": 28250,
+          "novelty": 11432,
+          "verify": 25403
+        },
+        "sourceDecisions": 3,
+        "sourceAuditCalls": 0,
+        "headlines": [
+          "Lebanon repatriates prisoner from Russia after two years of efforts"
+        ]
+      },
+      "items": [
+        {
+          "headline": "Lebanon repatriates prisoner from Russia after two years of efforts",
+          "body": "",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "e0f6dd7b-8dc1-4aba-bde6-340469861649"
+          ]
+        }
+      ],
+      "dropped": [],
+      "operationIds": [
+        "f4368f25fefe1dbd8fc8309056146dd84a3d9dd9e3bccaa808c88eb64fc4370e",
+        "dd34cd15178d5c29b6a98a51f4b0e29bd34e6b59c4be7c5bff14ad820aab0fa5",
+        "2f993c1f318dd734695ed2d63cb61356f9951918b3e750d0e4d561fabe837ba5"
+      ]
+    }
+  }
+}

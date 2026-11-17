@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-22",
+  "branch": "feat/parallel-cloudflare-event-reconciliation",
+  "baseCommit": "01f854c8ea96a0469d168063facc887fe861df52",
+  "mode": "offline local D1 with mocked provider responses",
+  "paidCalls": 0,
+  "actualProviderCostUsd": 0,
+  "deploymentChanged": false,
+  "runtimeConfigurationChanged": false,
+  "validation": {
+    "newIntegrationTests": 11,
+    "existingRegressionTests": 108,
+    "workerTypecheck": "passed",
+    "regressionRun": {
+      "passed": 106,
+      "timedOut": 2
+    },
+    "targetedTimeoutRecheck": {
+      "passed": 2,
+      "assertionsChanged": false,
+      "localD1TimeoutSeconds": [
+        60,
+        30
+      ]
+    },
+    "observationCutoffRecheck": "passed using immutable intake observations"
+  },
+  "covered": [
+    "first full reporting window",
+    "pre-deadline mechanical preparation",
+    "fixed delayed window",
+    "oldest runnable request priority",
+    "initial backlog isolation",
+    "late discovery with original publication time",
+    "observation before close with acquisition after close",
+    "no semantic preprocessing for new V3 evidence",
+    "no calls on empty window",
+    "publication and citation readback",
+    "next-window reader memory",
+    "duplicate delivery",
+    "settled operation replay after crash",
+    "uncertain operation hold preservation",
+    "source revocation fencing"
+  ],
+  "limitations": [
+    "No live unattended timing measurement or new model quality evaluation",
+    "V3 reader memory uses published editions; automatic reverse migration into the V2 canonical event graph is not qualified",
+    "Mechanical preparation does not run paid editor calls before close"
+  ]
+}

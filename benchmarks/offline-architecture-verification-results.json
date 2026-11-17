@@ -1,0 +1,69 @@
+{
+  "mode": "OFFLINE_ARCHITECTURE_FOLLOWUP",
+  "paidProviderCalls": 0,
+  "remoteFinancialWrites": 0,
+  "deployment": false,
+  "broadInitialBatch": {
+    "passed": 100,
+    "failed": 2,
+    "note": "Two new red regressions were loaded after the old implementation was cached; fixed and rerun in final focused batch.",
+    "failures": [
+      "rejects same-occurrence links outside merged membership rather than silently discarding them",
+      "merges explicitly identified fragments of one correction while retaining its antecedent link"
+    ]
+  },
+  "finalFocusedBatch": {
+    "passed": 12,
+    "failed": 0
+  },
+  "finalOfflineBenchmarks": {
+    "passed": 3,
+    "failed": 0
+  },
+  "workspaceTypechecks": [
+    {
+      "project": "contracts",
+      "exit": 0
+    },
+    {
+      "project": "core",
+      "exit": 0
+    },
+    {
+      "project": "connectors",
+      "exit": 0
+    },
+    {
+      "project": "agent-runtime",
+      "exit": 0
+    },
+    {
+      "project": "browser-bridge",
+      "exit": 0
+    },
+    {
+      "project": "web",
+      "exit": 0
+    },
+    {
+      "project": "worker",
+      "exit": 0
+    }
+  ],
+  "review": {
+    "reviewer": "architecture_review",
+    "finding": "Correction/update fragments could not merge and retain an antecedent link",
+    "resolution": "Explicit same-occurrence merge intent separate from outgoing relation; red/green correction-fragment regression"
+  },
+  "historicalV2Replay": {
+    "cases": 12,
+    "currentUnresolved": 12,
+    "reason": "Old saved verdicts lack required factual-support flags, also required at feature base",
+    "freshModelQualification": false
+  },
+  "limitations": [
+    "Test batches overlap; counts must not be summed as unique.",
+    "Synthetic latency and fixture receipts do not establish real provider quality/cost.",
+    "Private V2 publication artifacts are hash-checked, not republished."
+  ]
+}

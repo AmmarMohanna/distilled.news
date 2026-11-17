@@ -1,0 +1,178 @@
+{
+  "mode": "OFFLINE_REDUCTION_OF_FROZEN_REAL_PROVIDER_VERDICTS",
+  "model": "openai/gpt-4.1-mini",
+  "provider": "OPENROUTER",
+  "paidProviderCalls": 0,
+  "newProviderCostUsd": 0,
+  "independentHumanGold": 0,
+  "sourceSha256": "8f2d8aad415a6776b743b53dc9122ced143c206e1d1a72aa7aba4d6cb106712d",
+  "cases": [
+    {
+      "id": "T01",
+      "expected": "POSITIVE",
+      "historicalDecision": "ACCEPT",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "e1d002592a0bb1a8ec0527d2b780c616bc18d54173f7dad1f2b916951d6c1123"
+    },
+    {
+      "id": "T02",
+      "expected": "POSITIVE",
+      "historicalDecision": "ACCEPT",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "182889ce1634f7d447134f97c3641aece26e58006a1d9cafc61bebdeba628f2c"
+    },
+    {
+      "id": "T05",
+      "expected": "POSITIVE",
+      "historicalDecision": "UNRESOLVED",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "CLAIM_NOT_ENTAILED",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "1c6fb92cafbcca04c241b52b83a63e7043c2257c9b37b8a07cb3fc289e797b3f"
+    },
+    {
+      "id": "T10",
+      "expected": "POSITIVE",
+      "historicalDecision": "ACCEPT",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "167b9fc01b76032df63ce09ab277805ab8abd03d734c7bd641e440b310c6dfb9"
+    },
+    {
+      "id": "T18",
+      "expected": "POSITIVE",
+      "historicalDecision": "ACCEPT",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "7567c5dde79e0a71fe261bea7d2946754690d30d0996cfafa70216086575e40b"
+    },
+    {
+      "id": "T21",
+      "expected": "POSITIVE",
+      "historicalDecision": "ACCEPT",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "beb90ebab89657138afed3c6632f1e675de691ee7f480908422903d248744f42"
+    },
+    {
+      "id": "T03",
+      "expected": "NEGATIVE",
+      "historicalDecision": "UNRESOLVED",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "5ddb6c0e16d2cc4b401accf898db3ae631f43055088223b597b4d1b7fd3897f1"
+    },
+    {
+      "id": "T04",
+      "expected": "NEGATIVE",
+      "historicalDecision": "UNRESOLVED",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "CLAIM_NOT_ENTAILED",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "702d601eb5c7b264763b6c326c654171a4bde2b4d61b3a48855e30e7f9b43b39"
+    },
+    {
+      "id": "T06",
+      "expected": "NEGATIVE",
+      "historicalDecision": "UNRESOLVED",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "CLAIM_NOT_ENTAILED",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "4585a16b3c5a169a86b54eb92455ecef068a37ab9ef6df31ccf1c89800185985"
+    },
+    {
+      "id": "T08",
+      "expected": "NEGATIVE",
+      "historicalDecision": "UNRESOLVED",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "CLAIM_NOT_ENTAILED",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "0044956ac8fa6163ebf1a72d53b79249b4c1758b35a43cd5e2b73ca9adc1203f"
+    },
+    {
+      "id": "T16",
+      "expected": "NEGATIVE",
+      "historicalDecision": "UNRESOLVED",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "CLAIM_NOT_ENTAILED",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "a8453dfab4e5bfd2a856b0d48988450e53e1f6df232b6afddea8c070e174ec7b"
+    },
+    {
+      "id": "T24",
+      "expected": "NEGATIVE",
+      "historicalDecision": "UNRESOLVED",
+      "replayedDecision": "UNRESOLVED",
+      "missingCurrentVerdictFields": true,
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "CLAIM_NOT_ENTAILED",
+        "INVALID_FACT_VERDICT"
+      ],
+      "invalidAccept": false,
+      "questionHash": "a592a1d938b39c5082dc06818daccba17db4f2b9ec9190d707bf7e75f52e604b"
+    }
+  ],
+  "limitations": [
+    "Reuses historical model answers; does not test fresh inference or qualify Cloudflare.",
+    "Older saved verdicts missing sourceSupported/readerEntailsProposition remain UNRESOLVED under both the feature base and current V2 contract; no missing flags are fabricated.",
+    "Historical private-publication ACCEPT artifacts are separately hash checked; this corpus replays its own frozen controlled V2 questions."
+  ]
+}

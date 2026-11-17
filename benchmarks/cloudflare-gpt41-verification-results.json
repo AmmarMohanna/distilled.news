@@ -1,0 +1,30 @@
+{
+    "scope":  "Cloudflare unified GPT-4.1 routing and matched comparison",
+    "regressionBatch":  {
+                            "passed":  42,
+                            "failed":  0
+                        },
+    "finalFocusedRerun":  {
+                              "note":  "Overlaps regression batch; run after preserving Cloudflare-specific failure codes",
+                              "failed":  0,
+                              "passed":  23
+                          },
+    "comparisonOffline":  {
+                              "liveExecutorSkipped":  1,
+                              "failed":  0,
+                              "passed":  5
+                          },
+    "typechecks":  {
+                       "strongRouteBenchmarks":  "passed",
+                       "worker":  "passed"
+                   },
+    "review":  {
+                   "resolution":  "Added failing regression and require complete matched evidence across requested routes",
+                   "finding":  "Partial comparison could recommend a winner before competitor measurements completed"
+               },
+    "freshPaidCalls":  0,
+    "qualifiedCloudflarePublicationTasks":  [
+
+                                            ],
+    "realComparisonStatus":  "Blocked; see CLOUDFLARE_GPT41_COMPARISON.md"
+}

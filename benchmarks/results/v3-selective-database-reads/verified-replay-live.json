@@ -1,0 +1,68 @@
+{
+  "at": "2026-10-28T22:28:40.846Z",
+  "runtimeCommit": "82a9e7b",
+  "deployment": "f9626179-9bfa-4ea1-b448-73b07c9bfa13",
+  "worker": "distilled-news-staging",
+  "verification": {
+    "at": "2026-10-28T22:25:55.806Z",
+    "worker": "distilled-news-staging",
+    "version": "f9626179-9bfa-4ea1-b448-73b07c9bfa13",
+    "traffic": 100,
+    "enabled": true,
+    "otherBindingsAndSecretsPreserved": true,
+    "queuesUnchanged": true,
+    "schemaMigration": 80,
+    "manualPaidCalls": 0,
+    "manualNotificationsSent": 0,
+    "checks": [
+      {
+        "path": "/",
+        "status": 200,
+        "exactBuildMatch": true
+      },
+      {
+        "path": "/assets/index-_zNxE0mU.js",
+        "status": 200,
+        "exactBuildMatch": true
+      },
+      {
+        "path": "/assets/index-YWCHjz8v.css",
+        "status": 200,
+        "exactBuildMatch": true
+      },
+      {
+        "path": "/sw.js",
+        "status": 200,
+        "exactBuildMatch": true
+      },
+      {
+        "path": "/logo.svg",
+        "status": 200,
+        "exactBuildMatch": true
+      },
+      {
+        "feed": "lebanon-news",
+        "status": 200,
+        "summaryAvailable": true,
+        "editions": 81
+      },
+      {
+        "feed": "lebanon-news2",
+        "status": 200,
+        "summaryAvailable": true,
+        "editions": 88
+      },
+      {
+        "path": "unread-summary signed-out request",
+        "status": 401
+      }
+    ]
+  },
+  "canonicalEvidenceUnchanged": true,
+  "newObservationCount": 0,
+  "exceptionMarkers": 0,
+  "result": "DEPLOYED_SMOKE_PASS_EXCEPTION_NOT_YET_EXERCISED",
+  "manualPaidCalls": 0,
+  "manualQuarantineResolutions": 0,
+  "protectedFinancialSnapshotUnchanged": true
+}

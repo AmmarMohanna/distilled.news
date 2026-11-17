@@ -1,0 +1,16 @@
+{
+  "extends": "../apps/worker/tsconfig.json",
+  "include": [
+    "news-end-to-end.ts",
+    "news-end-to-end.vitest.config.ts",
+    "../apps/worker/worker-configuration.d.ts",
+    "news-evaluation-transport.ts",
+    "news-end-to-end*.test.ts"
+  ],
+  "compilerOptions": {
+    "types": [
+      "../apps/worker/node_modules/@cloudflare/workers-types",
+      "node"
+    ]
+  }
+}

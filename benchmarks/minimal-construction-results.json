@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "minimal-claim-disposition-v1",
+  "mode": "OFFLINE_NO_PROVIDER_CALLS",
+  "paidCalls": 0,
+  "newPaidCostUsd": 0,
+  "sourceUnits": 9,
+  "previous": {
+    "schemaVersion": "claim-disposition-v1",
+    "inputBytes": 16703,
+    "reservationUpperUsd": 0.019788399999999998,
+    "actualSavedCalls": [
+      {
+        "id": "ec79fe81000bc534165095cf5c7ed7a100aefbd9fb10a84fec6c3b49e32e1348",
+        "costUsd": 0.0026536,
+        "tokensIn": 4114,
+        "tokensOut": 630,
+        "modelCallbackMs": 7641
+      },
+      {
+        "id": "8c14a5f40be3b7c804ea75fbf9222b503d0493ab474f8e4fb40ef6c757826c65",
+        "costUsd": 0.0031432,
+        "tokensIn": 5338,
+        "tokensOut": 630,
+        "modelCallbackMs": 7010
+      }
+    ],
+    "actualSavedResponseBytes": 2290,
+    "controlledValidResponseBytes": 1536,
+    "transportCpu": {
+      "samples": 100,
+      "p50Ms": 0.19459999999980937,
+      "p95Ms": 0.5949999999997999
+    }
+  },
+  "minimal": {
+    "inputBytes": 13332,
+    "reservationUpperUsd": 0.018439999999999998,
+    "controlledResponseBytes": 1068,
+    "transportCpu": {
+      "samples": 100,
+      "p50Ms": 0.08210000000008222,
+      "p95Ms": 0.2496000000001004
+    },
+    "actualProviderLatencyMs": null,
+    "actualProviderCostUsd": null,
+    "actualProviderTokens": null,
+    "maximumConstructionCalls": 2,
+    "additionalInferenceStages": 0
+  },
+  "requestByteReductionFraction": 0.20182003232952161,
+  "controlledResponseByteReductionFraction": 0.3046875,
+  "limitations": [
+    "Both CPU samples are controlled local transport decoding, not complete construction, DB, model or publication latency.",
+    "Projected saved output is a structural fixture, not a compatible provider verdict or grouping-quality label.",
+    "Output bytes cannot establish tokenizer-specific savings or actual provider acceptance.",
+    "One repair remains the maximum; no prediction that it will be unnecessary."
+  ]
+}

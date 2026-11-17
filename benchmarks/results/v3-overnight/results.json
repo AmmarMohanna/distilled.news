@@ -1,0 +1,536 @@
+{
+  "evaluatedAt": "2026-10-21T22:37:49.529490+00:00",
+  "branch": "feat/parallel-cloudflare-event-reconciliation",
+  "initialRevision": "ec0ecce5d6e8ca0f62ced9c5cff4c72bb3122462",
+  "initialStagingRevision": "f7bb73e",
+  "correctedStagingRevision": "ff43f53",
+  "models": {
+    "editor": "openai/gpt-4.1",
+    "verifier": "openai/gpt-4.1-mini"
+  },
+  "parameters": {
+    "temperature": 0.1,
+    "editorMaxTokens": 4000,
+    "verifierMaxTokens": 3000,
+    "repairMaxTokens": 3000,
+    "consolidateMaxTokens": 4000
+  },
+  "inferenceActualUsd": 0.3587004,
+  "paidCalls": 31,
+  "outstandingReservationsUsd": 0,
+  "cloudflareActualCost": "Not yet billed; $1 conservative exposure reserved",
+  "cases": [
+    {
+      "name": "stage-a",
+      "articles": 3,
+      "rawChars": 11388,
+      "windowStart": "2026-10-16T00:00:00.000Z",
+      "windowEnd": "2026-10-20T00:00:00.000Z",
+      "status": 200,
+      "wallMs": 30019.51050000009,
+      "processingMs": 25141,
+      "editionId": "4e48077692f3d563f2b6bc7d5c64abfeb3d9d6276c959e67369e0343890b4557",
+      "offeredArticles": 3,
+      "priorItems": 0,
+      "engineTimings": {
+        "totalMs": 20775,
+        "stages": {
+          "edit": 7554,
+          "verify": 8199,
+          "repair": 5022
+        }
+      },
+      "usage": {
+        "calls": 4,
+        "inputTokens": 10292,
+        "outputTokens": 799,
+        "costUsd": 0.019167999999999998
+      },
+      "items": [
+        {
+          "headline": "Replit makes OpenAI its default AI partner, reducing reliance on Anthropic",
+          "body": "Replit CEO Amjad Masad said on October 16 that the company has made OpenAI its default AI partner, citing cost, performance, and partnership factors. While Anthropic models remain available, most users are expected to use the default, likely reducing Replit's spend with Anthropic. Masad stated that enterprise contracts now make up about 15% of Replit's revenue, up from 2% last year, and expects more than half of revenue to come from enterprise and government customers in 2027. Insiders disputed that the Anthropic partnership has ended, and recent Replit materials still promote Anthropic models.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "f7e3fb76-a76f-40b0-9004-e150b9fa6989"
+          ]
+        }
+      ],
+      "dropped": [
+        {
+          "headline": "Laplace Intelligence develops AI-driven red-teaming for robotics and autonomous vehicles",
+          "reason": "could not be repaired: founded in 2025 -> founded a year ago (from 2026, so 2025 is implied but not explicitly stated in sources)",
+          "carry": true,
+          "sourceIds": [
+            "cf96d080-bb5f-4b32-a8e1-c58f05dab567"
+          ]
+        },
+        {
+          "headline": "Laplace Intelligence develops AI-driven red-teaming for robotics and autonomous vehicles",
+          "reason": "Laplace Intelligence and its activities -> not mentioned in source S2",
+          "carry": true,
+          "sourceIds": [
+            "8e5c0802-9ff3-47cb-885a-0a8c25be0b92"
+          ]
+        }
+      ],
+      "omitted": [],
+      "state": "PUBLISHED"
+    },
+    {
+      "name": "stage-b",
+      "articles": 4,
+      "rawChars": 14763,
+      "windowStart": "2026-10-17T00:00:00.000Z",
+      "windowEnd": "2026-10-18T04:00:00.000Z",
+      "status": 200,
+      "wallMs": 21612.79830000014,
+      "processingMs": 15288,
+      "editionId": "fd93a76ac1afbf4e9c1c3ff3b753c20b998811459a61793647ce97aa0d601e7c",
+      "offeredArticles": 4,
+      "priorItems": 0,
+      "engineTimings": {
+        "totalMs": 11157,
+        "stages": {
+          "edit": 7138,
+          "verify": 4019
+        }
+      },
+      "usage": {
+        "calls": 2,
+        "inputTokens": 8811,
+        "outputTokens": 577,
+        "costUsd": 0.015166
+      },
+      "items": [
+        {
+          "headline": "Trump suspends major Russia sanctions for 60 days, drawing criticism from Congress and Ukraine",
+          "body": "US President Donald Trump issued an executive order suspending several Russia sanctions for 60 days, two days before they were due to take effect. The sanctions, passed by Congress and signed into law in September, targeted Russian oil and gas exports, senior officials, financial institutions, and the 'shadow fleet.' Secretary of State Marco Rubio said the pause is to analyse the global economic impact. The move was criticised by both Republican and Democratic lawmakers, and Ukrainian President Volodymyr Zelensky called it a disregard for Ukraine. Russia welcomed the decision. Zelensky expects further US sanctions relief for Russia and has called for Europe to negotiate directly with Moscow. The US recently struck a deal to import Russian diesel, further straining US-Ukraine relations.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "5a26c123-4346-4dd5-bf14-414fcffd481d",
+            "d348910e-6212-4088-b3fc-6d68bd194423"
+          ]
+        },
+        {
+          "headline": "Ukrainian drone attack causes fires and explosions in St. Petersburg",
+          "body": "A large-scale Ukrainian drone attack targeted St. Petersburg overnight on October 18, with eyewitness footage showing explosions and fires near the city's port. Russian officials reported 57 drones shot down, with debris damaging vehicles and a fire reported. Ukrainian monitoring channels claimed port infrastructure, oil tankers, and a data center were targeted, but the extent of the damage is unverified. The St. Petersburg Oil Terminal, a major fuel export facility, was reportedly among the targets.",
+          "relation": "new",
+          "importance": 2,
+          "sourceIds": [
+            "b98aeb8a-b006-44ed-9d52-8859302f7779"
+          ]
+        },
+        {
+          "headline": "Kromberg & Schubert plant in Lutsk halts operations after Russian drone attack",
+          "body": "The Kromberg & Schubert electrical wiring plant in Lutsk, Ukraine, stopped operations following a Russian drone attack on October 16. The German-owned facility, employing 5,500 workers, supplies wiring systems for major automakers. The company is assessing the situation and has not provided a timeline for resuming work.",
+          "relation": "new",
+          "importance": 3,
+          "sourceIds": [
+            "b0869287-d4b3-4e78-82b7-a5e6796f59d3"
+          ]
+        }
+      ],
+      "dropped": [],
+      "omitted": [
+        {
+          "stage": "editor",
+          "reason": "substantially overlaps with S1 on sanctions waiver and political fallout",
+          "sourceIds": [
+            "d348910e-6212-4088-b3fc-6d68bd194423"
+          ]
+        }
+      ],
+      "state": "PUBLISHED"
+    },
+    {
+      "name": "stage-c1",
+      "articles": 2,
+      "rawChars": 8369,
+      "windowStart": "2026-10-17T00:00:00.000Z",
+      "windowEnd": "2026-10-18T01:30:00.000Z",
+      "status": 200,
+      "wallMs": 17259.277200000128,
+      "processingMs": 13673,
+      "editionId": "d4ebecc715f1d2ca65ceeaef1fd375a7fcd5620fa69728d9e493c6e575a90ca1",
+      "offeredArticles": 2,
+      "priorItems": 0,
+      "engineTimings": {
+        "totalMs": 9710,
+        "stages": {
+          "edit": 5833,
+          "verify": 3877
+        }
+      },
+      "usage": {
+        "calls": 2,
+        "inputTokens": 5668,
+        "outputTokens": 386,
+        "costUsd": 0.0100336
+      },
+      "items": [
+        {
+          "headline": "Trump suspends several Russia sanctions amid dispute with Ukraine",
+          "body": "US President Donald Trump issued an executive order suspending several Russia sanctions for 60 days, two days before they were due to take effect. The sanctions, passed by Congress and signed into law in September, targeted Russian oil and gas exports, senior officials, financial institutions, and vessels used to evade embargoes. Secretary of State Marco Rubio said the pause is to analyse the global economic impact. The move drew criticism from US lawmakers and Ukrainian President Volodymyr Zelensky, who said the sanctions could have pressured Russia to end the war. Russia welcomed the suspension. The decision follows a US deal to import Russian diesel and comes amid strained US-Ukraine relations and recent Russian attacks on Ukrainian energy infrastructure.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "6cb9a6a7-e647-4150-a0aa-c4b1d59ac89b"
+          ]
+        },
+        {
+          "headline": "Kromberg & Schubert plant in Lutsk halts after Russian drone attack",
+          "body": "The Kromberg & Schubert electrical wiring plant in Lutsk, Ukraine, stopped operations after being hit by Russian drones on October 16, the company announced. The facility, which employs 5,500 workers and supplies major automakers, will remain closed until further notice while safety is assessed. Lutsk, far from the front lines, has seen repeated Russian strikes, including a drone attack on October 14 that killed six people.",
+          "relation": "new",
+          "importance": 2,
+          "sourceIds": [
+            "252c70d2-03cb-4190-86e5-7f7c85c3ecd8"
+          ]
+        }
+      ],
+      "dropped": [],
+      "omitted": [],
+      "state": "PUBLISHED"
+    },
+    {
+      "name": "stage-c2",
+      "articles": 2,
+      "rawChars": 6394,
+      "windowStart": "2026-10-18T01:30:00.000Z",
+      "windowEnd": "2026-10-18T03:30:00.000Z",
+      "status": 200,
+      "wallMs": 26547.721600000048,
+      "processingMs": 23360,
+      "editionId": "2f14ae9c0254039cbdfaabe5cddd7e4d762f4d0d0cc4b1093659ce59eb899685",
+      "offeredArticles": 2,
+      "priorItems": 2,
+      "engineTimings": {
+        "totalMs": 19058,
+        "stages": {
+          "edit": 5932,
+          "verify": 8389,
+          "repair": 4737
+        }
+      },
+      "usage": {
+        "calls": 4,
+        "inputTokens": 9542,
+        "outputTokens": 437,
+        "costUsd": 0.014151200000000001
+      },
+      "items": [
+        {
+          "headline": "Large Ukrainian drone attack reported on St. Petersburg, fires and explosions observed",
+          "body": "Multiple monitoring channels and eyewitnesses reported a large-scale Ukrainian drone attack on St. Petersburg on October 18, with fires and explosions seen in the city. Leningrad Oblast governor Aleksandr Drozdenko said 57 drones were shot down, with debris damaging cars and a fire reported. The Kyiv Independent could not independently verify the targets or extent of damage.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "dd406c45-11b7-4259-a633-51518544fb61"
+          ]
+        },
+        {
+          "headline": "Russian officials claim nearly 200 Ukrainian drones intercepted near Moscow",
+          "body": "Moscow Mayor Sergei Sobyanin said Russian air defense destroyed 195 Ukrainian drones headed for Moscow on Saturday. Two Moscow airports suspended operations, according to Russia\u00e2\u20ac\u2122s civil aviation authority. Romania reported shooting down two Russian drones over the Black Sea.",
+          "relation": "new",
+          "importance": 2,
+          "sourceIds": [
+            "b4176686-1791-4ff7-a56a-78fb6432575a"
+          ]
+        }
+      ],
+      "dropped": [],
+      "omitted": [
+        {
+          "stage": "editor",
+          "reason": "sanctions pause and diplomatic commentary already covered in previous briefing",
+          "sourceIds": [
+            "b4176686-1791-4ff7-a56a-78fb6432575a"
+          ]
+        }
+      ],
+      "state": "PUBLISHED"
+    },
+    {
+      "name": "stage-c3",
+      "articles": 0,
+      "rawChars": 0,
+      "windowStart": "2026-10-18T03:30:00.000Z",
+      "windowEnd": "2026-10-18T04:00:00.000Z",
+      "status": 200,
+      "wallMs": 3894.1684000000823,
+      "processingMs": 3600,
+      "editionId": null,
+      "offeredArticles": 0,
+      "priorItems": 4,
+      "engineTimings": {
+        "totalMs": 0,
+        "stages": {}
+      },
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0
+      },
+      "items": [],
+      "dropped": [],
+      "omitted": [],
+      "state": "QUIET"
+    },
+    {
+      "name": "stage-d",
+      "articles": 21,
+      "rawChars": 474006,
+      "windowStart": "2026-10-11T04:00:00.000Z",
+      "windowEnd": "2026-10-18T04:00:00.000Z",
+      "status": 200,
+      "wallMs": 96080.88840000005,
+      "processingMs": 65725,
+      "editionId": "ba783645b4e3b09efaf232b00bbe7fed70601d5867f9a6a1ea706c2173132aee",
+      "offeredArticles": 20,
+      "priorItems": 0,
+      "engineTimings": {
+        "totalMs": 59128,
+        "stages": {
+          "edit": 37944,
+          "consolidate": 12194,
+          "verify": 8990
+        }
+      },
+      "usage": {
+        "calls": 10,
+        "inputTokens": 146555,
+        "outputTokens": 5610,
+        "costUsd": 0.26057559999999996
+      },
+      "items": [
+        {
+          "headline": "Two oil tankers catch fire after hitting mines in Strait of Hormuz, Iran says",
+          "body": "Iran\u00e2\u20ac\u2122s Islamic Revolutionary Guard Corps reports that two oil tankers, each carrying about two million barrels of crude, caught fire after striking naval mines in the Strait of Hormuz. The vessels reportedly used unauthorised routes and had deactivated their navigation systems. The incidents follow a surge in attacks on shipping in the region, with oil flows through the strait dropping sharply and global energy prices rising. The US maintains a naval counter-blockade on Iranian oil exports. President Trump has ruled out using nuclear weapons or deploying ground troops in Iran.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "c6a339a5-bed2-4e2d-a7bf-e12754387c61"
+          ]
+        },
+        {
+          "headline": "Trump administration pauses Russia sanctions for 60 days to assess economic impact",
+          "body": "US President Donald Trump has issued a 60-day waiver on new sanctions and tariffs against Russia, with Secretary of State Marco Rubio stating the pause is to analyse the potential effects on the global and US economies. The move, which comes days before the sanctions were to take effect, has drawn criticism from both Republican and Democratic lawmakers. Ukrainian President Volodymyr Zelenskyy expects further US sanctions on Russia to be lifted and has called for Europe to pursue its own negotiations with Moscow. Discussions are underway for a possible three-way meeting between Zelenskyy, Trump, and Putin.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "ab16be00-ca43-43d2-a23f-c8cf610daa92"
+          ]
+        },
+        {
+          "headline": "Trump administration repeals power plant emissions rule; experts dispute grid reliability claims",
+          "body": "The Trump administration has partially repealed a Biden-era regulation limiting carbon emissions from power plants, arguing the rule threatened grid reliability and raised energy prices. Energy experts cited in the article say these claims are unfounded, noting that the prior rule was not expected to harm grid reliability and that deregulation is not needed for reliability. The EPA projects a modest long-term decrease in electricity prices from the repeal, but other Trump energy policies are expected to increase prices overall. Experts warn the rollback will increase greenhouse gas emissions and associated health and climate costs.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "3f3bc70c-f758-4cc0-85ac-0072c383f583"
+          ]
+        },
+        {
+          "headline": "Former DRC President Kabila joins rebellion, raising concerns for peace process",
+          "body": "Former Democratic Republic of the Congo President Joseph Kabila has joined and now leads a new political-military coalition, the Front pour la Refondation de la Nation (FRN), challenging President Felix Tshisekedi. The FRN replaces the previous AFC-M23 alliance and accuses the government of tyranny. Kabila\u00e2\u20ac\u2122s involvement brings a former head of state into direct leadership of the rebellion, complicating ongoing peace efforts and raising fears of prolonged conflict. The FRN says it will honour commitments made in Doha negotiations, but the impact on US and Qatari peace initiatives remains uncertain.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "1f78cb36-86ec-43a6-ab16-ca2c23bd120d"
+          ]
+        },
+        {
+          "headline": "NASA lunar lander efforts hinge on key 2026 tests; Griffin-1 and Starship HLS face critical milestones",
+          "body": "As of October 2026, NASA's Artemis lunar landing program depends on SpaceX's Starship HLS, which must complete a long-duration flight test and an in-space propellant-transfer demonstration, both targeted for 2026. No firm date is set for the first crewed Artemis lunar landing, and these technical milestones are prerequisites. Voyager Technologies' Griffin-1 robotic lander remains on track for a 2026 launch, according to the company. Blue Origin's Blue Moon landers are in development as parallel options. The overall schedule for seven major lunar lander missions remains provisional, with delays possible if key tests slip. NASA continues to emphasize multiple providers to reduce risk.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "86afdcea-b59e-4790-8a08-32f185361c7e"
+          ]
+        },
+        {
+          "headline": "Anthropic grants embedded access to METR for independent AI safety evaluation",
+          "body": "Anthropic has given six employees from the nonprofit Model Evaluation and Threat Research (METR) 'employee-like' access to its internal systems, including company hardware, office space, and internal tools, for ongoing AI safety evaluation. METR's mandate covers model behavior, safety practices, risk management, and incident handling, with publication rights that Anthropic cannot veto except for narrowly defined redactions (customer data, legal privilege, model architecture). METR can publicly flag and dispute redactions. This arrangement, announced by Anthropic on October 16, 2026, is a structural shift from episodic audits to embedded, ongoing oversight, and is seen as a response to regulatory and expert pressure for stronger independent review of frontier AI labs. Anthropic is also working with SecureBio and Accenture's Faculty on safety evaluations, and is in discussions with Hugging Face for further expansion.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "65f2e8e4-a85a-4935-84a2-57cf648ce019"
+          ]
+        },
+        {
+          "headline": "Anthropic privately pitches $1B AI safety bill with high intervention bar to U.S. lawmakers",
+          "body": "Anthropic has circulated a draft federal AI safety bill to U.S. lawmakers that would allow the government to block deployment of a frontier AI model only if it poses a foreseeable, imminent risk of causing over $1 billion in damages or killing/seriously injuring more than 50 people. The draft, not yet formally introduced in Congress, would make the Commerce Department the sole enforcement agency and require judicial approval for any intervention. The bill would preempt state AI laws and impose transparency and whistleblower protections on frontier AI developers. Critics are expected to challenge the high thresholds and narrow scope. No lawmaker has publicly endorsed the draft as of October 17, 2026.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "8d2e1ebf-7a5b-458c-8934-61ef8abf8e4f"
+          ]
+        },
+        {
+          "headline": "FAA begins review of SpaceX request for up to 456 Starship launches per year; Florida pad nears readiness",
+          "body": "The US Federal Aviation Administration has started a Programmatic Environmental Impact Statement (PEIS) to evaluate SpaceX's proposal to increase Starship launches from Starbase, Texas, to as many as 456 per year, with up to 912 landings. The current limit is 25 launches and 50 landings annually. The review process, which includes public comment until November 30, 2026, will examine impacts on air quality, wildlife, coastal resources, water, noise, aviation, and cultural sites. No approval has been granted; the process is expected to take several years. Separately, as of October 16, 2026, SpaceX has not announced an official launch date for Starship's first flight from Kennedy Space Center's LC-39A in Florida. The company has completed most major construction at the pad and is now conducting acceptance and operational testing. Reports cite December 10 as a possible target date from planning documents, but this is unconfirmed and remains provisional. SpaceX has stated that at least one more Starship test flight will occur from Starbase, Texas, before any Florida launch. The Florida pad's activation is also pending completion of environmental reviews and FAA licensing. The first Florida launch could be as early as Flight 16, but no flight number or date is confirmed. The readiness of the pad hardware, regulatory approvals, and the outcome of the next Texas flight will determine the actual timeline.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "7612521f-f730-4523-8adb-36b460b87df5",
+            "ee63d704-64c4-489d-a058-495f61d0a824",
+            "2200ed5b-c900-4a9a-871a-72b8fa833aa5",
+            "56945284-984a-4568-a434-24794d649eae"
+          ]
+        },
+        {
+          "headline": "Critical vulnerabilities and cyber threats reported across multiple platforms",
+          "body": "Recent security bulletins highlight active exploitation of vulnerabilities, including ransomware attacks targeting PAN-OS GlobalProtect (CVE-2026-0257), a critical Linux NVIDIA GPU driver flaw (CVE-2026-47595) enabling container escape, and unauthenticated remote code execution in Samsung QA-Board (CVE-2026-110392). Other notable threats include DNS-powered cryptocurrency wallet theft, advanced infostealers targeting AI tool credentials, and a self-healing WordPress backdoor using blockchain for command control. Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs. Anthropic reports new defenses against AI model theft, reducing distillation attacks by up to 99%.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "ab85e83b-9db3-47be-b748-0d2117e3e07c"
+          ]
+        }
+      ],
+      "dropped": [],
+      "omitted": [
+        {
+          "stage": "editor",
+          "reason": "routine hardware release details, minor Xbox controller launch, and gaming feature updates",
+          "sourceIds": [
+            "cc0bdd1b-45b1-4b15-a4ee-dbbb9e5697a3"
+          ]
+        },
+        {
+          "stage": "consolidation",
+          "reason": "routine Starlink launch",
+          "headline": "SpaceX launches 27 Starlink satellites from California",
+          "sourceIds": [
+            "40ae1dcb-1b75-4149-a5b5-647ec51b3397"
+          ]
+        },
+        {
+          "stage": "consolidation",
+          "reason": "routine ISS resupply mission",
+          "headline": "SpaceX launches CRS-35 mission, delivers over 6,300 lbs of cargo to ISS",
+          "sourceIds": [
+            "1287f059-fa4f-42ff-81c2-9d52d6703a6c"
+          ]
+        },
+        {
+          "stage": "consolidation",
+          "reason": "less urgent than regulatory, legal, or major security developments",
+          "headline": "Researchers warn small AI models may soon self-replicate on IoT devices",
+          "sourceIds": [
+            "410d60e8-873f-46bf-84b1-5c357927a2ec"
+          ]
+        },
+        {
+          "stage": "consolidation",
+          "reason": "less consequential than direct cyber vulnerabilities and legal/policy news",
+          "headline": "Ransomware attacks increasingly target employees and families with personal threats",
+          "sourceIds": [
+            "e1471fa3-b303-4762-81ba-35b55903341d"
+          ]
+        },
+        {
+          "stage": "consolidation",
+          "reason": "follow-up context to ransomware, less urgent than direct vulnerabilities",
+          "headline": "Ransomware attacks linked to patient deaths and psychological harm, but direct causation often unproven",
+          "sourceIds": [
+            "033ba5b4-84ce-437d-8cb4-9c301dba841a"
+          ]
+        },
+        {
+          "stage": "consolidation",
+          "reason": "survey context, not a decision or urgent development",
+          "headline": "Survey finds major gap between US public and Anthropic staff on AI's economic impact",
+          "sourceIds": [
+            "830e629e-b70f-476c-a36b-25a344955b84"
+          ]
+        },
+        {
+          "stage": "consolidation",
+          "reason": "product launch and company news, less consequential than regulatory or security items",
+          "headline": "Microsoft and Nvidia launch RTX Spark AI laptops; Microsoft announces new AI chip and security actions",
+          "sourceIds": [
+            "cc0bdd1b-45b1-4b15-a4ee-dbbb9e5697a3"
+          ]
+        },
+        {
+          "stage": "consolidation",
+          "reason": "business expansion plan, not yet a regulatory or market-shifting event",
+          "headline": "SpaceX plans major expansion into US mobile carrier market with spectrum acquisitions",
+          "sourceIds": [
+            "b2c82df0-6974-44ba-bffe-9870af4be8d5"
+          ]
+        }
+      ],
+      "state": "PUBLISHED"
+    },
+    {
+      "name": "stage-a-fixed",
+      "articles": 3,
+      "rawChars": 11388,
+      "windowStart": "2026-10-16T00:00:00.000Z",
+      "windowEnd": "2026-10-20T00:00:00.000Z",
+      "status": 200,
+      "wallMs": 29799.847700000002,
+      "processingMs": 24925,
+      "editionId": "9c4bb5d96c3760869aaaf6693223c8b90eae9c41daf801af1f423cdc5085d6d8",
+      "offeredArticles": 3,
+      "priorItems": 0,
+      "engineTimings": {
+        "totalMs": 20670,
+        "stages": {
+          "edit": 6932,
+          "verify": 9179,
+          "repair": 4559
+        }
+      },
+      "usage": {
+        "calls": 4,
+        "inputTokens": 8988,
+        "outputTokens": 716,
+        "costUsd": 0.0159808
+      },
+      "items": [
+        {
+          "headline": "Replit makes OpenAI its default AI partner, reduces reliance on Anthropic",
+          "body": "Replit CEO Amjad Masad said at TechCrunch Disrupt on October 16 that OpenAI's ChatGPT is now the default model for Replit's AI coding platform, replacing Anthropic's Claude models due to cost, performance, and partnership factors. While Anthropic models remain available, most users are expected to use the default, likely reducing Replit's spend with Anthropic. Masad stated that enterprise contracts now make up about 15% of Replit's revenue, up from 2% last year, and expects more than half of revenue to come from enterprise and government customers in 2027. Some insiders dispute the extent of the shift away from Anthropic, and recent Replit materials still promote Anthropic models.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "3bc991ba-c4d6-404a-9fe8-0bbfc6e7c108"
+          ]
+        },
+        {
+          "headline": "Anthropic commits 5% of shares to new public benefit fund",
+          "body": "Anthropic announced today that it will allocate 5% of its shares to a 'public benefit fund' aimed at supporting projects for societal good, with the option to contribute an additional 2% for every 50% increase in company value. The fund, structured as a wholly-owned entity, may make large donations to nonprofits or direct distributions. Anthropic said it will provide more details on the fund's governance in the coming months.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "63441a99-cef6-4dfa-88fb-122b12a91e6e"
+          ]
+        },
+        {
+          "headline": "Laplace Intelligence develops AI-driven red-teaming for robotics and autonomous vehicles",
+          "body": "Laplace Intelligence, a startup founded by Howie Sun and Henry Liu, is offering automated red-teaming for robotics and physical AI, using high-fidelity simulations and AI agents to test for failures before real-world deployment. The company, spun out of University of Michigan research, is generating revenue from autonomous driving clients and is piloting smart city solutions with Nvidia and T-Mobile. Laplace aims to scale its technology and transition to recurring revenue.",
+          "relation": "new",
+          "importance": 2,
+          "sourceIds": [
+            "9c2fb191-bea8-479a-a609-ad357891522a"
+          ]
+        }
+      ],
+      "dropped": [],
+      "omitted": [],
+      "state": "PUBLISHED"
+    }
+  ],
+  "limitations": [
+    "Saved-source replay, not acquisition-to-delivery timing",
+    "Independent AI-assisted source review, not human-labelled gold",
+    "Larger security roundup has a material scope/attribution defect",
+    "Corrected AI edition retains a temporal wording defect; not a clean quality pass",
+    "First failed wrapper response lost; exact settled cost retained"
+  ]
+}

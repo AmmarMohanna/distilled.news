@@ -1,4 +1,5 @@
 import type { Context, MiddlewareHandler } from "hono";
+export { normalizeUsername } from "@distilled/core";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { AccountRecord, AccountRole, Env, Repository } from "./types";
 
@@ -17,16 +18,6 @@ export interface SessionClaims {
 
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
-}
-
-export function normalizeUsername(username: string): string {
-  return (
-    username
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "user"
-  );
 }
 
 export async function hashPassword(password: string, salt = randomToken(16)): Promise<string> {

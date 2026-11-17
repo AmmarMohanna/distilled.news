@@ -1,0 +1,114 @@
+\chapter{Constraints and Applicable Standards}
+\label{chap:constraints}
+
+Distilled.News must collect usable source material, produce source-grounded briefings, and remain affordable and maintainable. This chapter explains the limits that shape the design. Numerical operating settings describe the tested configuration; proposed acceptance targets are defined in Chapter~\ref{chap:solution} and are not presented as achieved results.
+
+\section{Technical Constraints}
+
+Table~\ref{tab:techconstr} links each constraint to a practical design response. The main limitation identified during live testing is acquisition throughput: finding more article links does not guarantee that the system can fetch and extract them quickly enough.
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{L{1cm}L{5cm}L{\dimexpr\linewidth-6cm-6\tabcolsep\relax}}
+\caption{Technical constraints and their design implications}\label{tab:techconstr}\\
+\toprule ID & Constraint & Design response and verification \\ \midrule
+\endfirsthead
+\toprule ID & Constraint & Design response and verification \\ \midrule
+\endhead
+\bottomrule
+\endfoot
+TC1 & Finite execution time and capacity. The tested private helper admits two simultaneous executions; source-execution calls have a 60-second deadline. These are configuration limits, not universal Cloudflare limits.
+& Run acquisition in background queues, use bounded timeouts, and measure queue waiting separately from fetching time. Increase capacity only after checking the actual bottleneck. \\
+TC2 & A shared database serves the website and background work. Repeated scans of retained history can slow both.
+& Use feed-scoped queries, supporting indexes, batched reads, and bounded maintenance. Test database work on aged feeds while session and feed-page requests continue. \\
+TC3 & Sources return different formats, redirects, rate limits, and incomplete text. HTTP 200 alone does not establish successful acquisition.
+& Prefer structured feeds and direct HTTP; use approved browser/provider fallbacks when needed. Validate article identity, readable text, extraction status, and the reason for failure. \\
+TC4 & Source publication time, acquisition time, event time, reporting cutoff, and publication time are different.
+& Preserve original timestamps and date provenance. Keep fixed reporting windows during retries and delays. Check source-relative dates and event chronology in factual tests. \\
+TC5 & Model input, response time, and inference cost are finite. Large articles and long publication histories increase work.
+& Retain full source evidence, apply explicit input and batching limits, and select the relevant published history. Do not silently replace full evidence with an arbitrary default excerpt. \\
+TC6 & Concurrent tasks and retries can otherwise publish twice or attach another item's citations.
+& Keep stable item and operation IDs, temporary ownership leases, and version checks. Test duplicate deliveries, interrupted processing, and repair-to-source mappings. \\
+TC7 & A paid request may succeed even when its response is lost. An unknown outcome is not evidence that no charge occurred.
+& Reserve spending before dispatch, record settlements, and retain uncertain exposure. Recover the original operation where possible; do not blindly resubmit it. \\
+TC8 & Source evidence and feed access must remain isolated by account. New feeds are public by default, while private feeds are owner-only.
+& Enforce visibility and ownership in backend reads and writes, including editions and artwork. Test cross-account access and exclusion of private feeds from public discovery. \\
+TC9 & English, French, and Arabic differ in language behavior and display requirements.
+& Test factual quality separately for each language. Check Arabic right-to-left layout independently of the interface language, together with citations and mobile navigation. \\
+TC10 & A late or missing scheduled run must remain visible. A successful queue send or push-provider response does not prove reader delivery.
+& Compare outcomes with an independent schedule. Record intended delivery, actual publication, notification acceptance, and device receipt as separate events. \\
+\end{longtable}
+\endgroup
+
+\begingroup\widowpenalty=10000 These constraints support a Cloudflare-first system with a separate helper for operations that require a browser or other server-side dependencies. Queues provide recovery and coordination, but they do not create additional execution capacity. The live canary results in Chapter~\ref{chap:progress} therefore remain an important limit on the current design \cite{repo,currentintegration,canaryrecovery}.\par\endgroup
+
+\section{Non-Technical Constraints}
+
+The project must also address accuracy, source permissions, privacy, cost, and the academic schedule. Table~\ref{tab:nontech} gives project-specific responses rather than treating these concerns as general aspirations.
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{L{2.6cm}L{4.8cm}L{\dimexpr\linewidth-7.4cm-6\tabcolsep\relax}}
+\caption{Non-technical constraints and required responses}\label{tab:nontech}\\
+\toprule Area & Constraint & Response \\ \midrule
+\endfirsthead
+\toprule Area & Constraint & Response \\ \midrule
+\endhead
+\bottomrule
+\endfoot
+Accuracy and trust & Wrong dates, attribution, omitted conditions, or repeated claims can mislead readers, particularly in sensitive news topics.
+& Show source references, preserve uncertainty and corrections, and retain failure examples. Require independent review before claiming a factual-accuracy target. \\
+Source permissions & Public availability does not automatically establish permission to collect, retain, or redistribute all content. Some sources require payment or authentication.
+& Review source and provider terms, use permitted access methods, and record access restrictions honestly. Keep full benchmark text in private/shared storage rather than a public repository. \\
+Privacy & Feed interests can reveal personal or professional concerns; credentials and sessions must remain confidential.
+& Provide explicit public/private controls, owner-only private access, and account isolation. Keep secrets outside version control and minimize exported personal data. \\
+Operating cost & The planning objective is approximately US\$500 per month for 1,000 configured feeds. This is a target, not a validated cost result.
+& Account separately for collection APIs, model calls, Cloudflare services, and the helper server. Fix the source mix, update frequencies, article volumes, and fallback rates before estimating total cost. \\
+Maintenance & External APIs, extraction layouts, models, and dependencies change over time.
+& Use replaceable source adapters, typed interfaces, documented migrations, regression tests, and reviewed deployment changes. Preserve a reproducible version for each evaluation. \\
+Inclusive access & Readers use different devices and may need Arabic, French, English, keyboard access, or assistive technologies.
+& Provide responsive layouts, language-specific presentation, visible focus, and accessible controls. Validate these through manual and automated checks rather than assuming equal accessibility. \\
+Project schedule & The academic deadline limits the time available for implementation, annotation, participant recruitment, and final testing.
+& Divide work by responsibility, maintain the schedule in Appendix~B, and prioritize unresolved acceptance requirements. Do not present planned user studies as completed work. \\
+Environmental impact & Repeated polling, unnecessary model calls, and unused acquisition work consume computing resources. Their full environmental footprint has not been measured.
+& Reuse verified results, reduce redundant acquisition, and avoid unnecessary inference. Report requests and compute use as operational measures rather than inventing carbon estimates. \\
+\end{longtable}
+\endgroup
+
+For cost and capacity planning, the number of feeds alone is insufficient. Without shared-source reuse, the approximate number of source checks in a period is
+\begin{equation}
+N_{\mathrm{checks}} = \sum_{i=1}^{F} S_i\frac{T}{\Delta_i},
+\end{equation}
+where $F$ is the number of configured feeds, $S_i$ the sources in feed $i$, $T$ the observation period, and $\Delta_i$ its collection interval, expressed in the same time unit. A check can require several API calls, pages, or article fetches. Cache reuse can reduce requests; retries and paid fallbacks can increase them. Consequently, neither 1,000 configured feeds nor a monthly budget establishes sustainable throughput on its own.
+
+\section{Standards, Guidelines, and Engineering Relevance}
+
+The project uses the following references to guide implementation and evaluation. Formal standards and voluntary guidance are distinguished below. No third-party certification or complete compliance is claimed.
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{L{3cm}L{2.5cm}L{\dimexpr\linewidth-5.5cm-6\tabcolsep\relax}}
+\caption{Applicable standards and guidelines}\label{tab:standards}\\
+\toprule Reference & Type & Application to Distilled.News \\ \midrule
+\endfirsthead
+\toprule Reference & Type & Application to Distilled.News \\ \midrule
+\endhead
+\bottomrule
+\endfoot
+ISO/IEC 25010:2023 \cite{iso25010} & Product-quality standard & Organize requirements and evidence for functionality, reliability, performance, security, maintainability, and interaction quality. \\
+RFC 9110 \cite{rfc9110} & HTTP standard & Handle response codes, redirects, conditional requests, and caching correctly in collection and API routes. \\
+RFC 9309 \cite{rfc9309} & Robots Exclusion Protocol & Review and honor applicable crawler instructions. Robots rules and access authorization must not be treated as equivalent. \\
+WCAG 2.2 \cite{wcag22} & W3C accessibility recommendation & Target AA for selected reader and feed-management flows. Verify keyboard use, focus, contrast, labels, and accessible controls; record remaining gaps. \\
+NIST AI RMF 1.0 \cite{nistairmf} & Voluntary AI risk framework & Maintain risk records, document limitations, evaluate harmful errors, and define human review and release decisions. \\
+OWASP LLM Top 10 \cite{owasp2025} & Security guidance & Test prompt injection, secret disclosure, excessive model authority, and unsafe output handling. Models must not independently authorize access, spending, or publication. \\
+\end{longtable}
+\endgroup
+
+\section{How the Constraints Shape the Design}
+
+The selected design separates acquisition, V3 intelligence, and publication. Structured collection and result reuse reduce unnecessary work; queues and durable records support recovery. Full source evidence, citations, and published history support editorial decisions. Backend permissions, spending records, and publication checks control the effects of those decisions.
+
+These choices address the constraints, but their presence is not an acceptance result. Source availability, sustained acquisition throughput, factual accuracy, accessibility, and user benefit still require the separate measurements described in the following chapter.

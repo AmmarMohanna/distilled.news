@@ -1,0 +1,70 @@
+{
+  "baselineCommit": "2e46fa9a4844aa9234cc711e79ffd67bc8b0a6cc",
+  "newProviderCalls": 0,
+  "newActualInferenceCostUsd": 0,
+  "revisedSemanticAccuracy": "UNMEASURED",
+  "independentHoldoutCases": 0,
+  "stagingPublication": "NOT_AUTHORIZED_NOT_RUN",
+  "deployment": false,
+  "push": false,
+  "checks": {
+    "finalFocused": {
+      "passed": 71,
+      "failed": 0,
+      "pending": 0,
+      "failures": []
+    },
+    "broadBeforeFinalOwnershipFix": {
+      "passed": 189,
+      "failed": 4,
+      "pending": 0,
+      "failures": [
+        {
+          "name": "financial reservation and Feed intent roll back together on a failed D1 batch",
+          "type": "SETUP_HOOK_TIMEOUT_10000MS"
+        },
+        {
+          "name": "invalid structured-output admission records unpaid work and reserves no money",
+          "type": "SETUP_HOOK_TIMEOUT_10000MS"
+        },
+        {
+          "name": "restart after durable model draft and grounding resumes publication without a second paid call",
+          "type": "TEST_TIMEOUT_5000MS"
+        },
+        {
+          "name": "batches 227 immutable lookups without losing missing IDs or changing the Feed epoch",
+          "type": "TEST_TIMEOUT_5000MS"
+        }
+      ]
+    },
+    "strictTimingRerun": {
+      "passed": 2,
+      "failed": 2,
+      "pending": 30,
+      "failures": [
+        {
+          "name": "restart after durable model draft and grounding resumes publication without a second paid call",
+          "type": "TEST_TIMEOUT_5000MS"
+        },
+        {
+          "name": "batches 227 immutable lookups without losing missing IDs or changing the Feed epoch",
+          "type": "TEST_TIMEOUT_5000MS"
+        }
+      ]
+    },
+    "typecheck": "PASS repository-wide",
+    "webBuild": "PASS",
+    "workerBuild": "PASS explicit staging config dry run, no upload",
+    "offlineReplay": {
+      "savedRealProviderReplay": "PASS all 12 historical outcomes exact; all 12 incompatible under new contract",
+      "labelAndDraftRouting": "5000ms TIMEOUT (13447ms), completed diagnostic emitted; no ordinary assertion failure",
+      "previousRun": "2/2 passed before final occurrence/packet fixes; not final proof",
+      "compatibleNewProviderVerdicts": 0,
+      "falseAcceptances": null,
+      "falseRejections": null
+    }
+  },
+  "memoryLimitFailureObservedInThisPhase": false,
+  "workerSourceManifestSha256": "5a272aa798f3bd142ea2c0d9c8a06a348589193a45f77881c25e4891e0b2fa6b",
+  "implementationCommit": "7908a59"
+}

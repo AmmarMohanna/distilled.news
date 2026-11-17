@@ -151,7 +151,7 @@ export function parsePublicTelegramChannelPage(
       source,
       messageId,
       text,
-      links: extractPublicTelegramLinks(block[0], text),
+      links: extractPublicTelegramLinks(textHtml, text),
       media,
       postedAt: postedDate.toISOString(),
       receivedAt: receivedAt.toISOString(),
@@ -246,15 +246,30 @@ function extractPublicTelegramLinks(block: string, text: string): string[] {
   for (const match of text.matchAll(/https?:\/\/[^\s)]+/g)) links.add(match[0]);
   for (const match of block.matchAll(/<a\b[^>]*href="(https?:\/\/[^"]+)"/g)) {
     const href = decodeHtml(match[1]);
-    if (!href.includes("t.me/") && !href.includes("telegram.org/")) links.add(href);
+    links.add(href);
   }
   return Array.from(links);
 }
 
 function extractPublicTelegramMedia(block: string): MediaReference[] {
   const media: MediaReference[] = [];
-  const photoUrl = block.match(/tgme_widget_message_photo_wrap[^>]*background-image:url\('([^']+)'\)/)?.[1];
-  if (photoUrl) media.push({ type: "photo", url: absoluteTelegramAssetUrl(photoUrl), label: "Telegram photo" });
+  const seen = new Set<string>();
+  const add = (type: "photo" | "video", rawUrl: string): void => {
+    const url = absoluteTelegramAssetUrl(decodeHtml(rawUrl));
+    if (!/^https?:\/\//i.test(url) || seen.has(`${type}:${url}`)) return;
+    seen.add(`${type}:${url}`);
+    media.push({ type, url, label: type === "photo" ? "Telegram photo" : "Telegram video" });
+  };
+  for (const match of block.matchAll(/tgme_widget_message_photo_wrap[^>]*background-image:url\('([^']+)'\)/g)) {
+    add("photo", match[1]);
+  }
+  for (const video of block.matchAll(/<video\b([^>]*)>([\s\S]*?)<\/video>/gi)) {
+    const src = video[1].match(/\bsrc\s*=\s*["']([^"']+)["']/i)?.[1];
+    if (src) add("video", src);
+    for (const source of video[2].matchAll(/<source\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)) {
+      add("video", source[1]);
+    }
+  }
   return media;
 }
 
@@ -275,9 +290,16 @@ function htmlToText(html: string): string {
 }
 
 function decodeHtml(value: string): string {
+  const character = (digits: string, radix: number): string => {
+    const point = Number.parseInt(digits, radix);
+    return Number.isInteger(point) && point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
+      ? String.fromCodePoint(point)
+      : "\uFFFD";
+  };
   return value
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => character(hex, 16))
+    .replace(/&#(\d+);/g, (_, dec: string) => character(dec, 10))
+    .replace(/&nbsp;/g, "\u00a0")
     .replace(/&quot;/g, "\"")
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, "&")

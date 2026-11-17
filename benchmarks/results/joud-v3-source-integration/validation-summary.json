@@ -1,0 +1,48 @@
+{
+  "protectedCommit": "ebe6997e6ef3f604d9c9ab821295394bd91822aa",
+  "incomingCommit": "f18ef4bc8793bde8daaa95590d5cf5f7743b75eb",
+  "typecheckedWorkspacePackages": 8,
+  "successfulDistinctCasesAcrossRuns": {
+    "worker": 263,
+    "connectors": 291,
+    "web": 41,
+    "briefing": 47,
+    "core": 43,
+    "contracts": 44,
+    "nodeScripts": 40,
+    "pythonExtraction": 29
+  },
+  "workerKnownBaselineFailures": {
+    "count": 5,
+    "file": "apps/worker/src/source-recommendation-recovery.test.ts",
+    "reproducedOnUntouchedJoudSource": true,
+    "cause": "Expected four mock call arguments; actual code includes a fifth undefined verification scope",
+    "failureNames": [
+      "replaces failed recommendations once and only returns independently accepted replacements",
+      "avoids the failing Google News provider during replacement discovery: {\"upstreamStatus\":503}",
+      "avoids the failing Google News provider during replacement discovery: {\"failureCode\":\"SOURCE_CONNECTION_FAILED\"}",
+      "avoids the failing Google News provider during replacement discovery: {\"failureCode\":\"SOURCE_FETCH_TIMEOUT\"}",
+      "recovers a dead RSS path from the publisher homepage and verifies the advertised replacement"
+    ]
+  },
+  "migrations": {
+    "freshFiles": 77,
+    "pendingFromJoud": 10,
+    "pendingFromV3Source": 3,
+    "freshD1Passed": true,
+    "bothParentSQLiteUpgradesPassed": true,
+    "appliedSqlRewritten": false
+  },
+  "build": {
+    "webPassed": true,
+    "joudWorkerDryRunPassed": true,
+    "defaultWorkerBuildBlockedByMissingDocker": true
+  },
+  "fullSuiteGreen": false,
+  "incompleteRuns": [
+    "agent-runtime browser lifecycle timeout; broader workspace interrupted",
+    "complete Worker run stopped advancing in a local runtime fixture; focused tests run separately"
+  ],
+  "deploymentPerformed": false,
+  "paidLiveTestsPerformed": false
+}

@@ -1,0 +1,37 @@
+[
+  {
+    "path": "/",
+    "requests": 20,
+    "failures": 0,
+    "p50": 83,
+    "p95": 237
+  },
+  {
+    "path": "/api/auth/session",
+    "requests": 20,
+    "failures": 0,
+    "p50": 81,
+    "p95": 842
+  },
+  {
+    "path": "/api/explore/feeds",
+    "requests": 20,
+    "failures": 0,
+    "p50": 129,
+    "p95": 204
+  },
+  {
+    "path": "/api/feed/product-proof/lebanon-news",
+    "requests": 20,
+    "failures": 0,
+    "p50": 994,
+    "p95": 1366
+  },
+  {
+    "path": "/api/feed/product-proof/lebanon-news2",
+    "requests": 20,
+    "failures": 0,
+    "p50": 1004,
+    "p95": 1257
+  }
+]

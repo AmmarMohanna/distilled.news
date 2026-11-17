@@ -1,0 +1,118 @@
+{
+  "phase": "OFFLINE_REQUEST_PREPARATION",
+  "subsequentWriterResults": "v7-qualification-results-2026-11-03.json",
+  "baseCommit": "c4cfa04",
+  "writer": {
+    "calls": 8,
+    "maximumReservationUsd": 0.521584,
+    "proposedCeilingUsd": 0.65,
+    "variable": "Existing disabled qualification check only; no prompt rewrite, layout change or verifier calls",
+    "cases": [
+      {
+        "id": "lebanon-roundup-en-baseline",
+        "caseId": "lebanon-roundup-en",
+        "language": "en",
+        "variant": "baseline",
+        "evidenceHash": "5eb5747de9d4694c8fe22544792c222e51c483a2be136c077ada90115451b4a6",
+        "requestHash": "68ebf2745ce4518b9dbf5c7219340ea30517dbbbf3350ebc850aabe03da69bbe",
+        "reservationUsd": 0.056678
+      },
+      {
+        "id": "lebanon-roundup-en-qualifications",
+        "caseId": "lebanon-roundup-en",
+        "language": "en",
+        "variant": "qualifications",
+        "evidenceHash": "5eb5747de9d4694c8fe22544792c222e51c483a2be136c077ada90115451b4a6",
+        "requestHash": "469e884dff689f518eacc931a1b47c1a2fd43acf832c54e39fe4e49a39fccacf",
+        "reservationUsd": 0.05774
+      },
+      {
+        "id": "lebanon-roundup-ar-baseline",
+        "caseId": "lebanon-roundup-ar",
+        "language": "ar",
+        "variant": "baseline",
+        "evidenceHash": "dd8eb0da38f1348a36c4d78a3b66ef59ff2ad006cd23b83dac6aab2eb86bf42e",
+        "requestHash": "083975685509079f2b3beb82f87d7c6bd31b4caa225826b30ae5ecc876c460c3",
+        "reservationUsd": 0.056676000000000004
+      },
+      {
+        "id": "lebanon-roundup-ar-qualifications",
+        "caseId": "lebanon-roundup-ar",
+        "language": "ar",
+        "variant": "qualifications",
+        "evidenceHash": "dd8eb0da38f1348a36c4d78a3b66ef59ff2ad006cd23b83dac6aab2eb86bf42e",
+        "requestHash": "42a8620247be1809be4cb3991b447655a1b869fbf8626c4c9f9531707c6e294e",
+        "reservationUsd": 0.057738
+      },
+      {
+        "id": "ai-multisource-en-baseline",
+        "caseId": "ai-multisource-en",
+        "language": "en",
+        "variant": "baseline",
+        "evidenceHash": "d6ed61176a250539ee2705634b657122f095bff95f8c82e3aad98ec4aac19854",
+        "requestHash": "086fc4e76c4d1fc88a63dec7fc4ebc61bb7eca82b68de907155a314ca6c1930d",
+        "reservationUsd": 0.072658
+      },
+      {
+        "id": "ai-multisource-en-qualifications",
+        "caseId": "ai-multisource-en",
+        "language": "en",
+        "variant": "qualifications",
+        "evidenceHash": "d6ed61176a250539ee2705634b657122f095bff95f8c82e3aad98ec4aac19854",
+        "requestHash": "26f8fc0889928040752c56503a7d390852f01f9f55550cb1e5d60df8ecb4f546",
+        "reservationUsd": 0.07372000000000001
+      },
+      {
+        "id": "ai-multisource-ar-baseline",
+        "caseId": "ai-multisource-ar",
+        "language": "ar",
+        "variant": "baseline",
+        "evidenceHash": "71811c9715bc003d82fc98c0d565bfd5fddea34558e073d6ce5e4f6465169c58",
+        "requestHash": "a801adcbd7f7a18a174141d7a899a6b541ab93412eeaf1c507cc1cd75c750c50",
+        "reservationUsd": 0.072656
+      },
+      {
+        "id": "ai-multisource-ar-qualifications",
+        "caseId": "ai-multisource-ar",
+        "language": "ar",
+        "variant": "qualifications",
+        "evidenceHash": "71811c9715bc003d82fc98c0d565bfd5fddea34558e073d6ce5e4f6465169c58",
+        "requestHash": "0ccd6431c95661566adb8aa5fee3ee549a1d2139c0ec3fc1b75552b4990b2475",
+        "reservationUsd": 0.073718
+      }
+    ],
+    "qualificationCheckHash": "85cdd46267473979d48bd9425b332a65c4a571f9b09b4f3185f80e3ef224e564",
+    "semanticResult": null
+  },
+  "strongerVerifier": {
+    "calls": 8,
+    "maximumReservationUsd": 0.3060879999999999,
+    "proposedCeilingUsd": 0.4,
+    "baseline": "openai/gpt-4.1-mini",
+    "candidate": "openai/gpt-4.1",
+    "variable": "Model only; same V7 verifier and shared evidence",
+    "hypothesis": "Larger parent model may discriminate better; not assumed or qualified.",
+    "projection": [
+      {
+        "version": 4,
+        "originalEstimatedUncachedUsd": 0.05692,
+        "replacementEstimatedUncachedUsd": 0.078904,
+        "qualification": "Counterfactual on old token usage, not actual stronger-model cost, latency or accuracy; repairs excluded."
+      },
+      {
+        "version": 7,
+        "originalEstimatedUncachedUsd": 0.050069199999999994,
+        "replacementEstimatedUncachedUsd": 0.068842,
+        "qualification": "Counterfactual on old token usage, not actual stronger-model cost, latency or accuracy; repairs excluded."
+      }
+    ],
+    "semanticResult": null
+  },
+  "paidCalls": 0,
+  "actualUsd": 0,
+  "fullPipelineCost": null,
+  "fullPipelineLatency": null,
+  "adoption": "KEEP_V4_V7_UNQUALIFIED",
+  "sourceAuthority": "Provisional source-linked engineering expectations, not human ground truth",
+  "frozenSourceCorpusHash": "e12c91d69c7bc9696379c7c5580107e35a3bf349c4347e9219cbbb3baf681e63"
+}

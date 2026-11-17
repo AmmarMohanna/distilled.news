@@ -1,0 +1,250 @@
+{
+    "scope":  "REAL_SAVED_EVIDENCE_PRIVATE_LOCAL_D1",
+    "corpusHash":  "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+    "profile":  "X-article-first",
+    "status":  "FAILED",
+    "error":  "INVALID_REQUEST",
+    "persisted":  false,
+    "operatorAssistedRecovery":  false,
+    "routes":  {
+                   "construction":  "openai/gpt-6-luna",
+                   "reconciliation":  "openai/gpt-6-luna",
+                   "editorial":  "openai/gpt-6-luna",
+                   "writer":  "openai/gpt-6-luna",
+                   "verification":  "openai/gpt-6-luna",
+                   "relation":  "openai/gpt-6-luna",
+                   "novelty":  "openai/gpt-6-luna",
+                   "repair":  "openai/gpt-6-luna"
+               },
+    "effort":  {
+                   "understanding":  "low",
+                   "editorial":  "low",
+                   "writing":  "low",
+                   "verification":  "medium"
+               },
+    "wallMs":  375350.2263,
+    "timeToUsefulBriefingMs":  null,
+    "stages":  [
+                   {
+                       "name":  "EXISTING_EDITION_LOOKUP",
+                       "wallMs":  22.888600000000224,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+                       "wallMs":  11984.3099,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+                       "wallMs":  2194.5238999999965,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+                       "wallMs":  14351.4111,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+                       "wallMs":  13019.576999999997,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+                       "wallMs":  1963.3766000000032,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+                       "wallMs":  15136.742000000002,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-3\",\"\"]",
+                       "wallMs":  8114.613799999999,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "CANONICAL_COMMIT:[\"REASSESS\",\"observation-3\",\"\"]",
+                       "wallMs":  1219.3582000000024,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "ARTICLE_LEASE:[\"REASSESS\",\"observation-3\",\"\"]",
+                       "wallMs":  9531.219300000004,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "SHORTLIST",
+                       "wallMs":  1358.8715999999986,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "EDITORIAL_SELECTION",
+                       "wallMs":  49079.0335,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "SCORING",
+                       "wallMs":  1852.143200000006,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "WRITING",
+                       "wallMs":  17572.087499999994,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "FACTUAL_VERIFICATION",
+                       "wallMs":  89287.87580000001,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "WRITER_REPAIR",
+                       "wallMs":  52643.3063,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "FACTUAL_VERIFICATION",
+                       "wallMs":  109701.15950000001,
+                       "status":  "SUCCEEDED"
+                   },
+                   {
+                       "name":  "WRITE_VERIFY_LOCAL_COMMIT",
+                       "wallMs":  283551.7304,
+                       "status":  "FAILED",
+                       "error":  "INVALID_REQUEST"
+                   },
+                   {
+                       "name":  "BRIEFING_EXCLUSIVE_TURN",
+                       "wallMs":  335969.023,
+                       "status":  "FAILED",
+                       "error":  "INVALID_REQUEST"
+                   }
+               ],
+    "paidCalls":  [
+                      {
+                          "phase":  "SEMANTIC_CONSTRUCTION",
+                          "model":  "openai/gpt-6-luna",
+                          "effort":  "low",
+                          "costUsd":  0.00126598,
+                          "wallMs":  9234.5481,
+                          "tokensIn":  8849,
+                          "tokensOut":  577,
+                          "error":  null
+                      },
+                      {
+                          "phase":  "SEMANTIC_CONSTRUCTION",
+                          "model":  "openai/gpt-6-luna",
+                          "effort":  "low",
+                          "costUsd":  0.001248725,
+                          "wallMs":  8207.5187,
+                          "tokensIn":  8619,
+                          "tokensOut":  597,
+                          "error":  null
+                      },
+                      {
+                          "phase":  "REPAIR",
+                          "model":  "openai/gpt-6-luna",
+                          "effort":  "low",
+                          "costUsd":  0.002303425,
+                          "wallMs":  24555.480700000015,
+                          "tokensIn":  12724,
+                          "tokensOut":  1426,
+                          "error":  null
+                      },
+                      {
+                          "phase":  "SEMANTIC_CONSTRUCTION",
+                          "model":  "openai/gpt-6-luna",
+                          "effort":  "low",
+                          "costUsd":  0.001136925,
+                          "wallMs":  3765.803700000004,
+                          "tokensIn":  8524,
+                          "tokensOut":  143,
+                          "error":  null
+                      },
+                      {
+                          "phase":  "GROUNDING",
+                          "model":  "openai/gpt-6-luna",
+                          "effort":  "medium",
+                          "costUsd":  0.007522085,
+                          "wallMs":  84135.12569999998,
+                          "tokensIn":  25183,
+                          "tokensOut":  9080,
+                          "error":  null
+                      },
+                      {
+                          "phase":  "COMPARATIVE_EDITORIAL_PLAN",
+                          "model":  "openai/gpt-6-luna",
+                          "effort":  "low",
+                          "costUsd":  0.0039198,
+                          "wallMs":  42157.1963,
+                          "tokensIn":  18307,
+                          "tokensOut":  3263,
+                          "error":  null
+                      },
+                      {
+                          "phase":  "SYNTHESIS",
+                          "model":  "openai/gpt-6-luna",
+                          "effort":  "low",
+                          "costUsd":  0.00207955,
+                          "wallMs":  14444.853399999993,
+                          "tokensIn":  11693,
+                          "tokensOut":  1236,
+                          "error":  null
+                      },
+                      {
+                          "phase":  "GROUNDING",
+                          "model":  "openai/gpt-6-luna",
+                          "effort":  "medium",
+                          "costUsd":  0.0079968,
+                          "wallMs":  87767.9955,
+                          "tokensIn":  24979,
+                          "tokensOut":  9749,
+                          "error":  null
+                      }
+                  ],
+    "totalCostUsd":  0.027473290000000004,
+    "callCount":  8,
+    "database":  {
+                     "reads":  909,
+                     "writes":  548
+                 },
+    "edition":  null,
+    "validation":  [
+                       {
+                           "status":  "REJECT",
+                           "reasons":  [
+                                           "CLAIM_NOT_ENTAILED",
+                                           "MISSING_MANDATORY_COVERAGE",
+                                           "FACT_FACET_FAILED"
+                                       ]
+                       },
+                       {
+                           "status":  "REJECT",
+                           "reasons":  [
+                                           "CLAIM_NOT_ENTAILED",
+                                           "MISSING_MANDATORY_COVERAGE"
+                                       ]
+                       }
+                   ],
+    "independentSourceReview":  "FAILED: repair still adds unsupported model-provider ownership and reporting attribution; original-publication/update date conflict remains. No persisted edition.",
+    "limitations":  [
+                        "Single retained English three-article corpus; not general model qualification",
+                        "Saved acquisition import, not network acquisition or unattended scheduling timing",
+                        "Private local evaluation persistence, not staging deployment or reader delivery",
+                        "AI-assisted independent review is not human gold labeling"
+                    ],
+    "accounting":  {
+                       "scopeSettledCalls":  76,
+                       "holdsChanged":  false,
+                       "grantsChanged":  false,
+                       "scopeActualUsd":  0.837708885,
+                       "lastFullVerificationReservationUsd":  0.028515,
+                       "scopeUnsettled":  0,
+                       "scopeMaxUsd":  1,
+                       "accountExposureHeadroomUsd":  0.027330715,
+                       "expiry":  "2026-10-21T19:56:16.862Z"
+                   }
+}

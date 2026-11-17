@@ -1,0 +1,44 @@
+{
+  "protectedCommit": "ebe6997e6ef3f604d9c9ab821295394bd91822aa",
+  "mergedRun": {
+    "tests": 105,
+    "passed": 77,
+    "failed": 28
+  },
+  "baselineFailedLocationRun": {
+    "tests": 32,
+    "passed": 4,
+    "failed": 28
+  },
+  "sameFailureNames": true,
+  "failures": [
+    "tests\\e2e\\app-experience.spec.ts:178:1 \u203a new feed keeps the language selected in advanced settings",
+    "tests\\e2e\\home-explore-fit.spec.ts:100:2 \u203a feed rows divide available space without partial cards at 1280x593",
+    "tests\\e2e\\home-explore-fit.spec.ts:100:2 \u203a feed rows divide available space without partial cards at 1920x1100",
+    "tests\\e2e\\home-explore-fit.spec.ts:100:2 \u203a feed rows divide available space without partial cards at 390x664",
+    "tests\\e2e\\home-explore-fit.spec.ts:100:2 \u203a feed rows divide available space without partial cards at 667x375",
+    "tests\\e2e\\home-explore-fit.spec.ts:137:1 \u203a first feed card keeps its top outline inside the grid on hover",
+    "tests\\e2e\\home-explore-fit.spec.ts:151:1 \u203a feed card design switches in both directions when the window resizes",
+    "tests\\e2e\\home-explore-fit.spec.ts:184:1 \u203a desktop card has readable identity and separate menu and open controls",
+    "tests\\e2e\\home-explore-fit.spec.ts:44:5 \u203a explore full first row fits 1280x593",
+    "tests\\e2e\\home-explore-fit.spec.ts:44:5 \u203a home full first row fits 1280x593",
+    "tests\\e2e\\home-explore-fit.spec.ts:56:3 \u203a explore scrolls within complete rows when feeds exceed the available space",
+    "tests\\e2e\\home-explore-fit.spec.ts:56:3 \u203a home scrolls within complete rows when feeds exceed the available space",
+    "tests\\e2e\\home-explore-fit.spec.ts:79:3 \u203a collapsed sidebar centers three cards at 1280px",
+    "tests\\e2e\\home-explore-fit.spec.ts:79:3 \u203a collapsed sidebar centers three cards at 1920px",
+    "tests\\e2e\\reference-ui.spec.ts:36:1 \u203a admin can add a public feed to Explore from its menu",
+    "tests\\e2e\\reference-ui.spec.ts:76:1 \u203a profile edits username and expands password controls",
+    "tests\\e2e\\requested-ui.spec.ts:71:1 \u203a feed cards have rounded artwork, plain controls, and real update times",
+    "tests\\e2e\\review-fixes.spec.ts:159:1 \u203a Home explains an empty search and an empty library",
+    "tests\\e2e\\review-fixes.spec.ts:209:1 \u203a Create feed and the search row stay put when switching between Home and Explore",
+    "tests\\e2e\\review-fixes.spec.ts:242:1 \u203a a few feeds become large capped cards on laptops but stay compact on phones",
+    "tests\\e2e\\review-fixes.spec.ts:255:1 \u203a a feed offers All and Unread filters in one reading column",
+    "tests\\e2e\\review-fixes.spec.ts:268:1 \u203a the guest landing page also uses large cards when there are only a few feeds",
+    "tests\\e2e\\review-fixes.spec.ts:284:1 \u203a on laptops Home and Explore centre the title, search row and categories on one axis",
+    "tests\\e2e\\screen-fit.spec.ts:153:1 \u203a language changes keep navigation in place and localize empty Explore",
+    "tests\\e2e\\screen-fit.spec.ts:177:1 \u203a mobile search and create stay together across languages",
+    "tests\\e2e\\screen-fit.spec.ts:17:3 \u203a feed form fits 1280x720 without scrolling",
+    "tests\\e2e\\screen-fit.spec.ts:17:3 \u203a feed form fits 390x664 without scrolling",
+    "tests\\e2e\\screen-fit.spec.ts:17:3 \u203a feed form fits 667x375 without scrolling"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "editorial-evaluation-inputs-v1",
+  "origin": "SYNTHETIC_BEHAVIOR_FIXTURES_NOT_HUMAN_GOLD",
+  "labelStatus": "UNLABELED",
+  "events": [
+    {"feedId":"evaluation-feed","feedRevision":1,"targetType":"EVENT","targetVersionId":"bank-reform-approval:v1","text":"Lebanon Parliament approved banking reform legislation.","version":1,"independentSupport":1,"persistence":0,"recency":0.9},
+    {"feedId":"evaluation-feed","feedRevision":1,"targetType":"EVENT","targetVersionId":"bank-reform-signing:v1","text":"Lebanon Parliament signed banking reform legislation.","version":1,"independentSupport":2,"persistence":0.5,"recency":0.8},
+    {"feedId":"evaluation-feed","feedRevision":1,"targetType":"EVENT","targetVersionId":"signing-corroboration:v2","text":"Lebanon Parliament signed banking reform legislation.","version":2,"independentSupport":3,"persistence":0.5,"recency":0.95},
+    {"feedId":"evaluation-feed","feedRevision":1,"targetType":"EVENT","targetVersionId":"court-annulment:v1","text":"The court annulled banking reform legislation and its implementation remains unresolved.","version":1,"independentSupport":2,"persistence":0.75,"recency":0.7},
+    {"feedId":"evaluation-feed","feedRevision":1,"targetType":"EVENT","targetVersionId":"routine-roundup:v1","text":"Lebanon banking reform routine roundup: no substantive change.","version":1,"independentSupport":1,"persistence":0,"recency":1},
+    {"feedId":"evaluation-feed","feedRevision":1,"targetType":"EVENT","targetVersionId":"local-refund:v1","text":"Beirut banks will refund depositors after capital controls are lifted.","version":1,"independentSupport":1,"persistence":0.25,"recency":0.6},
+    {"feedId":"evaluation-feed","feedRevision":1,"targetType":"EVENT","targetVersionId":"quantity-discrepancy:v1","text":"Government reported 20 affected depositors; the union reported more than 100. The discrepancy remains unresolved.","version":1,"independentSupport":2,"persistence":0.25,"recency":0.85},
+    {"feedId":"evaluation-feed","feedRevision":1,"targetType":"EVENT","targetVersionId":"unrelated-stadium:v1","text":"Canada Parliament approved hockey stadium construction.","version":1,"independentSupport":1,"persistence":0,"recency":0.9}
+  ],
+  "storylineChanges": [
+    {"id":"signing-repeat","previousState":"Lebanon Parliament signed banking reform legislation.","currentState":"Lebanon Parliament signed banking reform legislation.","eventVersionIds":["bank-reform-signing:v1"],"evidenceRevisionIds":["fixture-evidence:signing"]},
+    {"id":"approval-to-signing","previousState":"Lebanon Parliament approved banking reform legislation.","currentState":"Lebanon Parliament signed banking reform legislation.","eventVersionIds":["bank-reform-approval:v1","bank-reform-signing:v1"],"evidenceRevisionIds":["fixture-evidence:approval","fixture-evidence:signing"]},
+    {"id":"vote-postponed","previousState":"Banking reform vote expected tomorrow.","currentState":"Banking reform vote postponed with no new date.","eventVersionIds":["vote-expected:v1","vote-postponed:v1"],"evidenceRevisionIds":["fixture-evidence:expected","fixture-evidence:postponed"]}
+  ]
+}

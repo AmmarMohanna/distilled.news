@@ -1,0 +1,51 @@
+{
+  "branch": "ghada/joud-aya-preserved-integration",
+  "inputs": {
+    "ghada": "f8d821bcc0a1521fb699ff63c2b2e93e9f51e688",
+    "joudAya": "06dc7204da0047cbc4c44753d99df563ea8093f0",
+    "protectedImplementation": "ae0e2d95532c15e8c4ee0c7a0cb52c6d8bb49d8b",
+    "mergeBase": "524aed34648d6095b3f55ebcaabafdaaab0557cc"
+  },
+  "frontend": {
+    "trackedFiles": 83,
+    "unchangedFromJoud": 78,
+    "reviewedDifferences": ["src/FeedEditor.test.tsx", "src/FeedEditor.tsx", "src/helpers.test.ts", "src/helpers.ts", "src/main.tsx"],
+    "editorOnlyAddsTimeStepAttribute": true,
+    "mainOnlyAddsScheduledTimeHooks": true,
+    "cssAssetsBrandingTranslationsAndComponentsUnchanged": true,
+    "joudDedicatedConfigUnchanged": true
+  },
+  "ghadaExclusivePathsPreserved": 99,
+  "featureConflictsResolved": 6,
+  "tests": {
+    "workerIntegration": 360,
+    "combinedRecoveryAndClock": 1,
+    "web": 111,
+    "contracts": 45,
+    "core": 44,
+    "briefing": 109,
+    "connectors": 330,
+    "totalPassed": 1000,
+    "connectorTestsSkipped": 1,
+    "workspaceTypecheck": "passed",
+    "webBuild": "passed",
+    "workerDryRunBuild": "passed"
+  },
+  "browser": {
+    "cases": 57,
+    "initialPassed": 56,
+    "initialFailed": 1,
+    "failure": "Owner/320px cold-load timeout before the feed heading appeared",
+    "focusedUnchangedRerunPassed": 1,
+    "obsoleteTestContractsUpdatedWithoutUiChanges": 3,
+    "languages": ["en", "fr", "ar"],
+    "screenshotsRetainedLocally": true
+  },
+  "originalBranchesRewritten": false,
+  "originalDirtyWorktreesModified": false,
+  "deployed": false,
+  "paidCalls": 0,
+  "actualInferenceCostUsd": 0,
+  "remoteDataOrFinancialRecordsChanged": false,
+  "limitations": ["Not the full repository CI/E2E suite", "One browser cold-load timeout passed only on focused rerun", "No physical-device, live-email or paid-provider validation", "Deployment resources and migrations require separate target review"]
+}

@@ -1,0 +1,12 @@
+# Merge into the explicitly selected existing Wrangler config after account approval.
+# Add AGENTOPS_ENABLED = "true" to that config's [vars] table.
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = false
+destinations = ["distilled-staging-logs"]
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05
+persist = false
+destinations = ["distilled-staging-traces"]

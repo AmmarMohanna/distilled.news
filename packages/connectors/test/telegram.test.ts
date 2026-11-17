@@ -57,6 +57,36 @@ describe("normalizeTelegramUpdate", () => {
 });
 
 describe("public Telegram channel pages", () => {
+  it("preserves videos, album photos and message links without widget navigation", () => {
+    const html = `<main><div class="tgme_widget_message_wrap"><div class="tgme_widget_message" data-post="telegram/441">
+      <a href="https://t.me/telegram">Channel</a>
+      <div class="tgme_widget_message_text js-message_text">Read&nbsp;<a href="https://telegram.org/blog/update">more</a> or <a href="https://t.me/telegram/440">previous</a></div>
+      <video src="//cdn.test/movie.mp4?a=1&amp;b=2"><source src="//cdn.test/movie.mp4?a=1&amp;b=2"></video>
+      <a class="tgme_widget_message_photo_wrap" style="background-image:url('https://cdn.test/one.jpg')"></a>
+      <a class="tgme_widget_message_photo_wrap" style="background-image:url('https://cdn.test/two.jpg')"></a>
+      <time datetime="2026-09-22T12:00:00Z"></time>
+    </div></div></main>`;
+    const [post] = parsePublicTelegramChannelPage(html, { username: "telegram" });
+    expect(post.text).toBe("Read\u00a0more or previous");
+    expect(post.links).toEqual(["https://telegram.org/blog/update", "https://t.me/telegram/440"]);
+    expect(post.media).toEqual([
+      { type: "photo", url: "https://cdn.test/one.jpg", label: "Telegram photo" },
+      { type: "photo", url: "https://cdn.test/two.jpg", label: "Telegram photo" },
+      { type: "video", url: "https://cdn.test/movie.mp4?a=1&b=2", label: "Telegram video" }
+    ]);
+  });
+
+  it("keeps a video-only post and rejects unsafe media URLs", () => {
+    const html = `<main><div class="tgme_widget_message_wrap"><div class="tgme_widget_message" data-post="telegram/442">
+      <video><source src='https://cdn.test/clip.mp4'></video>
+      <video src="javascript:alert(1)"></video>
+      <time datetime="2026-09-22T12:00:00Z"></time>
+    </div></div></main>`;
+    const [post] = parsePublicTelegramChannelPage(html, { username: "telegram" });
+    expect(post.text).toBe("");
+    expect(post.media).toEqual([{ type: "video", url: "https://cdn.test/clip.mp4", label: "Telegram video" }]);
+  });
+
   it("parses channel URLs into widget URLs", () => {
     expect(parsePublicTelegramChannelUrl("https://t.me/LebUpdate")).toEqual({
       username: "LebUpdate",

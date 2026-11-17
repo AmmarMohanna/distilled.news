@@ -43,6 +43,7 @@ const CONTEXT_ONLY_SUMMARY_PATTERNS = [
 ];
 
 const INFORMATION_SIGNAL_PATTERNS = [
+  /\b(scrapped|withdrawn|cancelled|canceled|resigned|rejected|died|banned|stepped down|released on bail)\b/i,
   /[:：]/,
   /\b\d+([.,]\d+)?\b/,
   /\b(?:confirmed|reported|said|signed|approved|announced|opened|closed|killed|injured|arrested|launched|halted|resumed|affected|damaged|disrupted|improved|increased|decreased|rose|fell)\b/i,

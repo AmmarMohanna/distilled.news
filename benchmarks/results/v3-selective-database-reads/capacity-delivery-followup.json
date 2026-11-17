@@ -1,0 +1,211 @@
+{
+  "at": "2026-10-28T20:23:17.528Z",
+  "runtimeCommit": "6219255",
+  "stagingVersion": "11774ace-9208-45ae-bf4a-221f8187aea1",
+  "concurrentReads": {
+    "at": "2026-10-28T20:19:40.525Z",
+    "scope": "120 ordinary signed-out GETs in twenty fixed batches of six, three seconds between completed batches. Stop on a failed request. No inference endpoint, mutation or synthetic feed creation. Modest staging smoke, not a 1,000-user/load qualification.",
+    "requests": 120,
+    "failures": 0,
+    "concurrency": 6,
+    "summaries": [
+      {
+        "path": "/",
+        "requests": 24,
+        "failures": 0,
+        "p50Ms": 27,
+        "p95Ms": 357
+      },
+      {
+        "path": "/api/auth/session",
+        "requests": 24,
+        "failures": 0,
+        "p50Ms": 107,
+        "p95Ms": 133
+      },
+      {
+        "path": "/api/explore/feeds",
+        "requests": 24,
+        "failures": 0,
+        "p50Ms": 134,
+        "p95Ms": 198
+      },
+      {
+        "path": "/api/feed/product-proof/lebanon-news",
+        "requests": 24,
+        "failures": 0,
+        "p50Ms": 1287,
+        "p95Ms": 1591
+      },
+      {
+        "path": "/api/feed/product-proof/lebanon-news2",
+        "requests": 24,
+        "failures": 0,
+        "p50Ms": 1126,
+        "p95Ms": 1584
+      }
+    ]
+  },
+  "storage": [
+    {
+      "at": "2026-10-28T19:36:36.545Z",
+      "kinds": [
+        {
+          "kind": "semantic_resource_waits",
+          "count": 3359
+        },
+        {
+          "kind": "v3_window_inputs",
+          "count": 1661
+        },
+        {
+          "kind": "v3_window_results",
+          "count": 1578
+        },
+        {
+          "kind": "editions",
+          "count": 417
+        }
+      ],
+      "archive": [
+        {
+          "archived": 52,
+          "bytesOffloaded": 46263330,
+          "updatedAt": "2026-10-28T19:36:17.194Z"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-28T19:50:43.176Z",
+      "kinds": [
+        {
+          "kind": "semantic_resource_waits",
+          "count": 3359
+        },
+        {
+          "kind": "v3_window_inputs",
+          "count": 1664
+        },
+        {
+          "kind": "v3_window_results",
+          "count": 1581
+        },
+        {
+          "kind": "editions",
+          "count": 419
+        }
+      ],
+      "archive": [
+        {
+          "archived": 84,
+          "bytesOffloaded": 72260317,
+          "updatedAt": "2026-10-28T19:50:17.605Z"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-28T20:21:45.765Z",
+      "kinds": [
+        {
+          "kind": "semantic_resource_waits",
+          "count": 3359
+        },
+        {
+          "kind": "v3_window_inputs",
+          "count": 1669
+        },
+        {
+          "kind": "v3_window_results",
+          "count": 1586
+        },
+        {
+          "kind": "editions",
+          "count": 421
+        }
+      ],
+      "archive": [
+        {
+          "archived": 154,
+          "bytesOffloaded": 132707406,
+          "updatedAt": "2026-10-28T20:21:17.599Z"
+        }
+      ]
+    }
+  ],
+  "financialSnapshotUnchanged": true,
+  "settledFailure": {
+    "before": "PENDING",
+    "after": "FAILED",
+    "reason": "SEMANTIC_PROVIDER_FAILURE",
+    "retainedMetadataUnchanged": true,
+    "historicalReportedUsd": 0.010036
+  },
+  "latestWindows": [
+    {
+      "deadline": "2026-10-28T20:14:53.352Z",
+      "state": "DONE",
+      "reason": "V3_VERIFICATION_REJECTED",
+      "completedAt": "2026-10-28T20:17:22.337Z",
+      "inputArticles": 6,
+      "outcome": "rejected",
+      "usage": {
+        "calls": 6,
+        "inputTokens": 9552,
+        "outputTokens": 773,
+        "costUsd": 0.0135872
+      }
+    },
+    {
+      "deadline": "2026-10-28T20:14:53.352Z",
+      "state": "PENDING",
+      "reason": null,
+      "completedAt": null
+    },
+    {
+      "deadline": "2026-10-28T20:02:09.437Z",
+      "state": "DONE",
+      "reason": "NO_SELECTED_DEVELOPMENTS",
+      "completedAt": "2026-10-28T20:12:37.112Z",
+      "inputArticles": 0,
+      "outcome": "empty",
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0
+      }
+    }
+  ],
+  "tests": {
+    "release": 37,
+    "releaseExit": 0,
+    "cleanCarryAndPendingRecheck": 11,
+    "thousandFeedPass": true,
+    "typecheckExit": 0,
+    "earlierInfrastructureFailuresRetained": true
+  },
+  "manualPaidEvaluationCalls": 0,
+  "manualNotificationsSent": 0,
+  "productionDeployment": false,
+  "arabicRecovery": {
+    "windowEnd": "2026-10-28T06:44:53.352Z",
+    "publishedAt": "2026-10-28T20:20:22.994Z",
+    "publicationStatus": "PUBLISHED",
+    "readerStatus": 200,
+    "readerEditionFound": true,
+    "usage": {
+      "calls": 6,
+      "inputTokens": 17040,
+      "outputTokens": 708,
+      "costUsd": 0.0184272
+    },
+    "timings": {
+      "totalMs": 35213,
+      "stages": {
+        "edit": 7140,
+        "verify": 17777,
+        "repair": 10296
+      }
+    },
+    "classification": "Backlog recovery, not deadline-performance evidence"
+  }
+}

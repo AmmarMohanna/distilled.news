@@ -1,0 +1,195 @@
+import {expect,it,vi} from 'vitest';
+import {PUBLIC_ARTICLE_HTML_MAX_BYTES,SourceProviderError,type ProviderHttpPort,type SourceExecutionPort} from '@distilled/connectors';
+import {createArticleFallback,runtimeArticleFallback} from './article-fallback';
+import type {Env} from '../types';
+import type {AcquisitionClaim} from './acquisition';
+const url='https://publisher.example/news/decision';
+const claim={job:{id:'stable-job'},input:{observation:{canonicalUrl:url,feedId:'feed',feedSourceId:'source',sourceId:'publisher'}}} as AcquisitionClaim;
+const html=`<meta property="article:published_time" content="2026-10-01T12:00:00Z"><article><h1>Decision</h1><p>${'The council approved the proposal. '.repeat(30)}</p></article>`;
+it('accepts a BBC RSS tracking canonical while preserving the original admitted URL',async()=>{
+ const canonical='https://www.bbc.co.uk/sport/football/articles/cq4gn7014x76o',tracked=canonical+'?at_medium=RSS&at_campaign=rss';
+ const candidate={...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:tracked}}};
+ const f=fixture({status:200,url:tracked,html:'<link rel="canonical" href="'+canonical+'">'+html});
+ expect(await f.fallback(candidate)).toMatchObject({canonicalUrl:tracked,url:tracked});
+ expect(f.request).not.toHaveBeenCalled();
+});
+it('retains a short primary webinar description as partial evidence while refusing title/date/CTA-only text',async()=>{
+ const title='How OpenAI uses ChatGPT Atlas at work',short=`<article><h1>${title}</h1><p>Webinar ${title} Watch how OpenAI uses ChatGPT Atlas at work.</p></article>`;
+ const f=fixture({status:200,url,html:short});expect(await f.fallback(claim)).toMatchObject({partial:true,shortTextEvidence:true,title});expect(f.request).not.toHaveBeenCalled();
+});
+it('accepts only the exact operator-reviewed browser destination/headline, preserving original identity',async()=>{
+ const to='https://publisher.example/projects/reported-decision',headline='Council approves the public proposal after debate';
+ const reviewedClaim={...claim,job:{...claim.job,recoveryAuthorizations:[{id:'review-1',unpaidOnly:true as const,authorizedAt:'2026-10-28T12:00:00Z',maxAttempts:2,priorAttempts:1,priorFailureCode:'INVALID_RESULT',reviewedRedirect:{from:url,to,headline}}]}};
+ const rendered=`<meta property="og:type" content="article"><link rel="canonical" href="${to}">${html.replace('<h1>Decision</h1>',`<h1>${headline}</h1>`)}`;
+ const execute=vi.fn().mockResolvedValue({status:200,url:to,html:rendered}),authorize=vi.fn();
+ const fallback=createArticleFallback({execution:{execute},authorize});
+ expect(await fallback(reviewedClaim)).toMatchObject({url,canonicalUrl:url,resolvedUrl:to,publisherRelocation:true,browserRendered:true});
+ expect(execute).toHaveBeenCalledTimes(1);expect(execute.mock.calls[0][0]).toBe('playwright');
+ execute.mockResolvedValue({status:200,url:to,html:rendered.replace(headline,'An unrelated report on another development')});
+ await expect(fallback(reviewedClaim)).rejects.toMatchObject({code:'INVALID_RESULT'});
+ execute.mockResolvedValue({status:200,url:to+'/other',html:rendered});expect(await fallback(reviewedClaim)).toBeUndefined();
+ const unreviewed={...reviewedClaim,job:{...reviewedClaim.job,recoveryAuthorizations:[]}};
+ execute.mockResolvedValue({status:200,url:to,html:rendered});expect(await fallback(unreviewed)).toBeUndefined();
+});
+it('retains readable article text in a publisher page larger than the previous six-megabyte limit',async()=>{
+ const large=html+'<script>'+ 'x'.repeat(8_000_000)+'</script>';
+ const f=fixture({status:200,url,html:large});
+ expect(await f.fallback(claim)).toMatchObject({provider:'website_playwright',publishedAt:'2026-10-01T12:00:00.000Z'});
+ expect(f.request).not.toHaveBeenCalled();
+});
+it.each(['<title>Just a moment</title>',html+'<script>'+'x'.repeat(PUBLIC_ARTICLE_HTML_MAX_BYTES)+'</script>'])('continues from browser challenge or oversized HTML to funded Zyte',async browserHtml=>{
+ const f=fixture({status:200,url,html:browserHtml});expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte'});expect(f.request).toHaveBeenCalledTimes(1);
+});
+it('accepts exact trailing-slash normalization without changing candidate identity',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:url+'/',httpResponseBody:btoa(html)}});
+ expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte',url,canonicalUrl:url});
+});
+it('accepts the BBC Arabic RSS article when its canonical omits attribution, without paying',async()=>{
+ const canonical='https://www.bbc.com/arabic/articles/c9m2j8pry2ndo';
+ const tracked=canonical+'?at_medium=RSS&at_campaign=rss';
+ const f=fixture({status:200,url:tracked,html:`<link rel="canonical" href="${canonical}">${html}`});
+ const result=await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:tracked}}} as AcquisitionClaim);
+ expect(result).toMatchObject({url:tracked,canonicalUrl:tracked,provider:'website_playwright',pageKind:'article'});
+ expect(f.request).not.toHaveBeenCalled();
+});
+it('accepts a retained BBC Arabic paid response with the same article canonical',async()=>{
+ const canonical='https://www.bbc.com/arabic/articles/c9m2j8pry2ndo';
+ const tracked=canonical+'?at_medium=RSS&at_campaign=rss';
+ const f=fixture({error:'UNAVAILABLE'});
+ f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:tracked,httpResponseBody:btoa(`<link rel="canonical" href="${canonical}">${html}`)}});
+ const result=await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:tracked}}} as AcquisitionClaim);
+ expect(result).toMatchObject({url:tracked,canonicalUrl:tracked,provider:'website_zyte',pageKind:'article'});
+ expect(f.request).toHaveBeenCalledTimes(1);
+});
+it('accepts Nature HTML whose publisher canonical points to the same article PDF',async()=>{
+ const nature='https://www.nature.com/articles/s41586-026-11328-3',f=fixture({error:'UNAVAILABLE'});
+ f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:nature,httpResponseBody:btoa('<link rel="canonical" href="'+nature+'.pdf">'+html)}});
+ expect(await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:nature}}} as AcquisitionClaim)).toMatchObject({canonicalUrl:nature,provider:'website_zyte'});
+});
+function fixture(browser:unknown={status:200,url,html}){
+ const execute=vi.fn().mockResolvedValue(browser),request=vi.fn().mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url,httpResponseBody:btoa(html)}});
+ const authorize=vi.fn().mockResolvedValue(undefined),initialize=vi.fn().mockResolvedValue(undefined);
+ const fallback=createArticleFallback({execution:{execute} as SourceExecutionPort,authorize,zyte:{http:{request} as ProviderHttpPort,key:'test-secret',ceilingUsd:.01,initialize}});
+ return {fallback,execute,request,authorize,initialize};
+}
+it('uses Playwright first and avoids paid dispatch when its exact article is readable',async()=>{
+ const f=fixture();expect(await f.fallback(claim)).toMatchObject({status:200,url,provider:'website_playwright',pageKind:'article'});
+ expect(f.execute).toHaveBeenCalledWith('playwright',{url,exactCandidateOnly:true},{timeoutMs:60000});expect(f.request).not.toHaveBeenCalled();
+});
+it('falls back to Zyte after helper transport failure with stable operation identity across retries',async()=>{
+ const f=fixture();f.execute.mockRejectedValue(new Error('SOURCE_EXECUTION_UNAVAILABLE'));
+ for(let i=0;i<2;i++)expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte',url});
+ expect(f.request.mock.calls[0][1]).toBe(f.request.mock.calls[1][1]);expect(f.request.mock.calls[0][2]).toBe('zyte');expect(f.initialize).toHaveBeenCalledTimes(2);
+});
+it.each([401,429,451,404])('browser status %s stops before Zyte',async status=>{
+ const f=fixture({status,url});await expect(f.fallback(claim)).rejects.toHaveProperty('code',({401:'AUTH_REQUIRED',429:'RATE_LIMIT',451:'POLICY_DENIED',404:'UNSUPPORTED'} as Record<number,string>)[status]);expect(f.request).not.toHaveBeenCalled();
+});
+it('does not promote browser output from an old helper without final URL evidence',async()=>{
+ const f=fixture({status:200,html});expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte'});
+});
+it('does not treat listing HTML as acquired article evidence',async()=>{
+ const f=fixture({status:200,url,html:'<html><nav>News</nav></html>'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url,httpResponseBody:btoa('<html>Listing</html>'),browserHtml:'<html>Listing</html>'}});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'ZYTE_RENDERED_TEXT_UNAVAILABLE'}});
+});
+it('reports a fetched catalogue as a listing instead of retaining the old publisher challenge',async()=>{
+ const f=fixture({error:'UNAVAILABLE'}),listing='<main><h2><a href="/one">One</a></h2><h2><a href="/two">Two</a></h2></main>';
+ f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url,httpResponseBody:btoa(listing)}});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'EXTRACTION_FAILED',diagnostic:{detail:'NO_PRIMARY_ARTICLE_TEXT'}});
+});
+it('does not spend on Zyte after an explicit browser paywall without article content',async()=>{
+ const f=fixture({status:200,url,html:'<script type="application/ld+json">{"@type":"WebPage","isAccessibleForFree":false}</script><h1>Story</h1><main>Teaser only<div id="paywall-prompt"></div></main>'});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'AUTH_REQUIRED',diagnostic:{detail:'ARTICLE_ACCESS_RESTRICTED'}});
+ expect(f.request).not.toHaveBeenCalled();
+});
+it('never promotes a Zyte response for another URL',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url:url+'/other',httpResponseBody:btoa(html)}});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'INVALID_RESULT'});
+});
+it('retains the final page and public redirect evidence without labelling it as the old form',async()=>{
+ const target='https://publisher.example/community',proof={requestedUrl:url,resolvedUrl:target,hops:[{from:url,to:target,status:301}]};
+ const request=vi.fn(async()=>({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url:target,httpResponseBody:btoa(`<link rel="canonical" href="${target}">${html}`)}}));
+ const fallback=createArticleFallback({authorize:async()=>{},verifyRedirect:async()=>proof,zyte:{http:{request},key:'test',ceilingUsd:.01,initialize:async()=>{}}});
+ expect(await fallback(claim)).toMatchObject({url,canonicalUrl:url,resolvedUrl:target,redirectEvidence:proof,title:'Decision'});
+});
+it('uses recent job-bound operator redirect proof when the Worker cannot re-observe it',async()=>{
+ const target='https://publisher.example/community',proof={requestedUrl:url,resolvedUrl:target,hops:[{from:url,to:target,status:307}]};
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:target,httpResponseBody:btoa(`<link rel="canonical" href="${target}">${html}`)}});
+ const recovery={id:'verified',authorizedAt:new Date().toISOString(),priorAttempts:1,priorFailureCode:'INVALID_RESULT',maxAttempts:2,redirectProof:proof};
+ const recovered={...claim,job:{...claim.job,attempts:2,recoveryAuthorizations:[recovery]}} as AcquisitionClaim;
+ expect(await f.fallback(recovered)).toMatchObject({resolvedUrl:target,redirectEvidence:proof});
+ await expect(f.fallback({...recovered,job:{...recovered.job,attempts:3}})).rejects.toMatchObject({code:'INVALID_RESULT'});
+ await expect(f.fallback({...recovered,job:{...recovered.job,recoveryAuthorizations:[{...recovery,authorizedAt:'2020-01-01T00:00:00Z'}]}})).rejects.toMatchObject({code:'INVALID_RESULT'});
+});
+it('reuses an exact retained recovery response before calling an unavailable browser helper',async()=>{
+ const target='https://publisher.example/community',proof={requestedUrl:url,resolvedUrl:target,hops:[{from:url,to:target,status:307}]};
+ const execute=vi.fn(async()=>{throw new SourceProviderError('BACKPRESSURE')}),request=vi.fn(async()=>({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url:target,httpResponseBody:btoa(`<link rel="canonical" href="${target}">${html}`)}}));
+ const fallback=createArticleFallback({authorize:async()=>{},execution:{execute} as SourceExecutionPort,zyte:{http:{request},key:'test',ceilingUsd:.01,initialize:async()=>{},hasRetained:async()=>true}});
+ const recovered={...claim,job:{...claim.job,attempts:2,recoveryAuthorizations:[{id:'verified',authorizedAt:new Date().toISOString(),priorAttempts:1,priorFailureCode:'INVALID_RESULT',maxAttempts:3,redirectProof:proof}]}} as AcquisitionClaim;
+ expect(await fallback(recovered)).toMatchObject({resolvedUrl:target,redirectEvidence:proof});expect(execute).not.toHaveBeenCalled();expect(request).toHaveBeenCalledTimes(1);
+});
+
+it.each(['traffic_source=rss','at_medium=RSS&at_campaign=feed'])('accepts publisher attribution %s while preserving the admitted candidate identity',async query=>{
+ const tracked=url+'?'+query;
+ const f=fixture({status:200,url:tracked,html:`<link rel="canonical" href="${url}">${html}`});
+ const result=await f.fallback({...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:tracked}}});
+ expect(result).toMatchObject({url:tracked,canonicalUrl:tracked,pageKind:'article'});
+ expect(f.request).not.toHaveBeenCalled();
+});
+
+it('still rejects a publisher canonical that changes content-bearing query parameters',async()=>{
+ const f=fixture({status:200,url,html:`<link rel="canonical" href="${url}?edition=other">${html}`});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'INVALID_RESULT',diagnostic:{detail:'FALLBACK_CANONICAL_MISMATCH'}});
+ expect(f.request).not.toHaveBeenCalled();
+});
+it('stops before paid dispatch on approval revocation',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.authorize.mockRejectedValue(new Error('revoked'));
+ await expect(f.fallback(claim)).rejects.toThrow('revoked');expect(f.execute).not.toHaveBeenCalled();expect(f.request).not.toHaveBeenCalled();
+});
+it('preserves helper backpressure instead of sending a paid fallback during capacity wait',async()=>{
+ const f=fixture();f.execute.mockRejectedValue(new SourceProviderError('BACKPRESSURE'));
+ await expect(f.fallback(claim)).rejects.toHaveProperty('code','BACKPRESSURE');expect(f.request).not.toHaveBeenCalled();
+});
+it('preserves uncertain paid outcomes rather than manufacturing a new operation',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockRejectedValue(new SourceProviderError('UNCERTAIN_PAID_SUBMISSION'));
+ await expect(f.fallback(claim)).rejects.toHaveProperty('code','UNCERTAIN_PAID_SUBMISSION');expect(f.request).toHaveBeenCalledTimes(1);
+});
+it('does not dispatch Zyte when the deployment has no funded operation ceiling',async()=>{
+ const dispatch=vi.fn(),execution={execute:vi.fn().mockResolvedValue({error:'UNAVAILABLE'})} as SourceExecutionPort;
+ const fallback=runtimeArticleFallback({ZYTE_API_KEY:'configured',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0}'} as Env,execution,async()=>{},dispatch);
+ expect(await fallback(claim)).toBeUndefined();expect(dispatch).not.toHaveBeenCalled();
+});
+it('a Zyte origin authentication challenge is never promoted as public article evidence',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status:200,headers:{},bytes:new Uint8Array(),json:{statusCode:200,url,httpResponseBody:btoa(html),httpResponseHeaders:[{name:'WWW-Authenticate',value:'Basic'}]}});
+ await expect(f.fallback(claim)).rejects.toHaveProperty('code','AUTH_REQUIRED');
+});
+it('accepts an RSS tracking alias while preserving the original candidate and paid identity',async()=>{
+ const tracked=url+'?traffic_source=rss',f=fixture({status:200,url,html:'<link rel="canonical" href="'+url+'">'+html});
+ const result=await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:tracked}}} as AcquisitionClaim);
+ expect(result).toMatchObject({provider:'website_playwright',canonicalUrl:tracked,url:tracked});expect(f.request).not.toHaveBeenCalled();
+});
+it('still rejects a meaningful canonical query change',async()=>{
+ const f=fixture({status:200,url,html:'<link rel="canonical" href="'+url+'?article=other">'+html});
+ await expect(f.fallback(claim)).rejects.toMatchObject({code:'INVALID_RESULT',diagnostic:{detail:'FALLBACK_CANONICAL_MISMATCH'}});expect(f.request).not.toHaveBeenCalled();
+});
+it('uses one durable browser representation after a confirmed HTTP 520 and reuses its identities',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockImplementation(async(_s,op)=>String(op).includes('article-browser-fallback-v1')?{status:200,headers:{},json:{statusCode:200,url,browserHtml:html}}:{status:520,headers:{},json:undefined});
+ for(let i=0;i<2;i++)expect(await f.fallback(claim)).toMatchObject({provider:'website_zyte',browserRendered:true});
+ expect(f.request.mock.calls[0][1]).toBe(f.request.mock.calls[2][1]);expect(f.request.mock.calls[1][1]).toBe(f.request.mock.calls[3][1]);expect(f.request.mock.calls[0][1]).not.toBe(f.request.mock.calls[1][1]);
+ expect(JSON.parse(String(f.request.mock.calls[1][5].body))).toEqual({url,browserHtml:true});
+});
+it('renders a confirmed challenge instead of accepting its HTTP 200 as article text',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValueOnce({status:200,headers:{},json:{statusCode:200,url,httpResponseBody:btoa('<title>Verifying you are human.</title>')}}).mockResolvedValueOnce({status:200,headers:{},json:{statusCode:200,url,browserHtml:html}});
+ expect(await f.fallback(claim)).toMatchObject({browserRendered:true});expect(f.request).toHaveBeenCalledTimes(2);
+});
+it.each([401,403,429,451,521])('does not render around provider status %s',async status=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValue({status,headers:{},json:{}});await expect(f.fallback(claim)).rejects.toBeDefined();expect(f.request).toHaveBeenCalledTimes(1);
+});
+it('does not manufacture another rendered operation after an uncertain rendered outcome',async()=>{
+ const f=fixture({error:'UNAVAILABLE'});f.request.mockResolvedValueOnce({status:520,headers:{}}).mockRejectedValueOnce(new SourceProviderError('UNCERTAIN_PAID_SUBMISSION'));
+ await expect(f.fallback(claim)).rejects.toHaveProperty('code','UNCERTAIN_PAID_SUBMISSION');expect(f.request).toHaveBeenCalledTimes(2);
+});
+it('retains a same-PII public abstract only as partial evidence',async()=>{
+ const original='https://publisher.example/journals/laninf/article/PIIS1473-3099(26)00373-7/fulltext',resolved=original.replace('/fulltext','/abstract'),f=fixture({error:'UNAVAILABLE'});
+ f.request.mockResolvedValue({status:200,headers:{},json:{statusCode:200,url:resolved,httpResponseBody:btoa('<link rel="canonical" href="'+resolved+'">'+html)}});
+ expect(await f.fallback({...claim,input:{observation:{...claim.input.observation,canonicalUrl:original}}} as AcquisitionClaim)).toMatchObject({partial:true,resolvedUrl:resolved,canonicalUrl:original});
+});

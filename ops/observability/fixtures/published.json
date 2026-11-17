@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "pipeline-trace-v1",
+  "feed": {
+    "id": "synthetic-0"
+  },
+  "window": {
+    "start": "2026-10-29T00:00:00Z",
+    "end": "2026-10-29T01:00:00Z"
+  },
+  "view": "overview",
+  "items": [],
+  "page": {
+    "total": 0,
+    "nextCursor": null
+  },
+  "summary": {
+    "publication": {
+      "briefingRequest": {
+        "id": "synthetic-request-0",
+        "state": "DONE",
+        "result": "PUBLISHED",
+        "blocked": false,
+        "coverage": {
+          "state": "COMPLETE"
+        }
+      },
+      "recordedEditions": [
+        {
+          "id": "synthetic-edition",
+          "scheduledFor": "2026-10-29T01:00:00Z",
+          "publishedAt": "2026-10-29T01:00:30Z"
+        }
+      ]
+    },
+    "v3Run": {
+      "status": "published",
+      "timings": {
+        "totalMs": 300,
+        "stages": {
+          "edit": 100,
+          "verify": 200
+        }
+      }
+    }
+  }
+}

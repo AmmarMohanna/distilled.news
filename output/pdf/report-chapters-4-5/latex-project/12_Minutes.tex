@@ -1,0 +1,20 @@
+\chapter{Weekly Meeting Minutes and Engineering Review Record}\label{app:reviews}
+\section{Weekly Review Record from Repository Evidence}
+Our dated development records provide a verifiable record of work carried out each week. We use them below to document technical decisions and follow-up actions. A development record is not a substitute for a meeting record: it does not establish who attended a meeting, what was said, or which decisions were formally approved. We do not assign attendance or invent minutes for meetings whose notes have not been supplied.
+
+\begin{longtable}{L{2.15cm}L{3.25cm}L{5.45cm}L{2.15cm}}
+\caption{Weekly engineering checkpoints supported by project artifacts}\label{tab:reviewlog}\\\toprule Week ending & Engineering focus & Documented decision and next action & Record \\ \midrule\endfirsthead
+\toprule Week ending & Focus & Decision and follow-up & Record \\ \midrule\endhead
+4 Oct 2026 & Source and downstream contracts & Align source identities, payload ownership, and integration boundaries. Complete staging handoff checks. & \cite{stagingintegration} \\
+11 Oct 2026 & Backend and source integration & Reconcile the Worker composition, source contracts, and scheduled processing. Continue migration verification. & \cite{stagingintegration} \\
+18 Oct 2026 & Source-collection recovery & Improve deferred-window classification, retries, and source-retirement handling. Test fallbacks without losing valid work. & \cite{recoveryrecord} \\
+25 Oct 2026 & Editorial quality and reader experience & Retain the verifier parser repair and evidence-grounding change. Reject prompts and notification text that added errors or lost developments. & \cite{controlledreliability,notificationeval,continuity} \\
+28 Oct 2026 & Evaluation and reliability planning & Preserve the frozen V3 baseline; develop opportunity-based performance definitions and auditable metrics. & \cite{performanceprotocol,acquisitionrecord} \\
+30 Oct 2026 & Preserved integration and recovery & Pin merged candidate, retain frontend/financial safeguards and review bounded backlog/read recovery; keep human evaluation pending. & \cite{currentintegration,canaryrecovery} \\
+\bottomrule\end{longtable}
+
+\section{Formal Meeting-Minutes Record}
+The AUB FYP template includes an official meeting-minutes form. That form is preserved in the editable submission package, in the \texttt{Minutes} folder. For each actual supervisor or team meeting, the completed record should give the date, time, attendees, agenda, decisions, action owners, deadlines, and approval or confirmation where required. Such facts cannot be established from the repository alone. No unsigned retrospective meeting record is presented as an attended meeting.
+
+\section{Evidence and Document Control}
+Each weekly checkpoint above points to dated project documentation. Where a test used synthetic articles, its results are identified as synthetic. Where a result came from isolated replay, it is not presented as fresh source acquisition or proof of on-time public delivery. The current integrated implementation is available; its integration reports and limitations are cited in Chapter~\ref{chap:progress}. A final release acceptance decision remains pending.

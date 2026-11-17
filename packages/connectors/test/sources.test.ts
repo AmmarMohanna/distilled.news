@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { detectSourceInput } from "../src";
 
 describe("detectSourceInput", () => {
+  it("configures a generic HTTPS web source without weakening credential admission",()=>{
+    expect(detectSourceInput("https://www.aljazeera.net/")).toMatchObject({provider:"web",kind:"web_page",sourceUrl:"https://www.aljazeera.net/"});
+    expect(detectSourceInput("techcrunch.com/category/artificial-intelligence/")).toMatchObject({provider:"web",kind:"web_page",sourceUrl:"https://techcrunch.com/category/artificial-intelligence/"});
+    expect(detectSourceInput("example.com/feed.xml")).toMatchObject({provider:"rss",kind:"rss_feed",sourceUrl:"https://example.com/feed.xml"});
+    expect(()=>detectSourceInput("https://user:password@example.com/")).toThrow();
+    expect(()=>detectSourceInput("http://example.com/news")).toThrow();
+  });
   it("auto-detects Telegram, RSS, Google News, and X inputs", () => {
     expect(detectSourceInput("t: LebUpdate")).toMatchObject({
       provider: "telegram",
@@ -15,6 +22,7 @@ describe("detectSourceInput", () => {
       kind: "telegram_channel",
       username: "LebUpdate"
     });
+    expect(detectSourceInput("@LebUpdate")).toMatchObject({provider:"telegram",kind:"telegram_channel",username:"LebUpdate"});
 
     expect(detectSourceInput("https://x.com/NASA")).toMatchObject({
       provider: "apify",
@@ -76,5 +84,6 @@ describe("detectSourceInput", () => {
         postedLimit: "24h"
       }
     });
+    expect(detectSourceInput("https://www.linkedin.com/company/example/")).toMatchObject({provider:"apify",kind:"linkedin_company"});
   });
 });

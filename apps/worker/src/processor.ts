@@ -1,5 +1,6 @@
 import {
   areSameEventDeterministic,
+  haveConflictingNamedStorms,
   eventTokens,
   jaccardSimilarity,
   mergeBriefingItem,
@@ -15,6 +16,7 @@ import {
   type SummaryAdapter
 } from "@distilled/core";
 import type { ProcessingJobMessage, Repository } from "./types";
+import {canonicalUrl,evidenceFingerprint,extractiveClaims,updateDevelopment,validateGroundedClaims,stableHash,type GroundedClaim} from "@distilled/core";
 
 const RECENT_MESSAGE_CONTEXT_LIMIT = 30;
 const EXISTING_ITEM_CONTEXT_LIMIT = 80;
@@ -26,6 +28,10 @@ export async function processQueueMessage(
   summaryAdapter?: SummaryAdapter | null,
   reviewAdapter?: EventReviewAdapter | null
 ): Promise<ProcessingResult | undefined> {
+  const job=await repo.getProcessingJob(message.jobId);
+  if(job?.state==="completed")return undefined;
+  if(job&&(job.briefingId!==message.briefingId||job.rawMessageId!==message.rawMessageId))throw Error("PROCESSING_JOB_SCOPE_MISMATCH");
+  if(job&&!await repo.claimProcessingJob(message.jobId,message.briefingId,now))throw new ProcessingLeaseBusy();
   try {
     const briefing = await repo.getBriefingById(message.briefingId);
     const rawMessage = await repo.getRawMessage(message.rawMessageId);
@@ -45,7 +51,18 @@ export async function processQueueMessage(
       return undefined;
     }
 
-    const existingItems = limitExistingItemsForProcessing(await repo.getExistingItems(briefing.id, now));
+    const allExistingItems = await repo.getExistingItems(briefing.id, now);
+    // Always include items affected by this post, even outside the recent context cap.
+    const existingItems = Array.from(new Map([
+      ...limitExistingItemsForProcessing(allExistingItems),
+      ...allExistingItems.filter((item) => item.evidence.some((entry) => entry.messageId === rawMessage.id))
+    ].map((item) => [item.id, item])).values());
+    if(rawMessage.news){
+      const started=Date.now();const result=await processNewsMessage(repo,message,briefing,rawMessage,existingItems,now,summaryAdapter,reviewAdapter);
+      const touched=result.publishedItems.filter(item=>item.evidence.some(entry=>entry.messageId===rawMessage.id));
+      await repo.recordProcessingOutcome(message.jobId,{outcome:"COMPLETED",elapsedMs:Date.now()-started,developments:touched.map(item=>({id:item.id,version:item.development?.version,membership:item.development?.membership.find(ref=>ref.messageId===rawMessage.id)?.method})),suppressed:result.suppressed.map(entry=>entry.reason)});
+      return result;
+    }
     const existingItemIds = new Set(existingItems.map((item) => item.id));
     const recentMessages = await repo.listRecentRawMessages(briefing.id, now, RECENT_MESSAGE_CONTEXT_LIMIT);
     const messages = uniqueMessagesById([rawMessage, ...recentMessages]);
@@ -81,7 +98,7 @@ export async function processQueueMessage(
     }
 
     const changedItems = result.publishedItems.filter((item) =>
-      Boolean(item.summary) && item.evidence.some((evidence) => evidence.messageId === rawMessage.id)
+      (Boolean(item.summary) || existingItemIds.has(item.id)) && item.evidence.some((evidence) => evidence.messageId === rawMessage.id)
     );
     await repo.saveBriefingItems(briefing.id, changedItems, now);
     await repo.completeProcessingJob(message.jobId, now);
@@ -94,6 +111,47 @@ export async function processQueueMessage(
     );
     throw error;
   }
+}
+
+export class ProcessingLeaseBusy extends Error{constructor(){super("PROCESSING_FEED_LEASE_BUSY")}}
+
+async function processNewsMessage(repo:Repository,job:ProcessingJobMessage,briefing:BriefingConfig,raw:NormalizedMessage,existing:BriefingItem[],now:Date,summary?:SummaryAdapter|null,review?:EventReviewAdapter|null):Promise<ProcessingResult>{
+  const duplicate=existing.some(item=>item.evidence.some(entry=>entry.messageId===raw.id||(entry.sourceId===raw.source.id&&raw.text.length>=200&&entry.contentHash===raw.news?.contentHash)||(raw.sourceUrl&&entry.sourceUrl&&canonicalUrl(raw.sourceUrl)===canonicalUrl(entry.sourceUrl))));
+  if(duplicate){await repo.completeProcessingJob(job.jobId,now);return {publishedItems:existing,suppressed:[{messageId:raw.id,reason:"duplicate",detail:"Same canonical document already processed."}]}}
+  // Editorial/opinion content remains stored but is not a factual development.
+  if(/\/(?:blogs|opinion)\//i.test(raw.sourceUrl??"")){await repo.completeProcessingJob(job.jobId,now);return {publishedItems:existing,suppressed:[{messageId:raw.id,reason:"fluff",detail:"Editorial evidence retained; no factual development promoted."}]}}
+  const previous=new Map(existing.map(item=>[item.id,structuredClone(item)]));
+  const important=await findImportantMessageIds(briefing,[raw],raw.id,review);
+  const result=processMessages({briefing,messages:[raw],existingItems:structuredClone(existing),importantMessageIds:important,now});
+  let item=result.publishedItems.find(candidate=>candidate.evidence.some(entry=>entry.messageId===raw.id));
+  if(!item){await repo.completeProcessingJob(job.jobId,now);return result}
+  let method:"DETERMINISTIC"|"SEMANTIC_REVIEW"="DETERMINISTIC";
+  if(review&&!previous.has(item.id)){
+    const candidates=existing.filter(candidate=>Math.abs(Date.parse(candidate.itemAt)-Date.parse(raw.postedAt))<=72*3600000).map(candidate=>({candidate,score:Math.max(jaccardSimilarity(eventTokens(raw.text),eventTokens(candidate.evidence.map(entry=>entry.text).join(" "))),...candidate.evidence.map(entry=>jaccardSimilarity(eventTokens(raw.news?.headline??raw.text),eventTokens(entry.headline??entry.text))))})).sort((a,b)=>b.score-a.score);
+    let attempts=0;
+    for(const {candidate,score} of candidates){
+      if(haveConflictingNamedStorms(item.evidence,candidate.evidence))continue;
+      const crossLanguage=/[\u0600-\u06ff]/.test(raw.text)!==/[\u0600-\u06ff]/.test(candidate.evidence.map(entry=>entry.text).join(" "));
+      if(score<0.12&&!crossLanguage)continue;
+      if(attempts++>=3)break;
+      const cache=`processing:event:${briefing.id}:${stableHash(raw.id+candidate.id+evidenceFingerprint(candidate.evidence))}`;
+      let same=false;
+      try{const cached=await repo.getSetting(cache);same=cached===null?await review.areSameEvent({briefing,left:item.evidence,right:candidate.evidence}):cached==="true";if(cached===null)await repo.setSetting(cache,JSON.stringify(same),now)}catch{continue}
+      if(same){const merged=mergeBriefingItem(structuredClone(candidate),item,briefing);result.publishedItems=result.publishedItems.filter(value=>value.id!==item!.id&&value.id!==candidate.id);result.publishedItems.push(merged);item=merged;method="SEMANTIC_REVIEW";break}
+    }
+  }
+  const prior=previous.get(item.id);
+  if(prior?.development?.evidenceFingerprint===evidenceFingerprint(item.evidence)){await repo.completeProcessingJob(job.jobId,now);return result}
+  let claims:GroundedClaim[];
+  if(summary?.summarizeGrounded){
+    try{claims=validateGroundedClaims(await summary.summarizeGrounded({briefing,evidence:item.evidence,knownClaims:prior?.development?.claims}),item.evidence)}catch{claims=extractiveClaims(item.evidence.filter(entry=>entry.messageId===raw.id))}
+  }else claims=extractiveClaims(item.evidence.filter(entry=>entry.messageId===raw.id));
+  if(!claims.length){await repo.completeProcessingJob(job.jobId,now);return result}
+  updateDevelopment(item,prior,claims,briefing,now,method);
+  item.summary=item.development!.claims.slice(-4).map(claim=>claim.text).join(" ");
+  await repo.saveBriefingItems(briefing.id,[item],now);
+  await repo.completeProcessingJob(job.jobId,now);
+  return result;
 }
 
 function uniqueMessagesById<T extends { id: string }>(messages: T[]): T[] {

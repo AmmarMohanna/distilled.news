@@ -1,4 +1,6 @@
 export * from "./clustering";
+export * from "./feed-title";
+export * from "./username";
 export * from "./cadence";
 export * from "./editions";
 export * from "./events";
@@ -8,3 +10,4 @@ export * from "./processing";
 export * from "./summarization";
 export * from "./text";
 export * from "./types";
+export * from "./developments";

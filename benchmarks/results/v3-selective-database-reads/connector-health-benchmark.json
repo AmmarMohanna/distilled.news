@@ -1,0 +1,15 @@
+{
+  "kind": "synthetic SQLite schema/query equivalence; 500 historical results per table",
+  "measurements": [
+    {
+      "table": "connector_rss_poll_jobs",
+      "oldRowsRead": 550,
+      "newRowsRead": 1
+    },
+    {
+      "table": "connector_provider_poll_jobs",
+      "oldRowsRead": 550,
+      "newRowsRead": 1
+    }
+  ]
+}

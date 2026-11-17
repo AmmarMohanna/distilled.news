@@ -1,0 +1,44 @@
+{
+  "responseHash": "d59a1df5698449f3c8825049e5ef9c968125d37f575bfb4c365d6c8210694dc0",
+  "inputHash": "35c9c7ede2b492ba4ba6b3799e6ec396557cd178e905a9bd0e3be2aed6e8601d",
+  "errors": [
+    {
+      "candidate": 4,
+      "field": "newUnderstandingFactIds",
+      "id": "R51",
+      "code": "FOREIGN_FACT"
+    },
+    {
+      "candidate": 4,
+      "field": "newUnderstandingFactIds",
+      "id": "R52",
+      "code": "FOREIGN_FACT"
+    },
+    {
+      "candidate": 4,
+      "field": "newUnderstandingFactIds",
+      "id": "R53",
+      "code": "FOREIGN_FACT"
+    },
+    {
+      "candidate": 4,
+      "field": "attributionFactIds",
+      "id": "R51",
+      "code": "FOREIGN_FACT"
+    },
+    {
+      "candidate": 4,
+      "field": "attributionFactIds",
+      "id": "R52",
+      "code": "FOREIGN_FACT"
+    },
+    {
+      "candidate": 4,
+      "field": "attributionFactIds",
+      "id": "R53",
+      "code": "FOREIGN_FACT"
+    }
+  ],
+  "conclusion": "Substantive candidate/fact ownership confusion, not a requirement to reproduce optional background",
+  "newCalls": 0
+}

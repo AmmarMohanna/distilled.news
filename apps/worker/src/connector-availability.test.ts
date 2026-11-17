@@ -1,0 +1,88 @@
+import {expect,it} from 'vitest';
+import {sourceAvailability,feedSourceAvailability,collectionFailureReason,acquisitionFailureIssues} from './connector-availability';
+import type {Env} from './types';
+it('unlimited collection does not surface historical app budget exhaustion as a current block',async()=>{
+ const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM sources')?[{id:'x',title:'@test',provider:'twitterapi_io',kind:'x_profile',source_url:'https://x.com/test',input:JSON.stringify({username:'test'}),actor_id:null}]:[]}},async first(){return sql.includes('connector_provider_operations')?null:{state:'BLOCKED',last_error:'BUDGET_EXCEEDED',result:null}}})};
+ const env={DB,SOURCE_CONNECTORS_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_COLLECTION_BUDGET_MODE:'unlimited',SOURCE_PER_PROVIDER_BUDGET_USD:'0',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.01}',TWITTERAPI_IO_API_KEY:'test'} as unknown as Env;
+ expect((await feedSourceAvailability(env,'feed'))[0]).toMatchObject({state:'AVAILABLE',providers:['x_twitterapi_io']});
+});
+it('zero budgets or missing credentials explicitly deny paid sources while free news remains available',()=>{
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{}',SOURCE_OPERATION_CEILINGS_JSON:'{}'} as Env;
+ expect(sourceAvailability(env,'x_profile')).toMatchObject({state:'UNAVAILABLE',providers:[]});
+ expect(sourceAvailability(env,'linkedin_profile').state).toBe('UNAVAILABLE');
+ expect(sourceAvailability(env,'rss').state).toBe('AVAILABLE');
+ expect(sourceAvailability(env,'google_news').providers).toEqual(['google_rss']);
+});
+it('independent funded X primary and fallback are both available without exposing keys',()=>{
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":100,"x_apify":100}',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.1,"apify":0.25}',TWITTERAPI_IO_API_KEY:'primary-private',APIFY_API_TOKEN:'fallback-private',SOURCE_PER_PROVIDER_BUDGET_USD:'15'} as Env;
+ const result=sourceAvailability(env,'x_search');
+ expect(result.providers).toEqual(['x_twitterapi_io','x_apify']);expect(JSON.stringify(result)).not.toContain('private');
+ delete env.TWITTERAPI_IO_API_KEY;expect(sourceAvailability(env,'x_search').providers).toEqual(['x_apify']);
+});
+it('missing private execution is reported instead of pretending Telegram or website collection succeeded',()=>{
+ const env={SOURCE_CONNECTORS_ENABLED:'true'} as Env;
+ expect(sourceAvailability(env,'telegram').reason).toBe('PRIVATE_SERVICE_UNAVAILABLE');
+ expect(sourceAvailability(env,'website').state).toBe('UNAVAILABLE');
+});
+it('native public extraction enables websites without pretending Telegram sessions or browsers exist',()=>{
+ const env={SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true'} as Env;
+ expect(sourceAvailability(env,'website')).toEqual({state:'AVAILABLE',providers:['website_http']});
+ expect(sourceAvailability(env,'telegram').state).toBe('UNAVAILABLE');
+});
+it('reports article failures and pending work without leaking stored diagnostics',async()=>{
+ const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[{feed_source_id:'rss',state:'FAILED',failure:'AUTH_REQUIRED',count:2},{feed_source_id:'rss',state:'PENDING',failure:null,count:1}]:[{id:'rss',title:'News',provider:'rss',kind:'rss',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){return {state:'DONE',last_error:null,result:JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'TRANSIENT',secret:'never-public'}]})}}})};
+ const result=await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed');
+ expect(result[0]).toMatchObject({acquisition:{completed:0,pending:1,failed:2},warning:'ARTICLE_AUTH_REQUIRED',collectionError:'TRANSIENT'});
+ expect(JSON.stringify(result)).not.toContain('never-public');
+});
+it('does not describe a mixed failure count as entirely authentication failures',async()=>{
+ const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[{feed_source_id:'rss',state:'FAILED',failure:'AUTH_REQUIRED',count:2},{feed_source_id:'rss',state:'FAILED',failure:'POLICY_DENIED',count:3}]:[{id:'rss',title:'News',provider:'rss',kind:'rss',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){return null}})};
+ expect((await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed'))[0]).toMatchObject({acquisition:{failed:5},warning:'ARTICLE_ACQUISITION_FAILED'});
+});
+it('only reads paid budget ledgers when a source has a configured paid route',async()=>{
+ const queries:string[]=[];
+ const rss={id:'rss',title:'News',provider:'rss',kind:'rss_feed',source_url:'https://example.com/feed.xml',input:null,actor_id:null};
+ const x={id:'x',title:'Account',provider:'twitterapi_io',kind:'x_profile',source_url:'https://x.com/NASA',input:JSON.stringify({username:'NASA'}),actor_id:null};
+ let sources:(typeof rss|typeof x)[]=[rss];
+ const DB={prepare:(sql:string)=>{
+  queries.push(sql);
+  return {bind(){return this},async all(){return {results:sql.includes('FROM sources')?sources:[]}},
+   async first(){return sql.includes('connector_daily_provider_budgets')?{limit_usd:1,reserved_usd:1}:null}};
+ }};
+ const env={DB,SOURCE_CONNECTORS_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_DAILY_BUDGET_USD:'1',
+  SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.01}',
+  TWITTERAPI_IO_API_KEY:'fixture-only'} as unknown as Env;
+ expect(await feedSourceAvailability(env,'feed')).toMatchObject([{state:'AVAILABLE',providers:['rss_native']}]);
+ expect(queries.filter(sql=>sql.includes('provider_budgets'))).toHaveLength(0);
+ sources=[rss,x];
+ expect(await feedSourceAvailability(env,'feed')).toMatchObject([
+  {state:'AVAILABLE',providers:['rss_native']},{state:'UNAVAILABLE',reason:'BUDGET_EXHAUSTED'}
+ ]);
+ expect(queries.filter(sql=>sql.includes('provider_budgets'))).toHaveLength(3);
+});
+it('retains the provider cause behind a retry-limit warning without exposing arbitrary errors',()=>{
+ expect(collectionFailureReason({last_error:'RETRY_LIMIT:RATE_LIMIT',result:null})).toBe('RATE_LIMIT');
+ expect(collectionFailureReason({last_error:'RETRY_LIMIT',result:JSON.stringify({coverage:{failureReason:'RATE_LIMIT'}})})).toBe('RATE_LIMIT');
+ expect(collectionFailureReason({last_error:'sensitive provider text',result:null})).toBeUndefined();
+});
+it('a newly pending poll does not erase the last blocked collection outcome',async()=>{
+ let query='';const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[]:[{id:'rss',title:'News',provider:'rss',kind:'rss_feed',source_url:'https://example.com/rss',input:null,actor_id:null}]}},async first(){query=sql;return {state:'BLOCKED',last_error:'RETRY_LIMIT:RATE_LIMIT',result:null}}})};
+ expect((await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true'} as unknown as Env,'feed'))[0]).toMatchObject({state:'UNAVAILABLE',reason:'COLLECTION_BLOCKED',collectionError:'RATE_LIMIT'});
+ expect(query).toContain("state IN ('DONE','BLOCKED')");
+});
+it.each(['social','website'])('does not block fresh %s collection on an old paid error when no active payment hold remains',async family=>{
+ const source=family==='social'?{id:'x-source',title:'Account',provider:'twitterapi_io',kind:'x_profile',source_url:'https://x.com/NASA',input:JSON.stringify({username:'NASA'}),actor_id:null}:{id:'web-source',title:'Publisher',provider:'web',kind:'web_page',source_url:'https://publisher.example/',input:'https://publisher.example/',actor_id:null};
+ const DB={prepare:(sql:string)=>({bind(){return this},async all(){return {results:sql.includes('FROM v1_jobs')?[]:[source]}},async first(){return sql.includes('connector_provider_operations')?null:{state:'BLOCKED',last_error:'UNCERTAIN_PAID_SUBMISSION',result:null}}})};
+ const result=await feedSourceAvailability({DB,SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_COLLECTION_BUDGET_MODE:'unlimited',SOURCE_PROVIDER_BUDGETS_JSON:'{"x_twitterapi_io":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"twitterApiIo":0.01}',TWITTERAPI_IO_API_KEY:'private'} as unknown as Env,'feed');
+ expect(result[0]).toMatchObject({state:'AVAILABLE'});expect(result[0].collectionError).toBeUndefined();
+});
+
+it('reports distinct safe article failure categories without exposing diagnostic text',()=>{
+ const issues=acquisitionFailureIssues([{failure:'UNCERTAIN_PAID_SUBMISSION',detail:'private-provider-receipt',count:2},{failure:'INVALID_RESULT',detail:'https://private.example/article',count:3},{failure:'UNSUPPORTED',detail:'LISTING_PAGE',count:4},{failure:'EXTRACTION_FAILED',count:1},{failure:'UNRECOGNIZED_PRIVATE_ERROR',detail:'secret',count:1}]);
+ expect(issues).toEqual([{reason:'PAID_OUTCOME_UNKNOWN',count:2},{reason:'IDENTITY_MISMATCH',count:3},{reason:'LISTING_PAGE',count:4},{reason:'NO_READABLE_TEXT',count:1},{reason:'OTHER',count:1}]);
+ expect(JSON.stringify(issues)).not.toMatch(/private|secret|https/);
+});
+
+it('reports the provider parsing cause behind a collection repair blocker',()=>{
+ expect(collectionFailureReason({last_error:'PROVIDER_REPAIR_REQUIRED',result:JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'MALFORMED',private:'not-public'}]})})).toBe('MALFORMED');
+});

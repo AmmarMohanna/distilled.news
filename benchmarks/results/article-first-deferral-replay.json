@@ -1,0 +1,8 @@
+{
+  "responseHash": "c778c16b37fe230e24c0de5621ef532b2dbb4a213fa47996b0d885e7781357a6",
+  "originalFailure": "SCOPE_DENIED",
+  "acceptedDecision": "DEFER",
+  "readerPublication": false,
+  "newCalls": 0,
+  "immutablePaidAnswerUnchanged": true
+}

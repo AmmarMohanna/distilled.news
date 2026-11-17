@@ -1,0 +1,169 @@
+{
+  "sourceCommit": "93007da",
+  "disabledByDefault": true,
+  "frozenWorkerCoverage": {
+    "files": 243,
+    "sourceHashesUnchanged": 440,
+    "passed": 1653,
+    "failed": 15,
+    "skipped": 11,
+    "total": 1679,
+    "execution": "SPLIT_FROZEN_SOURCE_AFTER_DISK_FULL_INTERRUPTION",
+    "strictSuiteGreen": false,
+    "scope": "BEFORE_FINAL_REVIEW_NOVELTY_FIXES"
+  },
+  "exactStrictReruns": [
+    {
+      "file": "src/agent-runtime-store.test.ts",
+      "name": "D1 agent runtime fencing and outbox relays an admission committed before publication from a fresh store instance",
+      "strictRerun": "failed",
+      "durationMs": 5112.4401
+    },
+    {
+      "file": "src/connector-read-recovery.test.ts",
+      "name": "resumes a poll blocked before dispatch once another source owns the legacy hold",
+      "strictRerun": "passed",
+      "durationMs": 2479.5378
+    },
+    {
+      "file": "src/connector-scale.test.ts",
+      "name": "retry ticks skip reenrollment until collection is due, and preserve changes during scheduling",
+      "strictRerun": "passed",
+      "durationMs": 713.3279000000002
+    },
+    {
+      "file": "src/v1-intelligence/blocked-briefing.integration.test.ts",
+      "name": "blocked protected correction, through processV1Briefing is BLOCKED (not failed), repeats without spending attempts, reassesses a real persisted job, then delivers a verified correction and resolves the obligation",
+      "strictRerun": "passed",
+      "durationMs": 44520.0334
+    },
+    {
+      "file": "src/v1-intelligence/dispatch-isolation.test.ts",
+      "name": "a failing policy-upgrade maintenance step cannot starve publication dispatch, and is reported rather than hidden",
+      "strictRerun": "passed",
+      "durationMs": 4473.3833
+    },
+    {
+      "file": "src/v1-intelligence/editorial-plan.integration.test.ts",
+      "name": "retained legacy UNKNOWN operation is not replaced by a new-contract paid call",
+      "strictRerun": "passed",
+      "durationMs": 9392.3541
+    },
+    {
+      "file": "src/v1-intelligence/editorial-plan.integration.test.ts",
+      "name": "one durable comparative call controls selection/order/treatment and replays without provider use",
+      "strictRerun": "passed",
+      "durationMs": 7438.957100000001
+    },
+    {
+      "file": "src/v1-intelligence/editorial-plan.integration.test.ts",
+      "name": "retained KNOWN_STRUCTURAL_FAILURE never reissues the billed call and survives restart",
+      "strictRerun": "passed",
+      "durationMs": 10266.7241
+    },
+    {
+      "file": "src/v1-intelligence/editorial-plan.integration.test.ts",
+      "name": "cached oversized planning only acquires a first call when no billed operation exists (false)",
+      "strictRerun": "passed",
+      "durationMs": 6260.874800000001
+    },
+    {
+      "file": "src/v1-intelligence/editorial-plan.integration.test.ts",
+      "name": "cached oversized planning only acquires a first call when no billed operation exists (true)",
+      "strictRerun": "passed",
+      "durationMs": 4565.342200000006
+    },
+    {
+      "file": "src/v1-intelligence/editorial-plan.integration.test.ts",
+      "name": "offers a bounded real decision scope and durably carries unreviewed ordinary work without losing protected corrections",
+      "strictRerun": "passed",
+      "durationMs": 8274.977099999996
+    },
+    {
+      "file": "src/v1-intelligence/editorial-plan.integration.test.ts",
+      "name": "unavailable model capabilities retain the whole unreviewed comparison instead of falsely labeling input overflow",
+      "strictRerun": "passed",
+      "durationMs": 5045.7929
+    },
+    {
+      "file": "src/v1-intelligence/publication.test.ts",
+      "name": "restart after durable model draft and grounding resumes publication without a second paid call",
+      "strictRerun": "failed",
+      "durationMs": 5865.8464
+    },
+    {
+      "file": "src/v1-intelligence/runtime.test.ts",
+      "name": "cron dispatches only approved bounded feed windows; duplicate briefing delivery returns one persisted edition",
+      "strictRerun": "failed",
+      "durationMs": 8759.8292
+    },
+    {
+      "file": "src/v1-intelligence/runtime.test.ts",
+      "name": "recovers a committed edition whose request was not settled before a crash",
+      "strictRerun": "failed",
+      "durationMs": 8715.7166
+    }
+  ],
+  "strictRerunPassed": 11,
+  "strictRerunFailed": 4,
+  "limitsChangedInRepository": false,
+  "providerCalls": 0,
+  "providerSpendUsd": 0,
+  "deployment": false,
+  "push": false,
+  "extendedDiagnostics": [
+    {
+      "file": "src/agent-runtime-store.test.ts",
+      "name": "D1 agent runtime fencing and outbox relays an admission committed before publication from a fresh store instance",
+      "status": "passed",
+      "durationMs": 2629.880100000001
+    },
+    {
+      "file": "src/v1-intelligence/publication.test.ts",
+      "name": "restart after durable model draft and grounding resumes publication without a second paid call",
+      "status": "passed",
+      "durationMs": 15537.725300000002
+    },
+    {
+      "file": "src/v1-intelligence/runtime.test.ts",
+      "name": "cron dispatches only approved bounded feed windows; duplicate briefing delivery returns one persisted edition",
+      "status": "passed",
+      "durationMs": 11100.4038
+    },
+    {
+      "file": "src/v1-intelligence/runtime.test.ts",
+      "name": "recovers a committed edition whose request was not settled before a crash",
+      "status": "passed",
+      "durationMs": 9793.0864
+    }
+  ],
+  "diagnosticLimits": {
+    "testMs": 120000,
+    "hookMs": 30000,
+    "strictPassEvidence": false
+  },
+  "finalReview": {
+    "findings": [
+      "Missing/uncertain and conflicting novelty could reach repair/publication",
+      "Optional novelty ownership used only mandatory facts"
+    ],
+    "fixRuntimeScope": [
+      "publication-validation.ts",
+      "writer-wire.ts (v2 conditional only)"
+    ],
+    "fullSuiteRerunAfterFix": false,
+    "focusedVerification": {
+      "pureTestsPassed": 93,
+      "pureFiles": 15,
+      "d1TestsPassed": 6,
+      "d1Files": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "providerCalls": 0,
+    "sourceCommit": "506ea16",
+    "repositoryTypecheck": "PASSED",
+    "workerStagingConfigDryRun": "PASSED_NO_UPLOAD",
+    "reviewStatus": "No remaining important defect identified in narrow follow-up read-only review"
+  }
+}

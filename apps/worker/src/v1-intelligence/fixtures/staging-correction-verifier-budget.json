@@ -1,0 +1,283 @@
+{
+  "editionId": "776e0b9ffd42aae9a2760696f2a1a01a41f4b08f367a6b8c2b53843e27e1079f",
+  "selectionId": "e710ec7c6c3d3e2c19af836dd186d147db76e3019435b253c8480ccbda4faae1",
+  "writerInputTokens": 1989,
+  "claims": [
+    {
+      "id": "claim-0",
+      "candidateId": "[\"e710ec7c6c3d3e2c19af836dd186d147db76e3019435b253c8480ccbda4faae1\",\"EVENT\",\"00c1bffd-41de-4fa5-ba72-6a010127a28c\"]",
+      "text": "A prior Distilled briefing that stated August Hanning is accused of obtaining classified information for a foreign power has been withdrawn. The source reporting this was not necessarily retracted, but the approved fact remains that August Hanning is accused of this offense.",
+      "support": [
+        {
+          "evidenceRevisionId": "c879f07d-9219-4e27-b45e-dba51c1551c9",
+          "quote": "August Hanning is accused of obtaining classified information for a foreign power."
+        }
+      ],
+      "context": [
+        {
+          "evidenceRevisionId": "c879f07d-9219-4e27-b45e-dba51c1551c9",
+          "title": "Former German spy chief arrested for espionage and treason",
+          "text": "August Hanning is accused of obtaining classified information for a foreign power.",
+          "truncated": false
+        }
+      ],
+      "allowedFacts": [
+        {
+          "id": "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac",
+          "text": "August Hanning is accused of obtaining classified information for a foreign power.",
+          "evidenceRevisionIds": [
+            "c879f07d-9219-4e27-b45e-dba51c1551c9"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T10:05:42.000Z",
+            "reportTime": "2026-10-06T10:05:42.000Z",
+            "firstSeenByFeedAt": "2026-10-06T17:23:00.857Z",
+            "observedAt": "2026-10-06T17:23:00.857Z",
+            "framingRequired": false
+          }
+        }
+      ],
+      "requiredFacts": [
+        {
+          "id": "13b8948b90335ccc6eb3f282c143b9f349f56cd6ae3f8883d99cc43eb7a73eac",
+          "text": "August Hanning is accused of obtaining classified information for a foreign power.",
+          "evidenceRevisionIds": [
+            "c879f07d-9219-4e27-b45e-dba51c1551c9"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T10:05:42.000Z",
+            "reportTime": "2026-10-06T10:05:42.000Z",
+            "firstSeenByFeedAt": "2026-10-06T17:23:00.857Z",
+            "observedAt": "2026-10-06T17:23:00.857Z",
+            "framingRequired": false
+          }
+        }
+      ],
+      "previousLedgerFacts": [
+        "August Hanning is accused of obtaining classified information for a foreign power."
+      ],
+      "previousReaderClaims": [
+        {
+          "id": "95dd1db805b3c6a46e75fe341220e9e5fead2275eb75378085cce9ff48ee8865",
+          "claimText": "August Hanning is accused of obtaining classified information for a foreign power.",
+          "claimFacts": [
+            "August Hanning is accused of obtaining classified information for a foreign power."
+          ],
+          "eventIds": [
+            "a0cd5afd-c08c-4c05-8910-7e747c0c9f7b"
+          ],
+          "storylineIds": [
+            "19cbf210-f95b-492e-aa8b-a727fbdacefb"
+          ],
+          "certainty": {
+            "kind": "UNSPECIFIED",
+            "hedges": []
+          },
+          "editionId": "5122201a69958b99ca17f977e3c84c0c9ae8aafb3a7acb7c94012c85a2140b7f"
+        }
+      ],
+      "correctionObligations": [
+        {
+          "id": "ab8278bef865b3bd37d66241024bfc7a69d4c660cc3353df439ac884d7cddfcb",
+          "feedId": "quality-soak-20261006-world",
+          "ledgerEntryId": "95dd1db805b3c6a46e75fe341220e9e5fead2275eb75378085cce9ff48ee8865",
+          "editionId": "5122201a69958b99ca17f977e3c84c0c9ae8aafb3a7acb7c94012c85a2140b7f",
+          "kind": "RETRACTED",
+          "triggerId": "1f1c96b772556f742d2519181e382c0f51e949e7f29d9cf8c53fdc6bd4e15ca8",
+          "state": "OPEN",
+          "createdAt": "2026-10-06T17:37:55.661Z",
+          "policyVersion": "grounded-communication-ledger-v1",
+          "publicationWithdrawal": {
+            "reason": "POLICY_REQUIRED"
+          }
+        }
+      ]
+    },
+    {
+      "id": "claim-1",
+      "candidateId": "[\"e710ec7c6c3d3e2c19af836dd186d147db76e3019435b253c8480ccbda4faae1\",\"EVENT\",\"0b93839e-c95b-4159-9ade-232196de3117\"]",
+      "text": "A previous Distilled communication regarding advertisements promoting Donald Trump and his policies potentially violating US laws that bar public government funds from being spent on political advertising has been withdrawn. The source reporting this was not necessarily retracted. The approved fact is that these ads could have violated such laws, and Trump has said he will stop using taxpayer funds for ads following bipartisan pushback.",
+      "support": [
+        {
+          "evidenceRevisionId": "09b1e340-e3e7-4819-b680-0dd7805fac10",
+          "quote": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising."
+        },
+        {
+          "evidenceRevisionId": "b603e198-b6ff-40e1-871d-7f07f19f73eb",
+          "quote": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising."
+        },
+        {
+          "evidenceRevisionId": "09b1e340-e3e7-4819-b680-0dd7805fac10",
+          "quote": "Trump says he will stop using taxpayer funds for ads after bipartisan pushback"
+        }
+      ],
+      "context": [
+        {
+          "evidenceRevisionId": "09b1e340-e3e7-4819-b680-0dd7805fac10",
+          "title": "Trump says he will stop using taxpayer funds for ads after bipartisan pushback",
+          "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+          "truncated": false
+        },
+        {
+          "evidenceRevisionId": "b603e198-b6ff-40e1-871d-7f07f19f73eb",
+          "title": "Trump says he will stop using taxpayer funds for ads after bipartisan pushback",
+          "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+          "truncated": false
+        }
+      ],
+      "allowedFacts": [
+        {
+          "id": "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d",
+          "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+          "evidenceRevisionIds": [
+            "09b1e340-e3e7-4819-b680-0dd7805fac10",
+            "b603e198-b6ff-40e1-871d-7f07f19f73eb"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T01:58:29.000Z",
+            "reportTime": "2026-10-06T01:58:29.000Z",
+            "firstSeenByFeedAt": "2026-10-06T16:51:42.789Z",
+            "observedAt": "2026-10-06T16:52:19.227Z",
+            "framingRequired": false
+          },
+          "context": {
+            "evidenceRevisionId": "09b1e340-e3e7-4819-b680-0dd7805fac10",
+            "field": "title",
+            "text": "Trump says he will stop using taxpayer funds for ads after bipartisan pushback"
+          }
+        }
+      ],
+      "requiredFacts": [
+        {
+          "id": "3c3dce476da5d865d6c35824cd96ef4e4a005444deea475e77945a159950be3d",
+          "text": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+          "evidenceRevisionIds": [
+            "09b1e340-e3e7-4819-b680-0dd7805fac10",
+            "b603e198-b6ff-40e1-871d-7f07f19f73eb"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T01:58:29.000Z",
+            "reportTime": "2026-10-06T01:58:29.000Z",
+            "firstSeenByFeedAt": "2026-10-06T16:51:42.789Z",
+            "observedAt": "2026-10-06T16:52:19.227Z",
+            "framingRequired": false
+          },
+          "context": {
+            "evidenceRevisionId": "09b1e340-e3e7-4819-b680-0dd7805fac10",
+            "field": "title",
+            "text": "Trump says he will stop using taxpayer funds for ads after bipartisan pushback"
+          }
+        }
+      ],
+      "previousLedgerFacts": [
+        "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+        "Advertisements promoting Donald Trump and his policies may have breached U.S. laws that prohibit the use of public government funds for political advertising, prompting Trump to announce he will cease using taxpayer money for such ads following bipartisan criticism.",
+        "Trump says he will stop using taxpayer funds for ads after bipartisan pushback"
+      ],
+      "previousReaderClaims": [
+        {
+          "id": "025f6191ed925a19d6841d1c6b3280aa03a532417e0fdd3d3e316caeaa2fc539",
+          "claimText": "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising.",
+          "claimFacts": [
+            "The ads, which tout Trump and his policies, could have violated US laws barring public government funds being spent on political advertising."
+          ],
+          "eventIds": [
+            "05e64c1d-2059-4c92-b63f-cc5c504bf6a0"
+          ],
+          "storylineIds": [
+            "08a6dd45-78b0-4cf8-9337-2ac884cc5f66"
+          ],
+          "certainty": {
+            "kind": "POSSIBLE",
+            "hedges": [
+              "could"
+            ]
+          },
+          "editionId": "5122201a69958b99ca17f977e3c84c0c9ae8aafb3a7acb7c94012c85a2140b7f"
+        },
+        {
+          "id": "837b5dcfc82d0dfbd45d4176d7657b9f440ad1d9872b172f1cd9481adb8e4a55",
+          "claimText": "Advertisements promoting Donald Trump and his policies may have breached U.S. laws that prohibit the use of public government funds for political advertising, prompting Trump to announce he will cease using taxpayer money for such ads following bipartisan criticism.",
+          "claimFacts": [
+            "Advertisements promoting Donald Trump and his policies may have breached U.S. laws that prohibit the use of public government funds for political advertising, prompting Trump to announce he will cease using taxpayer money for such ads following bipartisan criticism."
+          ],
+          "eventIds": [
+            "05e64c1d-2059-4c92-b63f-cc5c504bf6a0"
+          ],
+          "storylineIds": [
+            "08a6dd45-78b0-4cf8-9337-2ac884cc5f66"
+          ],
+          "certainty": {
+            "kind": "POSSIBLE",
+            "hedges": [
+              "may"
+            ]
+          },
+          "editionId": "27725892323b5ee60779c722a1bf723b05404977ed7052c0d63d82f974df6330"
+        },
+        {
+          "id": "ac28f01bc032ba1758608ab0d963b4ea19c3bbcf4ebfa515dd6d3f6330d46722",
+          "claimText": "Trump says he will stop using taxpayer funds for ads after bipartisan pushback",
+          "claimFacts": [
+            "Trump says he will stop using taxpayer funds for ads after bipartisan pushback"
+          ],
+          "eventIds": [
+            "05e64c1d-2059-4c92-b63f-cc5c504bf6a0"
+          ],
+          "storylineIds": [
+            "08a6dd45-78b0-4cf8-9337-2ac884cc5f66"
+          ],
+          "certainty": {
+            "kind": "UNSPECIFIED",
+            "hedges": []
+          },
+          "editionId": "5122201a69958b99ca17f977e3c84c0c9ae8aafb3a7acb7c94012c85a2140b7f"
+        }
+      ],
+      "correctionObligations": [
+        {
+          "id": "48dacca543cbe6c65300b4bd61ebde90245492e0d7656d431136e1fc5e160387",
+          "feedId": "quality-soak-20261006-world",
+          "ledgerEntryId": "837b5dcfc82d0dfbd45d4176d7657b9f440ad1d9872b172f1cd9481adb8e4a55",
+          "editionId": "27725892323b5ee60779c722a1bf723b05404977ed7052c0d63d82f974df6330",
+          "kind": "RETRACTED",
+          "triggerId": "c92b281962c8d5e605945a40529b3e15f0fd8ec55b45f313f27581f34be10a5e",
+          "state": "OPEN",
+          "createdAt": "2026-10-06T17:03:11.894Z",
+          "policyVersion": "grounded-communication-ledger-v1",
+          "publicationWithdrawal": {
+            "reason": "POLICY_REQUIRED"
+          }
+        },
+        {
+          "id": "c40ce02c0080a44bd1250d9b33a268bcba329400d5a9d2274522600b440e9b6a",
+          "feedId": "quality-soak-20261006-world",
+          "ledgerEntryId": "025f6191ed925a19d6841d1c6b3280aa03a532417e0fdd3d3e316caeaa2fc539",
+          "editionId": "5122201a69958b99ca17f977e3c84c0c9ae8aafb3a7acb7c94012c85a2140b7f",
+          "kind": "RETRACTED",
+          "triggerId": "1f1c96b772556f742d2519181e382c0f51e949e7f29d9cf8c53fdc6bd4e15ca8",
+          "state": "OPEN",
+          "createdAt": "2026-10-06T17:37:55.661Z",
+          "policyVersion": "grounded-communication-ledger-v1",
+          "publicationWithdrawal": {
+            "reason": "POLICY_REQUIRED"
+          }
+        },
+        {
+          "id": "f3a4dd01d2bd55368e7b636fd832fa4fb2a1476036cefd09ed82a04549953939",
+          "feedId": "quality-soak-20261006-world",
+          "ledgerEntryId": "ac28f01bc032ba1758608ab0d963b4ea19c3bbcf4ebfa515dd6d3f6330d46722",
+          "editionId": "5122201a69958b99ca17f977e3c84c0c9ae8aafb3a7acb7c94012c85a2140b7f",
+          "kind": "RETRACTED",
+          "triggerId": "1f1c96b772556f742d2519181e382c0f51e949e7f29d9cf8c53fdc6bd4e15ca8",
+          "state": "OPEN",
+          "createdAt": "2026-10-06T17:37:55.661Z",
+          "policyVersion": "grounded-communication-ledger-v1",
+          "publicationWithdrawal": {
+            "reason": "POLICY_REQUIRED"
+          }
+        }
+      ]
+    }
+  ]
+}

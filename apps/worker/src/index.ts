@@ -1,11 +1,52 @@
+import {withD1ResetDiagnostics} from './d1-reset-diagnostics';
+import {readRouteDatabase} from './d1-read-routes';
+import {backfillEditionArtifacts,editionArtifactBackfillEnabled} from './edition-artifact-backfill';
+import {observeInvocation,emitAgentOps} from './agentops';
+import {runStorageMaintenance} from './storage-maintenance';
+import {sweepVerifiedArchiveOrphans} from './verified-archives';
+import {retireManualBriefing,retireManualBriefingRequests} from './manual-briefing';
+import {recordV1QueueOutcome} from './v1-queue-dispatch';
+import {continueFeedReview} from './connector-review-continuation';
+import {productRuntimeEnv} from './product-feeds';
+import { sendBriefingNotifications } from './push';
+import {dispatchConnectorFeeds,decodeConnectorDelivery,processConnectorMessage,recordConnectorQueueFailure,completeConnectorDownstream,deferConnectorDownstream,connectorDownstreamEnv,expireConnectorDeliveries,type ConnectorQueueMessage} from './connector-scheduling';
+import {expireSharedPublicFetches} from './connector-public-cache';
+import {dispatchTelegramLane} from './connector-telegram-lane';
+import {withIntelligenceTurn,isIntelligenceTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
+import {SemanticLeaseError} from './v1-intelligence/semantic-work-lease';
+import {SemanticContentionError} from './v1-intelligence/semantic-operations';
+import {renewConnectorWork} from './connector-work-admission';
 import { createApp } from "./app";
+import { dispatchDueFeedSketches, processFeedSketchJob } from "./feed-sketch-jobs";
+import {runConnectorMaintenance} from './connector-runtime';
+import { dispatchV1Acquisitions, processV1Acquisition } from './v1-downstream-runtime';
+import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,processV1Rematch,windowIdentity} from './v1-intelligence/runtime';
+import {runModelPublicationMaintenance} from './v1-intelligence/model-publication-maintenance';
+import {runProviderAccountingRecovery} from './v1-intelligence/provider-recovery';
+import {consumeWindowReadinessWake,sweepWindowReadiness} from './v1-intelligence/window-readiness';
+import {HandoffError} from '@distilled/contracts';
+import {drainNextProcessingJob} from "./processing-drain";
 import { createEventReviewAdapterFromEnv, createSummaryAdapterFromEnv } from "./ai";
 import { publishDueBriefingEditions } from "./editions";
-import { processQueueMessage } from "./processor";
+import { v3RuntimeFromEnv } from "./briefing-v3";
+import { processQueueMessage,ProcessingLeaseBusy } from "./processor";
 import { D1Repository } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } from "./sources";
-import type { DistilledQueueMessage, Env, ProcessingJobMessage, Repository, SourceRefreshJobMessage } from "./types";
+import type { AuthenticatedProfileBootstrapMessage,AuthenticatedSurfaceDiagnosticMessage,AuthenticatedXAcquisitionRequestMessage,DistilledQueueMessage, Env, OpenRouterModelDiagnosticMessage, ProcessingJobMessage, PublicAcquisitionRequestMessage, Repository, SourceRefreshJobMessage, WebOperatorLiveSmokeMessage, WebOperatorRunMessage } from "./types";
+import { relayPendingWebOperatorOutbox } from "./web-operator-admission";
+import { D1AgentRuntimeStore } from "./agent-runtime-store";
+import { processLivePublicAcquisitionSmoke } from "./live-public-acquisition-smoke";
+import { dispatchPendingPublicAcquisitionRequests, processPublicAcquisitionRequest } from "./public-acquisition-request";
+import { dispatchPendingAuthenticatedXAcquisitionRequests,processAuthenticatedXAcquisitionRequest } from "./authenticated-x-acquisition-request";
+import { expireAcquisitionDiagnostics } from "./acquisition-diagnostic-retention";
+import {enqueueScheduledSourceAcquisitions} from "./scheduled-source-acquisition";
+import { createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
+import { dispatchPendingOpenRouterModelDiagnostics,processOpenRouterModelDiagnostic } from "./openrouter-model-diagnostic";
+import { dispatchPendingAuthenticatedProfileBootstraps,processAuthenticatedProfileBootstrap } from "./authenticated-profile-bootstrap-trigger";
+import { dispatchPendingAuthenticatedSurfaceDiagnostics,processAuthenticatedSurfaceDiagnostic } from "./authenticated-surface-diagnostic-trigger";
+
+export {AuthenticatedBrowserContainer} from "./cloudflare-container-browser";
 
 const app = createApp();
 const MAX_QUEUE_ATTEMPTS = 5;
@@ -14,21 +55,72 @@ const STALE_PROCESSING_JOB_REQUEUE_LIMIT = 25;
 const SLOW_QUEUE_JOB_MS = 10_000;
 
 export default {
-  fetch: app.fetch,
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runScheduledMaintenance(env));
+  fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
+    // Read-only routes may use a replica session and retry an overloaded read once.
+    env={...env,DB:readRouteDatabase(env,request,withD1ResetDiagnostics)};
+    return env.AGENTOPS_ENABLED==='true' ? observeInvocation('fetch',async()=>app.fetch(request,await productRuntimeEnv(env),ctx)) : app.fetch(request,await productRuntimeEnv(env),ctx);
   },
-  async queue(batch: MessageBatch<DistilledQueueMessage>, env: Env): Promise<void> {
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    env={...env,DB:withD1ResetDiagnostics(env.DB)};
+    ctx.waitUntil(env.AGENTOPS_ENABLED==='true'?observeInvocation('scheduled',()=>runScheduledMaintenance(env)):runScheduledMaintenance(env));
+  },
+  async queue(batch: MessageBatch<DistilledQueueMessage | WebOperatorRunMessage>, env: Env): Promise<void> {
+    env={...env,DB:withD1ResetDiagnostics(env.DB)};
+    env = await productRuntimeEnv(env);
     const repo = new D1Repository(env.DB);
+    const agentStore = new D1AgentRuntimeStore(env.DB);
     const summaryAdapter = createSummaryAdapterFromEnv(env, repo);
     const reviewAdapter = createEventReviewAdapterFromEnv(env, repo);
     for (const message of batch.messages) {
+      const delivery=decodeConnectorDelivery(message.body),body=delivery.body;
+      if(isRecord(body)&&body.type==='window_readiness_wake'&&typeof body.feedId==='string'&&typeof body.eventId==='string'){
+        const feedId=body.feedId,eventId=body.eventId;
+        try{
+          await consumeWindowReadinessWake(env,{type:'window_readiness_wake',feedId,eventId},()=>processConnectorMessage(env,{type:'connector_relay',feedId}));
+          message.ack();
+        }catch{message.retry({delaySeconds:retryDelaySeconds(message.attempts)});}
+        continue;
+      }
+      if(isRecord(body)&&['connector_feed','connector_poll','connector_relay'].includes(String(body.type))){
+        try{await (env.AGENTOPS_ENABLED==='true'?observeInvocation('queue',()=>processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token)):processConnectorMessage(env,body as ConnectorQueueMessage,delivery.token));message.ack();}
+        catch{message.retry({delaySeconds:retryDelaySeconds(message.attempts)});await tryQueueBookkeeping('CONNECTOR_FAILURE',()=>recordConnectorQueueFailure(env,message.id,body as ConnectorQueueMessage,message.attempts));}
+        continue;
+      }
       const startedAt = Date.now();
-      const bodyType = queueBodyType(message.body);
-      const bodyId = queueBodyId(message.body);
+      const monotonicStart=performance.now();
+      const bodyType = queueBodyType(body);
+      let bodyId = queueBodyId(body);
+      let latencyOutcome='SUCCEEDED';
+      let completedProcessing=false;
+      let renewingWork:Promise<void>|undefined;
+      const workHeartbeat=delivery.token?setInterval(()=>{if(!renewingWork)renewingWork=renewConnectorWork(env,delivery.token!).catch(()=>{}).finally(()=>{renewingWork=undefined});},40000):undefined;
       try {
-        await processDistilledQueueMessage(repo, env, message.body, summaryAdapter, reviewAdapter);
+        if(isRecord(body)&&body.type==='v1_briefing'&&typeof body.feedId==='string'&&isRecord(body.window)&&typeof body.window.start==='string'&&typeof body.window.end==='string'&&Number.isFinite(Date.parse(body.window.start))&&Number.isFinite(Date.parse(body.window.end)))bodyId=await windowIdentity(body.feedId,body.window as unknown as import('./v1-intelligence/scoring').PublicationWindow);
+        const downstreamEnv=await connectorDownstreamEnv(env,body as DistilledQueueMessage);
+        if(isRecord(body)&&body.type==='generate_feed_sketch'&&typeof body.feedId==='string') await processFeedSketchJob(env,body.feedId);
+        else if(isRecord(body)&&body.type==='v1_manual_briefing'&&typeof body.feedId==='string'&&typeof body.requestId==='string') await retireManualBriefing(env,body.feedId,body.requestId);
+        else if(isRecord(body) && isIntelligenceTurn(body as DistilledQueueMessage)) await withIntelligenceTurn(downstreamEnv,body as DistilledQueueMessage,async()=>{
+          if(body.type==='v1_acquisition' && typeof body.jobId==='string') await processV1Acquisition(downstreamEnv,body.jobId);
+          else if(body.type==='v1_rematch' && typeof body.feedId==='string' && typeof body.requestId==='string') await processV1Rematch(downstreamEnv,body.feedId,body.requestId);
+          else if(body.type==='v1_reassess' && typeof body.jobId==='string') await processV1Reassessment(downstreamEnv,body.jobId);
+          else if(body.type==='v1_briefing') await processV1Briefing(downstreamEnv,body as import('./v1-intelligence/runtime').V1BriefingMessage,undefined,undefined,undefined,{scheduledDelivery:true});
+          else throw new HandoffError('INVALID_REQUEST');
+        });
+        else if (isWebOperatorRunMessage(body)) await processWebOperatorRunMessage(env,body);
+        else if (isWebOperatorLiveSmokeMessage(body)) {
+          await processLivePublicAcquisitionSmoke(env, body, async (request) => app.fetch(request, env));
+        }
+        else if (isPublicAcquisitionRequestMessage(body)) await processPublicAcquisitionRequest(env,body,async request=>app.fetch(request,env));
+        else if (isAuthenticatedXAcquisitionRequestMessage(body)) await processAuthenticatedXAcquisitionRequest(env,body,async request=>app.fetch(request,env));
+        else if (isOpenRouterModelDiagnosticMessage(body)) await processOpenRouterModelDiagnostic(env,body);
+        else if(isAuthenticatedProfileBootstrapMessage(body))await processAuthenticatedProfileBootstrap(env,body);
+        else if(isAuthenticatedSurfaceDiagnosticMessage(body))await processAuthenticatedSurfaceDiagnostic(env,body);
+        else completedProcessing=await processDistilledQueueMessage(repo, env, body, summaryAdapter, reviewAdapter);
+        if(completedProcessing&&isProcessingJobMessage(body)){
+          await drainNextProcessingJob(repo,env.PROCESSING_QUEUE,body.briefingId,completedProcessing);
+        }
         const durationMs = Date.now() - startedAt;
+        if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')await completeConnectorDownstream(env,body as DistilledQueueMessage,delivery.token);
         if (durationMs >= SLOW_QUEUE_JOB_MS) {
           console.warn("Slow queue job completed", {
             messageId: message.id,
@@ -38,30 +130,66 @@ export default {
             durationMs
           });
         }
+        if(isRecord(body)&&(body.type==='v1_reassess'||body.type==='v1_acquisition')&&typeof body.jobId==='string'){
+          try{await continueFeedReview(downstreamEnv,body.jobId)}catch{console.warn(JSON.stringify({type:'V1_REVIEW_CONTINUATION_FAILED',reason:'CRON_RECOVERY_REQUIRED'}))}
+        }
         message.ack();
       } catch (error) {
+        latencyOutcome=error instanceof IntelligenceTurnBusy?'FEED_TURN_BUSY':error instanceof HandoffError?error.code:'FAILED';
+        if(error instanceof IntelligenceTurnBusy||env.V1_REVIEW_PREPARATION_ISOLATED==='true'&&(error instanceof SemanticLeaseError||error instanceof SemanticContentionError)){
+          // Capacity waits retain canonical identity and rotate only their
+          // transport generation. Cron is crash recovery, not the normal wakeup.
+          let deferred=false;
+          if(!await tryQueueBookkeeping('DEFER_DOWNSTREAM',async()=>{deferred=await deferConnectorDownstream(env,body as DistilledQueueMessage,delivery.token)})){message.retry({delaySeconds:retryDelaySeconds(message.attempts)});continue;}
+          if(deferred)message.ack();
+          else if(message.attempts<MAX_QUEUE_ATTEMPTS)message.retry({delaySeconds:1});
+          else {message.ack();if(isRecord(body))await tryQueueBookkeeping('BUSY_OUTCOME',()=>recordV1QueueOutcome(env,message.id,body,message.attempts,'FEED_TURN_BUSY'));}
+          continue;
+        }
+        if(isRecord(body) && typeof body.type==='string' && body.type.startsWith('v1_')) {
+          if(error instanceof HandoffError && error.code!=='TEMPORARY_UNAVAILABLE') message.ack();
+          else if(message.attempts<MAX_QUEUE_ATTEMPTS) message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
+          else if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+            message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
+            await tryQueueBookkeeping('DOWNSTREAM_RECOVERY',()=>env.DB.prepare('INSERT INTO connector_queue_recovery(id,kind,job_id,attempts,reason,observed_at) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET attempts=excluded.attempts').bind(message.id,String(body.type),'jobId' in body?String(body.jobId):null,message.attempts,'DOWNSTREAM_DELIVERY_EXHAUSTED',new Date().toISOString()).run());
+          }else message.ack();
+          await tryQueueBookkeeping('V1_OUTCOME',()=>recordV1QueueOutcome(env,message.id,body,message.attempts,error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'));
+          console.warn('V1 queue work deferred or terminal',{bodyType,bodyId,messageId:message.id,attempts:message.attempts,durationMs:Date.now()-startedAt,code:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'});continue;
+        }
+        // Contention is not a failed attempt. The completed job drains the next
+        // durable job; the existing stale-job relay recovers a crashed leader.
+        if(error instanceof ProcessingLeaseBusy){message.ack();continue}
         const errorMessage = error instanceof Error ? error.message : String(error);
         const shouldQuarantine = shouldQuarantineQueueFailure(error, message.attempts);
-        await recordQueueFailure(repo, message.body, errorMessage, shouldQuarantine);
-        console.error(shouldQuarantine ? "Quarantined queue job" : "Retrying queue job", {
+        if(!shouldQuarantine)message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
+        const recorded=await tryQueueBookkeeping('LEGACY_FAILURE',()=>recordQueueFailure(repo,agentStore,body,errorMessage,shouldQuarantine));
+        console.error(shouldQuarantine&&recorded ? "Quarantined queue job" : "Retrying queue job", {
           messageId: message.id,
           attempts: message.attempts,
           bodyType,
           bodyId,
           durationMs: Date.now() - startedAt,
           permanent: isPermanentQueueError(error),
-          quarantined: shouldQuarantine,
+          quarantined: shouldQuarantine&&recorded,
           error: errorMessage
         });
         if (shouldQuarantine) {
-          message.ack();
-        } else {
-          message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
+          // A failed state update cannot truthfully pause/quarantine the job.
+          if(recorded)message.ack();else message.retry({delaySeconds:retryDelaySeconds(message.attempts)});
         }
+      }finally{
+        if(env.AGENTOPS_ENABLED==='true')emitAgentOps('queue',latencyOutcome==='SUCCEEDED'?'ok':'error',performance.now()-monotonicStart);
+        if(isRecord(body)&&typeof body.type==='string'&&body.type.startsWith('v1_'))console.info(JSON.stringify({type:'V1_QUEUE_LATENCY',messageId:message.id,workType:bodyType,workId:bodyId,attempts:message.attempts,queueWaitMs:message.timestamp?Math.max(0,startedAt-message.timestamp.getTime()):undefined,durationMs:Date.now()-startedAt,outcome:latencyOutcome}));
+        if(workHeartbeat!==undefined)clearInterval(workHeartbeat);if(renewingWork)await renewingWork;
       }
     }
   }
 };
+
+/** Retry control must survive the same storage failure being diagnosed. */
+async function tryQueueBookkeeping(step:string,run:()=>Promise<unknown>):Promise<boolean>{
+ try{await run();return true}catch{console.warn(JSON.stringify({type:'QUEUE_BOOKKEEPING_UNAVAILABLE',step}));return false}
+}
 
 async function processDistilledQueueMessage(
   repo: Repository,
@@ -69,7 +197,7 @@ async function processDistilledQueueMessage(
   body: unknown,
   summaryAdapter: ReturnType<typeof createSummaryAdapterFromEnv>,
   reviewAdapter: ReturnType<typeof createEventReviewAdapterFromEnv>
-): Promise<void> {
+): Promise<boolean> {
   if (isSourceRefreshJobMessage(body)) {
     const briefing = await repo.getBriefingById(body.briefingId);
     if (!briefing) throw new PermanentQueueError("Briefing not found.");
@@ -83,12 +211,11 @@ async function processDistilledQueueMessage(
       now: new Date(),
       force: body.force
     });
-    return;
+    return false;
   }
 
   if (isProcessingJobMessage(body)) {
-    await processQueueMessage(repo, body, new Date(), summaryAdapter, reviewAdapter);
-    return;
+    return Boolean(await processQueueMessage(repo, body, new Date(), summaryAdapter, reviewAdapter));
   }
 
   throw new PermanentQueueError("Invalid queue message.");
@@ -96,6 +223,7 @@ async function processDistilledQueueMessage(
 
 async function recordQueueFailure(
   repo: Repository,
+  agentStore:D1AgentRuntimeStore,
   body: unknown,
   error: string,
   quarantined: boolean
@@ -108,6 +236,10 @@ async function recordQueueFailure(
   if (isSourceRefreshJobMessage(body)) {
     await repo.updateSourceState({ sourceId: body.sourceId, lastError: sourceFailureMessage(error, quarantined) });
     if (quarantined) await repo.setSourceEnabled(body.sourceId, false);
+    return;
+  }
+  if (quarantined && isWebOperatorRunMessage(body)) {
+    await agentStore.failRunDelivery(body.runId,message);
   }
 }
 
@@ -128,6 +260,36 @@ function isSourceRefreshJobMessage(body: unknown): body is SourceRefreshJobMessa
   return body.type === "refresh_source" &&
     typeof body.briefingId === "string" &&
     typeof body.sourceId === "string";
+}
+
+function isWebOperatorRunMessage(body:unknown):body is WebOperatorRunMessage {
+  return isRecord(body) && body.type==="web_operator_run" && typeof body.runId==="string";
+}
+
+function isWebOperatorLiveSmokeMessage(body: unknown): body is WebOperatorLiveSmokeMessage {
+  return isRecord(body) && body.type === "live_public_acquisition_smoke" && typeof body.requestId === "string";
+}
+function isPublicAcquisitionRequestMessage(body:unknown):body is PublicAcquisitionRequestMessage{return isRecord(body)&&body.type==="public_acquisition_request"&&typeof body.requestId==="string"}
+function isAuthenticatedXAcquisitionRequestMessage(body:unknown):body is AuthenticatedXAcquisitionRequestMessage{return isRecord(body)&&body.type==="authenticated_x_acquisition_request"&&typeof body.requestId==="string"}
+
+function isOpenRouterModelDiagnosticMessage(body:unknown):body is OpenRouterModelDiagnosticMessage {
+  return isRecord(body)&&body.type==="openrouter_model_diagnostic"&&typeof body.requestId==="string";
+}
+function isAuthenticatedProfileBootstrapMessage(body:unknown):body is AuthenticatedProfileBootstrapMessage{return isRecord(body)&&body.type==="authenticated_profile_bootstrap"&&typeof body.requestId==="string"}
+function isAuthenticatedSurfaceDiagnosticMessage(body:unknown):body is AuthenticatedSurfaceDiagnosticMessage{return isRecord(body)&&body.type==="authenticated_surface_diagnostic"&&typeof body.requestId==="string"}
+
+export async function processWebOperatorRunMessage(
+  env: Env,
+  message: WebOperatorRunMessage,
+  runtimeHandler: (request: Request) => Promise<Response> = createWorkerWebOperatorRuntimeHandler(env)
+) {
+  if (!env.WEB_OPERATOR_RUNTIME_URL) throw new Error("WEB_OPERATOR_RUNTIME_URL is not configured");
+  const headers=new Headers({"content-type":"application/json"});
+  if (env.WEB_OPERATOR_RUNTIME_TOKEN) headers.set("authorization",`Bearer ${env.WEB_OPERATOR_RUNTIME_TOKEN}`);
+  const response=await runtimeHandler(new Request(new URL("/v1/agent-runs/process",env.WEB_OPERATOR_RUNTIME_URL),{
+    method:"POST",headers,body:JSON.stringify(message)
+  }));
+  if (!response.ok) throw new Error(`Web Operator runtime failed: ${response.status}`);
 }
 
 class PermanentQueueError extends Error {}
@@ -156,8 +318,18 @@ function queueBodyType(body: unknown): string {
 }
 
 function queueBodyId(body: unknown): string | undefined {
+  if(isRecord(body)&&typeof body.type==='string'&&body.type.startsWith('v1_')){
+    if(typeof body.jobId==='string')return body.jobId;
+    if(typeof body.requestId==='string')return body.requestId;
+  }
   if (isProcessingJobMessage(body)) return body.jobId;
   if (isSourceRefreshJobMessage(body)) return body.sourceId;
+  if (isWebOperatorRunMessage(body)) return body.runId;
+  if (isWebOperatorLiveSmokeMessage(body)) return body.requestId;
+  if (isPublicAcquisitionRequestMessage(body)) return body.requestId;
+  if (isAuthenticatedXAcquisitionRequestMessage(body)) return body.requestId;
+  if (isOpenRouterModelDiagnosticMessage(body)) return body.requestId;
+  if(isAuthenticatedProfileBootstrapMessage(body))return body.requestId;
   return undefined;
 }
 
@@ -165,9 +337,70 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-async function runScheduledMaintenance(env: Env): Promise<void> {
+async function runProjectionMaintenance(env:Env):Promise<void> {
+  try {await sweepWindowReadiness(env)} catch {console.warn('Could not recover window readiness delivery')}
+  if(env.EDITION_ARTIFACTS_ENABLED==='true'||env.VERIFIED_ARCHIVE_ENABLED==='true')
+    try{await sweepVerifiedArchiveOrphans(env)}catch{console.warn('Could not recover verified archive cleanup')}
+}
+
+export async function runScheduledMaintenance(env: Env): Promise<void> {
+  if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
+  catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
+  if(editionArtifactBackfillEnabled(env))try {await backfillEditionArtifacts(env,{maxAttached:5,budgetMs:5000})}
+  catch(error){console.error(JSON.stringify({event:'edition_artifact_backfill_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
+  env = await productRuntimeEnv(env);
+  await runModelPublicationMaintenance(env);
+  try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}
+  try {await dispatchDueFeedSketches(env)} catch {console.warn('Could not recover feed illustration jobs')}
+  if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+    try {
+      // Ten bounded queue batches can dispatch 1,000 due feeds without a
+      // population scan or doing any upstream collection in Cron.
+      for(let page=0;page<10;page++)if(await dispatchConnectorFeeds(env)<100)break;
+      await dispatchTelegramLane(env);
+    } finally {
+      await runProviderAccountingRecovery(env);
+    }
+    await expireConnectorDeliveries(env);
+    if(env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true')await expireSharedPublicFetches(env.DB,env.RAW_ARCHIVE);
+    // Preserve reader notifications in the indexed scheduling path.
+    try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+    await runProjectionMaintenance(env);
+    // Keep auxiliary recovery/retention; avoid the legacy population scans below.
+    const repo=new D1Repository(env.DB),now=new Date();
+    await dispatchPendingOpenRouterModelDiagnostics(env,now);
+    await dispatchPendingAuthenticatedProfileBootstraps(env,now);
+    await dispatchPendingAuthenticatedSurfaceDiagnostics(env,now);
+    await dispatchPendingPublicAcquisitionRequests(env);
+    await dispatchPendingAuthenticatedXAcquisitionRequests(env);
+    await expireAcquisitionDiagnostics(env.DB,now);
+    if(env.DISTILLED_WEB_OPERATOR_ENABLED==='true')await relayPendingWebOperatorOutbox(env,undefined,25,now);
+    await runRetentionCleanup(repo,env.RAW_ARCHIVE,now);
+    await rescueStaleProcessingJobs(repo,env.PROCESSING_QUEUE,now);
+    return;
+  }
+  try {await dispatchV1Acquisitions(env)} catch {console.warn('Could not dispatch v1 acquisition jobs')}
+  try {await dispatchV1Intelligence(env)} catch {console.warn('Could not dispatch v1 intelligence jobs')}
+  try {await runConnectorMaintenance(env)} catch {console.warn('Could not run connector maintenance')}
+  try {await sendBriefingNotifications(env)} catch {console.warn('Could not send briefing notifications')}
+  await runProjectionMaintenance(env);
   const repo = new D1Repository(env.DB);
   const now = new Date();
+  if(env.SOURCE_LEGACY_POLLING_ENABLED!=='false')try{await enqueueScheduledSourceAcquisitions(env,now)}catch{console.warn("Could not enqueue scheduled source acquisition")}
+  try {
+    await dispatchPendingOpenRouterModelDiagnostics(env,now);
+  } catch (error) {
+    console.warn("Could not dispatch pending OpenRouter model diagnostic",error);
+  }
+  try{await dispatchPendingAuthenticatedProfileBootstraps(env,now)}catch(error){console.warn("Could not dispatch pending authenticated profile bootstrap",error)}
+  try{await dispatchPendingAuthenticatedSurfaceDiagnostics(env,now)}catch(error){console.warn("Could not dispatch pending authenticated surface diagnostic",error)}
+  try{await dispatchPendingPublicAcquisitionRequests(env)}catch(error){console.warn("Could not dispatch pending public acquisition requests",error)}
+  try{await dispatchPendingAuthenticatedXAcquisitionRequests(env)}catch(error){console.warn("Could not dispatch pending authenticated X acquisition requests",error)}
+  try{await expireAcquisitionDiagnostics(env.DB,now)}catch(error){console.warn("Could not expire acquisition diagnostics",error)}
+  if (env.DISTILLED_WEB_OPERATOR_ENABLED === "true") {
+    try { await relayPendingWebOperatorOutbox(env,undefined,25,now); }
+    catch (error) { console.warn("Could not relay pending Web Operator runs",error); }
+  }
   try {
     await runRetentionCleanup(repo, env.RAW_ARCHIVE, now);
   } catch (error) {
@@ -175,11 +408,12 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
   }
 
   try {
-    await publishDueBriefingEditions({
+    if(env.PRODUCT_FEEDS_ENABLED!=='true')await publishDueBriefingEditions({
       repo,
       briefings: await repo.listBriefings(),
       now,
-      summaryAdapter: createSummaryAdapterFromEnv(env, repo)
+      summaryAdapter: createSummaryAdapterFromEnv(env, repo),
+      v3: v3RuntimeFromEnv(env)
     });
   } catch (error) {
     console.error("Could not publish briefing editions", error);
@@ -210,6 +444,7 @@ async function runScheduledMaintenance(env: Env): Promise<void> {
   for (const briefing of briefings) {
     try {
       enqueued += await enqueueDueSourceRefreshJobs({
+        env,
         briefing,
         repo,
         queue: env.PROCESSING_QUEUE,

@@ -1,0 +1,195 @@
+{
+  "scope": "Deterministic combined gate and one-packet merge, controlled semantic port, 12 stories/claims/required facts; not provider accuracy or inference latency",
+  "baseline": "2e46fa9",
+  "providerCalls": 0,
+  "samples": [
+    {
+      "round": 0,
+      "variant": "before",
+      "warmup": true,
+      "decisions": 100,
+      "durationMs": 69.07240000000002,
+      "msPerDecision": 0.6907240000000001
+    },
+    {
+      "round": 0,
+      "variant": "after",
+      "warmup": true,
+      "decisions": 100,
+      "durationMs": 66.07169999999996,
+      "msPerDecision": 0.6607169999999997
+    },
+    {
+      "round": 1,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 54.97679999999991,
+      "msPerDecision": 0.5497679999999991
+    },
+    {
+      "round": 1,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 41.57729999999992,
+      "msPerDecision": 0.4157729999999992
+    },
+    {
+      "round": 2,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 43.37009999999964,
+      "msPerDecision": 0.4337009999999964
+    },
+    {
+      "round": 2,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 48.91150000000016,
+      "msPerDecision": 0.4891150000000016
+    },
+    {
+      "round": 3,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 39.26580000000013,
+      "msPerDecision": 0.3926580000000013
+    },
+    {
+      "round": 3,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 23.383299999999963,
+      "msPerDecision": 0.23383299999999962
+    },
+    {
+      "round": 4,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 31.05690000000004,
+      "msPerDecision": 0.31056900000000043
+    },
+    {
+      "round": 4,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 44.46070000000009,
+      "msPerDecision": 0.44460700000000086
+    },
+    {
+      "round": 5,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 44.240600000000086,
+      "msPerDecision": 0.44240600000000085
+    },
+    {
+      "round": 5,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 36.18970000000036,
+      "msPerDecision": 0.3618970000000036
+    },
+    {
+      "round": 6,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 31.790300000000116,
+      "msPerDecision": 0.31790300000000116
+    },
+    {
+      "round": 6,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 54.03699999999981,
+      "msPerDecision": 0.540369999999998
+    },
+    {
+      "round": 7,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 72.66820000000007,
+      "msPerDecision": 0.7266820000000007
+    },
+    {
+      "round": 7,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 22.875699999999597,
+      "msPerDecision": 0.22875699999999596
+    },
+    {
+      "round": 8,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 17.71519999999964,
+      "msPerDecision": 0.1771519999999964
+    },
+    {
+      "round": 8,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 20.538300000000163,
+      "msPerDecision": 0.20538300000000162
+    },
+    {
+      "round": 9,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 20.81309999999985,
+      "msPerDecision": 0.20813099999999848
+    },
+    {
+      "round": 9,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 21.72510000000011,
+      "msPerDecision": 0.2172510000000011
+    },
+    {
+      "round": 10,
+      "variant": "before",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 21.389200000000073,
+      "msPerDecision": 0.21389200000000075
+    },
+    {
+      "round": 10,
+      "variant": "after",
+      "warmup": false,
+      "decisions": 100,
+      "durationMs": 28.118099999999686,
+      "msPerDecision": 0.28118099999999685
+    }
+  ],
+  "summary": {
+    "before": {
+      "samples": 10,
+      "p50Ms": 0.23383299999999962,
+      "p95Ms": 0.4337009999999964
+    },
+    "after": {
+      "samples": 10,
+      "p50Ms": 0.44240600000000085,
+      "p95Ms": 0.7266820000000007
+    }
+  }
+}

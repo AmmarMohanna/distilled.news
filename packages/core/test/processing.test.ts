@@ -12,6 +12,26 @@ import {
 } from "../src";
 
 describe("processMessages", () => {
+  it("replaces corrected evidence and summary without adding another item or changing original dates", () => {
+    const briefing = { ...personalNewsBriefing, intensity: "medium" as const };
+    const original = demoMessages[0];
+    const first = processMessages({ briefing, messages: [original] });
+    expect(first.publishedItems).toHaveLength(1);
+    const before = structuredClone(first.publishedItems[0]);
+    const corrected = { ...original, text: "Electricite du Liban confirmed electricity supply will increase to 12 hours daily starting Monday." };
+    const now = new Date("2026-09-25T12:00:00Z");
+    const second = processMessages({ briefing, messages: [corrected], existingItems: first.publishedItems, now });
+    expect(second.publishedItems).toHaveLength(1);
+    expect(second.publishedItems[0].id).toBe(before.id);
+    expect(second.publishedItems[0].evidence).toHaveLength(1);
+    expect(second.publishedItems[0].evidence[0]).toMatchObject({ text: corrected.text, postedAt: original.postedAt, sourceUrl: original.sourceUrl });
+    expect(second.publishedItems[0].summary).toContain("12 hours");
+    expect(second.publishedItems[0].itemAt).toBe(before.itemAt);
+    expect(second.publishedItems[0].expiresAt).toBe(before.expiresAt);
+    expect(second.publishedItems[0].updatedAt).toBe(now.toISOString());
+    expect(first.publishedItems[0]).toEqual(before);
+  });
+
   it("filters by interest profile and suppresses weak default items", () => {
     const result = processMessages({
       briefing: personalNewsBriefing,

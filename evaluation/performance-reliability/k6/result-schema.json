@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Distilled k6 result v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "mode",
+    "evidence",
+    "profile",
+    "commit",
+    "startedAt",
+    "finishedAt",
+    "origin",
+    "settings",
+    "metrics",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "distilled-k6-result.v1"
+    },
+    "mode": {
+      "enum": [
+        "OFFLINE_CONTRACT",
+        "CONTROLLED_LIVE"
+      ]
+    },
+    "commit": {
+      "type": "string"
+    },
+    "startedAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "finishedAt": {
+      "type": "string"
+    },
+    "origin": {
+      "type": "string"
+    },
+    "profile": {
+      "enum": [
+        "smoke",
+        "load",
+        "spike",
+        "stress",
+        "soak",
+        "recovery",
+        "fault"
+      ]
+    },
+    "settings": {
+      "type": "object"
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

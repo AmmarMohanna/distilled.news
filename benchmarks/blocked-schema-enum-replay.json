@@ -1,0 +1,1191 @@
+{
+  "mode": "OFFLINE_RECONSTRUCTION_USING_CURRENT_UNCHANGED_SCHEMA_BUILDER_AND_FROZEN_INPUT",
+  "originalSchemaBytesPersisted": false,
+  "providerCalls": 0,
+  "results": [
+    {
+      "operationId": "a0a42eea782630c8e5af82b6fecf1fc82bdfb20e191494f94333a9c51b978d2b",
+      "title": "Laplace Intelligence red-teams robots and self-driving cars before they hit the real world",
+      "stage": "INITIAL",
+      "mentions": 48,
+      "serializedSchemaSha256": "8e42169d424f78740ea99799e88b52354dea6b1b6603cfc7b31aadec123bd37e",
+      "exactReplayAdmission": {
+        "fits": false,
+        "violations": [
+          "ENUM_COUNT"
+        ],
+        "enumValues": 2452,
+        "schemaStringCharacters": 7513,
+        "objectProperties": 58,
+        "nestingDepth": 4
+      },
+      "enumDefinitions": 54,
+      "distinctScalarValues": 120,
+      "repeatedScalarOccurrences": 2332,
+      "distinctEnumLists": 7,
+      "valuesAfterIdenticalListDedup": 168,
+      "duplicateListValueOccurrences": 2284,
+      "sharedAdmission": {
+        "fits": true,
+        "violations": [],
+        "enumValues": 168,
+        "schemaStringCharacters": 972,
+        "objectProperties": 58,
+        "nestingDepth": 4
+      },
+      "lists": [
+        {
+          "values": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "G9",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31",
+            "G32",
+            "G33",
+            "G34",
+            "G35",
+            "G36",
+            "G37",
+            "G38",
+            "G39",
+            "G40",
+            "G41",
+            "G42",
+            "G43",
+            "G44",
+            "G45",
+            "G46",
+            "G47"
+          ],
+          "count": 20,
+          "paths": [
+            "/properties/groups/items/anyOf/0/properties/groupId",
+            "/properties/dispositionByUnitId/properties/C0",
+            "/properties/dispositionByUnitId/properties/C6",
+            "/properties/dispositionByUnitId/properties/C7",
+            "/properties/dispositionByUnitId/properties/C8",
+            "/properties/dispositionByUnitId/properties/C12",
+            "/properties/dispositionByUnitId/properties/C15",
+            "/properties/dispositionByUnitId/properties/C16",
+            "/properties/dispositionByUnitId/properties/C18",
+            "/properties/dispositionByUnitId/properties/C21",
+            "/properties/dispositionByUnitId/properties/C24",
+            "/properties/dispositionByUnitId/properties/C25",
+            "/properties/dispositionByUnitId/properties/C28",
+            "/properties/dispositionByUnitId/properties/C30",
+            "/properties/dispositionByUnitId/properties/C31",
+            "/properties/dispositionByUnitId/properties/C35",
+            "/properties/dispositionByUnitId/properties/C36",
+            "/properties/dispositionByUnitId/properties/C37",
+            "/properties/dispositionByUnitId/properties/C43",
+            "/properties/dispositionByUnitId/properties/C46"
+          ]
+        },
+        {
+          "values": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "G9",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31",
+            "G32",
+            "G33",
+            "G34",
+            "G35",
+            "G36",
+            "G37",
+            "G38",
+            "G39",
+            "G40",
+            "G41",
+            "G42",
+            "G43",
+            "G44",
+            "G45",
+            "G46",
+            "G47",
+            "BACKGROUND"
+          ],
+          "count": 29,
+          "paths": [
+            "/properties/dispositionByUnitId/properties/C1",
+            "/properties/dispositionByUnitId/properties/C2",
+            "/properties/dispositionByUnitId/properties/C3",
+            "/properties/dispositionByUnitId/properties/C4",
+            "/properties/dispositionByUnitId/properties/C5",
+            "/properties/dispositionByUnitId/properties/C9",
+            "/properties/dispositionByUnitId/properties/C10",
+            "/properties/dispositionByUnitId/properties/C11",
+            "/properties/dispositionByUnitId/properties/C13",
+            "/properties/dispositionByUnitId/properties/C14",
+            "/properties/dispositionByUnitId/properties/C17",
+            "/properties/dispositionByUnitId/properties/C19",
+            "/properties/dispositionByUnitId/properties/C20",
+            "/properties/dispositionByUnitId/properties/C22",
+            "/properties/dispositionByUnitId/properties/C23",
+            "/properties/dispositionByUnitId/properties/C26",
+            "/properties/dispositionByUnitId/properties/C27",
+            "/properties/dispositionByUnitId/properties/C29",
+            "/properties/dispositionByUnitId/properties/C32",
+            "/properties/dispositionByUnitId/properties/C33",
+            "/properties/dispositionByUnitId/properties/C34",
+            "/properties/dispositionByUnitId/properties/C38",
+            "/properties/dispositionByUnitId/properties/C39",
+            "/properties/dispositionByUnitId/properties/C40",
+            "/properties/dispositionByUnitId/properties/C41",
+            "/properties/dispositionByUnitId/properties/C42",
+            "/properties/dispositionByUnitId/properties/C44",
+            "/properties/dispositionByUnitId/properties/C45",
+            "/properties/dispositionByUnitId/properties/C47"
+          ]
+        },
+        {
+          "values": [
+            "C0",
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "C6",
+            "C7",
+            "C8",
+            "C9",
+            "C10",
+            "C11",
+            "C12",
+            "C13",
+            "C14",
+            "C15",
+            "C16",
+            "C17",
+            "C18",
+            "C19",
+            "C20",
+            "C21",
+            "C22",
+            "C23",
+            "C24",
+            "C25",
+            "C26",
+            "C27",
+            "C28",
+            "C29",
+            "C30",
+            "C31",
+            "C32",
+            "C33",
+            "C34",
+            "C35",
+            "C36",
+            "C37",
+            "C38",
+            "C39",
+            "C40",
+            "C41",
+            "C42",
+            "C43",
+            "C44",
+            "C45",
+            "C46",
+            "C47"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum0"
+          ]
+        },
+        {
+          "values": [
+            "NEW_STORYLINE",
+            "DEFER"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum1"
+          ]
+        },
+        {
+          "values": [
+            "CORROBORATES",
+            "ADDS_DETAIL",
+            "CHANGES_STATE",
+            "CHANGES_CERTAINTY",
+            "CONTRADICTS",
+            "CORRECTS",
+            "RETRACTS"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum2"
+          ]
+        },
+        {
+          "values": [
+            "ACTIVE",
+            "WATCHING",
+            "DORMANT",
+            "CLOSED"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum3"
+          ]
+        },
+        {
+          "values": [
+            "count",
+            "role_holder",
+            "role_status",
+            "process_status",
+            "decision_outcome",
+            "vote_result",
+            "monetary_amount",
+            "percentage",
+            "date_time",
+            "score_result"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum4"
+          ]
+        }
+      ]
+    },
+    {
+      "operationId": "31f79167aec0c36118450f51b75159e644aa548700f810b2d948b5ca7637927a",
+      "title": "Laplace Intelligence red-teams robots and self-driving cars before they hit the real world",
+      "stage": "RECONCILIATION",
+      "mentions": 48,
+      "serializedSchemaSha256": "8e42169d424f78740ea99799e88b52354dea6b1b6603cfc7b31aadec123bd37e",
+      "exactReplayAdmission": {
+        "fits": false,
+        "violations": [
+          "ENUM_COUNT"
+        ],
+        "enumValues": 2452,
+        "schemaStringCharacters": 7513,
+        "objectProperties": 58,
+        "nestingDepth": 4
+      },
+      "enumDefinitions": 54,
+      "distinctScalarValues": 120,
+      "repeatedScalarOccurrences": 2332,
+      "distinctEnumLists": 7,
+      "valuesAfterIdenticalListDedup": 168,
+      "duplicateListValueOccurrences": 2284,
+      "sharedAdmission": {
+        "fits": true,
+        "violations": [],
+        "enumValues": 168,
+        "schemaStringCharacters": 972,
+        "objectProperties": 58,
+        "nestingDepth": 4
+      },
+      "lists": [
+        {
+          "values": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "G9",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31",
+            "G32",
+            "G33",
+            "G34",
+            "G35",
+            "G36",
+            "G37",
+            "G38",
+            "G39",
+            "G40",
+            "G41",
+            "G42",
+            "G43",
+            "G44",
+            "G45",
+            "G46",
+            "G47"
+          ],
+          "count": 20,
+          "paths": [
+            "/properties/groups/items/anyOf/0/properties/groupId",
+            "/properties/dispositionByUnitId/properties/C0",
+            "/properties/dispositionByUnitId/properties/C6",
+            "/properties/dispositionByUnitId/properties/C7",
+            "/properties/dispositionByUnitId/properties/C8",
+            "/properties/dispositionByUnitId/properties/C12",
+            "/properties/dispositionByUnitId/properties/C15",
+            "/properties/dispositionByUnitId/properties/C16",
+            "/properties/dispositionByUnitId/properties/C18",
+            "/properties/dispositionByUnitId/properties/C21",
+            "/properties/dispositionByUnitId/properties/C24",
+            "/properties/dispositionByUnitId/properties/C25",
+            "/properties/dispositionByUnitId/properties/C28",
+            "/properties/dispositionByUnitId/properties/C30",
+            "/properties/dispositionByUnitId/properties/C31",
+            "/properties/dispositionByUnitId/properties/C35",
+            "/properties/dispositionByUnitId/properties/C36",
+            "/properties/dispositionByUnitId/properties/C37",
+            "/properties/dispositionByUnitId/properties/C43",
+            "/properties/dispositionByUnitId/properties/C46"
+          ]
+        },
+        {
+          "values": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "G9",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31",
+            "G32",
+            "G33",
+            "G34",
+            "G35",
+            "G36",
+            "G37",
+            "G38",
+            "G39",
+            "G40",
+            "G41",
+            "G42",
+            "G43",
+            "G44",
+            "G45",
+            "G46",
+            "G47",
+            "BACKGROUND"
+          ],
+          "count": 29,
+          "paths": [
+            "/properties/dispositionByUnitId/properties/C1",
+            "/properties/dispositionByUnitId/properties/C2",
+            "/properties/dispositionByUnitId/properties/C3",
+            "/properties/dispositionByUnitId/properties/C4",
+            "/properties/dispositionByUnitId/properties/C5",
+            "/properties/dispositionByUnitId/properties/C9",
+            "/properties/dispositionByUnitId/properties/C10",
+            "/properties/dispositionByUnitId/properties/C11",
+            "/properties/dispositionByUnitId/properties/C13",
+            "/properties/dispositionByUnitId/properties/C14",
+            "/properties/dispositionByUnitId/properties/C17",
+            "/properties/dispositionByUnitId/properties/C19",
+            "/properties/dispositionByUnitId/properties/C20",
+            "/properties/dispositionByUnitId/properties/C22",
+            "/properties/dispositionByUnitId/properties/C23",
+            "/properties/dispositionByUnitId/properties/C26",
+            "/properties/dispositionByUnitId/properties/C27",
+            "/properties/dispositionByUnitId/properties/C29",
+            "/properties/dispositionByUnitId/properties/C32",
+            "/properties/dispositionByUnitId/properties/C33",
+            "/properties/dispositionByUnitId/properties/C34",
+            "/properties/dispositionByUnitId/properties/C38",
+            "/properties/dispositionByUnitId/properties/C39",
+            "/properties/dispositionByUnitId/properties/C40",
+            "/properties/dispositionByUnitId/properties/C41",
+            "/properties/dispositionByUnitId/properties/C42",
+            "/properties/dispositionByUnitId/properties/C44",
+            "/properties/dispositionByUnitId/properties/C45",
+            "/properties/dispositionByUnitId/properties/C47"
+          ]
+        },
+        {
+          "values": [
+            "C0",
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "C6",
+            "C7",
+            "C8",
+            "C9",
+            "C10",
+            "C11",
+            "C12",
+            "C13",
+            "C14",
+            "C15",
+            "C16",
+            "C17",
+            "C18",
+            "C19",
+            "C20",
+            "C21",
+            "C22",
+            "C23",
+            "C24",
+            "C25",
+            "C26",
+            "C27",
+            "C28",
+            "C29",
+            "C30",
+            "C31",
+            "C32",
+            "C33",
+            "C34",
+            "C35",
+            "C36",
+            "C37",
+            "C38",
+            "C39",
+            "C40",
+            "C41",
+            "C42",
+            "C43",
+            "C44",
+            "C45",
+            "C46",
+            "C47"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum0"
+          ]
+        },
+        {
+          "values": [
+            "NEW_STORYLINE",
+            "DEFER"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum1"
+          ]
+        },
+        {
+          "values": [
+            "CORROBORATES",
+            "ADDS_DETAIL",
+            "CHANGES_STATE",
+            "CHANGES_CERTAINTY",
+            "CONTRADICTS",
+            "CORRECTS",
+            "RETRACTS"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum2"
+          ]
+        },
+        {
+          "values": [
+            "ACTIVE",
+            "WATCHING",
+            "DORMANT",
+            "CLOSED"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum3"
+          ]
+        },
+        {
+          "values": [
+            "count",
+            "role_holder",
+            "role_status",
+            "process_status",
+            "decision_outcome",
+            "vote_result",
+            "monetary_amount",
+            "percentage",
+            "date_time",
+            "score_result"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum4"
+          ]
+        }
+      ]
+    },
+    {
+      "operationId": "7c84b2a68dcc48d18512b99b5c58de93fa811bd0bd8170eed2de8ef0bb2c0b4a",
+      "title": "Replit makes OpenAI its default over Anthropic, CEO says",
+      "stage": "INITIAL",
+      "mentions": 32,
+      "serializedSchemaSha256": "68fe7b303bb9ea50445cf7f4a81307f19f42abb28901386d52013131a8667242",
+      "exactReplayAdmission": {
+        "fits": false,
+        "violations": [
+          "ENUM_COUNT"
+        ],
+        "enumValues": 1197,
+        "schemaStringCharacters": 3938,
+        "objectProperties": 54,
+        "nestingDepth": 4
+      },
+      "enumDefinitions": 45,
+      "distinctScalarValues": 93,
+      "repeatedScalarOccurrences": 1104,
+      "distinctEnumLists": 12,
+      "valuesAfterIdenticalListDedup": 126,
+      "duplicateListValueOccurrences": 1071,
+      "sharedAdmission": {
+        "fits": true,
+        "violations": [],
+        "enumValues": 126,
+        "schemaStringCharacters": 1022,
+        "objectProperties": 54,
+        "nestingDepth": 4
+      },
+      "lists": [
+        {
+          "values": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "G9",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31"
+          ],
+          "count": 19,
+          "paths": [
+            "/properties/groups/items/anyOf/0/properties/groupId",
+            "/properties/groups/items/anyOf/1/properties/groupId",
+            "/properties/groups/items/anyOf/2/properties/groupId",
+            "/properties/dispositionByUnitId/properties/C0",
+            "/properties/dispositionByUnitId/properties/C1",
+            "/properties/dispositionByUnitId/properties/C2",
+            "/properties/dispositionByUnitId/properties/C3",
+            "/properties/dispositionByUnitId/properties/C4",
+            "/properties/dispositionByUnitId/properties/C9",
+            "/properties/dispositionByUnitId/properties/C10",
+            "/properties/dispositionByUnitId/properties/C12",
+            "/properties/dispositionByUnitId/properties/C16",
+            "/properties/dispositionByUnitId/properties/C18",
+            "/properties/dispositionByUnitId/properties/C19",
+            "/properties/dispositionByUnitId/properties/C20",
+            "/properties/dispositionByUnitId/properties/C21",
+            "/properties/dispositionByUnitId/properties/C22",
+            "/properties/dispositionByUnitId/properties/C23",
+            "/properties/dispositionByUnitId/properties/C28"
+          ]
+        },
+        {
+          "values": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "G9",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31",
+            "BACKGROUND"
+          ],
+          "count": 16,
+          "paths": [
+            "/properties/dispositionByUnitId/properties/C5",
+            "/properties/dispositionByUnitId/properties/C6",
+            "/properties/dispositionByUnitId/properties/C7",
+            "/properties/dispositionByUnitId/properties/C8",
+            "/properties/dispositionByUnitId/properties/C11",
+            "/properties/dispositionByUnitId/properties/C13",
+            "/properties/dispositionByUnitId/properties/C14",
+            "/properties/dispositionByUnitId/properties/C15",
+            "/properties/dispositionByUnitId/properties/C17",
+            "/properties/dispositionByUnitId/properties/C24",
+            "/properties/dispositionByUnitId/properties/C25",
+            "/properties/dispositionByUnitId/properties/C26",
+            "/properties/dispositionByUnitId/properties/C27",
+            "/properties/dispositionByUnitId/properties/C29",
+            "/properties/dispositionByUnitId/properties/C30",
+            "/properties/dispositionByUnitId/properties/C31"
+          ]
+        },
+        {
+          "values": [
+            "C0",
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "C6",
+            "C7",
+            "C8",
+            "C9",
+            "C10",
+            "C11",
+            "C12",
+            "C13",
+            "C14",
+            "C15",
+            "C16",
+            "C17",
+            "C18",
+            "C19",
+            "C20",
+            "C21",
+            "C22",
+            "C23",
+            "C24",
+            "C25",
+            "C26",
+            "C27",
+            "C28",
+            "C29",
+            "C30",
+            "C31"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum0"
+          ]
+        },
+        {
+          "values": [
+            "NEW_STORYLINE",
+            "DEFER"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum1"
+          ]
+        },
+        {
+          "values": [
+            "CORROBORATES",
+            "ADDS_DETAIL",
+            "CHANGES_STATE",
+            "CHANGES_CERTAINTY",
+            "CONTRADICTS",
+            "CORRECTS",
+            "RETRACTS"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum2"
+          ]
+        },
+        {
+          "values": [
+            "ACTIVE",
+            "WATCHING",
+            "DORMANT",
+            "CLOSED"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum3"
+          ]
+        },
+        {
+          "values": [
+            "count",
+            "role_holder",
+            "role_status",
+            "process_status",
+            "decision_outcome",
+            "vote_result",
+            "monetary_amount",
+            "percentage",
+            "date_time",
+            "score_result"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum4"
+          ]
+        },
+        {
+          "values": [
+            "E0"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum5"
+          ]
+        },
+        {
+          "values": [
+            null,
+            "L0"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum6"
+          ]
+        },
+        {
+          "values": [
+            "SAME_EVENT"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum7"
+          ]
+        },
+        {
+          "values": [
+            "L0"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum8"
+          ]
+        },
+        {
+          "values": [
+            "NEW_EVENT_EXISTING_STORYLINE"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum9"
+          ]
+        }
+      ]
+    },
+    {
+      "operationId": "468c7939f9af47f9ce692585742438d5b68d4dfc5383aecbeda2b59046b99780",
+      "title": "Replit makes OpenAI its default over Anthropic, CEO says",
+      "stage": "RECONCILIATION",
+      "mentions": 32,
+      "serializedSchemaSha256": "68fe7b303bb9ea50445cf7f4a81307f19f42abb28901386d52013131a8667242",
+      "exactReplayAdmission": {
+        "fits": false,
+        "violations": [
+          "ENUM_COUNT"
+        ],
+        "enumValues": 1197,
+        "schemaStringCharacters": 3938,
+        "objectProperties": 54,
+        "nestingDepth": 4
+      },
+      "enumDefinitions": 45,
+      "distinctScalarValues": 93,
+      "repeatedScalarOccurrences": 1104,
+      "distinctEnumLists": 12,
+      "valuesAfterIdenticalListDedup": 126,
+      "duplicateListValueOccurrences": 1071,
+      "sharedAdmission": {
+        "fits": true,
+        "violations": [],
+        "enumValues": 126,
+        "schemaStringCharacters": 1022,
+        "objectProperties": 54,
+        "nestingDepth": 4
+      },
+      "lists": [
+        {
+          "values": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "G9",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31"
+          ],
+          "count": 19,
+          "paths": [
+            "/properties/groups/items/anyOf/0/properties/groupId",
+            "/properties/groups/items/anyOf/1/properties/groupId",
+            "/properties/groups/items/anyOf/2/properties/groupId",
+            "/properties/dispositionByUnitId/properties/C0",
+            "/properties/dispositionByUnitId/properties/C1",
+            "/properties/dispositionByUnitId/properties/C2",
+            "/properties/dispositionByUnitId/properties/C3",
+            "/properties/dispositionByUnitId/properties/C4",
+            "/properties/dispositionByUnitId/properties/C9",
+            "/properties/dispositionByUnitId/properties/C10",
+            "/properties/dispositionByUnitId/properties/C12",
+            "/properties/dispositionByUnitId/properties/C16",
+            "/properties/dispositionByUnitId/properties/C18",
+            "/properties/dispositionByUnitId/properties/C19",
+            "/properties/dispositionByUnitId/properties/C20",
+            "/properties/dispositionByUnitId/properties/C21",
+            "/properties/dispositionByUnitId/properties/C22",
+            "/properties/dispositionByUnitId/properties/C23",
+            "/properties/dispositionByUnitId/properties/C28"
+          ]
+        },
+        {
+          "values": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "G9",
+            "G10",
+            "G11",
+            "G12",
+            "G13",
+            "G14",
+            "G15",
+            "G16",
+            "G17",
+            "G18",
+            "G19",
+            "G20",
+            "G21",
+            "G22",
+            "G23",
+            "G24",
+            "G25",
+            "G26",
+            "G27",
+            "G28",
+            "G29",
+            "G30",
+            "G31",
+            "BACKGROUND"
+          ],
+          "count": 16,
+          "paths": [
+            "/properties/dispositionByUnitId/properties/C5",
+            "/properties/dispositionByUnitId/properties/C6",
+            "/properties/dispositionByUnitId/properties/C7",
+            "/properties/dispositionByUnitId/properties/C8",
+            "/properties/dispositionByUnitId/properties/C11",
+            "/properties/dispositionByUnitId/properties/C13",
+            "/properties/dispositionByUnitId/properties/C14",
+            "/properties/dispositionByUnitId/properties/C15",
+            "/properties/dispositionByUnitId/properties/C17",
+            "/properties/dispositionByUnitId/properties/C24",
+            "/properties/dispositionByUnitId/properties/C25",
+            "/properties/dispositionByUnitId/properties/C26",
+            "/properties/dispositionByUnitId/properties/C27",
+            "/properties/dispositionByUnitId/properties/C29",
+            "/properties/dispositionByUnitId/properties/C30",
+            "/properties/dispositionByUnitId/properties/C31"
+          ]
+        },
+        {
+          "values": [
+            "C0",
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "C6",
+            "C7",
+            "C8",
+            "C9",
+            "C10",
+            "C11",
+            "C12",
+            "C13",
+            "C14",
+            "C15",
+            "C16",
+            "C17",
+            "C18",
+            "C19",
+            "C20",
+            "C21",
+            "C22",
+            "C23",
+            "C24",
+            "C25",
+            "C26",
+            "C27",
+            "C28",
+            "C29",
+            "C30",
+            "C31"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum0"
+          ]
+        },
+        {
+          "values": [
+            "NEW_STORYLINE",
+            "DEFER"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum1"
+          ]
+        },
+        {
+          "values": [
+            "CORROBORATES",
+            "ADDS_DETAIL",
+            "CHANGES_STATE",
+            "CHANGES_CERTAINTY",
+            "CONTRADICTS",
+            "CORRECTS",
+            "RETRACTS"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum2"
+          ]
+        },
+        {
+          "values": [
+            "ACTIVE",
+            "WATCHING",
+            "DORMANT",
+            "CLOSED"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum3"
+          ]
+        },
+        {
+          "values": [
+            "count",
+            "role_holder",
+            "role_status",
+            "process_status",
+            "decision_outcome",
+            "vote_result",
+            "monetary_amount",
+            "percentage",
+            "date_time",
+            "score_result"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum4"
+          ]
+        },
+        {
+          "values": [
+            "E0"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum5"
+          ]
+        },
+        {
+          "values": [
+            null,
+            "L0"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum6"
+          ]
+        },
+        {
+          "values": [
+            "SAME_EVENT"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum7"
+          ]
+        },
+        {
+          "values": [
+            "L0"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum8"
+          ]
+        },
+        {
+          "values": [
+            "NEW_EVENT_EXISTING_STORYLINE"
+          ],
+          "count": 1,
+          "paths": [
+            "/$defs/Enum9"
+          ]
+        }
+      ]
+    }
+  ]
+}

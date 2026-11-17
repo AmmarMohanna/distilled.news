@@ -1,0 +1,392 @@
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { mkdtempSync, rmSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { HandoffError, receiptFixture, type CandidateIntakePort, type ConnectorHandoffRequest } from '@distilled/contracts';
+import { D1SourceRepository, R2SourcePayloadStore, SOURCE_STORAGE_SCHEMA, type SqlDatabase, type SqlStatement, type ObjectBucket } from '../src/source-runtime/storage';
+import { RssSourceCollector } from '../src/source-runtime/rss';
+import { BoundedFeedHttp } from '../src/source-runtime/http';
+import { normalizeRssSnapshot } from '../src/source-runtime/rss-normalize';
+import { D1RssPollScheduler, RSS_POLL_SCHEMA } from '../src/source-runtime/scheduler';
+import type { FeedHttpPort, RssRequest } from '../src/source-runtime/ports';
+import type {SourceExecutionPort} from '../src/source-runtime/platform-providers';
+import {SourceHandoffWait} from '../src/source-runtime/handoff-wait';
+
+const directories: string[] = [], databases: DatabaseSync[] = [];
+afterEach(() => { for (const db of databases.splice(0)) db.close(); for (const dir of directories.splice(0)) rmSync(dir,{recursive:true,force:true}); });
+class SqliteBinding implements SqlDatabase {
+  readonly db: DatabaseSync;
+  constructor(path:string) { this.db = new DatabaseSync(path); databases.push(this.db); this.db.exec(SOURCE_STORAGE_SCHEMA); }
+  prepare(sql:string): SqlStatement {
+    let values: any[] = [];
+    const execute = () => this.db.prepare(sql);
+    const statement: SqlStatement = {
+      bind: (...args) => { values=args; return statement; },
+      first: async <T>() => (execute().get(...values) ?? null) as T|null,
+      run: async () => execute().run(...values)
+    };
+    return statement;
+  }
+  async batch(statements:SqlStatement[]) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try { for (const s of statements) await s.run(); this.db.exec('COMMIT'); }
+    catch (e) { this.db.exec('ROLLBACK'); throw e; }
+  }
+}
+class FileBucket implements ObjectBucket {
+  constructor(private root:string) {}
+  async put(key:string,bytes:Uint8Array) {
+    const path=join(this.root,key); mkdirSync(dirname(path),{recursive:true});
+    try { writeFileSync(path,bytes,{flag:'wx'}); } catch(e) { if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e; }
+  }
+  async get(key:string) {
+    try { const bytes=readFileSync(join(this.root,key)); return {arrayBuffer:async()=>Uint8Array.from(bytes).buffer}; }
+    catch(e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null; throw e; }
+  }
+}
+const scope={feedId:'feed-1',feedSourceId:'fs-1',sourceId:'source-1'};
+const timestamp='2026-10-04T08:00:00.000Z';
+const input:RssRequest={scope,runId:'run-1',url:'https://publisher.example/rss',maxItems:2};
+const item=(id:string,body='Body')=>`<item><guid>${id}</guid><title>Title ${id}</title><link>https://publisher.example/${id}</link><description>${body}</description><pubDate>Sun, 04 Oct 2026 07:00:00 GMT</pubDate></item>`;
+const xml=(rows:string)=>`<rss version="2.0"><channel><title>Feed</title>${rows}</channel></rss>`;
+function setup(feed=xml(item('one'))) {
+  const dir=mkdtempSync(join(tmpdir(),'distilled-rss-')); directories.push(dir);
+  const db=new SqliteBinding(join(dir,'state.sqlite')), repository=new D1SourceRepository(db);
+  const payloads=new R2SourcePayloadStore(new FileBucket(join(dir,'objects')));
+  const http:FeedHttpPort={get:vi.fn(async()=>({status:200,headers:{etag:'"v1"'},bytes:new TextEncoder().encode(feed),telemetry:{requests:1,latencyMs:4,providerCostUsd:0}}))};
+  const accepted:ConnectorHandoffRequest[]=[];
+  const intake:CandidateIntakePort={acceptBatch:vi.fn(async b=>{accepted.push(b);return {contractVersion:b.contractVersion,handoffId:b.handoffId,durable:true as const,receipts:b.observations.map(receiptFixture)};})};
+  const collector=new RssSourceCollector(repository,payloads,http,intake,()=>timestamp);
+  return {dir,db,repository,payloads,http,intake,accepted,collector};
+}
+
+describe('durable RSS source handoff (SQLite SQL and filesystem payload surrogate)',()=>{
+  it('uses the free private feed route after a public 406 and retains the recovered snapshot',async()=>{
+    const s=setup();
+    s.http.get=vi.fn(async()=>({status:406,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:3,providerCostUsd:0}}));
+    const execute=vi.fn(async()=>({status:200,xml:xml(item('recovered')),requests:1,latencyMs:7}));
+    const collector=new RssSourceCollector(s.repository,s.payloads,s.http,s.intake,()=>timestamp,{execute} as SourceExecutionPort);
+    const result=await collector.collect(input);
+    expect(execute).toHaveBeenCalledWith('public_feed',{url:input.url},{timeoutMs:20_000});
+    expect(result.coverage.failureReason).toBe('NONE');
+    expect(result.telemetry).toMatchObject({requests:2,latencyMs:10,providerCostUsd:0});
+    expect(s.accepted[0].observations[0].canonicalUrl).toBe('https://publisher.example/recovered');
+  });
+  it('keeps a failed private response visible as source failure',async()=>{
+    const s=setup();
+    s.http.get=vi.fn(async()=>({status:406,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:3,providerCostUsd:0}}));
+    const collector=new RssSourceCollector(s.repository,s.payloads,s.http,s.intake,()=>timestamp,{execute:vi.fn(async()=>({status:403}))} as SourceExecutionPort);
+    const result=await collector.collect(input);
+    expect(result.coverage.failureReason).toBe('TRANSIENT_PROVIDER_FAILURE');
+    expect(result.telemetry.requests).toBe(1);
+  });
+  it('local origin cooldowns do not consume eight real HTTP failures or shorten Retry-After',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp);
+    const due=()=>new Date(at+3600000).toISOString();
+    const result=()=>({coverage:{failureReason:'RATE_LIMIT'},checkpoint:'UNCHANGED',telemetry:{requests:0},retryNotBefore:due()}) as any;
+    const scheduler=new D1RssPollScheduler(s.db,{collect:async()=>result()},async()=>true,()=>at);
+    await scheduler.schedule('cooldown',input,timestamp);
+    for(let i=0;i<10;i++){
+      const expected=due();expect(await scheduler.runOne(120000,'cooldown')).toBe('RETRY');
+      expect(s.db.db.prepare("SELECT attempts,due_at FROM connector_rss_poll_jobs WHERE job_id='cooldown'").get()).toEqual({attempts:0,due_at:expected});at+=3600000;
+    }
+  });
+  it.each(['INTAKE_BUSY','TEMPORARY_UNAVAILABLE'])('intake waits replay the same fetched batch without consuming failure retries (%s)',async reason=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp),wait=true;
+    const accept=s.intake.acceptBatch;s.intake.acceptBatch=vi.fn(async b=>{
+      if(wait)throw reason==='INTAKE_BUSY'?new SourceHandoffWait():new Error('D1_ERROR: D1 DB exceeded its CPU time limit and was reset.');
+      return accept(b);
+    });
+    const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>at);
+    await scheduler.schedule('waiting',input,timestamp);
+    for(let i=0;i<12;i++){expect(await scheduler.runOne(120000,'waiting')).toBe('RETRY');at+=6000;}
+    expect(s.db.db.prepare("SELECT attempts,last_error FROM connector_rss_poll_jobs WHERE job_id='waiting'").get()).toEqual({attempts:0,last_error:reason});
+    expect(s.http.get).toHaveBeenCalledTimes(1);
+    wait=false;expect(await scheduler.runOne(120000,'waiting')).toBe('DONE');expect(s.http.get).toHaveBeenCalledTimes(1);
+  });
+  it('retry exhaustion preserves the rate-limit result and typed cause',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let at=Date.parse(timestamp);
+    const result={coverage:{failureReason:'RATE_LIMIT'},checkpoint:'UNCHANGED'} as any;
+    const scheduler=new D1RssPollScheduler(s.db,{collect:async()=>result},async()=>true,()=>at);
+    await scheduler.schedule('limited',input,timestamp);
+    for(let i=0;i<8;i++){expect(await scheduler.runOne(120000,'limited')).toBe('RETRY');at+=600000;}
+    expect(await scheduler.runOne(120000,'limited')).toBe('BLOCKED');
+    const row=s.db.db.prepare("SELECT result,last_error FROM connector_rss_poll_jobs WHERE job_id='limited'").get() as any;
+    expect(row.last_error).toBe('RETRY_LIMIT:RATE_LIMIT');expect(JSON.parse(row.result)).toEqual(result);
+  });
+  it('queue-mode cadence coalesces unfinished windows without rewriting saved requests',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);
+    const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(timestamp),true);
+    await scheduler.schedule('first',input,timestamp);
+    await scheduler.schedule('next',{...input,runId:'next'},timestamp);
+    expect(s.db.db.prepare('SELECT COUNT(*) AS n FROM connector_rss_poll_jobs').get()).toEqual({n:1});
+    await expect(scheduler.schedule('first',{...input,url:'https://different.example/feed'},timestamp)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+    await scheduler.schedule('reconfigured',{...input,configurationRevision:2,runId:'reconfigured'},timestamp);
+    expect(s.db.db.prepare('SELECT COUNT(*) AS n FROM connector_rss_poll_jobs').get()).toEqual({n:2});
+    s.db.db.prepare("UPDATE connector_rss_poll_jobs SET state='DONE'").run();
+    await scheduler.schedule('next',{...input,runId:'next'},timestamp);
+    expect(s.db.db.prepare('SELECT COUNT(*) AS n FROM connector_rss_poll_jobs').get()).toEqual({n:3});
+  });
+  it('serializes a shared RSS checkpoint and preserves waiting job attempts',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);let release!:(v:any)=>void;
+    const collect=vi.fn((r:RssRequest)=>r.runId==='held'?new Promise<any>(resolve=>{release=resolve}):Promise.resolve({checkpoint:'UNCHANGED',coverage:{failureReason:'NONE'}}));
+    const scheduler=new D1RssPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(timestamp));
+    await scheduler.schedule('a',{...input,runId:'held'},timestamp);
+    await scheduler.schedule('b',{...input,runId:'next'},timestamp);
+    await scheduler.schedule('c',{...input,runId:'other',scope:{...scope,feedSourceId:'other'}},timestamp);
+    const running=scheduler.runOne(300000,'a');await vi.waitFor(()=>expect(collect).toHaveBeenCalledTimes(1));
+    expect(await scheduler.runOne(300000,'b')).toBe('IDLE');expect(await scheduler.runOne(300000,'c')).toBe('DONE');
+    expect(s.db.db.prepare("SELECT attempts FROM connector_rss_poll_jobs WHERE job_id='b'").get()).toEqual({attempts:0});
+    release({checkpoint:'UNCHANGED',coverage:{failureReason:'NONE'}});expect(await running).toBe('DONE');
+    expect(await scheduler.runOne(300000,'b')).toBe('DONE');
+  });
+  it('successful continuation pages do not consume the failure retry allowance',async()=>{
+    const s=setup();s.db.db.exec(RSS_POLL_SCHEMA);
+    let pages=0;
+    const collect=vi.fn(async()=>({checkpoint:'UNCHANGED',coverage:{failureReason:'NONE'},...(++pages<12?{nextOffset:pages*2}:{})}));
+    const scheduler=new D1RssPollScheduler(s.db,{collect} as any,async()=>true,()=>Date.parse(timestamp));
+    await scheduler.schedule('long-snapshot',input,timestamp);
+    for(let i=0;i<11;i++)expect(await scheduler.runOne(120000,'long-snapshot')).toBe('RETRY');
+    expect(await scheduler.runOne(120000,'long-snapshot')).toBe('DONE');
+    expect(collect).toHaveBeenCalledTimes(12);
+  });
+  it('persists observations and payloads before intake; declares excerpts honestly',async()=>{
+    const s=setup();
+    s.intake.acceptBatch=async batch=>{
+      expect(await s.repository.loadBatch(scope,batch.handoffId)).toBeDefined();
+      const payload=JSON.parse(new TextDecoder().decode(await s.payloads.get(scope,batch.proposals[0].suppliedPayloadRef!)));
+      expect(payload).toMatchObject({body:'Title one. Body',sourceTitle:'Feed',excerpt:'Body',firstSeenAt:timestamp});
+      expect(batch.observations[0]).toMatchObject({upstreamId:'one',publisherId:'publisher.example',representation:'ARTICLE_EXCERPT',authoritativeCurrentState:false});
+      expect(batch.proposals[0].payloadHash).not.toBe(batch.observations[0].contentHash);
+      return {contractVersion:batch.contractVersion,handoffId:batch.handoffId,durable:true as const,receipts:batch.observations.map(receiptFixture)};
+    };
+    const result=await s.collector.collect(input);
+    expect(result.checkpoint).toBe('ADVANCED'); expect(result.coverage.status).toBe('PARTIAL');
+    expect((await s.repository.checkpoint(scope))?.etag).toBe('"v1"');
+  });
+  it('resumes capped batches from the same durable snapshot without refetching',async()=>{
+    const s=setup(xml(item('one')+item('two')+item('three')));
+    const first=await s.collector.collect(input);
+    expect(first.nextOffset).toBe(2); expect(await s.repository.checkpoint(scope)).toBeUndefined();
+    const second=await new RssSourceCollector(new D1SourceRepository(new SqliteBinding(join(s.dir,'state.sqlite'))),
+      new R2SourcePayloadStore(new FileBucket(join(s.dir,'objects'))),s.http,s.intake,()=>timestamp).collect(input,2);
+    expect(second.checkpoint).toBe('ADVANCED'); expect(s.http.get).toHaveBeenCalledTimes(1);
+    expect(s.accepted.at(-1)?.observations[0].upstreamId).toBe('three');
+  });
+  it('uncertain handoff retries the exact saved batch after restart',async()=>{
+    const s=setup(); let original='';
+    s.intake.acceptBatch=vi.fn(async b=>{original=JSON.stringify(b);throw new Error('response lost');});
+    await expect(s.collector.collect(input)).rejects.toThrow('response lost');
+    expect(await s.repository.checkpoint(scope)).toBeUndefined();
+    s.intake.acceptBatch=async b=>{expect(JSON.stringify(b)).toBe(original);return {contractVersion:b.contractVersion,handoffId:b.handoffId,durable:true as const,receipts:b.observations.map(receiptFixture)};};
+    const result=await new RssSourceCollector(new D1SourceRepository(new SqliteBinding(join(s.dir,'state.sqlite'))),s.payloads,s.http,s.intake).collect(input);
+    expect(result.checkpoint).toBe('ADVANCED'); expect(s.http.get).toHaveBeenCalledTimes(1);
+  });
+  it('quarantine blocks validators and continuation until receipt resolution',async()=>{
+    const s=setup(xml(item('one')+item('two')+item('three')));
+    s.intake.acceptBatch=async b=>({contractVersion:b.contractVersion,handoffId:b.handoffId,durable:true as const,receipts:b.observations.map(o=>({...receiptFixture(o),decision:'QUARANTINED',reasonCode:'QUARANTINE_MISSING_VALIDATION_FIELDS',checkpointResolution:'UNRESOLVED',candidateItemId:undefined}))});
+    expect((await s.collector.collect(input)).checkpoint).toBe('BLOCKED');
+    expect((await s.collector.collect(input,2)).checkpoint).toBe('BLOCKED');
+    expect(await s.repository.checkpoint(scope)).toBeUndefined();
+  });
+  it('invalid response cannot advance a checkpoint',async()=>{
+    const s=setup(); s.intake.acceptBatch=async b=>({contractVersion:b.contractVersion,handoffId:b.handoffId,durable:true as const,receipts:[]});
+    await expect(s.collector.collect(input)).rejects.toMatchObject({code:'INVALID_RESPONSE'});
+    expect(await s.repository.checkpoint(scope)).toBeUndefined();
+  });
+  it('invalid rows remain observations with no proposal; missing dates remain missing',async()=>{
+    const s=setup(xml('<item><title>No identity</title></item><item><guid>valid</guid><description>Excerpt</description></item>'));
+    await s.collector.collect(input);
+    expect(s.accepted[0].observations).toHaveLength(2); expect(s.accepted[0].proposals).toHaveLength(1);
+    expect(s.accepted[0].observations[1].publishedAtHint).toBeUndefined();
+  });
+  it('same GUID stays stable across changed content, with distinct observation/hash',async()=>{
+    const s=setup(); await s.collector.collect(input);
+    s.http.get=async()=>({status:200,headers:{etag:'"v2"'},bytes:new TextEncoder().encode(xml(item('one','Updated'))),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}});
+    await s.collector.collect({...input,runId:'run-2'});
+    const [a,b]=s.accepted.map(b=>b.observations[0]);
+    expect(b.sourceItemKey).toBe(a.sourceItemKey); expect(b.id).not.toBe(a.id); expect(b.contentHash).not.toBe(a.contentHash);
+  });
+  it('absence from a later snapshot never emits DELETE',async()=>{
+    const s=setup(); await s.collector.collect(input);
+    s.http.get=async()=>({status:200,headers:{},bytes:new TextEncoder().encode(xml('')),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}});
+    await s.collector.collect({...input,runId:'run-2'});
+    expect(s.accepted.at(-1)?.observations).toEqual([]);
+  });
+  it('allocations survive restart, share FeedSource scope, and are idempotent',async()=>{
+    const s=setup(); const a=await s.repository.allocate(scope,'poll','config',timestamp);
+    const other=new D1SourceRepository(new SqliteBinding(join(s.dir,'state.sqlite')));
+    expect((await other.allocate(scope,'refresh','config',timestamp)).sequence).toBe(a.sequence+1);
+    expect((await other.allocate(scope,'poll','config',timestamp)).sequence).toBe(a.sequence);
+    await expect(other.allocate(scope,'poll','changed',timestamp)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+    expect(await s.repository.claimFetch(scope,'poll')).toBe(true); expect(await other.claimFetch(scope,'poll')).toBe(false);
+  });
+  it('CAS prevents stale checkpoint overwrite and requires reload',async()=>{
+    const s=setup(); const checkpoint={sequence:2,configurationKey:'c',etag:'new'};
+    expect(await s.repository.commitCheckpoint(scope,0,checkpoint)).toBe(true);
+    expect(await s.repository.commitCheckpoint(scope,0,{...checkpoint,sequence:1,etag:'old'})).toBe(false);
+    expect(await s.repository.commitCheckpoint(scope,1,{...checkpoint,sequence:1,etag:'old'})).toBe(false);
+    expect((await s.repository.checkpoint(scope))?.etag).toBe('new');
+  });
+  it('a failed allocated fetch cannot be retried under the same observation sequence',async()=>{
+    const s=setup(); s.http.get=async()=>{throw new Error('crash');};
+    await expect(s.collector.collect(input)).rejects.toThrow('crash');
+    await expect(s.collector.collect(input)).rejects.toThrow('FETCH_OUTCOME_UNKNOWN');
+    expect(await s.repository.checkpoint(scope)).toBeUndefined();
+  });
+  it('immutable batch identity rejects changed data',async()=>{
+    const s=setup(); const result=await s.collector.collect(input);
+    const batch=(await s.repository.loadBatch(scope,result.handoffId))!;
+    batch.request.observations[0].titleHint='changed'; batch.request.proposals[0].titleHint='changed';
+    await expect(s.repository.saveBatch(batch)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+  });
+  it('payload reads are scoped and integrity checked',async()=>{
+    const s=setup(); const p=await s.payloads.put(scope,new TextEncoder().encode('original'),'text/plain');
+    await expect(s.payloads.get({...scope,feedId:'other'},p.ref)).rejects.toMatchObject({code:'SCOPE_DENIED'});
+    writeFileSync(join(s.dir,'objects',p.ref),'tampered');
+    await expect(s.payloads.get(scope,p.ref)).rejects.toThrow('PAYLOAD_INTEGRITY_FAILURE');
+  });
+  it('304 is honest unknown-history coverage and does not advance',async()=>{
+    const s=setup(); await s.collector.collect(input);
+    s.http.get=vi.fn(async(_u,h)=>{expect(h['if-none-match']).toBe('"v1"');return {status:304,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}};});
+    const result=await s.collector.collect({...input,runId:'run-2'});
+    expect(result.coverage.status).toBe('PARTIAL'); expect(result.checkpoint).toBe('UNCHANGED');
+  });
+  it('changed configuration does not reuse old conditional validators',async()=>{
+    const s=setup(); await s.collector.collect(input);
+    s.http.get=vi.fn(async(_u,h)=>{expect(h['if-none-match']).toBeUndefined();return {status:200,headers:{},bytes:new TextEncoder().encode(xml(item('two'))),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}};});
+    await s.collector.collect({...input,runId:'run-2',url:'https://publisher.example/other'});
+  });
+  it('malformed XML produces persisted failed coverage and no validators',async()=>{
+    const s=setup('<rss><channel><item>broken'); const result=await s.collector.collect(input);
+    expect(result.coverage).toMatchObject({status:'UNKNOWN',failureReason:'UNKNOWN'});
+    expect(await s.repository.checkpoint(scope)).toBeUndefined();
+  });
+  it('crash after receipt persistence and before checkpoint commit replays the saved handoff',async()=>{
+    const s=setup(); const commit=s.repository.commitCheckpoint.bind(s.repository);
+    s.repository.commitCheckpoint=async()=>{throw new Error('checkpoint crash');};
+    await expect(s.collector.collect(input)).rejects.toThrow('checkpoint crash');
+    s.repository.commitCheckpoint=commit;
+    expect((await s.collector.collect(input)).checkpoint).toBe('ADVANCED');
+    expect(s.http.get).toHaveBeenCalledTimes(1);
+  });
+  it('scheduler persists continuation and resumes it after restart',async()=>{
+    const s=setup(xml(item('one')+item('two')+item('three'))); s.db.db.exec(RSS_POLL_SCHEMA);
+    const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(timestamp));
+    await scheduler.schedule('job-1',input,timestamp);
+    expect(await scheduler.runOne()).toBe('RETRY');
+    const restarted=new D1RssPollScheduler(new SqliteBinding(join(s.dir,'state.sqlite')),s.collector,async()=>true,()=>Date.parse(timestamp));
+    expect(await restarted.runOne()).toBe('DONE'); expect(await restarted.runOne()).toBe('IDLE');
+    expect(s.http.get).toHaveBeenCalledTimes(1);
+  });
+  it('scheduler cancels a source that is no longer authorized before fetching',async()=>{
+    const s=setup(); s.db.db.exec(RSS_POLL_SCHEMA);
+    const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>false,()=>Date.parse(timestamp));
+    await scheduler.schedule('job-1',input,timestamp);
+    expect(await scheduler.runOne()).toBe('CANCELLED'); expect(s.http.get).not.toHaveBeenCalled();
+  });
+  it('scheduler honors a provider rate limit and allocates a fresh sequence for refetch',async()=>{
+    const s=setup(); s.db.db.exec(RSS_POLL_SCHEMA); let time=Date.parse(timestamp);
+    const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>time);
+    s.http.get=vi.fn(async()=>({status:429,headers:{'retry-after':'120'},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}));
+    await scheduler.schedule('job-1',input,timestamp);
+    expect(await scheduler.runOne()).toBe('RETRY'); time+=119_000;
+    expect(await scheduler.runOne()).toBe('IDLE'); time+=1000;
+    s.http.get=async()=>({status:200,headers:{},bytes:new TextEncoder().encode(xml(item('one'))),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}});
+    expect(await scheduler.runOne()).toBe('DONE'); expect((await s.repository.checkpoint(scope))?.sequence).toBe(2);
+  });
+});
+
+describe('RSS normalization and bounded HTTP',()=>{
+  it('Atom chooses alternate links and keeps edit metadata opaque',()=>{
+    const items=normalizeRssSnapshot('<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>tag:example,1</id><link rel="self" href="https://publisher.example/api"/><link rel="alternate" href="/article"/><title>Title</title><summary>Excerpt</summary><updated>2026-10-04T07:00:00Z</updated></entry></feed>',input.url);
+    expect(items[0]).toMatchObject({upstreamId:'tag:example,1',url:'https://publisher.example/article',sourceRevision:{comparability:'OPAQUE'}});
+    expect(items[0].publishedAt).toBeUndefined();
+  });
+  it('rejects DTDs and HTML, collapses duplicate upstream IDs',()=>{
+    expect(()=>normalizeRssSnapshot('<!DOCTYPE rss><rss/>',input.url)).toThrow('INVALID_FEED');
+    expect(()=>normalizeRssSnapshot('<html/>',input.url)).toThrow('INVALID_FEED');
+    expect(normalizeRssSnapshot(xml(item('one')+item('one')),input.url)).toHaveLength(1);
+  });
+  it('accepts literal HTML doctypes in CDATA while rejecting real XML declarations',()=>{
+    const result=normalizeRssSnapshot(xml('<item><guid>one</guid><description><![CDATA[<p><!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd"><br />Actual article body.</p>]]></description></item>'),input.url);
+    expect(result[0].body).toBe('Actual article body.');
+    expect(()=>normalizeRssSnapshot('<!DOCTYPE rss [<!ENTITY unsafe SYSTEM "file:///private">]>'+xml(item('one')),input.url)).toThrow('INVALID_FEED');
+    expect(()=>normalizeRssSnapshot(xml('<item><guid>one</guid><description><![CDATA[unfinished</description></item>'),input.url)).toThrow('INVALID_FEED');
+  });
+  it('conflicting duplicate rows are visible to intake without choosing arbitrary content',async()=>{
+    const s=setup(xml(item('one','A')+item('one','B'))); await s.collector.collect(input);
+    expect(s.accepted[0].observations).toHaveLength(1); expect(s.accepted[0].proposals).toHaveLength(0);
+    expect(s.accepted[0].observations[0].contentHash).toBeUndefined();
+  });
+  it('Atom XHTML text is retained',()=>{
+    const result=normalizeRssSnapshot('<feed><entry><id>one</id><title>Title</title><content type="xhtml"><div><p>Useful <b>body</b></p></div></content></entry></feed>',input.url);
+    expect(result[0].body).toBe('Useful body');
+  });
+  it('normalizes CDATA HTML and encoded markup without losing text',()=>{
+    const result=normalizeRssSnapshot(xml('<item><guid>one</guid><title>A &amp; B</title><description><![CDATA[<p>Useful &amp; correct</p>]]></description></item><item><guid>two</guid><description>&lt;p&gt;Encoded body&lt;/p&gt;</description></item>'),input.url);
+    expect(result[0].title).toBe('A & B'); expect(result[0].body).toBe('Useful & correct'); expect(result[1].body).toBe('Encoded body');
+  });
+  it('keeps headline, publisher, author and excerpt separate while normalizing tracking URLs',()=>{
+    const result=normalizeRssSnapshot(xml('<item><guid>item</guid><title>Agency announces launch</title><description>The next mission begins today.</description><author>Science Desk</author><link>https://publisher.example/story?utm_source=rss&amp;edition=global#comments</link><pubDate>Sun, 04 Oct 2026 07:00:00 GMT</pubDate></item>'),input.url);
+    expect(result[0]).toMatchObject({title:'Agency announces launch',sourceTitle:'Feed',excerpt:'The next mission begins today.',
+      author:'Science Desk',url:'https://publisher.example/story?edition=global'});
+  });
+  it('bounded retry respects Retry-After without exceeding wait budget',async()=>{
+    const dispatch=vi.fn(async()=>new Response('',{status:429,headers:{'retry-after':'120'}})),sleep=vi.fn();
+    const response=await new BoundedFeedHttp(dispatch,{sleep}).get(input.url,{});
+    expect(response.status).toBe(429); expect(dispatch).toHaveBeenCalledTimes(1); expect(sleep).not.toHaveBeenCalled();
+  });
+  it('retries transient errors and measures all requests',async()=>{
+    const dispatch=vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(new Response(xml('')));
+    const response=await new BoundedFeedHttp(dispatch,{sleep:async()=>{}}).get(input.url,{});
+    expect(response.telemetry.requests).toBe(2); expect(new TextDecoder().decode(response.bytes)).toBe(xml(''));
+  });
+  it('redirects are not followed and oversize streams are rejected',async()=>{
+    const redirect=vi.fn(async(_url,init)=>{expect(init.redirect).toBe('manual');return new Response(null,{status:302,headers:{location:'http://127.0.0.1/'}});});
+    expect((await new BoundedFeedHttp(redirect).get(input.url,{})).status).toBe(302);
+    await expect(new BoundedFeedHttp(async()=>new Response('too long'),{maxBytes:2}).get(input.url,{})).rejects.toThrow('FEED_TOO_LARGE');
+  });
+  it('enforces a deadline even when dispatch does not honor abort',async()=>{
+    const response=await new BoundedFeedHttp(()=>new Promise(()=>{}),{timeoutMs:10,attempts:1}).get(input.url,{});
+    expect(response.status).toBe(0); expect(response.telemetry.requests).toBe(1);
+  });
+});
+
+it('valid initial snapshot of hundreds of items is incremental progress, not retry exhaustion',async()=>{
+ const s=setup(xml(Array.from({length:200},(_,i)=>item(String(i))).join('')));s.db.db.exec(RSS_POLL_SCHEMA);
+ const scheduler=new D1RssPollScheduler(s.db,s.collector,async()=>true,()=>Date.parse(timestamp));
+ await scheduler.schedule('large', {...input,maxItems:10},timestamp);
+ for(let i=0;i<19;i++)expect(await scheduler.runOne()).toBe('RETRY');
+ expect(await scheduler.runOne()).toBe('DONE');expect(s.accepted.flatMap(b=>b.observations).length).toBeGreaterThanOrEqual(200);
+ expect(new Set(s.accepted.flatMap(b=>b.observations).map(o=>o.sourceItemKey)).size).toBe(200);expect(s.http.get).toHaveBeenCalledTimes(1);
+});
+
+it('a ten-item slice uses bounded fingerprint read and write batches',async()=>{
+ const s=setup(xml(Array.from({length:10},(_,i)=>item(String(i))).join(''))),queries:string[]=[];
+ const prepare=s.db.prepare.bind(s.db);s.db.prepare=sql=>{queries.push(sql);return prepare(sql)};const batch=vi.spyOn(s.db,'batch');
+ await s.collector.collect({...input,maxItems:10});
+ expect(queries.filter(sql=>sql.includes('SELECT')&&sql.includes('connector_item_fingerprints'))).toHaveLength(1);
+ expect(batch.mock.calls.some(([statements])=>statements.length===10)).toBe(true);
+});
+
+it('initial lookback prioritizes recent entries but retains older unseen history',async()=>{
+ const old=item('old').replace('Sun, 04 Oct 2026 07:00:00 GMT','Thu, 01 Oct 2026 07:00:00 GMT');
+ const s=setup(xml(old+item('current'))),request={...input,maxItems:1,initialLookbackHours:48};
+ const first=await s.collector.collect(request);expect(s.accepted[0].observations[0].sourceItemKey).toContain('current');
+ expect(first.nextOffset).toBe(1);await s.collector.collect(request,1);
+ expect(s.accepted.at(-1)!.observations[0].sourceItemKey).toContain('old');expect(s.http.get).toHaveBeenCalledTimes(1);
+});
+
+// GHSA-7cfw-w2rf-f3jc: untrusted RSS reaches XMLValidator before normalization.
+// Bound the process externally: a synchronous parser hang cannot be caught by a promise timeout.
+it('rejects malformed whitespace attributes without stalling the source collector',()=>{
+ const require=createRequire(import.meta.url),parserPath=require.resolve('fast-xml-parser');
+ const code=`const {XMLValidator}=require(${JSON.stringify(parserPath)});const xml='<rss '+ ' '.repeat(300000)+'=x><channel /></rss>';if(XMLValidator.validate(xml)===true)process.exit(2);`;
+ const child=spawnSync(process.execPath,['-e',code],{timeout:5000,windowsHide:true,encoding:'utf8'});
+ expect(child.error).toBeUndefined();expect(child.status).toBe(0);
+ expect(()=>normalizeRssSnapshot('<rss '+ ' '.repeat(300000)+'=x><channel /></rss>',input.url)).toThrow('INVALID_FEED');
+},10000);

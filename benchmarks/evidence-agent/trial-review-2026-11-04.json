@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "authority": "AI-assisted engineering review of exact full source evidence; not human gold, statistical error rates or an independent paid judge.",
+  "decision": "REVISE_DO_NOT_PROMOTE",
+  "importantDevelopmentPresence": {
+    "authority": "Provisional retained expectations and item inspection; not complete factuality or independent recall labels",
+    "expected": 16,
+    "v4": 15,
+    "v7": 16,
+    "candidate": 9
+  },
+  "findings": [
+    {
+      "id": "quote-contract-failure",
+      "severity": "delivery_blocker",
+      "cases": [
+        "ai-multisource-en",
+        "ai-multisource-ar"
+      ],
+      "assessment": "CONFIRMED_STRUCTURAL_FAILURE_NOT_SEMANTIC_VERIFICATION",
+      "sourceIds": [
+        "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+        "an-update-on-independent-evaluators"
+      ],
+      "explanation": "Purported exact quotes contain ellipses or altered wording. Strict resolution rejects the entire editor envelope before verification. This does not prove the underlying development identity was wrong.",
+      "diagnostics": [
+        {
+          "caseId": "ai-multisource-en",
+          "developmentId": "D3",
+          "claim": "Replit is no longer working with Anthropic as its default AI provider, making OpenAI's ChatGPT the default due to performance, cost, and partnership considerations, though Anthropic models remain available.",
+          "citation": {
+            "passages": [
+              "S3.B1"
+            ],
+            "quote": "Replit, the AI coding platform ... is no longer working with Anthropic, the company’s CEO and co-founder Amjad Masad said ... After Disrupt, Masad clarified that customers can still access Anthropic models on the platform, but that OpenAI’s ChatGPT is now the default."
+          },
+          "existsVerbatimAnywhere": false
+        },
+        {
+          "caseId": "ai-multisource-ar",
+          "developmentId": "D2",
+          "claim": "تطور Anthropic ثلاث مستويات من الوصول للمقيمين المستقلين، مع منح أعلى مستوى وصول وحقوق نشر لفريق METR حالياً.",
+          "citation": {
+            "passages": [
+              "S4.B3"
+            ],
+            "quote": "We’re developing three tiers of access for evaluators. Over time, we hope to have several evaluators at the third tier, with each team publishing their own analysis of our risk posture and key decisions. ... The third tier is the arrangement we’ve described with METR, with employee-like access and publication rights similar to those of the second tier."
+          },
+          "existsVerbatimAnywhere": false
+        },
+        {
+          "caseId": "ai-multisource-ar",
+          "developmentId": "D3",
+          "claim": "أعلن الرئيس التنفيذي لمنصة Replit أن الشركة لم تعد تتعاون مع Anthropic، وأن OpenAI أصبح الشريك المفضل لتشغيل وكيل Replit Agent، وذلك بناءً على الأداء والتكلفة وقوة الشراكة.",
+          "citation": {
+            "passages": [
+              "S3.B1"
+            ],
+            "quote": "Replit, the AI coding platform ... is no longer working with Anthropic, the company’s CEO and co-founder Amjad Masad said Thursday while onstage at TechCrunch Disrupt. ... 'I think ChatGPT is better now,' Masad said ... 'It was a decision based on both cost, partnership, and performance. And for all these reasons, we just felt like they were a better partner for now.'"
+          },
+          "existsVerbatimAnywhere": false
+        },
+        {
+          "caseId": "ai-multisource-ar",
+          "developmentId": "D3",
+          "claim": "هناك تضارب في التصريحات حول استمرار الشراكة، حيث أشار مصدر مطلع إلى أن الشراكة لا تزال قائمة، وتظهر أدلة حديثة على استمرار استخدام منتجات Anthropic في المنصة.",
+          "citation": {
+            "passages": [
+              "S3.B2"
+            ],
+            "quote": "Masad’s comments onstage were rejected by insiders familiar with the partnership between Anthropic and Replit. One person familiar, who asked not to be named, said the partnership was still in place. There is evidence on the company’s website, blog posts, and social media posts that Replit was promoting Anthropic products as recently as a few weeks ago."
+          },
+          "existsVerbatimAnywhere": false
+        }
+      ]
+    },
+    {
+      "id": "missing-prior-binding",
+      "severity": "delivery_blocker",
+      "cases": [
+        "casualty-update-ar"
+      ],
+      "assessment": "CONFIRMED_STRUCTURAL_FAILURE",
+      "sourceIds": [
+        "78a8013d-f33c-4c96-a435-8776f78c5f57"
+      ],
+      "record": {
+        "id": "D1",
+        "occurrence": "الناطق باسم الحكومة الأردنية أعلن أن حصيلة الحادث الإجرامي الذي وقع خلال جنازة بمحافظة الكرك بلغت 6 قتلى و28 جريحاً.",
+        "relation": "update",
+        "updates": null,
+        "importance": 1,
+        "essentialClaims": [
+          {
+            "id": "C1",
+            "statement": "الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجرامي الذي وقع خلال جنازة بمحافظة الكرك",
+            "conditions": [],
+            "attribution": null,
+            "uncertainty": null,
+            "temporalStatus": "reported",
+            "time": null,
+            "evidence": [
+              {
+                "passages": [
+                  "S2.B1"
+                ],
+                "quote": "🔴 الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجــ ـرامي الذي وقع خلال جنازة بمحافظة الكرك"
+              }
+            ]
+          }
+        ]
+      },
+      "explanation": "The model selected update but returned updates:null despite supplied prior coverage. No model repair or verifier was called. Long canonical identifiers are present, but their length is not proven to be the cause."
+    },
+    {
+      "id": "supported-number-false-rejection",
+      "severity": "material",
+      "cases": [
+        "casualty-update-en"
+      ],
+      "assessment": "CONFIRMED_SOURCE_LINKED_FALSE_REJECTION",
+      "sourceIds": [
+        "78a8013d-f33c-4c96-a435-8776f78c5f57"
+      ],
+      "evidence": "🔴 الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجــ ـرامي الذي وقع خلال جنازة بمحافظة الكرك\n\n\n\nhttps://telegram.me/lebanonnews2",
+      "explanation": "Both baseline verifiers claim 28 injured is absent even though the full cited source explicitly says 28. V7 repair removes it; V4 recheck then demands it and rejects the edition. Candidate preserves 6 killed and 28 injured with one verifier call. A real single-case gain, not general verifier qualification.",
+      "candidateItem": {
+        "headline": "Jordanian government: 6 killed, 28 injured in Karak church funeral attack",
+        "body": "The Jordanian government spokesperson reported that 6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate.",
+        "relation": "new",
+        "importance": 1,
+        "sourceIds": [
+          "78a8013d-f33c-4c96-a435-8776f78c5f57"
+        ]
+      }
+    },
+    {
+      "id": "v7-ar-metr-veto",
+      "severity": "material",
+      "cases": [
+        "ai-multisource-ar"
+      ],
+      "assessment": "CONFIRMED_SOURCE_LINKED_FALSE_APPROVAL",
+      "sourceIds": [
+        "an-update-on-independent-evaluators"
+      ],
+      "evidence": "METR will publish its analysis of our risk levels, incidents, or practices. Anthropic can’t veto publication, but we can require them to redact information if it falls into predefined categories such as reproducing confidential IP. (Anthropic ultimately decides what information does and does not fall into these categories, although METR reserves the right to make certain statements about the level of access and information it received.)2\n\n",
+      "item": {
+        "headline": "Anthropic تمنح فريق METR المستقل وصولاً شبيهاً بالموظفين لتقييم مخاطر الذكاء الاصطناعي",
+        "body": "أعلنت Anthropic أنها بدأت في منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي. سيقوم فريق METR بنشر نتائج تقييماته بشكل مستقل، ولا يمكن لـ Anthropic منع النشر إلا في حالات محددة تتعلق بالملكية الفكرية أو السرية. كما تعمل Anthropic مع SecureBio وAccenture كمقيمين خارجيين، وتخطط لتوسيع الشراكات مع منظمات أخرى. تم توضيح أن هناك ثلاث مستويات من الوصول للمقيمين، مع منح METR أعلى مستوى حالياً.",
+        "relation": "new",
+        "importance": 1,
+        "sourceIds": [
+          "an-update-on-independent-evaluators"
+        ]
+      },
+      "explanation": "Arabic V7 says publication can be prevented in confidentiality/IP cases. Source permits predefined redactions and explicitly denies a publication veto. Its verifier returned ok."
+    },
+    {
+      "id": "v7-ar-fund-condition",
+      "severity": "material",
+      "cases": [
+        "ai-multisource-ar"
+      ],
+      "assessment": "CONFIRMED_SOURCE_LINKED_FALSE_APPROVAL",
+      "sourceIds": [
+        "public-benefit-fund"
+      ],
+      "evidence": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline.",
+      "item": {
+        "headline": "Anthropic تخصص 5% من أسهمها لصندوق منفعة عامة مع إمكانية زيادة النسبة مع نمو الشركة",
+        "body": "أعلنت Anthropic عن تأسيس صندوق منفعة عامة جديد سيحصل مبدئياً على 5% من أسهم الشركة، مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة فوق حد معين. يهدف الصندوق إلى دعم مشاريع ذات منفعة مجتمعية بمرونة أكبر، مثل التبرعات الكبرى للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. لن تُستخدم أسهم الصندوق في الضغط السياسي أو التبرعات السياسية. مع التزامات سابقة من المؤسسين والموظفين، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة.",
+        "relation": "new",
+        "importance": 1,
+        "sourceIds": [
+          "public-benefit-fund"
+        ]
+      },
+      "explanation": "The accepted item omits the required stockholder-approval condition, not merely optional fund background."
+    },
+    {
+      "id": "v7-ar-insider-affiliation",
+      "severity": "factual",
+      "cases": [
+        "ai-multisource-ar"
+      ],
+      "assessment": "CONFIRMED_UNSUPPORTED_ATTRIBUTION",
+      "sourceIds": [
+        "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+      ],
+      "evidence": "However, Masad’s comments onstage were rejected by insiders familiar with the partnership between Anthropic and Replit. One person familiar, who asked not to be named, said the partnership was still in place.\n",
+      "item": {
+        "headline": "Replit تعتمد OpenAI كمزود افتراضي بدلاً من Anthropic وتقلل من شراكتها معها",
+        "body": "أكد الرئيس التنفيذي لشركة Replit أن المنصة لم تعد تعتمد على Anthropic كمزود رئيسي لنماذج الذكاء الاصطناعي، وأن OpenAI أصبحت المزود الافتراضي بسبب الأداء والتكلفة وقوة الشراكة. رغم ذلك، لا تزال نماذج Anthropic متاحة للعملاء، لكن الاستخدام المتوقع سينخفض بشكل كبير. تصريحات الرئيس التنفيذي حول إنهاء الشراكة قوبلت بنفي من مصادر مطلعة داخل Anthropic، مع استمرار وجود أدلة على ترويج Replit لنماذج Anthropic مؤخراً.",
+        "relation": "new",
+        "importance": 1,
+        "sourceIds": [
+          "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+        ]
+      },
+      "explanation": "The draft places disputing sources inside Anthropic. The article says insiders familiar with the partnership and does not establish their employer. Verifier returned ok."
+    },
+    {
+      "id": "candidate-ar-qualifications",
+      "severity": "positive_draft_observation",
+      "cases": [
+        "ai-multisource-ar"
+      ],
+      "assessment": "DRAFT_ONLY_NOT_VALIDATED_DELIVERY",
+      "sourceIds": [
+        "public-benefit-fund",
+        "an-update-on-independent-evaluators"
+      ],
+      "items": [
+        {
+          "developmentId": "D1",
+          "headline": "Anthropic تؤسس صندوق منفعة عامة وتخصص له حصة متزايدة من أسهمها",
+          "body": "أعلنت Anthropic عن التزامها بتخصيص 5% من أسهمها لصندوق منفعة عامة جديد، مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة فوق خط أساس محدد، وذلك بعد موافقة المساهمين. سيمنح الصندوق مرونة أكبر لدعم مشاريع ذات منفعة مجتمعية، مثل التبرعات الكبيرة للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. لن تُستخدم أسهم الصندوق في الضغط السياسي أو التبرعات السياسية. مع هذا الإعلان، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة، مع إمكانية زيادة النسبة عند تحقيق الشركة لمعايير تقييم محددة."
+        },
+        {
+          "developmentId": "D2",
+          "headline": "Anthropic تمنح فريق METR حق وصول شبيه بالموظفين لتقييم سلامة نماذجها بشكل مستقل",
+          "body": "بدأت Anthropic في منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أدواتها وأنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي الخاصة بها. سيقوم METR بنشر نتائج تقييماته للمخاطر، ولا تملك Anthropic حق الاعتراض على النشر، لكنها تستطيع طلب حجب معلومات ضمن فئات محددة مثل الأسرار التجارية. تعمل Anthropic أيضاً مع SecureBio وAccenture كمقيمين، وتجري محادثات أولية مع منظمات أخرى مثل Hugging Face. تهدف الشركة إلى تطوير ثلاث مستويات من الوصول للمقيمين المستقلين، مع منح أعلى مستوى وصول وحقوق نشر لفريق METR حالياً."
+        }
+      ],
+      "explanation": "Candidate Arabic draft explicitly retains shareholder approval and distinguishes redactions from a veto. These particular meanings improve over the matched V7 response, but the pipeline rejects the whole response on quote integrity. No verifier result or successful delivery may be claimed."
+    },
+    {
+      "id": "candidate-fund-completion-wording",
+      "severity": "factual_risk",
+      "cases": [
+        "ai-multisource-en"
+      ],
+      "assessment": "RETAINED_UNVALIDATED_DRAFT_RISK",
+      "sourceIds": [
+        "public-benefit-fund"
+      ],
+      "evidence": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline.",
+      "item": {
+        "developmentId": "D1",
+        "headline": "Anthropic launches Public Benefit Fund, commits 5% of shares with potential for more",
+        "body": "Anthropic has announced the creation of the Anthropic Public Benefit Fund, initially committing 5% of its shares, with the possibility of increasing this by 2% for every 50% rise in company value above a set baseline, subject to stockholder approval. The Fund, structured as a wholly-owned LLC, is designed to support public benefit initiatives with flexibility, including large donations to nonprofits or direct distributions. Combined with previous equity donation pledges and programs, about 20% of Anthropic shares are now dedicated to public good, with further increases possible if valuation milestones are met. The Fund will not use equity for lobbying or political giving. Details on governance and valuation milestones will be shared in the coming months."
+      },
+      "explanation": "The candidate writes about 20% of shares are now dedicated while the source describes future dedication and a conditional initial commitment. It was held structurally before semantic review; this is not a successful verifier catch."
+    },
+    {
+      "id": "candidate-casualty-attribution-scope",
+      "severity": "review",
+      "cases": [
+        "casualty-update-en"
+      ],
+      "assessment": "UNRESOLVED_CITATION_ATTRIBUTION_RISK",
+      "sourceIds": [
+        "78a8013d-f33c-4c96-a435-8776f78c5f57",
+        "762779a7-f41a-4d26-8110-143aaca0e636"
+      ],
+      "evidence": "🔴 الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجــ ـرامي الذي وقع خلال جنازة بمحافظة الكرك\n\n\n\nhttps://telegram.me/lebanonnews2",
+      "item": {
+        "headline": "Jordanian government: 6 killed, 28 injured in Karak church funeral attack",
+        "body": "The Jordanian government spokesperson reported that 6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate.",
+        "relation": "new",
+        "importance": 1,
+        "sourceIds": [
+          "78a8013d-f33c-4c96-a435-8776f78c5f57"
+        ]
+      },
+      "explanation": "Church appears in prior coverage and the other supplied report, but not in the cited government statement. The accepted prose folds it into the government-attributed account. Whether this is harmless known context or a material attribution error remains unresolved; do not count it as a confirmed false approval."
+    }
+  ],
+  "grouping": {
+    "s13": "Present as a distinct prospective announcement in all six Lebanon outputs; no incremental candidate gain",
+    "ai": "All raw editor drafts keep fund, METR and Replit separate; candidate delivery fails for a structural reason",
+    "casualty": "All cases treat the reports as an update opportunity; whether the new/update metadata correctly links prior coverage varies"
+  },
+  "generalization": "One run per configuration/case, inspected retained sources, cache imbalance and small sample. No independent human validation, factual-error-rate estimate or latency percentile claim."
+}

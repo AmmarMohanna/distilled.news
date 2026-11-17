@@ -4,6 +4,10 @@ Distilled.news is a Cloudflare-first, self-hostable personal news briefing filte
 
 Distilled.news ingests public Telegram channel URLs plus optional RSS, Google News, X, LinkedIn, and Apify-backed sources, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. It does not include chatbot or Q&A behavior.
 
+## Acquisition Evaluation
+
+The next acquisition milestone is a measured scraper and API comparison. See the [Scraper and API Evaluation Plan](documentation/SCRAPER_AND_API_EVALUATION_PLAN.md) for the pilot, test cases, scoring, cost accounting, and provider-selection criteria. The [documentation index](documentation/README.md) explains how the existing plans relate to the current implementation.
+
 ## What It Does
 
 - Public email signup with verified accounts, password login/reset, and admin oversight.
@@ -46,6 +50,12 @@ npx pnpm@10.12.1 --filter @distilled/worker db:migrate
 npx pnpm@10.12.1 dev
 ```
 
+On Windows, the local Worker runs with Containers disabled in `wrangler.toml`.
+The app and its local D1 database still run; authenticated browser container features require WSL and Docker.
+In a second terminal, run `npx pnpm@10.12.1 --filter @distilled/web dev` and open `http://127.0.0.1:5173`.
+Run `npx pnpm@10.12.1 run setup` once to preserve or generate browser notification keys.
+Notifications need browser permission; local scheduled delivery can be triggered at `http://127.0.0.1:8787/cdn-cgi/handler/scheduled`.
+
 For deployment:
 
 ```sh
@@ -74,6 +84,37 @@ See `.env.example` for descriptions.
 Sending. For public user registration, Cloudflare must also allow sending to
 arbitrary recipients; Email Routing-only bindings can send only to verified
 destination addresses in the Cloudflare account.
+
+### Gmail for verification emails
+
+Enable the Gmail API in Google Cloud and authorize a dedicated sending mailbox
+with the `https://www.googleapis.com/auth/gmail.send` scope and offline access.
+Follow [Google's OAuth setup guide](https://developers.google.com/workspace/gmail/api/auth/web-server)
+to obtain the refresh token. Set these values on the target Worker:
+
+- `VERIFICATION_MAIL_TRANSPORT=GMAIL_API`
+- `GMAIL_FROM` with the address of the authorized mailbox
+- `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` as Worker secrets
+- `PUBLIC_WEB_BASE_URL` with the public URL for that deployment
+
+Password resets continue to use `MAIL_TRANSPORT` and `EMAIL_FROM`. To switch
+verification back to the Outlook configuration, remove the override when
+`MAIL_TRANSPORT=OUTLOOK_GRAPH`, or set `VERIFICATION_MAIL_TRANSPORT=OUTLOOK_GRAPH`.
+After configuring Gmail, verify delivery by requesting a fresh signup link and
+opening it from the recipient's inbox.
+
+## Feed Illustrations
+
+Feed illustrations use Cloudflare Workers AI model `@cf/black-forest-labs/flux-2-klein-4b`.
+To run image generation from a separate Cloudflare account, set
+`CLOUDFLARE_IMAGE_ACCOUNT_ID` to that account's ID and save a Workers AI API
+token as `CLOUDFLARE_IMAGE_API_TOKEN`. Locally, put both values in
+`apps/worker/.dev.vars`; setup can also copy them from `.env`. The token must
+have Workers AI Read and Edit permissions for the image account. For a deployed
+Worker, upload it as a Worker secret in the application account. Generated JPEGs
+are stored in the application's existing `RAW_ARCHIVE` R2 bucket. Missing images
+retain the built-in outline illustration, and each account is limited to five
+generation attempts per 24 hours.
 
 ## First Self-Hosted Setup
 

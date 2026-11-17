@@ -1,0 +1,30 @@
+[
+  {
+    "feed": "lebanon-news",
+    "table": "connector_rss_poll_jobs",
+    "rowsRead": 0,
+    "durationMs": 0.4237,
+    "results": 0
+  },
+  {
+    "feed": "lebanon-news",
+    "table": "connector_provider_poll_jobs",
+    "rowsRead": 1,
+    "durationMs": 0.309,
+    "results": 1
+  },
+  {
+    "feed": "lebanon-news2",
+    "table": "connector_rss_poll_jobs",
+    "rowsRead": 0,
+    "durationMs": 0.4967,
+    "results": 0
+  },
+  {
+    "feed": "lebanon-news2",
+    "table": "connector_provider_poll_jobs",
+    "rowsRead": 1,
+    "durationMs": 0.2482,
+    "results": 1
+  }
+]

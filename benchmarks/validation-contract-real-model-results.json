@@ -1,0 +1,1607 @@
+{
+  "schemaVersion": "publication-validation-real-model-evaluation-v1",
+  "applicationCommit": "c389419",
+  "baselineCommit": "3e00ffc",
+  "requestSetHash": "a9bca273f1d753c4f642c0f8f6bf9d6521621e4940dba3af26067f111f456d13",
+  "labelsSha256": "4e097092cae0ce8cf32c68cce4ada96fb44c9e1bf8de5a095aacc933a9c1db78",
+  "provenance": "AI_ASSISTED",
+  "independentHumanGold": 0,
+  "blinded": false,
+  "caseScope": "Twelve synthetic controls from existing reviewed labels, predeclared before receiving these outputs. Not a holdout or edition certification.",
+  "model": "openai/gpt-4.1-mini",
+  "provider": "OPENROUTER",
+  "validationContract": "EVIDENCE_GROUNDED_V2",
+  "promptVersion": "approved-propositions-v2",
+  "semanticPolicy": "semantic-publication-v2",
+  "calls": 12,
+  "repairs": 0,
+  "retries": 0,
+  "settledOperations": 12,
+  "newUnknownOperations": 0,
+  "actualProviderCostUsd": 0.0100792,
+  "latencyDefinition": "Verifier wall time includes streamed response, decode/reducer preparation and local receipt persistence; excludes financial reservation and settlement. No canonical feed lock acquired for this isolated evaluation.",
+  "latencyQuantileMethod": "nearest rank; descriptive only, n=12",
+  "latencyMs": {
+    "p50": 2063.694199999998,
+    "p95": 3140.3926,
+    "maximum": 3140.3926
+  },
+  "confusion": {
+    "positiveCases": 6,
+    "negativeCases": 6,
+    "correctAcceptances": 5,
+    "correctRejections": 0,
+    "falseAcceptances": 0,
+    "falseHardRejections": 0,
+    "unresolvedPositives": 1,
+    "unresolvedNegatives": 6
+  },
+  "financialAuthority": {
+    "approvedEffectiveCapUsd": 53,
+    "previousEffectiveCapUsd": 51,
+    "originalBaseCapUsd": 50,
+    "exposureAmendmentSequence": 2,
+    "validUntil": "2026-10-19T19:15:55.700Z",
+    "originalGrantAndPriorHoldsUnchangedAtAmendment": true,
+    "migrationHistoryCount": 68
+  },
+  "cases": [
+    {
+      "caseId": "T01",
+      "expected": "POSITIVE",
+      "requestHash": "e87f1f16606e00f9e912b0ff95b388669d3952a7b0a05747551a58a3ddf50878",
+      "decision": "ACCEPT",
+      "reasons": [],
+      "verificationWallMs": 3140.3926,
+      "providerHeadersMs": 1457.5117999999998,
+      "usage": {
+        "tokensIn": 1101,
+        "tokensOut": 242,
+        "cost": 0.0008276,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "36a83b496879a9dc78a962e62157aceec51f87d620a28ca8db166bb96a67bab8",
+      "question": [
+        {
+          "id": "T01:claim:1",
+          "candidateId": "T01:story",
+          "text": "According to an October 8, 2026 report, the product launched.",
+          "support": [
+            {
+              "evidenceRevisionId": "T01:source:1",
+              "quote": "The product launched."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T01:source:1",
+              "text": "The product launched.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T01:fact:0",
+              "text": "The product launched.",
+              "evidenceRevisionIds": [
+                "T01:source:1"
+              ],
+              "timing": {
+                "sourcePublishedAt": "2026-10-08T12:00:00Z",
+                "framingRequired": false
+              }
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T01:fact:0",
+              "text": "The product launched.",
+              "evidenceRevisionIds": [
+                "T01:source:1"
+              ],
+              "timing": {
+                "sourcePublishedAt": "2026-10-08T12:00:00Z",
+                "framingRequired": false
+              }
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T01:fact:0",
+              "text": "The product launched.",
+              "evidenceRevisionIds": [
+                "T01:source:1"
+              ],
+              "timing": {
+                "sourcePublishedAt": "2026-10-08T12:00:00Z",
+                "framingRequired": false
+              }
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "e1d002592a0bb1a8ec0527d2b780c616bc18d54173f7dad1f2b916951d6c1123",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T01:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim 'According to an October 8, 2026 report, the product launched.' is fully supported by the fact 'The product launched.' with matching temporal framing and attribution to the report date, preserving all semantic components.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T01:claim:1"
+        ],
+        "preservedFactIds": [
+          "T01:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact; the prose offers a faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T01:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose 'The product launched.' fully and clearly communicates the fact that the product launched, preserving actor/object identity, certainty, and temporal framing as per the October 8, 2026 report.",
+            "readerSpans": [
+              {
+                "claimId": "T01:claim:1",
+                "text": "According to an October 8, 2026 report, the product launched."
+              }
+            ],
+            "candidateId": "T01:story"
+          }
+        ],
+        "novelFactIds": [
+          "T01:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1101,
+          "tokensOut": 242,
+          "cost": 0.0008276,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T02",
+      "expected": "POSITIVE",
+      "requestHash": "20a81f64e3237d3a607204fe6f5445bb30b87d58e2fcdb6f1a0278ed4cfe1b70",
+      "decision": "ACCEPT",
+      "reasons": [],
+      "verificationWallMs": 2026.1504999999997,
+      "providerHeadersMs": 792.3865000000005,
+      "usage": {
+        "tokensIn": 1089,
+        "tokensOut": 215,
+        "cost": 0.0007796,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "d7ad541ecb0e1d2ee82ed8e06a1cd9f9f97b36d9465cce73631990557faa26ec",
+      "question": [
+        {
+          "id": "T02:claim:1",
+          "candidateId": "T02:story",
+          "text": "The service gained approximately a thousand users over two days.",
+          "support": [
+            {
+              "evidenceRevisionId": "T02:source:1",
+              "quote": "The service gained approximately a thousand users over the course of two days."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T02:source:1",
+              "text": "The service gained approximately a thousand users over the course of two days.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T02:fact:0",
+              "text": "The service gained approximately a thousand users over the course of two days.",
+              "evidenceRevisionIds": [
+                "T02:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T02:fact:0",
+              "text": "The service gained approximately a thousand users over the course of two days.",
+              "evidenceRevisionIds": [
+                "T02:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T02:fact:0",
+              "text": "The service gained approximately a thousand users over the course of two days.",
+              "evidenceRevisionIds": [
+                "T02:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "182889ce1634f7d447134f97c3641aece26e58006a1d9cafc61bebdeba628f2c",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T02:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim is fully supported by the fact, including the approximate number of users gained and the two-day time frame, with no unsupported meanings.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T02:claim:1"
+        ],
+        "preservedFactIds": [
+          "T02:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact; the prose offers a faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T02:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose fully and accurately communicates the fact that the service gained approximately a thousand users over two days, preserving actor, quantity, and temporal details without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T02:claim:1",
+                "text": "The service gained approximately a thousand users over two days."
+              }
+            ],
+            "candidateId": "T02:story"
+          }
+        ],
+        "novelFactIds": [
+          "T02:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1089,
+          "tokensOut": 215,
+          "cost": 0.0007796,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T05",
+      "expected": "POSITIVE",
+      "requestHash": "767b62c9700ed7b16fe9d53e52b16cf5f590b650f5b386210309722d9cf82803",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "SEMANTIC_VERDICT_CONFLICT"
+      ],
+      "verificationWallMs": 2580.8948,
+      "providerHeadersMs": 843.7932000000001,
+      "usage": {
+        "tokensIn": 1075,
+        "tokensOut": 281,
+        "cost": 0.0008796,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "2fa2c693330e65f1e2d3fa982c9f8cfdf93b152818b1ce5e476a69c5d29c86a9",
+      "question": [
+        {
+          "id": "T05:claim:1",
+          "candidateId": "T05:story",
+          "text": "The cost is 12000000 dollars.",
+          "support": [
+            {
+              "evidenceRevisionId": "T05:source:1",
+              "quote": "The cost is 12 million dollars."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T05:source:1",
+              "text": "The cost is 12 million dollars.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T05:fact:0",
+              "text": "The cost is 12 million dollars.",
+              "evidenceRevisionIds": [
+                "T05:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T05:fact:0",
+              "text": "The cost is 12 million dollars.",
+              "evidenceRevisionIds": [
+                "T05:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T05:fact:0",
+              "text": "The cost is 12 million dollars.",
+              "evidenceRevisionIds": [
+                "T05:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "1c6fb92cafbcca04c241b52b83a63e7043c2257c9b37b8a07cb3fc289e797b3f",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T05:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim states 'The cost is 12000000 dollars.' which is a precise numeric figure without abbreviation, whereas the fact states 'The cost is 12 million dollars.' The claim's numeric expression is more exact but not explicitly supported by the fact's wording, which uses an approximate term '12 million'. This difference in numeric precision means the claim is not fully entailed by the fact.",
+            "unsupportedMeaning": [
+              "Exact numeric value '12000000' versus approximate '12 million'"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [
+          "T05:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts communicate this fact; the prose offers a faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T05:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose 'The cost is 12 million dollars.' fully and clearly communicates the fact with exact numerical value and currency, preserving actor/object identity and certainty without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T05:claim:1",
+                "text": "The cost is 12000000 dollars."
+              }
+            ],
+            "candidateId": "T05:story"
+          }
+        ],
+        "novelFactIds": [
+          "T05:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1075,
+          "tokensOut": 281,
+          "cost": 0.0008796,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T10",
+      "expected": "POSITIVE",
+      "requestHash": "7fdd823548a335d9163bc1a20322a70dae753ba64d477085b79b46171e78b2d2",
+      "decision": "ACCEPT",
+      "reasons": [],
+      "verificationWallMs": 2524.4148999999998,
+      "providerHeadersMs": 1124.3814999999995,
+      "usage": {
+        "tokensIn": 1086,
+        "tokensOut": 250,
+        "cost": 0.0008344,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "669a511adf6a84b3861285aef878584e4bafdd767d0d34880fc7220f1cc72974",
+      "question": [
+        {
+          "id": "T10:claim:1",
+          "candidateId": "T10:story",
+          "text": "The vote is on 2026-10-08.",
+          "support": [
+            {
+              "evidenceRevisionId": "T10:source:1",
+              "quote": "The vote is on October 8, 2026."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T10:source:1",
+              "text": "The vote is on October 8, 2026.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T10:fact:0",
+              "text": "The vote is on October 8, 2026.",
+              "evidenceRevisionIds": [
+                "T10:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T10:fact:0",
+              "text": "The vote is on October 8, 2026.",
+              "evidenceRevisionIds": [
+                "T10:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T10:fact:0",
+              "text": "The vote is on October 8, 2026.",
+              "evidenceRevisionIds": [
+                "T10:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "167b9fc01b76032df63ce09ab277805ab8abd03d734c7bd641e440b310c6dfb9",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T10:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim 'The vote is on 2026-10-08.' is fully supported by fact_1 which states 'The vote is on October 8, 2026.' The date and event identity are exactly preserved with no added or missing meaning.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T10:claim:1"
+        ],
+        "preservedFactIds": [
+          "T10:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact; the date is explicitly stated.",
+              "previousFactTexts": []
+            },
+            "factId": "T10:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose 'The vote is on 2026-10-08.' fully communicates the fact that the vote is on October 8, 2026, preserving exact date, actor, and event identity without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T10:claim:1",
+                "text": "The vote is on 2026-10-08."
+              }
+            ],
+            "candidateId": "T10:story"
+          }
+        ],
+        "novelFactIds": [
+          "T10:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1086,
+          "tokensOut": 250,
+          "cost": 0.0008344,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T18",
+      "expected": "POSITIVE",
+      "requestHash": "0e5e40268abbe5c03b8f9cb6e93077d5a9e336a2e77a6fc4f52a11cb018f542e",
+      "decision": "ACCEPT",
+      "reasons": [],
+      "verificationWallMs": 2030.143,
+      "providerHeadersMs": 688.9553999999989,
+      "usage": {
+        "tokensIn": 1068,
+        "tokensOut": 222,
+        "cost": 0.0007824,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "2cba84e4a0146806236ebee7111e2d11185a3c1583eec6a687dae47cf5f9ba72",
+      "question": [
+        {
+          "id": "T18:claim:1",
+          "candidateId": "T18:story",
+          "text": "Revenue rose 20 percent.",
+          "support": [
+            {
+              "evidenceRevisionId": "T18:source:1",
+              "quote": "Revenue rose 20%."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T18:source:1",
+              "text": "Revenue rose 20%.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T18:fact:0",
+              "text": "Revenue rose 20%.",
+              "evidenceRevisionIds": [
+                "T18:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T18:fact:0",
+              "text": "Revenue rose 20%.",
+              "evidenceRevisionIds": [
+                "T18:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T18:fact:0",
+              "text": "Revenue rose 20%.",
+              "evidenceRevisionIds": [
+                "T18:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "7567c5dde79e0a71fe261bea7d2946754690d30d0996cfafa70216086575e40b",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T18:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim 'Revenue rose 20 percent.' is fully supported by the fact 'Revenue rose 20%.' with all semantic components preserved including exact numeric increase and certainty.",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T18:claim:1"
+        ],
+        "preservedFactIds": [
+          "T18:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact; the prose offers faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T18:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose 'Revenue rose 20 percent.' fully and clearly communicates the fact 'Revenue rose 20%.' with exact numeric value and no added or missing information.",
+            "readerSpans": [
+              {
+                "claimId": "T18:claim:1",
+                "text": "Revenue rose 20 percent."
+              }
+            ],
+            "candidateId": "T18:story"
+          }
+        ],
+        "novelFactIds": [
+          "T18:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1068,
+          "tokensOut": 222,
+          "cost": 0.0007824,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T21",
+      "expected": "POSITIVE",
+      "requestHash": "84c577371dd8403141c4a4bf53f08d6aab0cd8717c317aa026175a31c11c29c9",
+      "decision": "ACCEPT",
+      "reasons": [],
+      "verificationWallMs": 1715.3702999999987,
+      "providerHeadersMs": 635.8286999999982,
+      "usage": {
+        "tokensIn": 1077,
+        "tokensOut": 205,
+        "cost": 0.0007588,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "08e97c8a16139c7683384d68cdf358f2b8a61b83e34bec7757582d1e240c820b",
+      "question": [
+        {
+          "id": "T21:claim:1",
+          "candidateId": "T21:story",
+          "text": "Alice said \"the plan is ready.\"",
+          "support": [
+            {
+              "evidenceRevisionId": "T21:source:1",
+              "quote": "Alice said \"the plan is ready\"."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T21:source:1",
+              "text": "Alice said \"the plan is ready\".",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T21:fact:0",
+              "text": "Alice said \"the plan is ready\".",
+              "evidenceRevisionIds": [
+                "T21:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T21:fact:0",
+              "text": "Alice said \"the plan is ready\".",
+              "evidenceRevisionIds": [
+                "T21:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T21:fact:0",
+              "text": "Alice said \"the plan is ready\".",
+              "evidenceRevisionIds": [
+                "T21:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "beb90ebab89657138afed3c6632f1e675de691ee7f480908422903d248744f42",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T21:claim:1",
+            "fullyEntailed": true,
+            "reason": "The claim fully matches the fact in all semantic components including exact wording, attribution to Alice, and modality (she said).",
+            "unsupportedMeaning": []
+          }
+        ],
+        "supportedClaimIds": [
+          "T21:claim:1"
+        ],
+        "preservedFactIds": [
+          "T21:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "There are no previous same-story ledger facts communicating this fact; the prose offers faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T21:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose fully and exactly communicates the fact that Alice said \"the plan is ready.\" with correct attribution and exact wording.",
+            "readerSpans": [
+              {
+                "claimId": "T21:claim:1",
+                "text": "Alice said \"the plan is ready.\""
+              }
+            ],
+            "candidateId": "T21:story"
+          }
+        ],
+        "novelFactIds": [
+          "T21:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1077,
+          "tokensOut": 205,
+          "cost": 0.0007588,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T03",
+      "expected": "NEGATIVE",
+      "requestHash": "4021559ddc01d83192e30ef0cd69e96e995357ae53062ce077cecfd5c6f1ebe0",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "FACT_VERDICT_CONFLICT",
+        "SEMANTIC_VERDICT_CONFLICT"
+      ],
+      "verificationWallMs": 2812.6749999999993,
+      "providerHeadersMs": 963.4309999999969,
+      "usage": {
+        "tokensIn": 1141,
+        "tokensOut": 344,
+        "cost": 0.0010068,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "d85453db2e3e7c3caa0bec6c2cb8ab468361b59432c373477a96179e6e77dec0",
+      "question": [
+        {
+          "id": "T03:claim:1",
+          "candidateId": "T03:story",
+          "text": "Bob welcomed the policy. Alice raised enforcement concerns.",
+          "support": [
+            {
+              "evidenceRevisionId": "T03:source:1",
+              "quote": "Alice welcomed the policy."
+            },
+            {
+              "evidenceRevisionId": "T03:source:1",
+              "quote": "Bob raised enforcement concerns."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T03:source:1",
+              "text": "Alice welcomed the policy.\nBob raised enforcement concerns.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T03:fact:0",
+              "text": "Alice welcomed the policy.",
+              "evidenceRevisionIds": [
+                "T03:source:1"
+              ]
+            },
+            {
+              "id": "T03:fact:1",
+              "text": "Bob raised enforcement concerns.",
+              "evidenceRevisionIds": [
+                "T03:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T03:fact:0",
+              "text": "Alice welcomed the policy.",
+              "evidenceRevisionIds": [
+                "T03:source:1"
+              ]
+            },
+            {
+              "id": "T03:fact:1",
+              "text": "Bob raised enforcement concerns.",
+              "evidenceRevisionIds": [
+                "T03:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T03:fact:0",
+              "text": "Alice welcomed the policy.",
+              "evidenceRevisionIds": [
+                "T03:source:1"
+              ]
+            },
+            {
+              "id": "T03:fact:1",
+              "text": "Bob raised enforcement concerns.",
+              "evidenceRevisionIds": [
+                "T03:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "5ddb6c0e16d2cc4b401accf898db3ae631f43055088223b597b4d1b7fd3897f1",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T03:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim reverses the actors' attitudes compared to the facts: it says 'Bob welcomed the policy' and 'Alice raised enforcement concerns,' but the facts show 'Alice welcomed the policy' and 'Bob raised enforcement concerns.' This actor attribution error means the claim is not fully entailed.",
+            "unsupportedMeaning": [
+              "Actor attribution reversed for both parts of the claim"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts; this is a faithful new presentation of the fact.",
+              "previousFactTexts": []
+            },
+            "factId": "T03:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose explicitly states 'Alice welcomed the policy,' directly matching the fact's meaning without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T03:claim:1",
+                "text": "Bob welcomed the policy. Alice raised enforcement concerns."
+              }
+            ],
+            "candidateId": "T03:story"
+          },
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts; this is a faithful new presentation of the fact.",
+              "previousFactTexts": []
+            },
+            "factId": "T03:fact:1",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose explicitly states 'Bob raised enforcement concerns,' directly matching the fact's meaning without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T03:claim:1",
+                "text": "Bob welcomed the policy. Alice raised enforcement concerns."
+              }
+            ],
+            "candidateId": "T03:story"
+          }
+        ],
+        "novelFactIds": [
+          "T03:fact:0",
+          "T03:fact:1"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1141,
+          "tokensOut": 344,
+          "cost": 0.0010068,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T04",
+      "expected": "NEGATIVE",
+      "requestHash": "cb6e58e6f636a569163d8ea3aa14695fbea2c5fb02e5abc02e64490e57efd114",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "SEMANTIC_VERDICT_CONFLICT"
+      ],
+      "verificationWallMs": 2063.694199999998,
+      "providerHeadersMs": 850.1406999999963,
+      "usage": {
+        "tokensIn": 1072,
+        "tokensOut": 228,
+        "cost": 0.0007936,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "c80e5fb2dcf33fd2b7f4a54e1d88a05ada36af9b117d04de2d2a80295a03e4fe",
+      "question": [
+        {
+          "id": "T04:claim:1",
+          "candidateId": "T04:story",
+          "text": "The court confirmed the decision.",
+          "support": [
+            {
+              "evidenceRevisionId": "T04:source:1",
+              "quote": "The court did not confirm the decision."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T04:source:1",
+              "text": "The court did not confirm the decision.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T04:fact:0",
+              "text": "The court did not confirm the decision.",
+              "evidenceRevisionIds": [
+                "T04:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T04:fact:0",
+              "text": "The court did not confirm the decision.",
+              "evidenceRevisionIds": [
+                "T04:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T04:fact:0",
+              "text": "The court did not confirm the decision.",
+              "evidenceRevisionIds": [
+                "T04:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "702d601eb5c7b264763b6c326c654171a4bde2b4d61b3a48855e30e7f9b43b39",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T04:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim states 'The court confirmed the decision,' which contradicts the fact 'The court did not confirm the decision.' Therefore, the claim is not supported and is semantically contradicted.",
+            "unsupportedMeaning": [
+              "The court confirmed the decision"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [
+          "T04:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts communicate this fact; the prose offers a new understanding that the court did not confirm the decision, contrasting with the claim.",
+              "previousFactTexts": []
+            },
+            "factId": "T04:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose explicitly states 'The court did not confirm the decision,' fully conveying the fact's meaning without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T04:claim:1",
+                "text": "The court confirmed the decision."
+              }
+            ],
+            "candidateId": "T04:story"
+          }
+        ],
+        "novelFactIds": [
+          "T04:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1072,
+          "tokensOut": 228,
+          "cost": 0.0007936,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T06",
+      "expected": "NEGATIVE",
+      "requestHash": "33dd5c2754a66db4692d63523fe648090488489943ca1d27b79d0fb8e99b0146",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "SEMANTIC_VERDICT_CONFLICT"
+      ],
+      "verificationWallMs": 1896.7643000000025,
+      "providerHeadersMs": 771.5564999999988,
+      "usage": {
+        "tokensIn": 1068,
+        "tokensOut": 214,
+        "cost": 0.0007696,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "c4fad6f55b3d9f1cc209b9958181bdd6ae48695f022785ac0803ea01c050cea5",
+      "question": [
+        {
+          "id": "T06:claim:1",
+          "candidateId": "T06:story",
+          "text": "The investigation caused the resignation.",
+          "support": [
+            {
+              "evidenceRevisionId": "T06:source:1",
+              "quote": "The resignation followed the investigation."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T06:source:1",
+              "text": "The resignation followed the investigation.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T06:fact:0",
+              "text": "The resignation followed the investigation.",
+              "evidenceRevisionIds": [
+                "T06:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T06:fact:0",
+              "text": "The resignation followed the investigation.",
+              "evidenceRevisionIds": [
+                "T06:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T06:fact:0",
+              "text": "The resignation followed the investigation.",
+              "evidenceRevisionIds": [
+                "T06:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "4585a16b3c5a169a86b54eb92455ecef068a37ab9ef6df31ccf1c89800185985",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T06:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim asserts causation ('The investigation caused the resignation'), but the fact only supports temporal sequence ('The resignation followed the investigation'). Causation is not supported by the fact.",
+            "unsupportedMeaning": [
+              "causation"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [
+          "T06:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts communicate this temporal sequence; this is the first presentation of this fact in the story.",
+              "previousFactTexts": []
+            },
+            "factId": "T06:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose 'The resignation followed the investigation.' fully communicates the temporal sequence of events without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T06:claim:1",
+                "text": "The investigation caused the resignation."
+              }
+            ],
+            "candidateId": "T06:story"
+          }
+        ],
+        "novelFactIds": [
+          "T06:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1068,
+          "tokensOut": 214,
+          "cost": 0.0007696,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T08",
+      "expected": "NEGATIVE",
+      "requestHash": "b20f30829c50ea638716f4aa65ea97092fe8360a6bee851296d979b012f25849",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "SEMANTIC_VERDICT_CONFLICT"
+      ],
+      "verificationWallMs": 2675.2709999999934,
+      "providerHeadersMs": 861.7148000000016,
+      "usage": {
+        "tokensIn": 1132,
+        "tokensOut": 341,
+        "cost": 0.0009984,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "4f60ab918e9bd572945c3b3725fa09d36ae64b23a8e08e77ed139b83c0c4acdf",
+      "question": [
+        {
+          "id": "T08:claim:1",
+          "candidateId": "T08:story",
+          "text": "The road reopened.",
+          "support": [
+            {
+              "evidenceRevisionId": "T08:source:1",
+              "quote": "The road reopened."
+            },
+            {
+              "evidenceRevisionId": "T08:source:1",
+              "quote": "The bridge remains closed."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T08:source:1",
+              "text": "The road reopened.\nThe bridge remains closed.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T08:fact:0",
+              "text": "The road reopened.",
+              "evidenceRevisionIds": [
+                "T08:source:1"
+              ]
+            },
+            {
+              "id": "T08:fact:1",
+              "text": "The bridge remains closed.",
+              "evidenceRevisionIds": [
+                "T08:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T08:fact:0",
+              "text": "The road reopened.",
+              "evidenceRevisionIds": [
+                "T08:source:1"
+              ]
+            },
+            {
+              "id": "T08:fact:1",
+              "text": "The bridge remains closed.",
+              "evidenceRevisionIds": [
+                "T08:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T08:fact:0",
+              "text": "The road reopened.",
+              "evidenceRevisionIds": [
+                "T08:source:1"
+              ]
+            },
+            {
+              "id": "T08:fact:1",
+              "text": "The bridge remains closed.",
+              "evidenceRevisionIds": [
+                "T08:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "0044956ac8fa6163ebf1a72d53b79249b4c1758b35a43cd5e2b73ca9adc1203f",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T08:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim states only 'The road reopened.' but the support and facts also include 'The bridge remains closed.' which is not reflected in the claim text. Therefore, the claim does not fully entail all required facts.",
+            "unsupportedMeaning": [
+              "The bridge remains closed"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [
+          "T08:fact:0",
+          "T08:fact:1"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts; this is the first communication of this fact in the story.",
+              "previousFactTexts": []
+            },
+            "factId": "T08:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The claim text 'The road reopened.' exactly matches the fact text and is clearly communicated without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T08:claim:1",
+                "text": "The road reopened."
+              }
+            ],
+            "candidateId": "T08:story"
+          },
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts; this is the first communication of this fact in the story.",
+              "previousFactTexts": []
+            },
+            "factId": "T08:fact:1",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The claim text includes 'The bridge remains closed.' which exactly matches the fact text and is clearly communicated without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T08:claim:1",
+                "text": "The road reopened."
+              }
+            ],
+            "candidateId": "T08:story"
+          }
+        ],
+        "novelFactIds": [
+          "T08:fact:0",
+          "T08:fact:1"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1132,
+          "tokensOut": 341,
+          "cost": 0.0009984,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T16",
+      "expected": "NEGATIVE",
+      "requestHash": "4a31e2b1288db42eb08a042f992fea0540af8d6e22396a0c40aa7ddc4fac1ed1",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "SEMANTIC_VERDICT_CONFLICT"
+      ],
+      "verificationWallMs": 2020.4092999999993,
+      "providerHeadersMs": 660.9789000000019,
+      "usage": {
+        "tokensIn": 1097,
+        "tokensOut": 263,
+        "cost": 0.0008596,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "af7aaf3e37a553b72bf780e6e3d477544f763b415a2f82048540e7ade1821276",
+      "question": [
+        {
+          "id": "T16:claim:1",
+          "candidateId": "T16:story",
+          "text": "The product launched on October 8, 2026.",
+          "support": [
+            {
+              "evidenceRevisionId": "T16:source:1",
+              "quote": "The product launched."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T16:source:1",
+              "text": "The product launched.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T16:fact:0",
+              "text": "The product launched.",
+              "evidenceRevisionIds": [
+                "T16:source:1"
+              ],
+              "timing": {
+                "sourcePublishedAt": "2026-10-08T12:00:00Z",
+                "framingRequired": false
+              }
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T16:fact:0",
+              "text": "The product launched.",
+              "evidenceRevisionIds": [
+                "T16:source:1"
+              ],
+              "timing": {
+                "sourcePublishedAt": "2026-10-08T12:00:00Z",
+                "framingRequired": false
+              }
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T16:fact:0",
+              "text": "The product launched.",
+              "evidenceRevisionIds": [
+                "T16:source:1"
+              ],
+              "timing": {
+                "sourcePublishedAt": "2026-10-08T12:00:00Z",
+                "framingRequired": false
+              }
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "a8453dfab4e5bfd2a856b0d48988450e53e1f6df232b6afddea8c070e174ec7b",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T16:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim states 'The product launched on October 8, 2026.' but the supporting fact and prose only confirm that 'The product launched.' without specifying the date. The temporal component 'on October 8, 2026' is not supported by the fact or prose, thus the claim is not fully entailed.",
+            "unsupportedMeaning": [
+              "The product launched on October 8, 2026"
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [
+          "T16:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact; the prose offers a faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T16:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose 'The product launched.' fully communicates the fact that the product launched, preserving actor/object identity and certainty without adding or omitting details.",
+            "readerSpans": [
+              {
+                "claimId": "T16:claim:1",
+                "text": "The product launched on October 8, 2026."
+              }
+            ],
+            "candidateId": "T16:story"
+          }
+        ],
+        "novelFactIds": [
+          "T16:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1097,
+          "tokensOut": 263,
+          "cost": 0.0008596,
+          "confirmed": true
+        }
+      }
+    },
+    {
+      "caseId": "T24",
+      "expected": "NEGATIVE",
+      "requestHash": "bf3ad3124d5988a585317d0f1b200ebd6836b829d21927b73db9bcd24efadc5a",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "SEMANTIC_VERDICT_CONFLICT"
+      ],
+      "verificationWallMs": 2619.117999999995,
+      "providerHeadersMs": 1256.5297999999966,
+      "usage": {
+        "tokensIn": 1068,
+        "tokensOut": 226,
+        "cost": 0.0007888,
+        "confirmed": true
+      },
+      "financialSettlementVerified": true,
+      "receiptSha256": "857c0bebb411971f5e0c9699a7c692ae8bab099340735a5b67f950e88ddeaff1",
+      "question": [
+        {
+          "id": "T24:claim:1",
+          "candidateId": "T24:story",
+          "text": "Officials reported 40 injuries.",
+          "support": [
+            {
+              "evidenceRevisionId": "T24:source:1",
+              "quote": "Officials reported 12 injuries."
+            }
+          ],
+          "context": [
+            {
+              "evidenceRevisionId": "T24:source:1",
+              "text": "Officials reported 12 injuries.",
+              "truncated": false
+            }
+          ],
+          "allowedFacts": [
+            {
+              "id": "T24:fact:0",
+              "text": "Officials reported 12 injuries.",
+              "evidenceRevisionIds": [
+                "T24:source:1"
+              ]
+            }
+          ],
+          "requiredFacts": [
+            {
+              "id": "T24:fact:0",
+              "text": "Officials reported 12 injuries.",
+              "evidenceRevisionIds": [
+                "T24:source:1"
+              ]
+            }
+          ],
+          "newUnderstandingFacts": [
+            {
+              "id": "T24:fact:0",
+              "text": "Officials reported 12 injuries.",
+              "evidenceRevisionIds": [
+                "T24:source:1"
+              ]
+            }
+          ],
+          "previousLedgerFacts": [],
+          "previousReaderClaims": [],
+          "correctionObligations": []
+        }
+      ],
+      "questionHash": "a592a1d938b39c5082dc06818daccba17db4f2b9ec9190d707bf7e75f52e604b",
+      "providerVerdict": {
+        "claimEntailment": [
+          {
+            "claimId": "T24:claim:1",
+            "fullyEntailed": false,
+            "reason": "The claim states 'Officials reported 40 injuries,' but the only supported fact is 'Officials reported 12 injuries.' The number of injuries differs, so the claim is not fully entailed.",
+            "unsupportedMeaning": [
+              "The number '40 injuries' is unsupported; only '12 injuries' is supported."
+            ]
+          }
+        ],
+        "supportedClaimIds": [],
+        "preservedFactIds": [
+          "T24:fact:0"
+        ],
+        "semanticChecks": [
+          {
+            "readerNovelty": {
+              "status": "NEW",
+              "reason": "No previous same-story facts or claims communicate this fact; the prose offers a faithful new understanding.",
+              "previousFactTexts": []
+            },
+            "factId": "T24:fact:0",
+            "communicated": true,
+            "attribution": true,
+            "certainty": true,
+            "temporal": true,
+            "qualifiers": true,
+            "nonRepetitive": true,
+            "reason": "The prose explicitly states 'Officials reported 12 injuries,' matching the fact exactly without repetition.",
+            "readerSpans": [
+              {
+                "claimId": "T24:claim:1",
+                "text": "Officials reported 40 injuries."
+              }
+            ],
+            "candidateId": "T24:story"
+          }
+        ],
+        "novelFactIds": [
+          "T24:fact:0"
+        ],
+        "addressedCorrectionObligationIds": [],
+        "usage": {
+          "tokensIn": 1068,
+          "tokensOut": 226,
+          "cost": 0.0007888,
+          "confirmed": true
+        }
+      }
+    }
+  ]
+}

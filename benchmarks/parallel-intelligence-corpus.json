@@ -1,0 +1,83 @@
+{
+  "labelPolicy": "Synthetic, historical real-provider, and manually reviewed labels must remain distinct. No new real-model semantic accuracy is claimed.",
+  "cases": [
+    {
+      "id": "short-single-development",
+      "labelProvenance": "synthetic",
+      "file": "apps/worker/src/v1-intelligence/semantic-preparation.test.ts",
+      "assertion": "direct construction; exact source identities"
+    },
+    {
+      "id": "long-single-development-many-facts",
+      "labelProvenance": "synthetic",
+      "file": "benchmarks/parallel-saved-evidence.test.ts",
+      "assertion": "48, 126, 1000 and 2000 authoritative ClaimMentions; exact reconstruction"
+    },
+    {
+      "id": "long-independent-developments",
+      "labelProvenance": "synthetic",
+      "file": "benchmarks/parallel-intelligence.test.ts",
+      "assertion": "equivalent legacy/development and serial/parallel local D1 review"
+    },
+    {
+      "id": "several-sources-one-occurrence",
+      "labelProvenance": "existing controlled regression",
+      "file": "apps/worker/src/v1-intelligence/construction-minimal.integration.test.ts",
+      "assertion": "five sources consolidate; publication memory remains separate"
+    },
+    {
+      "id": "later-material-update",
+      "labelProvenance": "existing controlled regression",
+      "file": "apps/worker/src/v1-intelligence/material-delta.test.ts",
+      "assertion": "material new facts remain eligible"
+    },
+    {
+      "id": "correction-and-contradiction",
+      "labelProvenance": "existing controlled regression",
+      "file": "apps/worker/src/v1-intelligence/correction-lifecycle.test.ts",
+      "assertion": "source-grounded obligations survive"
+    },
+    {
+      "id": "history-mixed-with-new-facts",
+      "labelProvenance": "existing controlled regression",
+      "file": "apps/worker/src/v1-intelligence/article-first-history.test.ts",
+      "assertion": "history is knowledge, not proof of publication"
+    },
+    {
+      "id": "quotations-and-pronoun-context-across-packets",
+      "labelProvenance": "synthetic exact-context contract",
+      "file": "apps/worker/src/v1-intelligence/semantic-continuation.test.ts",
+      "assertion": "complete immutable article supplied to every new packet"
+    },
+    {
+      "id": "shared-unit-independent-developments",
+      "labelProvenance": "synthetic exact ownership contract",
+      "file": "apps/worker/src/v1-intelligence/packet-disposition.test.ts",
+      "assertion": "one exact source span may have multiple explicit G destinations"
+    },
+    {
+      "id": "restart-and-duplicate-delivery",
+      "labelProvenance": "synthetic local D1",
+      "file": "benchmarks/parallel-intelligence.test.ts",
+      "assertion": "zero additional calls and unchanged Event identities on replay"
+    },
+    {
+      "id": "laplace-schema-failure",
+      "labelProvenance": "frozen saved schema",
+      "file": "benchmarks/blocked-schema-laplace.json",
+      "assertion": "2452 enum occurrences compact to 168"
+    },
+    {
+      "id": "replit-schema-failure",
+      "labelProvenance": "frozen saved schema",
+      "file": "benchmarks/blocked-schema-replit.json",
+      "assertion": "1197 enum occurrences compact to 126"
+    },
+    {
+      "id": "successful-private-v2-publication",
+      "labelProvenance": "historical real-provider receipt; no new publication",
+      "file": "benchmarks/private-publication-success-results.json",
+      "assertion": "saved ACCEPT and source artifacts checked without inferring new compatibility"
+    }
+  ]
+}

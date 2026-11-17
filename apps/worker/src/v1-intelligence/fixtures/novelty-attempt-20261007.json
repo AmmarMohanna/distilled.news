@@ -1,0 +1,230 @@
+{
+  "selectionId": "3a437d4fcfef522413aaad797b9087b3602520bcc3d93ac3bf67b33d6f7dab09",
+  "window": {
+    "start": "2026-10-07T01:00:00.000Z",
+    "end": "2026-10-07T03:00:00.000Z",
+    "kind": "HOURLY",
+    "durationMinutes": 120,
+    "timezone": "Asia/Beirut",
+    "deliveryAnchor": "00:00",
+    "schedulePolicy": "local-calendar-anchors-v1"
+  },
+  "claims": [
+    {
+      "id": "5827637c3bbb55fd0d143107ba578593542103e913d84f4202141e84d1979794",
+      "candidateId": "[\"3a437d4fcfef522413aaad797b9087b3602520bcc3d93ac3bf67b33d6f7dab09\",\"EVENT\",\"a36667c0-ffd7-4822-a47d-b75071a41b99\"]",
+      "text": "Nvidia-backed Lambda is currently raising up to $4 billion at a $14.5 billion pre-money valuation in preparation for a planned initial public offering in 2027. This funding round is being led by Coatue and Blackstone.",
+      "support": [
+        {
+          "evidenceRevisionId": "a2931068-649f-4101-b63e-301c6a608353",
+          "quote": "Nvidia-backed Lambda is raising up to $4 billion at a $14.5 billion pre-money valuation ahead of a planned 2027 IPO, led by Coatue and Blackstone."
+        }
+      ],
+      "requiredFacts": [
+        {
+          "id": "b886cb322f2eb652b3203c486583f30f822c4e139055120dac176eb2531756c0",
+          "text": "Nvidia-backed Lambda is raising up to $4 billion at a $14.5 billion pre-money valuation ahead of a planned 2027 IPO, led by Coatue and Blackstone.",
+          "evidenceRevisionIds": [
+            "a2931068-649f-4101-b63e-301c6a608353"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T20:00:30.000Z",
+            "reportTime": "2026-10-06T20:00:30.000Z",
+            "firstSeenByFeedAt": "2026-10-06T22:06:08.963Z",
+            "observedAt": "2026-10-06T22:06:08.963Z",
+            "framingRequired": false
+          }
+        }
+      ],
+      "allowedFacts": [
+        {
+          "id": "b886cb322f2eb652b3203c486583f30f822c4e139055120dac176eb2531756c0",
+          "text": "Nvidia-backed Lambda is raising up to $4 billion at a $14.5 billion pre-money valuation ahead of a planned 2027 IPO, led by Coatue and Blackstone.",
+          "evidenceRevisionIds": [
+            "a2931068-649f-4101-b63e-301c6a608353"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T20:00:30.000Z",
+            "reportTime": "2026-10-06T20:00:30.000Z",
+            "firstSeenByFeedAt": "2026-10-06T22:06:08.963Z",
+            "observedAt": "2026-10-06T22:06:08.963Z",
+            "framingRequired": false
+          }
+        }
+      ],
+      "newUnderstandingFacts": [
+        {
+          "id": "b886cb322f2eb652b3203c486583f30f822c4e139055120dac176eb2531756c0",
+          "text": "Nvidia-backed Lambda is raising up to $4 billion at a $14.5 billion pre-money valuation ahead of a planned 2027 IPO, led by Coatue and Blackstone.",
+          "evidenceRevisionIds": [
+            "a2931068-649f-4101-b63e-301c6a608353"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T20:00:30.000Z",
+            "reportTime": "2026-10-06T20:00:30.000Z",
+            "firstSeenByFeedAt": "2026-10-06T22:06:08.963Z",
+            "observedAt": "2026-10-06T22:06:08.963Z",
+            "framingRequired": false
+          }
+        }
+      ],
+      "previousLedgerFacts": [],
+      "previousReaderClaims": [],
+      "correctionObligations": [],
+      "context": [
+        {
+          "evidenceRevisionId": "a2931068-649f-4101-b63e-301c6a608353",
+          "text": "Nvidia-backed Lambda is raising up to $4 billion at a $14.5 billion pre-money valuation ahead of a planned 2027 IPO, led by Coatue and Blackstone.",
+          "title": "AI computing startup Lambda to raise $4B ahead of planned IPO",
+          "truncated": false
+        }
+      ]
+    },
+    {
+      "id": "5c9a4b7438dc393d95a54d91e9e111ed7fcb844cb7e8f4640adb633b48734c51",
+      "candidateId": "[\"3a437d4fcfef522413aaad797b9087b3602520bcc3d93ac3bf67b33d6f7dab09\",\"EVENT\",\"399ef806-ba7b-4e7f-8fc8-6246a4f1ef38\"]",
+      "text": "French AI lab Mistral AI has launched Mistral Large 4, a new large multimodal model designed to surpass competitors from both the United States and China.",
+      "support": [
+        {
+          "evidenceRevisionId": "e3d5cb76-b9c7-4f06-a48e-8d54d014bdf2",
+          "quote": "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals"
+        }
+      ],
+      "requiredFacts": [
+        {
+          "id": "df691c100c7b46c05ae19a66a040e432fe7001b6ebd165b2aeaf17b0e72d59f8",
+          "text": "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals",
+          "evidenceRevisionIds": [
+            "e3d5cb76-b9c7-4f06-a48e-8d54d014bdf2"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T14:33:16.000Z",
+            "reportTime": "2026-10-06T14:33:16.000Z",
+            "firstSeenByFeedAt": "2026-10-07T01:30:00.000Z",
+            "observedAt": "2026-10-07T01:30:00.000Z",
+            "framingRequired": false
+          }
+        }
+      ],
+      "allowedFacts": [
+        {
+          "id": "df691c100c7b46c05ae19a66a040e432fe7001b6ebd165b2aeaf17b0e72d59f8",
+          "text": "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals",
+          "evidenceRevisionIds": [
+            "e3d5cb76-b9c7-4f06-a48e-8d54d014bdf2"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T14:33:16.000Z",
+            "reportTime": "2026-10-06T14:33:16.000Z",
+            "firstSeenByFeedAt": "2026-10-07T01:30:00.000Z",
+            "observedAt": "2026-10-07T01:30:00.000Z",
+            "framingRequired": false
+          }
+        }
+      ],
+      "newUnderstandingFacts": [
+        {
+          "id": "df691c100c7b46c05ae19a66a040e432fe7001b6ebd165b2aeaf17b0e72d59f8",
+          "text": "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals",
+          "evidenceRevisionIds": [
+            "e3d5cb76-b9c7-4f06-a48e-8d54d014bdf2"
+          ],
+          "timing": {
+            "sourcePublishedAt": "2026-10-06T14:33:16.000Z",
+            "reportTime": "2026-10-06T14:33:16.000Z",
+            "firstSeenByFeedAt": "2026-10-07T01:30:00.000Z",
+            "observedAt": "2026-10-07T01:30:00.000Z",
+            "framingRequired": false
+          }
+        }
+      ],
+      "previousLedgerFacts": [
+        "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals."
+      ],
+      "previousReaderClaims": [
+        {
+          "id": "95107d8d6006ec5ef91cb82fc04317bc268b9de4214176e82a948c10598e974c",
+          "claimText": "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals.",
+          "claimFacts": [
+            "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals."
+          ],
+          "eventIds": [
+            "4bdd50f6-fc64-4b4e-a073-313880f64ad7"
+          ],
+          "storylineIds": [
+            "cb0509ef-9a66-4db9-b8cf-1e60536d92e3"
+          ],
+          "certainty": {
+            "kind": "UNSPECIFIED",
+            "hedges": []
+          },
+          "editionId": "52bcf2da289ada1347c403a2b23d60060d89bb2e17df482150ef579a0dfdf22e"
+        }
+      ],
+      "correctionObligations": [],
+      "context": [
+        {
+          "evidenceRevisionId": "e3d5cb76-b9c7-4f06-a48e-8d54d014bdf2",
+          "text": "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals",
+          "title": "Mistral’s new 1T model aims to leapfrog closed and open rivals",
+          "truncated": false
+        }
+      ]
+    }
+  ],
+  "verified": {
+    "supportedClaimIds": [
+      "5827637c3bbb55fd0d143107ba578593542103e913d84f4202141e84d1979794",
+      "5c9a4b7438dc393d95a54d91e9e111ed7fcb844cb7e8f4640adb633b48734c51"
+    ],
+    "preservedFactIds": [
+      "b886cb322f2eb652b3203c486583f30f822c4e139055120dac176eb2531756c0",
+      "df691c100c7b46c05ae19a66a040e432fe7001b6ebd165b2aeaf17b0e72d59f8"
+    ],
+    "novelFactIds": [],
+    "semanticChecks": [
+      {
+        "factId": "b886cb322f2eb652b3203c486583f30f822c4e139055120dac176eb2531756c0",
+        "communicated": true,
+        "attribution": true,
+        "certainty": true,
+        "temporal": true,
+        "qualifiers": true,
+        "nonRepetitive": true,
+        "reason": "The reader claim fully and accurately communicates the fact that Nvidia-backed Lambda is raising up to $4 billion at a $14.5 billion pre-money valuation ahead of a planned 2027 IPO, led by Coatue and Blackstone, with no added or missing details.",
+        "readerSpans": [
+          {
+            "claimId": "5827637c3bbb55fd0d143107ba578593542103e913d84f4202141e84d1979794",
+            "text": "Nvidia-backed Lambda is currently raising up to $4 billion at a $14.5 billion pre-money valuation in preparation for a planned initial public offering in 2027. This funding round is being led by Coatue and Blackstone."
+          }
+        ]
+      },
+      {
+        "factId": "df691c100c7b46c05ae19a66a040e432fe7001b6ebd165b2aeaf17b0e72d59f8",
+        "communicated": true,
+        "attribution": true,
+        "certainty": true,
+        "temporal": true,
+        "qualifiers": true,
+        "nonRepetitive": true,
+        "reason": "The reader claim fully and accurately communicates the fact that French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals, preserving all details and no repetition.",
+        "readerSpans": [
+          {
+            "claimId": "5c9a4b7438dc393d95a54d91e9e111ed7fcb844cb7e8f4640adb633b48734c51",
+            "text": "French AI lab Mistral AI has launched Mistral Large 4, a new large multimodal model designed to surpass competitors from both the United States and China."
+          }
+        ]
+      }
+    ]
+  },
+  "priorPublishedClaims": [
+    "French AI lab Mistral AI has released Mistral Large 4, a new large multimodal model aiming to leapfrog both American and Chinese rivals.",
+    "On Tuesday, Musubi announced a lightweight decision model made for real-time moderation called PolicyLM-1.7B, which was released with open weights.",
+    "Mirror Particle will debut at TechCrunch Disrupt's Startup Battlefield 200 with a newly developed world model designed to predict human behavior. The company contends that large language model role-play is inadequate for applications in market research and brand strategy.",
+    "Pinterest has introduced AI-powered Beauty Guides that convert hair and nail Pins into salon-specific terminology. These guides provide users with estimated costs, appointment durations, and maintenance requirements for the styles."
+  ],
+  "repairOutcome": {
+    "status": "OUTCOME_UNKNOWN",
+    "reservationRetained": true
+  }
+}

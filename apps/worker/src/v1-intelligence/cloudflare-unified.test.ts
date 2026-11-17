@@ -1,0 +1,32 @@
+import {it,expect} from 'vitest';
+import {llmRoute,routeAdmission,modelOptionsForRoute} from './provider-routing';
+import {boundedCompletion,cloudflareCompletionBody} from '../ai';
+import {withProviderReceiptSink} from '../provider-receipt';
+import {createStoredEvidenceModel} from './model';
+const env:any={CLOUDFLARE_ACCOUNT_ID:'a'.repeat(32),CLOUDFLARE_AI_GATEWAY_ID:'default',CLOUDFLARE_AI_GATEWAY_TOKEN:'offline-cf-token',OPENROUTER_API_KEY:'offline-or-token',V1_SYNTHESIS_MODEL_ENABLED:'true',V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2'};
+it('makes Cloudflare GPT-4.1 the strong candidate while retaining explicit OpenRouter and native Qwen routes',()=>{
+ for(const task of ['construction','reconciliation','editorial','verification','repair'] as const){const r=llmRoute(env,task);expect(r).toMatchObject({provider:'cloudflare',model:'openai/gpt-4.1',identity:'cloudflare:openai/gpt-4.1'});expect(routeAdmission(env,r,{},{}).reason).toBe('MODEL_UNQUALIFIED')}
+ expect(llmRoute({...env,DISTILLED_LLM_API_GATEWAY:'openrouter'},'construction').identity).toBe('openai/gpt-4.1');expect(llmRoute({...env,DISTILLED_LLM_API_GATEWAY:'workers_ai'},'construction').model).toBe('@cf/qwen/qwen3-30b-a3b-fp8');
+ expect(modelOptionsForRoute(env,llmRoute(env,'construction')).apiKey).toBe('offline-cf-token');
+});
+it('uses the current Cloudflare endpoint, exact strict schema, scoped credentials and one attempt',async()=>{
+ let call:any,usage:any;const receipts:any[]=[];const route=llmRoute(env,'construction');
+ const fetcher:any=async(url:any,init:any)=>{call={url,headers:init.headers,body:JSON.parse(init.body)};return Response.json({id:'chatcmpl-gpt41',model:'openai/gpt-4.1',gatewayMetadata:{keySource:'Unified'},choices:[{message:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:12,completion_tokens:4}},{headers:{'cf-aig-log-id':'log-123'}})};
+ const result=await withProviderReceiptSink(async r=>{receipts.push(r)},()=>boundedCompletion({...modelOptionsForRoute(env,route,fetcher),usageRecorder:async u=>{usage=u}},'test','event_review','SEMANTIC_CONSTRUCTION','source',{type:'object'}, {maxOutputTokens:32,signal:new AbortController().signal}));
+ expect(result).toEqual({ok:true});expect(call.url).toBe('https://api.cloudflare.com/client/v4/accounts/'+env.CLOUDFLARE_ACCOUNT_ID+'/ai/v1/chat/completions');expect(call.headers.authorization).toBe('Bearer offline-cf-token');expect(JSON.stringify(call)).not.toContain('offline-or-token');expect(call.headers['cf-aig-max-attempts']).toBe('1');expect(call.headers['cf-aig-skip-cache']).toBe('true');expect(call.body).toEqual(cloudflareCompletionBody(route.identity,'source',{type:'object'},32));expect(call.body.model).toBe('openai/gpt-4.1');expect(call.body.stream).toBe(false);expect(call.body.response_format.json_schema.strict).toBe(true);expect(receipts.find(r=>r.stage==='GENERATION')).toMatchObject({provider:'CLOUDFLARE',model:route.identity,generationId:'chatcmpl-gpt41'});expect(receipts[0].requestId).toBe('log-123');expect(usage.reportedCostUsd).toBeUndefined();
+});
+it('binds publication route identity and exact verification body without conflating providers',async()=>{
+ const m=createStoredEvidenceModel(env)!;expect(m.phaseIdentity!('GROUNDING')).toMatchObject({model:'cloudflare:openai/gpt-4.1',provider:'CLOUDFLARE'});expect(m.phaseIdentity!('GROUNDING').providerRoute).toContain(env.CLOUDFLARE_ACCOUNT_ID);const old=createStoredEvidenceModel({...env,DISTILLED_LLM_API_GATEWAY:'openrouter'})!;expect(m.phaseIdentity!('GROUNDING').providerRoute).not.toBe(old.phaseIdentity!('GROUNDING').providerRoute);
+});
+it('rejects foreign, incomplete or duplicate-key output and never retries unknown transport outcomes',async()=>{
+ const route=llmRoute(env,'construction');let calls=0;await expect(boundedCompletion(modelOptionsForRoute(env,route,async()=>{calls++;throw Error('timeout')}),'f','event_review','T','s',{}, {maxOutputTokens:32,signal:new AbortController().signal})).rejects.toThrow();expect(calls).toBe(1);
+ for(const raw of [{model:'openai/gpt-4o',finish:'stop',content:'{}'},{model:'openai/gpt-4.1',finish:'length',content:'{}'},{model:'openai/gpt-4.1',finish:'stop',content:'{"a":1,"a":2}'}])await expect(boundedCompletion(modelOptionsForRoute(env,route,async()=>Response.json({model:raw.model,gatewayMetadata:{keySource:'Unified'},choices:[{message:{content:raw.content},finish_reason:raw.finish}]})),'f','event_review','T','s',{}, {maxOutputTokens:32,signal:new AbortController().signal})).rejects.toThrow();
+});
+
+it('rejects an unexpected BYOK billing route instead of silently changing the payer',async()=>{let calls=0;const receipts:any[]=[];await expect(withProviderReceiptSink(async r=>{receipts.push(r)},()=>boundedCompletion(modelOptionsForRoute(env,llmRoute(env,'construction'),async()=>{calls++;return Response.json({id:'chatcmpl-byok',model:'openai/gpt-4.1',gatewayMetadata:{keySource:'BYOK'},usage:{cost:.01},choices:[{message:{content:'{}'},finish_reason:'stop'}]})}),'f','event_review','T','s',{}, {maxOutputTokens:32,signal:new AbortController().signal}))).rejects.toThrow('MODEL_BILLING_ROUTE_UNPROVEN');expect(calls).toBe(1);expect(receipts.some(r=>r.reportedCostUsd!==undefined)).toBe(false)});
+
+it('uses an exact completed gateway log when the real API omits inline metadata, without settling estimated cost',async()=>{
+ const id='01a1593a-b5db-7267-b2c7-4a1000dee0ef',payload={id:'chatcmpl-real-shape',model:'gpt-4.1-2025-04-14',choices:[{message:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:12,completion_tokens:4}};let posts=0,gets=0,usage:any;
+ const fetcher:any=async(url:string,init:any)=>{if(init.method==='GET'){gets++;expect(url.endsWith('/logs/'+id)).toBe(true);return Response.json({success:true,result:{id,provider:'openai',model:'openai/gpt-4.1',success:true,status_code:200,cached:false,wholesale:true,byok:null,tokens_in:12,tokens_out:4,response_head_complete:true,response_head:JSON.stringify({state:'Completed',result:payload}),cost:.000056,custom_cost:false}})}posts++;return Response.json(payload,{headers:{'cf-aig-log-id':id}})};
+ expect(await boundedCompletion({...modelOptionsForRoute(env,llmRoute(env,'construction'),fetcher),usageRecorder:async u=>{usage=u}},'f','event_review','T','source',{}, {maxOutputTokens:32,signal:new AbortController().signal})).toEqual({ok:true});expect(posts).toBe(1);expect(gets).toBe(1);expect(usage.reportedCostUsd).toBeUndefined();
+});

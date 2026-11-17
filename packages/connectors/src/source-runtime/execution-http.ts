@@ -1,0 +1,48 @@
+import type { SourceExecutionPort } from './platform-providers';
+import {SourceProviderError} from './provider-types';
+
+/** Dedicated trusted runtime endpoint. No redirects or credential-bearing diagnostics. */
+export class HttpSourceExecution implements SourceExecutionPort {
+  private readonly url: string;
+  constructor(url:string,private readonly token:string,private readonly dispatch:typeof fetch=fetch,
+    allowLoopbackHttp=false,private readonly timeoutMs=60000) {
+    const parsed=new URL(url);
+    if((parsed.protocol!=='https:'&&!(allowLoopbackHttp&&parsed.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(parsed.hostname)))||
+      parsed.username||parsed.password||parsed.search||parsed.hash||token.length<32)throw new Error('INVALID_SOURCE_EXECUTION_CONFIG');
+    this.url=parsed.href;
+  }
+  async execute(kind:Parameters<SourceExecutionPort['execute']>[0],input:Record<string,unknown>,bounds?:{timeoutMs?:number}):Promise<unknown> {
+    const body=JSON.stringify({kind,input});
+    if(new TextEncoder().encode(body).length>8000000)throw new Error('SOURCE_EXECUTION_INPUT_TOO_LARGE');
+    const timeout=bounds?.timeoutMs??this.timeoutMs;
+    if(!Number.isInteger(timeout)||timeout<1||timeout>this.timeoutMs)throw new Error('INVALID_SOURCE_EXECUTION_TIMEOUT');
+    const signal=AbortSignal.timeout(timeout);
+    const bounded=async <T>(operation:Promise<T>):Promise<T>=>{
+      signal.throwIfAborted();
+      let abort:()=>void=()=>{};
+      const deadline=new Promise<never>((_resolve,reject)=>{abort=()=>reject(new Error('SOURCE_EXECUTION_TIMEOUT'));signal.addEventListener('abort',abort,{once:true});});
+      try{return await Promise.race([operation,deadline]);}finally{signal.removeEventListener('abort',abort);}
+    };
+    const response=await bounded(this.dispatch(this.url,{method:'POST',redirect:'manual',signal,
+      headers:{authorization:`Bearer ${this.token}`,'content-type':'application/json'},body}));
+    if(response.status!==200){
+      if(response.status===503||response.status===429){
+        const seconds=Number(response.headers.get('retry-after')??5),retry=new Date(Date.now()+Math.max(1000,Number.isFinite(seconds)?seconds*1000:5000)).toISOString();
+        let busy=false;const reader=response.body?.getReader();
+        try{if(reader){const chunks:Uint8Array[]=[];let size=0;for(;;){const part=await bounded(reader.read());if(part.done)break;size+=part.value.length;if(size>1024)break;chunks.push(part.value);}if(size<=1024){const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}try{busy=JSON.parse(new TextDecoder().decode(bytes))?.error==='BUSY';}catch{}}}}
+        finally{await reader?.cancel().catch(()=>{});reader?.releaseLock();}
+        if(response.status===429||busy)throw new SourceProviderError('BACKPRESSURE',retry,{detail:response.status===429?'HELPER_HTTP_RATE_LIMIT':'HELPER_GLOBAL_CAPACITY_BUSY',httpStatus:response.status});
+        throw new SourceProviderError('TRANSIENT',retry,{detail:'HELPER_SERVICE_UNAVAILABLE',httpStatus:503});
+      }
+      await response.body?.cancel();throw Object.assign(new Error('SOURCE_EXECUTION_UNAVAILABLE'),{httpStatus:response.status});
+    }
+    const reader=response.body?.getReader();if(!reader)throw new Error('SOURCE_EXECUTION_INVALID_RESPONSE');
+    let size=0;const chunks:Uint8Array[]=[];
+    try {
+      for(;;){const part=await bounded(reader.read());if(part.done)break;size+=part.value.length;
+        if(size>8000000)throw new Error('SOURCE_EXECUTION_OUTPUT_TOO_LARGE');chunks.push(part.value);}
+    }catch(error){void reader.cancel().catch(()=>{});throw error;}finally{try{reader.releaseLock();}catch{}}
+    const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
+    try{return JSON.parse(new TextDecoder().decode(bytes));}catch{throw new Error('SOURCE_EXECUTION_INVALID_RESPONSE');}
+  }
+}

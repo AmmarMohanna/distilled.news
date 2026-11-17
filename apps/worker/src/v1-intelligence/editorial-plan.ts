@@ -1,0 +1,385 @@
+import {storyRequirementsSchema,validateEditorialRequirements,type EditorialContract,type StoryRequirements} from './editorial-requirements';
+import {readerHistoryMatches} from './reader-history';
+import {editorialContextFacts,editorialFactReferencesValid} from './editorial-context';
+import {shareSchemaEnums} from '../provider-schema';
+import {findStartedEditorialBoundary,type StartedEditorialBoundary} from './editorial-replay';
+import {HandoffError,sha256} from '@distilled/contracts';
+import {z} from 'zod';
+import {canonicalJson} from '../v1-intake/canonical';
+import {feedTransact,V1FeedStore} from './store';
+import {communicationFingerprint,equivalentFact} from './editorial';
+import {durableSemanticOperation} from './semantic-operations';
+import type {StrongSemanticModel} from './semantic-model';
+import type {ShortlistRecord,ShortlistCandidate} from './shortlist';
+import type {BriefingBudget} from './scoring';
+import {compactEditorialInput,keyedEditorialState,boundedEditorialInput,compactEditorialRepair,EDITORIAL_INPUT_POLICY,EDITORIAL_OUTPUT_CONTRACT} from './editorial-transport';
+import {compareEditorialCandidates} from './editorial-ranking';
+import {planningCapacity,communicationCost,legacyConservativeStoryCapacity,storyCapacityBound,guaranteedStoryCount,allocateFeasibleSelection,capacityReason,selectableForPlanning,type SelectionItem} from './planning-capacity';
+import {auditPlanReasoning} from './shortlist-audit';
+import {deferEditorialWork,resolveEditorialWork,BLOCKED_DEFERRAL_REASON,type EditorialWork} from './editorial-work';
+export const EDITORIAL_PLAN_POLICY='comparative-editorial-plan-v21';
+// Output-contract repair does not change model input, reservations or call identity.
+export const EDITORIAL_NORMALIZATION_POLICY='selected-new-facts-required-v1';
+export interface EditorialNormalization {policyVersion:string;added:{targetVersionId:string;factIds:string[]}[];contextBindings?:{targetVersionId:string;sourceTargetVersionId:string;factId:string;evidenceRevisionIds:string[];role:'CONTEXT'|'DISAGREEMENT'}[]}
+const ids=z.array(z.string().min(1));
+export const planStorySchema=z.object({targetType:z.enum(['EVENT','STORYLINE']),targetVersionId:z.string().min(1),decision:z.enum(['SELECT','SUPPRESS','DEFER']),order:z.number().int().nonnegative(),treatment:z.enum(['OMIT','BRIEF','STANDARD','DETAILED']),deltaType:z.enum(['NEW','STATE_CHANGE','CERTAINTY_CHANGE','CONTRADICTION','CORRECTION','RETRACTION','DETAIL','REPEAT','UNRESOLVED']),newUnderstandingFactIds:ids,contextFactIds:ids,mustIncludeFactIds:ids,attributionFactIds:ids,certaintyFactIds:ids,disagreementFactIds:ids,openQuestionFactIds:ids,correctionObligationIds:ids,previousLedgerEntryIds:ids,rationale:z.string().min(1),relevanceRationale:z.string().min(1),feedFit:z.enum(['DIRECT','CONTEXTUAL','UNCERTAIN','OUT_OF_SCOPE']).optional(),editorialImportance:z.number().min(0).max(1).optional()}).strict();
+export type PlanStory=z.infer<typeof planStorySchema> & {validation?:StoryRequirements};
+const obligationSchema=z.object({obligationId:z.string(),handling:z.enum(['ADDRESS','DEFER']),targetVersionId:z.string().nullable(),reason:z.string().min(1)}).strict();
+export const planBodySchema=z.object({stories:z.array(planStorySchema),obligations:z.array(obligationSchema)}).strict();
+export const planBodyV2Schema=planBodySchema.extend({stories:z.array(planStorySchema.extend({validation:storyRequirementsSchema}).strict())}).strict();
+export type EditorialPlanBody={stories:PlanStory[];obligations:z.infer<typeof planBodySchema>['obligations']};
+export interface EditorialPlanRecord extends EditorialPlanBody {validationContract?:EditorialContract;id:string;feedId:string;feedRevision:number;shortlistId:string;window:ShortlistRecord['window'];communicationFingerprint:string;route:'GPT'|'DETERMINISTIC_FALLBACK';plannerSource?:'REAL_COMPARATIVE_MODEL'|'DETERMINISTIC_FALLBACK';capacityAdjustments?:{targetVersionId:string;reason:string}[];/** Stated reasons that the supplied data does not support; informational, never blocking. */reasoningAudit?:import('./shortlist-audit').ReasoningFinding[];modelOperationIds?:string[];inputCoverage?:{policyVersion:string;inputBytes:number;offeredTargetVersionIds:string[];notComparativelyReviewedTargetVersionIds:string[];globalContextOperationIds?:string[]};operationId?:string;fallbackReason?:string;normalization?:EditorialNormalization;recoveredFromPlanId?:string;evidenceRevisionIds:string[];policyVersion:string;createdAt:string}
+const allRefs=(s:PlanStory)=>[...s.newUnderstandingFactIds,...s.contextFactIds,...s.mustIncludeFactIds,...s.attributionFactIds,...s.certaintyFactIds,...s.disagreementFactIds,...s.openQuestionFactIds];
+function knownFacts(c:ShortlistCandidate,shortlist:ShortlistRecord):string[]{return shortlist.ledger.filter(e=>readerHistoryMatches(c,e)).flatMap(e=>e.claimFacts)}
+function suppressionAllowed(c:ShortlistCandidate,state:ShortlistRecord):boolean{return !c.protectedReasons.length||!c.correctionObligationIds.length&&c.facts.every(f=>knownFacts(c,state).some(text=>equivalentFact(text,f.text)))}
+export function publicationCorrectionReady(c:Pick<ShortlistCandidate,'facts'|'correctionObligationIds'> & {flags?:string[]},obligations:ShortlistRecord['obligations']):boolean {
+ return !c.flags?.some(f=>['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE','TITLE_EXTRACTION_PENDING'].includes(f))&&c.facts.length>0&&c.facts.every(f=>f.selfContained==='YES'||f.selfContained==='RESOLVED_BY_CONTEXT')&&c.correctionObligationIds.length>0&&c.correctionObligationIds.every(id=>obligations.some(o=>o.id===id&&o.publicationWithdrawal));
+}
+export function validateEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistRecord,options:{contract?:EditorialContract;requirePublicationCorrection?:boolean;correctionCapacity?:number;requireFeedFit?:boolean;requireImportance?:boolean}={}):EditorialPlanBody {
+ const readyTargets=shortlist.candidates.filter(c=>publicationCorrectionReady(c,shortlist.obligations)),correctionCapacity=options.correctionCapacity??Infinity;
+ const plan=(options.contract==='EVIDENCE_GROUNDED_V2'?planBodyV2Schema:planBodySchema).parse(raw),targets=new Set(plan.stories.map(s=>s.targetVersionId));
+ if(targets.size!==plan.stories.length||targets.size!==shortlist.candidates.length||shortlist.candidates.some(c=>!targets.has(c.targetVersionId)))throw new HandoffError('SCOPE_DENIED');
+ const orders=plan.stories.filter(s=>s.decision==='SELECT').map(s=>s.order);if(new Set(orders).size!==orders.length)throw new HandoffError('SCOPE_DENIED');
+ for(const s of plan.stories){const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!;if(s.targetType!==c.targetType || !editorialFactReferencesValid(s,c,shortlist)||s.previousLedgerEntryIds.some(id=>!shortlist.ledger.some(e=>e.id===id))||s.correctionObligationIds.some(id=>!c.correctionObligationIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
+  const allowedHistory=new Set(shortlist.ledger.filter(e=>readerHistoryMatches(c,e)||shortlist.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
+  if(s.previousLedgerEntryIds.some(id=>!allowedHistory.has(id)))throw new HandoffError('SCOPE_DENIED');
+  if(options.requirePublicationCorrection&&readyTargets.length<=correctionCapacity&&publicationCorrectionReady(c,shortlist.obligations)&&(s.decision!=='SELECT'||!['CORRECTION','RETRACTION'].includes(s.deltaType)))throw new HandoffError('SCOPE_DENIED');
+  if(options.requireImportance&&s.editorialImportance===undefined)throw Error('EDITORIAL_IMPORTANCE_MISSING');
+  if(options.requireFeedFit&&!s.feedFit)throw Error('EDITORIAL_FEED_FIT_MISSING');
+  if(s.decision==='SELECT'&&s.feedFit==='OUT_OF_SCOPE'&&!c.correctionObligationIds.length)throw Error('EDITORIAL_OUT_OF_SCOPE_SELECTION');
+  if(s.decision==='SELECT'&&(c.flags.includes('IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE')||c.flags.includes('TITLE_EXTRACTION_PENDING')))throw new HandoffError('SCOPE_DENIED');
+  if(s.decision==='SELECT' && (s.treatment==='OMIT'||!s.mustIncludeFactIds.length)||s.decision!=='SELECT' && s.treatment!=='OMIT')throw new HandoffError('SCOPE_DENIED');
+  if(options.contract!=='EVIDENCE_GROUNDED_V2' && s.decision==='SELECT' && s.newUnderstandingFactIds.some(id=>!s.mustIncludeFactIds.includes(id)))throw new HandoffError('SCOPE_DENIED');
+  if(s.deltaType==='REPEAT'&&!(options.contract==='EVIDENCE_GROUNDED_V2'&&s.decision==='DEFER')&&!c.facts.every(f=>knownFacts(c,shortlist).some(text=>equivalentFact(text,f.text))))throw new HandoffError('SCOPE_DENIED');
+  // A source refresh cannot manufacture reader novelty or a correction. Only a
+  // persisted publication withdrawal permits corrective supported restatement.
+  if(s.decision==='SELECT'){const known=knownFacts(c,shortlist),withdrawal=c.correctionObligationIds.some(id=>shortlist.obligations.some(o=>o.id===id&&o.publicationWithdrawal));if(known.length&&!withdrawal&&!s.newUnderstandingFactIds.some(id=>c.facts.some(f=>f.id===id&&!known.some(text=>equivalentFact(text,f.text)))))throw new HandoffError('SCOPE_DENIED')}
+  if(options.contract==='EVIDENCE_GROUNDED_V2'){const v=validateEditorialRequirements((s as PlanStory).validation,c,s.decision==='SELECT'),required=new Set(v.dispositions.filter(d=>d.disposition==='REQUIRED').map(d=>v.propositions.find(p=>p.id===d.propositionId)!.parentFactId));if(required.size!==new Set(s.mustIncludeFactIds).size||s.mustIncludeFactIds.some(id=>!required.has(id)))throw Error('REQUIRED_PARENT_PROJECTION_MISMATCH');}
+  if(options.contract!=='EVIDENCE_GROUNDED_V2'&&s.decision==='SELECT' && c.protectedReasons.length){const known=knownFacts(c,shortlist);for(const f of c.facts)if(!known.some(k=>equivalentFact(k,f.text)) && !s.mustIncludeFactIds.includes(f.id))throw new HandoffError('SCOPE_DENIED')}
+  if(s.decision==='SUPPRESS' && !suppressionAllowed(c,shortlist))throw new HandoffError('SCOPE_DENIED');
+ }
+ if(options.requirePublicationCorrection&&readyTargets.length>correctionCapacity&&plan.stories.filter(s=>s.decision==='SELECT'&&readyTargets.some(c=>c.targetVersionId===s.targetVersionId)).length<correctionCapacity)throw new HandoffError('SCOPE_DENIED');
+ const obligations=new Set(plan.obligations.map(o=>o.obligationId));if(obligations.size!==plan.obligations.length||obligations.size!==shortlist.obligations.length||shortlist.obligations.some(o=>!obligations.has(o.id)))throw new HandoffError('SCOPE_DENIED');
+ for(const o of plan.obligations)if(o.handling==='ADDRESS'){
+  const obligation=shortlist.obligations.find(item=>item.id===o.obligationId)!,story=plan.stories.find(s=>s.decision==='SELECT'&&s.targetVersionId===o.targetVersionId&&s.correctionObligationIds.includes(o.obligationId)),candidate=shortlist.candidates.find(c=>c.targetVersionId===o.targetVersionId),entry=shortlist.ledger.find(e=>e.id===obligation.ledgerEntryId);
+  // Correcting withdrawn reader prose need not invent a new source development.
+  // Only a persisted publication withdrawal permits this exception; source
+  // retractions/deletions still require changed supported understanding.
+  const correctiveRestatement=obligation.publicationWithdrawal&&['CORRECTION','RETRACTION'].includes(story?.deltaType??'')&&story?.mustIncludeFactIds.some(id=>candidate?.facts.some(f=>f.id===id));
+  if(!story||!candidate||!entry||!story.previousLedgerEntryIds.includes(entry.id)||!['CORRECTION','CONTRADICTION','RETRACTION','STATE_CHANGE','CERTAINTY_CHANGE'].includes(story.deltaType)||!correctiveRestatement&&!story.newUnderstandingFactIds.some(id=>candidate.facts.some(f=>f.id===id&&!entry.claimFacts.some(k=>equivalentFact(k,f.text)))))throw new HandoffError('SCOPE_DENIED');
+ }
+ // Reasserting a withdrawn/corrected target while deferring its obligation is
+ // not corrective communication. Defer the target until it can be addressed.
+ for(const story of plan.stories.filter(s=>s.decision==='SELECT')){
+  const candidate=shortlist.candidates.find(c=>c.targetVersionId===story.targetVersionId)!;
+  if(candidate.correctionObligationIds.some(id=>!plan.obligations.some(o=>o.obligationId===id&&o.handling==='ADDRESS'&&o.targetVersionId===story.targetVersionId)))throw new HandoffError('SCOPE_DENIED');
+ }
+ return plan;
+}
+/** Only closes a structural omission in the editor's own declared selection.
+ * Ownership is checked before promotion; all remaining validation stays authoritative. */
+export function normalizeEditorialPlan(raw:EditorialPlanBody,shortlist:ShortlistRecord,options:Parameters<typeof validateEditorialPlan>[2]={}) {
+ if(options.contract==='EVIDENCE_GROUNDED_V2')return {value:validateEditorialPlan(raw,shortlist,options),normalization:{policyVersion:'explicit-propositions-v2',added:[]} as EditorialNormalization};
+ const body=planBodySchema.parse(raw),normalization:EditorialNormalization={policyVersion:EDITORIAL_NORMALIZATION_POLICY,added:[]};
+ for(const story of body.stories.filter(s=>s.decision==='SELECT')){
+  const candidate=shortlist.candidates.find(c=>c.targetVersionId===story.targetVersionId);
+  if(!candidate||candidate.targetType!==story.targetType||!editorialFactReferencesValid(story,candidate,shortlist))throw new HandoffError('SCOPE_DENIED');
+  for(const [role,refs] of [['CONTEXT',story.contextFactIds],['DISAGREEMENT',story.disagreementFactIds]] as const)for(const id of refs)if(!candidate.facts.some(f=>f.id===id)){const owner=shortlist.candidates.find(c=>c.facts.some(f=>f.id===id&&f.evidenceRevisionIds.some(revision=>candidate.evidenceRevisionIds.includes(revision))))!,fact=owner.facts.find(f=>f.id===id)!;(normalization.contextBindings??=[]).push({targetVersionId:candidate.targetVersionId,sourceTargetVersionId:owner.targetVersionId,factId:id,evidenceRevisionIds:fact.evidenceRevisionIds.filter(id=>candidate.evidenceRevisionIds.includes(id)),role})}
+  const added=[...new Set(story.newUnderstandingFactIds.filter(id=>!story.mustIncludeFactIds.includes(id)))];
+  if(added.length){story.mustIncludeFactIds.push(...added);normalization.added.push({targetVersionId:story.targetVersionId,factIds:added})}
+ }
+ return {value:validateEditorialPlan(body,shortlist,options),normalization};
+}
+/** Offline construction is explicitly labeled. It preserves exact facts and
+ * suspected-repeat flags rather than pretending to be a semantic editor. */
+export function fallbackEditorialPlan(shortlist:ShortlistRecord):EditorialPlanBody {
+ // Protected deltas first, then by priority; source age is not a rank: ordering uses informational ranking only.
+ const ranked=[...shortlist.candidates.keys()].sort((a,b)=>shortlist.candidates[b].protectedReasons.length-shortlist.candidates[a].protectedReasons.length||compareEditorialCandidates(shortlist.candidates[a],shortlist.candidates[b]));
+ const stories:PlanStory[]=shortlist.candidates.map((c,index)=>{
+  const order=ranked.indexOf(index);
+  const repeated=c.fallbackEditorial.decision==='SUPPRESS'&&!c.protectedReasons.length&&!c.correctionObligationIds.length,understanding=c.facts.filter(f=>c.fallbackEditorial.newUnderstanding.some(n=>equivalentFact(n.text,f.text))).map(f=>f.id),required=c.protectedReasons.length?c.facts.map(f=>f.id):understanding.length?understanding:c.facts.map(f=>f.id);
+  // A non-protected fact whose referent cannot be established from permitted evidence is never invented around: drop it, and defer a story with nothing self-contained left.
+  const unresolved=new Set(c.protectedReasons.length?[]:c.facts.filter(f=>f.selfContained==='UNRESOLVED').map(f=>f.id)),keep=(l:string[])=>l.filter(id=>!unresolved.has(id)),kept=keep(required),incomplete=c.flags.includes('TITLE_EXTRACTION_PENDING')||c.flags.includes('IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE')||c.correctionObligationIds.length>0||!repeated&&unresolved.size>0&&!kept.length;
+  return {targetType:c.targetType,targetVersionId:c.targetVersionId,decision:repeated?'SUPPRESS':incomplete?'DEFER':'SELECT',order,treatment:repeated||incomplete?'OMIT':c.fallbackEditorial.treatment==='OMIT'?'STANDARD':c.fallbackEditorial.treatment,deltaType:repeated?'REPEAT':incomplete?'UNRESOLVED':c.effects.includes('CONTRADICTS')?'CONTRADICTION':c.effects.includes('RETRACTS')?'RETRACTION':c.effects.includes('CHANGES_CERTAINTY')?'CERTAINTY_CHANGE':c.effects.includes('CHANGES_STATE')?'STATE_CHANGE':'NEW',newUnderstandingFactIds:keep(understanding),contextFactIds:[],mustIncludeFactIds:repeated||incomplete?[]:kept,attributionFactIds:c.facts.filter(f=>f.attribution).map(f=>f.id),certaintyFactIds:c.facts.filter(f=>f.certainty?.hedges.length).map(f=>f.id),disagreementFactIds:c.effects.includes('CONTRADICTS')?required:[],openQuestionFactIds:[],correctionObligationIds:c.correctionObligationIds,previousLedgerEntryIds:shortlist.ledger.filter(e=>readerHistoryMatches(c,e)).map(e=>e.id),rationale:repeated?'Conservative exact communicated-fact repetition.':'Deterministic fallback: preserve supported information for the writer.',relevanceRationale:'Feed-scoped approved evidence; no semantic relevance claim.',feedFit:'UNCERTAIN'};
+ });
+ // Correction obligations need an explicit supported editorial decision. A
+ // fallback cannot infer that publishing the same news corrects a withdrawal.
+ return {stories,obligations:shortlist.obligations.map(o=>({obligationId:o.id,handling:'DEFER',targetVersionId:null,reason:'Awaiting a supported comparative correction decision.'}))};
+}
+const string={type:'string'},idArray={type:'array',items:string},object=<T extends Record<string,unknown>>(properties:T)=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
+const baseEditorialPlanWireSchema=object({stories:{type:'array',items:object({targetType:{type:'string',enum:['EVENT','STORYLINE']},targetVersionId:string,decision:{type:'string',enum:['SELECT','SUPPRESS','DEFER']},order:{type:'integer',minimum:0},treatment:{type:'string',enum:['OMIT','BRIEF','STANDARD','DETAILED']},deltaType:{type:'string',enum:['NEW','STATE_CHANGE','CERTAINTY_CHANGE','CONTRADICTION','CORRECTION','RETRACTION','DETAIL','REPEAT','UNRESOLVED']},newUnderstandingFactIds:idArray,contextFactIds:idArray,mustIncludeFactIds:idArray,attributionFactIds:idArray,certaintyFactIds:idArray,disagreementFactIds:idArray,openQuestionFactIds:idArray,correctionObligationIds:idArray,previousLedgerEntryIds:idArray,rationale:string,relevanceRationale:string,feedFit:{type:'string',enum:['DIRECT','CONTEXTUAL','UNCERTAIN','OUT_OF_SCOPE']}})},obligations:{type:'array',items:object({obligationId:string,handling:{type:'string',enum:['ADDRESS','DEFER']},targetVersionId:{type:['string','null']},reason:string})}});
+// Encode the existing decision/treatment invariant in the provider schema,
+// rather than accepting a billed DEFER+BRIEF response or coercing it afterward.
+const storyWire=baseEditorialPlanWireSchema.properties.stories.items;
+export const editorialPlanWireSchema={...baseEditorialPlanWireSchema,properties:{...baseEditorialPlanWireSchema.properties,stories:{...baseEditorialPlanWireSchema.properties.stories,items:{anyOf:[
+ {...storyWire,properties:{...storyWire.properties,decision:{type:'string',enum:['SELECT']},treatment:{type:'string',enum:['BRIEF','STANDARD','DETAILED']},mustIncludeFactIds:{...idArray,minItems:1}}},
+ {...storyWire,properties:{...storyWire.properties,decision:{type:'string',enum:['SUPPRESS','DEFER']},treatment:{type:'string',enum:['OMIT']}}}
+]}}}};
+/** Request-local reference categories are capabilities. Ledger handles cannot
+ * be used as approved facts, even though both use compact R identifiers. */
+export function editorialPlanWireSchemaFor(state:ReturnType<typeof compactEditorialInput>['state']) {
+ const schema=structuredClone(editorialPlanWireSchema);
+ if((state as any).budget?.mode==='ADAPTIVE')for(const branch of schema.properties.stories.items.anyOf){(branch.properties as Record<string,unknown>).editorialImportance={type:'number',minimum:0,maximum:1};branch.required=[...new Set([...branch.required,'editorialImportance'])] as any}
+ const refs=(values:string[],minimum=0)=>values.length?{type:'array',minItems:minimum,items:{type:'string',enum:[...new Set(values)]}}:{type:'array',maxItems:0,items:{type:'string'}};
+ const factIds=state.candidates.flatMap(c=>c.facts.map(f=>f.id)),ledgerIds=state.ledger.map(e=>e.id),obligationIds=state.obligations.map(o=>o.id),targets=state.candidates.map(c=>c.targetVersionId);
+ Object.assign(schema.properties.stories,{minItems:targets.length,maxItems:targets.length});
+ for(const branch of schema.properties.stories.items.anyOf){
+  const p=branch.properties as Record<string,unknown>;
+  p.targetVersionId={type:'string',enum:targets};
+  for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(factIds,field==='mustIncludeFactIds'&&branch.properties.decision.enum[0]==='SELECT'?1:0);
+  p.previousLedgerEntryIds=refs(ledgerIds);p.correctionObligationIds=refs(obligationIds);
+ }
+ const obligations=schema.properties.obligations as unknown as Record<string,unknown>;
+ obligations.minItems=obligationIds.length;obligations.maxItems=obligationIds.length;
+ if(!obligationIds.length)obligations.maxItems=0;
+ else {const p=schema.properties.obligations.items.properties as Record<string,unknown>;p.obligationId={type:'string',enum:obligationIds};p.targetVersionId={type:['string','null'],enum:[...targets,null]};}
+ // Supported withdrawals are mandatory reader repair work. The real planner
+ // still chooses comparative order; downstream capacity may defer delivery.
+ const sharedBranches=structuredClone(schema.properties.stories.items.anyOf),readyCandidates=state.candidates.filter(c=>publicationCorrectionReady(c as ShortlistCandidate,state.obligations)),blockedCandidates=state.candidates.filter(c=>c.flags.some(f=>['IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE','TITLE_EXTRACTION_PENDING'].includes(f))),ordinaryTargets=state.candidates.filter(c=>!readyCandidates.includes(c)&&!blockedCandidates.includes(c)).map(c=>c.targetVersionId);
+ // Ordinary targets share one decision schema. Expanding the same global fact
+ // enum into two branches PER target inflated a 20-item request to 43k tokens.
+ // Exact candidate ownership is still enforced by validateEditorialPlan before
+ // any plan is persisted or any writer runs. Mandatory correction capabilities
+ // retain their individual schema branches.
+ const historyFor=(c:ShortlistCandidate)=>state.ledger.filter(e=>readerHistoryMatches(c,e)||state.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id);
+ const withoutHistory=state.candidates.filter(c=>ordinaryTargets.includes(c.targetVersionId)&&!historyFor(c).length),withHistory=state.candidates.filter(c=>ordinaryTargets.includes(c.targetVersionId)&&historyFor(c).length);
+ // REPEAT means communicated to this reader, never merely old reporting. Use
+ // the validator's exact history predicate; retain all other editorial choices.
+ const repeatAllowed=(c:ShortlistCandidate)=>c.facts.every(f=>knownFacts(c,state as unknown as ShortlistRecord).some(text=>equivalentFact(text,f.text)));
+ const restrictRepeat=(branch:typeof sharedBranches[number],allowed:boolean)=>{if(!allowed)branch.properties.deltaType.enum=branch.properties.deltaType.enum.filter(value=>value!=='REPEAT');return branch};
+ const ordinaryBranches:typeof sharedBranches=[];
+ const restrictSuppression=(branch:typeof sharedBranches[number],allowed:boolean)=>{if(!allowed)branch.properties.decision.enum=branch.properties.decision.enum.filter(value=>value!=='SUPPRESS');return branch};
+ for(const allowed of [false,true])for(const suppress of [false,true]){const group=withoutHistory.filter(c=>repeatAllowed(c)===allowed&&suppressionAllowed(c,state as unknown as ShortlistRecord)===suppress);if(group.length)ordinaryBranches.push(...sharedBranches.map(b=>{const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:group.map(c=>c.targetVersionId)};p.previousLedgerEntryIds=refs([]);return restrictSuppression(restrictRepeat(branch,allowed),suppress)}))}
+ for(const c of withHistory)for(const b of sharedBranches){const branch=structuredClone(b),p=branch.properties as Record<string,unknown>;p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.previousLedgerEntryIds=refs(historyFor(c));for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id),field==='mustIncludeFactIds'&&b.properties.decision.enum[0]==='SELECT'?1:0);ordinaryBranches.push(restrictSuppression(restrictRepeat(branch,repeatAllowed(c)),suppressionAllowed(c,state as unknown as ShortlistRecord)))}
+ const allowCorrectionDeferral=readyCandidates.length>((state as unknown as {communicationCapacity?:{maxStories:number}}).communicationCapacity?.maxStories??Infinity);
+ const correctionBranches=readyCandidates.flatMap(c=>{
+  const branch=structuredClone(sharedBranches[0]),p=branch.properties as Record<string,unknown>;
+  p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.deltaType={type:'string',enum:['CORRECTION','RETRACTION']};
+  for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id),field==='mustIncludeFactIds'?1:0);
+  p.previousLedgerEntryIds=refs(state.ledger.filter(e=>readerHistoryMatches(c,e)||state.obligations.some(o=>c.correctionObligationIds.includes(o.id)&&o.ledgerEntryId===e.id)).map(e=>e.id));
+  p.correctionObligationIds=refs(c.correctionObligationIds,c.correctionObligationIds.length);
+  if(!allowCorrectionDeferral)return [branch];
+  const deferred=structuredClone(sharedBranches[1]),dp=deferred.properties as Record<string,unknown>;dp.targetVersionId={type:'string',enum:[c.targetVersionId]};dp.decision={type:'string',enum:['DEFER']};return [branch,restrictRepeat(deferred,repeatAllowed(c))];
+ });
+ const blockedBranches=blockedCandidates.map(c=>{
+  const branch=structuredClone(sharedBranches[1]),p=branch.properties as Record<string,unknown>;
+  p.targetVersionId={type:'string',enum:[c.targetVersionId]};p.decision={type:'string',enum:['DEFER']};p.previousLedgerEntryIds=refs(historyFor(c));
+  for(const field of ['newUnderstandingFactIds','contextFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','disagreementFactIds','openQuestionFactIds'])p[field]=refs(c.facts.map(f=>f.id));
+  p.correctionObligationIds=refs(c.correctionObligationIds);return restrictRepeat(branch,repeatAllowed(c));
+ });
+ schema.properties.stories.items.anyOf=[...ordinaryBranches,...correctionBranches,...blockedBranches];
+ if(obligationIds.length){
+  const base=structuredClone(schema.properties.obligations.items);
+  (schema.properties.obligations as unknown as {items:unknown}).items={anyOf:state.obligations.map(o=>{
+   const candidate=state.candidates.find(c=>c.correctionObligationIds.includes(o.id)&&publicationCorrectionReady(c as ShortlistCandidate,state.obligations));
+   const branch=structuredClone(base),p=branch.properties as Record<string,unknown>;
+   p.obligationId={type:'string',enum:[o.id]};
+   if(candidate&&!allowCorrectionDeferral){p.handling={type:'string',enum:['ADDRESS']};p.targetVersionId={type:'string',enum:[candidate.targetVersionId]};}
+   // An obligation alone cannot grant an unrelated story corrective ownership.
+   // Keep unresolved work visible without offering a decision validation forbids.
+   else if(!state.candidates.some(c=>c.correctionObligationIds.includes(o.id)))p.handling={type:'string',enum:['DEFER']};
+   return branch;
+  })};
+ }
+ return schema;
+}
+export {EDITORIAL_OUTPUT_CONTRACT} from './editorial-transport';
+/** Required request-local keys make coverage structural. Shared definitions
+ * avoid repeating the full decision schema for every candidate. Ownership and
+ * all semantic/capacity guards remain authoritative after decoding. */
+export function keyedEditorialPlanWireSchemaFor(state:ReturnType<typeof compactEditorialInput>['state'],contextFactCapabilities?:Record<string,string[]>) {
+ const legacy=editorialPlanWireSchemaFor(state),definitions:Record<string,unknown>={},byValue=new Map<string,string>();
+ const reference=(raw:unknown,identity:string)=>{
+  const branch=structuredClone(raw) as {properties:Record<string,unknown>;required:string[]};
+  delete branch.properties[identity];branch.required=branch.required.filter(k=>k!==identity);
+  const signature=canonicalJson(branch);let key=byValue.get(signature);if(!key){key=`D${byValue.size}`;byValue.set(signature,key);definitions[key]=branch}
+  return {$ref:`#/$defs/${key}`};
+ };
+ // Nonselected publication roles are inactive: retain complete candidate facts
+ // in the input and deferred work, without repeating their enums in omissions.
+ const stories=Object.fromEntries(state.candidates.map(c=>[c.targetVersionId,{anyOf:legacy.properties.stories.items.anyOf.filter(b=>(b.properties.targetVersionId as unknown as {enum:string[]}).enum.includes(c.targetVersionId)).map(b=>{const branch=structuredClone(b),properties=branch.properties as Record<string,unknown>;properties.targetType={type:'string',enum:[c.targetType]};for(const role of ['newUnderstandingFactIds','mustIncludeFactIds','attributionFactIds','certaintyFactIds','openQuestionFactIds','contextFactIds','disagreementFactIds']){const selected=(branch.properties.decision as {enum:string[]}).enum.includes('SELECT'),ids=!selected?[]:['contextFactIds','disagreementFactIds'].includes(role)?contextFactCapabilities?.[c.targetVersionId]??c.facts.map(f=>f.id):c.facts.map(f=>f.id);properties[role]={...(properties[role] as object),items:ids.length?{type:'string',enum:[...ids].sort()}:{type:'string'},...(!ids.length?{maxItems:0}:{})}};properties.correctionObligationIds=c.correctionObligationIds.length?{...branch.properties.correctionObligationIds,items:{type:'string',enum:c.correctionObligationIds}}:{type:'array',items:{type:'string'},maxItems:0};return reference(branch,'targetVersionId')})}]));
+ const obligationItems=legacy.properties.obligations.items as unknown as {anyOf?:{properties:{obligationId:{enum:string[]}}}[]};
+ const obligations=Object.fromEntries(state.obligations.map(o=>[o.id,{anyOf:(obligationItems.anyOf??[]).filter(b=>b.properties.obligationId.enum.includes(o.id)).map(b=>reference(b,'obligationId'))}]));
+ return shareSchemaEnums({...object({stories:object(stories),obligations:object(obligations)}),$defs:definitions});
+}
+/** The editor must submit a feasible plan; a known, valid but oversized proposal
+ * gets at most one comparative repair, never a silent downstream truncation. */
+const selectionItem=(s:PlanStory,c:ShortlistCandidate):SelectionItem=>({id:s.targetVersionId,cost:c.communicationCost??communicationCost(c),treatment:s.treatment==='OMIT'?'BRIEF':s.treatment,publisherIds:c.publisherIds??[],protectedItem:c.protectedReasons.length>0||Boolean(c.correctionObligationIds?.length),order:s.order,value:c.ranking?.score??c.priority});
+/** Same admission rule as allocation, applied to the planner's own order (protected first): a proposal that fits is never rewritten. */
+export function planCapacityFailures(body:EditorialPlanBody,shortlist:ShortlistRecord,budget:BriefingBudget){
+ const usage={stories:0,input:0,evidence:0,words:0,publishers:new Map<string,number>()},failures:{targetVersionId:string;reason:string}[]=[];
+ const items=body.stories.filter(s=>s.decision==='SELECT').map(s=>{const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!,facts=editorialContextFacts(c,shortlist).filter(f=>c.facts.some(local=>local.id===f.id)||s.contextFactIds.includes(f.id)||s.disagreementFactIds.includes(f.id));return selectionItem(s,facts.length===c.facts.length?c:{...c,facts,communicationCost:communicationCost({...c,facts})})}).sort((a,b)=>Number(b.protectedItem)-Number(a.protectedItem)||a.order-b.order);
+ for(const item of items){
+  const reason=capacityReason(usage,item,budget);
+  if(reason)failures.push({targetVersionId:item.id,reason});
+  else{usage.stories++;usage.input+=item.cost.inputUnits;usage.evidence+=item.cost.evidenceCount;usage.words+=item.treatment==='DETAILED'?item.cost.detailedWords:item.treatment==='STANDARD'?item.cost.standardWords:item.cost.briefWords;for(const p of new Set(item.publisherIds))usage.publishers.set(p,(usage.publishers.get(p)??0)+1)}
+ }
+ return failures;
+}
+/** Appended to the unchanged instruction so the exact legacy instruction (and thus any already-reserved call identity) stays reproducible. */
+/** In new calls the OLD_RECAP rule is restated by what it measures. The original wording ranks old source reporting below every fresh development, which made
+ * source age stand in for reader novelty and importance (retained Oct 10 plan: substantive, never-communicated news deferred as "old recap, limited novelty"). */
+export const OLD_RECAP_ORIGINAL='A target flagged OLD_RECAP has source reporting that predates the window: include it only if it still helps the reader understand and was not already communicated, rank it below genuine window developments, and never present it as having just happened.';
+export const OLD_RECAP_RESTATED='A target flagged OLD_RECAP only records that its source reporting predates the window. It does not mean the reader has seen it (readerState and the ledger show that), that it is unimportant, or that it is irrelevant; judge it by informational value like any other candidate, and never present it as having just happened.';
+/** Guidance text as deployed in 43feb47, kept verbatim so a planner call reserved under it can be reproduced exactly. */
+const GUIDANCE_V1=' communicationCapacity.maxStories is the most stories that could ever fit together given the actual costs of these candidates: a ceiling and not a target. Pick the combination of candidates that conveys the most important, supported, reader-new understanding within the summed cost, so several cheaper important stories can be worth more than one expensive story, while one or zero is correct when that is all that deserves publication. Never select a weak story to reach the ceiling. Each candidate lists its publisherIds when known; ordinary stories may not exceed budget.maxPerPublisher per publisher; protected correction/change work is exempt from that diversity limit only, still counts against ordinary publisher admission, and must respect every other hard capacity limit. Prefer the more important story when they collide. Keep distinct developments as separate stories rather than merging unrelated news to save capacity, and do not split one coherent development into repetitive stories. PROVISIONAL alone is never a reason to DEFER or SUPPRESS: a supported, self-contained development may be selected with its attribution and certainty. Only TITLE_EXTRACTION_PENDING and IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE are hard blockers, and you may cite them only for candidates that carry that flag. Source age does not show that the reader already knows something: only the supplied ledger does, and prose Distilled withdrew (a publicationWithdrawal obligation) is not reader-known state. Old but reader-new reporting can deserve a story, dated as old. Every DEFER or SUPPRESS rationale must name its real cause (blocked, repeat shown by the ledger, out of Feed scope, limited importance, or capacity) and must not assert a cause the supplied data does not show. If the facts of one target bundle unrelated developments, MUST_INCLUDE only the facts of the coherent development that deserves publication rather than merging them.';
+const GUIDANCE_ADDED=' Judge these separately: source publication age, event time, reader novelty (readerState and ledger), material importance, Feed relevance, evidence sufficiency, genuine repetition and delivery capacity. Freshness never substitutes for informational value. If the supplied facts of a candidate only announce that a list, guide, video or analysis exists without stating what it found, its evidence is insufficient: do not SELECT it however recent it is. Spare room never justifies a weak story, and being unable to fit an important story now defers it without devaluing it. SEMANTIC_PENDING_BUDGET means identity processing is waiting for allowance, not that the evidence is doubtful. Never reuse one generic rationale for several candidates; each rationale must state the own cause of that candidate.';
+const EDITORIAL_GUIDANCE=GUIDANCE_V1+GUIDANCE_ADDED;
+const EDITORIAL_INSTRUCTION='Make one comparative editorial decision for this whole Feed/window using supplied shortlist, exact supported facts and what the reader actually saw. Scores/flags are hints. Classify feedFit for every target: DIRECT supported development within actual Feed interests, CONTEXTUAL supported context needed for those interests or known reader state, UNCERTAIN plausible connection not yet established, OUT_OF_SCOPE no supported connection. relevanceRationale must explain that connection to the supplied Feed interests using approved facts, not generic reader interest. Freshness, public importance, consumer impact, available capacity and unblocked processing do not establish Feed relevance. Do not fill an edition with unrelated news just because relevant targets are deferred. SUPPRESS genuinely OUT_OF_SCOPE ordinary material with NEW delta; retain uncertain relevance without a brittle keyword gate. An empty selection is valid. Corrections to prior reader communication remain mandatory even if outside ordinary scope. A target flagged OLD_RECAP has source reporting that predates the window: include it only if it still helps the reader understand and was not already communicated, rank it below genuine window developments, and never present it as having just happened. Fact timing distinguishes source publication, observation and event time; source publication is not event time. Old facts can be reader-new even in a first edition, but repeated recaps and corroboration alone normally deserve no story. Continuing stories should lead with the delta from the ledger, keeping only necessary orientation. Omit or defer it when it adds nothing. Decide every target, selection/order, BRIEF/STANDARD/DETAILED, semantic delta, MUST_INCLUDE fact IDs, attribution/certainty/disagreement/open questions and correction obligations. Do not drop protected changed state/certainty/contradictions/corrections/retractions via cheap thresholds. Never invent facts or references, manufacture consensus or claim unknown outcomes are resolved. A publicationWithdrawal obligation means Distilled withdrew its own prior reader prose, not that the source retracted its news. Prior claimText is what readers saw. Correct that communication explicitly with CORRECTION or RETRACTION and supported MUST_INCLUDE facts, even when those facts are unchanged; newUnderstandingFactIds may be empty for this corrective restatement. Do not fabricate a new development or a source retraction. Prioritize these obligations above ordinary stories. If support or hard capacity is insufficient DEFER explicitly. Suppression of protected information requires exact already-communicated support. For selected stories every newUnderstandingFactId must be MUST_INCLUDE. Addressing a source correction requires a supported changed fact; a persisted publicationWithdrawal may use unchanged supported facts to correct prior prose. Both require the affected earlier ledger reference and explicit reader-visible correction treatment; otherwise DEFER the entire affected target, not just the obligation. A SELECT target with open correction obligations must explicitly ADDRESS all of them; never reassert the target while its obligation is deferred. For SELECT use BRIEF, STANDARD or DETAILED and at least one mustIncludeFactId. For SUPPRESS or DEFER treatment MUST be OMIT. contextFactIds may contain only offered facts from that candidate, never ledger IDs. Ledger IDs belong only in previousLedgerEntryIds; ledger prose is reader history, not evidence. Copy the offered request-local reference handles verbatim; do not substitute stableTargetId for targetVersionId. Keep rationale, relevanceRationale and obligation reasons concise (at most 160 characters each). Return one story decision for EVERY candidate, including all DEFER/SUPPRESS candidates. Story and publisher budgets constrain only SELECT decisions, never the number of decisions returned. Open correction obligations and deferred work are tasks to resolve, not automatic reasons to defer. POLICY_REQUIRED is a withdrawal of Distilled reader prose, NOT a prohibition on the source facts and NOT a source retraction. This plan is the correction decision: do not defer a supported correction merely because it has not yet been corrected. That is circular. When approved facts and their context are available, select corrective treatment of at least one affected target within capacity and ADDRESS its obligations, using unchanged supported facts if needed. Explicitly acknowledge the prior Distilled communication was withdrawn and clarify the supported version; never invent the reason for withdrawal. Address supported publication withdrawals first, using prior claimText and approved facts. If capacity prevents all corrections, select the most consequential corrections that fit, explicitly defer the remainder, and do not use those slots for ordinary news instead. For a candidate whose schema requires corrective SELECT, rank and plan its repair now. Publication capacity will defer excess deliveries; do not turn required repair into an endless defer-until-corrected loop. The writer cannot choose stories. Compare usefulness for this Feed and reader across ALL candidates: relevance is a signal, not a binary keyword gate. SUPPRESS with NEW delta means an intentional editorial omission; REPEAT means actually communicated information. DEFER means still uncommunicated work. The bootstrap briefing establishes current useful state; old reporting remains explicitly old context. Every candidate offers conservative communicationCost; total selected cost must fit communicationCapacity, including evidence inspections and reader words. Select fewer stories if necessary; use DEFER for capacity and concise explicit reasons. Ordinary carried work is not automatically protected. TITLE_EXTRACTION_PENDING or IDENTITY_UNRESOLVED_HIGH_CONSEQUENCE targets must DEFER until durable reassessment completes; do not SELECT or discard them.';
+type PlannerFeed=Pick<import('./types').FeedRecord,'title'|'interests'|'geography'|'outputLanguage'>|null|undefined;
+export type PlannerInputVariant='LEGACY'|'V1'|'CURRENT';
+/** Planner input. LEGACY is the former worst-case input; V1 is the 43feb47 input; CURRENT restates OLD_RECAP, adds readerState and the dimension guidance.
+ * Booleans are kept for callers: false is LEGACY, true is CURRENT. Older variants exist only to reproduce calls already reserved or answered under them. */
+export function editorialPlannerState(shortlist:ShortlistRecord,budget:BriefingBudget,feed:PlannerFeed,variant:boolean|PlannerInputVariant){
+ const v:PlannerInputVariant=variant===true?'CURRENT':variant===false?'LEGACY':variant,maxStories=budget.mode==='ADAPTIVE'?storyCapacityBound(shortlist.candidates,budget):v==='LEGACY'?legacyConservativeStoryCapacity(shortlist.candidates,budget):storyCapacityBound(shortlist.candidates,budget);
+ const historicInstruction=v==='LEGACY'?EDITORIAL_INSTRUCTION:v==='V1'?EDITORIAL_INSTRUCTION+GUIDANCE_V1:EDITORIAL_INSTRUCTION.replace(OLD_RECAP_ORIGINAL,OLD_RECAP_RESTATED)+EDITORIAL_GUIDANCE;
+ const instruction=budget.mode==='ADAPTIVE'?EDITORIAL_INSTRUCTION.replace(OLD_RECAP_ORIGINAL,OLD_RECAP_RESTATED)
+  .replace('If support or hard capacity is insufficient DEFER explicitly.','DEFER editorially only when support or semantic identity is insufficient. Execution capacity waits do not establish lesser news value.')
+  .replace('select corrective treatment of at least one affected target within capacity','select supported corrective treatment of every ready affected target')
+  .replace('Publication capacity will defer excess deliveries','Durable model-sized publication stages preserve selected deliveries')
+  .replace('Story and publisher budgets constrain only SELECT decisions, never the number of decisions returned.','Processing stages are execution units, never editorial quotas.')
+  .replace('Every candidate offers conservative communicationCost; total selected cost must fit communicationCapacity, including evidence inspections and reader words. Select fewer stories if necessary; use DEFER for capacity and concise explicit reasons.','Communication costs describe processing work, not limits on editorial coverage. Preserve supported mandatory meaning; execution can continue in model-sized operations.')
+  .replace('If capacity prevents all corrections, select the most consequential corrections that fit, explicitly defer the remainder, and do not use those slots for ordinary news instead.','Prioritize every supported correction; execution resource waits remain distinct from editorial judgments.')
+  .replace('Address supported publication withdrawals first, using prior claimText and approved facts.','Address supported publication withdrawals first, using prior claimText and approved facts.')+GUIDANCE_ADDED:historicInstruction;
+ const candidates=v==='CURRENT'?shortlist.candidates:v==='V1'?shortlist.candidates.map(({readerState:_,...c})=>c):shortlist.candidates.map(({publisherIds:_,readerState:__,...c})=>c);
+ return {instruction:budget.mode==='ADAPTIVE'?instruction+' Adaptive execution: communicationCost describes work, not an edition quota. Every offered candidate receives a defensible decision. SELECT all important supported reader-new developments worth communicating; operations may continue in model-sized stages. Do not DEFER for a legacy story, word, evidence, publisher, input or call quota. Do not confuse industry, research, governance, infrastructure or policy relevance with product-launch urgency. Use the FULL Feed interests. Source reporting age never proves prior communication. Supply editorialImportance from 0 to 1 as contextual significance to this Feed, separately from relevance, urgency, freshness and reader novelty. It is comparative ordering, not a publication threshold.':instruction,feed:feed?{title:feed.title,interests:feed.interests,geography:feed.geography,outputLanguage:feed.outputLanguage}:undefined,window:shortlist.window,bootstrap:shortlist.bootstrap,budget:budget.mode==='ADAPTIVE'?{mode:'ADAPTIVE',financialAuthority:'ACCOUNT',execution:'MODEL_SIZED_CONTINUATIONS'}:{...budget,maxStories},communicationCapacity:budget.mode==='ADAPTIVE'?{mode:'MODEL_OPERATIONS',editionWideQuota:false,maxStories:undefined}:{...planningCapacity(budget),maxStories},ledger:shortlist.ledger,candidates,obligations:shortlist.obligations};
+}
+export async function prepareEditorialPlan(store:V1FeedStore,shortlist:ShortlistRecord,budget:BriefingBudget,now:string,strong?:StrongSemanticModel,options:{processingScope?:string;comparativeContext?:unknown}={}):Promise<EditorialPlanRecord> {
+ const policy=budget.mode==='ADAPTIVE'?'comparative-editorial-plan-adaptive-v2':EDITORIAL_PLAN_POLICY;
+ const baseId=await sha256(canonicalJson({feedId:shortlist.feedId,shortlistId:shortlist.id,budget,model:strong?.model??'NONE',policy:policy,...(options.comparativeContext?{comparativeContext:options.comparativeContext}: {})}));
+ const prior=await store.read<EditorialPlanRecord>(shortlist.feedId,'editorial_plans',baseId);
+ const recoveryPolicy=prior?.route==='DETERMINISTIC_FALLBACK'&&strong?(prior.fallbackReason==='SEMANTIC_EDITORIAL_VALIDATION_FAILED'?EDITORIAL_NORMALIZATION_POLICY:prior.fallbackReason==='EMPTY_OR_OVERSIZED_EDITORIAL_INPUT'&&!prior.operationId&&!prior.modelOperationIds?.length&&shortlist.candidates.length?EDITORIAL_INPUT_POLICY:undefined):undefined;
+ const recoverable=Boolean(recoveryPolicy);
+ if(prior&&!recoverable)return prior;
+ // Failed plans/results remain immutable. Recovery has a separate identity;
+ // a billed response is reused and a never-called plan may acquire its first call.
+ const id=recoverable?await sha256(canonicalJson({baseId,normalization:recoveryPolicy})):baseId;
+ const recovered= recoverable?await store.read<EditorialPlanRecord>(shortlist.feedId,'editorial_plans',id):undefined;if(recovered)return recovered;
+ let body=fallbackEditorialPlan(shortlist),route:EditorialPlanRecord['route']='DETERMINISTIC_FALLBACK',fallbackReason=strong?'EMPTY_OR_OVERSIZED_EDITORIAL_INPUT':'STRONG_MODEL_UNAVAILABLE',operationId:string|undefined;const modelOperationIds:string[]=[];
+ let normalization:EditorialNormalization|undefined;
+ const correctionCapacity=guaranteedStoryCount(shortlist.candidates.filter(c=>publicationCorrectionReady(c,shortlist.obligations)),budget);
+ const feed=await store.getFeed(shortlist.feedId);
+ // Candidate-specific capacity (modern) vs the former worst-case estimate (legacy). A call already reserved or answered for the legacy input keeps that exact input.
+ const operationIdFor=(inputState:unknown)=>sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:policy,model:strong?.model,budgetKey:options.processingScope??`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:inputState}));
+ // A call already reserved or answered for an older input keeps that exact input (billed results are reused, unknown outcomes stay fenced).
+ let state={...editorialPlannerState(shortlist,budget,feed,'CURRENT'),...(options.comparativeContext?{comparativeContext:options.comparativeContext}: {})};
+ let retainedBoundary:StartedEditorialBoundary|undefined;
+ // Remember the exact historical wire state AND its reference map/coverage,
+ // rather than just its parent variant. Rebuilding a bounded paid input under
+ // a larger context would otherwise create another paid identity after a crash.
+ if(strong)search:for(const variant of (budget.mode==='ADAPTIVE'?['CURRENT']:['LEGACY','V1','CURRENT']) as PlannerInputVariant[]){
+  const older={...editorialPlannerState(shortlist,budget,feed,variant),...(options.comparativeContext?{comparativeContext:options.comparativeContext}: {})},t=compactEditorialInput(older),b=boundedEditorialInput(older);
+  const boundaries=[{inputState:t.state,transport:t,keyed:false},{inputState:keyedEditorialState(t.state,{compact:false}),transport:t,keyed:true},{inputState:b.inputState,transport:b.transport,keyed:true,bounded:b}];
+  for(const boundary of boundaries){const opId=await operationIdFor(boundary.inputState);if(await store.read(shortlist.feedId,'semantic_intents',opId)||await store.read(shortlist.feedId,'semantic_results',opId)){state=older;retainedBoundary=boundary;break search}}
+ }
+ if(strong&&!retainedBoundary){
+  const found=await findStartedEditorialBoundary(store,{feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:policy,model:strong.model,budgetKey:options.processingScope??`editorial:${shortlist.window.start}:${shortlist.window.end}`},(budget.mode==='ADAPTIVE'?['CURRENT']:['LEGACY','V1','CURRENT']).map(v=>editorialPlannerState(shortlist,budget,feed,v as 'LEGACY'|'V1'|'CURRENT')));
+  if(found){state=found.state;retainedBoundary=found.boundary}
+ }
+ let transport=retainedBoundary?.transport??compactEditorialInput(state);
+ // Never replace an existing call identity (including a lost/unknown result)
+ // merely to adopt a new output shape. Old plans and retained normalization
+ // continue using their original transport; only never-started calls use v2.
+ const legacyOperationId=await sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:policy,model:strong?.model,budgetKey:options.processingScope??`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:transport.state}));
+ const legacyStarted=Boolean(prior&&prior.fallbackReason!=='EMPTY_OR_OVERSIZED_EDITORIAL_INPUT'||await store.read(shortlist.feedId,'semantic_intents',legacyOperationId)||await store.read(shortlist.feedId,'semantic_results',legacyOperationId));
+ const priorOperation=prior?.operationId?await store.read<{input:{state:{outputContract?:string}}}>(shortlist.feedId,'semantic_intents',prior.operationId):undefined;
+ const keyed=retainedBoundary?.keyed??(priorOperation?.input.state.outputContract===EDITORIAL_OUTPUT_CONTRACT||!legacyStarted);
+ // Old keyed intents/results are just as durable as pre-keyed calls. A transport
+ // reduction must never acquire a different identity after a call was reserved.
+ const oldKeyedState=keyedEditorialState(transport.state,{compact:false});
+ const oldKeyedOperationId=keyed?await sha256(canonicalJson({feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:policy,model:strong?.model,budgetKey:options.processingScope??`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:oldKeyedState})):undefined;
+ const oldKeyedStarted=oldKeyedOperationId?Boolean(await store.read(shortlist.feedId,'semantic_intents',oldKeyedOperationId)||await store.read(shortlist.feedId,'semantic_results',oldKeyedOperationId)):false;
+ const bounded=retainedBoundary?.bounded??(!retainedBoundary&&keyed&&!oldKeyedStarted?boundedEditorialInput(state,strong?.admission?{fits:(wire,t)=>{const admission=strong.admission!(wire,keyedEditorialPlanWireSchemaFor(t.state,t.contextFactCapabilities),'COMPARATIVE_EDITORIAL_PLAN');return admission.reason==='MODEL_CAPABILITY_UNAVAILABLE'||admission.fits}}:{}):undefined);
+ if(bounded)transport=bounded.transport;
+ const inputState=retainedBoundary?.inputState??(keyed?bounded?.inputState??oldKeyedState:transport.state);
+ const overflowIds=bounded?.overflowIds??[],offeredShortlist=overflowIds.length?{...shortlist,candidates:shortlist.candidates.filter(c=>!overflowIds.includes(c.targetVersionId))}:shortlist;
+ const inputCoverage=bounded?{policyVersion:EDITORIAL_INPUT_POLICY,inputBytes:new TextEncoder().encode(canonicalJson(inputState)).length,offeredTargetVersionIds:bounded.offeredCandidates.map(c=>c.targetVersionId),notComparativelyReviewedTargetVersionIds:overflowIds}:undefined;
+ if(bounded?.failure)fallbackReason=bounded.failure;
+ const outputSchema=keyed?keyedEditorialPlanWireSchemaFor(transport.state,transport.contextFactCapabilities):editorialPlanWireSchemaFor(transport.state);
+ const addOverflow=(value:EditorialPlanBody):EditorialPlanBody=>{
+  if(!overflowIds.length)return value;
+  const firstOrder=Math.max(-1,...value.stories.map(s=>s.order))+1;
+  const overflow=fallbackEditorialPlan(shortlist).stories.filter(s=>overflowIds.includes(s.targetVersionId)).map((s,i)=>({...s,decision:'DEFER' as const,treatment:'OMIT' as const,order:firstOrder+i,feedFit:'UNCERTAIN' as const,rationale:'PLANNER_INPUT_OVERFLOW: not comparatively reviewed; retained for a later window.',relevanceRationale:'Not comparatively reviewed due to the bounded planner input.'}));
+  const complete={...value,stories:[...value.stories,...overflow]};validateEditorialPlan(complete,shortlist);return complete;
+ };
+ const decodeProposal=(raw:unknown)=>keyed?planBodySchema.parse(transport.decodeKeyed(raw)):transport.decode(planBodySchema.parse(raw));
+ const completeProposal=async(inputState:typeof transport.state|Record<string,unknown>,attempt:string)=>{
+  const result=await strong!.complete(shortlist.feedId,'COMPARATIVE_EDITORIAL_PLAN',inputState,outputSchema);let value:EditorialPlanBody|undefined,rejection:string|undefined,outputNormalization:EditorialNormalization|undefined;
+  try{const output=normalizeEditorialPlan(decodeProposal(result.value),offeredShortlist,{requirePublicationCorrection:true,correctionCapacity,requireFeedFit:true,requireImportance:budget.mode==='ADAPTIVE'});value=addOverflow(output.value);outputNormalization=output.normalization;normalization=outputNormalization}catch(error){rejection=error instanceof HandoffError?error.code:error instanceof Error?error.message.slice(0,300):'INVALID_EDITORIAL_PROPOSAL'}
+  const proposalId=JSON.stringify([baseId,attempt]);await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision)throw new HandoffError('SCOPE_DENIED');if(!await tx.read('editorial_proposals',proposalId))await tx.write('editorial_proposals',proposalId,{id:proposalId,feedId:shortlist.feedId,shortlistId:shortlist.id,window:shortlist.window,attempt,model:strong!.model,rawProposal:result.value,decodedProposal:value,normalization:outputNormalization,rejection,capacityFailures:value?planCapacityFailures(value,shortlist,budget):undefined,usage:result.usage,createdAt:now})});
+  if(!value)throw Error('SEMANTIC_EDITORIAL_VALIDATION_FAILED');return {value,usage:result.usage};
+ };
+ const initialInput=retainedBoundary?.operationInput??{feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,evidenceRevisionIds:shortlist.evidenceRevisionIds,kind:'COMPARATIVE_EDITORIAL_PLAN',policyVersion:policy,model:strong?.model??'',budgetKey:options.processingScope??`editorial:${shortlist.window.start}:${shortlist.window.end}`,state:inputState};
+ const initialAdmission=strong?.admission?.(inputState,outputSchema,'COMPARATIVE_EDITORIAL_PLAN');
+ const retainedInitial=Boolean(retainedBoundary?.operationInput)||(!initialAdmission?.fits&&strong?Boolean(await store.read(shortlist.feedId,'semantic_intents',await operationIdFor(inputState))||await store.read(shortlist.feedId,'semantic_results',await operationIdFor(inputState))):false);
+ if(initialAdmission&&!initialAdmission.fits){
+  fallbackReason=initialAdmission.reason!;
+  if(!retainedInitial){const waitId=JSON.stringify([id,'INITIAL_MODEL_CAPACITY']);await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision)throw new HandoffError('SCOPE_DENIED');if(!await tx.read('editorial_processing_waits',waitId))await tx.write('editorial_processing_waits',waitId,{id:waitId,feedId:shortlist.feedId,shortlistId:shortlist.id,reason:initialAdmission.reason,model:strong!.model,admission:initialAdmission,createdAt:now})})}
+ }
+ if(strong&&shortlist.evidenceRevisionIds.length&&(!initialAdmission||initialAdmission.fits||retainedInitial)){
+  const saved=await durableSemanticOperation(store,initialInput,()=>completeProposal(inputState,'INITIAL'),now,()=>strong.usage(),{preserveStartedEditorialScope:true,reservationCostUsd:initialAdmission?.reservationCostUsd,operationAdmission:initialAdmission});
+  operationId=saved.id;modelOperationIds.push(saved.id);
+  let accepted=saved;
+  // A known, billed, schema-valid response may be structurally repaired without
+  // reissuing its model call. Unknown outcomes and unrelated failures stay fenced.
+  if(saved.status==='DEFERRED'&&saved.failure==='SEMANTIC_EDITORIAL_VALIDATION_FAILED'&&saved.usage.reported&&saved.usage.calls===1){
+   const proposal=await store.read<{model:string;shortlistId:string;rawProposal:unknown}> (shortlist.feedId,'editorial_proposals',JSON.stringify([baseId,'INITIAL']));
+   if(proposal?.model===strong.model&&proposal.shortlistId===shortlist.id){
+    try{
+     const output=normalizeEditorialPlan(decodeProposal(proposal.rawProposal),offeredShortlist,{requirePublicationCorrection:true,correctionCapacity,requireFeedFit:true,requireImportance:budget.mode==='ADAPTIVE'});
+     if(!output.normalization.added.length&&!output.normalization.contextBindings?.length||planCapacityFailures(output.value,shortlist,budget).length)throw Error('SEMANTIC_NORMALIZATION_NOT_RECOVERABLE');
+     const recoveryId=JSON.stringify([id,'RETAINED_NORMALIZATION']);
+     await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision||await communicationFingerprint(tx,shortlist.window.end)!==shortlist.communicationFingerprint)throw new HandoffError('TEMPORARY_UNAVAILABLE');if(!await tx.read('editorial_proposals',recoveryId))await tx.write('editorial_proposals',recoveryId,{id:recoveryId,feedId:shortlist.feedId,shortlistId:shortlist.id,window:shortlist.window,attempt:'RETAINED_NORMALIZATION',sourceProposalId:JSON.stringify([baseId,'INITIAL']),sourceOperationId:saved.id,decodedProposal:output.value,normalization:output.normalization,usage:{calls:0,costUsd:0,reported:true},createdAt:now})});
+     normalization=output.normalization;accepted={...saved,status:'SUCCEEDED',failure:undefined,value:addOverflow(output.value)};
+    }catch(error){if(error instanceof HandoffError&&error.code==='TEMPORARY_UNAVAILABLE')throw error;/* Invalid retained response stays rejected. */}
+   }
+  }
+  if(saved.status==='SUCCEEDED'&&saved.value){
+   const violations=planCapacityFailures(saved.value,shortlist,budget);
+   if(violations.length){
+    const rawRepairState={...inputState,previousProposal:keyed?transport.encodeKeyed({...saved.value,stories:saved.value.stories.filter(s=>!overflowIds.includes(s.targetVersionId))}):transport.encode(saved.value),feasibilityFeedback:{violations,instruction:'The previous proposal is NOT publishable because the selected sum exceeds hard capacity. Recompare ALL candidates and choose the most useful feasible subset. Sum each selected communicationCost.inputUnits against communicationCapacity.maxInputUnits. DEFER the remaining useful work. Do not merely change prose or treatment to evade input cost. Preserve protected priorities.'}};
+    // Transport changes may only affect a never-started call. Retain an old
+    // result or unknown intent under its exact original billed identity.
+    const legacyRepairId=await sha256(canonicalJson({...initialInput,policyVersion:policy+':feasibility-v1',state:rawRepairState}));
+    const legacyRepairStarted=Boolean(await store.read(shortlist.feedId,'semantic_intents',legacyRepairId)||await store.read(shortlist.feedId,'semantic_results',legacyRepairId));
+    const repairState=legacyRepairStarted?rawRepairState:compactEditorialRepair(rawRepairState);
+    const repairAdmission=strong.admission?.(repairState,outputSchema,'COMPARATIVE_EDITORIAL_PLAN');
+    if(repairAdmission&&!repairAdmission.fits&&!legacyRepairStarted){
+     const waitId=JSON.stringify([id,'FEASIBILITY_CONTEXT_CONTINUATION']);
+     await feedTransact(store,shortlist.feedId,async tx=>{if(tx.snapshot.feed.revision!==shortlist.feedRevision)throw new HandoffError('SCOPE_DENIED');if(!await tx.read('editorial_processing_waits',waitId))await tx.write('editorial_processing_waits',waitId,{id:waitId,feedId:shortlist.feedId,shortlistId:shortlist.id,sourceOperationId:saved.id,reason:repairAdmission.reason,model:strong.model,admission:repairAdmission,createdAt:now})});
+     accepted={...saved,status:'DEFERRED',value:undefined,failure:repairAdmission.reason};
+    }else{
+    accepted=await durableSemanticOperation(store,{...initialInput,policyVersion:policy+':feasibility-v1',state:repairState},async()=>{const result=await completeProposal(repairState,'FEASIBILITY_REPAIR');if(planCapacityFailures(result.value,shortlist,budget).length)throw Error('SEMANTIC_INFEASIBLE_PLAN');return result},now,()=>strong.usage(),{reservationCostUsd:repairAdmission?.reservationCostUsd,operationAdmission:repairAdmission});
+    }
+    operationId=accepted.id;modelOperationIds.push(accepted.id);
+   }
+  }
+  if(accepted.status==='SUCCEEDED'&&!normalization){
+   const proposal=await store.read<{normalization?:EditorialNormalization}>(shortlist.feedId,'editorial_proposals',JSON.stringify([baseId,accepted.id===saved.id?'INITIAL':'FEASIBILITY_REPAIR']));normalization=proposal?.normalization;
+  }
+  if(accepted.status==='SUCCEEDED'&&accepted.value){body=accepted.value;route='GPT';fallbackReason=undefined as any}else fallbackReason=accepted.failure??'EDITORIAL_DEFERRED';
+ }
+ let selected=0;body={...body,stories:body.stories.map(s=>({...s})).sort((a,b)=>a.order-b.order)};
+ // Hard capacity is allocated protected-first (changed state/certainty, contradiction, correction, retraction, obligations): an ordinary story can never
+ // displace protected information, however the planner ranked it. Ordinary stories then take the most valuable combination that actually fits,
+ // not the first-ranked story that happens to leave no room for the rest.
+ const capacityAdjustments:{targetVersionId:string;reason:string}[]=[],allocation=allocateFeasibleSelection(body.stories.filter(s=>s.decision==='SELECT').map(s=>{const c=shortlist.candidates.find(c=>c.targetVersionId===s.targetVersionId)!,facts=editorialContextFacts(c,shortlist).filter(f=>c.facts.some(local=>local.id===f.id)||s.contextFactIds.includes(f.id)||s.disagreementFactIds.includes(f.id));return selectionItem(s,facts.length===c.facts.length?c:{...c,facts,communicationCost:communicationCost({...c,facts})})}),budget);
+ for(const s of body.stories.filter(s=>s.decision==='SELECT')){const reason=allocation.rejected.get(s.targetVersionId);
+  if(reason){s.decision='DEFER';s.treatment='OMIT';s.rationale=`${reason}: reconsider in a later window.`;capacityAdjustments.push({targetVersionId:s.targetVersionId,reason})}
+ }
+ for(const o of body.obligations)if(o.handling==='ADDRESS'&&!body.stories.some(s=>s.decision==='SELECT'&&s.targetVersionId===o.targetVersionId)){o.handling='DEFER';o.reason='Supported target deferred by hard story capacity.'}
+ validateEditorialPlan(body,shortlist);
+ return feedTransact(store,shortlist.feedId,async tx=>{
+  if(tx.snapshot.feed.revision!==shortlist.feedRevision || await communicationFingerprint(tx,shortlist.window.end)!==shortlist.communicationFingerprint)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  const existing=await tx.read<EditorialPlanRecord>('editorial_plans',id);if(existing)return existing;
+  const value:EditorialPlanRecord={id,feedId:shortlist.feedId,feedRevision:shortlist.feedRevision,shortlistId:shortlist.id,window:shortlist.window,communicationFingerprint:shortlist.communicationFingerprint,route,plannerSource:route==='GPT'?'REAL_COMPARATIVE_MODEL':'DETERMINISTIC_FALLBACK',capacityAdjustments,reasoningAudit:auditPlanReasoning(body,shortlist),modelOperationIds,inputCoverage,operationId,fallbackReason,normalization,...(recoverable&&route==='GPT'?{recoveredFromPlanId:baseId}:{}),evidenceRevisionIds:shortlist.evidenceRevisionIds,policyVersion:policy,createdAt:now,...body};await tx.write('editorial_plans',id,value);
+  for(const story of body.stories){const c=shortlist.candidates.find(c=>c.targetVersionId===story.targetVersionId)!;
+   if(story.decision==='DEFER'||story.decision==='SELECT')await deferEditorialWork(tx,c,story.decision==='SELECT'?'AWAITING_SUPPORTED_PUBLICATION':capacityAdjustments.find(a=>a.targetVersionId===story.targetVersionId)?.reason??(story.rationale.startsWith('PLANNER_INPUT_OVERFLOW')?'PLANNER_INPUT_OVERFLOW':!selectableForPlanning(c)?BLOCKED_DEFERRAL_REASON:'DEFERRED_EDITORIAL_WORK'),now,id,shortlist.window.end,{adaptive:budget.mode==='ADAPTIVE'});
+   else if(route==='GPT'||story.deltaType==='REPEAT'){
+    if(route==='GPT'&&story.deltaType!=='REPEAT')await deferEditorialWork(tx,c,'OMITTED_BY_EDITOR',now,id,shortlist.window.end,{adaptive:budget.mode==='ADAPTIVE'});
+    const pending=await tx.list<EditorialWork>('editorial_deferred_work');for(const work of pending.filter(w=>w.stableTargetId===c.stableTargetId))await resolveEditorialWork(tx,work,story.deltaType==='REPEAT'?'ALREADY_COMMUNICATED':'OMITTED_BY_EDITOR',now,id);
+   }
+  }
+  return value;
+ });
+}

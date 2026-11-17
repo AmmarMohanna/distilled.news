@@ -5,23 +5,33 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "build": "wrangler deploy --dry-run --outdir dist",
+    "build": "wrangler deploy --dry-run --containers-rollout=none --outdir dist",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "perf": "vitest run --config vitest.perf.config.ts"
   },
   "dependencies": {
-    "@hono/zod-validator": "^0.7.0",
+    "@block65/webcrypto-web-push": "2.0.0",
+    "@cloudflare/containers": "^0.3.7",
+    "@cloudflare/playwright": "1.3.6",
+    "@distilled/agent-runtime": "workspace:*",
+    "@distilled/briefing": "workspace:*",
     "@distilled/connectors": "workspace:*",
+    "@distilled/contracts": "workspace:*",
     "@distilled/core": "workspace:*",
+    "@hono/zod-validator": "^0.7.0",
+    "@js-temporal/polyfill": "0.5.1",
+    "chromium-bidi": "^8.0.0",
     "hono": "^4.8.2",
     "zod": "^3.25.67"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.66",
     "@cloudflare/workers-types": "^4.20250614.0",
+    "miniflare": "^4.20260611.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4",
     "wrangler": "^4.20.5"

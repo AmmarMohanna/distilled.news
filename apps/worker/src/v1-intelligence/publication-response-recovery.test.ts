@@ -1,0 +1,12 @@
+import {it,expect} from 'vitest';
+import {sha256} from '@distilled/contracts';
+import {canonicalJson} from '../v1-intake/canonical';
+import {recoveredPublicationResponse} from './publication-response-recovery';
+async function fixture(){
+ const original:any={id:'op',input:{kind:'PUBLICATION_GROUNDING',feedId:'feed',model:'openai/gpt-4.1'},status:'DEFERRED',failure:'SEMANTIC_PROVIDER_FAILURE',usage:{calls:1,reported:false,costUsd:.2}},value={supportedClaimIds:[],semanticChecks:[],usage:{confirmed:true,cost:.1}},intent={token:'token',input:original.input},receipt={token:'token',reported:1,cost_usd:.1};
+ const proof:any={scope:'EXACT_COMPLETE_PROVIDER_RESPONSE_OPERATOR_RECOVERY',originalHashes:[await sha256(canonicalJson(original))],operationId:'op',providerFinishReason:'stop',responseHash:'raw',generationId:'gen-1',remoteReceipt:{reported:1,model:original.input.model,cost_usd:.1},value,valueHash:await sha256(canonicalJson(value)),localToken:'token',usage:{calls:1,reported:true,costUsd:.1}};
+ const store:any={spendingAccountId:'local-news-mirror',read:async(_f:string,kind:string)=>kind==='publication_response_recoveries'?proof:intent,db:{prepare:()=>({bind:()=>({first:async()=>receipt})})}};
+ return {store,proof,original,receipt};
+}
+it('recovers the exact saved negative verdict without manufacturing acceptance or changing original receipts',async()=>{const f=await fixture(),before=canonicalJson(f.original),result=await recoveredPublicationResponse(f.store,f.original);expect(result.status).toBe('SUCCEEDED');expect(result.value).toEqual(f.proof.value);expect((result.value as any).supportedClaimIds).toEqual([]);expect(canonicalJson(f.original)).toBe(before)});
+it.each(['live','hash','token','model','cost','partial','changed-value','unsettled','absent'])('retains the original unknown fence for %s',async mode=>{const f=await fixture();if(mode==='live')f.store.spendingAccountId='real-account';if(mode==='hash')f.proof.originalHashes=['wrong'];if(mode==='token')f.proof.localToken='foreign';if(mode==='model')f.proof.remoteReceipt.model='other';if(mode==='cost')f.receipt.cost_usd=.2;if(mode==='partial')f.proof.providerFinishReason='length';if(mode==='changed-value')f.proof.value.supportedClaimIds=['invented'];if(mode==='unsettled')f.receipt.reported=0;if(mode==='absent')f.store.read=async()=>undefined;expect(await recoveredPublicationResponse(f.store,f.original)).toBe(f.original)});

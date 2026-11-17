@@ -1,4 +1,5 @@
 import type { BriefingConfig, NormalizedMessage } from "@distilled/core";
+import {isV1ProductSource} from './v1-intelligence/product';
 import {
   buildGoogleNewsRssUrl,
   defaultActorIdForKind,
@@ -9,6 +10,7 @@ import {
   type DetectedSourceInput
 } from "@distilled/connectors";
 import { ingestPublicTelegramChannel, type PublicTelegramIngestResult } from "./publicTelegram";
+import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
 import type {
   Env,
   ProcessingJobMessage,
@@ -54,6 +56,7 @@ export interface SourceRefreshInput {
 }
 
 export interface SourceRefreshDispatchInput {
+  env?:Partial<Env>;
   briefing: BriefingConfig;
   repo: Repository;
   queue: { send(message: SourceRefreshJobMessage): Promise<unknown> };
@@ -62,12 +65,17 @@ export interface SourceRefreshDispatchInput {
 }
 
 export async function addSourceFromInput(input: SourceRefreshInput & { sourceInput: string }): Promise<SourceIngestResult> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')throw new Error('LEGACY_COLLECTION_DISABLED');
   const detected = detectSourceInput(input.sourceInput);
   if (detected.provider === "telegram") {
     return ingestPublicTelegramChannel({ ...input, url: detected.sourceUrl, activateSource: true });
   }
 
   const source = await upsertDetectedSource(input.repo, input.briefing.id, detected, input.env ?? {}, input.now);
+  if(detected.provider==="web"||(detected.provider==="rss"&&detected.kind!=="google_news"&&input.env?.WEB_OPERATOR_RUNTIME_TOKEN)){
+    const retained=input.env?.DB&&typeof input.env.DB.prepare==='function'?await enrollRetainedNewsForSource(input.env.DB,{tenantId:input.briefing.ownerAccountId,source,retentionDays:input.briefing.retentionDays,now:input.now,queue:input.queue}):{enrolled:0,queued:0};
+    return {sourceId:source.id,url:detected.sourceUrl,fetched:0,imported:retained.enrolled,queued:retained.queued,skipped:0,title:source.title,provider:source.provider,kind:source.kind};
+  }
   if (detected.provider === "rss") {
     return ingestRssSource({ ...input, source });
   }
@@ -77,6 +85,7 @@ export async function addSourceFromInput(input: SourceRefreshInput & { sourceInp
 }
 
 export async function refreshEnabledSources(input: SourceRefreshInput): Promise<SourceIngestResult[]> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')return [];
   if (input.briefing.paused) return [];
 
   const now = input.now ?? new Date();
@@ -84,7 +93,10 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
   const results: SourceIngestResult[] = [];
 
   for (const source of sources) {
+    if(input.env && await isV1ProductSource(input.env,source.id)) continue;
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
+    // These configured sources are admitted by the durable acquisition cron.
+    if(source.provider==="web"||(input.env?.WEB_OPERATOR_RUNTIME_TOKEN&&source.provider==="rss"&&source.kind!=="google_news"))continue;
     const result = await refreshSource({ ...input, source, now });
     if (result) results.push(result);
   }
@@ -93,6 +105,7 @@ export async function refreshEnabledSources(input: SourceRefreshInput): Promise<
 }
 
 export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchInput): Promise<number> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')return 0;
   if (input.briefing.paused) return 0;
   if (!input.force && await hasLargeProcessingBacklog(input.repo, input.briefing.id)) return 0;
 
@@ -101,6 +114,8 @@ export async function enqueueDueSourceRefreshJobs(input: SourceRefreshDispatchIn
   let enqueued = 0;
 
   for (const source of sources) {
+    if(input.env && await isV1ProductSource(input.env,source.id)) continue;
+    if(source.provider==="web"||(input.env?.WEB_OPERATOR_RUNTIME_TOKEN&&source.provider==="rss"&&source.kind!=="google_news"))continue;
     if (!input.force && !isSourceRefreshDue(input.briefing, source, now)) continue;
     if ((source.provider === "apify" || source.kind === "google_news") && await hasActiveApifyRun(input.repo, source.id)) continue;
 
@@ -128,6 +143,8 @@ export async function refreshSourceById(input: SourceRefreshInput & { sourceId: 
 }
 
 async function refreshSource(input: SourceRefreshInput & { source: SourceRecord }): Promise<SourceIngestResult | undefined> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')return undefined;
+  if(input.env && await isV1ProductSource(input.env,input.source.id)) return undefined;
   if (input.briefing.paused || !input.source.enabled) return undefined;
   const now = input.now ?? new Date();
 
@@ -154,6 +171,7 @@ async function refreshSource(input: SourceRefreshInput & { source: SourceRecord 
 }
 
 export async function pollApifySourceRuns(input: Omit<SourceRefreshInput, "briefing">): Promise<void> {
+  if(input.env?.SOURCE_LEGACY_POLLING_ENABLED==='false')return;
   const runs = await input.repo.listSourceRuns({ states: ["queued", "running"], limit: 25 });
   for (const run of runs) {
     const source = await input.repo.getSource(run.sourceId);
@@ -233,14 +251,22 @@ async function ingestRssSource(input: SourceRefreshInput & { source: SourceRecor
   });
 
   const parser = isGoogleNews ? parseGoogleNewsRssFeed : parseRssFeed;
-  const messages = parser(xml, {
-    sourceId: input.source.id,
-    sourceTitle: input.source.title,
-    sourceUrl: url,
-    receivedAt: now,
-    retentionDays: input.briefing.retentionDays,
-    rawPayloadKey
-  });
+  let messages: NormalizedMessage[];
+  try {
+    messages = parser(xml, {
+      sourceId: input.source.id,
+      sourceTitle: input.source.title,
+      sourceUrl: url,
+      receivedAt: now,
+      retentionDays: input.briefing.retentionDays,
+      rawPayloadKey
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Invalid feed response";
+    const message = `Could not parse ${isGoogleNews ? "Google News RSS" : "RSS"} source: ${detail}`;
+    await input.repo.updateSourceState({ sourceId: input.source.id, lastCheckedAt: now.toISOString(), lastError: message }, now);
+    throw new Error(message);
+  }
   const result = await persistMessages({ ...input, messages, now });
   await markSourceFetch(input.repo, input.briefing.id, now);
   if (result.imported > 0) await markImportedMessage(input.repo, input.briefing.id, now);
@@ -513,11 +539,20 @@ async function persistMessages(input: SourceRefreshInput & {
     };
     const existing = await input.repo.getRawMessage(persistedMessage.id);
     if (existing) {
-      skipped += 1;
-      continue;
+      const isX = message.source.kind === "x_profile" || message.source.kind === "x_search";
+      const changed = existing.text !== message.text ||
+        JSON.stringify([...existing.links].sort()) !== JSON.stringify([...message.links].sort());
+      if (!isX || !changed || Date.parse(message.receivedAt) < Date.parse(existing.receivedAt)) {
+        skipped += 1;
+        continue;
+      }
+      // Keep original identity, publication date, permalink and retention deadline.
+      await input.repo.updateRawMessage({ ...existing, text: message.text, links: message.links,
+        media: message.media, receivedAt: message.receivedAt, rawPayloadKey: message.rawPayloadKey });
+    } else {
+      await input.repo.saveRawMessage(input.briefing.id, persistedMessage, input.now);
     }
 
-    await input.repo.saveRawMessage(input.briefing.id, persistedMessage, input.now);
     const jobId = await input.repo.createProcessingJob(input.briefing.id, persistedMessage.id, input.now);
     await input.queue.send({ jobId, briefingId: input.briefing.id, rawMessageId: persistedMessage.id });
     imported += 1;

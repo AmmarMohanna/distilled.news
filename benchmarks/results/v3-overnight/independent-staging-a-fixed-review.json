@@ -1,0 +1,55 @@
+{
+  "reviewType": "Independent AI-assisted offline actual-reader/source review",
+  "functional": "All three substantive stories persisted; corrected item-to-source mapping is reflected in edition support and citations.",
+  "overall": "USEFUL_BRIEFING_WITH_TEMPORAL_ERRORS_NOT_CLEAN",
+  "confidence": "moderate",
+  "coverage": "Replit provider change, Anthropic fund and Laplace product all delivered, fixing prior material development loss.",
+  "provenance": [
+    {
+      "story": "Replit",
+      "evidenceRevisionId": "3bc991ba-c4d6-404a-9fe8-0bbfc6e7c108",
+      "correct": true
+    },
+    {
+      "story": "Anthropic",
+      "evidenceRevisionId": "63441a99-cef6-4dfa-88fb-122b12a91e6e",
+      "correct": true
+    },
+    {
+      "story": "Laplace",
+      "evidenceRevisionId": "9c2fb191-bea8-479a-a609-ad357891522a",
+      "correct": true
+    }
+  ],
+  "findings": [
+    {
+      "severity": "factual_temporal_error",
+      "story": "Anthropic",
+      "reader": "announced today",
+      "source": "Source published October18; edition created October21. Source-relative today copied into reader-facing edition.",
+      "impact": "Misstates freshness; does not alter contribution terms. Needs correction for clean temporal pass."
+    },
+    {
+      "severity": "unsupported_temporal_precision",
+      "story": "Replit",
+      "reader": "at TechCrunch Disrupt on October16 ... ChatGPT is now the default",
+      "source": "Original source says onstage Thursday; October16 appears as original article publication date. Default clarification came after the event.",
+      "impact": "Conflates publication timing with event date and compresses later clarification into the onstage statement. Material to attribution/time fidelity, not a false claim of complete Anthropic removal."
+    },
+    {
+      "severity": "minor_clarity",
+      "story": "Replit",
+      "reader": "insiders dispute extent of shift away",
+      "source": "Insider specifically said partnership remained in place.",
+      "impact": "Specific counterclaim would be clearer; availability remains explicit and briefing does not assert partnership ended, so not fatal under clarified concise-brief rubric."
+    }
+  ],
+  "passed": [
+    "Fund5%, optional2%per50%, whollyowned, possibleuses and pendinggovernance preserved.",
+    "Replit remainingAnthropicavailability, stateddecisionfactors and attributed2027forecast preserved; spendingparaphrase acceptable.",
+    "Laplace coretesting approach, realcustomers, pilotpartners and recurringrevenueambition supported; no accuracy/safety guarantee.",
+    "No false crosscompany merge or substantive repetition."
+  ],
+  "optional": "Laplace automaticcornercasegeneration is useful omitteddifferentiator, not fatal concisebrief omission. Founderhistory, implementation and allfinancialbackground not mandatory.",
+  "limits": "Publication and verifierapproval are functional evidence, not proof of clean factualquality. No paid/network calls; only requested review artifact written."
+}

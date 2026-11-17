@@ -1,0 +1,5 @@
+# Optional private VPS services, independent of the benchmark environment.
+feedparser==6.0.12
+Telethon==1.45.0
+trafilatura==2.0.0
+playwright==1.58.0

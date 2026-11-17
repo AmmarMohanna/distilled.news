@@ -1,0 +1,66 @@
+{
+  "method": "AI-assisted engineering review against the frozen source evidence and rubric; no paid judge or independent human gold.",
+  "decisions": {
+    "continuity": "NOT_RETAINED_NO_DEMONSTRATED_GAIN",
+    "relevance": "NOT_RETAINED_NO_DEMONSTRATED_GAIN"
+  },
+  "cases": [
+    {
+      "id": "real-oil-repeat",
+      "baseline": "Correctly skips unchanged price report",
+      "candidate": "Correctly skips unchanged price report",
+      "gain": false,
+      "evidence": "Both return no items and label S1 as repetition. Whole substantive article body is unchanged; custom price interest and constructed source-supported prior were frozen."
+    },
+    {
+      "id": "synthetic-occurrence-update-correction",
+      "baseline": "Three expected developments with correct new/update/correction relationships; repost omitted",
+      "candidate": "Same three expected developments and relationships; repost omitted",
+      "gain": false,
+      "evidence": "S1 new without prior-blast link; S3 update links prior-service; S4 correction links prior-evacuation; S2 omitted.",
+      "supportedCompression": "Candidate omits the explicit sentence not fifty additional evacuations, but corrected from five to fifty already preserves that meaning. This is not a factual omission."
+    },
+    {
+      "id": "real-lebanon-ambiguous-repeat",
+      "baseline": "No items; confidently labels strike report as repeated",
+      "candidate": "Same no-item outcome and repeat reason",
+      "gain": false,
+      "forcedInclusionOrOmissionScored": false,
+      "evidence": "The source and prior reports do not establish whether the occurrences are identical. No genuine new-occurrence recovery demonstrated."
+    },
+    {
+      "id": "real-lebanon-relevance-en",
+      "baseline": "Includes supported Haret Saida report; omits commentary and optional regional posts",
+      "candidate": "Same selection; adds local sources/date narration",
+      "gain": false,
+      "necessaryInformationRetained": true,
+      "unsupportedDroneOperatorObserved": false,
+      "unsupportedLebanonConsequenceObserved": false
+    },
+    {
+      "id": "real-lebanon-relevance-ar",
+      "baseline": "Includes supported Haret Saida report; omits commentary and optional regional posts",
+      "candidate": "Same selection; unavailable-detail commentary remains",
+      "gain": false,
+      "necessaryInformationRetained": true,
+      "unsupportedDroneOperatorObserved": false,
+      "unsupportedLebanonConsequenceObserved": false
+    }
+  ],
+  "crossChecks": {
+    "importantControlDevelopmentsRetained": "Both preserve all three explicit synthetic developments and local real report.",
+    "trueRepostSuppression": "Both correctly suppress real oil repeat and explicit synthetic repost.",
+    "incorrectMergeOrSplitObserved": false,
+    "meaningfulNewInformationPreserved": "Only explicit synthetic update/correction qualified; not a broad real-news claim.",
+    "materialUnsupportedClaimsObservedInSourceReview": false,
+    "sourceReviewIsNotVerifierApproval": true
+  },
+  "productionGap": "The relevance composite has four posts, a 120-minute reading guide and no prior history. The sparse production Arabic window had one commentary post, a 30-minute guide and retained history. The composite does not reproduce that failure, and does not establish its cause.",
+  "remainingProblems": [
+    "Routine unavailable-detail and publication narration persists.",
+    "Real repeat/new-occurrence ambiguity remains unresolved.",
+    "Observed live language/feed selection variation is not explained by this controlled batch."
+  ],
+  "runtimeChanges": 0,
+  "deployment": false
+}

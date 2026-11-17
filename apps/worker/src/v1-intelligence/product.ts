@@ -1,0 +1,127 @@
+import {sourceIdentityName} from '../source-display';
+import {HandoffError,sha256} from '@distilled/contracts';
+import {canonicalJson} from '../v1-intake/canonical';
+import type {IntakeScope} from '../v1-intake/types';
+import {productConnectorSource} from '../connector-source';
+import {V1FeedStore} from './store';
+import type {FeedRecord} from './types';
+import {liveScheduleSchema,livePublicationWindow,nextLiveBriefingAt,type LiveSchedule} from './schedule';
+
+const PRODUCT_SQL=`SELECT json_patch(json_patch(json_patch(json_object('sourceId',s.id,'feedId',b.id,'ownerId',b.owner_account_id,'sourceTitle',s.title,'sourceKind',s.kind,'provider',s.provider,'sourceUrl',s.source_url,'input',s.input,'actorId',s.actor_id,'enabled',s.enabled,'feedTitle',b.title,'interests',b.interest_profile,'language',b.language,'paused',b.paused,'cadence',b.briefing_cadence,'liveInterval',b.v1_briefing_interval_minutes,'timezone',b.briefing_timezone,'deliveryAnchor',b.briefing_time_of_day,'createdAt',b.created_at,'accountDisabled',a.disabled_at),CASE WHEN b.briefing_schedule_origin_at IS NULL THEN '{}' ELSE json_object('originAt',b.briefing_schedule_origin_at) END),CASE WHEN b.briefing_schedule_clock_start_at IS NULL THEN '{}' ELSE json_object('clockStartAt',b.briefing_schedule_clock_start_at) END),CASE WHEN b.briefing_schedule_policy IS NULL THEN '{}' ELSE json_object('clockPolicy',b.briefing_schedule_policy) END) AS json FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=?`;
+interface ProductRow {sourceId:string;feedId:string;ownerId:string;sourceTitle:string;sourceKind:string;provider:string;sourceUrl:string|null;input:string|null;actorId:string|null;enabled:number;feedTitle:string;interests:string;language:string;paused:number;cadence:string;liveInterval:number|null;timezone:string;deliveryAnchor:string|null;createdAt:string;originAt?:string;clockStartAt?:string;clockPolicy?:LiveSchedule['clockPolicy'];accountDisabled:string|null}
+export interface CanonicalSource {id:string;type:'rss'|'google_news'|'telegram'|'x_profile'|'x_search'|'linkedin_company'|'linkedin_profile';displayName:string;canonicalUrl:string;connectorType:'rss'|'google_news'|'telegram'|'x_profile'|'x_search'|'linkedin_company'|'linkedin_profile';verificationStatus:'VERIFIED';createdAt:string}
+/** An edit must not skip closes Cron never recorded. Retained requests own the
+ * old coverage; the edited cadence takes over immediately after that coverage. */
+export async function editedRelativeOrigin(db:D1Database|undefined,feedId:string,originAt:string,previous:LiveSchedule,now:Date):Promise<string>{
+ if(!db)return originAt;
+ const closed=livePublicationWindow(previous,now).end;
+ const row=await db.prepare(`SELECT json_extract(json,'$.window.end') AS end FROM v1_feed_documents
+ WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.durationMinutes')=?
+ AND json_extract(json,'$.window.originAt') IS ? AND julianday(json_extract(json,'$.window.end'))<=julianday(?)
+ ORDER BY julianday(json_extract(json,'$.window.end')) DESC LIMIT 1`)
+ .bind(feedId,previous.durationMinutes,previous.originAt??null,closed).first<{end:string}>();
+ return new Date(Math.max(Date.parse(originAt),Date.parse(row?.end??originAt))).toISOString();
+}
+/** Retained windows own their coverage through their end, including pending ones. */
+export async function editedClockStart(db:D1Database|undefined,feedId:string,clockStartAt:string,previous:LiveSchedule):Promise<string>{
+ if(!db)return clockStartAt;
+ const row=await db.prepare(`SELECT json_extract(json,'$.window.end') AS end FROM v1_feed_documents
+ WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.clockStartAt')=?
+ AND json_extract(json,'$.window.durationMinutes')=? ORDER BY json_extract(json,'$.window.end') DESC LIMIT 1`)
+ .bind(feedId,clockStartAt,previous.durationMinutes).first<{end:string}>();
+ return row?.end??clockStartAt;
+}
+/** Trusted bridge from an already user-approved product source. No source discovery or approval bypass. */
+export async function enrollV1Source(db:D1Database,id:string,ownerId:string,now:string,requestedSchedule?:LiveSchedule):Promise<{feed:FeedRecord;scope:IntakeScope;source:CanonicalSource}> {
+ if(!Number.isFinite(Date.parse(now))) throw new HandoffError('INVALID_REQUEST');
+ if(requestedSchedule && !liveScheduleSchema.safeParse(requestedSchedule).success) throw new HandoffError('INVALID_REQUEST');
+ // Re-enrollment cannot supply a new phase; feed creation/edits own it.
+ if(requestedSchedule?.originAt!==undefined||requestedSchedule?.clockStartAt!==undefined||requestedSchedule?.clockPolicy!==undefined)throw new HandoffError('INVALID_REQUEST');
+ for(let attempt=0;attempt<8;attempt++) {
+  const row=await db.prepare(PRODUCT_SQL).bind(id).first<{json:string}>();if(!row) throw new HandoffError('SCOPE_DENIED');
+  const p=JSON.parse(row.json) as ProductRow;
+  if(p.ownerId!==ownerId || !p.enabled || p.paused || p.accountDisabled) throw new HandoffError('SCOPE_DENIED');
+  const definitionSource=productConnectorSource({provider:p.provider,kind:p.sourceKind,source_url:p.sourceUrl,input:p.input,actor_id:p.actorId});
+  if(!definitionSource || !['hourly','daily','weekly'].includes(p.cadence)) throw new HandoffError('INVALID_REQUEST');
+  const url=definitionSource.canonicalUrl;
+  const sourceId=await sha256(canonicalJson(definitionSource.identity));
+  // One read batch reduces polling RPCs and observes the enrollment metadata
+  // together. The existing product/scope/feed CAS guards remain unchanged.
+  const [feedRows,scopeRows,catalogRows,bindingRows]=await db.batch([
+   db.prepare('SELECT json,epoch FROM v1_feeds WHERE id=?').bind(p.feedId),
+   db.prepare('SELECT json,epoch FROM v1_intake_scopes WHERE id=?').bind(id),
+   db.prepare('SELECT json FROM v1_source_catalog WHERE id=?').bind(sourceId),
+   db.prepare('SELECT source_id,configuration FROM v1_product_bindings WHERE feed_source_id=?').bind(id)
+  ]);
+  const priorFeed=feedRows.results[0] as {json:string;epoch:number}|undefined,priorScope=scopeRows.results[0] as {json:string;epoch:number}|undefined,
+   catalog=catalogRows.results[0] as {json:string}|undefined,binding=bindingRows.results[0] as {source_id:string;configuration:string}|undefined;
+  const existingFeed=priorFeed?JSON.parse(priorFeed.json) as FeedRecord:undefined,existingScope=priorScope?JSON.parse(priorScope.json) as IntakeScope:undefined;
+  if(existingFeed?.deletedAt || existingScope?.deletedAt) throw new HandoffError('SCOPE_DENIED');
+  if(existingFeed && existingFeed.ownerId!==ownerId || existingScope && (existingScope.sourceId!==sourceId || existingScope.feedId!==p.feedId) || binding && binding.source_id!==sourceId) throw new HandoffError('IDEMPOTENCY_CONFLICT');
+  if(requestedSchedule && (p.liveInterval!==requestedSchedule.durationMinutes || p.timezone!==requestedSchedule.timezone || p.deliveryAnchor!==(requestedSchedule.deliveryAnchor??'00:00'))) {
+   let originAt=p.originAt;
+   if(originAt&&p.liveInterval&&p.liveInterval!==requestedSchedule.durationMinutes){
+    originAt=await editedRelativeOrigin(db,p.feedId,originAt,{durationMinutes:p.liveInterval as LiveSchedule['durationMinutes'],timezone:p.timezone,deliveryAnchor:p.deliveryAnchor??'00:00',...(p.liveInterval<1440?{originAt}:{})},new Date(now));
+   }
+   const clockStartAt=p.clockStartAt?await editedClockStart(db,p.feedId,p.clockStartAt,{durationMinutes:p.liveInterval as LiveSchedule['durationMinutes'],timezone:p.timezone,clockStartAt:p.clockStartAt,...(p.clockPolicy?{clockPolicy:p.clockPolicy}:{})}):undefined;
+   const next=clockStartAt?nextLiveBriefingAt({...requestedSchedule,clockStartAt,...(p.clockPolicy?{clockPolicy:p.clockPolicy}:{})},new Date(now)):originAt&&requestedSchedule.durationMinutes<1440?nextLiveBriefingAt({...requestedSchedule,originAt},new Date(now)):null;
+   await db.prepare(`UPDATE briefings SET v1_briefing_interval_minutes=?,briefing_timezone=?,briefing_time_of_day=?,briefing_cadence=?,updated_at=?,briefing_schedule_origin_at=?,briefing_schedule_clock_start_at=?,next_briefing_at=COALESCE(?,next_briefing_at) WHERE id=? AND owner_account_id=? AND (${PRODUCT_SQL})=?`).bind(requestedSchedule.durationMinutes,requestedSchedule.timezone,requestedSchedule.deliveryAnchor??'00:00',requestedSchedule.durationMinutes===1440?'daily':'hourly',now,originAt??null,clockStartAt??null,next,p.feedId,ownerId,id,row.json).run();
+   continue; // re-read the guarded product configuration and trigger fences
+  }
+  const duration=p.liveInterval??(p.cadence==='hourly'?60:p.cadence==='daily'?1440:undefined);
+  const parsedSchedule=duration===undefined?undefined:liveScheduleSchema.safeParse({durationMinutes:duration,timezone:p.timezone,deliveryAnchor:p.deliveryAnchor??'00:00',...(duration<1440&&p.originAt?{originAt:p.originAt}:{}),...(p.clockStartAt?{clockStartAt:p.clockStartAt}:{}),...(p.clockPolicy?{clockPolicy:p.clockPolicy}:{})});
+  if(parsedSchedule && !parsedSchedule.success) throw new HandoffError('INVALID_REQUEST');
+  const definition={title:p.feedTitle,interests:[p.interests],geography:[],outputLanguage:p.language,briefingFrequency:p.cadence.toUpperCase() as FeedRecord['briefingFrequency'],briefingSchedule:parsedSchedule?.success?parsedSchedule.data:undefined,paused:false};
+  const unchanged=existingFeed && canonicalJson(Object.fromEntries(Object.keys(definition).map(k=>[k,existingFeed[k as keyof FeedRecord]])))===canonicalJson(definition);
+  const feed:FeedRecord=unchanged && binding?.configuration===row.json && existingScope?.enabled?existingFeed:{id:p.feedId,ownerId,...definition,revision:existingFeed?existingFeed.revision+1:1,createdAt:existingFeed?.createdAt??p.createdAt,updatedAt:now};
+  const scope:IntakeScope={feedId:p.feedId,feedSourceId:id,sourceId,feedRevision:feed.revision,enabled:true,restrictions:{}};
+  const family=definitionSource.source.family as CanonicalSource['type'];
+  const source:CanonicalSource=catalog?JSON.parse(catalog.json):{id:sourceId,type:family,displayName:sourceIdentityName(new URL(url).hostname,url)??new URL(url).hostname,canonicalUrl:url,connectorType:family,verificationStatus:'VERIFIED',createdAt:now};
+  if(feed===existingFeed && canonicalJson(existingScope)===canonicalJson(scope)) return {feed,scope,source};
+  const guard=crypto.randomUUID();
+  const sourceCheck=priorScope?'EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=? AND epoch=?)':'NOT EXISTS(SELECT 1 FROM v1_intake_scopes WHERE id=?)';
+  const feedCheck=priorFeed?'EXISTS(SELECT 1 FROM v1_feeds WHERE id=? AND epoch=?)':'NOT EXISTS(SELECT 1 FROM v1_feeds WHERE id=?)';
+  try {
+   await db.batch([
+    db.prepare(`INSERT INTO v1_enrollment_guards(id,valid) SELECT ?,CASE WHEN (${PRODUCT_SQL})=? AND ${sourceCheck} AND ${feedCheck} THEN 1 ELSE 0 END`).bind(guard,id,row.json,id,...(priorScope?[priorScope.epoch]:[]),p.feedId,...(priorFeed?[priorFeed.epoch]:[])),
+    db.prepare('INSERT INTO v1_source_catalog(id,json) VALUES(?,?) ON CONFLICT(id) DO NOTHING').bind(sourceId,JSON.stringify(source)),
+    db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json,epoch=v1_feeds.epoch+1').bind(p.feedId,JSON.stringify(feed)),
+    db.prepare('INSERT INTO v1_intake_scopes(id,feed_id,source_id,json) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json,epoch=v1_intake_scopes.epoch+1').bind(id,p.feedId,sourceId,JSON.stringify(scope)),
+    db.prepare('INSERT INTO v1_product_bindings(feed_source_id,feed_id,source_id,configuration) VALUES(?,?,?,?) ON CONFLICT(feed_source_id) DO UPDATE SET configuration=excluded.configuration').bind(id,p.feedId,sourceId,row.json),
+    db.prepare('DELETE FROM v1_enrollment_guards WHERE id=?').bind(guard)
+   ]);return {feed,scope,source};
+  } catch(error) {if(String(error).includes('v1_enrollment_cas')) continue;throw new HandoffError('TEMPORARY_UNAVAILABLE')}
+ }
+ throw new HandoffError('TEMPORARY_UNAVAILABLE');
+}
+
+/** Revalidates product-backed scopes before execution, preserving fail-closed DB fences. */
+export async function synchronizeV1ProductSource(db:D1Database,id:string,now:string,productOnly=false):Promise<IntakeScope|undefined> {
+ // Core-only V1 deployments may have no product tables. Resolve this indexed
+ // optional boundary before compiling SQL that references product state. A
+ // bound source still uses the complete product/configuration/owner checks.
+ if(!productOnly&&!await db.prepare('SELECT feed_id FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first())return;
+ const binding=await db.prepare(`SELECT f.json AS feed_json,s.json AS scope_json,CASE WHEN b.configuration=(${PRODUCT_SQL})
+   AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL
+   AND json_extract(f.json,'$.deletedAt') IS NULL AND json_extract(f.json,'$.paused')=0
+   AND json_extract(s.json,'$.feedRevision')=json_extract(f.json,'$.revision') THEN 1 ELSE 0 END AS current
+   FROM v1_product_bindings b LEFT JOIN v1_feeds f ON f.id=b.feed_id
+   LEFT JOIN v1_intake_scopes s ON s.id=b.feed_source_id WHERE b.feed_source_id=?
+   ${productOnly?"AND EXISTS(SELECT 1 FROM sources p WHERE p.id=b.feed_source_id AND p.briefing_id=b.feed_id AND p.collection_owner='connector')":''}`).bind(id,id).first<{feed_json:string|null;scope_json:string|null;current:number}>();
+ if(!binding){
+  if(productOnly)throw new HandoffError('SCOPE_DENIED');
+  return;
+ }
+ const feed=binding.feed_json?JSON.parse(binding.feed_json) as FeedRecord:undefined;
+ if(!feed||feed.deletedAt)throw new HandoffError('SCOPE_DENIED');
+ if(binding.current===1&&binding.scope_json)return JSON.parse(binding.scope_json) as IntakeScope;
+ return (await enrollV1Source(db,id,feed.ownerId,now)).scope;
+}
+
+export async function isV1ProductSource(env:{DB?:D1Database;V1_DOWNSTREAM_ENABLED?:string;V1_DOWNSTREAM_FEED_SOURCE_IDS?:string},id:string):Promise<boolean> {
+ if(env.DB && await env.DB.prepare("SELECT 1 FROM sources WHERE id=? AND collection_owner='connector'").bind(id).first()) return true;
+ const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
+ if(env.V1_DOWNSTREAM_ENABLED!=='true' || !ids.includes(id)) return false;
+ if(!env.DB) throw new HandoffError('SCOPE_DENIED');
+ return Boolean(await env.DB.prepare('SELECT 1 FROM v1_product_bindings WHERE feed_source_id=?').bind(id).first());
+}

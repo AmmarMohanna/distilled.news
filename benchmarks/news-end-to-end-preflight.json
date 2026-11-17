@@ -1,0 +1,159 @@
+{
+  "version": "real-news-e2e-v1",
+  "corpusHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+  "cases": [
+    {
+      "id": "1e466ebb-1191-49fb-99f5-a482add9e302",
+      "title": "Laplace Intelligence red-teams robots and self-driving cars before they hit the real world",
+      "sourceHash": "fa99ba953bf119747c4c5d65d52eafc3b0034c7dd3d29814c24bfc150f7ea5f1",
+      "publishedAt": "2026-10-19T12:30:00.000Z",
+      "acquiredAt": "2026-10-19T18:30:29.545Z",
+      "canonicalUrl": "https://techcrunch.com/2026/10/19/laplace-intelligence-red-teams-robots-and-self-driving-cars-before-they-hit-the-real-world/",
+      "bodyChars": 6319,
+      "words": 1019,
+      "claimMentions": 48,
+      "newsClaimMentions": 48,
+      "exactSpanIntegrity": true,
+      "initialConstruction": {
+        "fits": true,
+        "schemaAdmission": {
+          "fits": true,
+          "violations": [],
+          "enumValues": 168,
+          "schemaStringCharacters": 972,
+          "objectProperties": 58,
+          "nestingDepth": 4
+        },
+        "requestBytes": 51958,
+        "inputTokenUpperBound": 51958,
+        "maxOutputTokens": 4096,
+        "reservationCostUsd": 0.136684,
+        "capability": {
+          "contextTokens": 1047576,
+          "maxOutputTokens": 32768,
+          "inputUsdPerToken": 0.000002,
+          "outputUsdPerToken": 0.000008,
+          "source": "openrouter-catalog-2026-10-12"
+        }
+      },
+      "reviewStatus": "PENDING",
+      "labelProvenance": "REAL_SAVED_ARTICLE; AI_ASSISTED_RUBRIC_NOT_HUMAN_GOLD",
+      "originalSourceIdentityHash": "140fa2805b9e986a26502cda54c0a0b047088535872475a045ce237ae3ab06db"
+    },
+    {
+      "id": "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+      "title": "Replit makes OpenAI its default over Anthropic, CEO says",
+      "sourceHash": "403a82037d9988cb78932e284b7fe2fb866612c54dc27dfff091c8db3d13fb9f",
+      "publishedAt": "2026-10-17T18:48:08.000Z",
+      "acquiredAt": "2026-10-19T18:30:35.942Z",
+      "canonicalUrl": "https://techcrunch.com/2026/10/17/replit-is-no-longer-working-with-anthropic-ceo-says/",
+      "bodyChars": 3884,
+      "words": 624,
+      "claimMentions": 32,
+      "newsClaimMentions": 32,
+      "exactSpanIntegrity": true,
+      "initialConstruction": {
+        "fits": true,
+        "schemaAdmission": {
+          "fits": true,
+          "violations": [],
+          "enumValues": 120,
+          "schemaStringCharacters": 780,
+          "objectProperties": 42,
+          "nestingDepth": 4
+        },
+        "requestBytes": 36203,
+        "inputTokenUpperBound": 36203,
+        "maxOutputTokens": 4096,
+        "reservationCostUsd": 0.10517399999999999,
+        "capability": {
+          "contextTokens": 1047576,
+          "maxOutputTokens": 32768,
+          "inputUsdPerToken": 0.000002,
+          "outputUsdPerToken": 0.000008,
+          "source": "openrouter-catalog-2026-10-12"
+        }
+      },
+      "reviewStatus": "PENDING",
+      "labelProvenance": "REAL_SAVED_ARTICLE; AI_ASSISTED_RUBRIC_NOT_HUMAN_GOLD",
+      "originalSourceIdentityHash": "de89beaab2cef74ada744eb3dbfa7f6f22ac029763200b79fdaf8f754b1af574"
+    },
+    {
+      "id": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+      "title": "Anthropic says it’s committing 5% of its shares to a ‘public benefit fund’",
+      "sourceHash": "e19107d29f9829fb269376375ffdfa9690ff8f5fac9d56d6a627266b4e419e95",
+      "publishedAt": "2026-10-18T20:37:40.000Z",
+      "acquiredAt": "2026-10-19T12:46:10.958Z",
+      "canonicalUrl": "https://techcrunch.com/2026/10/18/anthropic-says-its-committing-5-of-its-shares-to-a-public-benefit-fund/",
+      "bodyChars": 1185,
+      "words": 187,
+      "claimMentions": 9,
+      "newsClaimMentions": 9,
+      "exactSpanIntegrity": true,
+      "initialConstruction": {
+        "fits": true,
+        "schemaAdmission": {
+          "fits": true,
+          "violations": [],
+          "enumValues": 51,
+          "schemaStringCharacters": 508,
+          "objectProperties": 19,
+          "nestingDepth": 4
+        },
+        "requestBytes": 15119,
+        "inputTokenUpperBound": 15119,
+        "maxOutputTokens": 4096,
+        "reservationCostUsd": 0.06300599999999999,
+        "capability": {
+          "contextTokens": 1047576,
+          "maxOutputTokens": 32768,
+          "inputUsdPerToken": 0.000002,
+          "outputUsdPerToken": 0.000008,
+          "source": "openrouter-catalog-2026-10-12"
+        }
+      },
+      "reviewStatus": "PENDING",
+      "labelProvenance": "REAL_SAVED_ARTICLE; AI_ASSISTED_RUBRIC_NOT_HUMAN_GOLD",
+      "originalSourceIdentityHash": "ec9979d33d55c97b38671065dfa5caa46d5ab39c9459f7fd431cfcfb8ab6c5e5"
+    }
+  ],
+  "sourceArtifacts": [
+    {
+      "name": "ai-again-pipeline-details.json",
+      "sha256": "36d3a46c7f66b684fd7ec802163f79bcb410c733d41df3af2ce5bcca3efca8af"
+    },
+    {
+      "name": "fresh-evidence-after-recovery.json",
+      "sha256": "0413bae765e58db7dd348c63b0ef6091ac4b00d2f2607f6d0ef36e6e47dc577b"
+    }
+  ],
+  "routeModels": {
+    "cloudflare": {
+      "strong": "cloudflare:openai/gpt-4.1",
+      "writer": "cloudflare:openai/gpt-4.1",
+      "verification": "cloudflare:openai/gpt-4.1"
+    },
+    "openrouter": {
+      "strong": "openai/gpt-4.1",
+      "writer": "openai/gpt-4.1",
+      "verification": "openai/gpt-4.1"
+    }
+  },
+  "execution": {
+    "concurrency": 1,
+    "reconciliation": "DEVELOPMENTS",
+    "validationContract": "EVIDENCE_GROUNDED_V2",
+    "maxOutputTokensByTask": {
+      "construction": 4096,
+      "reconciliation": 4096,
+      "editorial": 12288,
+      "writer": 4096,
+      "verification": 8192,
+      "repair": 4096
+    },
+    "cloudflareOutputCaps": "EVALUATION_CANDIDATES_NOT_SERVICE_MAXIMUM_OR_PRODUCTION_QUALIFICATION"
+  },
+  "acquisition": "IMMUTABLE_SAVED_SOURCE; NOT_LIVE_NETWORK",
+  "paidCalls": 0,
+  "qualificationChanged": false
+}

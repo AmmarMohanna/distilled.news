@@ -1,0 +1,43 @@
+{
+  "at": "2026-10-28T00:22:57.454Z",
+  "paidCalls": 0,
+  "mutations": 0,
+  "probes": [
+    {
+      "path": "/",
+      "status": 200,
+      "ms": 303
+    },
+    {
+      "path": "/api/auth/session",
+      "status": 200,
+      "ms": 83
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news",
+      "status": 200,
+      "ms": 566
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news2",
+      "status": 200,
+      "ms": 463
+    }
+  ],
+  "comparisons": [
+    {
+      "path": "/api/feed/product-proof/lebanon-news",
+      "publicationsInspected": 12,
+      "oldProseWouldBeExcluded": 0,
+      "sourceHash": "e706de83c3e35dc8aaab5fa885ef7920861606170922b9b02293f20bf5f2e868",
+      "note": "Bounded actual baseline/header/prose SQL comparison on same live edition subset; not candidate Worker execution or load test"
+    },
+    {
+      "path": "/api/feed/product-proof/lebanon-news2",
+      "publicationsInspected": 12,
+      "oldProseWouldBeExcluded": 0,
+      "sourceHash": "584978e031917dad06f1714bf61f6077921e7eac7c2d8583b5e25d5a532c1f60",
+      "note": "Bounded actual baseline/header/prose SQL comparison on same live edition subset; not candidate Worker execution or load test"
+    }
+  ]
+}

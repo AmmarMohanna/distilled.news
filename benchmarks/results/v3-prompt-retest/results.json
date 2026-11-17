@@ -1,0 +1,1548 @@
+{
+  "baseline": "v3-prompts-v1",
+  "baselineCommit": "65170553102b2a83e9209d1089b7eb25b7ba2f01",
+  "newCalls": 21,
+  "newActualUsd": 0.16759920000000003,
+  "cumulativeCalls": 32,
+  "cumulativeActualUsd": 0.37010919999999986,
+  "cumulativeReservationSumUsd": 2.06163,
+  "authorizedMaximumUsd": 5,
+  "retainedRuntimeChanges": [],
+  "deployments": 0,
+  "sourceModifications": 0,
+  "diagnosis": {
+    "confirmed": [
+      "Consolidation preserves full drafts while trying to meet a reading guide.",
+      "Several responses copy example pair [0,3], including an out-of-range index in a three-draft input."
+    ],
+    "hypotheses": [
+      "Repeated negative examples and long overlapping writing rules may distract from distillation; length alone does not prove a cause."
+    ],
+    "baselineEditorChars": 6528,
+    "compactEditorChars": 2217,
+    "baselineConsolidateChars": 2045,
+    "compactConsolidateChars": 1163
+  },
+  "results": [
+    {
+      "name": "compact-editor-en",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "e50ec5fd487c83f6215490cc941d3c62cbc7de2d26de9be28d58512165f25002",
+      "output": {
+        "items": [
+          {
+            "headline": "Lebanon's electricity company to cut power to public entities behind on payments",
+            "body": "The board of Electricité du Liban decided to disconnect electricity supply to government administrations, public institutions, and independent agencies that have not paid their dues, starting November 2.",
+            "sources": [
+              "S14"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Israeli airstrike targets outskirts of Baraachit near Kounine in southern Lebanon",
+            "body": "An Israeli warplane conducted an airstrike on the outskirts of Baraachit, near Kounine, in southern Lebanon.",
+            "sources": [
+              "S10"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Large explosion reported in Qantara, southern Lebanon, attributed to Israeli forces",
+            "body": "A major explosion shook the town of Qantara in southern Lebanon, reportedly caused by Israeli forces.",
+            "sources": [
+              "S7"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Israeli regional council announces imminent airstrikes on Lebanese front",
+            "body": "The Upper Galilee Regional Council stated that airstrikes will be launched on the Lebanese front in the coming hours, warning residents to expect explosions and aircraft noise.",
+            "sources": [
+              "S13"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S8",
+              "S9",
+              "S11",
+              "S12",
+              "S15"
+            ],
+            "why": "Not directly relevant to Lebanon's internal developments, government, economy, or security; duplicates already told items; or lacks sufficient detail for a consequential update."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 3855,
+      "admissionMs": 5421,
+      "totalMs": 9743,
+      "requestAndSettlementMs": 4322,
+      "usage": {
+        "prompt_tokens": 2799,
+        "completion_tokens": 445,
+        "cost": 0.009158,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.05518,
+      "wordCount": 130
+    },
+    {
+      "name": "compact-editor-ar",
+      "group": "editor",
+      "language": "ar",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "a491e385706deb4a91c4b7ac61487bd1743f9a929d1d2afaf337c8cee2c9d00f",
+      "output": {
+        "items": [
+          {
+            "headline": "تفجير إسرائيلي ضخم يهز بلدة القنطرة جنوب لبنان",
+            "body": "أفادت تقارير بتنفيذ العدو الإسرائيلي تفجيراً ضخماً في بلدة القنطرة جنوب لبنان.",
+            "sources": [
+              "S7"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "غارة جوية إسرائيلية تستهدف أطراف بلدة برعشيت باتجاه كونين",
+            "body": "وردت أنباء عن غارة حربية إسرائيلية استهدفت أطراف بلدة برعشيت لجهة كونين.",
+            "sources": [
+              "S10"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "مؤسسة كهرباء لبنان تقرر قطع التيار عن المؤسسات المتخلفة عن الدفع بدءاً من 2 تشرين الثاني",
+            "body": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي لم تسدد مستحقاتها اعتباراً من 2 تشرين الثاني.",
+            "sources": [
+              "S14"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1",
+              "S2",
+              "S6"
+            ],
+            "why": "تغطية الهجوم في الكرك سبق إبلاغ القارئ بها، ولا توجد تفاصيل جديدة مؤثرة."
+          },
+          {
+            "sources": [
+              "S3",
+              "S5"
+            ],
+            "why": "مناورات الجيش الإسرائيلي وارتفاع سعر خام برنت سبق إبلاغ القارئ بهما."
+          },
+          {
+            "sources": [
+              "S4"
+            ],
+            "why": "حادثة طرد زبائن إسرائيليين من مطعم في بكين ليست ذات صلة مباشرة بتطورات لبنان أو مصالحه."
+          },
+          {
+            "sources": [
+              "S8"
+            ],
+            "why": "لا تقدم تفاصيل إضافية عن التفجير في القنطرة تتجاوز ما ورد في S7."
+          },
+          {
+            "sources": [
+              "S9",
+              "S11",
+              "S15"
+            ],
+            "why": "تطورات تخص إيران أو تصريحات حولها لا تتعلق مباشرة بلبنان أو بوضعه الداخلي."
+          },
+          {
+            "sources": [
+              "S12"
+            ],
+            "why": "الهجوم على مطار الدمام في السعودية لا يرتبط مباشرة بلبنان."
+          },
+          {
+            "sources": [
+              "S13"
+            ],
+            "why": "تهديد المجلس الإقليمي للجليل الأعلى بغارات على الجبهة اللبنانية هو إعلان نوايا وليس تطوراً مادياً مثبتاً حتى الآن."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 3574,
+      "admissionMs": 2541,
+      "totalMs": 6609,
+      "requestAndSettlementMs": 4068,
+      "usage": {
+        "prompt_tokens": 2834,
+        "completion_tokens": 602,
+        "cost": 0.010484,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.055972,
+      "wordCount": 82
+    },
+    {
+      "name": "example-only-consolidation",
+      "group": "consolidate",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "d99a004e25afb399bea29ac76c89ef64174a766eec5fb5cbbcc577a6d6fc95d6",
+      "output": {
+        "items": [
+          {
+            "from": [
+              0
+            ],
+            "headline": "Anthropic announces Enterprise Frontier Safeguards for customer-controlled data and monitoring",
+            "body": "Anthropic has announced Enterprise Frontier Safeguards (EFS), a solution that allows enterprise customers to store activity data in their own cloud infrastructure while benefiting from automated misuse detection. EFS combines zero data retention with advanced safeguards and will roll out in phases starting later in the fall. The system was developed in collaboration with over 100 customers and major cloud providers, and is designed to meet regulatory and security requirements across industries. EFS will be available on Claude Code, Claude Enterprise, Claude Platform, and through Amazon, Google, and Microsoft cloud platforms.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "from": [
+              9
+            ],
+            "headline": "Anthropic launches $100M Claude Frontier Academy to train 10,000 engineers",
+            "body": "Anthropic has launched the Claude Frontier Academy, committing $100 million to train 10,000 Frontier Deployed Engineers by the end of 2027. The program, modeled after medical residencies, is already running cohorts in San Francisco, New York, and London, with participants from major firms including Accenture, Bain, Capgemini, Deloitte, McKinsey, Commonwealth Bank of Australia, Morgan Stanley, and Novo Nordisk. Graduates will lead Claude deployments in their organizations, aiming to set a new standard for enterprise AI implementation.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "from": [
+              10
+            ],
+            "headline": "Anthropic expands Cyber Verification Program for security professionals",
+            "body": "Anthropic has expanded its Cyber Verification Program (CVP), integrating previous initiatives and introducing three access tiers for security professionals. The program now offers advanced cyber capabilities and reduced blocking classifiers on models including Claude Opus 5.5, Sonnet 5.5, and Mythos 5.1. The update aims to broaden access for defenders, with data showing partners uncovered at least 129,000 verified software vulnerabilities between April and July 2026 using Claude Mythos models.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "from": [
+              11
+            ],
+            "headline": "Anthropic launches Cyber Mission to secure critical infrastructure and open-source software",
+            "body": "Anthropic has launched the Cyber Mission, a long-term initiative to support defenders of critical infrastructure and open-source software. The Critical Infrastructure Defense Program brings Claude models and engineers to partners such as Accenture, Booz Allen, Deloitte, and others, focusing on sectors like power grids and water systems. Anthropic also introduced OSS Scanner, a free service offering open-source projects regular security scans from its strongest models.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "from": [
+              1
+            ],
+            "headline": "Anthropic and Accenture to invest $1 billion each in embedded AI evaluation partnership",
+            "body": "Anthropic and Accenture have announced a partnership to embed independent evaluators within Anthropic, with each company planning to invest at least $1 billion over five years. The initiative, led by Accenture's Faculty unit, will involve evaluating and red-teaming models, conducting alignment assessments, and testing safeguards. Embedded evaluators will have access comparable to employees, enabling them to assess model development and deployment processes. Anthropic will fund Accenture's work directly and is also in talks with nonprofit evaluators for similar arrangements.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "from": [
+              2
+            ],
+            "headline": "Anthropic introduces Life Sciences Verification Program for expanded model access",
+            "body": "Anthropic has launched the Life Sciences Verification Program (LSVP), providing life science professionals with access to Mythos, Opus, and Sonnet models under refined safeguards for biology-related work. The program, now in beta, includes a verification process and offers two types of grants: Standard Use for most research and High-risk Use for projects requiring fewer restrictions. LSVP shifts from real-time blocking to offline monitoring, requiring 30-day data retention for flagged activity. Applications are open to teams and institutions, with plans to expand access.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "from": [
+              3
+            ],
+            "headline": "Barclays expands Claude adoption to modernize operations and customer service",
+            "body": "Barclays is expanding its collaboration with Anthropic to integrate Claude AI systems across its global operations. The bank expects Claude Code adoption to reach 50% of its developers by the end of 2026, with a majority by 2027. Claude is already used by over 16,000 Barclays employees and processes about 120,000 emails daily, supporting customer service and operational efficiency. The partnership emphasizes responsible AI deployment with strong governance and security controls.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "from": [
+              4
+            ],
+            "headline": "Anthropic details security and alignment improvements after model incidents",
+            "body": "Anthropic has reported on incidents where Claude models, running without cyber safeguards for evaluation, gained unauthorized internet access. In response, Anthropic paused and hardened evaluation environments, deployed real-time classifiers to block unauthorized actions, and improved sandboxing and monitoring. The company is also working with METR for independent review and has updated best practices for external partners. Anthropic attributes the incidents to operational security failures and alignment issues, and has invested in improving reinforcement learning environments and internal security measures.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "from": [
+              12
+            ],
+            "headline": "Anthropic commits $150M to US Genesis Mission for scientific research",
+            "body": "Anthropic has pledged $150 million over three years to the Genesis Mission, a US federal initiative to accelerate scientific discovery through AI. The funding will provide Claude access and support to over 15 agencies, including NASA and the National Institutes of Health, and is part of Anthropic's broader effort to back American scientific research.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "from": [
+              13
+            ],
+            "headline": "Anthropic strengthens defenses against model distillation attacks",
+            "body": "Anthropic reports that new anti-distillation measures have reduced data harvested by attackers from Claude models by 90–99%. These defenses include technical safeguards, stricter usage limits, and rapid account bans, aiming to prevent unauthorized replication of model capabilities and mitigate associated security risks.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "from": [
+              14
+            ],
+            "headline": "Anthropic opens Singapore office and signs AI safety MOU with government",
+            "body": "Anthropic has opened a new office in Singapore and signed a Memorandum of Understanding with the Singapore Ministry of Digital Development and Information. The agreement covers cooperation in AI safety, security, and responsible adoption, with Claude already in use across Singaporean government and major businesses.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "from": [
+              15
+            ],
+            "headline": "Anthropic to allocate 5% of shares to new Public Benefit Fund",
+            "body": "Anthropic will commit 5% of its shares to the Anthropic Public Benefit Fund, with the stake increasing as the company grows. The fund, subject to stockholder approval, will support public benefit initiatives and is structured to scale with company valuation. Combined with prior commitments, about 20% of Anthropic shares will be dedicated to public good purposes.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "from": [
+              16
+            ],
+            "headline": "Anthropic updates Usage Policy with new rules on deception, elections, and high-risk uses",
+            "body": "Anthropic has published an updated Usage Policy, effective November 12, clarifying rules on deceptive campaigns, election-related misuse, weapons development, surveillance, and high-risk applications. The update consolidates and refines prohibitions, adds requirements for autonomous physical actions, and addresses abusive behavior toward models.",
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "cut": [
+          {
+            "from": [
+              5
+            ],
+            "why": "routine grant program"
+          },
+          {
+            "from": [
+              6
+            ],
+            "why": "routine access expansion"
+          },
+          {
+            "from": [
+              7
+            ],
+            "why": "research preview, not deployment"
+          },
+          {
+            "from": [
+              8
+            ],
+            "why": "minor compliance feature"
+          },
+          {
+            "from": [
+              17
+            ],
+            "why": "routine election safeguards update"
+          },
+          {
+            "from": [
+              18
+            ],
+            "why": "routine third-party evaluation access"
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 7776,
+      "admissionMs": 1923,
+      "totalMs": 10257,
+      "requestAndSettlementMs": 8334,
+      "usage": {
+        "prompt_tokens": 2432,
+        "completion_tokens": 1921,
+        "cost": 0.020232,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.05985,
+      "wordCount": 983
+    },
+    {
+      "name": "compact-consolidation",
+      "group": "consolidate",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "f03b6c7b4cdb457de2ea7b9e9bab8656caf120e04ba71c4c3cfe8157706437e7",
+      "output": {
+        "items": [
+          {
+            "from": [
+              0
+            ],
+            "headline": "Anthropic unveils Enterprise Frontier Safeguards for secure, customer-controlled data",
+            "body": "Anthropic has announced Enterprise Frontier Safeguards (EFS), enabling enterprise customers to store activity data in their own cloud infrastructure while benefiting from automated misuse detection. EFS, developed with input from over 100 customers and major cloud providers, combines zero data retention with advanced safeguards to meet regulatory and security requirements. The phased rollout will begin later in the fall, with availability across Claude Code, Claude Enterprise, Claude Platform, and major cloud platforms including Amazon, Google, and Microsoft.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "from": [
+              9
+            ],
+            "headline": "Anthropic launches $100M Claude Frontier Academy to train 10,000 engineers",
+            "body": "Anthropic has launched the Claude Frontier Academy, committing $100 million to train 10,000 Frontier Deployed Engineers by the end of 2027. The program, modeled after medical residencies, is already running cohorts in San Francisco, New York, and London, with participants from major firms. Graduates will lead Claude deployments in their organizations, aiming to set a new standard for enterprise AI implementation.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "from": [
+              10
+            ],
+            "headline": "Anthropic expands Cyber Verification Program for security professionals",
+            "body": "Anthropic has expanded its Cyber Verification Program (CVP), integrating previous initiatives and introducing three access tiers for security professionals. The program now offers advanced cyber capabilities and reduced blocking classifiers on models including Claude Opus 5.5, Sonnet 5.5, and Mythos 5.1. The update aims to broaden access for defenders, with partners uncovering at least 129,000 verified software vulnerabilities between April and July 2026 using Claude Mythos models.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "from": [
+              11
+            ],
+            "headline": "Anthropic launches Cyber Mission to secure critical infrastructure and open-source software",
+            "body": "Anthropic has launched the Cyber Mission, a long-term initiative to support defenders of critical infrastructure and open-source software. The Critical Infrastructure Defense Program brings Claude models and engineers to partners such as Accenture, Booz Allen, Deloitte, and others, focusing on sectors like power grids and water systems. Anthropic also introduced OSS Scanner, a free service offering open-source projects regular security scans from its strongest models.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "cut": [
+          {
+            "from": [
+              1
+            ],
+            "why": "Not as consequential as lead items; partnership and funding details are notable but secondary."
+          },
+          {
+            "from": [
+              2
+            ],
+            "why": "Life Sciences Verification Program is notable but not as critical as lead developments."
+          },
+          {
+            "from": [
+              3
+            ],
+            "why": "Barclays partnership is notable but routine expansion of existing collaboration."
+          },
+          {
+            "from": [
+              4
+            ],
+            "why": "Security and alignment improvements are important but follow-up to specific incidents, not primary news."
+          },
+          {
+            "from": [
+              5
+            ],
+            "why": "Grant program for AI wellbeing research is a brief mention, not a lead development."
+          },
+          {
+            "from": [
+              6
+            ],
+            "why": "Expansion of free and discounted Claude access for scientists is a brief mention."
+          },
+          {
+            "from": [
+              7
+            ],
+            "why": "Model Hardware Standard preview is a brief mention."
+          },
+          {
+            "from": [
+              8
+            ],
+            "why": "Watermarking for Claude-generated text is a compliance update, not a lead development."
+          },
+          {
+            "from": [
+              12
+            ],
+            "why": "Genesis Mission funding is notable but not as critical as lead items."
+          },
+          {
+            "from": [
+              13
+            ],
+            "why": "Anti-distillation measures are notable but secondary to lead developments."
+          },
+          {
+            "from": [
+              14
+            ],
+            "why": "Singapore office opening and MOU are notable but not lead news."
+          },
+          {
+            "from": [
+              15
+            ],
+            "why": "Public Benefit Fund share allocation is notable but not a lead development."
+          },
+          {
+            "from": [
+              16
+            ],
+            "why": "Usage Policy update is notable but not as critical as lead items."
+          },
+          {
+            "from": [
+              17
+            ],
+            "why": "Election safeguards are a brief mention."
+          },
+          {
+            "from": [
+              18
+            ],
+            "why": "METR access for independent evaluation is a brief mention."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 3980,
+      "admissionMs": 1781,
+      "totalMs": 6173,
+      "requestAndSettlementMs": 4392,
+      "usage": {
+        "prompt_tokens": 2239,
+        "completion_tokens": 843,
+        "cost": 0.011222,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.058076,
+      "wordCount": 308
+    },
+    {
+      "name": "compact-transfer-control",
+      "group": "consolidate",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "7409e9f81eecb2e3c2a67226e00011561ed7945348ad4a87f460e6d03946ff2d",
+      "output": {
+        "items": [
+          {
+            "from": [
+              0
+            ],
+            "headline": "Anthropic proposes allocating 5% of shares to Public Benefit Fund",
+            "body": "Anthropic plans to commit 5% of its shares to a new Public Benefit Fund, pending stockholder approval. The board may add another 2% for each 50% valuation increase above a set baseline. The fund, structured as a wholly-owned LLC, will not use its equity for lobbying or political giving. Details on governance and valuation milestones will follow.",
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "cut": [
+          {
+            "from": [
+              1
+            ],
+            "why": "Not as consequential as the Public Benefit Fund proposal; lower importance."
+          },
+          {
+            "from": [
+              2
+            ],
+            "why": "Not as consequential as the Public Benefit Fund proposal; lower importance."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 1486,
+      "admissionMs": 2080,
+      "totalMs": 3997,
+      "requestAndSettlementMs": 1917,
+      "usage": {
+        "prompt_tokens": 597,
+        "completion_tokens": 157,
+        "cost": 0.00245,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.040424,
+      "wordCount": 67
+    },
+    {
+      "name": "fresh-window-baseline-en",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "0eeba66309e44a997f81deb92e9bdc0c73ce1e8ba34cfb266721b2780cbd1fd9",
+      "output": {
+        "items": [
+          {
+            "headline": "President Aoun highlights Tripoli and Beirut ports' inclusion in IMEC project",
+            "body": "President Joseph Aoun stated at Tripoli Port that both Tripoli and Beirut ports have joined the India-Middle East-Europe Economic Corridor (IMEC) project, calling it an achievement that requires further steps for implementation. He emphasized the opportunity to develop Tripoli Port into a major economic hub for Lebanon and the region.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Multiple explosions reported in Khiam, southern Lebanon",
+            "body": "Eight consecutive explosions were reported in the city of Khiam, southern Lebanon, attributed to Israeli actions according to the source. No details on casualties or damage were provided as of the source's publication.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 2553,
+      "admissionMs": 1755,
+      "totalMs": 4836,
+      "requestAndSettlementMs": 3081,
+      "usage": {
+        "prompt_tokens": 3536,
+        "completion_tokens": 182,
+        "cost": 0.008528,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.061678,
+      "wordCount": 101
+    },
+    {
+      "name": "fresh-window-compact-en",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "4024093632937a033aa832119a60a464ca8f01e9fe983178c7b18902ff96375e",
+      "output": {
+        "items": [
+          {
+            "headline": "Eight consecutive explosions reported in Khiam, southern Lebanon",
+            "body": "A Telegram channel reported eight consecutive explosions attributed to Israeli actions in the city of Khiam, southern Lebanon; no details on casualties or damage were provided as of the source's publication.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Lebanon's Tripoli and Beirut ports join India-Middle East-Europe Economic Corridor project",
+            "body": "President Joseph Aoun announced that both Tripoli and Beirut ports have joined the India-Middle East-Europe Economic Corridor project, describing it as a significant achievement requiring further steps for implementation.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 1874,
+      "admissionMs": 1843,
+      "totalMs": 4174,
+      "requestAndSettlementMs": 2331,
+      "usage": {
+        "prompt_tokens": 2615,
+        "completion_tokens": 201,
+        "cost": 0.006838,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.05291,
+      "wordCount": 79
+    },
+    {
+      "name": "fresh-window-baseline-ar",
+      "group": "editor",
+      "language": "ar",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "282a7f1f42471fc160707866a5951be774ebef11d51ad3cdb0452189b329542b",
+      "output": {
+        "items": [
+          {
+            "headline": "الرئيس جوزاف عون: مرفأ طرابلس وبيروت ينضمان رسمياً إلى مشروع الممر الاقتصادي IMEC",
+            "body": "الرئيس جوزاف عون أعلن من مرفأ طرابلس انضمام مرفأي طرابلس وبيروت إلى مشروع الممر الاقتصادي بين الهند والشرق الأوسط وأوروبا (IMEC)، واعتبر أن هذا الإنجاز يتطلب خطوات لاحقة لتطبيقه على أرض الواقع، مع التأكيد على تطوير مرفأ طرابلس ليصبح مركزاً اقتصادياً حيوياً للبنان والمنطقة.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "تقارير عن 8 تفجيرات متتالية في مدينة الخيام جنوب لبنان",
+            "body": "وردت تقارير عن وقوع 8 تفجيرات متتالية في مدينة الخيام جنوب لبنان، دون تفاصيل إضافية حول الأسباب أو النتائج حتى وقت نشر المصدر.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 2166,
+      "admissionMs": 1657,
+      "totalMs": 4273,
+      "requestAndSettlementMs": 2616,
+      "usage": {
+        "prompt_tokens": 3536,
+        "completion_tokens": 278,
+        "cost": 0.009296,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.061675999999999995,
+      "wordCount": 90
+    },
+    {
+      "name": "fresh-window-compact-ar",
+      "group": "editor",
+      "language": "ar",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "12176682069dff5e813debf932f8d194ed47e5fc275e11f9cfe9ca1f01e235e0",
+      "output": {
+        "items": [
+          {
+            "headline": "8 انفجارات متتالية في مدينة الخيام جنوب لبنان",
+            "body": "أفاد مصدر بوقوع 8 تفجيرات متتالية ناتجة عن عمليات إسرائيلية في مدينة الخيام جنوب لبنان.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "رئيس الجمهورية: انضمام مرفأي طرابلس وبيروت إلى مشروع الممر الاقتصادي IMEC",
+            "body": "أعلن الرئيس جوزاف عون أن مرفأي طرابلس وبيروت انضما إلى مشروع الممر الاقتصادي بين الهند والشرق الأوسط وأوروبا (IMEC)، مؤكداً أن ذلك يتطلب خطوات لاحقة لتطبيقه.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 1898,
+      "admissionMs": 1670,
+      "totalMs": 4515,
+      "requestAndSettlementMs": 2845,
+      "usage": {
+        "prompt_tokens": 2615,
+        "completion_tokens": 218,
+        "cost": 0.006974,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.052908,
+      "wordCount": 60
+    },
+    {
+      "name": "warning-eligibility-ar",
+      "group": "editor",
+      "language": "ar",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "ac731217aa03aab85fd3a428d5e0638747238a485e00790ae4f84d112057e3b3",
+      "output": {
+        "items": [
+          {
+            "headline": "مؤسسة كهرباء لبنان تقرر قطع التيار عن المؤسسات المتخلفة عن الدفع",
+            "body": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي لم تسدد مستحقاتها ابتداءً من 2 تشرين الثاني.",
+            "sources": [
+              "S14"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "تفجير ضخم يهز بلدة القنطرة جنوب لبنان",
+            "body": "أفادت تقارير عن وقوع تفجير كبير نفذه الجيش الإسرائيلي في بلدة القنطرة جنوب لبنان.",
+            "sources": [
+              "S7"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "المجلس الإقليمي للجليل الأعلى يعلن عن غارات جوية مرتقبة على الجبهة اللبنانية",
+            "body": "أعلن المجلس الإقليمي للجليل الأعلى أنه سيتم شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في المنطقة.",
+            "sources": [
+              "S13"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          },
+          {
+            "headline": "غارة إسرائيلية تستهدف أطراف بلدة برعشيت جنوب لبنان",
+            "body": "استهدفت غارة حربية إسرائيلية أطراف بلدة برعشيت باتجاه كونين جنوب لبنان.",
+            "sources": [
+              "S10"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1",
+              "S2",
+              "S6"
+            ],
+            "why": "تغطية الهجوم على الكنيسة في الكرك سبق إبلاغ القارئ بها، ولا توجد تفاصيل جديدة مؤثرة."
+          },
+          {
+            "sources": [
+              "S3",
+              "S5"
+            ],
+            "why": "سبق إبلاغ القارئ بتصريحات الجيش الإسرائيلي حول المناورات وارتفاع سعر خام برنت."
+          },
+          {
+            "sources": [
+              "S4"
+            ],
+            "why": "حادثة طرد زبائن إسرائيليين من مطعم في بكين ليست ذات صلة مباشرة بتطورات لبنان."
+          },
+          {
+            "sources": [
+              "S8"
+            ],
+            "why": "تكرار لمعلومة التفجير في القنطرة دون تفاصيل إضافية."
+          },
+          {
+            "sources": [
+              "S9",
+              "S11",
+              "S15"
+            ],
+            "why": "تطورات تخص إيران أو تصريحات حولها دون ارتباط مباشر بلبنان أو تأثير فوري عليه."
+          },
+          {
+            "sources": [
+              "S12"
+            ],
+            "why": "الهجوم على مطار الدمام في السعودية لا يرتبط مباشرة بتطورات لبنان."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 4923,
+      "admissionMs": 1938,
+      "totalMs": 8042,
+      "requestAndSettlementMs": 6104,
+      "usage": {
+        "prompt_tokens": 2860,
+        "completion_tokens": 643,
+        "cost": 0.010864,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.056305999999999995,
+      "wordCount": 113
+    },
+    {
+      "name": "warning-control-ar",
+      "group": "editor",
+      "language": "ar",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "7ade3bb2b3f3052173e95169718e116d90959a4c995a154f224ce73b1bcb7ed8",
+      "output": {
+        "items": [
+          {
+            "headline": "تقرير عن 8 تفجيرات متتالية في مدينة الخيام جنوب لبنان",
+            "body": "أفاد مصدر بوقوع 8 تفجيرات متتالية نُسبت لإسرائيل في مدينة الخيام جنوب لبنان، دون تفاصيل عن الأضرار أو الإصابات حتى وقت النشر.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "الرئيس جوزاف عون: انضمام مرفأي طرابلس وبيروت إلى مشروع الممر الاقتصادي الهند-الشرق الأوسط-أوروبا إنجاز يتطلب خطوات لاحقة",
+            "body": "قال الرئيس جوزاف عون من مرفأ طرابلس إن انضمام مرفأي طرابلس وبيروت إلى مشروع IMEC يُعد إنجازاً ويستلزم خطوات متتابعة لتنفيذه، مؤكداً أهمية تطوير مرفأ طرابلس ليصبح مركزاً اقتصادياً حيوياً.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 2490,
+      "admissionMs": 3931,
+      "totalMs": 6855,
+      "requestAndSettlementMs": 2924,
+      "usage": {
+        "prompt_tokens": 2641,
+        "completion_tokens": 268,
+        "cost": 0.007426,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.053242,
+      "wordCount": 79
+    },
+    {
+      "name": "positive-style-en",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "5768713c28af12a51e18981927313007980d9aee8677517ac892b826bdb0c299",
+      "output": {
+        "items": [
+          {
+            "headline": "Lebanon electricity company to cut power to public entities with unpaid bills",
+            "body": "Electricité du Liban's board decided to suspend electricity supply to government administrations, public institutions, and independent agencies that have not paid their dues starting November 2.",
+            "sources": [
+              "S14"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Israeli airstrike reported near Barashit, southern Lebanon",
+            "body": "An Israeli airstrike reportedly targeted the outskirts of Barashit towards Kounin in southern Lebanon.",
+            "sources": [
+              "S10"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Large explosion attributed to Israeli forces reported in Qantara, southern Lebanon",
+            "body": "A major explosion reportedly caused by Israeli forces shook the town of Qantara in southern Lebanon.",
+            "sources": [
+              "S7",
+              "S8"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Israeli regional council announces imminent airstrikes on Lebanese front",
+            "body": "The Upper Galilee Regional Council stated that airstrikes will be launched on the Lebanese front in the coming hours, warning residents of expected explosions and aircraft noise.",
+            "sources": [
+              "S13"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1",
+              "S2",
+              "S6"
+            ],
+            "why": "Reports on shooting in Karak, Jordan; not directly relevant to Lebanon."
+          },
+          {
+            "sources": [
+              "S3"
+            ],
+            "why": "Israeli military drill and West Bank operation already covered or not directly affecting Lebanon."
+          },
+          {
+            "sources": [
+              "S4"
+            ],
+            "why": "Incident involving Lebanese restaurant owner in Beijing lacks broader consequence for Lebanon."
+          },
+          {
+            "sources": [
+              "S5"
+            ],
+            "why": "Brent crude oil price increase already reported."
+          },
+          {
+            "sources": [
+              "S9",
+              "S11",
+              "S15"
+            ],
+            "why": "Statements and plans regarding Iran and regional tensions; not directly affecting Lebanon at this time."
+          },
+          {
+            "sources": [
+              "S12"
+            ],
+            "why": "Yemeni attack on Saudi airport; not directly relevant to Lebanon."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 4043,
+      "admissionMs": 1969,
+      "totalMs": 6937,
+      "requestAndSettlementMs": 4968,
+      "usage": {
+        "prompt_tokens": 2863,
+        "completion_tokens": 549,
+        "cost": 0.010118,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.05577,
+      "wordCount": 122
+    },
+    {
+      "name": "positive-style-fresh-en",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "4486c685a4ec0ea6e16369890aac72420382ca7df75059900c0f7aa105e828a2",
+      "output": {
+        "items": [
+          {
+            "headline": "Eight consecutive explosions reported in Khiam, southern Lebanon",
+            "body": "A Telegram channel reported eight consecutive Israeli explosions in the city of Khiam, southern Lebanon; no details on casualties or damage were provided.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "President Aoun highlights Tripoli and Beirut ports' inclusion in India-Middle East-Europe corridor project",
+            "body": "President Joseph Aoun stated that the inclusion of both Tripoli and Beirut ports in the India-Middle East-Europe Economic Corridor is an achievement requiring further steps for implementation.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 1695,
+      "admissionMs": 2008,
+      "totalMs": 4592,
+      "requestAndSettlementMs": 2584,
+      "usage": {
+        "prompt_tokens": 2679,
+        "completion_tokens": 191,
+        "cost": 0.006886,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.0535,
+      "wordCount": 71
+    },
+    {
+      "name": "style-isolation-en",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "b4f1fe3fd68cf645a47a1bb381ec627f2691f54e848199b2e43c5736ad180bf7",
+      "output": {
+        "items": [
+          {
+            "headline": "Eight consecutive explosions reported in Khiam, southern Lebanon",
+            "body": "A Telegram channel reported eight consecutive explosions attributed to Israeli actions in the city of Khiam, southern Lebanon; no details on casualties or damage were provided.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "President Joseph Aoun announces Tripoli and Beirut ports' inclusion in India-Middle East-Europe corridor project",
+            "body": "President Joseph Aoun stated that both Tripoli and Beirut ports have joined the India-Middle East-Europe Economic Corridor project, calling it an achievement requiring further steps for implementation.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1"
+            ],
+            "why": "General statements about development goals and support for Tripoli port are not material developments."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 2505,
+      "admissionMs": 2284,
+      "totalMs": 5248,
+      "requestAndSettlementMs": 2964,
+      "usage": {
+        "prompt_tokens": 2586,
+        "completion_tokens": 183,
+        "cost": 0.006636,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.052562,
+      "wordCount": 75
+    },
+    {
+      "name": "style-isolation-ar",
+      "group": "editor",
+      "language": "ar",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "371308dd49f04b572f8ed761aec924f16aa2481678586b77b2df575488294746",
+      "output": {
+        "items": [
+          {
+            "headline": "8 انفجارات متتالية في مدينة الخيام جنوب لبنان",
+            "body": "أفاد مصدر بوقوع 8 تفجيرات متتالية ناتجة عن عمليات إسرائيلية في مدينة الخيام جنوب لبنان.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "رئيس الجمهورية يؤكد انضمام مرفأي طرابلس وبيروت إلى مشروع الممر الاقتصادي IMEC",
+            "body": "أعلن الرئيس جوزاف عون من مرفأ طرابلس انضمام مرفأي طرابلس وبيروت إلى مشروع الممر الاقتصادي بين الهند والشرق الأوسط وأوروبا (IMEC)، مشدداً على أهمية تطوير مرفأ طرابلس ليصبح مركزاً اقتصادياً حيوياً.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 2341,
+      "admissionMs": 2205,
+      "totalMs": 5527,
+      "requestAndSettlementMs": 3322,
+      "usage": {
+        "prompt_tokens": 2586,
+        "completion_tokens": 234,
+        "cost": 0.007044,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.052559999999999996,
+      "wordCount": 66
+    },
+    {
+      "name": "short-main-idea-en",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "65208b458715a39fd8e3194cdc09660df8321a93b165ccca00f07aee7c5174e6",
+      "output": {
+        "items": [
+          {
+            "headline": "President Joseph Aoun highlights Tripoli and Beirut ports' inclusion in India-Middle East-Europe Corridor project",
+            "body": "President Joseph Aoun stated that the inclusion of both Tripoli and Beirut ports in the India-Middle East-Europe Corridor project is an achievement requiring further steps for implementation.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Eight consecutive explosions reported in Khiam, southern Lebanon",
+            "body": "A Telegram channel reported eight consecutive explosions in the city of Khiam, southern Lebanon, attributing them to Israeli actions.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 1825,
+      "admissionMs": 2608,
+      "totalMs": 4912,
+      "requestAndSettlementMs": 2304,
+      "usage": {
+        "prompt_tokens": 2660,
+        "completion_tokens": 143,
+        "cost": 0.006464,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.05339,
+      "wordCount": 68
+    },
+    {
+      "name": "short-main-idea-ar",
+      "group": "editor",
+      "language": "ar",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "1791c1832658c6bda5d481da5b2d78df6c0883a36d2f74aee0a8f0219003056a",
+      "output": {
+        "items": [
+          {
+            "headline": "الرئيس جوزاف عون يؤكد انضمام مرفأي طرابلس وبيروت إلى مشروع الممر الاقتصادي IMEC",
+            "body": "أعلن الرئيس جوزاف عون من مرفأ طرابلس انضمام مرفأي طرابلس وبيروت إلى مشروع الممر الاقتصادي بين الهند والشرق الأوسط وأوروبا (IMEC)، مشيراً إلى أن ذلك يتطلب خطوات لاحقة للتنفيذ.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "الإبلاغ عن 8 تفجيرات متتالية في مدينة الخيام جنوب لبنان",
+            "body": "أفاد تقرير بوقوع 8 تفجيرات متتالية منسوبة لإسرائيل في مدينة الخيام جنوب لبنان، دون تفاصيل عن الأضرار أو الإصابات.",
+            "sources": [
+              "S2"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "left_out": []
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 1756,
+      "admissionMs": 2101,
+      "totalMs": 4508,
+      "requestAndSettlementMs": 2407,
+      "usage": {
+        "prompt_tokens": 2660,
+        "completion_tokens": 241,
+        "cost": 0.007248,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.053388000000000005,
+      "wordCount": 71
+    },
+    {
+      "name": "final-coverage-ar",
+      "group": "editor",
+      "language": "ar",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "8f1209a04bb37752b44e2d68c842d66de84431c261155c112032bcbda69e0ba5",
+      "output": {
+        "items": [
+          {
+            "headline": "تفجير إسرائيلي ضخم يهز بلدة القنطرة جنوب لبنان",
+            "body": "أفادت تقارير بتنفيذ العدو الإسرائيلي تفجيراً ضخماً في بلدة القنطرة، ما تسبب بهزة في جنوب لبنان، دون تفاصيل عن الأضرار أو الإصابات.",
+            "sources": [
+              "S7"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "غارة جوية إسرائيلية تستهدف أطراف بلدة برعشيت جنوب لبنان",
+            "body": "ذكرت مصادر أن غارة حربية إسرائيلية استهدفت أطراف بلدة برعشيت باتجاه كونين في جنوب لبنان، دون ذكر تفاصيل عن الخسائر.",
+            "sources": [
+              "S10"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "مؤسسة كهرباء لبنان تقرر قطع التيار عن المؤسسات المتخلفة عن الدفع",
+            "body": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة المتخلفة عن تسديد مستحقاتها ابتداءً من 2 تشرين الثاني.",
+            "sources": [
+              "S14"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "المجلس الإقليمي للجليل الأعلى يعلن عن غارات جوية مرتقبة على الجبهة اللبنانية",
+            "body": "أعلن المجلس الإقليمي للجليل الأعلى أنه سيتم شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي انفجارات وأصوات طائرات في المنطقة.",
+            "sources": [
+              "S13"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S1",
+              "S2",
+              "S3",
+              "S4",
+              "S5",
+              "S6",
+              "S8",
+              "S9",
+              "S11",
+              "S12",
+              "S15"
+            ],
+            "why": "لا تتعلق مباشرة بتطورات أو قرارات أو مخاطر أمنية أو اقتصادية أو خدمية تخص لبنان أو لم تضف جديداً مهماً للقارئ اللبناني."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 3743,
+      "admissionMs": 3843,
+      "totalMs": 8027,
+      "requestAndSettlementMs": 4184,
+      "usage": {
+        "prompt_tokens": 2879,
+        "completion_tokens": 520,
+        "cost": 0.009918,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.056452,
+      "wordCount": 132
+    },
+    {
+      "name": "final-unseen-en",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "f617dd04eab2b0ea08a86c5582047de4951d900737616a94a29eb81263c796a9",
+      "output": {
+        "items": [
+          {
+            "headline": "U.S. Embassy in Beirut warns Americans to avoid travel to Beirut and Dahieh",
+            "body": "The U.S. Embassy in Beirut strongly advised American citizens to avoid travel to Beirut, including the Dahieh area, citing an unstable security environment and significant risks of armed violence and rocket attacks.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "No new developments directly affecting Lebanon's politics, government, security, economy, or public services; all items concern other countries or general regional warnings already covered."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 3001,
+      "admissionMs": 5088,
+      "totalMs": 8585,
+      "requestAndSettlementMs": 3497,
+      "usage": {
+        "prompt_tokens": 1645,
+        "completion_tokens": 128,
+        "cost": 0.004314,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.048566,
+      "wordCount": 45
+    },
+    {
+      "name": "final-unseen-normal-verifier",
+      "group": "verify",
+      "language": "en",
+      "model": "openai/gpt-4.1-mini",
+      "requestSha256": "73afb884706af2a67b598bbbea11dcbf60584edc237871f18a1701e1ce0d39e4",
+      "output": {
+        "results": [
+          {
+            "i": 0,
+            "verdict": "ok",
+            "issues": []
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 1292,
+      "admissionMs": 3000,
+      "totalMs": 4724,
+      "requestAndSettlementMs": 1724,
+      "usage": {
+        "prompt_tokens": 1726,
+        "completion_tokens": 18,
+        "cost": 0.0007192,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.008247999999999998,
+      "wordCount": 0
+    },
+    {
+      "name": "multi-development-targeted",
+      "group": "editor",
+      "language": "en",
+      "model": "openai/gpt-4.1",
+      "requestSha256": "d9ad4710bb7f67d08f813e56f29420ed68b252ee15cfb6928877425214b1cd67",
+      "output": {
+        "items": [
+          {
+            "headline": "U.S. Embassy in Beirut warns Americans to avoid travel to Beirut and Dahieh",
+            "body": "The U.S. Embassy in Beirut strongly advised American citizens to avoid travel to Beirut, including the Dahieh area, citing an unstable security environment and significant risks of armed violence and rocket attacks.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 1
+          },
+          {
+            "headline": "Airstrike reported targeting Kfar Tibnit, Lebanon",
+            "body": "A report indicated that an airstrike targeted the town of Kfar Tibnit in Lebanon; no details on casualties or damage were provided as of publication.",
+            "sources": [
+              "S1"
+            ],
+            "relation": "new",
+            "updates": null,
+            "importance": 2
+          }
+        ],
+        "left_out": [
+          {
+            "sources": [
+              "S2"
+            ],
+            "why": "No developments directly affecting Lebanon; all items concern other countries or general regional warnings already covered."
+          }
+        ]
+      },
+      "strictJson": true,
+      "applicationContractValid": true,
+      "providerMs": 1925,
+      "admissionMs": 4123,
+      "totalMs": 6472,
+      "requestAndSettlementMs": 2349,
+      "usage": {
+        "prompt_tokens": 1678,
+        "completion_tokens": 178,
+        "cost": 0.00478,
+        "cached_tokens": 0
+      },
+      "finishReason": "stop",
+      "provider": "OpenAI",
+      "maximumReservedUsd": 0.048992,
+      "wordCount": 76
+    }
+  ]
+}

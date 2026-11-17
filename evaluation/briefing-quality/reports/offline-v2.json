@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-10-27T21:56:27.517475+00:00",
+  "archiveSha256": "8fadc205f5f77529d430eb6037b0c43ee8e4be3cc8aa4a2b6834f37358462652",
+  "checksumsVerified": 103,
+  "exactRebuiltCases": 95,
+  "unassigned": 89,
+  "fields": "all exported fields, historical profiles, source identities and provenance",
+  "snapshotRecords": 912,
+  "cases": 95,
+  "articleOccurrences": 817,
+  "uniqueAcquiredIds": 565,
+  "flagsOccurrenceCounts": {
+    "completeness_COMPLETE": 443,
+    "completeness_UNKNOWN": 374
+  },
+  "languages": {
+    "en": {
+      "cases": 75,
+      "splits": {
+        "validation": 15,
+        "development": 54,
+        "held-out": 6
+      },
+      "independentComponents": {
+        "development": 2,
+        "validation": 2,
+        "held-out": 1
+      }
+    },
+    "fr": {
+      "cases": 6,
+      "splits": {
+        "development": 3,
+        "validation": 3
+      },
+      "independentComponents": {
+        "development": 1,
+        "validation": 1
+      }
+    },
+    "ar": {
+      "cases": 14,
+      "splits": {
+        "validation": 8,
+        "held-out": 3,
+        "development": 3
+      },
+      "independentComponents": {
+        "development": 1,
+        "validation": 1,
+        "held-out": 1
+      }
+    }
+  },
+  "crossSplitLexicalCandidates": 7,
+  "semanticCertification": "pending; cross-language and related developments can evade lexical screening",
+  "baselineRuntime": [
+    {
+      "language": "en",
+      "system": "all-headlines",
+      "cases": 54,
+      "published": 47,
+      "empty": 7,
+      "failures": 0,
+      "calls": 0,
+      "retries": 0,
+      "tokens": 0,
+      "costUsd": 0,
+      "p50Ms": 0.018849998014047742,
+      "p95Ms": 0.05408999859355363,
+      "latencyPopulation": "all terminal windows; local selection only",
+      "qualityJudgments": 0
+    },
+    {
+      "language": "en",
+      "system": "keyword",
+      "cases": 54,
+      "published": 47,
+      "empty": 7,
+      "failures": 0,
+      "calls": 0,
+      "retries": 0,
+      "tokens": 0,
+      "costUsd": 0,
+      "p50Ms": 2.0424500107765198,
+      "p95Ms": 17.82195498526556,
+      "latencyPopulation": "all terminal windows; local selection only",
+      "qualityJudgments": 0
+    },
+    {
+      "language": "fr",
+      "system": "all-headlines",
+      "cases": 3,
+      "published": 3,
+      "empty": 0,
+      "failures": 0,
+      "calls": 0,
+      "retries": 0,
+      "tokens": 0,
+      "costUsd": 0,
+      "p50Ms": 0.01680001150816679,
+      "p95Ms": 0.022920005721971393,
+      "latencyPopulation": "all terminal windows; local selection only",
+      "qualityJudgments": 0
+    },
+    {
+      "language": "fr",
+      "system": "keyword",
+      "cases": 3,
+      "published": 0,
+      "empty": 3,
+      "failures": 0,
+      "calls": 0,
+      "retries": 0,
+      "tokens": 0,
+      "costUsd": 0,
+      "p50Ms": 1.1558000114746392,
+      "p95Ms": 4.760480008553714,
+      "latencyPopulation": "all terminal windows; local selection only",
+      "qualityJudgments": 0
+    },
+    {
+      "language": "ar",
+      "system": "all-headlines",
+      "cases": 3,
+      "published": 3,
+      "empty": 0,
+      "failures": 0,
+      "calls": 0,
+      "retries": 0,
+      "tokens": 0,
+      "costUsd": 0,
+      "p50Ms": 0.025600020308047533,
+      "p95Ms": 0.05034999921917915,
+      "latencyPopulation": "all terminal windows; local selection only",
+      "qualityJudgments": 0
+    },
+    {
+      "language": "ar",
+      "system": "keyword",
+      "cases": 3,
+      "published": 3,
+      "empty": 0,
+      "failures": 0,
+      "calls": 0,
+      "retries": 0,
+      "tokens": 0,
+      "costUsd": 0,
+      "p50Ms": 12.90319999679923,
+      "p95Ms": 15.328430023510009,
+      "latencyPopulation": "all terminal windows; local selection only",
+      "qualityJudgments": 0
+    }
+  ],
+  "paidCalls": 0,
+  "humanJudgments": 0,
+  "participants": 0,
+  "python": "3.11.9",
+  "node": "v24.11.1",
+  "gitRevision": "c5f6b08aea98406d26474c49e77f82f4cd150786",
+  "sourceHashes": {
+    "packages\\briefing\\src\\engine.ts": "d590f7015222c613c838bdfe7a73e8153487145870786cea3f6932e20c565064",
+    "packages\\briefing\\src\\index.ts": "dfe4ad0936729d59f56a7983032148ee745c0e873d42a1e3e59960d86e6aae0e",
+    "packages\\briefing\\src\\model.ts": "5195769e2e1b16e558142f71c98f84f924878a8949b6e92882d9eccddf5c24b8",
+    "packages\\briefing\\src\\prepare.ts": "37f18853b4d852c067f75b15ab183237f36e3ce16ab6840ab85c584dddca763b",
+    "packages\\briefing\\src\\prompts.ts": "98db2d306e8b981baab2a4c5c7c5f1ec41cdff753d9863469b66ba00cf0d989a",
+    "packages\\briefing\\src\\text.ts": "9784876bd082885adcceaad173b26d470537e626874f7463ae26adf75dfbc659",
+    "packages\\briefing\\src\\types.ts": "5b073610e39178c45e9c4215e28d39ed443af3ee611b3fce7ae2bab23bbffa49",
+    "scripts/export-acquired-benchmark.mjs": "c75241c50cbf062d32c772b571675054e94ad08d05ab9700deb766885c7dc08f",
+    "evaluation\\briefing-quality\\challenges.py": "2c7fd35f6bce506d1056dc188bafdacd56f61920b08df42d529862ed10b3bbcf",
+    "evaluation\\briefing-quality\\evaluate.py": "44f644e0b3af29475182de44113f641bb4044813e918d181ae18849b24b99a45",
+    "evaluation\\briefing-quality\\freeze.py": "82cc99f369e23f7769ef1efda3ac089d770c61a06109b4e082b3679690235577",
+    "evaluation\\briefing-quality\\runtime.py": "5b67bfafe44ba0f3b704734f9a29c5634f68a1eec8b9cb82888a9468d7ef39e6",
+    "evaluation\\briefing-quality\\study.py": "3e426616e1d8a5848fa0ba16d6a69ac9567969c2aacbcafc8a10b09447e0b937",
+    "evaluation\\briefing-quality\\suite.py": "a61d3c475623d575583e86f5f4bc3b9ba5719e40be336ccba4f2acd325414c7d",
+    "evaluation\\briefing-quality\\test_evaluate.py": "f6e65c0547f9acad10b6dff51cd79b07c92f4b64837c85d076181298e423a460",
+    "evaluation\\briefing-quality\\test_suite.py": "36f02f86aa779b7cdf6d052b98411213cd4b32efa13d3d1f9c04cdbdf8760c90",
+    "evaluation\\briefing-quality\\diagnose.ts": "ce1c0876a39b464d20c2ac0ae38b201ed1bfdeb66d88b00cf352e1f631065b70",
+    "evaluation\\briefing-quality\\replay.test.ts": "d824871f839bb39d06a5e474a2ce36df3ebfe441813d5da81219de6ecc5afc72",
+    "evaluation\\briefing-quality\\replay.ts": "e645cebce3a9265fbf4ca931de7cec2ee88b58b4025f9c04e53ce41c4938f47e",
+    "evaluation\\briefing-quality\\vitest.config.ts": "de2b098296675264ff6a470861ffa562e1737512f9d147056795b8c7e19b0bcd",
+    "evaluation\\briefing-quality\\rebuild.mjs": "70f925e0f3d81e9ff66d9de64e4f322f7209ed3b89674e6c4d936764e1427b90"
+  },
+  "quality": "Unavailable pending independent human evidence and output review; baseline selections are not accuracy measurements"
+}

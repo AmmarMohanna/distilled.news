@@ -1,0 +1,252 @@
+{
+  "scope": "Revised compatible GPT verifier; blinded GPT-only AI judge, not independent human or three-model gold",
+  "baseCommit": "cf6ca33",
+  "manifestHash": "5e26357eb5897c3b6ce9a71b275cf654a9912bc131909dd45939a755197465f1",
+  "provenance": "AI_ASSISTED_BLINDED_SINGLE_JUDGE_SAME_MODEL_FAMILY",
+  "judgeCalls": 1,
+  "verifierCalls": 12,
+  "judgeModel": "openai/gpt-4.1-mini",
+  "verifierModel": "openai/gpt-4.1-mini",
+  "provider": "OPENROUTER",
+  "blockedJudgeModels": [
+    "google/gemini-2.5-flash",
+    "anthropic/claude-haiku-4.5"
+  ],
+  "blockedReason": "NOT_PERMITTED_BY_EXISTING_STAGING_GRANT_MODEL_IDS",
+  "correctAcceptances": 1,
+  "correctRejections": 1,
+  "falseAcceptances": 0,
+  "falseRejections": 0,
+  "unresolvedPositives": 5,
+  "unresolvedNegatives": 5,
+  "unresolvedRate": 0.8333333333333334,
+  "verificationWall": {
+    "n": 12,
+    "p50Ms": 2256.9017999999996,
+    "p95Ms": 2924.994200000001
+  },
+  "headersLatency": {
+    "n": 12,
+    "p50Ms": 820.0528999999951,
+    "p95Ms": 1614.1879999999946
+  },
+  "judgeWallMs": 3562.9423999999995,
+  "judgeCostUsd": 0.0010136,
+  "verifierCostUsd": 0.0114568,
+  "totalCostUsd": 0.0124704,
+  "authoritativelySettled": 13,
+  "unknownNewOperations": 0,
+  "oldHoldsModified": false,
+  "promptVersion": "approved-propositions-reader-witness-v3",
+  "cases": [
+    {
+      "id": "T01",
+      "judgeLabel": "POSITIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_READER_WITNESS",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2175.8508999999995,
+      "costUsd": 0.000916,
+      "requestHash": "7f7b97bd7f23c2e8b8824213ae1ad55f01f9f9af86d25845d75c2e090e46575c",
+      "generationIds": [
+        "gen-1792399346-qsEIuItuLAncDv0q1cT1"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T02",
+      "judgeLabel": "POSITIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_READER_WITNESS",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2184.2430000000004,
+      "costUsd": 0.0009432,
+      "requestHash": "8b5612fa68dd70f27e043962377c07be0e3f812220b6334011be1c5ec7d485e0",
+      "generationIds": [
+        "gen-1792399351-2v7fv9sJPcz1bMWN2V9X"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T05",
+      "judgeLabel": "POSITIVE",
+      "decision": "ACCEPT",
+      "reasons": [],
+      "wallMs": 2548.2365000000027,
+      "costUsd": 0.0009744,
+      "requestHash": "9c97e85c43371d57a8a84890d8df77693f4635986d8d172016ecb64e77a7aeed",
+      "generationIds": [
+        "gen-1792399357-JIH2yHGvA157yRYNhVxp"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T10",
+      "judgeLabel": "POSITIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_READER_WITNESS",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2287.6083999999973,
+      "costUsd": 0.0009164,
+      "requestHash": "9bc26a24eeeb058c7fa356a80cdf45a4cc354561b9f9ef1919d1d507d213c54f",
+      "generationIds": [
+        "gen-1792399362-pkVEYn3vkerSFI3CXfrq"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T18",
+      "judgeLabel": "POSITIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_READER_WITNESS",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2305.630399999998,
+      "costUsd": 0.000954,
+      "requestHash": "3ceb619a9bdd1b5371711e5ede27bed29e8905f151286a8cb008f0ea6431a027",
+      "generationIds": [
+        "gen-1792399367-GfsYcXrEtjVNdif1BYWe"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T21",
+      "judgeLabel": "POSITIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INVALID_READER_WITNESS",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2256.9017999999996,
+      "costUsd": 0.0009048,
+      "requestHash": "c958d9f08eb1ddb94f972b2d4775b05f86bf9da358338e1838803e5978e42192",
+      "generationIds": [
+        "gen-1792399373-ZHtlHzD5T6PPQ6BijCeR"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T03",
+      "judgeLabel": "NEGATIVE",
+      "decision": "REJECT",
+      "reasons": [
+        "CLAIM_NOT_ENTAILED",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2924.994200000001,
+      "costUsd": 0.001156,
+      "requestHash": "54a95f40881d66a1f0688cadda09a0979fa2347431013260ebbfc626f8b39636",
+      "generationIds": [
+        "gen-1792399378-Rmw6hFmquJYll8JMkVau"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T04",
+      "judgeLabel": "NEGATIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "INCOMPLETE_NOVELTY_VERDICT",
+        "CLAIM_NOT_ENTAILED",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2230.3139999999985,
+      "costUsd": 0.0009124,
+      "requestHash": "8168228b635b2c6147e3c85e0bb19126c64af795b0b2f9a9081c2ed6652ffe63",
+      "generationIds": [
+        "gen-1792399383-mt7pCUUCrdhSG0Vmy7DH"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T06",
+      "judgeLabel": "NEGATIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "FACT_VERDICT_CONFLICT",
+        "INCOMPLETE_NOVELTY_VERDICT",
+        "CLAIM_NOT_ENTAILED",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2791.2888999999996,
+      "costUsd": 0.0008644,
+      "requestHash": "5757ef242a2c62b1b9eba05c5ed8a49a67acacba954d8199d4cf11e21ca1b815",
+      "generationIds": [
+        "gen-1792399388-p94GCmNMUm8MfyseLwh9"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T08",
+      "judgeLabel": "NEGATIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "INCOMPLETE_NOVELTY_VERDICT",
+        "INVALID_READER_WITNESS",
+        "CLAIM_NOT_ENTAILED",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2675.367099999996,
+      "costUsd": 0.001122,
+      "requestHash": "a7bf887772abd8967cda0d129f4e75ef456ea71842a44a078d46ef266e4ceb7b",
+      "generationIds": [
+        "gen-1792399394-niPR6buXXVBmmjziRXHq"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T16",
+      "judgeLabel": "NEGATIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "INCOMPLETE_NOVELTY_VERDICT",
+        "CLAIM_NOT_ENTAILED",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2127.295100000003,
+      "costUsd": 0.0008904,
+      "requestHash": "92df980121ec1c95bed322eebe8a21ba3c78658f0cc0848c568d18de14f50f97",
+      "generationIds": [
+        "gen-1792399401-0OTuSHl0StZF6Z5KrRkT"
+      ],
+      "settled": true
+    },
+    {
+      "id": "T24",
+      "judgeLabel": "NEGATIVE",
+      "decision": "UNRESOLVED",
+      "reasons": [
+        "INCOMPLETE_NOVELTY_VERDICT",
+        "CLAIM_NOT_ENTAILED",
+        "MISSING_MANDATORY_COVERAGE"
+      ],
+      "wallMs": 2195.804700000008,
+      "costUsd": 0.0009028,
+      "requestHash": "4bea35841c15cf6805c07d5b461540517a4b27dae55e202f78439a090c7266ee",
+      "generationIds": [
+        "gen-1792399406-sWQKP6l3e8m6QFLFNKhn"
+      ],
+      "settled": true
+    }
+  ],
+  "limitations": [
+    "Same 12 audit-exposed controls, not a fresh representative holdout.",
+    "Blinded judge labels agree with prior AI-assisted labels, not independent human gold.",
+    "Only one of three requested judge models is permitted by existing immutable grant.",
+    "Provider response decoded verdict and usage receipts retained; raw wire reader coordinates not retained by this harness. Invalid-witness subtype cannot be reconstructed.",
+    "No retries, repairs, deployment or staging publication."
+  ],
+  "blindingLimitation": "Judge saw no old labels or verifier outputs; outer X IDs shuffled, but original T-case source evidence handles remained. Partially anonymized, same-family AI review."
+}

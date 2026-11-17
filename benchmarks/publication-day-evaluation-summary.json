@@ -1,0 +1,29 @@
+{
+  "labels": "AI_ASSISTED_PREVIOUSLY_REVIEWED_CONTROLS_NOT_INDEPENDENT_HUMAN",
+  "newProviderCalls": 2,
+  "v4CostUsd": 0.0056656,
+  "v5CostUsd": 0.0053996,
+  "totalNewEvaluationCostUsd": 0.0110652,
+  "newOperationsSettled": 2,
+  "newUnknownOperations": 0,
+  "currentContract": "approved-propositions-reader-anchor-v5",
+  "correctAcceptances": 6,
+  "correctRejections": 4,
+  "falseAcceptances": 0,
+  "falseRejections": 0,
+  "unresolvedPositives": 0,
+  "unresolvedNegatives": 2,
+  "v5BatchWallMs": 16068.166700000002,
+  "batchSamples": 1,
+  "v5P95Ms": null,
+  "prior12SeparateCalls": {
+    "costUsd": 0.0114568,
+    "sumCompletionWallMs": 28703.535000000003,
+    "correctAcceptances": 1,
+    "correctRejections": 1,
+    "unresolved": 10
+  },
+  "costReductionVsPrior12Calls": 0.5286991131904196,
+  "completionReductionVsPriorSerialCalls": 0.44020251512575015,
+  "comparisonCaveat": "Same controls; prompts and anchoring policy changed as well as batching. Cannot isolate batching alone. Excludes reservations/settlement from inference wall, which are separately recorded in test process logs."
+}

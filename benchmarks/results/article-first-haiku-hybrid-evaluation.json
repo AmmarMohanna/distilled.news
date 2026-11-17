@@ -1,0 +1,435 @@
+{
+  "corpusHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+  "authorization": {
+    "maxAdditionalCalls": 16,
+    "maxAdditionalActualUsd": 0.16,
+    "originalTaskCeilingUsd": 1,
+    "sendDeadline": "2026-10-21T19:56:00.000Z",
+    "exposureAmendment": {
+      "id": "article-first-one-medium-writer-user-approved-20261021",
+      "authorizationId": "v2-model-comparison:article-first-completion-20261021:authority",
+      "accountId": "openrouter-distilled-news-staging",
+      "sequence": 1,
+      "previousMaxExposureUsd": 7.0268524892999995,
+      "maxExposureUsd": 7.1618128893,
+      "approvedBy": "account-owner",
+      "approvalId": "USER_EXPLICIT_HAIKU_AND_HYBRID_16_CALLS_016_USD_20261021",
+      "createdAt": "2026-10-21T19:14:14.525Z"
+    },
+    "historicalFinancialHashesUnchanged": {
+      "grants": "d84f93862250e0db457227b91866e3eaef8b1ac3e814a78811e625d816cd90b2",
+      "reservations": "e2b7224789bc901e62f3ddfd052864097c64ec529a1f7d061ffc08cd3dfddde4",
+      "settlements": "b49d9ea6249322badffd63e2b764451e8a4c7191b2206beb86ee53efb66a63ea",
+      "settings": "fd799f02a91bf93ca5d0a982e79c564700bb60df5f2b5aed84ce3d145fb8334c"
+    }
+  },
+  "trials": [
+    {
+      "arm": "Y",
+      "configuration": "Luna understanding/planning; Haiku low writing/repair; Luna medium verification",
+      "status": "FAILED",
+      "error": "KNOWN_SYNTHESIS_FAILURE:SEMANTIC_PROVIDER_FAILURE",
+      "wallMs": 128762.18230000001,
+      "persistedEditions": 0,
+      "operatorAssistedRecovery": false,
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 33.58400000000074,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 13845.814600000002,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 2162.6093,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 16235.595700000002,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 11595.437300000001,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 2724.1066999999966,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 14503.136700000003,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 8485.1512,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 1691.9228000000003,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 10412.205299999994,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "SHORTLIST",
+          "wallMs": 1272.216100000005,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "EDITORIAL_SELECTION",
+          "wallMs": 34522.4633,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "SCORING",
+          "wallMs": 2139.239600000001,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "WRITING",
+          "wallMs": 45053.33799999999,
+          "status": "FAILED",
+          "error": "MODEL_OUTPUT_CONTINUATION_REQUIRED"
+        },
+        {
+          "name": "WRITE_VERIFY_LOCAL_COMMIT",
+          "wallMs": 49250.08649999999,
+          "status": "FAILED",
+          "error": "KNOWN_SYNTHESIS_FAILURE:SEMANTIC_PROVIDER_FAILURE"
+        },
+        {
+          "name": "BRIEFING_EXCLUSIVE_TURN",
+          "wallMs": 87319.56270000001,
+          "status": "FAILED",
+          "error": "KNOWN_SYNTHESIS_FAILURE:SEMANTIC_PROVIDER_FAILURE"
+        }
+      ],
+      "database": {
+        "reads": 538,
+        "writes": 431
+      },
+      "calls": [
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "model": "openai/gpt-6-luna",
+          "effort": "low",
+          "costUsd": 0.00145105,
+          "wallMs": 10378.229400000002,
+          "inputTokens": 8817,
+          "outputTokens": 698,
+          "error": null
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "model": "openai/gpt-6-luna",
+          "effort": "low",
+          "costUsd": 0.00139555,
+          "wallMs": 8228.334200000001,
+          "inputTokens": 8857,
+          "outputTokens": 577,
+          "error": null
+        },
+        {
+          "phase": "SYNTHESIS",
+          "model": "anthropic/claude-haiku-5.5",
+          "effort": "low",
+          "costUsd": 0.0058714,
+          "wallMs": 43041.9026,
+          "inputTokens": 17754,
+          "outputTokens": 8192,
+          "error": "MODEL_OUTPUT_CONTINUATION_REQUIRED"
+        },
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "model": "openai/gpt-6-luna",
+          "effort": "low",
+          "costUsd": 0.003985675,
+          "wallMs": 30040.02829999999,
+          "inputTokens": 18414,
+          "outputTokens": 3368,
+          "error": null
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "model": "openai/gpt-6-luna",
+          "effort": "low",
+          "costUsd": 0.00113055,
+          "wallMs": 4955.095300000001,
+          "inputTokens": 8481,
+          "outputTokens": 141,
+          "error": null
+        }
+      ],
+      "actualCostUsd": 0.013834225,
+      "callCount": 5,
+      "validation": [],
+      "independentReview": "NO_READER_TEXT: output exhausted before a complete draft; no factual quality verdict possible"
+    },
+    {
+      "arm": "Z",
+      "configuration": "DeepSeek Flash thinking disabled; Luna low identity; GPT4.1mini planning; Haiku low writing/repair; Luna medium verification",
+      "status": "FAILED",
+      "error": "INVALID_REQUEST",
+      "wallMs": 316034.33030000003,
+      "persistedEditions": 0,
+      "operatorAssistedRecovery": false,
+      "stages": [
+        {
+          "name": "EXISTING_EDITION_LOOKUP",
+          "wallMs": 43.667199999999866,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 14406.6995,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 4388.7837,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-1\",\"\"]",
+          "wallMs": 19033.862499999996,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 87948.8766,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 5900.933599999989,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-2\",\"\"]",
+          "wallMs": 94077.72469999999,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_SEMANTIC:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 37644.25559999999,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "CANONICAL_COMMIT:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 1913.9168000000063,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "ARTICLE_LEASE:[\"REASSESS\",\"observation-3\",\"\"]",
+          "wallMs": 39881.97790000001,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "SHORTLIST",
+          "wallMs": 1256.7479000000167,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "EDITORIAL_SELECTION",
+          "wallMs": 60231.5497,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "SCORING",
+          "wallMs": 5898.185300000012,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "WRITING",
+          "wallMs": 15731.944799999997,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "WRITER_REPAIR",
+          "wallMs": 20659.88579999999,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "FACTUAL_VERIFICATION",
+          "wallMs": 43615.90659999999,
+          "status": "SUCCEEDED"
+        },
+        {
+          "name": "WRITE_VERIFY_LOCAL_COMMIT",
+          "wallMs": 95151.76399999997,
+          "status": "FAILED",
+          "error": "INVALID_REQUEST"
+        },
+        {
+          "name": "BRIEFING_EXCLUSIVE_TURN",
+          "wallMs": 162645.9198,
+          "status": "FAILED",
+          "error": "INVALID_REQUEST"
+        }
+      ],
+      "database": {
+        "reads": 1043,
+        "writes": 715
+      },
+      "calls": [
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "effort": "DISABLED",
+          "costUsd": 0.0005996046,
+          "wallMs": 15409.089599999992,
+          "inputTokens": 11340,
+          "outputTokens": 875,
+          "error": null
+        },
+        {
+          "phase": "GROUNDING",
+          "model": "openai/gpt-6-luna",
+          "effort": "medium",
+          "costUsd": 0.0049988,
+          "wallMs": 38699.95199999999,
+          "inputTokens": 20183,
+          "outputTokens": 4952,
+          "error": null
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "effort": "DISABLED",
+          "costUsd": 0.00051894456,
+          "wallMs": 8634.306999999997,
+          "inputTokens": 10524,
+          "outputTokens": 712,
+          "error": null
+        },
+        {
+          "phase": "SEMANTIC_EVENT_IDENTITY_REVIEW",
+          "model": "openai/gpt-6-luna",
+          "effort": "low",
+          "costUsd": 0.0032553,
+          "wallMs": 16570.512099999993,
+          "inputTokens": 21551,
+          "outputTokens": 1123,
+          "error": null
+        },
+        {
+          "phase": "REPAIR",
+          "model": "anthropic/claude-haiku-5.5",
+          "effort": "low",
+          "costUsd": 0.002973,
+          "wallMs": 13790.701900000044,
+          "inputTokens": 14660,
+          "outputTokens": 3014,
+          "error": null
+        },
+        {
+          "phase": "SYNTHESIS",
+          "model": "anthropic/claude-haiku-5.5",
+          "effort": "low",
+          "costUsd": 0.002259,
+          "wallMs": 11374.023000000016,
+          "inputTokens": 12560,
+          "outputTokens": 2006,
+          "error": null
+        },
+        {
+          "phase": "COMPARATIVE_EDITORIAL_PLAN",
+          "model": "openai/gpt-4.1-mini",
+          "effort": "PROVIDER_DEFAULT",
+          "costUsd": 0.0206732,
+          "wallMs": 44437.3131,
+          "inputTokens": 31855,
+          "outputTokens": 4957,
+          "error": null
+        },
+        {
+          "phase": "SEMANTIC_CONSTRUCTION",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "effort": "DISABLED",
+          "costUsd": 0.00034425606,
+          "wallMs": 11475.116000000009,
+          "inputTokens": 11999,
+          "outputTokens": 152,
+          "error": null
+        }
+      ],
+      "actualCostUsd": 0.03562210522,
+      "callCount": 8,
+      "validation": [
+        {
+          "status": "REJECT",
+          "reasons": [
+            "CLAIM_NOT_ENTAILED"
+          ]
+        }
+      ],
+      "independentReview": "FAILED: necessary insider counterclaim omitted, original-publication date conflict, Laplace over-fragmentation/repetition and missing central corner-case-agent detail"
+    }
+  ],
+  "additionalCalls": 13,
+  "additionalActualUsd": 0.04945633022,
+  "winner": "NO_QUALIFIED_WINNER",
+  "limitations": [
+    "One trial per configuration, same saved articles but independently generated plans; not a controlled writer-only model ranking",
+    "No medium-reasoning Luna writer trial executed",
+    "No deployment, notifications, live acquisition or scheduling measurement",
+    "Structured output and persistence alone do not establish factual accuracy"
+  ],
+  "finalLedger": {
+    "at": "2026-10-21T19:50:12.440Z",
+    "scope": {
+      "calls": 89,
+      "actualUsd": 0.88716521522,
+      "unsettled": 0
+    },
+    "additionalCalls": 13,
+    "additionalActualUsd": 0.049456330220000067,
+    "limits": {
+      "calls": 16,
+      "usd": 0.16,
+      "taskUsd": 1
+    },
+    "oldUnsettledHolds": {
+      "count": 54,
+      "usd": 6.0268524892999995
+    },
+    "amendments": [
+      {
+        "id": "article-first-one-medium-writer-user-approved-20261021",
+        "authorizationId": "v2-model-comparison:article-first-completion-20261021:authority",
+        "accountId": "openrouter-distilled-news-staging",
+        "sequence": 1,
+        "previousMaxExposureUsd": 7.0268524892999995,
+        "maxExposureUsd": 7.1618128893,
+        "approvedBy": "account-owner",
+        "approvalId": "USER_EXPLICIT_HAIKU_AND_HYBRID_16_CALLS_016_USD_20261021",
+        "createdAt": "2026-10-21T19:14:14.525Z"
+      }
+    ]
+  },
+  "haikuOutputFailure": {
+    "completedDraft": false,
+    "reasoningTokens": 8192,
+    "finishReason": "length",
+    "completionTokens": 8192
+  },
+  "hybridIdentityFindings": {
+    "lunaVerdict": "Rejected all ten foreign storyline links before canonical mutation",
+    "intraArticleFragmentationRemains": true,
+    "sameEventMergeObserved": false,
+    "deepseekProposal": "Ten Replit NEW_EVENT_EXISTING_STORYLINE links to Laplace storyline"
+  }
+}

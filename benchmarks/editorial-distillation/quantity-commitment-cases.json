@@ -1,0 +1,310 @@
+{
+  "schemaVersion": 1,
+  "sourceCorpus": {
+    "path": "benchmarks/editorial-distillation/corpus.json",
+    "sha256": "e12c91d69c7bc9696379c7c5580107e35a3bf349c4347e9219cbbb3baf681e63"
+  },
+  "retainedSources": [
+    {
+      "id": "public-benefit-fund",
+      "sha256": "ecf0e5a32a867459ffa2f576e1af2d2f63d853092f8eacf6b0e73e3f77435683"
+    },
+    {
+      "id": "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+      "sha256": "f23f9f04cd9bfb4c104e1b5c21849bf0ce84f742612fa881e1795d752a4c3728"
+    }
+  ],
+  "syntheticSources": [
+    {
+      "id": "synthetic-range",
+      "source": "Synthetic isolated regression fixture",
+      "publishedAt": "2026-10-18T00:00:00Z",
+      "text": "The fictional foundation may contribute up to 5% of its shares, subject to board approval."
+    },
+    {
+      "id": "synthetic-completed",
+      "source": "Synthetic isolated regression fixture",
+      "publishedAt": "2026-10-18T00:00:00Z",
+      "text": "The fictional foundation transferred 5% of its shares on October 17. The transfer is complete."
+    },
+    {
+      "id": "synthetic-fixed",
+      "source": "Synthetic isolated regression fixture",
+      "publishedAt": "2026-10-18T00:00:00Z",
+      "text": "The fictional foundation will transfer exactly 5% of its shares if its board approves."
+    }
+  ],
+  "cases": [
+    {
+      "id": "retained-v6-up-to",
+      "language": "en",
+      "headline": "Anthropic to commit up to 5% of shares to new Public Benefit Fund, with potential for more as company grows",
+      "body": "Anthropic will allocate 5% of its shares to a newly created Public Benefit Fund, subject to stockholder approval, with an additional 2% to be added for every 50% increase in company value above a set baseline at the board's discretion. The fund, structured as a wholly-owned LLC, is intended to support projects for societal good, including large donations to nonprofits or direct distributions. None of the equity will be used for lobbying or political giving. Combined with prior commitments from founders and employees, roughly 20% of Anthropic shares will be dedicated to public benefit, with the possibility of further increases tied to company growth. Details on the fund's governance and structure will be released in the coming months.",
+      "expectedVerdict": "fix",
+      "labelReason": "Approval conditions a fixed 5% allocation; it does not establish a discretionary range.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "retained-v4-now-completed",
+      "language": "en",
+      "headline": "Anthropic to commit 5% of shares to new Public Benefit Fund, with potential for more as company grows",
+      "body": "Anthropic announced the creation of the Anthropic Public Benefit Fund, a wholly-owned LLC that will receive 5% of the company's shares, subject to stockholder approval. The fund's stake may increase by 2% for every 50% rise in Anthropic's value above a set baseline, at the board's discretion. The fund is intended to support projects for societal good, including large donations or direct distributions, and will not be used for lobbying or political giving. Combined with prior commitments, about 20% of Anthropic shares are now dedicated to public benefit, with further increases possible if valuation milestones are met. Details on the fund's structure and governance will be shared in the coming months.",
+      "expectedVerdict": "fix",
+      "labelReason": "Future combined commitments are not established as completed now.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "This builds on commitments our co-founders and employees have already made. When Anthropic was founded, our co-founders pledged to donate 80% of their equity holdings, and since founding we have also operated an equity donation match program that allows employees to pledge equity which Anthropic matches. Approximately half of our employees participate in this program. When combined with today’s announcement, roughly 20% of Anthropic shares will be dedicated to the public good, plus any additional percentage that could be added if the company reaches specific valuation milestones."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "concise-fixed-conditional",
+      "language": "en",
+      "headline": "Anthropic proposes a 5% share commitment to its Public Benefit Fund",
+      "body": "The commitment is subject to stockholder approval.",
+      "expectedVerdict": "ok",
+      "labelReason": "Concise main idea retains the fixed amount and approval condition.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "headline-only-conditional",
+      "language": "en",
+      "headline": "Anthropic will commit 5% of its shares to a benefit fund if stockholders approve",
+      "body": "",
+      "expectedVerdict": "ok",
+      "labelReason": "A complete conditional headline does not require optional background.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "future-combined",
+      "language": "en",
+      "headline": "Roughly 20% of Anthropic shares will be dedicated to public benefit if the new plan is approved",
+      "body": "",
+      "expectedVerdict": "ok",
+      "labelReason": "Future/conditional total preserves existing pledges and approval dependence.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "This builds on commitments our co-founders and employees have already made. When Anthropic was founded, our co-founders pledged to donate 80% of their equity holdings, and since founding we have also operated an equity donation match program that allows employees to pledge equity which Anthropic matches. Approximately half of our employees participate in this program. When combined with today’s announcement, roughly 20% of Anthropic shares will be dedicated to the public good, plus any additional percentage that could be added if the company reaches specific valuation milestones."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "announcement-versus-execution",
+      "language": "en",
+      "headline": "Anthropic has announced a proposed 5% share commitment",
+      "body": "Stockholder approval is required.",
+      "expectedVerdict": "ok",
+      "labelReason": "The announcement already occurred; the proposed allocation is still conditional.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "existing-pledges",
+      "language": "en",
+      "headline": "Anthropic founders and employees already pledged equity before the new fund proposal",
+      "body": "",
+      "expectedVerdict": "ok",
+      "labelReason": "Past pledges must not be rejected merely because the new allocation is conditional.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "This builds on commitments our co-founders and employees have already made. When Anthropic was founded, our co-founders pledged to donate 80% of their equity holdings, and since founding we have also operated an equity donation match program that allows employees to pledge equity which Anthropic matches. Approximately half of our employees participate in this program. When combined with today’s announcement, roughly 20% of Anthropic shares will be dedicated to the public good, plus any additional percentage that could be added if the company reaches specific valuation milestones."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "arabic-fixed-conditional",
+      "language": "ar",
+      "headline": "أنثروبيك تقترح تخصيص 5% من أسهمها لصندوق منفعة عامة",
+      "body": "يبقى التخصيص مشروطاً بموافقة المساهمين.",
+      "expectedVerdict": "ok",
+      "labelReason": "Natural Arabic preserves amount and approval rather than literal translation.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "arabic-future-combined",
+      "language": "ar",
+      "headline": "نحو 20% من أسهم أنثروبيك ستُخصص للمنفعة العامة مع الالتزامات السابقة إذا أُقر المقترح الجديد",
+      "body": "",
+      "expectedVerdict": "ok",
+      "labelReason": "Future conditional Arabic, not a completed transfer.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "This builds on commitments our co-founders and employees have already made. When Anthropic was founded, our co-founders pledged to donate 80% of their equity holdings, and since founding we have also operated an equity donation match program that allows employees to pledge equity which Anthropic matches. Approximately half of our employees participate in this program. When combined with today’s announcement, roughly 20% of Anthropic shares will be dedicated to the public good, plus any additional percentage that could be added if the company reaches specific valuation milestones."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "ambiguous-committed-pledge",
+      "language": "en",
+      "headline": "Anthropic committed 5% of its shares to a benefit fund",
+      "body": "The allocation is subject to stockholder approval.",
+      "expectedVerdict": null,
+      "labelReason": "Committed can mean announcing a pledge rather than completing transfer; exclude from automatic correct/error rates.",
+      "sourceIds": [
+        "public-benefit-fund",
+        "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+      ],
+      "evidence": [
+        {
+          "sourceId": "public-benefit-fund",
+          "quote": "Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "valid-up-to",
+      "language": "en",
+      "headline": "The foundation may contribute up to 5% of its shares if the board approves",
+      "body": "",
+      "expectedVerdict": "ok",
+      "labelReason": "Source itself specifies an upper bound.",
+      "sourceIds": [
+        "synthetic-range"
+      ],
+      "evidence": [
+        {
+          "sourceId": "synthetic-range",
+          "quote": "The fictional foundation may contribute up to 5% of its shares, subject to board approval."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "valid-completed",
+      "language": "en",
+      "headline": "The foundation has transferred 5% of its shares",
+      "body": "",
+      "expectedVerdict": "ok",
+      "labelReason": "Completed action is explicitly supported; do not mechanically reject past tense.",
+      "sourceIds": [
+        "synthetic-completed"
+      ],
+      "evidence": [
+        {
+          "sourceId": "synthetic-completed",
+          "quote": "The fictional foundation transferred 5% of its shares on October 17. The transfer is complete."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "invalid-up-to-fixed",
+      "language": "en",
+      "headline": "The foundation will transfer up to 5% of its shares if the board approves",
+      "body": "",
+      "expectedVerdict": "fix",
+      "labelReason": "Source specifies exactly 5%, not a variable upper bound.",
+      "sourceIds": [
+        "synthetic-fixed"
+      ],
+      "evidence": [
+        {
+          "sourceId": "synthetic-fixed",
+          "quote": "The fictional foundation will transfer exactly 5% of its shares if its board approves."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    },
+    {
+      "id": "invalid-future-completed",
+      "language": "en",
+      "headline": "The foundation has transferred 5% of its shares",
+      "body": "",
+      "expectedVerdict": "fix",
+      "labelReason": "Source describes an approval-dependent future transfer.",
+      "sourceIds": [
+        "synthetic-fixed"
+      ],
+      "evidence": [
+        {
+          "sourceId": "synthetic-fixed",
+          "quote": "The fictional foundation will transfer exactly 5% of its shares if its board approves."
+        }
+      ],
+      "labelAuthority": "Provisional engineering evidence review, not human gold"
+    }
+  ],
+  "recordedBaselineEvidence": {
+    "file": "benchmarks/editorial-distillation/v6-results-2026-11-03.json",
+    "finding": "The real multi-item V4 and V6 product verifiers returned ok for the two retained errors; newly isolated case requests below have not run."
+  },
+  "limitations": [
+    "Provisional AI-assisted labels, not human gold.",
+    "Ten retained-source cases including one ambiguous control; four synthetic controls are not real-world quality evidence.",
+    "No candidate-verifier semantic reliability or false-positive rate is established offline."
+  ]
+}

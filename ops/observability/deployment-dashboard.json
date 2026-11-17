@@ -1,0 +1,11 @@
+{
+ "uid":"distilled-deployment-health","title":"Distilled.news — deployment-wide operations","schemaVersion":39,"version":1,"refresh":"1m","timezone":"browser","tags":["distilled","staging"],"time":{"from":"now-6h","to":"now"},
+ "description":"All-feed operational aggregates. Retained failures are counts, not failure rates. Model execution occupancy excludes isolated unknown charges. No source or user identifiers are exported.",
+ "panels":[
+  {"id":1,"title":"Observer age (seconds)","type":"stat","gridPos":{"x":0,"y":0,"w":8,"h":5},"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"targets":[{"refId":"A","expr":"time() - last_over_time(distilled_projection_timestamp_seconds{job=\"distilled-snapshot\"}[20m])","instant":true}]},
+  {"id":2,"title":"Overdue briefing windows — all feeds","type":"timeseries","gridPos":{"x":8,"y":0,"w":8,"h":7},"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"targets":[{"refId":"A","expr":"last_over_time(distilled_deployment_pending_briefings[20m])"}]},
+  {"id":3,"title":"Oldest pending delivery delay (seconds)","type":"timeseries","gridPos":{"x":16,"y":0,"w":8,"h":7},"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"targets":[{"refId":"A","expr":"last_over_time(distilled_deployment_oldest_pending_age_seconds[20m])"}]},
+  {"id":4,"title":"Active model calls / expired local leases","type":"timeseries","gridPos":{"x":0,"y":7,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"targets":[{"refId":"A","expr":"last_over_time(distilled_deployment_active_model_calls[20m])","legendFormat":"Active execution occupancy"},{"refId":"B","expr":"last_over_time(distilled_deployment_expired_model_leases[20m])","legendFormat":"Expired leases (termination unproven)"}]},
+  {"id":5,"title":"Retained failed windows — not a failure rate","type":"timeseries","gridPos":{"x":12,"y":7,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"targets":[{"refId":"A","expr":"last_over_time(distilled_deployment_failed_briefings[20m])"}]}
+ ]
+}

@@ -1,0 +1,43 @@
+{
+  "reviewType": "Independent AI-assisted offline actual-reader review",
+  "overall": "PASS_WITH_MINOR_PRECISION_CAVEATS",
+  "c1": {
+    "verdict": "PASS",
+    "calls": 2,
+    "strengths": [
+      "One sanctions story combines waiver and attributed Rubio60-day explanation.",
+      "Separate Lutsk closure story preserves attacker/location and distinguishes historicalOct14 casualty incident from Oct16 plant attack.",
+      "No requirement to enumerate every political reaction or automaker."
+    ],
+    "caveats": [
+      "Lutsk5500workers is May2025headcount, presented as current; minor historicalprecision.",
+      "Until further notice is reasonable paraphrase of no reopening estimate and promise to notify employees."
+    ]
+  },
+  "c2": {
+    "verdict": "PASS",
+    "calls": 4,
+    "strengths": [
+      "Does not reannounce the already delivered sanctions waiver or60-day explanation from later Guardian coverage.",
+      "Reports genuinely distinct StPetersburg incident with monitoring/eyewitness attribution, governor57interceptionclaim and explicit lack of independent target/damage verification.",
+      "Moscow195interceptions remain attributed to mayor and separate from StPetersburg57; airportclosures attributed.",
+      "Romania shootdown remains a separate attributed fact within militaryroundup, not misassigned to either city."
+    ],
+    "optionalOmissions": "Additional diplomatic meeting proposals and politician quotations may be useful but are not mandatory in this concise follow-up.",
+    "caveats": [
+      "Saturday is source-relative rather than explicitOct17; no clear temporal misstatement in window context."
+    ]
+  },
+  "c3": {
+    "verdict": "PASS_QUIET_ZERO_CALLS",
+    "inputArticles": 0,
+    "responseStatus": 200,
+    "state": "DONE",
+    "result": "QUIET",
+    "reason": "NO_SELECTED_DEVELOPMENTS",
+    "retainedResultStatus": "empty",
+    "retainedUsageCalls": 0,
+    "evidence": "stage-c3-response.json and matching v3_window_results in staging-operation-records.json"
+  },
+  "limits": "Single retained sequence, not general deduplication certification. No paid calls/network or product edits during review."
+}

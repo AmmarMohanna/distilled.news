@@ -1,0 +1,45 @@
+{
+  "editionId": "c69e0cf39857078c956ff0e595d46057ff6903263336cfa4de1d00640c373e71",
+  "claim": "Bodycam footage reveals that a police officer discovered a gun in Mangione's backpack several days after the killing of UnitedHealthcare CEO Brian Thompson.",
+  "fact": {
+    "id": "bb0117ece667305a9c26edad7605eb6054c3d582b765821b01adbfb34cef9c45",
+    "propositionId": "bb0117ece667305a9c26edad7605eb6054c3d582b765821b01adbfb34cef9c45",
+    "text": "The bodycam footage also shows a police officer finding a gun in Mangione's backpack, days after the killing of UnitedHealthcare CEO Brian Thompson.",
+    "evidenceRevisionIds": [
+      "ed1b5743-896b-4738-a309-a7e14124cf53"
+    ],
+    "claimMentionIds": [
+      "8b172d4b0c4329f38710737caaa0cff9929d5298e75ac4dccf95167e9dc5ea86"
+    ],
+    "certainty": {
+      "kind": "UNSPECIFIED",
+      "hedges": []
+    },
+    "reportTime": "2026-10-02T20:37:34.000Z",
+    "timing": {
+      "sourcePublishedAt": "2026-10-02T20:37:34.000Z",
+      "reportTime": "2026-10-02T20:37:34.000Z",
+      "firstSeenByFeedAt": "2026-10-06T16:52:43.508Z",
+      "observedAt": "2026-10-06T16:52:43.508Z",
+      "framingRequired": true
+    },
+    "selfContained": "YES"
+  },
+  "semanticChecks": [
+    {
+      "factId": "bb0117ece667305a9c26edad7605eb6054c3d582b765821b01adbfb34cef9c45",
+      "communicated": true,
+      "attribution": true,
+      "certainty": true,
+      "temporal": true,
+      "qualifiers": true,
+      "reason": "The reader claim text accurately paraphrases the fact, preserving all key details including the discovery of a gun in Mangione's backpack by a police officer, the timing as several days after the killing, and the identity of the victim as UnitedHealthcare CEO Brian Thompson. There is no addition, omission, or distortion of meaning, and all facets such as attribution, certainty, temporal framing, and qualifiers are preserved or not applicable.",
+      "readerSpans": [
+        {
+          "claimId": "f674e098ea9954c7d29387366dd72721cdc569a095685cb7886a93345ef608f8",
+          "text": "Bodycam footage reveals that a police officer discovered a gun in Mangione's backpack several days after the killing of UnitedHealthcare CEO Brian Thompson."
+        }
+      ]
+    }
+  ]
+}

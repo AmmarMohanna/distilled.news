@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "pipeline-trace-v1",
+  "feed": {
+    "id": "synthetic-0"
+  },
+  "window": {
+    "start": "2026-10-29T00:00:00Z",
+    "end": "2026-10-29T01:00:00Z"
+  },
+  "view": "operations",
+  "items": [
+    {
+      "id": "synthetic-paid-success",
+      "recordKind": "semantic_intents",
+      "phase": "EDITOR",
+      "accountSettlementState": "SETTLED",
+      "reportedCostUsd": 0.01,
+      "providerReportedCostUsd": 0.01,
+      "reservedExposureUsd": 0.05,
+      "heldExposureUsd": 0,
+      "calls": 1,
+      "tokensIn": 100,
+      "tokensOut": 20,
+      "latencyMs": 100,
+      "repairOperationIds": []
+    },
+    {
+      "id": "synthetic-paid-unknown",
+      "recordKind": "semantic_intents",
+      "phase": "VERIFIER",
+      "accountSettlementState": "UNSETTLED",
+      "reportedCostUsd": null,
+      "providerReportedCostUsd": null,
+      "reservedExposureUsd": 0.05,
+      "heldExposureUsd": 0.05,
+      "calls": 1,
+      "tokensIn": null,
+      "tokensOut": null,
+      "latencyMs": 200,
+      "failure": "SEMANTIC_PROVIDER_FAILURE",
+      "repairOperationIds": []
+    }
+  ],
+  "page": {
+    "total": 2,
+    "nextCursor": null
+  }
+}

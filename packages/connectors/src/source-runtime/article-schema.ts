@@ -1,0 +1,48 @@
+/** Explicit schema.org article types used by news publishers. */
+export function isArticleSchemaType(type:unknown):boolean {
+ return typeof type==='string'&&/^(?:https?:\/\/schema.org\/)?(?:Article|NewsArticle|BlogPosting|ReportageNewsArticle|OpinionNewsArticle|AnalysisNewsArticle|BackgroundNewsArticle|ReviewNewsArticle|ScholarlyArticle|MedicalScholarlyArticle)$/.test(type);
+}
+
+/** UEFA retains a complete CMS article ID while updating its headline slug.
+ * Preserve the competition, full ID, origin and meaningful query parameters. */
+function normalizePublisherArticlePath(url:URL):void {
+ if(url.protocol!=='https:'||url.hostname!=='www.uefa.com')return;
+ const article=/^\/([a-z0-9-]+)\/news\/([a-f0-9]{4}-[a-f0-9]{12}-[a-f0-9]{12}-[a-f0-9]{4})--[^/]+\/?$/.exec(url.pathname);
+ if(article)url.pathname=`/${article[1]}/news/${article[2]}`;
+}
+/** Ignore transport tracking and proven publisher slug aliases only. */
+export function sameArticleUrl(left:string,right:string):boolean {
+ const normalize=(value:string)=>{
+  const url=new URL(value);if(url.username||url.password||!['https:','http:'].includes(url.protocol))throw Error('INVALID_ARTICLE_URL');
+  url.hash='';
+  const bbc=['bbc.co.uk','www.bbc.co.uk','bbc.com','www.bbc.com'].includes(url.hostname);
+  // Combine BBC's proven aliases with other publishers' explicit RSS referral
+  // pairs and xtor campaign tags. Unknown at_* keys/values can identify content:
+  // never discard those merely because their names resemble analytics fields.
+  // Comparison does not rewrite retained URLs or paid operation identities.
+  const rssAttribution=[...url.searchParams].some(([key,value])=>key.toLowerCase()==='at_medium'&&/^(?:rss|feed)$/i.test(value));
+  for(const key of [...url.searchParams.keys()])if(/^utm_/i.test(key)||['fbclid','gclid','mc_cid','mc_eid','igshid','traffic_source','xtor'].includes(key.toLowerCase())||(bbc&&['at_medium','at_campaign','at_link_type'].includes(key.toLowerCase()))||(rssAttribution&&['at_medium','at_campaign'].includes(key.toLowerCase())))url.searchParams.delete(key);
+  normalizePublisherArticlePath(url);
+  return url.href;
+ };
+ try{
+  const a=normalize(left),b=normalize(right);if(a===b)return true;
+  // UEFA's aggregate news-media section exposes the same CMS article as a
+  // competition section. Do not generalize this to arbitrary competitions.
+  const u=new URL(a),v=new URL(b),id=/^\/([a-z0-9-]+)\/news\/([a-f0-9]{4}-[a-f0-9]{12}-[a-f0-9]{12}-[a-f0-9]{4})$/;
+  const x=id.exec(u.pathname),y=id.exec(v.pathname);
+  return u.origin==='https://www.uefa.com'&&v.origin===u.origin&&u.search===v.search&&!!x&&!!y&&x[2]===y[2]&&(x[1]==='news-media'||y[1]==='news-media');
+ }catch{return false;}
+}
+
+/** Some publishers use a numeric CMS ID instead of a URL in JSON-LD.
+ * Bind it using both the page canonical and matching primary headline; never
+ * let a related story's numeric ID claim the current page. */
+export function matchesOpaqueArticlePage(item:Record<string,unknown>,url:string,canonical:string|undefined,title:string|undefined):boolean {
+ if(item.url||item.mainEntityOfPage||!/^\d+$/.test(String(item['@id']??''))||!canonical||!title||typeof item.headline!=='string')return false;
+ try{
+  const a=new URL(canonical,url),b=new URL(url);a.hash='';b.hash='';
+  const normalize=(value:string)=>value.replace(/\s+/g,' ').trim();
+  return a.href===b.href&&normalize(item.headline)===normalize(title);
+ }catch{return false;}
+}

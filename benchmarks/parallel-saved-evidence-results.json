@@ -1,0 +1,123 @@
+{
+  "mode": "OFFLINE_SCHEMA_AND_MEMBERSHIP_REPLAY",
+  "paidProviderCalls": 0,
+  "actualProviderCostUsd": 0,
+  "savedSchemaCases": [
+    {
+      "name": "laplace",
+      "originalEnumOccurrences": 2452,
+      "compactedEnumOccurrences": 168,
+      "originalSha256": "8e42169d424f78740ea99799e88b52354dea6b1b6603cfc7b31aadec123bd37e"
+    },
+    {
+      "name": "replit",
+      "originalEnumOccurrences": 1197,
+      "compactedEnumOccurrences": 126,
+      "originalSha256": "68fe7b303bb9ea50445cf7f4a81307f19f42abb28901386d52013131a8667242"
+    }
+  ],
+  "scale": [
+    {
+      "claimMentions": 48,
+      "packetDevelopments": 2,
+      "oldAssignmentOutputBytes": 1635,
+      "newDevelopmentOutputBytes": 244,
+      "newEnumOccurrences": 17,
+      "mechanicalReconstructionMs": 3.1400999999999613,
+      "missingEvidence": 0,
+      "misassignedEvidence": 0,
+      "labels": "Synthetic exact-membership fixture; no model quality claim"
+    },
+    {
+      "claimMentions": 126,
+      "packetDevelopments": 6,
+      "oldAssignmentOutputBytes": 3975,
+      "newDevelopmentOutputBytes": 272,
+      "newEnumOccurrences": 17,
+      "mechanicalReconstructionMs": 0.4880000000000564,
+      "missingEvidence": 0,
+      "misassignedEvidence": 0,
+      "labels": "Synthetic exact-membership fixture; no model quality claim"
+    },
+    {
+      "claimMentions": 1000,
+      "packetDevelopments": 40,
+      "oldAssignmentOutputBytes": 30195,
+      "newDevelopmentOutputBytes": 540,
+      "newEnumOccurrences": 17,
+      "mechanicalReconstructionMs": 1.7364000000000033,
+      "missingEvidence": 0,
+      "misassignedEvidence": 0,
+      "labels": "Synthetic exact-membership fixture; no model quality claim"
+    },
+    {
+      "claimMentions": 2000,
+      "packetDevelopments": 80,
+      "oldAssignmentOutputBytes": 60195,
+      "newDevelopmentOutputBytes": 860,
+      "newEnumOccurrences": 17,
+      "mechanicalReconstructionMs": 5.6562999999999874,
+      "missingEvidence": 0,
+      "misassignedEvidence": 0,
+      "labels": "Synthetic exact-membership fixture; no model quality claim"
+    }
+  ],
+  "savedV2": {
+    "published": true,
+    "contract": "EVIDENCE_GROUNDED_V2",
+    "verdict": "ACCEPT",
+    "reportSha256": "ce5dbf7c275ff8a48287687b36b3115095b46130fcfaa91fc4c86cf00856b087",
+    "artifactChecks": [
+      {
+        "name": "autonomous-20261019-5-evidence.json",
+        "present": true,
+        "hashMatches": true
+      },
+      {
+        "name": "autonomous-20261019-5-traces.json",
+        "present": true,
+        "hashMatches": true
+      },
+      {
+        "name": "autonomous-20261019-5-client-timing.json",
+        "present": true,
+        "hashMatches": true
+      },
+      {
+        "name": "autonomous-20261019-6-evidence.json",
+        "present": true,
+        "hashMatches": true
+      },
+      {
+        "name": "autonomous-20261019-6-traces.json",
+        "present": true,
+        "hashMatches": true
+      },
+      {
+        "name": "autonomous-20261019-6-client-timing.json",
+        "present": true,
+        "hashMatches": true
+      },
+      {
+        "name": "autonomous-20261019-7-evidence.json",
+        "present": true,
+        "hashMatches": true
+      },
+      {
+        "name": "autonomous-20261019-7-traces.json",
+        "present": true,
+        "hashMatches": true
+      },
+      {
+        "name": "autonomous-20261019-7-client-timing.json",
+        "present": true,
+        "hashMatches": true
+      }
+    ]
+  },
+  "limitations": [
+    "Frozen V2 receipts are historical regression evidence, not a new publication.",
+    "Private source artifacts are hash-checked when present and never copied into the feature branch.",
+    "Schema and mechanical replay do not establish new model grouping accuracy, latency or cost."
+  ]
+}

@@ -1,0 +1,164 @@
+[
+  {
+    "id": "C12-01",
+    "scenario": "Identical current content with a newer winning observation",
+    "expected": "No new EvidenceRevision or claim reassessment; current accepted observation/sequence/source-revision metadata advances so an older delayed observation cannot later win.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-02",
+    "scenario": "Content transition A -> B -> A",
+    "expected": "The final A creates a new EvidenceRevision because replay is defined against current content, not any historical hash.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-03",
+    "scenario": "Changed content with reliable older comparable source revision",
+    "expected": "Current newer accepted revision remains current.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-04",
+    "scenario": "Equal reliable comparable source revision with identical current content",
+    "expected": "Replay; no new EvidenceRevision; completion order is irrelevant.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-05",
+    "scenario": "Equal reliable comparable source revision with conflicting content/state",
+    "expected": "QUARANTINED_REVISION_CONFLICT; current canonical state is unchanged; durable authoritative recheck is required.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-06",
+    "scenario": "Equal fallback fetch-start sequence with conflicting content/state",
+    "expected": "QUARANTINED_REVISION_CONFLICT; completion/arrival order cannot choose the winner.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-07",
+    "scenario": "Changed content with no reliable revision on either side",
+    "expected": "Highest successfully accepted FeedSource fetch-start sequence becomes current; no claim that it proves newest source content.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-08",
+    "scenario": "Current revision is reliable/comparable but incoming observation is unversioned or incomparable",
+    "expected": "Incoming cannot replace current without an authoritative-current-state check; otherwise quarantine/recheck.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-09",
+    "scenario": "Earlier acquisition finishes after a later observation/result became current",
+    "expected": "Reapply ordering at evidence promotion; persist IGNORED_STALE_OBSERVATION; earlier result cannot update currentRevisionId or current ordering state.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-10",
+    "scenario": "Revision conflict becomes visible only after acquisition/extraction",
+    "expected": "Persist EvidenceAcceptanceReceipt(QUARANTINED_REVISION_CONFLICT) plus durable EvidenceRevisionConflict(PENDING_AUTHORITATIVE_RECHECK); current state is unchanged; checkpoint remains advanced if intake was already safely resolved.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-11",
+    "scenario": "Authoritative recheck resolves a quarantined revision conflict",
+    "expected": "Resolution is explicit and durable; either keep current state or let a later strictly ordered authoritative observation proceed under C5. The original conflicting completion is never selected merely because it finished last.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-12",
+    "scenario": "Higher sequence is allocated but fetch later fails",
+    "expected": "Earlier valid accepted observation remains current; allocation alone has no content effect.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-13",
+    "scenario": "Poll and refresh or alternative provider run concurrently",
+    "expected": "All use the same durable FeedSource sequence allocator and atomic acceptance rule.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-14",
+    "scenario": "Valid RSS excerpt / Telegram message / listing result",
+    "expected": "Accepted according to its declared representation; it is not mislabeled as a full article.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-15",
+    "scenario": "Less complete later representation",
+    "expected": "Cannot overwrite a richer accepted representation unless authoritative source state permits it.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-16",
+    "scenario": "Missing required query validation fields",
+    "expected": "QUARANTINED, checkpoint-unresolved.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-17",
+    "scenario": "Explicit query restriction violation",
+    "expected": "REJECTED, checkpoint-resolved.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-18",
+    "scenario": "Item absent from listing",
+    "expected": "No inferred deletion.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-19",
+    "scenario": "Explicit authoritative deletion evidence",
+    "expected": "DELETION_ACCEPTED; ordered tombstone created without an acquisition candidate; evidence withdrawn from future use and reassessment scheduled.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-20",
+    "scenario": "Delayed UPSERT older than current tombstone",
+    "expected": "IGNORED_STALE_OBSERVATION; item remains DELETED and is not resurrected.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-21",
+    "scenario": "Genuinely newer UPSERT after tombstone",
+    "expected": "May reactivate the item only if it wins the same C5 ordering contract; a new EvidenceRevision is created.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-22",
+    "scenario": "Failure before durable intake resolution",
+    "expected": "Checkpoint cannot advance past unresolved work.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-23",
+    "scenario": "Crash after any durable terminal intake outcome but before checkpoint advancement",
+    "expected": "Retry recovers without duplicate canonical effects or repeated tombstones/reassessments.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-24",
+    "scenario": "Downstream extraction/event/briefing failure after accepted intake",
+    "expected": "Checkpoint may remain advanced; durable downstream retry state recovers the work.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-25",
+    "scenario": "Partial collection with proven accepted contiguous cursor",
+    "expected": "Safe cursor progress allowed; continuation remains durable and collection coverage remains PARTIAL.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-26",
+    "scenario": "Published edition followed by accepted content update",
+    "expected": "Original exact EvidenceRevision/EventVersion/StorylineVersion references remain intact; future claims are reassessed.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  },
+  {
+    "id": "C12-27",
+    "scenario": "Feed deleted after publication",
+    "expected": "Future collection stops; retained published editions and their exact support graph remain resolvable.",
+    "verification": "Binding integration required; library tests cover only applicable pure decisions and validators."
+  }
+]

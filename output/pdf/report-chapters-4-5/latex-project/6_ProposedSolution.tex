@@ -1,0 +1,370 @@
+\chapter{Proposed Solution and Methodology}
+\label{chap:solution}
+
+\section{Selected System Architecture}
+
+Distilled.News uses a modular architecture built primarily on Cloudflare. The system separates source collection, evidence preparation, briefing generation, publication, and web presentation. This separation allows each part to be tested and maintained independently.
+
+Cloudflare Workers run the API, scheduled tasks, and background processing. D1 stores application records, publication history, and processing and cost records. R2 stores retained source content and generated assets. Cloudflare Queues support asynchronous processing. The reader interface is built with React and Vite, while Hono defines the HTTP routes. TypeScript interfaces describe the data exchanged between components \cite{repo,stagingintegration}.
+
+Source collection prioritizes structured feeds and predictable extraction methods. Browser-based acquisition is available as a controlled fallback when a supported source cannot be handled through simpler methods \cite{acquisition}.
+
+Figure~\ref{fig:architecture} summarizes the main processing stages. Storage, authorization, budget checks, and recovery mechanisms support the workflow throughout.
+
+\begin{figure}[htbp]
+\centering
+\fbox{%
+\begin{minipage}{0.88\textwidth}
+\centering
+\textbf{Feed Configuration}\\
+Topics, sources, language, and schedule
+
+\medskip
+$\downarrow$
+\medskip
+
+\textbf{Source Collection and Evidence Preparation}\\
+Collect articles, preserve sources, identify duplicates,
+and retrieve publication history
+
+\medskip
+$\downarrow$
+\medskip
+
+\textbf{AI Editor}\\
+Select relevant developments and prepare a cited draft
+
+\medskip
+$\downarrow$
+\medskip
+
+\textbf{AI Verifier and Targeted Repair}\\
+Check claims against evidence and correct detected problems
+
+\medskip
+$\downarrow$
+\medskip
+
+\textbf{Controlled Publication}\\
+Save the approved edition and confirm read-back
+
+\medskip
+$\downarrow$
+\medskip
+
+\textbf{Reader Access}\\
+Public feed pages and optional browser notifications
+\end{minipage}%
+}
+\caption{Main stages from feed configuration to reader access.}
+\label{fig:architecture}
+\end{figure}
+
+\section{Detailed Processing Method}
+
+The system follows eight main steps.
+
+\begin{enumerate}
+    \item \textbf{Define the feed and check permissions.}
+    The authenticated user selects topics, sources, language, and update frequency. Before collection begins, the system checks account ownership, source permissions, credentials, and available spending limits. Instructions supplied to an AI model cannot override these checks.
+
+    \item \textbf{Collect and normalize source material.}
+    The system first uses structured feeds or fixed extraction methods. Temporary failures are retried within defined limits. Accepted material retains its source identifier, original URL, timestamps, extraction status, and content. Adaptive browser discovery is used only when permitted by the collection rules and cost limits.
+
+    \item \textbf{Prepare the evidence.}
+    The system normalizes article identities and URLs and identifies repeated material. Reports that independently support a development should remain distinguishable from copies of the same report. Unclear dates, locations, or relationships between reports must remain uncertain rather than being filled in without evidence.
+
+    \item \textbf{Establish the reporting window and prior coverage.}
+    The system uses the feed's scheduled reporting period and previously published briefings to provide context for selection. It considers whether the material describes a new incident, an update, a correction, repeated coverage, or no relevant development. Only published content represents information already communicated through the feed.
+
+    \item \textbf{Select developments and draft the briefing.}
+    The AI editor selects relevant developments and writes concise items using the supplied evidence. User interests guide selection but cannot justify unsupported claims. For example, interest in Lebanon does not permit the model to invent a local consequence of an international event. When no material qualifies, the workflow can return a quiet outcome without publishing a briefing.
+
+    \item \textbf{Verify and repair.}
+    A separate AI verifier checks claims, attribution, dates, uncertainty, and source references. Flagged items undergo targeted correction and another check. Software validation also rejects malformed or ambiguous verification identifiers so that a parsing error cannot accidentally approve an item \cite{controlledreliability}.
+
+    \item \textbf{Save and publish.}
+    The approved edition is saved using ownership, version, and concurrency checks. These controls prevent competing tasks or retries from committing conflicting publications. Read-back checks confirm that the saved content and references can be retrieved. Optional browser notifications use an approved published headline rather than generating new claims \cite{notificationeval}.
+
+    \item \textbf{Record outcomes and evaluate performance.}
+    The system records processing attempts, outcomes, time, and cost. Failed and quiet reporting opportunities are retained alongside successful publications. Source hashes and prompt versions support reproducible comparisons.
+\end{enumerate}
+
+\subsection{Scheduling, Public Access, and Evidence Retrieval}
+
+Published feeds are public and use username-scoped URLs. Authentication and ownership checks protect feed configuration and other account operations.
+
+The current editorial workflow consists of an editor, a verifier, and targeted repair when necessary. Evidence preparation involves selecting source material and context rather than an additional mandatory model call.
+
+For feeds using clock-aligned scheduling policy, a ten-minute creation grace period determines the first intended delivery. The evidence cutoff is five minutes before delivery, and completed output can be stored until its intended publication time.
+
+Three times remain distinct: the intended delivery time, recorded as \texttt{scheduledFor}; the source and reporting-window times; and the actual publication time, recorded as \texttt{publishedAt}. Keeping these separate supports accurate scheduling, recovery, and evaluation.
+
+Selective metadata queries and derived indexes reduce unnecessary reads of retained history. Full article content remains available for selected evidence so that these optimizations do not remove information needed by the editor or verifier \cite{selectivereads,boundedhistory}.
+
+\section{Engineering Design Principles}
+
+The implementation follows six principles:
+
+\begin{itemize}
+    \item \textbf{Limited authority.}
+    AI output is treated as untrusted input. Models cannot independently authorize access, spending, or publication.
+
+    \item \textbf{Safe retries.}
+    Repeating a task must not create duplicate publications or settle the same billable operation twice.
+
+    \item \textbf{Traceability.}
+    Published items must retain references to the source evidence used to produce them.
+
+    \item \textbf{Explicit publication checks.}
+    Detected unsupported claims and unresolved authorization failures must block publication or trigger correction.
+
+    \item \textbf{Separate quality measures.}
+    Reliability, speed, factual accuracy, coverage, and reader benefit are evaluated separately.
+
+    \item \textbf{Evidence-based reporting.}
+    Results are described within their actual test conditions. An offline experiment does not establish production reliability.
+\end{itemize}
+
+\section{Formal Requirement Specifications}
+
+Table~\ref{tab:reqs} defines proposed acceptance targets for the final project. These are requirements to be tested, rather than claims that all targets have already been achieved. The thresholds and evaluation cases will be fixed before formal acceptance testing.
+
+\begingroup
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{
+    p{.07\textwidth}
+    p{.34\textwidth}
+    p{.38\textwidth}
+    p{.10\textwidth}
+}
+\caption{Functional requirements and measurable acceptance targets}
+\label{tab:reqs}\\
+\toprule
+ID & Requirement or target & Verification method & Priority \\
+\midrule
+\endfirsthead
+
+\toprule
+ID & Requirement or target & Verification method & Priority \\
+\midrule
+\endhead
+
+\bottomrule
+\endfoot
+
+R01
+& Authenticated users can configure their feeds. Users cannot modify another account's feeds.
+& API tests covering valid access, missing or expired sessions, and ownership mismatches.
+& Critical \\
+
+R02
+& Every accepted source item retains its canonical identity, original URL, source, acquisition time, known publication time, and extraction status.
+& Audit 100\% of accepted records in the QA sample against the required fields and original source payloads.
+& Critical \\
+
+R03
+& Every published reportable item has a retrievable citation. Source associations remain intact through repair, storage, and display.
+& Citation and source-identity checks must pass for 100\% of audited successful publications.
+& Critical \\
+
+R04
+& A reporting window with no eligible evidence finishes explicitly as \texttt{QUIET}, without a generative model call.
+& Controlled empty-window tests must produce zero unnecessary generative calls.
+& High \\
+
+R05
+& The system distinguishes repeated coverage, new incidents, updates, and corrections when those relationships are explicit in the evidence.
+& Labelled fixtures must pass all mandatory assertions. Errors on real source material are reported separately.
+& Critical \\
+
+R06
+& Malformed or ambiguous verifier identifiers cannot cause approval. Detected unsupported results are rejected or sent for repair.
+& Adversarial parser tests must show zero unintended approvals. Semantic verification errors receive independent review.
+& Critical \\
+
+R07
+& Retries, worker restarts, and concurrent runs preserve publication and operation identities.
+& Failure-injection and replay tests must produce zero duplicate committed edition IDs or duplicate settlement identities.
+& Critical \\
+
+R08
+& Paid model calls require valid authorization and a bounded budget reservation. Calls with unknown outcomes retain a conservative estimate of possible cost.
+& Budget tests and ledger audits must identify no unaccounted paid operations in the acceptance sample.
+& Critical \\
+
+R09
+& At least 95\% of scheduled opportunities in a predefined live workload finish as a verified publication read-back or justified quiet outcome within ten minutes of cutoff.
+& Compare outcomes against an independently generated schedule, including missing invocations. Report success rates and Wilson confidence intervals.
+& High \\
+
+R10
+& For the fixed 20-article replay workload, p95 intelligence-processing latency is at most 120 seconds.
+& Use at least 30 independent replay opportunities with the same quality-controlled case mix. Measure engine time separately from request and read-back time.
+& High \\
+
+R11
+& Median total settled inference cost is at most \$0.20 per completed briefing on the predefined ordinary-feed corpus.
+& Reconcile verification, repair, failed calls, and retries against the operation ledger. Report p95 cost and uncertain charges separately.
+& High \\
+
+R12
+& Include at least 90\% of independently labelled important developments, with source support for at least 98\% of audited individual factual claims.
+& Independent reviewers establish and adjudicate reference labels. Report confidence intervals and identify claims that cannot be verified from available evidence.
+& Critical \\
+
+R13
+& Evaluate English, French, and Arabic separately for factual accuracy, coverage of important developments, and presentation.
+& Use a multilingual audit with separate results for each language.
+& High \\
+
+R14
+& Tested reader flows meet the selected WCAG 2.2 AA checklist, with no critical keyboard-navigation blockers.
+& Combine automated accessibility checks with manual keyboard and screen-reader testing. Record remaining exceptions.
+& Medium \\
+
+R15
+& Enforce source permissions and prevent unauthorized browser actions and disclosure of secrets.
+& Policy and failure tests must produce zero accepted critical authorization violations.
+& Critical \\
+
+R16
+& Compare manual monitoring with Distilled.News under matched topics and source availability.
+& Measure task time, source openings, usefulness, trust, and information recall. Report negative feedback and sample limitations.
+& High \\
+
+\end{longtable}
+\endgroup
+
+\section{Deliverables and Acceptance Evidence}
+
+Each deliverable must be supported by reviewable evidence.
+
+\begin{table}[htbp]
+\small
+\centering
+\caption{Planned deliverables and supporting evidence}
+\label{tab:deliverables}
+\begin{tabularx}{\linewidth}{p{3cm}X}
+\toprule
+Deliverable & Required evidence \\
+\midrule
+
+D1: Integrated application
+& Documented implementation, migration and deployment instructions, a staging environment, and two traceable end-to-end feed examples. \\
+
+D2: Source collection
+& Connector interfaces, permission and fallback tests, representative acquisition records, and measured collection failures. \\
+
+D3: Briefing and publication workflow
+& Source-linked drafts, verification and repair records, publication read-back, and examples covering updates, corrections, and quiet windows. \\
+
+D4: Evaluation bundle
+& Versioned dataset descriptions, independent annotations, fixed baselines, paired comparisons, and documented limitations. \\
+
+D5: Reliability and security assessment
+& Failure-injection results, cost reconciliation, scheduled-opportunity outcomes, secret-handling review, and continuous-integration results. \\
+
+D6: Reader experience
+& Responsive English, French, and Arabic presentation, an opted-in push demonstration, accessibility checks, and user-task evaluation. \\
+
+D7: Academic submission
+& Progress and final reports, architecture and design decisions, a requirements-to-evidence matrix, project schedule, and presentation or demonstration. \\
+
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Evaluation Methodology}
+
+Evaluation will progress from controlled software checks to source-based comparisons, live reliability testing, and participant tasks. Each stage answers a different question, as shown in Figure~\ref{fig:evaluation}.
+
+\begin{figure}[htbp]
+\centering
+\fbox{%
+\begin{minipage}{0.88\textwidth}
+\centering
+\textbf{Stage 1: Software Checks}\\
+Check permissions, data integrity, budgets, and retry behavior.
+
+\medskip
+$\downarrow$
+\medskip
+
+\textbf{Stage 2: Fixed-Source Comparisons}\\
+Compare briefing accuracy, coverage, processing time, and cost
+using identical source material.
+
+\medskip
+$\downarrow$
+\medskip
+
+\textbf{Stage 3: Live Reliability Testing}\\
+Measure collection and publication outcomes against
+an independently recorded schedule.
+
+\medskip
+$\downarrow$
+\medskip
+
+\textbf{Stage 4: Participant Evaluation}\\
+Compare reader effort, comprehension, and usefulness
+with manual monitoring.
+\end{minipage}%
+}
+\caption{Evaluation stages and the purpose of each stage.}
+\label{fig:evaluation}
+\end{figure}
+
+Before formal evaluation, we will record the topics, reporting periods, languages, reference labels, model and prompt versions, resource limits, and acceptance thresholds. Fixing these choices in advance reduces the risk of selecting favorable cases after seeing the results.
+
+For replay experiments, each system variant receives the same source material. It maintains its own publication history in chronological order so that later decisions reflect what that variant actually published. Human reviewers identify important developments and factual reference claims from the source material before inspecting generated briefings.
+
+Live reliability testing uses an independently generated schedule of expected reporting opportunities. This ensures that missed invocations remain visible even when the application creates no processing record.
+
+The evaluation reports the following measures separately:
+
+\begin{itemize}
+    \item Median and p95 processing latency.
+    \item Percentage of scheduled opportunities completed by the deadline.
+    \item Support for individual factual claims.
+    \item Coverage of independently labelled important developments.
+    \item Repeated coverage and omitted information.
+    \item Settled inference cost and possible charges from unresolved operations.
+    \item Time and effort required for reader tasks.
+\end{itemize}
+
+Scores will be accompanied by confidence intervals where appropriate, reviewer disagreements, error categories, and representative failures \cite{performanceprotocol,validationplan}.
+
+\subsection{Human Quality Review and Target Pilot}
+
+Briefing-quality and user evaluation includes defining target users, reviewing original articles, establishing expected coverage, and maintaining separate development, validation, and held-out datasets. Quality review assesses factual accuracy, relevance, importance, completeness, repetition, and novelty separately for English, French, and Arabic. We also perform analysis of editorial and verification failures and source-provenance checks and performance and cost measurement.
+
+The proposed participant group consists of multilingual university students and early-career researchers in Lebanon who follow a topic through multiple sources at least three times per week. The pilot aims to recruit 6--10 consenting adults.
+
+Participants will complete comparable monitoring tasks manually and with Distilled.News. The order will be counterbalanced so that some participants use the manual method first and others use Distilled.News first. Measures include completion time, missed information, comprehension, perceived usefulness, and effort.
+
+This is a planned study rather than a completed evaluation. Human-reviewed answer keys and fixed system outputs must be prepared before participant tasks begin. Existing local evaluation tools support this preparation but do not replace independent reference labels \cite{localquality}.
+
+\subsection{Comparison with Alternative Approaches}
+
+The final comparison will include four approaches:
+
+\begin{enumerate}
+    \item \textbf{Manual monitoring or a link list:}
+    readers inspect the available source links themselves.
+
+    \item \textbf{Rule-based selection:}
+    relevance filtering and duplicate detection produce a list of selected headlines or extracted text.
+
+    \item \textbf{Single-pass AI summarization:}
+    one model generates a briefing from the supplied sources without a separate verifier.
+
+    \item \textbf{The current V3 workflow:}
+    editing, separate verification, targeted repair when needed, and controlled publication.
+\end{enumerate}
+
+Each approach will use matched source material and reporting periods where applicable. The comparison will examine whether improvements in factual accuracy, coverage, or reader effort justify additional processing time and cost. These measures will remain separate rather than being combined into a single subjective score.
+
+Completed Fall experiments inform the design of this evaluation. The final conclusions will depend on the planned independent assessment and controlled comparisons.

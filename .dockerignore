@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/.wrangler*/
+**/dist/
+**/dist-*/
+**/coverage/
+**/*.tsbuildinfo
+.container-build/
+apps/worker/apps/
+.local-reports/
+**/.dev.vars
+**/.env
+**/.env.*
+**/*.log
+**/__pycache__/

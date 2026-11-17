@@ -1,0 +1,1896 @@
+{
+  "scope": "Two paired local one-story publication measurements, baseline 2e46fa9 vs current cf6ca33 plus outer diagnostic; real local D1 feed turn, synthetic zero-network ports. Not real inference, remote D1 or end-to-end observation latency.",
+  "baseline": "2e46fa9",
+  "pairs": 2,
+  "actualProviderCalls": 0,
+  "actualProviderCostUsd": 0,
+  "rows": [
+    {
+      "variant": "baseline",
+      "forcedConflict": false,
+      "wallMs": 3037.378199999999,
+      "bindings": 80,
+      "payloadBytes": 28810,
+      "reportedLocalSqlMs": null,
+      "queryShapes": [
+        {
+          "sqlHash": "a9aabc8bea179b5dc12a425463046986fd39b3321610c3965580f77cd1d1c988",
+          "verb": "SELECT",
+          "calls": 31,
+          "wallMs": 592.2298000000046,
+          "rowBytes": 9500,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "bcf3061264cb6918e69c08ed9ddff8b608b674b9f92fd54f433ec2c48e3a4cbb",
+          "verb": "SELECT",
+          "calls": 11,
+          "wallMs": 203.88199999999415,
+          "rowBytes": 2237,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "310f1b23768ae37189bfaf91beae9aa3ae25f33650e18547a2cf23df8405f0ed",
+          "verb": "SELECT",
+          "calls": 8,
+          "wallMs": 173.270500000006,
+          "rowBytes": 3280,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4bc01739b659cbd8c8522c995aadf10df359dd18ea752b1741ef5aceda9bd430",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 133.55079999999725,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c5f84adcef3168ffcb1325be9b6cc6f15a13a5ff2835240bca970f94bd0a4012",
+          "verb": "DELETE",
+          "calls": 8,
+          "wallMs": 128.92689999999857,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "9fbf9df44adf6625d0832df0c3f64f1c4b25144ef2b6ed95121492e52d968441",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 127.95549999999639,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "e690ffe2389faa7c5426484cc40d949232e14fdc40f3fd6ba0802ba09da37959",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 122.71569999999701,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "dcd1d3737647d8aed1e9bcaa04512c53832eed0d167c2298227a8ca5833306d7",
+          "verb": "UPDATE",
+          "calls": 7,
+          "wallMs": 115.32329999999274,
+          "rowBytes": 14,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "0f4ba61a72a1dee7751a3d9b4987961dcfaa9ff63c47519c03c5c62ae41c8090",
+          "verb": "SELECT",
+          "calls": 8,
+          "wallMs": 93.90280000000712,
+          "rowBytes": 5870,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "3557fc8ae6dbf0343e3c66d03fa1537fd2843f050ccd40bc73dd1491bf921444",
+          "verb": "SELECT",
+          "calls": 4,
+          "wallMs": 71.51989999999932,
+          "rowBytes": 4248,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "ed8cc8288ce1deae8af149ea7ef3c4bc9b2ff6da746f28952a5281d7df2dbb9f",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 38.931700000001,
+          "rowBytes": 1292,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "001eb147a0286e690eac1cbbb1269345f0f44c8a8a744ed6eb679ebd74094d6f",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 36.0792999999976,
+          "rowBytes": 2122,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4c5fb2d9fa134a2d88aff3c657d2abb2a37a6bff5507164c64ea655939398e34",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 34.95850000000064,
+          "rowBytes": 146,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "1f813bca9a05efd797b327487605c9d1609bb76dcf9429e8bd15d7c507766c70",
+          "verb": "DELETE",
+          "calls": 1,
+          "wallMs": 21.12579999999798,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2409075003c7b8c3686a5a5a6b9dcd1e89992ad71ffb3907ee52eb0748b8674f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 18.14890000000014,
+          "rowBytes": 22,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "77495150919b7e38c96afc9b1478c6ed0210dc2390a97203ac1e91047ddd4e3f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 17.97739999999976,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "822569eff04776c4093255cbc8c4d59c88a0c93e0ce140a420a4694811259958",
+          "verb": "SELECT",
+          "calls": 1,
+          "wallMs": 16.797099999999773,
+          "rowBytes": 9,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c3e2003c1274a6c6ac22e857376a39b2d6eb19f8624684d19006588c6aa5fa6e",
+          "verb": "UPDATE",
+          "calls": 1,
+          "wallMs": 14.956300000001647,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        }
+      ],
+      "reuseAdditionalBindings": 5,
+      "controlledPortCalls": 2,
+      "actualProviderCalls": 0,
+      "records": [
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "durationMs": 3036.077000000001,
+          "counts": {
+            "casAttempts": 8,
+            "documentReads": 23,
+            "listReads": 11,
+            "revisionReads": 2,
+            "preloadQueries": 8,
+            "validationMs": 30,
+            "documentWrites": 16,
+            "jobWrites": 0
+          },
+          "stages": {
+            "FEED_TURN_ADMISSION": {
+              "count": 1,
+              "durationMs": 18.502599999999802
+            },
+            "DB_SNAPSHOT": {
+              "count": 8,
+              "durationMs": 289.08729999999196
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 8,
+              "durationMs": 1587.2730999999985
+            },
+            "GRAPH_VALIDATION": {
+              "count": 8,
+              "durationMs": 30.25470000000132
+            },
+            "CAS_COMMIT": {
+              "count": 8,
+              "durationMs": 698.7877000000044
+            },
+            "FEED_TURN_HELD": {
+              "count": 1,
+              "durationMs": 2924.488799999999
+            }
+          }
+        }
+      ],
+      "pair": 1
+    },
+    {
+      "variant": "baseline",
+      "forcedConflict": true,
+      "wallMs": 3270.6405000000013,
+      "bindings": 100,
+      "payloadBytes": 37645,
+      "reportedLocalSqlMs": null,
+      "queryShapes": [
+        {
+          "sqlHash": "a9aabc8bea179b5dc12a425463046986fd39b3321610c3965580f77cd1d1c988",
+          "verb": "SELECT",
+          "calls": 34,
+          "wallMs": 592.7079999999914,
+          "rowBytes": 10265,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "bcf3061264cb6918e69c08ed9ddff8b608b674b9f92fd54f433ec2c48e3a4cbb",
+          "verb": "SELECT",
+          "calls": 15,
+          "wallMs": 255.7181000000055,
+          "rowBytes": 2955,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "310f1b23768ae37189bfaf91beae9aa3ae25f33650e18547a2cf23df8405f0ed",
+          "verb": "SELECT",
+          "calls": 9,
+          "wallMs": 152.57770000000892,
+          "rowBytes": 3691,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "0f4ba61a72a1dee7751a3d9b4987961dcfaa9ff63c47519c03c5c62ae41c8090",
+          "verb": "SELECT",
+          "calls": 12,
+          "wallMs": 140.0773000000081,
+          "rowBytes": 8805,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "e690ffe2389faa7c5426484cc40d949232e14fdc40f3fd6ba0802ba09da37959",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 138.19910000000527,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c5f84adcef3168ffcb1325be9b6cc6f15a13a5ff2835240bca970f94bd0a4012",
+          "verb": "DELETE",
+          "calls": 8,
+          "wallMs": 121.7505999999994,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "9fbf9df44adf6625d0832df0c3f64f1c4b25144ef2b6ed95121492e52d968441",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 121.09370000000126,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "dcd1d3737647d8aed1e9bcaa04512c53832eed0d167c2298227a8ca5833306d7",
+          "verb": "UPDATE",
+          "calls": 7,
+          "wallMs": 107.9997000000003,
+          "rowBytes": 14,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4bc01739b659cbd8c8522c995aadf10df359dd18ea752b1741ef5aceda9bd430",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 107.6404000000075,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "3557fc8ae6dbf0343e3c66d03fa1537fd2843f050ccd40bc73dd1491bf921444",
+          "verb": "SELECT",
+          "calls": 6,
+          "wallMs": 102.59370000000126,
+          "rowBytes": 6372,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "001eb147a0286e690eac1cbbb1269345f0f44c8a8a744ed6eb679ebd74094d6f",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 59.10849999999482,
+          "rowBytes": 3183,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "ed8cc8288ce1deae8af149ea7ef3c4bc9b2ff6da746f28952a5281d7df2dbb9f",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 50.87579999999434,
+          "rowBytes": 1938,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4c5fb2d9fa134a2d88aff3c657d2abb2a37a6bff5507164c64ea655939398e34",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 47.8093000000008,
+          "rowBytes": 219,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "822569eff04776c4093255cbc8c4d59c88a0c93e0ce140a420a4694811259958",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 33.48949999999968,
+          "rowBytes": 18,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "1f813bca9a05efd797b327487605c9d1609bb76dcf9429e8bd15d7c507766c70",
+          "verb": "DELETE",
+          "calls": 1,
+          "wallMs": 17.676500000001397,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c3e2003c1274a6c6ac22e857376a39b2d6eb19f8624684d19006588c6aa5fa6e",
+          "verb": "UPDATE",
+          "calls": 1,
+          "wallMs": 17.36399999999776,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2569d28cbb1bf1d6c98e3013a731ee75ba253042900f37156339fb89a82ee362",
+          "verb": "SELECT",
+          "calls": 1,
+          "wallMs": 17.07600000000093,
+          "rowBytes": 93,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2409075003c7b8c3686a5a5a6b9dcd1e89992ad71ffb3907ee52eb0748b8674f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 13.296500000000378,
+          "rowBytes": 22,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "77495150919b7e38c96afc9b1478c6ed0210dc2390a97203ac1e91047ddd4e3f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 13.246100000000297,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        }
+      ],
+      "reuseAdditionalBindings": 5,
+      "controlledPortCalls": 2,
+      "actualProviderCalls": 0,
+      "records": [
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "durationMs": 3270.476600000002,
+          "counts": {
+            "casAttempts": 9,
+            "documentReads": 26,
+            "listReads": 15,
+            "revisionReads": 3,
+            "preloadQueries": 12,
+            "validationMs": 44,
+            "documentWrites": 17,
+            "jobWrites": 0,
+            "casConflicts": 1
+          },
+          "stages": {
+            "FEED_TURN_ADMISSION": {
+              "count": 1,
+              "durationMs": 13.337999999999738
+            },
+            "DB_SNAPSHOT": {
+              "count": 9,
+              "durationMs": 254.42570000000342
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 9,
+              "durationMs": 1871.9323000000077
+            },
+            "GRAPH_VALIDATION": {
+              "count": 9,
+              "durationMs": 44.649499999995896
+            },
+            "CAS_COMMIT": {
+              "count": 9,
+              "durationMs": 743.9002000000073
+            },
+            "FEED_TURN_HELD": {
+              "count": 1,
+              "durationMs": 3171.166300000001
+            }
+          }
+        }
+      ],
+      "pair": 1
+    },
+    {
+      "variant": "current",
+      "forcedConflict": false,
+      "wallMs": 2872.4531000000006,
+      "bindings": 80,
+      "payloadBytes": 27038,
+      "reportedLocalSqlMs": null,
+      "queryShapes": [
+        {
+          "sqlHash": "a9aabc8bea179b5dc12a425463046986fd39b3321610c3965580f77cd1d1c988",
+          "verb": "SELECT",
+          "calls": 29,
+          "wallMs": 506.9017000000058,
+          "rowBytes": 7978,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "bcf3061264cb6918e69c08ed9ddff8b608b674b9f92fd54f433ec2c48e3a4cbb",
+          "verb": "SELECT",
+          "calls": 11,
+          "wallMs": 202.91690000000017,
+          "rowBytes": 2237,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "310f1b23768ae37189bfaf91beae9aa3ae25f33650e18547a2cf23df8405f0ed",
+          "verb": "SELECT",
+          "calls": 8,
+          "wallMs": 154.94140000000152,
+          "rowBytes": 3280,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "e690ffe2389faa7c5426484cc40d949232e14fdc40f3fd6ba0802ba09da37959",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 130.24669999999787,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "0f4ba61a72a1dee7751a3d9b4987961dcfaa9ff63c47519c03c5c62ae41c8090",
+          "verb": "SELECT",
+          "calls": 10,
+          "wallMs": 124.96040000000357,
+          "rowBytes": 7650,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c5f84adcef3168ffcb1325be9b6cc6f15a13a5ff2835240bca970f94bd0a4012",
+          "verb": "DELETE",
+          "calls": 8,
+          "wallMs": 123.05299999999988,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "9fbf9df44adf6625d0832df0c3f64f1c4b25144ef2b6ed95121492e52d968441",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 122.48919999999998,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4bc01739b659cbd8c8522c995aadf10df359dd18ea752b1741ef5aceda9bd430",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 120.82400000000052,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "dcd1d3737647d8aed1e9bcaa04512c53832eed0d167c2298227a8ca5833306d7",
+          "verb": "UPDATE",
+          "calls": 7,
+          "wallMs": 108.57020000000193,
+          "rowBytes": 14,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4c5fb2d9fa134a2d88aff3c657d2abb2a37a6bff5507164c64ea655939398e34",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 44.79039999999986,
+          "rowBytes": 146,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "001eb147a0286e690eac1cbbb1269345f0f44c8a8a744ed6eb679ebd74094d6f",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 40.123099999998885,
+          "rowBytes": 2122,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "3557fc8ae6dbf0343e3c66d03fa1537fd2843f050ccd40bc73dd1491bf921444",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 37.12850000000071,
+          "rowBytes": 2124,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "ed8cc8288ce1deae8af149ea7ef3c4bc9b2ff6da746f28952a5281d7df2dbb9f",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 36.28769999999895,
+          "rowBytes": 1292,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2081373375e8da3631b88739606c768d92ad0994ac5f4a0af112c02145fae116",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 33.42779999999948,
+          "rowBytes": 94,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c3e2003c1274a6c6ac22e857376a39b2d6eb19f8624684d19006588c6aa5fa6e",
+          "verb": "UPDATE",
+          "calls": 1,
+          "wallMs": 18.341700000000856,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "1f813bca9a05efd797b327487605c9d1609bb76dcf9429e8bd15d7c507766c70",
+          "verb": "DELETE",
+          "calls": 1,
+          "wallMs": 18.283900000000358,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "822569eff04776c4093255cbc8c4d59c88a0c93e0ce140a420a4694811259958",
+          "verb": "SELECT",
+          "calls": 1,
+          "wallMs": 18.14549999999872,
+          "rowBytes": 9,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2409075003c7b8c3686a5a5a6b9dcd1e89992ad71ffb3907ee52eb0748b8674f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 14.787199999998847,
+          "rowBytes": 22,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "77495150919b7e38c96afc9b1478c6ed0210dc2390a97203ac1e91047ddd4e3f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 14.639100000000326,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        }
+      ],
+      "reuseAdditionalBindings": 5,
+      "controlledPortCalls": 2,
+      "actualProviderCalls": 0,
+      "records": [
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION_TURN",
+          "windowId": "9d19406a7db8364cc11a6c1f354c97aee16c33246940d425fbf2aaa57a15d472",
+          "outcome": "SUCCEEDED",
+          "durationMs": 2868.2541,
+          "counts": {
+            "casAttempts": 8,
+            "documentReads": 21,
+            "listReads": 11,
+            "revisionReads": 2,
+            "preloadQueries": 10,
+            "validationMs": 34,
+            "documentWrites": 16,
+            "jobWrites": 0,
+            "publicationInputLoads": 2,
+            "publicationCatalogTargets": 2,
+            "publicationHistoryRevisionIds": 0,
+            "publicationActiveRevisionIds": 2,
+            "publicationSelectedSemanticVersions": 2
+          },
+          "stages": {
+            "FEED_TURN_ADMISSION": {
+              "count": 1,
+              "durationMs": 15.134799999999814
+            },
+            "DB_SNAPSHOT": {
+              "count": 8,
+              "durationMs": 270.5371000000014
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 8,
+              "durationMs": 1537.8412000000008
+            },
+            "GRAPH_VALIDATION": {
+              "count": 8,
+              "durationMs": 33.26510000000235
+            },
+            "CAS_COMMIT": {
+              "count": 8,
+              "durationMs": 639.4797999999992
+            },
+            "PUBLICATION_ACTIVE_IDENTITIES": {
+              "count": 2,
+              "durationMs": 58.67340000000149
+            },
+            "PUBLICATION_CANDIDATE_LOAD": {
+              "count": 2,
+              "durationMs": 420.7259000000013
+            },
+            "PUBLICATION_HISTORY_IDENTITIES": {
+              "count": 2,
+              "durationMs": 0.5658999999996013
+            },
+            "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+              "count": 2,
+              "durationMs": 101.3663000000015
+            },
+            "PUBLICATION_INPUT_LOAD": {
+              "count": 2,
+              "durationMs": 835.1124
+            },
+            "PUBLICATION_RESULT_PERSISTENCE": {
+              "count": 2,
+              "durationMs": 58.98750000000109
+            },
+            "PUBLICATION_PRECHECKS": {
+              "count": 1,
+              "durationMs": 3.9698000000007596
+            },
+            "EDITION_PERSISTENCE": {
+              "count": 1,
+              "durationMs": 778.2205999999987
+            },
+            "FEED_TURN_HELD": {
+              "count": 1,
+              "durationMs": 2759.8951000000015
+            }
+          }
+        },
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "durationMs": 2871.854800000001,
+          "counts": {},
+          "stages": {}
+        }
+      ],
+      "pair": 1
+    },
+    {
+      "variant": "current",
+      "forcedConflict": true,
+      "wallMs": 3513.6539999999986,
+      "bindings": 100,
+      "payloadBytes": 34987,
+      "reportedLocalSqlMs": null,
+      "queryShapes": [
+        {
+          "sqlHash": "a9aabc8bea179b5dc12a425463046986fd39b3321610c3965580f77cd1d1c988",
+          "verb": "SELECT",
+          "calls": 31,
+          "wallMs": 611.6316999999799,
+          "rowBytes": 7982,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "bcf3061264cb6918e69c08ed9ddff8b608b674b9f92fd54f433ec2c48e3a4cbb",
+          "verb": "SELECT",
+          "calls": 15,
+          "wallMs": 276.57319999999163,
+          "rowBytes": 2955,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "0f4ba61a72a1dee7751a3d9b4987961dcfaa9ff63c47519c03c5c62ae41c8090",
+          "verb": "SELECT",
+          "calls": 15,
+          "wallMs": 199.96770000000106,
+          "rowBytes": 11475,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "310f1b23768ae37189bfaf91beae9aa3ae25f33650e18547a2cf23df8405f0ed",
+          "verb": "SELECT",
+          "calls": 9,
+          "wallMs": 172.0898999999954,
+          "rowBytes": 3691,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "e690ffe2389faa7c5426484cc40d949232e14fdc40f3fd6ba0802ba09da37959",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 128.91959999999744,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4bc01739b659cbd8c8522c995aadf10df359dd18ea752b1741ef5aceda9bd430",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 125.14660000000367,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c5f84adcef3168ffcb1325be9b6cc6f15a13a5ff2835240bca970f94bd0a4012",
+          "verb": "DELETE",
+          "calls": 8,
+          "wallMs": 123.03119999999399,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "9fbf9df44adf6625d0832df0c3f64f1c4b25144ef2b6ed95121492e52d968441",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 122.43930000000182,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "dcd1d3737647d8aed1e9bcaa04512c53832eed0d167c2298227a8ca5833306d7",
+          "verb": "UPDATE",
+          "calls": 7,
+          "wallMs": 110.15969999999288,
+          "rowBytes": 14,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "001eb147a0286e690eac1cbbb1269345f0f44c8a8a744ed6eb679ebd74094d6f",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 55.21600000000035,
+          "rowBytes": 3183,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4c5fb2d9fa134a2d88aff3c657d2abb2a37a6bff5507164c64ea655939398e34",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 55.11979999999676,
+          "rowBytes": 219,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "ed8cc8288ce1deae8af149ea7ef3c4bc9b2ff6da746f28952a5281d7df2dbb9f",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 54.67859999999928,
+          "rowBytes": 1938,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "3557fc8ae6dbf0343e3c66d03fa1537fd2843f050ccd40bc73dd1491bf921444",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 52.187800000003335,
+          "rowBytes": 3186,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2081373375e8da3631b88739606c768d92ad0994ac5f4a0af112c02145fae116",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 51.621900000001915,
+          "rowBytes": 141,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "822569eff04776c4093255cbc8c4d59c88a0c93e0ce140a420a4694811259958",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 44.95379999999568,
+          "rowBytes": 18,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c3e2003c1274a6c6ac22e857376a39b2d6eb19f8624684d19006588c6aa5fa6e",
+          "verb": "UPDATE",
+          "calls": 1,
+          "wallMs": 36.23380000000179,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "1f813bca9a05efd797b327487605c9d1609bb76dcf9429e8bd15d7c507766c70",
+          "verb": "DELETE",
+          "calls": 1,
+          "wallMs": 18.74699999999939,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2569d28cbb1bf1d6c98e3013a731ee75ba253042900f37156339fb89a82ee362",
+          "verb": "SELECT",
+          "calls": 1,
+          "wallMs": 18.64600000000064,
+          "rowBytes": 93,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2409075003c7b8c3686a5a5a6b9dcd1e89992ad71ffb3907ee52eb0748b8674f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 13.939399999999296,
+          "rowBytes": 22,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "77495150919b7e38c96afc9b1478c6ed0210dc2390a97203ac1e91047ddd4e3f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 13.904500000000553,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        }
+      ],
+      "reuseAdditionalBindings": 5,
+      "controlledPortCalls": 2,
+      "actualProviderCalls": 0,
+      "records": [
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION_TURN",
+          "windowId": "9d19406a7db8364cc11a6c1f354c97aee16c33246940d425fbf2aaa57a15d472",
+          "outcome": "SUCCEEDED",
+          "durationMs": 3512.5806999999986,
+          "counts": {
+            "casAttempts": 9,
+            "documentReads": 23,
+            "listReads": 15,
+            "revisionReads": 3,
+            "preloadQueries": 15,
+            "validationMs": 50,
+            "documentWrites": 17,
+            "jobWrites": 0,
+            "publicationInputLoads": 3,
+            "publicationCatalogTargets": 3,
+            "publicationHistoryRevisionIds": 0,
+            "publicationActiveRevisionIds": 3,
+            "publicationSelectedSemanticVersions": 3,
+            "casConflicts": 1
+          },
+          "stages": {
+            "FEED_TURN_ADMISSION": {
+              "count": 1,
+              "durationMs": 13.974299999998038
+            },
+            "DB_SNAPSHOT": {
+              "count": 9,
+              "durationMs": 287.1438999999991
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 9,
+              "durationMs": 2048.904699999999
+            },
+            "GRAPH_VALIDATION": {
+              "count": 9,
+              "durationMs": 48.46499999999287
+            },
+            "CAS_COMMIT": {
+              "count": 9,
+              "durationMs": 756.2064999999893
+            },
+            "PUBLICATION_ACTIVE_IDENTITIES": {
+              "count": 3,
+              "durationMs": 87.93740000000253
+            },
+            "PUBLICATION_CANDIDATE_LOAD": {
+              "count": 3,
+              "durationMs": 627.6901999999973
+            },
+            "PUBLICATION_HISTORY_IDENTITIES": {
+              "count": 3,
+              "durationMs": 0.06550000000424916
+            },
+            "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+              "count": 3,
+              "durationMs": 158.46939999999813
+            },
+            "PUBLICATION_INPUT_LOAD": {
+              "count": 3,
+              "durationMs": 1231.5980999999992
+            },
+            "PUBLICATION_RESULT_PERSISTENCE": {
+              "count": 2,
+              "durationMs": 68.95499999999811
+            },
+            "PUBLICATION_PRECHECKS": {
+              "count": 1,
+              "durationMs": 0.19069999999919673
+            },
+            "EDITION_PERSISTENCE": {
+              "count": 1,
+              "durationMs": 758.1338999999971
+            },
+            "FEED_TURN_HELD": {
+              "count": 1,
+              "durationMs": 3395.5370999999977
+            }
+          }
+        },
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "durationMs": 3513.5432999999975,
+          "counts": {},
+          "stages": {}
+        }
+      ],
+      "pair": 1
+    },
+    {
+      "variant": "baseline",
+      "forcedConflict": false,
+      "wallMs": 2648.3250000000007,
+      "bindings": 80,
+      "payloadBytes": 28810,
+      "reportedLocalSqlMs": null,
+      "queryShapes": [
+        {
+          "sqlHash": "a9aabc8bea179b5dc12a425463046986fd39b3321610c3965580f77cd1d1c988",
+          "verb": "SELECT",
+          "calls": 31,
+          "wallMs": 519.9687999999951,
+          "rowBytes": 9500,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "bcf3061264cb6918e69c08ed9ddff8b608b674b9f92fd54f433ec2c48e3a4cbb",
+          "verb": "SELECT",
+          "calls": 11,
+          "wallMs": 180.8051000000014,
+          "rowBytes": 2237,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "310f1b23768ae37189bfaf91beae9aa3ae25f33650e18547a2cf23df8405f0ed",
+          "verb": "SELECT",
+          "calls": 8,
+          "wallMs": 147.72169999999824,
+          "rowBytes": 3280,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "e690ffe2389faa7c5426484cc40d949232e14fdc40f3fd6ba0802ba09da37959",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 116.26870000000054,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4bc01739b659cbd8c8522c995aadf10df359dd18ea752b1741ef5aceda9bd430",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 108.85379999999714,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c5f84adcef3168ffcb1325be9b6cc6f15a13a5ff2835240bca970f94bd0a4012",
+          "verb": "DELETE",
+          "calls": 8,
+          "wallMs": 108.12009999999646,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "9fbf9df44adf6625d0832df0c3f64f1c4b25144ef2b6ed95121492e52d968441",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 107.59759999999369,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "dcd1d3737647d8aed1e9bcaa04512c53832eed0d167c2298227a8ca5833306d7",
+          "verb": "UPDATE",
+          "calls": 7,
+          "wallMs": 96.01669999999649,
+          "rowBytes": 14,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "0f4ba61a72a1dee7751a3d9b4987961dcfaa9ff63c47519c03c5c62ae41c8090",
+          "verb": "SELECT",
+          "calls": 8,
+          "wallMs": 91.84160000000702,
+          "rowBytes": 5870,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "3557fc8ae6dbf0343e3c66d03fa1537fd2843f050ccd40bc73dd1491bf921444",
+          "verb": "SELECT",
+          "calls": 4,
+          "wallMs": 66.85039999999935,
+          "rowBytes": 4248,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4c5fb2d9fa134a2d88aff3c657d2abb2a37a6bff5507164c64ea655939398e34",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 33.50960000000123,
+          "rowBytes": 146,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "001eb147a0286e690eac1cbbb1269345f0f44c8a8a744ed6eb679ebd74094d6f",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 33.28350000000137,
+          "rowBytes": 2122,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "ed8cc8288ce1deae8af149ea7ef3c4bc9b2ff6da746f28952a5281d7df2dbb9f",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 32.74840000000404,
+          "rowBytes": 1292,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "1f813bca9a05efd797b327487605c9d1609bb76dcf9429e8bd15d7c507766c70",
+          "verb": "DELETE",
+          "calls": 1,
+          "wallMs": 18.894599999999627,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2409075003c7b8c3686a5a5a6b9dcd1e89992ad71ffb3907ee52eb0748b8674f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 17.163000000000466,
+          "rowBytes": 22,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "77495150919b7e38c96afc9b1478c6ed0210dc2390a97203ac1e91047ddd4e3f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 17.030900000001566,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "822569eff04776c4093255cbc8c4d59c88a0c93e0ce140a420a4694811259958",
+          "verb": "SELECT",
+          "calls": 1,
+          "wallMs": 16.11779999999999,
+          "rowBytes": 9,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c3e2003c1274a6c6ac22e857376a39b2d6eb19f8624684d19006588c6aa5fa6e",
+          "verb": "UPDATE",
+          "calls": 1,
+          "wallMs": 16.03189999999813,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        }
+      ],
+      "reuseAdditionalBindings": 5,
+      "controlledPortCalls": 2,
+      "actualProviderCalls": 0,
+      "records": [
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "durationMs": 2647.091400000001,
+          "counts": {
+            "casAttempts": 8,
+            "documentReads": 23,
+            "listReads": 11,
+            "revisionReads": 2,
+            "preloadQueries": 8,
+            "validationMs": 31,
+            "documentWrites": 16,
+            "jobWrites": 0
+          },
+          "stages": {
+            "FEED_TURN_ADMISSION": {
+              "count": 1,
+              "durationMs": 17.57470000000103
+            },
+            "DB_SNAPSHOT": {
+              "count": 8,
+              "durationMs": 245.45100000000093
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 8,
+              "durationMs": 1413.2350999999944
+            },
+            "GRAPH_VALIDATION": {
+              "count": 8,
+              "durationMs": 29.76190000000497
+            },
+            "CAS_COMMIT": {
+              "count": 8,
+              "durationMs": 574.8150999999925
+            },
+            "FEED_TURN_HELD": {
+              "count": 1,
+              "durationMs": 2541.6620000000003
+            }
+          }
+        }
+      ],
+      "pair": 2
+    },
+    {
+      "variant": "baseline",
+      "forcedConflict": true,
+      "wallMs": 3237.8908999999985,
+      "bindings": 100,
+      "payloadBytes": 37645,
+      "reportedLocalSqlMs": null,
+      "queryShapes": [
+        {
+          "sqlHash": "a9aabc8bea179b5dc12a425463046986fd39b3321610c3965580f77cd1d1c988",
+          "verb": "SELECT",
+          "calls": 34,
+          "wallMs": 574.3810999999878,
+          "rowBytes": 10265,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "bcf3061264cb6918e69c08ed9ddff8b608b674b9f92fd54f433ec2c48e3a4cbb",
+          "verb": "SELECT",
+          "calls": 15,
+          "wallMs": 247.927199999991,
+          "rowBytes": 2955,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "310f1b23768ae37189bfaf91beae9aa3ae25f33650e18547a2cf23df8405f0ed",
+          "verb": "SELECT",
+          "calls": 9,
+          "wallMs": 161.5785000000069,
+          "rowBytes": 3691,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "0f4ba61a72a1dee7751a3d9b4987961dcfaa9ff63c47519c03c5c62ae41c8090",
+          "verb": "SELECT",
+          "calls": 12,
+          "wallMs": 148.2525000000096,
+          "rowBytes": 8805,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "e690ffe2389faa7c5426484cc40d949232e14fdc40f3fd6ba0802ba09da37959",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 129.0895999999957,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c5f84adcef3168ffcb1325be9b6cc6f15a13a5ff2835240bca970f94bd0a4012",
+          "verb": "DELETE",
+          "calls": 8,
+          "wallMs": 116.73140000000785,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "9fbf9df44adf6625d0832df0c3f64f1c4b25144ef2b6ed95121492e52d968441",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 116.26920000000246,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4bc01739b659cbd8c8522c995aadf10df359dd18ea752b1741ef5aceda9bd430",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 105.19210000000385,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "dcd1d3737647d8aed1e9bcaa04512c53832eed0d167c2298227a8ca5833306d7",
+          "verb": "UPDATE",
+          "calls": 7,
+          "wallMs": 104.87320000000545,
+          "rowBytes": 14,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "3557fc8ae6dbf0343e3c66d03fa1537fd2843f050ccd40bc73dd1491bf921444",
+          "verb": "SELECT",
+          "calls": 6,
+          "wallMs": 104.4265000000014,
+          "rowBytes": 6372,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "001eb147a0286e690eac1cbbb1269345f0f44c8a8a744ed6eb679ebd74094d6f",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 53.74759999999878,
+          "rowBytes": 3183,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4c5fb2d9fa134a2d88aff3c657d2abb2a37a6bff5507164c64ea655939398e34",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 50.429800000001705,
+          "rowBytes": 219,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "ed8cc8288ce1deae8af149ea7ef3c4bc9b2ff6da746f28952a5281d7df2dbb9f",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 49.17740000000049,
+          "rowBytes": 1938,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "822569eff04776c4093255cbc8c4d59c88a0c93e0ce140a420a4694811259958",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 33.15100000000166,
+          "rowBytes": 18,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c3e2003c1274a6c6ac22e857376a39b2d6eb19f8624684d19006588c6aa5fa6e",
+          "verb": "UPDATE",
+          "calls": 1,
+          "wallMs": 20.381000000001222,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "1f813bca9a05efd797b327487605c9d1609bb76dcf9429e8bd15d7c507766c70",
+          "verb": "DELETE",
+          "calls": 1,
+          "wallMs": 18.80040000000008,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2569d28cbb1bf1d6c98e3013a731ee75ba253042900f37156339fb89a82ee362",
+          "verb": "SELECT",
+          "calls": 1,
+          "wallMs": 15.795900000000984,
+          "rowBytes": 93,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2409075003c7b8c3686a5a5a6b9dcd1e89992ad71ffb3907ee52eb0748b8674f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 15.338300000003073,
+          "rowBytes": 22,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "77495150919b7e38c96afc9b1478c6ed0210dc2390a97203ac1e91047ddd4e3f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 15.296800000000076,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        }
+      ],
+      "reuseAdditionalBindings": 5,
+      "controlledPortCalls": 2,
+      "actualProviderCalls": 0,
+      "records": [
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "durationMs": 3237.7170000000006,
+          "counts": {
+            "casAttempts": 9,
+            "documentReads": 26,
+            "listReads": 15,
+            "revisionReads": 3,
+            "preloadQueries": 12,
+            "validationMs": 38,
+            "documentWrites": 17,
+            "jobWrites": 0,
+            "casConflicts": 1
+          },
+          "stages": {
+            "FEED_TURN_ADMISSION": {
+              "count": 1,
+              "durationMs": 15.374700000000303
+            },
+            "DB_SNAPSHOT": {
+              "count": 9,
+              "durationMs": 258.49250000000393
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 9,
+              "durationMs": 1875.1863999999987
+            },
+            "GRAPH_VALIDATION": {
+              "count": 9,
+              "durationMs": 38.14949999999226
+            },
+            "CAS_COMMIT": {
+              "count": 9,
+              "durationMs": 705.889599999995
+            },
+            "FEED_TURN_HELD": {
+              "count": 1,
+              "durationMs": 3127.6596000000027
+            }
+          }
+        }
+      ],
+      "pair": 2
+    },
+    {
+      "variant": "current",
+      "forcedConflict": false,
+      "wallMs": 2812.7502000000004,
+      "bindings": 80,
+      "payloadBytes": 27038,
+      "reportedLocalSqlMs": null,
+      "queryShapes": [
+        {
+          "sqlHash": "a9aabc8bea179b5dc12a425463046986fd39b3321610c3965580f77cd1d1c988",
+          "verb": "SELECT",
+          "calls": 29,
+          "wallMs": 508.95180000000437,
+          "rowBytes": 7978,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "bcf3061264cb6918e69c08ed9ddff8b608b674b9f92fd54f433ec2c48e3a4cbb",
+          "verb": "SELECT",
+          "calls": 11,
+          "wallMs": 200.4399999999987,
+          "rowBytes": 2237,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "310f1b23768ae37189bfaf91beae9aa3ae25f33650e18547a2cf23df8405f0ed",
+          "verb": "SELECT",
+          "calls": 8,
+          "wallMs": 145.28299999999763,
+          "rowBytes": 3280,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "e690ffe2389faa7c5426484cc40d949232e14fdc40f3fd6ba0802ba09da37959",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 143.37710000000516,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4bc01739b659cbd8c8522c995aadf10df359dd18ea752b1741ef5aceda9bd430",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 134.56000000000495,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c5f84adcef3168ffcb1325be9b6cc6f15a13a5ff2835240bca970f94bd0a4012",
+          "verb": "DELETE",
+          "calls": 8,
+          "wallMs": 134.06140000000232,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "0f4ba61a72a1dee7751a3d9b4987961dcfaa9ff63c47519c03c5c62ae41c8090",
+          "verb": "SELECT",
+          "calls": 10,
+          "wallMs": 133.45459999999548,
+          "rowBytes": 7650,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "9fbf9df44adf6625d0832df0c3f64f1c4b25144ef2b6ed95121492e52d968441",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 133.2999000000018,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "dcd1d3737647d8aed1e9bcaa04512c53832eed0d167c2298227a8ca5833306d7",
+          "verb": "UPDATE",
+          "calls": 7,
+          "wallMs": 119.69600000000173,
+          "rowBytes": 14,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "ed8cc8288ce1deae8af149ea7ef3c4bc9b2ff6da746f28952a5281d7df2dbb9f",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 39.03160000000025,
+          "rowBytes": 1292,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4c5fb2d9fa134a2d88aff3c657d2abb2a37a6bff5507164c64ea655939398e34",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 38.42160000000149,
+          "rowBytes": 146,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "3557fc8ae6dbf0343e3c66d03fa1537fd2843f050ccd40bc73dd1491bf921444",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 36.28989999999976,
+          "rowBytes": 2124,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "001eb147a0286e690eac1cbbb1269345f0f44c8a8a744ed6eb679ebd74094d6f",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 35.644500000000335,
+          "rowBytes": 2122,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2081373375e8da3631b88739606c768d92ad0994ac5f4a0af112c02145fae116",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 32.54240000000027,
+          "rowBytes": 94,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c3e2003c1274a6c6ac22e857376a39b2d6eb19f8624684d19006588c6aa5fa6e",
+          "verb": "UPDATE",
+          "calls": 1,
+          "wallMs": 19.708800000000338,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "1f813bca9a05efd797b327487605c9d1609bb76dcf9429e8bd15d7c507766c70",
+          "verb": "DELETE",
+          "calls": 1,
+          "wallMs": 19.11199999999917,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "822569eff04776c4093255cbc8c4d59c88a0c93e0ce140a420a4694811259958",
+          "verb": "SELECT",
+          "calls": 1,
+          "wallMs": 15.564399999999296,
+          "rowBytes": 9,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2409075003c7b8c3686a5a5a6b9dcd1e89992ad71ffb3907ee52eb0748b8674f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 14.745100000000093,
+          "rowBytes": 22,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "77495150919b7e38c96afc9b1478c6ed0210dc2390a97203ac1e91047ddd4e3f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 14.615500000001703,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        }
+      ],
+      "reuseAdditionalBindings": 5,
+      "controlledPortCalls": 2,
+      "actualProviderCalls": 0,
+      "records": [
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION_TURN",
+          "windowId": "9d19406a7db8364cc11a6c1f354c97aee16c33246940d425fbf2aaa57a15d472",
+          "outcome": "SUCCEEDED",
+          "durationMs": 2807.9529,
+          "counts": {
+            "casAttempts": 8,
+            "documentReads": 21,
+            "listReads": 11,
+            "revisionReads": 2,
+            "preloadQueries": 10,
+            "validationMs": 29,
+            "documentWrites": 16,
+            "jobWrites": 0,
+            "publicationInputLoads": 2,
+            "publicationCatalogTargets": 2,
+            "publicationHistoryRevisionIds": 0,
+            "publicationActiveRevisionIds": 2,
+            "publicationSelectedSemanticVersions": 2
+          },
+          "stages": {
+            "FEED_TURN_ADMISSION": {
+              "count": 1,
+              "durationMs": 15.131900000000314
+            },
+            "DB_SNAPSHOT": {
+              "count": 8,
+              "durationMs": 247.08979999999974
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 8,
+              "durationMs": 1518.8596000000034
+            },
+            "GRAPH_VALIDATION": {
+              "count": 8,
+              "durationMs": 29.996800000002622
+            },
+            "CAS_COMMIT": {
+              "count": 8,
+              "durationMs": 638.3015000000014
+            },
+            "PUBLICATION_ACTIVE_IDENTITIES": {
+              "count": 2,
+              "durationMs": 60.19620000000032
+            },
+            "PUBLICATION_CANDIDATE_LOAD": {
+              "count": 2,
+              "durationMs": 406.26950000000033
+            },
+            "PUBLICATION_HISTORY_IDENTITIES": {
+              "count": 2,
+              "durationMs": 0.30570000000079744
+            },
+            "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+              "count": 2,
+              "durationMs": 110.83799999999974
+            },
+            "PUBLICATION_INPUT_LOAD": {
+              "count": 2,
+              "durationMs": 817.1319999999996
+            },
+            "PUBLICATION_RESULT_PERSISTENCE": {
+              "count": 2,
+              "durationMs": 59.14420000000064
+            },
+            "PUBLICATION_PRECHECKS": {
+              "count": 1,
+              "durationMs": 6.147399999999834
+            },
+            "EDITION_PERSISTENCE": {
+              "count": 1,
+              "durationMs": 753.7541999999994
+            },
+            "FEED_TURN_HELD": {
+              "count": 1,
+              "durationMs": 2698.810800000001
+            }
+          }
+        },
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "durationMs": 2812.0007000000005,
+          "counts": {},
+          "stages": {}
+        }
+      ],
+      "pair": 2
+    },
+    {
+      "variant": "current",
+      "forcedConflict": true,
+      "wallMs": 3386.157800000001,
+      "bindings": 100,
+      "payloadBytes": 34987,
+      "reportedLocalSqlMs": null,
+      "queryShapes": [
+        {
+          "sqlHash": "a9aabc8bea179b5dc12a425463046986fd39b3321610c3965580f77cd1d1c988",
+          "verb": "SELECT",
+          "calls": 31,
+          "wallMs": 570.4326999999939,
+          "rowBytes": 7982,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "bcf3061264cb6918e69c08ed9ddff8b608b674b9f92fd54f433ec2c48e3a4cbb",
+          "verb": "SELECT",
+          "calls": 15,
+          "wallMs": 259.9422999999988,
+          "rowBytes": 2955,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "0f4ba61a72a1dee7751a3d9b4987961dcfaa9ff63c47519c03c5c62ae41c8090",
+          "verb": "SELECT",
+          "calls": 15,
+          "wallMs": 192.97200000000157,
+          "rowBytes": 11475,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "310f1b23768ae37189bfaf91beae9aa3ae25f33650e18547a2cf23df8405f0ed",
+          "verb": "SELECT",
+          "calls": 9,
+          "wallMs": 176.32909999999174,
+          "rowBytes": 3691,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "e690ffe2389faa7c5426484cc40d949232e14fdc40f3fd6ba0802ba09da37959",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 124.21270000000368,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4bc01739b659cbd8c8522c995aadf10df359dd18ea752b1741ef5aceda9bd430",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 124.12139999999272,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c5f84adcef3168ffcb1325be9b6cc6f15a13a5ff2835240bca970f94bd0a4012",
+          "verb": "DELETE",
+          "calls": 8,
+          "wallMs": 121.7751000000062,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "9fbf9df44adf6625d0832df0c3f64f1c4b25144ef2b6ed95121492e52d968441",
+          "verb": "INSERT",
+          "calls": 8,
+          "wallMs": 121.32810000000245,
+          "rowBytes": 16,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "dcd1d3737647d8aed1e9bcaa04512c53832eed0d167c2298227a8ca5833306d7",
+          "verb": "UPDATE",
+          "calls": 7,
+          "wallMs": 108.07270000000062,
+          "rowBytes": 14,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "001eb147a0286e690eac1cbbb1269345f0f44c8a8a744ed6eb679ebd74094d6f",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 54.58859999999913,
+          "rowBytes": 3183,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "4c5fb2d9fa134a2d88aff3c657d2abb2a37a6bff5507164c64ea655939398e34",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 53.81180000000313,
+          "rowBytes": 219,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2081373375e8da3631b88739606c768d92ad0994ac5f4a0af112c02145fae116",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 51.66339999999764,
+          "rowBytes": 141,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "ed8cc8288ce1deae8af149ea7ef3c4bc9b2ff6da746f28952a5281d7df2dbb9f",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 49.78509999999369,
+          "rowBytes": 1938,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "3557fc8ae6dbf0343e3c66d03fa1537fd2843f050ccd40bc73dd1491bf921444",
+          "verb": "SELECT",
+          "calls": 3,
+          "wallMs": 49.60909999999785,
+          "rowBytes": 3186,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "822569eff04776c4093255cbc8c4d59c88a0c93e0ce140a420a4694811259958",
+          "verb": "SELECT",
+          "calls": 2,
+          "wallMs": 35.138899999994464,
+          "rowBytes": 18,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "1f813bca9a05efd797b327487605c9d1609bb76dcf9429e8bd15d7c507766c70",
+          "verb": "DELETE",
+          "calls": 1,
+          "wallMs": 19.58719999999812,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2569d28cbb1bf1d6c98e3013a731ee75ba253042900f37156339fb89a82ee362",
+          "verb": "SELECT",
+          "calls": 1,
+          "wallMs": 19.159100000000763,
+          "rowBytes": 93,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "c3e2003c1274a6c6ac22e857376a39b2d6eb19f8624684d19006588c6aa5fa6e",
+          "verb": "UPDATE",
+          "calls": 1,
+          "wallMs": 18.223300000001473,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "2409075003c7b8c3686a5a5a6b9dcd1e89992ad71ffb3907ee52eb0748b8674f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 14.011200000000827,
+          "rowBytes": 22,
+          "reportedSqlMs": 0
+        },
+        {
+          "sqlHash": "77495150919b7e38c96afc9b1478c6ed0210dc2390a97203ac1e91047ddd4e3f",
+          "verb": "INSERT",
+          "calls": 1,
+          "wallMs": 13.941200000001118,
+          "rowBytes": 2,
+          "reportedSqlMs": 0
+        }
+      ],
+      "reuseAdditionalBindings": 5,
+      "controlledPortCalls": 2,
+      "actualProviderCalls": 0,
+      "records": [
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION_TURN",
+          "windowId": "9d19406a7db8364cc11a6c1f354c97aee16c33246940d425fbf2aaa57a15d472",
+          "outcome": "SUCCEEDED",
+          "durationMs": 3385.3027999999977,
+          "counts": {
+            "casAttempts": 9,
+            "documentReads": 23,
+            "listReads": 15,
+            "revisionReads": 3,
+            "preloadQueries": 15,
+            "validationMs": 47,
+            "documentWrites": 17,
+            "jobWrites": 0,
+            "publicationInputLoads": 3,
+            "publicationCatalogTargets": 3,
+            "publicationHistoryRevisionIds": 0,
+            "publicationActiveRevisionIds": 3,
+            "publicationSelectedSemanticVersions": 3,
+            "casConflicts": 1
+          },
+          "stages": {
+            "FEED_TURN_ADMISSION": {
+              "count": 1,
+              "durationMs": 14.05199999999968
+            },
+            "DB_SNAPSHOT": {
+              "count": 9,
+              "durationMs": 285.8006000000096
+            },
+            "TRANSACTION_COMPUTATION": {
+              "count": 9,
+              "durationMs": 1965.512999999988
+            },
+            "GRAPH_VALIDATION": {
+              "count": 9,
+              "durationMs": 45.81149999999616
+            },
+            "CAS_COMMIT": {
+              "count": 9,
+              "durationMs": 735.2692000000025
+            },
+            "PUBLICATION_ACTIVE_IDENTITIES": {
+              "count": 3,
+              "durationMs": 86.37820000000283
+            },
+            "PUBLICATION_CANDIDATE_LOAD": {
+              "count": 3,
+              "durationMs": 608.9848999999995
+            },
+            "PUBLICATION_HISTORY_IDENTITIES": {
+              "count": 3,
+              "durationMs": 0.033699999996315455
+            },
+            "PUBLICATION_SELECTED_SEMANTIC_LOAD": {
+              "count": 3,
+              "durationMs": 152.22980000000098
+            },
+            "PUBLICATION_INPUT_LOAD": {
+              "count": 3,
+              "durationMs": 1194.0460999999996
+            },
+            "PUBLICATION_RESULT_PERSISTENCE": {
+              "count": 2,
+              "durationMs": 61.39219999999841
+            },
+            "PUBLICATION_PRECHECKS": {
+              "count": 1,
+              "durationMs": 0.2985000000007858
+            },
+            "EDITION_PERSISTENCE": {
+              "count": 1,
+              "durationMs": 745.4451000000008
+            },
+            "FEED_TURN_HELD": {
+              "count": 1,
+              "durationMs": 3280.9146
+            }
+          }
+        },
+        {
+          "type": "V1_PIPELINE_LATENCY",
+          "feedId": "feed-1",
+          "phase": "PUBLICATION",
+          "outcome": "SUCCEEDED",
+          "durationMs": 3386.0973999999987,
+          "counts": {},
+          "stages": {}
+        }
+      ],
+      "pair": 2
+    }
+  ],
+  "limitations": [
+    "Original preliminary pair 1 excluded because its query counters included the subsequent idempotent reuse read. Retained privately.",
+    "Returned row bytes include JSON representation of row arrays, not network packets.",
+    "Batch statement wall durations overlap; do not sum.",
+    "Local D1 did not expose sql_duration_ms. Null SQL CPU means unmeasured, not zero.",
+    "No significant full-pipeline speedup established. Small sample is not a p95/p99 estimate."
+  ]
+}

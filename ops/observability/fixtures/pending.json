@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "pipeline-trace-v1",
+  "feed": {
+    "id": "synthetic-5"
+  },
+  "window": {
+    "start": "2026-10-29T00:00:00Z",
+    "end": "2026-10-29T01:00:00Z"
+  },
+  "view": "overview",
+  "items": [],
+  "page": {
+    "total": 0,
+    "nextCursor": null
+  },
+  "summary": {
+    "publication": {
+      "briefingRequest": {
+        "id": "synthetic-request-5",
+        "state": "PENDING",
+        "result": null,
+        "blocked": false,
+        "coverage": {
+          "state": "COMPLETE"
+        }
+      },
+      "recordedEditions": []
+    }
+  }
+}

@@ -1,12 +1,13 @@
 export type SourceType = "channel" | "group";
 export type BriefingLanguage = "en" | "ar" | "fr";
 export type BriefingIntensity = "low" | "medium" | "high";
-export type SourceProvider = "telegram" | "rss" | "apify";
+export type SourceProvider = "telegram" | "rss" | "apify" | "web";
 export type BriefingCadence = "hourly" | "daily" | "weekly" | "monthly";
 export type SourceKind =
   | "telegram_channel"
   | "telegram_group"
   | "rss_feed"
+  | "web_page"
   | "google_news"
   | "x_profile"
   | "x_search"
@@ -15,6 +16,13 @@ export type SourceKind =
   | "apify_actor";
 
 export interface BriefingConfig {
+  /** Absent on legacy clock-aligned feeds; retained across edits. */
+  briefingScheduleOriginAt?: string;
+  /** Coverage origin for opt-in clock schedules; preserved across ordinary edits. */
+  briefingScheduleClockStartAt?: string;
+  /** Admission policy assigned at creation; absent retains the historical policy. */
+  briefingSchedulePolicy?: 'clock-aligned-delivery-v2';
+  updateIntervalMinutes?: 30 | 60 | 120 | 360 | 720 | 1440;
   id: string;
   ownerAccountId: string;
   ownerUsername: string;
@@ -24,6 +32,7 @@ export interface BriefingConfig {
   interestProfile: string;
   styleInstruction?: string;
   publicFeedEnabled: boolean;
+  exploreFeatured?: boolean;
   paused: boolean;
   language: BriefingLanguage;
   intensity: BriefingIntensity;
@@ -51,6 +60,7 @@ export interface MediaReference {
 }
 
 export interface NormalizedMessage {
+  news?:NormalizedNewsMetadata;
   id: string;
   source: MessageSource;
   messageId: string;
@@ -65,6 +75,9 @@ export interface NormalizedMessage {
 }
 
 export interface BriefingEvidence {
+  documentId?:string;
+  contentHash?:string;
+  headline?:string;
   messageId: string;
   sourceId: string;
   sourceTitle: string;
@@ -79,6 +92,7 @@ export interface BriefingEvidence {
 }
 
 export interface BriefingItem {
+  development?:DevelopmentState;
   id: string;
   clusterId: string;
   eventKey?: string;
@@ -91,6 +105,10 @@ export interface BriefingItem {
 }
 
 export interface BriefingEditionSection {
+  developmentId?:string;
+  claims?:GroundedClaim[];
+  changes?:DevelopmentChange[];
+  ranking?:DevelopmentRank;
   title: string;
   summary: string;
   evidence: BriefingEvidence[];
@@ -107,6 +125,8 @@ export interface BriefingEdition {
   sections: BriefingEditionSection[];
   status: "published" | "empty";
   publishedAt: string;
+  /** Intended delivery time; publication time remains the actual persisted time. */
+  scheduledFor?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -146,12 +166,14 @@ export interface ProcessingResult {
 }
 
 export interface SummaryInput {
+  knownClaims?:GroundedClaim[];
   briefing: BriefingConfig;
   evidence: BriefingEvidence[];
 }
 
 export interface SummaryAdapter {
   summarize(input: SummaryInput): Promise<string>;
+  summarizeGrounded?(input:SummaryInput):Promise<GroundedClaim[]>;
 }
 
 export interface EventEquivalenceInput {
@@ -169,3 +191,13 @@ export interface EventReviewAdapter {
   areSameEvent(input: EventEquivalenceInput): Promise<boolean>;
   isImportant(input: ImportanceReviewInput): Promise<boolean>;
 }
+
+/** Internal acquisition references. Public citation output excludes runtime details. */
+export interface NormalizedNewsMetadata {
+ tenantId:string;acquiredItemId:string;upstreamResourceId:string;canonicalIdentity:string;contentHash:string;
+ headline?:string;language?:string;acquisitionRunId?:string;
+}
+export interface GroundedClaim {id:string;text:string;support:Array<{messageId:string;quote:string}>;isNew?:boolean}
+export interface DevelopmentChange {id:string;at:string;kind:"NEW_DEVELOPMENT"|"NEW_INFORMATION"|"CORROBORATION"|"CORRECTION_OR_CONFLICT";claimIds:string[];messageIds:string[]}
+export interface DevelopmentRank {relevance:number;importance:number;novelty:number;recency:number;confidence:number;score:number}
+export interface DevelopmentState {version:number;evidenceFingerprint:string;claims:GroundedClaim[];changes:DevelopmentChange[];ranking:DevelopmentRank;membership:Array<{messageId:string;method:"INITIAL"|"DETERMINISTIC"|"SEMANTIC_REVIEW"}>}

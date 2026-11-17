@@ -13,6 +13,7 @@ export interface AccountRecord {
 
 export interface AccountWithStats extends AccountRecord {
   briefingCount: number;
+  createdAt?: string;
 }
 
 export interface SourceRecord {
@@ -55,8 +56,25 @@ export interface SessionStatus {
 
 export type PublicBriefing = Omit<BriefingConfig, "interestProfile" | "styleInstruction">;
 
+export interface PublicationProgress {
+  stage:'COLLECTING'|'PROCESSING'|'PUBLISHING';
+  acquisition:{completed:number;total:number;failed:number};
+  review:{completed:number;total:number;failed:number};
+  pending:number;
+}
+
 export interface FeedPayload {
+  /** Whether editions covers the complete searchable publication set. */
+  editionsComplete?: boolean;
+  /** Changes when the bounded searchable publication window changes. */
+  publicationVersion?: string;
+  unreadSummaryAvailable?: boolean;
+  publicationProgress?: PublicationProgress;
+  publicationState?: 'waiting'|'checking'|'quiet'|'failed'|'published'|'correction_pending'|'setup_required'|'partial'|'service_blocked';
+  sourceAvailability?: {sourceId:string;title:string;state:'AVAILABLE'|'UNAVAILABLE';providers:string[];reason?:string;acquisition?:{completed:number;pending:number;failed:number;issues?:{reason:string;count:number}[]};warning?:string;collectionError?:string}[];
   briefing: PublicBriefing;
   editions: BriefingEdition[];
   viewerHasStarred: boolean;
 }
+
+export interface FeedCardMetadata {viewerHasStarred?: boolean; latestUpdatedAt?: string}

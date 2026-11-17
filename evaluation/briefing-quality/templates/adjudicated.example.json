@@ -1,0 +1,25 @@
+[
+  {
+    "_warning": "SCHEMA ILLUSTRATION ONLY; replace every count with actual reviewed evidence. Not a result.",
+    "caseId": "replace-with-case-id",
+    "system": "replace-with-unblinded-system",
+    "language": "en",
+    "split": "development",
+    "status": "pending",
+    "reviewers": [],
+    "evidenceFile": "",
+    "claims": 0,
+    "supportedClaims": 0,
+    "items": 0,
+    "relevantItems": 0,
+    "expectedWeight": 0,
+    "coveredWeight": 0,
+    "expectedFacts": 0,
+    "coveredFacts": 0,
+    "expectedCritical": 0,
+    "coveredCritical": 0,
+    "duplicateItems": 0,
+    "eligibleNovelItems": 0,
+    "novelItems": 0
+  }
+]

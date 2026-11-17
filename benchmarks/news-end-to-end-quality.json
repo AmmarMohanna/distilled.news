@@ -1,0 +1,45 @@
+{
+  "reviewMethod": "AI_ASSISTED_SOURCE_REVIEW_NOT_INDEPENDENT_HUMAN_GOLD",
+  "humanReview": "PENDING",
+  "corpusArticles": 3,
+  "primaryPipeline": {
+    "publishableBriefings": 0,
+    "readerQuality": "NOT_SCORABLE_NO_PRIMARY_BRIEFING",
+    "sourceIntegrity": "89_OF_89_EXACT_OWNED_CLAIM_SPANS_RETAINED_PER_ROUTE",
+    "findings": [
+      {"provider": "openrouter", "severity": "MATERIAL", "dimension": "EVENT_IDENTITY", "finding": "Anthropic fund announcement was merged into the unrelated Replit model-switch event. Replit was also linked to the Laplace storyline."},
+      {"provider": "cloudflare", "severity": "MATERIAL", "dimension": "EVENT_IDENTITY", "finding": "Replit developments were linked to the Laplace storyline. Source update notices became candidate occurrences, and supporting/context facts in the fund announcement were split into separate events."},
+      {"provider": "both", "severity": "BLOCKING", "dimension": "EVIDENCE_COMPLETENESS", "finding": "The original editorial responses omitted dispositions for offered parent facts; both failed closed with UNDISPOSED_PARENT_FACT."},
+      {"provider": "cloudflare", "severity": "BLOCKING", "dimension": "EVIDENCE_COMPLETENESS", "finding": "The opt-in compact whole-parent editorial variant still omitted parent-fact dispositions."},
+      {"provider": "openrouter", "severity": "BLOCKING", "dimension": "SOURCE_BOUNDARIES", "finding": "The recovered compact plan passed editorial validation but included a timestamp ending in p.m. without the adjoining PT. qualifier. The unchanged writer-input safeguard blocked it before paid writing."}
+    ],
+    "falseMergeSplitRates": "NOT_ESTIMATED_FROM_THREE_CASES_WITHOUT_INDEPENDENT_GOLD"
+  },
+  "downstreamControl": {
+    "scope": "SHARED_AI_CURATED_INPUT_NOT_END_TO_END",
+    "developments": 4,
+    "requiredFacts": 12,
+    "inputHash": "90a85b638f55b04fccf631ee1700aae55567636bd3809582d60d8bc3bf8bbe15",
+    "modelVerifierVerdicts": {"openrouter": "ACCEPT", "cloudflare": "ACCEPT"},
+    "readerWords": {"openrouter": 421, "cloudflare": 415},
+    "findings": [
+      {"provider": "both", "severity": "MATERIAL_REVIEW_REQUIRED", "dimension": "FACTUAL_ACCURACY", "sourceFact": "AI_CURATED_CONTROL_0_fact_2", "finding": "Source describes agents being developed to design corner cases; reader prose presents the automatic capability as an existing feature. Both verifiers accepted it."},
+      {"provider": "both", "severity": "REVIEW_REQUIRED", "dimension": "FACTUAL_ACCURACY", "sourceFact": "AI_CURATED_CONTROL_0_fact_4", "finding": "Reader prose substitutes advanced for high-level traffic operations, introducing a potentially unsupported evaluation. Both verifiers accepted it."},
+      {"provider": "cloudflare", "severity": "REVIEW_REQUIRED", "dimension": "MISSING_DETAILS", "sourceFact": "AI_CURATED_CONTROL_2_fact_0", "finding": "Reader prose omits the required parent paragraph's statement that ARR figures are not being disclosed. The verifier still marks that whole fact communicated."},
+      {"provider": "cloudflare", "severity": "REVIEW_REQUIRED", "dimension": "FACTUAL_ACCURACY", "sourceFact": "AI_CURATED_CONTROL_0_fact_4", "finding": "Reader prose changes early-stage work with humanoid-robotics partners into early discussions, an activity not stated by the source."},
+      {"provider": "both", "severity": "CONTROL_PLAN_LIMITATION", "dimension": "CORRECTIONS", "finding": "Continued Anthropic availability, the OpenAI default and the attributed contrary partnership account survive. The curated input omitted the original termination assertion, so the disagreement's antecedent remains insufficiently explicit; this limitation belongs to the control plan too."},
+      {"provider": "both", "severity": "CONTROL_PLAN_LIMITATION", "dimension": "REPETITION_AND_IMPORTANCE", "finding": "More than half the reader words cover Laplace, with overlapping safety/method explanations. The curated plan required overlapping source paragraphs, so this does not isolate autonomous editorial quality."}
+    ],
+    "preserved": ["Conditional additional share allocation and wholly-owned fund structure", "Shares distinguished from cash", "2027 revenue forecast distinguished from current revenue mix", "Continued Anthropic access and attributed partnership dispute", "No invented prior Distilled correction acknowledgment"],
+    "invalidAcceptAssessment": "AI_ASSISTED_CONCERNS_IDENTIFIED; NO_INDEPENDENT_RATE_OR_CERTIFICATION"
+  },
+  "qualification": {
+    "constructionRelationNovelty": "BLOCKED_BY_EVENT_GROUPING_FINDINGS",
+    "editorial": "BLOCKED_BY_COMPLETE_DISPOSITION_AND_SOURCE_CONTEXT_FAILURES",
+    "writerVerification": "BLOCKED_BY_READER_QUALITY_AND_ACCEPT_CONCERNS",
+    "packetReconciliation": "NOT_REAL_MODEL_QUALIFIED_BY_THIS_DIRECT_CONSTRUCTION_COHORT",
+    "repairs": "ONE_REAL_CLOUDFLARE_CONSTRUCTION_REPAIR_OBSERVED; OTHER_REPAIR_TASKS_UNQUALIFIED",
+    "liveQualificationRegistryChanged": false,
+    "existingKnownGoodOpenRouterConfigurationChanged": false
+  }
+}

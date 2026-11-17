@@ -1,0 +1,41 @@
+{
+  "baseCommit": "dd88f5c",
+  "workerSuites": {
+    "pure": {
+      "passed": 99,
+      "failed": 0,
+      "pending": 0
+    },
+    "v2Publication": {
+      "passed": 7,
+      "failed": 0,
+      "pending": 0
+    },
+    "adaptiveAndSemanticRecovery": {
+      "passed": 18,
+      "failed": 0,
+      "pending": 0
+    }
+  },
+  "offlineReplay": {
+    "passed": 3,
+    "liveSkipped": 1
+  },
+  "typecheck": "PASS repository-wide",
+  "workerBuild": "PASS explicit staging config dry-run no upload",
+  "frontend": "UNCHANGED_NOT_REBUILT",
+  "fullWorkerSuite": "NOT_RERUN",
+  "newPaidCalls": 2,
+  "newActualCostUsd": 0.0110652,
+  "settled": 2,
+  "newUnknownHolds": 0,
+  "deployment": false,
+  "activation": false,
+  "publication": false,
+  "push": false,
+  "v2Default": "DISABLED",
+  "productCostTarget": "NOT_DEMONSTRATED",
+  "productLatencyTarget": "NOT_DEMONSTRATED",
+  "workerSourceManifestSha256": "d942377393824dd4cb379c18b794e8f583c065be95544fe1e787570efca6af1c",
+  "implementationCommit": "2719c0d"
+}

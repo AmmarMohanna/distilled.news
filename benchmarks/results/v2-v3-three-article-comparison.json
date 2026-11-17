@@ -1,0 +1,264 @@
+{
+  "v2Commit": "8b7dee7432ecc98941caae39406a9c407b011532",
+  "v3Commit": "1ba497171f5724cf3e334edfb9e47d2f3410237a",
+  "corpusHash": "d8651e44c878a0738b3b5d5fc5ad4d7f330e3b43d18b279c9e30ba3c109f77c6",
+  "scope": "SAME_RETAINED_THREE_ARTICLES; SAVED_ACQUISITION; ISOLATED_LOCAL_D1",
+  "defaultPreparation": {
+    "laplaceOriginalChars": 6319,
+    "laplacePreparedChars": 6000,
+    "omittedOriginalChars": 326,
+    "otherArticlesIntact": true
+  },
+  "arms": [
+    {
+      "arm": "default",
+      "pipelineStatus": "ERROR",
+      "originalError": "(0 , __vite_ssr_import_1__.editionId) is not a function",
+      "models": {
+        "editor": "openai/gpt-4.1",
+        "verifier": "openai/gpt-4.1-mini"
+      },
+      "callCount": 2,
+      "actualCostUsd": 0.0121116,
+      "engineTimings": {
+        "totalMs": 15567,
+        "stages": {
+          "edit": 10338,
+          "verify": 5188
+        }
+      },
+      "processingAndPersistenceMs": null,
+      "defaultFailedAttemptMs": 19287.420100000003,
+      "usage": {
+        "calls": 2,
+        "inputTokens": 6767,
+        "outputTokens": 498,
+        "costUsd": 0.0121116
+      },
+      "items": [
+        {
+          "headline": "Replit makes OpenAI its default AI partner, reduces reliance on Anthropic",
+          "body": "Replit CEO Amjad Masad announced that OpenAI's ChatGPT is now the default model for Replit's AI coding platform, replacing Anthropic's Claude models due to performance, cost, and partnership considerations. While Anthropic models remain available, most users are expected to use the default, likely reducing Replit's spend with Anthropic. Masad also noted a shift in Replit's revenue toward enterprise and government customers, and emphasized the importance of robust AI safety measures. Some insiders dispute the extent of the partnership change, but Replit confirms OpenAI is now preferred.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+          ]
+        },
+        {
+          "headline": "Anthropic commits 5% of shares to new public benefit fund",
+          "body": "Anthropic announced it will allocate 5% of its shares to a newly created public benefit fund aimed at supporting projects for societal good, with the option to increase this by 2% for every 50% rise in company value. The fund may make large donations to nonprofits or direct distributions, and Anthropic plans to share more details on its governance in coming months.",
+          "relation": "new",
+          "importance": 2,
+          "sourceIds": [
+            "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+          ]
+        },
+        {
+          "headline": "Laplace Intelligence develops AI-driven red-teaming for robotics and autonomous vehicles",
+          "body": "Laplace Intelligence, a startup from Ann Arbor, is building automated red-teaming tools that use AI to stress-test robotics and physical AI systems in high-fidelity simulations before real-world deployment. The company’s platform reconstructs real environments and uses AI agents to probe for weaknesses, aiming to improve safety for robots, autonomous vehicles, and smart city solutions. Laplace is working with customers in autonomous trucking, automotive manufacturing, and smart city pilots.",
+          "relation": "new",
+          "importance": 3,
+          "sourceIds": [
+            "1e466ebb-1191-49fb-99f5-a482add9e302"
+          ]
+        }
+      ],
+      "omitted": [],
+      "dropped": [],
+      "persistence": {
+        "arm": "default",
+        "editionId": "edition_v0v1h1",
+        "hash": "f92d872f1b74a55e99e54c7edb3dfae1c34017423fc64078d952aa82ff452d91",
+        "createdAt": "2026-10-21T20:30:24.014Z",
+        "sections": 3,
+        "readbackConfirmed": true,
+        "providerCalls": 0,
+        "operatorAssistedPersistence": true
+      },
+      "independentReview": {
+        "verdict": "PASS_WITH_CAVEATS",
+        "confidence": "MODERATE",
+        "provenance": "INDEPENDENT_AI_ASSISTED_SOURCE_REVIEW; NOT HUMAN_GOLD",
+        "caveats": [
+          "Enterprise/government directional shift compresses observed enterprise growth and 2027 forecast; temporal ambiguity",
+          "Insider dispute is vague but reader does not assert partnership ended",
+          "Automatic corner-case generation and wholly-owned fund detail omitted"
+        ]
+      },
+      "reviewReassessment": "Earlier categorical rejection was too strict; user clarified could/expected paraphrase is acceptable here. Same paid prose and verdicts retained unchanged."
+    },
+    {
+      "arm": "full-evidence",
+      "pipelineStatus": "published",
+      "originalError": null,
+      "models": {
+        "editor": "openai/gpt-4.1",
+        "verifier": "openai/gpt-4.1-mini"
+      },
+      "callCount": 2,
+      "actualCostUsd": 0.012207599999999999,
+      "engineTimings": {
+        "totalMs": 14574,
+        "stages": {
+          "edit": 9407,
+          "verify": 5122
+        }
+      },
+      "processingAndPersistenceMs": 15560.438600000001,
+      "defaultFailedAttemptMs": null,
+      "usage": {
+        "calls": 2,
+        "inputTokens": 6883,
+        "outputTokens": 492,
+        "costUsd": 0.012207599999999999
+      },
+      "items": [
+        {
+          "headline": "Replit makes OpenAI its default AI partner, reducing reliance on Anthropic",
+          "body": "Replit CEO Amjad Masad announced that OpenAI's ChatGPT is now the default model for Replit's AI coding platform, citing performance, cost, and partnership strength. While Anthropic models remain available, this shift is expected to significantly reduce Replit's spend with Anthropic. Masad said enterprise contracts now make up about 15% of Replit's revenue, up from 2% last year, and discussed the importance of robust AI safety measures. Some insiders dispute the extent of the partnership change, but Replit confirms OpenAI is now preferred for powering its agent.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+          ]
+        },
+        {
+          "headline": "Anthropic commits 5% of company shares to new public benefit fund",
+          "body": "Anthropic announced it will allocate 5% of its shares to a public benefit fund aimed at supporting projects for societal good, with the option to increase this by 2% for every 50% rise in company value. The fund, structured as a wholly-owned entity, may make large donations to nonprofits or direct distributions. Anthropic said more details on governance will be shared in coming months.",
+          "relation": "new",
+          "importance": 1,
+          "sourceIds": [
+            "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+          ]
+        },
+        {
+          "headline": "Laplace Intelligence develops AI-driven red-teaming for robotics and autonomous vehicles",
+          "body": "Laplace Intelligence, a startup from Ann Arbor, is offering automated red-teaming—using AI to stress-test robotics and physical AI systems in simulation before real-world deployment. Their platform uses high-fidelity simulations and AI agents to identify failure points, with current customers in autonomous vehicles and smart city pilots. The company aims to scale its approach as physical AI becomes more widespread.",
+          "relation": "new",
+          "importance": 2,
+          "sourceIds": [
+            "1e466ebb-1191-49fb-99f5-a482add9e302"
+          ]
+        }
+      ],
+      "omitted": [],
+      "dropped": [],
+      "persistence": {
+        "arm": "full-evidence",
+        "editionId": "edition_1kl1hw3",
+        "hash": "d6fe1f32ba2fc03ada336eed80210f5edd0f167ba766ef10bff56d4d71c2ed35",
+        "createdAt": "2026-10-21T20:31:00.324Z",
+        "sections": 3,
+        "readbackConfirmed": true,
+        "providerCalls": 0,
+        "operatorAssistedPersistence": false
+      },
+      "independentReview": {
+        "verdict": "PASS_WITH_CAVEATS",
+        "confidence": "MODERATE",
+        "provenance": "INDEPENDENT_AI_ASSISTED_SOURCE_REVIEW; NOT HUMAN_GOLD",
+        "caveats": [
+          "Specific partnership counterclaim could be clearer; default/access framing remains accurate",
+          "Automatic corner-case generation omitted; concise product summary remains accurate",
+          "Smart-city pilot/customer terminology is imprecise, not explicitly a paying-customer claim"
+        ]
+      },
+      "reviewReassessment": "Earlier categorical rejection was too strict; user clarified could/expected paraphrase is acceptable here. Same paid prose and verdicts retained unchanged."
+    }
+  ],
+  "ledger": {
+    "at": "2026-10-21T20:32:24.059Z",
+    "scope": {
+      "id": "v3-three-article-20261021",
+      "validFrom": "2026-10-21T20:28:36.805Z",
+      "validUntil": "2026-10-21T22:28:36.805Z",
+      "maxCalls": 12,
+      "maxUsd": 0.1,
+      "totalTaskMaxUsd": 1,
+      "authorization": "USER_APPROVE_V3_DEFAULT_AND_FULL_EVIDENCE",
+      "arms": [
+        "default",
+        "full-evidence"
+      ]
+    },
+    "callCount": 4,
+    "actualCostUsd": 0.0243192,
+    "unsettled": 0,
+    "originalTaskActualUsd": 0.91148441522,
+    "oldUnsettledHolds": {
+      "n": 54,
+      "usd": 6.0268524892999995
+    },
+    "rows": [
+      {
+        "id": "evaluation:v3-three-article-20261021:4a912e6b45204ee3589374a4db8260334eada72becd2a6ae1165e7c2e2cc6e9e",
+        "token": "4fc9c2a2-349a-4be0-8c03-85437403e2d6",
+        "model": "openai/gpt-4.1-mini",
+        "reserved_cost_usd": 0.011192,
+        "cost_usd": 0.0013516,
+        "reported": 1,
+        "settled_token": "4fc9c2a2-349a-4be0-8c03-85437403e2d6"
+      },
+      {
+        "id": "evaluation:v3-three-article-20261021:c432f6ed5121fb5b70985ded0305b6b0faf93df0a98466352e0f9a69ef4df98e",
+        "token": "6a903138-297c-4672-9572-edcb6ff273cc",
+        "model": "openai/gpt-4.1-mini",
+        "reserved_cost_usd": 0.011295,
+        "cost_usd": 0.0013736,
+        "reported": 1,
+        "settled_token": "6a903138-297c-4672-9572-edcb6ff273cc"
+      },
+      {
+        "id": "evaluation:v3-three-article-20261021:c8588e9cd1227433bb8eecd1d46f6e3b86cb3658386d63907cee7d7b8d4fb70e",
+        "token": "56af53be-463a-4faa-a990-034697d2fb38",
+        "model": "openai/gpt-4.1",
+        "reserved_cost_usd": 0.06693,
+        "cost_usd": 0.010834,
+        "reported": 1,
+        "settled_token": "56af53be-463a-4faa-a990-034697d2fb38"
+      },
+      {
+        "id": "evaluation:v3-three-article-20261021:f61efd0bdb42c988091f40107bb8663e45c576b898a7a655bb80e33b4cf88894",
+        "token": "b1aa1ecc-c174-47d2-9ff0-d18fd640a474",
+        "model": "openai/gpt-4.1",
+        "reserved_cost_usd": 0.06627,
+        "cost_usd": 0.01076,
+        "reported": 1,
+        "settled_token": "b1aa1ecc-c174-47d2-9ff0-d18fd640a474"
+      }
+    ]
+  },
+  "retainedV2Baselines": [
+    {
+      "arm": "X",
+      "calls": 8,
+      "costUsd": 0.02747329,
+      "wallMs": 375350.2263,
+      "persisted": false
+    },
+    {
+      "arm": "Y-Haiku",
+      "calls": 5,
+      "costUsd": 0.013834225,
+      "wallMs": 128762.1823,
+      "persisted": false
+    },
+    {
+      "arm": "Z-hybrid",
+      "calls": 8,
+      "costUsd": 0.03562210522,
+      "wallMs": 316034.3303,
+      "persisted": false
+    }
+  ],
+  "conclusion": "Full-evidence V3 automatically generated, verified and persisted a useful three-item briefing that passed independent source review with caveats. Stronger observed delivery result on this corpus, not proof of general reliability or isolated architecture/model causality.",
+  "limitations": [
+    "One sample per arm; model nondeterminism and differing V2 model mappings are confounds",
+    "No fresh matched V2 rerun; historical V2 timing and cost are comparison references",
+    "No live acquisition, scheduling, shared staging deployment, notifications or multi-feed concurrency tested",
+    "Default persistence required harness compatibility recovery; full-evidence persisted automatically",
+    "Reader-history empty in both arms; corrections and later updates not exercised"
+  ],
+  "productCodeChanged": false
+}

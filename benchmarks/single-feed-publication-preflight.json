@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "single-feed-publication-preflight-v1",
+  "capturedAt": "2026-10-19T10:45:15.479Z",
+  "status": "BLOCKED",
+  "implementationCommit": "b87c252",
+  "attemptCeilingUsd": 0.2,
+  "attemptId": "controlled-rss-20261019T100000Z-v2-preparation",
+  "target": {
+    "accountId": "e32b564514d4f9b9e383b7dd30dbb026",
+    "worker": "distilled-news-staging",
+    "databaseId": "ab259bfe-6029-4e20-8cb6-eea6b7a67459",
+    "configuration": "apps/worker/wrangler.staging.toml",
+    "rollbackWorkerVersion": "45f475b8-0d2a-4da3-9b44-bffc113ffdcb",
+    "assetPrefix": "staging-assets/905fe696899a08e0e9a0521efed549416f3f3fe7/"
+  },
+  "feedId": "briefing_4d69fb82-7190-4e19-bcc3-cb0a7decc8d7",
+  "feedRevision": 7,
+  "window": {
+    "start": "2026-10-19T09:00:00.000Z",
+    "end": "2026-10-19T10:00:00.000Z"
+  },
+  "existingRequestId": "4d6e2142cd25055b071d60e48cec9a41d52acaa87a3a62a1520143a0fca4ee5c",
+  "authorization": {
+    "capUsd": 53,
+    "reportedUsd": 48.307721772,
+    "heldUsd": 4.604649902,
+    "headroomUsd": 0.087628326,
+    "expiresAt": "2026-10-19T19:15:55.700Z",
+    "newInferenceAuthorized": true,
+    "deploymentAuthorized": true,
+    "activationAuthorized": true,
+    "publicationAuthorized": true,
+    "authorizationCondition": "One isolated non-public staging feed/window only, aggregate new attributable spending <= $0.20, all existing financial gates; no cap/grant changes; conditions not established"
+  },
+  "readiness": {
+    "pendingReview": 1,
+    "failedReview": 2,
+    "failedAcquisition": 1,
+    "intakeState": "PENDING",
+    "v2WindowIntents": 0,
+    "windowShortlistAvailable": false,
+    "isolationEstablished": false,
+    "feedScopedV2SwitchAvailable": false
+  },
+  "cost": {
+    "model": "openai/gpt-4.1-mini",
+    "maxOutputTokensPerCall": 32768,
+    "outputUsdPerToken": 1.6e-06,
+    "stages": [
+      {
+        "stage": "editorialPlan",
+        "maxCallsMinimum": 1,
+        "outputOnlyReservationUsd": 0.0524288,
+        "inputReservationUsd": null,
+        "actualCostUsd": null
+      },
+      {
+        "stage": "writer",
+        "maxCallsMinimum": 1,
+        "outputOnlyReservationUsd": 0.0524288,
+        "inputReservationUsd": null,
+        "actualCostUsd": null
+      },
+      {
+        "stage": "verification",
+        "maxCallsMinimum": 1,
+        "outputOnlyReservationUsd": 0.0524288,
+        "inputReservationUsd": null,
+        "actualCostUsd": null
+      },
+      {
+        "stage": "oneRepair",
+        "maxCallsMinimum": 1,
+        "outputOnlyReservationUsd": 0.0524288,
+        "inputReservationUsd": null,
+        "actualCostUsd": null
+      },
+      {
+        "stage": "reverification",
+        "maxCallsMinimum": 1,
+        "outputOnlyReservationUsd": 0.0524288,
+        "inputReservationUsd": null,
+        "actualCostUsd": null
+      }
+    ],
+    "outputOnlyReservationFloorUsd": 0.262144,
+    "upstreamAttributedCostUsd": null,
+    "rankingReservationUsd": null,
+    "extraVerificationPackets": null,
+    "totalAttemptUpperBoundUsd": null,
+    "fullCeilingProven": false,
+    "remainingUnknowns": [
+      "Exact ready evidence and canonical shortlist",
+      "Unique upstream collection/intelligence operation attribution, including failed work and unknown holds",
+      "Actual ranking and planning input envelopes",
+      "Writer and verifier inputs depend on paid plan and draft",
+      "Verification packet count may exceed one per pass"
+    ]
+  },
+  "execution": {
+    "enabled": false,
+    "newPaidCalls": 0,
+    "newPublicationAttempts": 0,
+    "newEditions": 0,
+    "automaticRetries": 0,
+    "maximumRepairs": 1,
+    "sourceStateChanges": 0,
+    "grantChanges": 0,
+    "dlqReplays": 0
+  },
+  "blockers": [
+    "Accepted evidence review remains pending; do not skip it",
+    "Five default output envelopes alone exceed $0.20",
+    "Full attempt including upstream and uncertainty has no finite demonstrated bound",
+    "Grant headroom is shared and expires; no holds may be released without evidence",
+    "Existing staging is public/shared, V2 is environment-wide and notification handlers remain active; isolated conditional authorization cannot be used on that configuration"
+  ],
+  "privateEvidenceSha256": {
+    "selected-feed-readiness.json": "b9f0fd3ed12067bfd4961e2a5129ca17bed19ad76cf52a2dcaa9d187689a2be5",
+    "window-cost-boundary.json": "b5f4b3a0c623dbf62c85af5e35737ac032c4193999bd3ef4b450d3def9dd995b",
+    "linked-feed-costs.json": "636feaf33468c262c483cc176a5c54e621d84fd068fb76ab04eaff4f81531695",
+    "current-authority.json": "8f39ff27ad899e0606e4c2e472655ae850433272f68b9692a6ade35a5d881b26",
+    "resource-0.json": "01aa67514d63ba205bd7b41850222a40844ca24de56b3acc0a0f1d337fa926c6",
+    "resource-1.json": "a1edba84ea935d802011e4881c62f88b52661804a39049523243d54078ae014e",
+    "resource-2.json": "53e7415b7b2b64c7e285f927b1f33afe9324682102b656488e48550908dbf368"
+  }
+}

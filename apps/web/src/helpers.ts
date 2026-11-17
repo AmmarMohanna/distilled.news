@@ -1,4 +1,8 @@
-import type { BriefingConfig } from "@distilled/core";
+import type { BriefingConfig, BriefingEdition } from "@distilled/core";
+
+export function editionDisplayTime(edition: Pick<BriefingEdition, 'scheduledFor' | 'publishedAt'>): string {
+  return edition.scheduledFor ?? edition.publishedAt;
+}
 
 const ENGLISH_MONTHS = [
   "January",
@@ -78,4 +82,41 @@ export function formatDateTime(value: string, language: "en" | "ar" | "fr" = "en
 
 export function formatTime(value: string, language: "en" | "ar" | "fr"): string {
   return formatDateTime(value, language);
+}
+
+export function formatFeedUpdated(value: string, language: "en" | "ar" | "fr", now = Date.now()): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "";
+  const seconds = Math.max(0, Math.floor((now - timestamp) / 1000));
+  if (seconds < 60) return language === "fr" ? "Mis à jour à l’instant" : language === "ar" ? "تم التحديث الآن" : "Updated just now";
+  const unit = seconds < 3600 ? "minute" : seconds < 86400 ? "hour" : "day";
+  const amount = Math.floor(seconds / (unit === "minute" ? 60 : unit === "hour" ? 3600 : 86400));
+  const relative = new Intl.RelativeTimeFormat(language, { numeric: "always" }).format(-amount, unit);
+  return language === "fr" ? `Mis à jour ${relative}` : language === "ar" ? `تم التحديث ${relative}` : `Updated ${relative}`;
+}
+
+export function formatClock(value: string, language: "en" | "ar" | "fr"): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const locale = language === "ar" ? "ar-LB" : language === "fr" ? "fr-FR" : "en-GB";
+  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
+}
+
+/** "Today", "Yesterday", a weekday within the last week, otherwise a calendar date; local time. */
+export function formatDayHeading(value: string, language: "en" | "ar" | "fr", now = Date.now()): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const startOfDay = (input: Date) => new Date(input.getFullYear(), input.getMonth(), input.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date(now)) - startOfDay(date)) / 86_400_000);
+  const labels = {
+    en: ["Today", "Yesterday"],
+    fr: ["Aujourd’hui", "Hier"],
+    ar: ["اليوم", "أمس"]
+  }[language];
+  if (days === 0) return labels[0];
+  if (days === 1) return labels[1];
+  const locale = language === "ar" ? "ar-LB" : language === "fr" ? "fr-FR" : "en-US";
+  if (days > 1 && days < 7) return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(date);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  return new Intl.DateTimeFormat(locale, sameYear ? { month: "long", day: "numeric" } : { month: "long", day: "numeric", year: "numeric" }).format(date);
 }

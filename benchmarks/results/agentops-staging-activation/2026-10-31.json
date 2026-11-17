@@ -1,0 +1,257 @@
+{
+  "schemaVersion": "distilled-agentops-activation.v1",
+  "recordedAt": "2026-10-31T15:45:53.804Z",
+  "environment": "isolated-staging",
+  "worker": "distilled-news-staging-agentops",
+  "implementationCommit": "aecba9b75b93801cb7398c78c7787ef0d9201d84",
+  "metricsOnlyDeployment": "a9e782d4-5260-437a-bc9f-9a933ccbc46b",
+  "cron": "*/15 * * * *",
+  "cpuLimitMs": 100,
+  "dashboard": "https://giganticmantel34.grafana.net/d/distilled-agentops-v1/",
+  "notificationsEnabled": false,
+  "legacyLogsExported": false,
+  "newPaidInferenceCalls": 0,
+  "independentReadback": {
+    "at": "2026-10-31T15:07:14.059Z",
+    "independentRestRead": true,
+    "compared": 38,
+    "allEqual": true,
+    "differences": [],
+    "work": {
+      "queries": 7,
+      "rowsRead": 44,
+      "sqlMs": 1.9926
+    }
+  },
+  "trace": {
+    "at": "2026-10-31T15:39:17.865Z",
+    "status": 200,
+    "traceId": "c595e50b5bd8056500148f6e9279bcd7",
+    "service": "distilled-news-staging-agentops",
+    "rootName": "scheduled",
+    "rootKeys": [
+      "batches"
+    ],
+    "batches": 1,
+    "spanCount": 9,
+    "spanNames": [
+      "scheduled",
+      "d1_all",
+      "d1_all",
+      "d1_all",
+      "d1_all",
+      "d1_all",
+      "d1_all",
+      "d1_all",
+      "fetch"
+    ],
+    "sqlStatements": 7,
+    "allSqlMatchesReviewedConstantQueries": true,
+    "urlFields": [
+      {
+        "fixedMetricsEndpoint": true,
+        "hasQuery": false
+      }
+    ],
+    "secretMatches": false,
+    "privateFeedIdPresent": false,
+    "metricSnapshotSeconds": 1793460630.808,
+    "traceStartMs": 1793460630795,
+    "correlationDeltaMs": 13,
+    "rawTraceSaved": false
+  },
+  "panels": [
+    {
+      "id": 1,
+      "queryStatus": [
+        200
+      ],
+      "samples": 35
+    },
+    {
+      "id": 2,
+      "queryStatus": [
+        200
+      ],
+      "samples": 0
+    },
+    {
+      "id": 3,
+      "queryStatus": [
+        200
+      ],
+      "samples": 20
+    },
+    {
+      "id": 4,
+      "queryStatus": [
+        200,
+        200
+      ],
+      "samples": 0
+    },
+    {
+      "id": 5,
+      "queryStatus": [
+        200,
+        200
+      ],
+      "samples": 10
+    },
+    {
+      "id": 6,
+      "queryStatus": [
+        200
+      ],
+      "samples": 5
+    },
+    {
+      "id": 7,
+      "queryStatus": [
+        200
+      ],
+      "samples": 25
+    },
+    {
+      "id": 8,
+      "queryStatus": [
+        200
+      ],
+      "samples": 10
+    },
+    {
+      "id": 9,
+      "queryStatus": [
+        200
+      ],
+      "samples": 0
+    },
+    {
+      "id": 10,
+      "queryStatus": [
+        200
+      ],
+      "samples": 5
+    },
+    {
+      "id": 11,
+      "queryStatus": [
+        200
+      ],
+      "samples": 0
+    },
+    {
+      "id": 12,
+      "queryStatus": [
+        200
+      ],
+      "samples": 0
+    },
+    {
+      "id": 13,
+      "queryStatus": [
+        200
+      ],
+      "samples": 0
+    },
+    {
+      "id": 14,
+      "queryStatus": [
+        200,
+        200
+      ],
+      "samples": 10
+    }
+  ],
+  "alerts": [
+    {
+      "uid": "distilled-publication-failures",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-publication-delay",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-backlog",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-backlog-age",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-provider-failures",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-runtime-failures",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-uncertain",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-spending",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-missing-observer",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-snapshot-observer",
+      "paused": true,
+      "previewHttpStatus": 200
+    },
+    {
+      "uid": "distilled-snapshot-stale",
+      "paused": true,
+      "previewHttpStatus": 200
+    }
+  ],
+  "k6": {
+    "runId": "agentops-staging-1793457122664",
+    "commit": "25a542dba6cb7e4fa5a7e263615e09b0db6f85bc",
+    "requests": 10,
+    "throughputPerSecond": 0.8258488578328609,
+    "errorRate": 0,
+    "p50Ms": 1185.3883500000002,
+    "p95Ms": 2371.9010349999994,
+    "p99Ms": 2520.282127,
+    "checkPassRate": 1,
+    "observedNativeRequestTraceIds": [],
+    "grafanaReadbackPoints": 7
+  },
+  "cost": {
+    "kind": "projection_not_invoice",
+    "monthlyUsdAt100msCpuAnd44Reads": 0.00588672,
+    "monthlyUsdAt2000ReadsAndRequestOverage": 0.012384,
+    "planningThresholdUsd": 0.1,
+    "hardBillingCap": false
+  },
+  "limitations": [
+    "One feed/latest-window metrics; not account-wide recovery inventory.",
+    "Six panels have no exported measurement.",
+    "V3/Browser Agent/model tracing is not established.",
+    "k6 HTTP requests have no observed Tempo correlation.",
+    "Real model/tool failure injection was not performed; exporter failure/recovery and offline controls are retained.",
+    "Protected GitHub approval environment requires owner configuration."
+  ],
+  "sourceHashes": {
+    "apps/agentops-collector/src/index.mjs": "eefbe37a460e925f327d13bfbc4efe77c604b05c6305fba8d1538f855b23e51a",
+    "apps/agentops-collector/src/snapshot.mjs": "7bf3a184732b3fe3de00b97aab08e33ab579281124f7a665165381ab52180f72",
+    "apps/agentops-collector/src/otlp.mjs": "13ea1bce2cc4492c473828d3d8d1e9ae5012bf8285418f1febd94703182ba0b3",
+    "ops/observability/dashboard.json": "4bd86a213cfaf7c6ff22aa27af5adf939b7f6dd4ff7e4f4581033715ac586006"
+  }
+}

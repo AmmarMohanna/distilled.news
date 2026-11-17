@@ -1,0 +1,118 @@
+{
+  "version": "1.5",
+  "reviewDate": "2026-09-22",
+  "status": "target-plan-not-implementation-status",
+  "sources": [
+    {
+      "filename": "Distilled_v1.4_document_pack.zip",
+      "bytes": 158965,
+      "sha256": "7981d563b1723293d24d51e273439295262c59227a08afcb3bb881a3a9d62790"
+    },
+    {
+      "filename": "user-review-notes.txt",
+      "bytes": 8457,
+      "sha256": "8395ebf9cf9fcdc75aa4586536b38a6d7cb155d518b4a74b5978647745702761"
+    }
+  ],
+  "sourceDocuments": [
+    {
+      "filename": "ACQUISITION_BENCHMARK_RUNBOOK_v1.4.md",
+      "bytes": 70842,
+      "sha256": "0c790b124d8bc40ae62ef5e3cd10f29d617b1bc1cff702b35e947b7b085c4d44"
+    },
+    {
+      "filename": "ARCHITECTURE_BASELINE_v1.4.md",
+      "bytes": 54413,
+      "sha256": "c8d544e1b0b839cd5703ec5a0d79e7600f94b3f7430d989700749f90b3d62e42"
+    },
+    {
+      "filename": "DISTILLED_AGENT_RUNTIME_AND_WEB_OPERATOR_ARCHITECTURE_v1.4.md",
+      "bytes": 179675,
+      "sha256": "368f7e890d63b352f587f2429eb58cfd0c68bf219400934bc3b3d09522549bd1"
+    },
+    {
+      "filename": "FAILURE_MATRIX_AND_THREAT_MODEL_v1.4.md",
+      "bytes": 13625,
+      "sha256": "17d20ce36c20d2f7d8c65e71d6ed07e869457d5a663e983ad99390700fbca345"
+    },
+    {
+      "filename": "IMPLEMENTATION_PLAN_v1.4.md",
+      "bytes": 45987,
+      "sha256": "9a1dca59863183d6d0a966c886652c9abce5ef31a1a05303c0fb3c821e299528"
+    },
+    {
+      "filename": "README.md",
+      "bytes": 5585,
+      "sha256": "febf02dde0aebaa852ae8f158e40e98cf2b2128e06a9371e3de035d430f1ebcb"
+    },
+    {
+      "filename": "REVIEW_AND_CHANGELOG_v1.4.md",
+      "bytes": 16476,
+      "sha256": "188ae57a459cda0c47b7ae7ed5212baf959cd3fd5955871b3cf94007a86ce037"
+    },
+    {
+      "filename": "TECHNICAL_CONTRACTS_AND_SERVICE_BOUNDARIES_v1.4.md",
+      "bytes": 57918,
+      "sha256": "d04f4c75aaefee27caa75986e3c8a48afe24e82b96345a3a41b06cb1989f63ec"
+    }
+  ],
+  "generatedFiles": [
+    {
+      "filename": "ACQUISITION_BENCHMARK_RUNBOOK_v1.5.md",
+      "bytes": 73104,
+      "sha256": "c8c2a85567f95bdb42aaa81d19ec168fc6978f5be844a7902a2dca438b93aa54"
+    },
+    {
+      "filename": "ARCHITECTURE_BASELINE_v1.5.md",
+      "bytes": 55975,
+      "sha256": "2fa4b18fa558b977fc96e08c5ff85cb441684c88a89e357bed9c0b6c70004a84"
+    },
+    {
+      "filename": "DISTILLED_AGENT_RUNTIME_AND_WEB_OPERATOR_ARCHITECTURE_v1.5.md",
+      "bytes": 179675,
+      "sha256": "cd3eb4c73f696d188d2f0bd09ef3804b675a9347106ffe73dfc3fd3da6798c61"
+    },
+    {
+      "filename": "FAILURE_MATRIX_AND_THREAT_MODEL_v1.5.md",
+      "bytes": 14821,
+      "sha256": "197ea9017cd8a9146d6bb0a00229e4c8f4e8395ab4af15688412bdf3c5493c7b"
+    },
+    {
+      "filename": "IMPLEMENTATION_PLAN_v1.5.md",
+      "bytes": 47757,
+      "sha256": "77458363a87046c9273025380ff73803da92049343f5d2cb34a5312322290bb4"
+    },
+    {
+      "filename": "PROJECT_PROBLEM_AND_VALIDATION_v1.5.md",
+      "bytes": 10442,
+      "sha256": "9a2e3b7beb0baec64740f592b076240b6a3f3e0b6a2457f4ee0098729cf04563"
+    },
+    {
+      "filename": "README.md",
+      "bytes": 6383,
+      "sha256": "e6bca4d8cb818f30ed50e7c5d80010f96e683cc4d9ad598e1378675f48f4f41e"
+    },
+    {
+      "filename": "REVIEW_AND_CHANGELOG_v1.5.md",
+      "bytes": 6835,
+      "sha256": "86fb75e34aba9c25c8d80945f4f775a584ae4826f57175f49e8694f17824088b"
+    },
+    {
+      "filename": "TECHNICAL_CONTRACTS_AND_SERVICE_BOUNDARIES_v1.5.md",
+      "bytes": 60567,
+      "sha256": "10775234448ac9455365a2068b339f921d845ac59e4421dcf28daffd84207c32"
+    }
+  ],
+  "manifestNote": "Generated-file hashes exclude this manifest; ZIP integrity checked after packaging.",
+  "validation": {
+    "sourceManifestHashes": true,
+    "utf8": true,
+    "balancedFences": true,
+    "relativeDocumentLinks": true,
+    "companionVersions": true,
+    "requiredTopics": true,
+    "all34FailureRowsRetained": true,
+    "zipRoundTrip": true
+  },
+  "issues": []
+}

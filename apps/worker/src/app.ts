@@ -1,5 +1,52 @@
+import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence,campaignSourceProbe} from './agentops-campaign';
+import {sourceStreamHeartbeat} from './source-stream-heartbeat';
+import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryQuotaError,UnreadSummaryError} from './unread-summary';
+import {unreadSummaryPort} from './unread-summary-provider';
+import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
+import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
+import {collectorBudgetStatus} from './collector-budget';
+import {readBriefingOutcome} from './v1-intelligence/briefing-outcome';
+import {reviewModelRejection,reconcileConfirmedModelRejection} from './v1-intelligence/model-reconciliation';
+import {readPipelineTrace,traceOptionsSchema} from './v1-intelligence/pipeline-trace';
+import {readV1QueueAudit} from './v1-queue-dispatch';
+import {readScheduleAudit} from './v1-intelligence/schedule-audit';
+import {sourceRecommendations,verifiedSourceRecommendations,type SourceDiscoveryDiagnostic} from './source-recommendations';
+import {searchSourceCandidates} from './source-search';
+import {sourceSearchCacheQuery} from './source-search-topic';
+import {sourceQuerySuggestions} from './source-query-suggestions';
+import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
+import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
+import {WorkerPublicSourceFetch} from './public-source-fetch';
+import {assessSource,assessSources} from './source-assessment';
+import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
+import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
+import {connectorSourceHealth} from './connector-health';
+import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
+import {feedSourceAvailability} from './connector-availability';
+import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
+import { HandoffError } from '@distilled/contracts';
+import { acceptV1Handoff, dispatchV1Acquisitions } from './v1-downstream-runtime';
+import {enrollV1Source,editedRelativeOrigin,editedClockStart} from './v1-intelligence/product';
+import {liveScheduleSchema,liveScheduleFields,publicationWindowSchema,nextLiveBriefingAt,firstFullLiveBriefingAt,CLOCK_PREPARATION_POLICY} from './v1-intelligence/schedule';
+import {processV1Briefing} from './v1-intelligence/runtime';
+import {publicV1Edition,publicV1Evidence,withdrawV1Edition} from './v1-intelligence/public-read';
+import {processQueueMessage} from "./processor";
+import {enrollRetainedNewsForSource} from "./retained-news-enrollment";
+import { manualAuthenticatedProfileBootstrap } from "./authenticated-profile-manual-bootstrap";
+import {
+  DEFAULT_SLICE_BUDGET,
+  makeId,
+  ModelGatewayError,
+  type AcquisitionFailure,
+  type ClosedLoopAcquisitionOutcome,
+  type DeterministicAcquisitionPort,
+  type ModelCapability,
+  type ModelRoutingConfig
+} from "@distilled/agent-runtime";
 import {
   defaultNextBriefingAt,
+  FEED_TITLE_MAX_LENGTH,
   searchBriefingEditions,
   sanitizeEditionSectionForLanguage,
   sanitizeEvidenceText,
@@ -10,9 +57,11 @@ import {
   type BriefingEdition
 } from "@distilled/core";
 import { Context, Hono } from "hono";
+import {stream} from 'hono/streaming';
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
-import { createSummaryAdapterFromEnv } from "./ai";
+import { sketchKey } from "./sketches";
+import { queueInitialFeedSketch } from "./feed-sketch-jobs";
 import {
   accountAuth,
   adminAuth,
@@ -30,12 +79,24 @@ import {
   verifyPassword,
   verifySession
 } from "./auth";
-import { publishManualBriefingEdition } from "./editions";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
-import { D1Repository } from "./repository";
+import { D1Repository, FeedConfigurationConflict } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
+import { createWorkerPublicSourceAcquisitionService, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
+import { D1UpstreamResourceStore } from "./upstream-resource-store";
+import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
+import { persistAcquiredSourceItems } from "./acquisition-item-handoff";
+import { D1SourceHighWaterStore } from "./source-acquisition-store";
+import { D1BrowserUseRunTelemetry } from "./browser-use-run-telemetry";
+import { createWorkerXAcquisitionService } from "./authenticated-x-acquisition";
+import { handleBoundedDecision,handleBoundedDecisionOutcome } from "./bounded-decision-provider";
+import { D1AuthenticatedProfileRepository } from "./authenticated-profile-store";
+import { provisionAuthenticatedProfile } from "./authenticated-profile-provisioning";
+import { handleBridgePreflight,handleContainerPreflight,handleProviderDiagnostic } from "./bridge-preflight";
+import { handlePublicBrowserAcquisition } from "./public-browser-acquisition";
+import {acquisitionEvaluationDocument} from "./acquisition-evaluation-fixtures";
 
 type Variables = {
   repo: Repository;
@@ -44,6 +105,10 @@ type Variables = {
 
 const CANONICAL_HOST = "distilled.news";
 const LEGACY_HOSTS = new Set(["lownoise.news", "www.lownoise.news"]);
+const liveSmokeProviderEndpointsSchema = z.array(z.object({
+  tag: z.string().trim().min(1),
+  reportedIdentities: z.array(z.string().trim().min(1)).min(1)
+}).strict()).min(2);
 
 export interface AppOptions {
   repository?: Repository;
@@ -57,6 +122,7 @@ export interface AppOptions {
 }
 
 const authInputSchema = z.object({
+  language: z.enum(['en', 'fr', 'ar']).default('en'),
   email: z.string().email(),
   password: z.string().min(8),
   username: z.string().min(1).optional(),
@@ -75,6 +141,7 @@ const tokenInputSchema = z.object({
 });
 
 const passwordResetRequestSchema = z.object({
+  language: z.enum(['en', 'fr', 'ar']).default('en'),
   email: z.string().email(),
   turnstileToken: z.string().optional()
 });
@@ -113,8 +180,8 @@ const briefingCadenceSchema = z.preprocess(
 
 const briefingInputSchema = z.object({
   id: z.string().min(1).default(() => `briefing_${crypto.randomUUID()}`),
-  slug: z.string().min(1).default("personal"),
-  title: z.string().min(1).default("Personal Briefing"),
+  slug: z.string().default(""),
+  title: z.string().trim().min(1).max(FEED_TITLE_MAX_LENGTH).default("Personal Briefing"),
   stars: z.number().int().min(0).default(0),
   interestProfile: z.string().min(1),
   styleInstruction: z.string().optional(),
@@ -125,6 +192,7 @@ const briefingInputSchema = z.object({
   briefingCadence: briefingCadenceSchema.default("hourly"),
   briefingTimeOfDay: z.string().regex(/^\d{1,2}:\d{2}$/).default("00:00"),
   briefingTimezone: z.string().min(1).default("UTC"),
+  updateIntervalMinutes: liveScheduleFields.durationMinutes.optional(),
   nextBriefingAt: z.string().optional(),
   retentionDays: z.number().int().min(1).max(90).default(FIXED_RETENTION_DAYS)
 });
@@ -149,19 +217,48 @@ const sourceInputSchema = z.union([
 const healthInputSchema = z.object({
   briefingId: z.string().min(1).optional()
 });
+const livePublicAcquisitionSmokeSchema = z.object({
+  sourceId:z.string().min(1).max(128).optional(),
+  evaluationId:z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
+  sourceUrl: z.string().url().max(2_048),
+  ownerAccountId: z.string().min(1).max(128),
+  startTime: z.string().datetime({ offset: true }),
+  endTime: z.string().datetime({ offset: true }),
+  idempotencyKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/),
+  limits: z.object({
+    maxItems: z.number().int().min(1).max(30),
+    maxPages: z.number().int().min(1).max(5),
+    maxScrolls: z.number().int().min(1).max(5),
+    maxPhysicalAttempts: z.number().int().min(1).max(30),
+    maxExecutionMs: z.number().int().min(1_000).max(110_000)
+  }).strict().optional()
+}).strict();
+const xAcquisitionSchema=z.object({
+  authenticatedProfileId:z.string().startsWith("authenticated_profile_").max(100),
+  ownerAccountId:z.string().startsWith("account_").max(128),
+  sourceUrl:z.string().url().max(2048),
+  startTime:z.string().datetime({offset:true}),endTime:z.string().datetime({offset:true}),
+  idempotencyKey:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/),
+  limits:z.object({maxItems:z.number().int().min(1).max(30),maxPages:z.number().int().min(1).max(5),maxScrolls:z.number().int().min(1).max(5),maxPhysicalAttempts:z.number().int().min(1).max(30),maxExecutionMs:z.number().int().min(1000).max(90000)}).strict().optional()
+}).strict();
 
 const feedStarInputSchema = z.object({
   starred: z.boolean()
 });
 
 function buildManifestPayload(input: {
+  origin: string;
+  manifestUrl?: string;
   title: string;
   description: string;
   startUrl: string;
   id: string;
+  mobileIcons?: boolean;
 }) {
   return {
     id: input.id,
+    related_applications: [{platform: 'webapp', url: input.manifestUrl ?? '/manifest.webmanifest', id: new URL(input.id, input.origin).href}],
+    prefer_related_applications: false,
     name: input.title,
     short_name: input.title,
     description: input.description,
@@ -169,16 +266,16 @@ function buildManifestPayload(input: {
     orientation: "portrait",
     scope: "/",
     start_url: input.startUrl,
-    background_color: "#faf8f1",
-    theme_color: "#faf8f1",
+    background_color: "#ffffff",
+    theme_color: "#5e5ce6",
     icons: [
       {
-        src: "/icon-192.png",
+        src: input.mobileIcons ? "/icon-192.png?v=light-5" : "/desktop-icon-192.png?v=transparent-1",
         sizes: "192x192",
         type: "image/png"
       },
       {
-        src: "/icon-512.png",
+        src: input.mobileIcons ? "/icon-512.png?v=light-5" : "/desktop-icon-512.png?v=transparent-1",
         sizes: "512x512",
         type: "image/png"
       }
@@ -186,14 +283,27 @@ function buildManifestPayload(input: {
   };
 }
 
+function isDatabaseUnavailable(error: unknown): boolean {
+  return error instanceof Error && /D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message);
+}
+
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+  let activeTraces = 0;
 
   app.onError((error, c) => {
     if (error instanceof z.ZodError) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
     console.error(error);
+    if(isDatabaseUnavailable(error)){
+      c.header('Retry-After','5');c.header('Cache-Control','no-store');
+      return c.json({error:'The service is temporarily busy. Please try again shortly.',code:'DATABASE_UNAVAILABLE'},503);
+    }
+    if (error instanceof ModelGatewayError) {
+      const retryable=["deadline_exceeded","provider_http_failure","malformed_response","transport_failure"].includes(error.failureClass);
+      return c.json({error:"model_gateway_failure",failureClass:error.failureClass},retryable?503:502);
+    }
     return c.json({ error: "internal server error" }, 500);
   });
 
@@ -203,6 +313,92 @@ export function createApp(options: AppOptions = {}) {
   const fetcher = options.fetcher ?? fetch;
   const nowFor = options.now ?? (() => new Date());
 
+  app.post('/v1/downstream/handoff',async c=>{
+    if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
+    if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
+    try {
+      const text=await c.req.text();if(text.length>2_000_000) return c.json({error:'INVALID_REQUEST'},413);
+      let raw:unknown;try {raw=JSON.parse(text)} catch {return c.json({error:'INVALID_REQUEST'},400)}
+      const response=await acceptV1Handoff(c.env,raw);
+      // Intake is already durable: a lost queue send is recovered by the bounded cron relay.
+      try {await dispatchV1Acquisitions(c.env,nowFor())} catch {console.warn('V1 handoff queue send deferred')}
+      return c.json(response);
+    } catch(error) {
+      if(error instanceof HandoffError) return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:error.code==='SCOPE_DENIED'?403:400);
+      return c.json({error:'TEMPORARY_UNAVAILABLE'},503);
+    }
+  });
+
+  app.post('/v1/downstream/enroll',async c=>{
+    if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
+    if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
+    const input=z.object({sourceId:z.string().min(1).max(200),ownerId:z.string().min(1).max(200),briefingSchedule:liveScheduleSchema.optional()}).strict().parse(await c.req.json());
+    if(!((c.env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).includes(input.sourceId))) return c.json({error:'SCOPE_DENIED'},403);
+    try {return c.json(await enrollV1Source(c.env.DB,input.sourceId,input.ownerId,nowFor().toISOString(),input.briefingSchedule))}
+    catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
+  });
+  app.post('/v1/downstream/briefing',async c=>{
+    if(c.env.V1_DOWNSTREAM_ENABLED!=='true') return c.json({error:'not found'},404);
+    if(!isRuntimeAuthorized(c)) return c.json({error:'unauthorized'},401);
+    const input=z.object({feedId:z.string().min(1).max(200),window:publicationWindowSchema}).strict().parse(await c.req.json());
+    try {await processV1Briefing(c.env,{type:'v1_briefing',...input},()=>nowFor().toISOString());return c.json(await readBriefingOutcome(c.env.DB,input.feedId,input.window))}
+    catch(error) {if(error instanceof HandoffError&&error.code==='SCOPE_DENIED')return c.json({error:error.code},403);return c.json({...await readBriefingOutcome(c.env.DB,input.feedId,input.window),error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},503)}
+  });
+  app.get('/api/v1/editions/:id',async c=>{
+    const id=c.req.param('id'),bucket=c.env.EDITION_ARTIFACTS_ENABLED==='true'?c.env.RAW_ARCHIVE:undefined;
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
+    if (!await canReadPublishedEdition(c,id)) return c.json({error:'not found'},404);
+    const edition=await publicV1Edition(c.env.DB,id,bucket);
+    if(!edition||bucket&&!await canReadPublishedEdition(c,id))return c.json({error:'not found'},404);
+    return c.json(edition);
+  });
+  app.get('/api/v1/editions/:id/evidence/:revisionId',async c=>{
+    if (!await canReadPublishedEdition(c, c.req.param('id'))) return c.json({error:'not found'},404);
+    const evidence=await publicV1Evidence(c.env.DB,c.req.param('id'),c.req.param('revisionId'));return evidence?c.json(evidence):c.json({error:'not found'},404);
+  });
+
+  // Protected bounded evaluation of the same product helpers used by /api/me.
+  app.post("/v1/news-pipeline/evaluate",async(c)=>{
+    if(c.env.DISTILLED_NEWS_PIPELINE_EVALUATION!=="true")return c.json({error:"not found"},404);
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const input=z.object({ownerAccountId:z.string().min(1).max(100),action:z.enum(["READ","PUBLISH","ACKNOWLEDGE","REPROCESS","ENROLL"]).default("READ"),catchUpId:z.string().max(100).optional(),rawMessageIds:z.array(z.string().max(160)).max(4).optional(),sourceId:z.string().max(160).optional()}).strict().parse(await c.req.json());
+    const repo=repoFor(c),owner=await repo.getAccountById(input.ownerAccountId),now=nowFor();
+    if(!owner||owner.disabledAt)return c.json({error:"not found"},404);
+    const store=new D1CatchUpStore(c.env.DB);
+    if(input.action==="ENROLL"){
+      const source=input.sourceId?await repo.getSource(input.sourceId):null,feed=source?await repo.getBriefingById(source.briefingId):null;
+      if(!source||!feed||feed.ownerAccountId!==owner.id)return c.json({error:"not found"},404);
+      return c.json(await enrollRetainedNewsForSource(c.env.DB,{tenantId:owner.id,source,retentionDays:feed.retentionDays,now,queue:c.env.PROCESSING_QUEUE}));
+    }
+    if(input.action==="REPROCESS"){
+      let queued=0,completed=0;
+      for(const id of input.rawMessageIds??[]){
+        const raw=await repo.getRawMessage(id);if(!raw?.news)continue;
+        const source=await repo.getSource(raw.source.id),feed=source?await repo.getBriefingById(source.briefingId):null;
+        if(!feed||feed.ownerAccountId!==owner.id)continue;
+        const existing=(await repo.listProcessingJobs({briefingId:feed.id,states:["queued","failed"],limit:500})).find(job=>job.rawMessageId===id);
+        if(feed.paused&&existing){await processQueueMessage(repo,{jobId:existing.id,briefingId:feed.id,rawMessageId:id},now);completed++;continue}
+        if(!source?.enabled||feed.paused)continue;
+        if(existing?.state==="queued")continue;
+        if(!existing&&(await repo.getExistingItems(feed.id,now)).some(item=>item.evidence.some(ref=>ref.messageId===id)))continue;
+        const jobId=existing?.id??await repo.createProcessingJob(feed.id,id,now);
+        if(existing)await repo.requeueProcessingJob(jobId,now);
+        await c.env.PROCESSING_QUEUE.send({type:"process_raw_message",jobId,briefingId:feed.id,rawMessageId:id});queued++;
+      }
+      return c.json({queued,completed});
+    }
+    if(input.action==="ACKNOWLEDGE")return c.json({ok:input.catchUpId?await store.acknowledge(owner.id,input.catchUpId,now):false});
+    const feeds=await repo.listBriefings(owner.id);
+    if(input.action==="PUBLISH")return c.json({error:"Manual publication is retired. Use the feed schedule."},410);
+    return c.json({catchUp:publicCatchUp(await generateCatchUp(repo,store,owner.id,now)),feeds:await Promise.all(feeds.map(async feed=>{
+      const items=(await repo.getExistingItems(feed.id,now)).filter(item=>item.development);
+      const usage=await c.env.DB.prepare("SELECT phase,provider,model,outcome,count(*) AS calls,sum(input_tokens) AS inputTokens,sum(output_tokens) AS outputTokens,sum(reported_cost_usd) AS reportedCostUsd,sum(latency_ms) AS latencyMs FROM llm_usage_events WHERE briefing_id=? GROUP BY phase,provider,model,outcome").bind(feed.id).all();
+      const jobs=await c.env.DB.prepare("SELECT state,count(*) AS jobs,sum(attempts) AS attempts,sum(CASE WHEN lease_until>? THEN 1 ELSE 0 END) AS activeLeases FROM processing_jobs WHERE briefing_id=? GROUP BY state").bind(now.toISOString(),feed.id).all();
+      return {feed:{id:feed.id,title:feed.title,slug:feed.slug},developments:items.map(publicDevelopment),grounding:items.flatMap(item=>item.development!.claims.map(claim=>({developmentId:item.id,claimId:claim.id,text:claim.text,support:claim.support.map(ref=>({messageId:ref.messageId,quote:ref.quote,url:item.evidence.find(entry=>entry.messageId===ref.messageId)?.sourceUrl,quotePresent:item.evidence.some(entry=>entry.messageId===ref.messageId&&entry.text.normalize('NFKC').replace(/\s+/g,' ').includes(ref.quote.normalize('NFKC').replace(/\s+/g,' ')))}))}))),usage:usage.results,jobs:jobs.results,editions:await repo.listBriefingEditions(feed.id,true,now,2)};
+    }))});
+  });
+
   app.use("*", async (c, next) => {
     const url = new URL(c.req.url);
     if (url.hostname === `www.${CANONICAL_HOST}` || LEGACY_HOSTS.has(url.hostname) || (url.hostname === CANONICAL_HOST && url.protocol === "http:")) {
@@ -211,6 +407,175 @@ export function createApp(options: AppOptions = {}) {
       return c.redirect(url.toString(), 301);
     }
     return next();
+  });
+
+  app.all("/v1/agent-runs/process", async (c) => {
+    const handler = createWorkerWebOperatorRuntimeHandler(c.env);
+    return handler(c.req.raw);
+  });
+  app.post("/v1/authenticated-profiles/manual-bootstrap", async (c) => manualAuthenticatedProfileBootstrap(c.req.raw,c.env));
+  app.post("/v1/authenticated-profiles", async (c) => provisionAuthenticatedProfile(c.req.raw,c.env));
+  app.post("/v1/authenticated-profiles/bridge-preflight", async (c) => handleBridgePreflight(c.req.raw,c.env));
+  app.post("/v1/authenticated-profiles/container-preflight", async (c) => handleContainerPreflight(c.req.raw,c.env));
+  // Legacy direct browser probe is restricted to explicit evaluation mode.
+  app.post("/v1/public-browser/acquisition", async (c) => c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE === "true" ? handlePublicBrowserAcquisition(c.req.raw,c.env) : c.json({error:"not found"},404));
+  app.post("/v1/bounded-decisions",async(c)=>handleBoundedDecision(c.req.raw,c.env));
+  app.post("/v1/bounded-decisions/outcome",async(c)=>handleBoundedDecisionOutcome(c.req.raw,c.env));
+  app.on(["GET","POST"], "/v1/authenticated-profiles/provider-diagnostic", async (c) => handleProviderDiagnostic(c.req.raw,c.env));
+
+  // Public, read-only fixture for bounded production acquisition validation.
+  app.get("/v1/live-smoke/acquisition-fixture/:kind",c=>c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE==="true"?acquisitionEvaluationDocument(c.req.param("kind"),new URL(c.req.url).origin):c.text("not found",404));
+  // It exists only while the protected smoke flag is temporarily enabled.
+  app.on("GET",["/v1/live-smoke/browser-use-fixture","/v1/live-smoke/browser-use-fixture/listing/:evaluationId"], (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.text("not found",404);
+    return c.html(`<!doctype html><html><head><title>Browser acquisition fixture</title></head><body><main><h1>Fixture news</h1><div id="stories"></div><div style="height:5000px"></div></main><script>
+      let count=0; addEventListener('scroll',()=>{count++; if(count>2)return; const id=count===1?'a':'b';
+        const link=document.createElement('a'); link.href=['/v1','/live-smoke','/browser-use-fixture','/article/',id].join('');
+        link.textContent='Fixture article '+id; document.getElementById('stories').append(link);
+      });
+    </script></body></html>`,200,{"cache-control":"no-store"});
+  });
+  app.get("/v1/live-smoke/browser-use-fixture/article/:id", (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.text("not found",404);
+    const id=c.req.param("id"); if(id!=="a"&&id!=="b")return c.text("not found",404);
+    const canonical=new URL(c.req.url).origin+`/v1/live-smoke/browser-use-fixture/article/${id}`;
+    const published=id==="a"?"2026-09-24T12:00:00Z":"2026-09-25T12:00:00Z";
+    const body=`Verified fixture article ${id} contains independently observable publication metadata and substantive read-only reporting. Its complete body is long enough to satisfy the same trusted content threshold used for real publishers, so the benchmark measures discovery rather than incomplete-content rejection.`;
+    const metadata=JSON.stringify({"@context":"https://schema.org","@type":"NewsArticle",headline:`Fixture article ${id}`,datePublished:published,mainEntityOfPage:canonical,articleBody:body});
+    return c.html(`<!doctype html><html><head><title>Fixture article ${id}</title><link rel="canonical" href="${canonical}"><meta property="article:published_time" content="${published}"><script type="application/ld+json">${metadata}</script></head><body><article><h1>Fixture article ${id}</h1><time datetime="${published}">${published}</time><p>${body}</p></article></body></html>`,200,{"cache-control":"no-store"});
+  });
+
+  app.on("POST", ["/v1/sources/acquisition","/v1/live-smoke/public-acquisition"], async (c) => {
+    if(c.env.SOURCE_LEGACY_POLLING_ENABLED==='false')return c.json({error:'source_collection_owner_mismatch'},403);
+    if (c.req.path.startsWith("/v1/live-smoke/") && c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
+    if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
+    const input = livePublicAcquisitionSmokeSchema.parse(await c.req.json().catch(() => ({})));
+    if (!c.req.path.startsWith("/v1/live-smoke/") && (input.evaluationId || new URL(input.sourceUrl).pathname.startsWith("/v1/live-smoke/"))) return c.json({error:"evaluation_only"},400);
+    const now = nowFor();
+    const source = new URL(input.sourceUrl);
+    if (source.protocol !== "https:" || source.username || source.password || Date.parse(input.startTime) >= Date.parse(input.endTime) || Date.parse(input.startTime) >= now.getTime()) return c.json({ error: "invalid_source_window" }, 400);
+    const window = { startTime: new Date(input.startTime).toISOString(), endTime: new Date(input.endTime).toISOString() };
+    const owner = await repoFor(c).getAccountById(input.ownerAccountId);
+    if (!owner || owner.disabledAt) return c.json({ error: "owner_not_found" }, 404);
+    if(await c.env.DB.prepare("SELECT 1 FROM sources s JOIN briefings b ON b.id=s.briefing_id WHERE s.collection_owner='connector' AND b.owner_account_id=? AND (s.id=? OR s.source_url=?) LIMIT 1").bind(owner.id,input.sourceId??'',source.href).first())return c.json({error:'source_collection_owner_mismatch'},403);
+    const resource = await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({ tenantId: owner.id, canonicalSourceUrl: source.href, resourceLocator:input.evaluationId?`discovery-evaluation:${input.evaluationId}`:undefined,now: now.toISOString() });
+    const configuredSource=input.sourceId?await repoFor(c).getSource(input.sourceId):null;
+    const configuredBriefing=configuredSource?await repoFor(c).getBriefingById(configuredSource.briefingId):null;
+    if(input.sourceId&&(!configuredSource||!configuredSource.enabled||!configuredBriefing||configuredBriefing.paused||configuredBriefing.ownerAccountId!==owner.id||new URL(configuredSource.sourceUrl??configuredSource.url??"https://invalid.invalid").href!==source.href))return c.json({error:"source_fence_mismatch"},403);
+    const highWaterBefore=await new D1SourceHighWaterStore(c.env.DB,owner.id).get(`${owner.id}:${resource.id}`);
+    const limits = input.limits ?? { maxItems: 10, maxPages: 3, maxScrolls: 3, maxPhysicalAttempts: 16, maxExecutionMs: 60_000 };
+    const runId = makeId("public_source_run", resource.id, input.idempotencyKey);
+    let itemHandoff:Awaited<ReturnType<typeof persistAcquiredSourceItems>>|null=null;
+    const service = createWorkerPublicSourceAcquisitionService(c.env, { tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, sourceUrl: source.href, fetcher, persistItems:async(result)=>{itemHandoff=await persistAcquiredSourceItems(c.env.DB,{tenantId:owner.id,resourceId:resource.id,result,now,runId,source:configuredSource??undefined,retentionDays:configuredBriefing?.retentionDays,queue:c.env.PROCESSING_QUEUE})}, webOperator: (request) => discoverAndPromotePublicSourceWorkflow(c.env, { request, tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, runId, idempotencyKey: input.idempotencyKey }) });
+    let outcome: Awaited<ReturnType<typeof service.acquire>>;
+    try { outcome = await service.acquire({ tenantId: owner.id, ownerId: owner.id, resourceId: resource.id, source: { canonicalSourceUrl: source.href }, window, limits, authentication: "PUBLIC", acquisitionAsOf: now.toISOString() }); }
+    catch (error) { await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,"STRUCTURAL_FAILURE"); throw error; }
+    await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId, outcome.status === "SUCCESS" ? "SUCCESS" : outcome.stopReason === "CHALLENGE_REQUIRED" ? "CHALLENGE_REQUIRED" : outcome.stopReason === "POLICY_DENIED" ? "POLICY_DENIED" : "STRUCTURAL_FAILURE");
+    const discoveryTelemetry=outcome.webOperatorCalls===0?null:await new D1BrowserUseRunTelemetry(c.env.DB).get(`${runId}_browser_use`);
+    return c.json({ highWaterBefore,itemHandoff,browserUseDiscoveryRuns:discoveryTelemetry?.browserUseDiscoveryRuns??0,jevSuccessfulChoices:discoveryTelemetry?.jevSuccessfulChoices??0,jevExecutedActions:discoveryTelemetry?.jevExecutedActions??0,jevCostUsd:discoveryTelemetry?.jevCostUsd??null,jevCalls:discoveryTelemetry?.jevCalls??0,decisionFallbacks:discoveryTelemetry?.decisionFallbacks??0,status: outcome.status, stages: outcome.stages, stopReason: outcome.stopReason, upstreamResourceId: resource.id, activeWorkflow: outcome.activeWorkflow, candidateWorkflow: outcome.candidateWorkflow, webOperatorCalls: outcome.webOperatorCalls, webOperatorRunId: outcome.webOperatorRunId ?? discoveryTelemetry?.runId, discoveryModelCalls: outcome.discoveryModelCalls ?? discoveryTelemetry?.discoveryModelCalls, discoveryBrowserOperations: outcome.discoveryBrowserOperations ?? discoveryTelemetry?.browserOperations, requestedWindow: outcome.result?.requestedWindow ?? outcome.request.window, effectiveWindow: outcome.result?.effectiveWindow, acquisitionAsOf: outcome.result?.acquisitionAsOf ?? outcome.request.acquisitionAsOf, coverage: outcome.result?.coverage, continuation: outcome.result?.continuation, items: outcome.result?.items.map((item) => ({ canonicalItemUrl: item.canonicalItemUrl, sourceItemId: item.sourceItemId, title: item.title, publishedAt: item.publishedAt, contentLength: item.text?.length, originalSourceReference: item.originalSourceReference })), committedHighWater: outcome.committedHighWater });
+  });
+
+  app.on("POST", ["/v1/sources/acquisition/submit","/v1/live-smoke/public-acquisition/submit"], async (c) => {
+    if (c.req.path.startsWith("/v1/live-smoke/") && c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({error:"not found"},404);
+    if (!isRuntimeAuthorized(c)) return c.json({error:"unauthorized"},401);
+    const input = livePublicAcquisitionSmokeSchema.safeParse(await c.req.json().catch(()=>null));
+    if (!input.success) return c.json({error:"invalid_request"},400);
+    if (!c.req.path.startsWith("/v1/live-smoke/") && (input.data.evaluationId || new URL(input.data.sourceUrl).pathname.startsWith("/v1/live-smoke/"))) return c.json({error:"evaluation_only"},400);
+    const source = new URL(input.data.sourceUrl);
+    if (source.protocol!=="https:" || source.username || source.password || source.search || source.hash || Date.parse(input.data.startTime)>=Date.parse(input.data.endTime)) return c.json({error:"invalid_source_window"},400);
+    const owner=await repoFor(c).getAccountById(input.data.ownerAccountId);
+    if (!owner || owner.disabledAt) return c.json({error:"owner_not_found"},404);
+    const requestId=makeId("public_acquisition_request",owner.id,source.href,input.data.idempotencyKey);
+    const inserted=await c.env.DB.prepare(`INSERT OR IGNORE INTO public_acquisition_requests
+      (request_id,idempotency_key,owner_account_id,request_json,state,created_at) VALUES (?,?,?,?,'pending',?)`)
+      .bind(requestId,input.data.idempotencyKey,owner.id,JSON.stringify({...input.data,sourceUrl:source.href}),nowFor().toISOString()).run();
+    if (Number(inserted.meta.changes)===1) {
+      await c.env.WEB_OPERATOR_QUEUE.send({type:"public_acquisition_request",requestId});
+      await c.env.DB.prepare("UPDATE public_acquisition_requests SET state='queued' WHERE request_id=? AND state='pending'").bind(requestId).run();
+    }
+    const state=await c.env.DB.prepare("SELECT state FROM public_acquisition_requests WHERE request_id=?").bind(requestId).first<{state:string}>();
+    return c.json({requestId,state:state?.state??"pending"},202);
+  });
+
+  app.on("GET", ["/v1/sources/acquisition/requests/:requestId","/v1/live-smoke/public-acquisition/requests/:requestId"], async (c) => {
+    if (c.req.path.startsWith("/v1/live-smoke/") && c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({error:"not found"},404);
+    if (!isRuntimeAuthorized(c)) return c.json({error:"unauthorized"},401);
+    const requestId=c.req.param("requestId");
+    if (!/^public_acquisition_request_[a-f0-9]{32}$/.test(requestId)) return c.json({error:"invalid_request_id"},400);
+    const row=await c.env.DB.prepare("SELECT request_id,state,outcome,result_json,failure_class,created_at,started_at,completed_at FROM public_acquisition_requests WHERE request_id=?")
+      .bind(requestId).first<{request_id:string;state:string;outcome:string|null;result_json:string|null;failure_class:string|null;created_at:string;started_at:string|null;completed_at:string|null}>();
+    if (!row) return c.json({error:"not found"},404);
+    return c.json({requestId:row.request_id,state:row.state,outcome:row.outcome,result:row.result_json?JSON.parse(row.result_json):null,failureClass:row.failure_class,createdAt:row.created_at,startedAt:row.started_at,completedAt:row.completed_at});
+  });
+
+  app.get("/v1/live-smoke/browser-use-runs/:runId", async (c) => {
+    if (c.env.DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE !== "true") return c.json({ error: "not found" }, 404);
+    if (!isRuntimeAuthorized(c)) return c.json({ error: "unauthorized" }, 401);
+    const runId = c.req.param("runId");
+    if (!/^(?:public_source_run|x_source_run)_[a-f0-9]{32}_browser_use$/.test(runId)) return c.json({ error: "invalid_run_id" }, 400);
+    const row = await new D1BrowserUseRunTelemetry(c.env.DB).get(runId);
+    return row ? c.json(row) : c.json({ error: "not found" }, 404);
+  });
+  app.get("/v1/browser-use-runs/:runId",async(c)=>{
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const runId=c.req.param("runId");
+    if(!/^(?:public_source_run|x_source_run)_[a-f0-9]{32}_browser_use$/.test(runId))return c.json({error:"invalid_run_id"},400);
+    const row=await new D1BrowserUseRunTelemetry(c.env.DB).get(runId);
+    return row?c.json(row):c.json({error:"not found"},404);
+  });
+
+  app.post("/v1/authenticated-sources/x/acquisition",async(c)=>{
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const parsed=xAcquisitionSchema.safeParse(await c.req.json().catch(()=>null));
+    if(!parsed.success)return c.json({error:"invalid_request"},400);
+    const input=parsed.data,source=new URL(input.sourceUrl),now=nowFor();
+    if(source.origin!=="https://x.com"||!/^\/[A-Za-z0-9_]{1,15}\/?$/.test(source.pathname)||source.search||source.hash||Date.parse(input.startTime)>=Date.parse(input.endTime)||Date.parse(input.startTime)>=now.getTime())return c.json({error:"invalid_x_source_window"},400);
+    const owner=await repoFor(c).getAccountById(input.ownerAccountId);
+    if(!owner||owner.disabledAt)return c.json({error:"owner_not_found"},404);
+    const profile=await new D1AuthenticatedProfileRepository(c.env.DB).getSiteProfile(input.authenticatedProfileId);
+    if(!profile||profile.tenantId!==owner.id||profile.ownerId!==owner.id||profile.siteFamily!=="x")return c.json({error:"profile_not_found"},404);
+    const canonical=`https://x.com/${source.pathname.split("/").filter(Boolean)[0]}`;
+    const resource=await new D1UpstreamResourceStore(c.env.DB).resolveOrCreate({tenantId:owner.id,canonicalSourceUrl:canonical,sourceFamily:"x",now:now.toISOString()});
+    const runId=makeId("x_source_run",resource.id,input.idempotencyKey);
+    let itemHandoff:Awaited<ReturnType<typeof persistAcquiredSourceItems>>|null=null;
+    const service=createWorkerXAcquisitionService(c.env,{tenantId:owner.id,ownerId:owner.id,profileId:input.authenticatedProfileId,resourceId:resource.id,runId,idempotencyKey:input.idempotencyKey},{persistItems:async(result)=>{itemHandoff=await persistAcquiredSourceItems(c.env.DB,{tenantId:owner.id,resourceId:resource.id,result,now,runId})}});
+    const limits=input.limits??{maxItems:10,maxPages:3,maxScrolls:3,maxPhysicalAttempts:16,maxExecutionMs:90000};
+    let outcome:Awaited<ReturnType<typeof service.acquire>>;
+    try{outcome=await service.acquire({tenantId:owner.id,ownerId:owner.id,resourceId:resource.id,source:{sourceFamily:"x",canonicalSourceUrl:canonical},window:{startTime:new Date(input.startTime).toISOString(),endTime:new Date(input.endTime).toISOString()},limits,authentication:"AUTH_REQUIRED",acquisitionAsOf:now.toISOString()})}
+    catch{await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,"STRUCTURAL_FAILURE");return c.json({error:"x_acquisition_failed"},500)}
+    await new D1BrowserUseRunTelemetry(c.env.DB).completeAcquisition(runId,outcome.status==="SUCCESS"?"SUCCESS":outcome.stopReason==="CHALLENGE_REQUIRED"?"CHALLENGE_REQUIRED":outcome.stopReason==="AUTH_REQUIRED"?"AUTH_REQUIRED":"STRUCTURAL_FAILURE");
+    return c.json({status:outcome.status,stages:outcome.stages,stopReason:outcome.stopReason,upstreamResourceId:resource.id,activeWorkflow:outcome.activeWorkflow,candidateWorkflow:outcome.candidateWorkflow,webOperatorCalls:outcome.webOperatorCalls,discoveryModelCalls:outcome.discoveryModelCalls,discoveryBrowserOperations:outcome.discoveryBrowserOperations,coverage:outcome.result?.coverage,continuation:outcome.result?.continuation,items:outcome.result?.items.map(item=>({sourceItemId:item.sourceItemId,canonicalItemUrl:item.canonicalItemUrl,publishedAt:item.publishedAt,contentLength:item.text?.length})),committedHighWater:outcome.committedHighWater});
+  });
+
+  app.post("/v1/authenticated-sources/x/acquisition/submit",async(c)=>{
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const parsed=xAcquisitionSchema.safeParse(await c.req.json().catch(()=>null));
+    if(!parsed.success)return c.json({error:"invalid_request"},400);
+    const input=parsed.data,source=new URL(input.sourceUrl),now=nowFor();
+    if(source.origin!=="https://x.com"||!/^\/[A-Za-z0-9_]{1,15}\/?$/.test(source.pathname)||source.search||source.hash||Date.parse(input.startTime)>=Date.parse(input.endTime)||Date.parse(input.startTime)>=now.getTime())return c.json({error:"invalid_x_source_window"},400);
+    const owner=await repoFor(c).getAccountById(input.ownerAccountId);
+    if(!owner||owner.disabledAt)return c.json({error:"owner_not_found"},404);
+    const profile=await new D1AuthenticatedProfileRepository(c.env.DB).getSiteProfile(input.authenticatedProfileId);
+    if(!profile||profile.tenantId!==owner.id||profile.ownerId!==owner.id||profile.siteFamily!=="x")return c.json({error:"profile_not_found"},404);
+    const canonical=`https://x.com/${source.pathname.split("/").filter(Boolean)[0]}`;
+    const requestId=makeId("authenticated_x_acquisition_request",owner.id,canonical,input.authenticatedProfileId,input.idempotencyKey);
+    const inserted=await c.env.DB.prepare("INSERT OR IGNORE INTO authenticated_x_acquisition_requests(request_id,idempotency_key,owner_account_id,authenticated_profile_id,request_json,state,created_at) VALUES(?,?,?,?,?,'pending',?)")
+      .bind(requestId,input.idempotencyKey,owner.id,input.authenticatedProfileId,JSON.stringify({...input,sourceUrl:canonical}),now.toISOString()).run();
+    if(Number(inserted.meta.changes)===1){
+      await c.env.WEB_OPERATOR_QUEUE.send({type:"authenticated_x_acquisition_request",requestId});
+      await c.env.DB.prepare("UPDATE authenticated_x_acquisition_requests SET state='queued' WHERE request_id=? AND state='pending'").bind(requestId).run();
+    }
+    const state=await c.env.DB.prepare("SELECT state FROM authenticated_x_acquisition_requests WHERE request_id=?").bind(requestId).first<{state:string}>();
+    return c.json({requestId,state:state?.state??"pending"},202);
+  });
+  app.get("/v1/authenticated-sources/x/acquisition/requests/:requestId",async(c)=>{
+    if(!isRuntimeAuthorized(c))return c.json({error:"unauthorized"},401);
+    const requestId=c.req.param("requestId");
+    if(!/^authenticated_x_acquisition_request_[a-f0-9]{32}$/.test(requestId))return c.json({error:"invalid_request_id"},400);
+    const row=await c.env.DB.prepare("SELECT request_id,state,outcome,result_json,failure_class,created_at,started_at,completed_at FROM authenticated_x_acquisition_requests WHERE request_id=?")
+      .bind(requestId).first<{request_id:string;state:string;outcome:string|null;result_json:string|null;failure_class:string|null;created_at:string;started_at:string|null;completed_at:string|null}>();
+    if(!row)return c.json({error:"not_found"},404);
+    return c.json({requestId:row.request_id,state:row.state,outcome:row.outcome,result:row.result_json?JSON.parse(row.result_json):null,failureClass:row.failure_class,createdAt:row.created_at,startedAt:row.started_at,completedAt:row.completed_at});
   });
 
   app.get("/api/auth/session", async (c) => {
@@ -248,7 +613,6 @@ export function createApp(options: AppOptions = {}) {
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "could not create account" }, 409);
     }
-    await repo.ensureDefaultBriefing(account);
     setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, account));
     return c.json({ account: publicAccount(account) });
   });
@@ -273,7 +637,7 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: error instanceof Error ? error.message : "could not create account" }, 409);
     }
     try {
-      await sendVerificationToken(repo, c.env, account);
+      await sendVerificationToken(repo, c.env, account, input.language);
     } catch (error) {
       logAuthEmailFailure("verification", account, c.env, error);
       await repo.deleteAccount(account.id);
@@ -291,7 +655,6 @@ export function createApp(options: AppOptions = {}) {
       ? result.account
       : await repo.updateAccount({ id: result.account.id, emailVerifiedAt: new Date().toISOString() });
     if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
-    await repo.ensureDefaultBriefing(verified);
     if (result.newlyConsumed) setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, verified));
     return c.json({ account: publicAccount(verified) });
   });
@@ -327,7 +690,7 @@ export function createApp(options: AppOptions = {}) {
     const account = await repo.getAccountByEmail(email);
     if (account && account.emailVerifiedAt && !account.disabledAt) {
       try {
-        await sendPasswordResetToken(repo, c.env, account);
+        await sendPasswordResetToken(repo, c.env, account, input.language);
       } catch (error) {
         logAuthEmailFailure("password reset", account, c.env, error);
       }
@@ -346,9 +709,96 @@ export function createApp(options: AppOptions = {}) {
 
   app.use("/api/me/*", accountAuth(repoFor));
   app.use("/api/admin/*", adminAuth(repoFor));
+  app.get('/api/admin/source-execution-status',async c=>{
+    const sourceUrl=c.req.query('sourceUrl');
+    if(sourceUrl){
+      const kind=c.req.query('kind')??'public_article';
+      if(sourceUrl.length>2048||!['public_article','google_feed','playwright'].includes(kind))return c.json({error:'invalid probe'},400);
+      const {sourceExecutionProbe}=await import('./source-execution-status');
+      try{return c.json(await sourceExecutionProbe(c.env,sourceUrl,kind as 'public_article'|'google_feed'|'playwright'));}
+      catch{return c.json({error:'invalid public probe URL'},400);}
+    }
+    const {sourceExecutionStatus}=await import('./source-execution-status');
+    return c.json(await sourceExecutionStatus(c.env));
+  });
+  app.post('/api/admin/general-web-search-probe',async c=>{
+    const input=z.union([
+      z.object({probeId:z.enum(['general-web-search-2026-11-13-v1','general-web-search-2026-11-13-retry1']),authorizedMaxUsd:z.literal(0.10)}).strict(),
+      z.object({probeId:z.literal('general-web-search-2026-11-13-retry2'),authorizedMaxUsd:z.literal(0.50)}).strict()
+    ]).safeParse(await c.req.json());
+    if(!input.success)return c.json({error:'invalid bounded probe'},400);
+    const {runGeneralWebSearchProbe}=await import('./general-web-search-probe');
+    try{return c.json(await runGeneralWebSearchProbe(c.env,fetcher,input.data.probeId==='general-web-search-2026-11-13-retry2'?'minimum-budget':input.data.probeId==='general-web-search-2026-11-13-retry1'));}
+    catch{return c.json({error:'Probe unavailable or fenced. Do not start a replacement paid operation.'},503);}
+  });
+
+  // Account identity is derived from the session, never from caller-owned tenant fields.
+  app.post("/api/me/acquisitions", async (c) => {
+    if (!c.env.WEB_OPERATOR_RUNTIME_TOKEN) return c.json({error:"acquisition_unconfigured"},503);
+    const body=await c.req.json().catch(()=>null);
+    if (!body || typeof body!=="object" || Array.isArray(body)) return c.json({error:"invalid_request"},400);
+    return app.fetch(new Request("https://worker.internal/v1/sources/acquisition/submit", {
+      method:"POST",headers:{authorization:`Bearer ${c.env.WEB_OPERATOR_RUNTIME_TOKEN}`,"content-type":"application/json"},
+      body:JSON.stringify({...body,ownerAccountId:c.get("account")!.id,evaluationId:undefined})
+    }),c.env);
+  });
+  app.get("/api/me/acquisitions/:requestId",async(c)=>{
+    const row=await c.env.DB.prepare("SELECT request_id,state,outcome,result_json,failure_class,created_at,started_at,completed_at FROM public_acquisition_requests WHERE request_id=? AND owner_account_id=?")
+      .bind(c.req.param("requestId"),c.get("account")!.id).first();
+    if (!row) return c.json({error:"not found"},404);
+    return c.json({...row,result:row.result_json?JSON.parse(String(row.result_json)):null,result_json:undefined});
+  });
+
+  app.get("/api/me/home",async(c)=>{
+    const account=c.get("account")!,repo=c.get("repo"),now=new Date();
+    const feeds=await repo.listBriefings(account.id);
+    const catchUp=await generateCatchUp(repo,new D1CatchUpStore(c.env.DB),account.id,now);
+    return c.json({feeds:await Promise.all(feeds.map(async feed=>({id:feed.id,slug:feed.slug,title:feed.title,language:feed.language,frequency:feed.briefingCadence,newCount:catchUp.cards.filter(card=>card.feedIds.includes(feed.id)).length,newCountIsPartial:catchUp.truncated}))),catchUp:publicCatchUp(catchUp)});
+  });
+  app.get("/api/me/catch-up",async(c)=>c.json(publicCatchUp(await generateCatchUp(c.get("repo"),new D1CatchUpStore(c.env.DB),c.get("account")!.id))));
+  app.post("/api/me/catch-up/:id/acknowledge",async(c)=>{
+    const ok=await new D1CatchUpStore(c.env.DB).acknowledge(c.get("account")!.id,c.req.param("id"),new Date());
+    return ok?c.json({ok:true}):c.json({error:"not found"},404);
+  });
+  app.get("/api/me/briefings/:id/developments",async(c)=>{
+    const repo=c.get("repo"),feed=await repo.getBriefingById(c.req.param("id"));
+    if(!feed||feed.ownerAccountId!==c.get("account")!.id)return c.json({error:"not found"},404);
+    const items=await repo.getExistingItems(feed.id);
+    return c.json({feed:{id:feed.id,title:feed.title,language:feed.language,frequency:feed.briefingCadence},developments:items.filter(item=>item.development).sort((a,b)=>(b.development?.ranking.score??0)-(a.development?.ranking.score??0)).map(publicDevelopment)});
+  });
 
   app.get("/api/me/account", async (c) => {
     return c.json({ account: publicAccount(c.get("account")!) });
+  });
+
+  app.get("/api/me/push", (c) => c.json({ publicKey: pushConfigured(c.env) ? c.env.VAPID_PUBLIC_KEY : null }));
+
+  app.post('/api/me/push/status', async (c) => {
+    const input=z.object({endpoint:z.string().max(2048).refine(validPushEndpoint)}).parse(await c.req.json());
+    const row=await c.env.DB.prepare('SELECT endpoint FROM push_subscriptions WHERE endpoint = ? AND account_id = ?')
+      .bind(input.endpoint,c.get('account')!.id).first();
+    return c.json({subscribed:Boolean(row)});
+  });
+
+  app.post("/api/me/push", async (c) => {
+    if (!pushConfigured(c.env)) return c.json({ error: "Notifications need server setup" }, 503);
+    const account = c.get("account")!;
+    await assertRateLimit(c.get("repo"), `push:${account.id}`, "push_subscription", 20, 60 * 60 * 1000);
+    const input = z.object({ subscription: subscriptionSchema, language: z.enum(["en", "fr", "ar"]).default("en") }).parse(await c.req.json());
+    const now = new Date().toISOString();
+    await c.env.DB.prepare(`INSERT INTO push_subscriptions(endpoint, account_id, subscription_json, language, last_notified_at, created_at, notification_version)
+      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(endpoint) DO UPDATE SET account_id = excluded.account_id,
+      subscription_json = excluded.subscription_json, language = excluded.language,
+      last_notified_at = excluded.last_notified_at, lease_until = NULL, lease_token = NULL, notification_version = excluded.notification_version`)
+      .bind(input.subscription.endpoint, account.id, JSON.stringify(input.subscription), input.language, now, now, crypto.randomUUID()).run();
+    return c.json({ ok: true });
+  });
+
+  app.delete("/api/me/push", async (c) => {
+    const input = z.object({ endpoint: z.string().max(2048).refine(validPushEndpoint) }).parse(await c.req.json());
+    await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND account_id = ?")
+      .bind(input.endpoint, c.get("account")!.id).run();
+    return c.json({ ok: true });
   });
 
   app.patch("/api/me/account", async (c) => {
@@ -376,56 +826,132 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    if ((await repo.listBriefings(account.id)).length === 0) await repo.ensureDefaultBriefing(account);
-    return c.json({ briefings: await repo.listBriefings(account.id) });
+    return c.json({ briefings: (await repo.listBriefings(account.id, await getVoterId(c) ?? undefined)).map(feed => ({...feed,nextBriefingAt:readNextBriefingAt(feed)})) });
   });
 
-  app.post("/api/me/briefings", async (c) => {
+  app.post('/api/me/v1/editions/:id/withdraw',async c=>{
+    const input=z.object({reason:z.enum(['POLICY_REQUIRED','OWNER_REQUEST'])}).strict().parse(await c.req.json());
+    try {await withdrawV1Edition(c.env.DB,c.req.param('id'),c.get('account')!.id,input.reason,nowFor().toISOString());return c.json({status:'WITHDRAWN'})}
+    catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
+  });
+
+  async function saveBriefingConfiguration(c:Context<{Bindings:Env;Variables:Variables}>,raw:unknown,plans?:Awaited<ReturnType<typeof resolveProductSourceInput>>[]) {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    const input = briefingInputSchema.parse(await c.req.json());
+    const input = briefingInputSchema.parse(raw);
     const existing = await repo.getBriefingById(input.id);
     if (existing && existing.ownerAccountId !== account.id) return c.json({ error: "briefing not found" }, 404);
     const slug = normalizeUsername(input.slug || input.title);
     const existingSlug = await repo.getBriefingBySlug(account.id, slug);
     if (existingSlug && existingSlug.id !== input.id) return c.json({ error: "feed slug is already used" }, 409);
-    const briefingCadence = input.briefingCadence;
-    const briefingTimeOfDay = FIXED_BRIEFING_TIME_OF_DAY;
+    const briefingCadence = input.updateIntervalMinutes ? (input.updateIntervalMinutes === 1440 ? "daily" : "hourly") : input.briefingCadence;
+    const briefingTimeOfDay = input.updateIntervalMinutes === 1440 ? input.briefingTimeOfDay : input.updateIntervalMinutes ? "00:00" : existing?.briefingTimeOfDay ?? FIXED_BRIEFING_TIME_OF_DAY;
+    if (input.updateIntervalMinutes) liveScheduleSchema.parse({ durationMinutes: input.updateIntervalMinutes, timezone: input.briefingTimezone, deliveryAnchor: briefingTimeOfDay });
     const scheduleChanged = !existing ||
+      existing.updateIntervalMinutes !== input.updateIntervalMinutes ||
       existing.briefingCadence !== briefingCadence ||
       existing.briefingTimeOfDay !== briefingTimeOfDay ||
       existing.briefingTimezone !== input.briefingTimezone;
+    const savedAt=nowFor();
+    let briefingScheduleOriginAt=existing?.briefingScheduleOriginAt;
+    let briefingScheduleClockStartAt=existing?.briefingScheduleClockStartAt;
+    const briefingSchedulePolicy=existing?.briefingSchedulePolicy??(!existing&&input.updateIntervalMinutes?CLOCK_PREPARATION_POLICY:undefined);
+    if(!existing&&input.updateIntervalMinutes)briefingScheduleClockStartAt=savedAt.toISOString();
+    else if(briefingScheduleClockStartAt&&scheduleChanged&&existing?.updateIntervalMinutes){
+      briefingScheduleClockStartAt=await editedClockStart(c.env.DB,input.id,briefingScheduleClockStartAt,{durationMinutes:existing.updateIntervalMinutes,timezone:existing.briefingTimezone,clockStartAt:briefingScheduleClockStartAt,...(briefingSchedulePolicy?{clockPolicy:briefingSchedulePolicy}:{})});
+    }
+    else if(briefingScheduleOriginAt&&existing?.updateIntervalMinutes&&existing.updateIntervalMinutes!==input.updateIntervalMinutes){
+      briefingScheduleOriginAt=await editedRelativeOrigin(c.env.DB,input.id,briefingScheduleOriginAt,{durationMinutes:existing.updateIntervalMinutes,timezone:existing.briefingTimezone,deliveryAnchor:existing.briefingTimeOfDay,...(existing.updateIntervalMinutes<1440?{originAt:briefingScheduleOriginAt}:{})},savedAt);
+    }
+    if(briefingScheduleClockStartAt&&input.updateIntervalMinutes===1440&&!['00','30'].includes(briefingTimeOfDay.slice(-2)))return c.json({error:'Choose a daily delivery time on the hour or half-hour.'},400);
+    const schedule=input.updateIntervalMinutes?{durationMinutes:input.updateIntervalMinutes,timezone:input.briefingTimezone,deliveryAnchor:briefingTimeOfDay,...(input.updateIntervalMinutes<1440&&briefingScheduleOriginAt?{originAt:briefingScheduleOriginAt}:{}),...(briefingScheduleClockStartAt?{clockStartAt:briefingScheduleClockStartAt}:{}),...(briefingSchedulePolicy?{clockPolicy:briefingSchedulePolicy}:{})}:undefined;
     const nextBriefingAt = scheduleChanged
-      ? defaultNextBriefingAt({
+      ? schedule ? (schedule.originAt||schedule.clockStartAt?nextLiveBriefingAt(schedule,savedAt):firstFullLiveBriefingAt(schedule,savedAt)) : defaultNextBriefingAt({
           cadence: briefingCadence,
           timeOfDay: briefingTimeOfDay,
           timezone: input.briefingTimezone
         })
-      : input.nextBriefingAt ?? existing.nextBriefingAt;
-    const briefing = await repo.upsertBriefing({
+      : existing.nextBriefingAt;
+    const configuration:BriefingConfig = {
       ...input,
       ownerAccountId: account.id,
       ownerUsername: account.username,
       slug,
       stars: existing?.stars ?? input.stars,
-      publicFeedEnabled: true,
+      publicFeedEnabled: input.publicFeedEnabled,
       intensity: input.intensity,
       briefingCadence,
       briefingTimeOfDay,
       nextBriefingAt,
+      briefingScheduleOriginAt,
+      briefingScheduleClockStartAt,
+      briefingSchedulePolicy,
       retentionDays: FIXED_RETENTION_DAYS
-    });
-    return c.json({ briefing });
+    };
+    let briefing:BriefingConfig,sourceIds:string[]=[];
+    try {
+      if(plans) {
+        const saved=await repo.saveFeedConfiguration(configuration,plans.map(plan=>configuredProductSource(configuration.id,plan)),existing,savedAt);
+        briefing=saved.briefing;sourceIds=saved.sourceIds;
+      } else briefing=await repo.upsertBriefing(configuration,savedAt);
+    } catch(error) {if(error instanceof FeedConfigurationConflict)return c.json({error:error.message},409);throw error;}
+    const pendingSourceIds:string[]=[];
+    if(plans&&!briefing.paused)for(const id of sourceIds) {
+      try {await enrollV1Source(c.env.DB,id,briefing.ownerAccountId,savedAt.toISOString());}
+      catch {
+        pendingSourceIds.push(id);
+        console.warn("Feed saved; source activation needs scheduler recovery",{feedId:briefing.id,sourceId:id});
+        try {
+          const prior=await repo.getSource(id),note="Source activation is pending. Check source health for updates.";
+          await repo.updateSourceState({sourceId:id,lastError:prior?.lastError?.includes(note)?prior.lastError:[prior?.lastError,note].filter(Boolean).join(' ')});
+        } catch { /* The committed scheduler trigger remains the recovery record. */ }
+      }
+    }
+    try { await queueInitialFeedSketch(c.env, briefing); }
+    catch { console.warn("Feed illustration enqueue needs recovery",{feedId:briefing.id}); }
+    return c.json({briefing,...(plans?{sourceActivation:pendingSourceIds.length?"pending":"ready",pendingSourceIds}:{})},pendingSourceIds.length?202:200);
+  }
+  app.post("/api/me/briefings",async c=>saveBriefingConfiguration(c,await c.req.json()));
+
+  app.post('/api/me/feeds', async c => {
+    if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
+    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(FEED_TITLE_MAX_LENGTH),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleFields.durationMinutes,briefingTimeOfDay:liveScheduleFields.deliveryAnchor,briefingTimezone:liveScheduleFields.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
+    if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
+    const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
+    if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
+    if(input.sourceInputs.length===0){
+      const sources=existing?await repo.listSources(existing.id):[];
+      // Preserve intentionally disabled records; an empty list must not create
+      // an unconfigured feed or silently remove its active sources.
+      if(sources.length===0||sources.some(source=>source.enabled))return c.json({error:'Add at least one source.'},400);
+      return saveBriefingConfiguration(c,{...existing!,...input,slug:existing!.slug});
+    }
+    if(c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
+      const checks=await assessSources(c.env,{title:input.title,description:input.interestProfile},input.sourceInputs,fetcher,{ownerAccountId:owner.id,providerFetcher:fetcher});
+      const blocked=checks.find(check=>check.status!=='accepted');
+      if(blocked)return c.json({error:blocked.reason,checks},422);
+    }
+    // Validate every requested source before saving the Feed or changing approval.
+    let resolved:Awaited<ReturnType<typeof resolveProductSourceInput>>[];
+    try{resolved=await Promise.all(input.sourceInputs.map(value=>resolveProductSourceInput(value,fetcher,c.env)));}
+    catch(error){if(error instanceof ProductSourceApprovalError)return c.json({error:error.message},error.status,error.status===503?{'Retry-After':'5'}:{});throw error;}
+    const plans=[...new Map(resolved.map(plan=>[plan.canonicalUrl,plan] as const)).values()];
+    if(plans.some(plan=>plan.detected.kind==='web_page')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Website extraction requires the source execution service.'},400);
+    if(plans.some(plan=>plan.detected.kind==='telegram_channel')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_URL||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Telegram collection requires the private source execution service.'},400);
+    const feeds=await repo.listBriefings(owner.id);
+    const base=normalizeUsername(input.title);let slug=existing?.slug??base,index=2;
+    while(!existing&&feeds.some(f=>f.slug===slug))slug=`${base}-${index++}`;
+    return saveBriefingConfiguration(c,{...existing,...input,slug},plans);
   });
 
   app.delete("/api/me/briefings/:briefingId", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    const briefings = await repo.listBriefings(account.id);
-    if (briefings.length <= 1) return c.json({ error: "keep at least one feed" }, 400);
     const briefing = await getOwnedBriefing(repo, account, c.req.param("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     await repo.deleteBriefing(briefing.id);
+    try { await c.env.RAW_ARCHIVE?.delete(sketchKey(briefing)); }
+    catch { console.warn("Could not remove deleted feed illustration",{feedId:briefing.id}); }
     return c.json({ briefings: await repo.listBriefings(account.id) });
   });
 
@@ -434,6 +960,99 @@ export function createApp(options: AppOptions = {}) {
     const briefing = await getOwnedBriefing(repo, c.get("account")!, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     return c.json({ sources: await repo.listSources(briefing.id) });
+  });
+
+  app.get('/api/me/sources/:sourceId/connector-health',async c=>{
+    const briefing=await getOwnedBriefing(c.get('repo'),c.get('account')!,c.req.query('briefingId'));
+    if(!briefing)return c.json({error:'briefing not found'},404);
+    const source=await c.get('repo').getSource(c.req.param('sourceId'));
+    if(!source||source.briefingId!==briefing.id)return c.json({error:'source not found'},404);
+    return c.json({sourceId:source.id,enabled:source.enabled,availability:(await feedSourceAvailability(c.env,briefing.id)).find(row=>row.sourceId===source.id),health:await connectorSourceHealth(c.env.DB,briefing.id,source.id)});
+  });
+
+  app.get('/api/me/sources/suggestions',async c=>{
+    const input=z.object({q:z.string().trim().min(2).max(200),language:z.enum(['en','fr','ar']).default('en')}).safeParse({q:c.req.query('q'),language:c.req.query('language')});
+    c.header('Cache-Control','no-store');
+    if(!input.success)return c.json({error:'Enter between 2 and 200 characters.'},400);
+    let cache:Cache|undefined;try{if(typeof caches!=='undefined')cache=await caches.open('source-query-suggestions-v1');}catch{}
+    try{return c.json(await sourceQuerySuggestions(input.data.q,input.data.language,c.get('account')!.id,fetcher,cache,()=>assertRateLimit(c.get('repo'),'source-suggestions:'+c.get('account')!.id,'source_suggestions',120,60_000)));}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','60');return c.json({suggestions:[],unavailable:true},429);}
+  });
+
+  app.on(['GET','POST'],'/api/me/sources/search',async c=>{
+    const data=c.req.method==='POST'?await c.req.json().catch(()=>null):{q:c.req.query('q'),title:c.req.query('title'),description:c.req.query('description')};
+    const input=z.object({q:z.string().trim().min(2).max(200),title:z.string().trim().min(1).max(120).optional(),description:z.string().trim().min(1).max(4000).optional()}).strict().refine(value=>Boolean(value.title)===Boolean(value.description)).safeParse(data);
+    if(!input.success)return c.json({error:'Enter between 2 and 200 characters to search sources.'},400);
+    c.header('Cache-Control','no-store');
+    try{await assertRateLimit(c.get('repo'),'source-search:'+c.get('account')!.id,'source_search',30,5*60*1000);}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','300');return c.json({error:'Too many source searches. Please try again shortly.'},429);}
+    let searchCache:Cache|undefined,accessCache:Cache|undefined;
+    try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
+    const owner=c.get('account')!.id,origin=new URL(c.req.url).origin;
+    const context=input.data.title&&input.data.description?{title:input.data.title,description:input.data.description}:undefined;
+    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>{const accessible=await freelyReadableResults(result.results,fetcher,accessCache,c.env);return {...result,...accessible,accessIncomplete:result.accessIncomplete===true||accessible.accessIncomplete};}));
+  });
+
+  app.post("/api/me/sources/assess", async c => {
+    const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000),source:z.string().trim().min(1).max(500),searchQuery:z.string().trim().min(2).max(200).optional()}).strict().parse(await c.req.json());
+    if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({assessment:{input:input.source,status:'unverified',reason:'Source assessment is not enabled on this deployment.',checkedAt:new Date().toISOString()}});
+    const owner=c.get('account')!.id;
+    const context={title:input.title,description:input.description};
+    const cached=await cachedSourceAssessment(c.env,owner,context,input.source);
+    if(cached)return c.json({assessment:cached});
+    try{await assertRateLimit(c.get('repo'),'source-assess:'+owner,'source_assess',30,5*60*1000);}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','300');return c.json({error:'Too many source checks. Please try again shortly.'},429);}
+    let publisherEvidence:TopicPublisherEvidence[]|undefined;
+    if(input.searchQuery)try{
+      const cache=typeof caches==='undefined'?undefined:await caches.open('source-search-v2-free-only');
+      const saved=await readSourceSearchCache(owner,sourceSearchCacheQuery(input.searchQuery,{title:input.title,description:input.description}),new URL(c.req.url).origin,cache);
+      const origin=new URL(prepareProductSourceInput(input.source).sourceUrl!).origin;
+      const hints=(saved?.results??[]).filter(row=>{
+        if(!row.articleUrl||row.blocked)return false;
+        try{
+          if(new URL(prepareProductSourceInput(row.source).sourceUrl!).origin!==origin)return false;
+          new WorkerPublicSourceFetch(row.articleUrl);
+          const host=new URL(row.articleUrl).hostname.replace(/^www\./,'');
+          return host==='news.google.com'||host===new URL(origin).hostname.replace(/^www\./,'');
+        }catch{return false;}
+      }).map(row=>({publisherOrigin:origin,title:row.title,url:row.articleUrl!,excerpt:row.excerpt??''}));
+      if(hints.length)publisherEvidence=hints;
+    }catch{/* Missing search receipts never substitute client-supplied evidence. */}
+    const assessment=await assessSource(c.env,context,input.source,fetcher,{ownerAccountId:owner,providerFetcher:fetcher},publisherEvidence);
+    if(assessment.freeAccessUnavailable)try{await rememberUnavailableSearchSource(input.source,typeof caches==='undefined'?undefined:await caches.open('source-search-free-access-v1'));}catch{}
+    await rememberSourceAssessment(c.env,owner,context,assessment);
+    return c.json({assessment});
+  });
+
+  app.post("/api/me/sources/recommend", async c => {
+    const input=z.object({title:z.string().trim().min(1).max(120),description:z.string().trim().min(1).max(4000)}).strict().parse(await c.req.json());
+    try {
+      await assertRateLimit(c.get('repo'), 'source-recommend:'+c.get('account')!.id, 'source_recommend', 3, 5*60*60*1000);
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "too many attempts") throw error;
+      c.header("Retry-After", "18000");
+      return c.json({ error: "You can request AI source recommendations three times every five hours. Please try again later, or add a source URL directly." }, 429);
+    }
+    if(c.req.header('accept')?.includes('application/x-ndjson')&&c.env.SOURCE_ASSESSMENT_ENABLED==='true'){
+      c.header('Content-Type','application/x-ndjson; charset=utf-8');
+      c.header('Cache-Control','no-store');
+      c.header('X-Content-Type-Options','nosniff');
+      return stream(c,async output=>{
+        const stopHeartbeat=sourceStreamHeartbeat(output);
+        try{
+          const result=await verifiedSourceRecommendations(c.env,input,fetcher,{ownerAccountId:c.get('account')!.id},async progress=>{
+            await output.writeln(JSON.stringify({type:'progress',...progress}));
+          });
+          await output.writeln(JSON.stringify({type:'complete',...result}));
+        }catch(error){await output.writeln(JSON.stringify({type:'error',error:error instanceof Error?error.message:'Source recommendations unavailable'}));}
+        finally{await stopHeartbeat();}
+      });
+    }
+    try {
+      if(c.env.SOURCE_ASSESSMENT_ENABLED!=='true')return c.json({sources:await sourceRecommendations(c.env,input,fetcher)});
+      return c.json(await verifiedSourceRecommendations(c.env,input,fetcher,{ownerAccountId:c.get('account')!.id}));
+    }
+    catch(error) { return c.json({error:error instanceof Error?error.message:'Source recommendations unavailable'}, c.env.SOURCE_RECOMMENDATIONS_ENABLED==='true'?502:503); }
   });
 
   app.post("/api/me/sources", async (c) => {
@@ -445,9 +1064,13 @@ export function createApp(options: AppOptions = {}) {
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
 
     if ("url" in body || "input" in body) {
+      if(c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
+        const assessment=await assessSource(c.env,{title:briefing.title,description:briefing.interestProfile},("input" in body?body.input:undefined)??("url" in body?body.url:""),fetcher,{ownerAccountId:c.get('account')!.id,providerFetcher:fetcher});
+        if(assessment.status!=='accepted')return c.json({error:assessment.reason,assessment},422);
+      }
       let result;
       try {
-        result = await addSourceFromInput({
+        result = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await approveProductSource(c.env, repo, briefing, ("input" in body ? body.input : undefined) ?? ("url" in body ? body.url : "")) : await addSourceFromInput({
           briefing,
           sourceInput: ("input" in body ? body.input : undefined) ?? ("url" in body ? body.url : ""),
           repo,
@@ -468,6 +1091,10 @@ export function createApp(options: AppOptions = {}) {
 
     const source = await repo.getSource(body.sourceId);
     if (!source || source.briefingId !== briefing.id) return c.json({ error: "source not found" }, 404);
+    if(body.enabled&&c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
+      const assessment=await assessSource(c.env,{title:briefing.title,description:briefing.interestProfile},(source.kind==='telegram_channel'?(source.sourceUrl??source.url):source.input??source.sourceUrl??source.url)??'',fetcher,{ownerAccountId:c.get('account')!.id,providerFetcher:fetcher});
+      if(assessment.status!=='accepted')return c.json({error:assessment.reason,assessment},422);
+    }
     await repo.setSourceEnabled(body.sourceId, body.enabled);
     return c.json({
       sources: await repo.listSources(briefing.id),
@@ -514,7 +1141,7 @@ export function createApp(options: AppOptions = {}) {
     const repo = c.get("repo");
     const briefing = await getOwnedBriefing(repo, c.get("account")!, c.req.query("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
-    return c.json({ health: await repo.getHealth(briefing.id) });
+    return c.json({ health: {...await repo.getHealth(briefing.id),nextBriefingAt:readNextBriefingAt(briefing),scheduleAudit:c.env.V1_DOWNSTREAM_ENABLED==='true'?await readScheduleAudit(c.env.DB,briefing.id):undefined,queueAudit:c.env.V1_DOWNSTREAM_ENABLED==='true'?await readV1QueueAudit(c.env.DB,briefing.id):undefined} });
   });
 
   app.post("/api/me/processing/retry", async (c) => {
@@ -525,6 +1152,82 @@ export function createApp(options: AppOptions = {}) {
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     const retried = await retryProcessingJobs(repo, queueFor(c), briefing.id);
     return c.json({ retried, health: await repo.getHealth(briefing.id) });
+  });
+
+  app.get('/api/admin/model-spending/:id/reconciliation',async c=>{
+    c.header('Cache-Control','private, no-store');
+    const accountId=c.req.query('accountId');if(!accountId)return c.json({error:'accountId required'},400);
+    try{const p=await reviewModelRejection(c.env.DB,c.req.param('id'),accountId);return c.json({id:p.id,eligible:p.eligible,reason:p.reason,evidenceHash:p.evidenceHash,providerDiagnostic:p.providerDiagnostic})}catch{return c.json({error:'reconciliation unavailable'},409)}
+  });
+  app.post('/api/admin/model-spending/:id/reconciliation',async c=>{
+    c.header('Cache-Control','private, no-store');
+    if(!c.req.header('Content-Type')?.startsWith('application/json')||c.req.header('Origin')&&c.req.header('Origin')!==new URL(c.req.url).origin)return c.json({error:'invalid operator request'},403);
+    const b=await c.req.json().catch(()=>null);
+    if(!b||b.approve!==true||typeof b.accountId!=='string'||typeof b.approvalId!=='string'||typeof b.evidenceHash!=='string')return c.json({error:'explicit evidence-bound approval required'},400);
+    try{return c.json(await reconcileConfirmedModelRejection(c.env.DB,c.req.param('id'),{accountId:b.accountId,approvalId:b.approvalId,evidenceHash:b.evidenceHash,approvedBy:c.get('account')!.id}))}catch{return c.json({error:'reconciliation refused; inspect retained evidence'},409)}
+  });
+  app.post('/api/admin/agentops/campaigns/:runId/:action',async c=>{
+    if(!campaignAvailable(c.env))return c.json({error:'not found'},404);
+    if(c.req.header('Origin')!==new URL(c.req.url).origin||!c.req.header('Content-Type')?.startsWith('application/json'))return c.json({error:'invalid operator request'},403);
+    c.header('Cache-Control','private, no-store');
+    const parsedRun=campaignId.safeParse(c.req.param('runId'));if(!parsedRun.success)return c.json({error:'invalid campaign'},400);
+    const run=parsedRun.data,action=c.req.param('action');
+    const raw=await c.req.text();if(raw.length>64000)return c.json({error:'request too large'},413);
+    let body:unknown;try{body=JSON.parse(raw)}catch{return c.json({error:'invalid JSON'},400)}
+    const repo=c.get('repo');
+    try{
+      if(action==='register'){
+        const b=z.object({feedId:z.string(),ownerId:z.string()}).strict().parse(body);
+        await registerCampaignFeed(c.env,repo,run,b.feedId,b.ownerId);return c.json({registered:true});
+      }
+      if(action==='source-probe'){
+        const b=z.object({username:z.literal('lebanonnews2')}).strict().parse(body);
+        return c.json(await campaignSourceProbe(c.env,b.username));
+      }
+      if(action==='plan')return c.json(await planCampaign(c.env,repo,run,campaignPlanSchema.parse(body)));
+      if(action==='snapshot')return c.json(await snapshotCampaign(c.env,repo,run,campaignSnapshotSchema.parse(body)));
+      if(action==='evidence'){const b=campaignSnapshotSchema.parse({opportunities:[body]}).opportunities[0];return c.json(await campaignEvidence(c.env,repo,run,b));}
+      if(action==='interrupt'){
+        if(c.env.AGENTOPS_CAMPAIGN_ALLOW_FAULTS!=='true')return c.json({error:'faults disabled'},403);
+        const b=z.object({feedId:z.string(),until:z.string().datetime().nullable()}).strict().parse(body);assertCampaignFeed(run,b.feedId);
+        if(b.until&&(Date.parse(b.until)<=Date.now()||Date.parse(b.until)>Date.now()+300000))return c.json({error:'fault duration'},400);
+        const changed=await c.env.DB.prepare('UPDATE agentops_campaign_feeds SET interrupt_until=? WHERE run_id=? AND feed_id=?').bind(b.until,run,b.feedId).run();
+        return changed.meta.changes===1?c.json({configured:true}):c.json({error:'scope denied'},404);
+      }
+      if(action==='duplicate'){
+        if(c.env.AGENTOPS_CAMPAIGN_ALLOW_FAULTS!=='true')return c.json({error:'faults disabled'},403);
+        const b=campaignSnapshotSchema.parse({opportunities:[body]}).opportunities[0];assertCampaignFeed(run,b.feedId);
+        // Snapshot performs registration/owner checks and confirms original work.
+        const state=await snapshotCampaign(c.env,repo,run,{opportunities:[b]});
+        if(state.items[0].state==='NOT_CREATED'||Date.parse(b.window.end)>Date.now())return c.json({error:'original work not admitted'},409);
+        if(state.items[0].operations.some(o=>o.uncertain))return c.json({error:'uncertain paid operation'},409);
+        await c.env.PROCESSING_QUEUE.send({type:'v1_briefing',feedId:b.feedId,window:b.window});return c.json({enqueued:true,originalId:state.items[0].id});
+      }
+      return c.json({error:'not found'},404);
+    }catch(error){if(error instanceof z.ZodError)return c.json({error:'invalid campaign request'},400);return c.json({error:error instanceof Error&&error.message==='CAMPAIGN_SCOPE_DENIED'?'scope denied':'campaign observation unavailable'},error instanceof Error&&error.message==='CAMPAIGN_SCOPE_DENIED'?404:503);}
+  });
+
+  app.get('/api/admin/briefings/:feedId/pipeline-trace',async c=>{
+    c.header('Cache-Control','private, no-store');
+    const query=traceOptionsSchema.safeParse(c.req.query());
+    if(!query.success)return c.json({error:'invalid trace filters'},400);
+    // A trace runs about 16 queries. Bound how many one isolate runs at once so
+    // a burst of diagnostics cannot crowd readers out of D1.
+    const limit=Math.max(1,Math.min(10,Number(c.env.ADMIN_TRACE_MAX_CONCURRENT??2)||2));
+    if(activeTraces>=limit){c.header('Retry-After','2');return c.json({error:'Too many traces are running. Try again shortly.',code:'TRACE_BUSY'},429);}
+    activeTraces++;
+    try{return c.json(await readPipelineTrace(c.env.DB,c.req.param('feedId'),query.data,{admittedSourceIds:c.env.V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',').map(s=>s.trim()).filter(Boolean)}))}
+    catch(error){if(error instanceof HandoffError)return c.json({error:error.code},error.code==='SCOPE_DENIED'?404:400);throw error}
+    finally{activeTraces--;}
+  });
+
+  app.get('/api/admin/storage',async c=>{
+    c.header('Cache-Control','private, no-store');
+    return c.json({enabled:c.env.STORAGE_MAINTENANCE_ENABLED==='true',...await storageMaintenanceStatus(c.env)});
+  });
+  app.get('/api/admin/collectors',async c=>{
+    c.header('Cache-Control','private, no-store');
+    return c.json({budget:await collectorBudgetStatus(c.env)});
   });
 
   app.get("/api/admin/accounts", async (c) => {
@@ -571,6 +1274,16 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ briefings: await c.get("repo").listBriefings() });
   });
 
+  app.post("/api/admin/briefings/:briefingId/explore", async (c) => {
+    const repo = c.get("repo");
+    const briefing = await repo.getBriefingById(c.req.param("briefingId"));
+    if (!briefing) return c.json({ error: "briefing not found" }, 404);
+    const input = z.object({ featured: z.boolean() }).parse(await c.req.json().catch(() => ({})));
+    if (input.featured && !briefing.publicFeedEnabled) return c.json({ error: "only public feeds can be featured" }, 400);
+    await repo.setExploreFeatured(briefing.id, input.featured);
+    return c.json({ featured: input.featured });
+  });
+
   app.patch("/api/admin/briefings/:briefingId", async (c) => {
     const repo = c.get("repo");
     const briefing = await repo.getBriefingById(c.req.param("briefingId"));
@@ -591,37 +1304,122 @@ export function createApp(options: AppOptions = {}) {
     const briefing = await repo.getBriefingById(c.req.param("briefingId"));
     if (!briefing) return c.json({ error: "briefing not found" }, 404);
     await repo.deleteBriefing(briefing.id);
+    try { await c.env.RAW_ARCHIVE?.delete(sketchKey(briefing)); }
+    catch { console.warn("Could not remove deleted feed illustration",{feedId:briefing.id}); }
     return c.json({ briefings: await repo.listBriefings(), accounts: await repo.listAccounts() });
   });
 
   app.get("/api/explore/feeds", async (c) => {
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     const repo = repoFor(c);
-    const feeds = await repo.listExploreBriefings(10);
-    return c.json({ feeds: feeds.map(publicBriefing) });
+    const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
+    const expected=z.string().max(128).optional().parse(c.req.query('revision'));
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const excludedOwner=viewer&&!viewer.disabledAt?viewer.id:undefined;
+    const before=await repo.getExploreRevision();
+    const revision=await hashToken(JSON.stringify([before,excludedOwner??null]));
+    const changed=()=>c.json({error:'Community feed listing changed. Reload it.',code:'EXPLORE_CHANGED'},409);
+    if(offset>0&&expected!==undefined&&expected!==revision)return changed();
+    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined);
+    // The revision bookends the query, so a page cannot be labelled with a
+    // revision from before or after a concurrent membership/ranking change.
+    if(await repo.getExploreRevision()!==before)return changed();
+    return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null, revision });
+  });
+
+  app.get("/api/feed/:username/:briefingSlug/sketch", async (c) => {
+    const resolved = await resolvePublicFeed(c);
+    if (resolved instanceof Response) return resolved;
+    const object = await c.env.RAW_ARCHIVE?.get(sketchKey(resolved.briefing));
+    if (!object) {
+      const job = c.env.DB ? await c.env.DB.prepare("SELECT state FROM feed_sketch_jobs WHERE feed_id=?").bind(resolved.briefing.id).first<{state:string}>() : null;
+      return c.body(null, 404, { "Cache-Control": "no-store", ...(job && job.state !== 'ready' ? {"Retry-After":"3"} : {}) });
+    }
+    // Resolve visibility before every network read. Never put private artwork in a shared cache.
+    const headers = { "Content-Type": "image/jpeg", "Cache-Control": resolved.briefing.publicFeedEnabled ? "private, max-age=300" : "no-store", "X-Content-Type-Options": "nosniff", "Vary": "Cookie", ...(object.httpEtag ? {ETag:object.httpEtag} : {}) };
+    if (object.httpEtag && c.req.header('If-None-Match') === object.httpEtag) return new Response(null, {status:304,headers});
+    return new Response(object.body, { headers });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
-    const editions = (await repo.listBriefingEditions(briefing.id, true))
-      .filter((edition) => isPublicEditionVisible(edition, briefing.language));
-    return c.json({
+    if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
+      // Cached data only: access, the viewer's star and feed settings are read per request.
+      const version = await feedReadVersion(c.env.DB, briefing.id);
+      const env = c.env;
+      const [published, status] = await Promise.all([
+        cachedProductEditions(env, briefing.id, version),
+        cachedFeedStatus(env, briefing.id, version, async () => {
+          const value = {
+            sourceAvailability: await feedSourceAvailability(env, briefing.id),
+            publicationState: await productPublicationState(env, briefing.id),
+            publicationProgress: await productPublicationProgress(env, briefing.id)
+          };
+          return { value, hash: fnv1a(JSON.stringify(value)) };
+        })
+      ]);
+      const viewerHasStarred = voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false;
+      if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
+      const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
+      const publicFeed = publicBriefing(briefing);
+      // Content-derived, so every isolate computes the same tag for the same response.
+      const etag = `W/"${version}-${fnv1a([published.hash, status.value.hash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
+      c.header('ETag', etag);
+      if (etagMatches(c.req.header('If-None-Match'), etag)) return c.body(null, 304);
+      return c.json({
+        unreadSummaryAvailable,
+        briefing: publicFeed,
+        ...status.value.value,
+        editions: presentProductEditions(briefing, published.records),
+        editionsComplete:true,
+        viewerHasStarred
+      });
+    }
+    // Match legacy search's bounded window so withdrawals outside the recent
+    // page change the marker too. The reader still receives only 50 editions.
+    const legacyEditions=c.env.PRODUCT_FEEDS_ENABLED==='true'?undefined:await repo.listBriefingEditions(briefing.id,true,new Date(),100);
+    const editions = legacyEditions ? legacyEditions.slice(0,50).filter(edition=>isPublicEditionVisible(edition,briefing.language)) : await publishedProductEditions(c.env,briefing);
+    const payload={
+      unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
-      editions: editions.map((edition) => publicEdition(edition, briefing, false)),
+      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
+      publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
+      publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
+      editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
+      editionsComplete:legacyEditions?legacyEditions.length<=50:true,
+      ...(legacyEditions?{publicationVersion:await hashToken(JSON.stringify([briefing.language,legacyEditions]))}:{}),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
-    });
+    };
+    if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
+    return c.json(payload);
+  });
+
+  app.get("/api/feed/:username/:briefingSlug/developments",async(c)=>{
+    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
+    const items=await resolved.repo.getExistingItems(resolved.briefing.id);
+    return c.json({developments:items.filter(item=>item.development).sort((a,b)=>(b.development?.ranking.score??0)-(a.development?.ranking.score??0)).map(publicDevelopment)});
   });
 
   app.get("/api/feed/:username/:briefingSlug/editions/:editionId", async (c) => {
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const edition = await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
+    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (feedReadCacheEnabled(c.env)
+      ? presentProductEditions(briefing, (await cachedProductEditions(c.env, briefing.id, await feedReadVersion(c.env.DB, briefing.id))).records.filter(record => record.id === c.req.param("editionId")))[0]
+      : (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0]) : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
     if (!edition) return c.json({ error: "edition not found" }, 404);
-    if (!isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
-    return c.json({ edition: publicEdition(edition, briefing, true) });
+    if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
+    if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
+    return c.json({ edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
   });
 
   app.get("/api/feed/:username/:briefingSlug/items/:itemId/evidence", async (c) => {
@@ -633,49 +1431,45 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.get("/api/feed/:username/:briefingSlug/search", async (c) => {
+    c.header('Cache-Control','private, no-store');
+    c.header('Vary','Cookie');
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const editions = (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
+    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (feedReadCacheEnabled(c.env)
+      ? presentProductEditions(briefing, (await cachedProductEditions(c.env, briefing.id, await feedReadVersion(c.env.DB, briefing.id))).records)
+      : await publishedProductEditions(c.env, briefing)) : (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
+    if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
     return c.json({
       editions: searchBriefingEditions(
         editions,
         c.req.query("q") ?? ""
-      ).map((edition) => publicEdition(edition, briefing, true))
+      ).map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true))
     });
   });
 
-  app.post("/api/feed/:username/:briefingSlug/request-summary", async (c) => {
-    const resolved = await resolvePublicFeed(c);
-    if (resolved instanceof Response) return resolved;
-    const { repo, briefing } = resolved;
-    if (briefing.paused) return c.json({ error: "feed is paused" }, 409);
-
-    try {
-      await assertRateLimit(
-        repo,
-        await manualSummaryRateLimitKey(c, briefing.id),
-        "manual_summary",
-        6,
-        60 * 60 * 1000
-      );
-    } catch (error) {
-      if (!(error instanceof Error) || error.message !== "too many attempts") throw error;
-      return c.json({ error: "too many summary requests" }, 429);
-    }
-
-    const edition = await publishManualBriefingEdition({
-      repo,
-      briefing,
-      now: nowFor(),
-      summaryAdapter: createSummaryAdapterFromEnv(c.env, repo)
-    });
-    return c.json({
-      edition: edition ? publicEdition(edition, briefing, false) : null,
-      message: edition ? "new brief published" : "no new accepted updates"
-    });
+  app.post('/api/feed/:username/:briefingSlug/unread-summary',async(c)=>{
+    const resolved=await resolvePublicFeed(c);if(resolved instanceof Response)return resolved;
+    const claims=await verifySession(getCookie(c,SESSION_COOKIE),c.env.ADMIN_SESSION_SECRET??'');
+    const reader=claims?await resolved.repo.getAccountById(claims.sub):null;
+    if(!reader||reader.disabledAt||!reader.emailVerifiedAt)return c.json({error:'Sign in to summarize unread briefings.'},401);
+    const origin=c.req.header('origin');if(origin&&origin!==new URL(c.req.url).origin)return c.json({error:'Invalid request origin.'},403);
+    if(c.env.UNREAD_SUMMARY_ENABLED!=='true'||!c.env.DB||!c.env.OPENROUTER_API_KEY||c.env.BRIEFING_ENGINE!=='v3')return c.json({error:'Summaries are not configured on this deployment.'},503);
+    const {readIds}=z.object({readIds:z.array(z.string().min(1).max(300)).max(1000)}).strict().parse(await c.req.json());
+    const editions=c.env.PRODUCT_FEEDS_ENABLED==='true'?await publishedProductEditions(c.env,resolved.briefing):(await resolved.repo.listBriefingEditions(resolved.briefing.id,true)).filter(edition=>isPublicEditionVisible(edition,resolved.briefing.language));
+    if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,resolved.briefing.id))return c.json({error:'feed not found'},404);
+    let input;try{input=prepareUnreadSummary(editions,readIds,resolved.briefing.language);}catch{return c.json({error:'These briefings are too long to summarize together.'},422);}
+    const task=generateUnreadSummary({db:c.env.DB,accountId:reader.id,feedId:resolved.briefing.id,input,port:unreadSummaryPort(c.env,resolved.briefing.id,reader.id),recordUsage:usage=>resolved.repo.recordLlmUsage({briefingId:resolved.briefing.id,purpose:'summary',phase:'unread_summary',outcome:'SUCCESS',model:usage.model,inputTokens:usage.inputTokens,outputTokens:usage.outputTokens,estimatedCostUsd:usage.costUsd??0,reportedCostUsd:usage.costUsd,latencyMs:usage.latencyMs})});
+    try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
+    c.header('Cache-Control','private, no-store');
+    try{const result=await task;return c.json(result,result.status==='pending'?202:200);}
+    catch(error){if(error instanceof UnreadSummaryQuotaError){c.header('Retry-After','3600');return c.json({error:error.message,code:'SUMMARY_QUOTA_EXCEEDED'},429);}if(error instanceof UnreadSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'?503:422);console.warn('unread-summary-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
   });
+
+  // Retired: summaries above never collect articles or publish editions.
+  app.post("/api/feed/:username/:briefingSlug/request-summary", (c) =>
+    c.json({error:"Manual briefing generation is retired. Briefings publish automatically on the feed schedule."},410));
 
   app.post("/api/feed/:username/:briefingSlug/star", async (c) => {
     const resolved = await resolvePublicFeed(c);
@@ -698,10 +1492,13 @@ export function createApp(options: AppOptions = {}) {
     const repo = repoFor(c);
     const username = c.req.query("user")?.trim();
     const feedSlug = c.req.query("feed")?.trim();
+    const mobileIcons = c.req.header("sec-ch-ua-mobile") === "?1" || /Android|iPhone|iPad|iPod|Mobile/i.test(c.req.header("user-agent") ?? "");
 
     let manifest = buildManifestPayload({
+      origin: new URL(c.req.url).origin,
       id: "/",
-      title: "Distilled.news",
+      title: "Distilled.News",
+      mobileIcons,
       description: "A quiet personal news briefing.",
       startUrl: "/"
     });
@@ -709,10 +1506,13 @@ export function createApp(options: AppOptions = {}) {
     if (username && feedSlug) {
       const resolved = await repo.resolveUsernameAlias(username);
       const briefing = resolved ? await repo.getBriefingBySlug(resolved.account.id, feedSlug) : null;
-      if (resolved && briefing) {
+      if (resolved && briefing?.publicFeedEnabled) {
         manifest = buildManifestPayload({
+          origin: new URL(c.req.url).origin,
+          manifestUrl: `/manifest.webmanifest?user=${encodeURIComponent(resolved.account.username)}&feed=${encodeURIComponent(briefing.slug)}`,
           id: `/${resolved.account.username}/${briefing.slug}/`,
           title: briefing.title,
+          mobileIcons,
           description: "Published briefing items only.",
           startUrl: `/${resolved.account.username}/${briefing.slug}/`
         });
@@ -725,6 +1525,108 @@ export function createApp(options: AppOptions = {}) {
         "cache-control": "no-store"
       }
     });
+  });
+
+  app.all('/api/internal/collectors/:action',async c=>{
+    if(!await internalMaintenanceAuthorized(c))return c.json({error:'unauthorized'},401);
+    c.header('Cache-Control','private, no-store');
+    if(c.req.param('action')==='recover-poll-unpaid'&&c.req.method==='POST'){
+      const input=z.object({feedId:z.string().min(1).max(256),kind:z.enum(['rss','provider']),runNow:z.boolean().optional(),jobId:z.string().min(1).max(4096),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
+      const {recoverConnectorPoll}=await import('./connector-scheduling');
+      try{await recoverConnectorPoll(c.env,input.kind,input.jobId,{unpaidOnly:true,approvalId:input.approvalId,feedId:input.feedId});}
+      catch(error){const code=error instanceof Error?error.message:'';if(/^[A-Z_]+$/.test(code))return c.json({error:code},409);throw error;}
+      if(input.runNow){
+        const {unpaidSourceRecoveryEnv}=await import('./unpaid-source-recovery');
+        const {createConnectorRuntime}=await import('./connector-runtime');
+        const backend=createConnectorRuntime(unpaidSourceRecoveryEnv(c.env),fetcher,true);
+        const outcome=await (input.kind==='rss'?backend.rssScheduler:backend.scheduler).runOne(300_000,input.jobId);
+        return c.json({outcome,unpaidOnly:true});
+      }
+      return c.json({state:'PENDING',unpaidOnly:true});
+    }
+    if(c.req.param('action')==='recover-article-unpaid'&&c.req.method==='POST'){
+      const input=z.object({feedId:z.string().min(1).max(256),jobId:z.string().min(1).max(4096),reviewedRedirect:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192),headline:z.string().min(20).max(1000)}).strict().optional(),redirectEvidence:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192)}).strict().optional(),canonicalEvidence:z.object({from:z.string().url().max(8192),to:z.string().url().max(8192)}).strict().optional(),approvalId:z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)}).strict().parse(await c.req.json());
+      const {V1IntakeStore}=await import('./v1-intake/store');
+      const {authorizeAcquisitionRecovery}=await import('./v1-intake/acquisition');
+      const {processV1Acquisition}=await import('./v1-downstream-runtime');
+      const store=new V1IntakeStore(c.env.DB),job=await store.read<import('./v1-intake/types').DownstreamJob>('jobs',input.jobId);
+      if(!job||job.value.feedId!==input.feedId)return c.json({error:'job not found'},404);
+      try{
+        await authorizeAcquisitionRecovery(store,input.jobId,input.approvalId,new Date().toISOString(),input.redirectEvidence,input.canonicalEvidence,{unpaidOnly:true,...(input.reviewedRedirect?{reviewedRedirect:input.reviewedRedirect}:{})});
+      }catch(error){
+        const code=error instanceof Error?error.message:'';
+        if(/^RECOVERY_[A-Z_]+$/.test(code))return c.json({error:code},409);
+        if(error instanceof HandoffError){c.header('Retry-After','5');return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:403);}
+        throw error;
+      }
+      let outcome:Awaited<ReturnType<typeof processV1Acquisition>>;
+      try{outcome=await processV1Acquisition(c.env,input.jobId,fetcher);}
+      catch(error){
+        const {IntelligenceTurnBusy}=await import('./connector-intelligence-turn');
+        if(error instanceof IntelligenceTurnBusy){c.header('Retry-After','5');return c.json({outcome:'RETRY',state:'PENDING',reason:'FEED_BUSY',unpaidOnly:true},202);}
+        if(error instanceof HandoffError){c.header('Retry-After','5');return c.json({error:error.code},error.code==='TEMPORARY_UNAVAILABLE'?503:403);}throw error;
+      }
+      const result=(await store.read<import('./v1-intake/types').DownstreamJob>('jobs',input.jobId))?.value;
+      return c.json({outcome,state:result?.state,failureCode:result?.failureCode,failureDetail:result?.failureDetail,attempts:result?.attempts,unpaidOnly:true});
+    }
+    if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json({budget:await collectorBudgetStatus(c.env)});
+    if(c.req.param('action')==='topic-publishers'&&c.req.method==='POST'){
+      const input=z.object({title:z.string().trim().min(1).max(120)}).strict().parse(await c.req.json());
+      const plan=prepareProductSourceInput('news: '+input.title),transport:{route:'worker'|'runtime';status:number}[]=[];
+      try{const evidence=await readTopicPublishers(c.env,plan.sourceUrl??plan.canonicalUrl,fetcher,result=>transport.push(result));return c.json({publishers:[...new Set(evidence.map(item=>item.publisherOrigin))],evidenceCount:evidence.length,transport});}
+      catch{return c.json({publishers:[],evidenceCount:0,transport,error:'TOPIC_PUBLISHER_DISCOVERY_UNAVAILABLE'});}
+    }
+    if(c.req.param('action')==='transport'&&c.req.method==='GET'){
+      const legacy={dispatch:fetcher};let legacyResult='UNKNOWN',detachedStatus=0;
+      try{const response=await legacy.dispatch('https://example.com',{signal:AbortSignal.timeout(5000)});legacyResult=`HTTP_${response.status}`;await response.body?.cancel();}
+      catch(error){legacyResult=error instanceof Error&&/illegal invocation|incorrect.*this/i.test(error.message)?'NATIVE_FETCH_RECEIVER_REJECTED':'TRANSPORT_FAILED';}
+      try{const response=await fetcher('https://example.com',{signal:AbortSignal.timeout(5000)});detachedStatus=response.status;await response.body?.cancel();}catch{}
+      return c.json({legacyResult,detachedStatus});
+    }
+      if(c.req.param('action')==='recommend'&&c.req.method==='POST'){
+        const input=z.object({ownerAccountId:z.string().min(1).max(128),title:z.string().min(1).max(120),description:z.string().min(1).max(4000)}).strict().parse(await c.req.json());
+        const owner=await repoFor(c).getAccountById(input.ownerAccountId);
+        if(!owner||owner.disabledAt)return c.json({error:'account not found'},404);
+        const diagnostics:SourceDiscoveryDiagnostic[]=[];
+        if(c.req.header('accept')?.includes('application/x-ndjson')){
+          c.header('Content-Type','application/x-ndjson; charset=utf-8');
+          c.header('X-Content-Type-Options','nosniff');
+          return stream(c,async output=>{
+            const stopHeartbeat=sourceStreamHeartbeat(output);
+            try{
+              const result=await verifiedSourceRecommendations(c.env,{title:input.title,description:input.description},fetcher,{ownerAccountId:owner.id},
+                async progress=>{await output.writeln(JSON.stringify({type:'progress',...progress,diagnostics}));},diagnostic=>diagnostics.push(diagnostic));
+              await output.writeln(JSON.stringify({type:'complete',...result,diagnostics,budget:await collectorBudgetStatus(c.env)}));
+            }catch(error){await output.writeln(JSON.stringify({type:'error',error:error instanceof Error?error.message:'Source recommendations unavailable'}));}
+            finally{await stopHeartbeat();}
+          });
+        }
+        return c.json({...await verifiedSourceRecommendations(c.env,{title:input.title,description:input.description},fetcher,{ownerAccountId:owner.id},undefined,diagnostic=>diagnostics.push(diagnostic)),diagnostics,budget:await collectorBudgetStatus(c.env)});
+      }
+      if(c.req.param('action')==='check'&&c.req.method==='POST'){
+      const input=z.object({ownerAccountId:z.string().min(1).max(128),source:z.string().min(1).max(2048),title:z.string().min(1).max(120),description:z.string().min(1).max(4000)}).strict().parse(await c.req.json());
+      const owner=await repoFor(c).getAccountById(input.ownerAccountId);
+      if(!owner||owner.disabledAt)return c.json({error:'account not found'},404);
+      return c.json({assessment:await assessSource(c.env,{title:input.title,description:input.description},input.source,fetcher,{ownerAccountId:owner.id,providerFetcher:fetcher}),budget:await collectorBudgetStatus(c.env)});
+    }
+    return c.json({error:'not found'},404);
+  });
+  app.all('/api/internal/storage/:action',async c=>{
+    const secret=c.env.INTERNAL_MAINTENANCE_SECRET?.trim(),provided=c.req.header('x-distilled-internal')?.trim();
+    if(!secret||!provided)return c.json({error:'unauthorized'},401);
+    const digest=async(value:string)=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));
+    const [expected,actual]=await Promise.all([digest(secret),digest(provided)]);
+    let mismatch=0;for(let i=0;i<expected.length;i++)mismatch|=expected[i]^actual[i];
+    if(mismatch)return c.json({error:'unauthorized'},401);
+    c.header('Cache-Control','private, no-store');
+    if(c.req.param('action')==='archive'&&c.req.method==='GET'){
+      const hash=c.req.query('sha256');if(!hash||!/^[a-f0-9]{64}$/.test(hash))return c.json({error:'invalid archive hash'},400);
+      const object=await c.env.RAW_ARCHIVE.get(`operational-archives/semantic-waits/${hash}.json`);
+      return object?new Response(object.body,{headers:{'content-type':'application/json','cache-control':'private, no-store'}}):c.json({error:'archive not found or expired'},404);
+    }
+    if(c.req.param('action')==='status'&&c.req.method==='GET')return c.json(await storageMaintenanceStatus(c.env));
+    if(c.req.param('action')==='run'&&c.req.method==='POST'&&c.env.STORAGE_MAINTENANCE_ENABLED==='true')return c.json(await runStorageMaintenance(c.env));
+    return c.json({error:'not found'},404);
   });
 
   app.post("/api/internal/retention/run", async (c) => {
@@ -743,7 +1645,16 @@ export function createApp(options: AppOptions = {}) {
   app.get("/demo", (c) => c.redirect("/", 302));
 
   app.all("*", async (c) => {
-    const routeRedirect = await maybeRedirectUsernameRoute(c, repoFor(c));
+    let routeRedirect: Response | null;
+    try {
+      routeRedirect = await maybeRedirectUsernameRoute(c, repoFor(c));
+    } catch (error) {
+      if (!c.env.ASSETS || !isDatabaseUnavailable(error)) throw error;
+      // The shell contains no account or feed data. API visibility/auth checks
+      // still fail closed; an alias lookup must not replace the UI with JSON.
+      console.warn(JSON.stringify({type:'FEED_SHELL_DATABASE_WAIT'}));
+      routeRedirect = null;
+    }
     if (routeRedirect) return routeRedirect;
     if (c.env.ASSETS) {
       const assetResponse = await c.env.ASSETS.fetch(c.req.raw);
@@ -762,6 +1673,38 @@ export function createApp(options: AppOptions = {}) {
     return c.text("Distilled.news Worker is running. Build apps/web to serve the UI.", 200);
   });
 
+  type FeedAccess={public_feed_enabled:number;owner_account_id:string;disabled_at:string|null};
+  /** The latest-100 published list, shared by the feed page, edition detail and search. */
+  async function cachedProductEditions(env:Env, feedId:string, version:number) {
+    const { value } = await cachedFeedEditions(feedId, version, async () => {
+      const records = await publishedProductEditionRecords(env, feedId);
+      return { records, hash: fnv1a(JSON.stringify(records)) };
+    });
+    return value;
+  }
+  function usesEditionArtifacts(env:Env) {
+    return env.PRODUCT_FEEDS_ENABLED==='true'&&env.EDITION_ARTIFACTS_ENABLED==='true';
+  }
+  async function canReadPublishedEdition(c: Context<{ Bindings: Env; Variables: Variables }>, id: string) {
+    const row=await c.env.DB.prepare(`SELECT b.public_feed_enabled,b.owner_account_id,a.disabled_at FROM v1_feed_documents p
+      JOIN briefings b ON b.id=p.feed_id JOIN accounts a ON a.id=b.owner_account_id
+      WHERE p.kind='publication_status' AND p.id=? AND json_extract(p.json,'$.status')='PUBLISHED'`)
+      .bind(id).first<FeedAccess>();
+    return canReadFeedAccess(c,row);
+  }
+  async function canReadCurrentFeed(c: Context<{ Bindings: Env; Variables: Variables }>, id: string) {
+    const row=await c.env.DB.prepare(`SELECT b.public_feed_enabled,b.owner_account_id,a.disabled_at
+      FROM briefings b JOIN accounts a ON a.id=b.owner_account_id WHERE b.id=?`).bind(id).first<FeedAccess>();
+    return canReadFeedAccess(c,row);
+  }
+  async function canReadFeedAccess(c: Context<{ Bindings: Env; Variables: Variables }>,row:FeedAccess|null) {
+    if (!row || row.disabled_at) return false;
+    if (row.public_feed_enabled === 1) return true;
+    const token = getCookie(c, SESSION_COOKIE);
+    const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
+    return claims?.sub === row.owner_account_id;
+  }
+
   async function resolvePublicFeed(c: Context<{ Bindings: Env; Variables: Variables }>) {
     const repo = repoFor(c);
     const username = c.req.param("username") ?? "";
@@ -771,11 +1714,18 @@ export function createApp(options: AppOptions = {}) {
     if (resolved.account.disabledAt) return c.json({ error: "feed not found" }, 404);
     if (!resolved.alias.isCurrent || username !== resolved.account.username) {
       const url = new URL(c.req.url);
-      url.pathname = url.pathname.replace(`/api/feed/${username}/`, `/api/feed/${resolved.account.username}/`);
+      const segments = url.pathname.split("/");
+      segments[3] = encodeURIComponent(resolved.account.username);
+      url.pathname = segments.join("/");
       return c.redirect(url.toString(), 301);
     }
     const briefing = await repo.getBriefingBySlug(resolved.account.id, briefingSlug);
     if (!briefing) return c.json({ error: "feed not found" }, 404);
+    if (!briefing.publicFeedEnabled) {
+      const token = getCookie(c, SESSION_COOKIE);
+      const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
+      if (claims?.sub !== briefing.ownerAccountId) return c.json({ error: "feed not found" }, 404);
+    }
     return { repo, account: resolved.account, briefing };
   }
 
@@ -805,7 +1755,7 @@ async function createAccountOrError(
   });
 }
 
-async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord): Promise<void> {
+async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await repo.createAuthToken({
@@ -814,10 +1764,10 @@ async function sendVerificationToken(repo: Repository, env: Env, account: Accoun
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendVerificationEmail(env, account, token);
+  await sendVerificationEmail(env, account, token, language);
 }
 
-async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord): Promise<void> {
+async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
   await repo.createAuthToken({
@@ -826,7 +1776,7 @@ async function sendPasswordResetToken(repo: Repository, env: Env, account: Accou
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendPasswordResetEmail(env, account, token);
+  await sendPasswordResetEmail(env, account, token, language);
 }
 
 async function consumeToken(
@@ -891,16 +1841,6 @@ async function assertRateLimit(
   await repo.recordAuthAttempt({ key, action });
 }
 
-async function manualSummaryRateLimitKey(
-  c: Context<{ Bindings: Env; Variables: Variables }>,
-  briefingId: string
-): Promise<string> {
-  const voterId = await getOrCreateVoterId(c);
-  if (voterId) return `summary:${briefingId}:voter:${voterId}`;
-  const ip = c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  return `summary:${briefingId}:ip:${ip}`;
-}
-
 async function verifyTurnstileIfConfigured(
   c: Context<{ Bindings: Env; Variables: Variables }>,
   token: string | undefined
@@ -924,7 +1864,8 @@ async function getOwnedBriefing(
   account: AccountRecord,
   briefingId?: string
 ): Promise<BriefingConfig | null> {
-  if (!briefingId) return repo.ensureDefaultBriefing(account);
+  // Older callers may omit the ID, but a lookup must never create a feed.
+  if (!briefingId) return repo.getBriefingBySlug(account.id, 'personal');
   const briefing = await repo.getBriefingById(briefingId);
   if (!briefing || briefing.ownerAccountId !== account.id) return null;
   return briefing;
@@ -958,6 +1899,230 @@ async function retryProcessingJobs(
 
 function repoForContext(c: Context<{ Bindings: Env; Variables: Variables }>): Repository {
   return c.get("repo") ?? new D1Repository(c.env.DB);
+}
+
+function isRuntimeAuthorized(c: Context<{ Bindings: Env; Variables: Variables }>): boolean {
+  const token = c.env.WEB_OPERATOR_RUNTIME_TOKEN?.trim();
+  return Boolean(token) && c.req.header("authorization") === `Bearer ${token}`;
+}
+
+async function internalMaintenanceAuthorized(c:Context<{Bindings:Env;Variables:Variables}>):Promise<boolean>{
+ const expected=c.env.INTERNAL_MAINTENANCE_SECRET?.trim(),provided=c.req.header('x-distilled-internal')?.trim();
+ if(!expected||!provided)return false;
+ const digest=async(value:string)=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));
+ const [a,b]=await Promise.all([digest(expected),digest(provided)]);let mismatch=0;
+ for(let i=0;i<a.length;i++)mismatch|=a[i]^b[i];return mismatch===0;
+}
+
+function requiredLiveSmokeEnv(env: Env, key: keyof Env): string {
+  const value = env[key];
+  if (typeof value !== "string" || value.trim().length === 0) throw new Error(`${String(key)} is required for live public acquisition smoke`);
+  return value.trim();
+}
+
+function liveSmokeModelCapability(
+  model: string,
+  provider: string,
+  providerRouting:ModelCapability["providerRouting"],
+  env: Env
+): ModelCapability {
+  return {
+    modelRef: model,
+    provider,
+    toolCalling: true,
+    vision: true,
+    structuredOutput: true,
+    reasoningClass: "fast",
+    enabled: true,
+    inputCostPerMillion: liveSmokeNumber(env.DISTILLED_LIVE_OPENROUTER_INPUT_COST_PER_MILLION, 0),
+    outputCostPerMillion: liveSmokeNumber(env.DISTILLED_LIVE_OPENROUTER_OUTPUT_COST_PER_MILLION, 0),
+    deployment: "api",
+    externallyHosted: true,
+    privacyEligibility: ["public"],
+    retentionClass: "zero_data_retention",
+    providerRouting
+  };
+}
+
+function liveSmokeProviderRouting(env:Env):ModelCapability["providerRouting"] {
+  const mode=env.DISTILLED_LIVE_OPENROUTER_PROVIDER_ROUTING?.trim()||"pinned";
+  if (mode==="pinned") return undefined;
+  if (mode!=="automatic_latency") {
+    throw new Error("DISTILLED_LIVE_OPENROUTER_PROVIDER_ROUTING must be pinned or automatic_latency");
+  }
+  const raw=requiredLiveSmokeEnv(env,"DISTILLED_LIVE_OPENROUTER_PROVIDER_ENDPOINTS_JSON");
+  const endpoints=liveSmokeProviderEndpointsSchema.parse(JSON.parse(raw));
+  const normalizedTags=endpoints.map((endpoint)=>endpoint.tag.toLowerCase());
+  if (new Set(normalizedTags).size!==normalizedTags.length) {
+    throw new Error("DISTILLED_LIVE_OPENROUTER_PROVIDER_ENDPOINTS_JSON contains duplicate provider tags");
+  }
+  return {mode:"automatic",sort:"latency",allowFallbacks:true,endpoints};
+}
+
+function liveSmokeModelRouting(model: string): ModelRoutingConfig {
+  return {
+    mode: "api",
+    apiGateway: "openrouter",
+    selfHostedGateway: "openai_compatible",
+    roles: {
+      NAVIGATION_FAST: { primary: { deployment: "api", model }, fallbacks: [] },
+      VISION_FAST: { primary: { deployment: "api", model }, fallbacks: [] }
+    }
+  };
+}
+
+function unavailableDeterministicAcquisition(method: DeterministicAcquisitionPort["method"]): DeterministicAcquisitionPort {
+  return {
+    method,
+    async acquire() {
+      return {
+        state: "failed",
+        failureClass: "source_unavailable",
+        transient: false,
+        details: { reason: "live smoke does not provide teammate-owned deterministic acquisition adapter" }
+      };
+    }
+  };
+}
+
+function webOperatorRouteEvidence(now: Date): AcquisitionFailure[] {
+  return [
+    {
+      method: "deterministic_browser_workflow",
+      failureClass: "structural_site_change",
+      occurredAt: new Date(now.getTime() - 2_000).toISOString()
+    },
+    {
+      method: "deterministic_browser_workflow",
+      failureClass: "extraction_mismatch",
+      occurredAt: new Date(now.getTime() - 1_000).toISOString()
+    }
+  ];
+}
+
+function liveSmokeInteger(value: string | undefined, fallback: number): number {
+  if (!value?.trim()) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`invalid live smoke integer limit: ${value}`);
+  return parsed;
+}
+
+function liveSmokeNumber(value: string | undefined, fallback: number): number {
+  if (!value?.trim()) return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`invalid live smoke numeric limit: ${value}`);
+  return parsed;
+}
+
+async function liveSmokeReport(
+  db: D1Database,
+  outcome: ClosedLoopAcquisitionOutcome,
+  configuration: {
+    browserBackend: string;
+    llmMode: string;
+    gateway: string;
+    requestedModel: string;
+    requestedProvider: string;
+    startedAt: string;
+  }
+) {
+  const run = "run" in outcome ? outcome.run : undefined;
+  const acquiredContent = "acquiredContent" in outcome ? outcome.acquiredContent : undefined;
+  const workflow = "workflow" in outcome ? outcome.workflow : undefined;
+  const workflowFinalization = "workflowFinalization" in outcome ? outcome.workflowFinalization : undefined;
+  const runId = run?.runId;
+  const modelAttempts = runId ? await modelAttemptSummary(db, runId) : [];
+  const observationSummary = runId ? await observationProvenanceSummary(db, runId) : { count: 0, latestObservationId: undefined };
+  const toolCount = runId ? await countRows(db, "SELECT COUNT(*) AS count FROM agent_tool_calls WHERE run_id=?", runId) : 0;
+  const completion = runId ? await latestCompletionOutcome(db, runId) : undefined;
+  return {
+    status: outcome.state,
+    configuration: {
+      actualBrowserBackend: configuration.browserBackend,
+      actualLlmMode: configuration.llmMode,
+      gateway: configuration.gateway,
+      requestedModel: configuration.requestedModel,
+      requestedProvider: configuration.requestedProvider
+    },
+    run: run ? { runId: run.runId, state: run.state, generation: run.generation } : undefined,
+    workflow: workflow ? { id: workflow.id, state: workflow.state, version: workflow.version } : undefined,
+    workflowFinalization,
+    acquiredContent: acquiredContent ? {
+      acceptanceId: acquiredContent.acceptanceId,
+      canonicalUrl: acquiredContent.canonicalUrl,
+      finalUrl: acquiredContent.finalUrl,
+      contentHash: acquiredContent.contentHash,
+      titleLength: acquiredContent.title.length,
+      bodyLength: acquiredContent.body.length,
+      observationId: acquiredContent.observationId
+    } : undefined,
+    completionVerifier: completion,
+    provenance: observationSummary,
+    metrics: {
+      modelCalls: outcome.modelCalls,
+      physicalModelAttempts: modelAttempts.length,
+      inputTokens: modelAttempts.reduce((sum, attempt) => sum + attempt.inputTokens, 0),
+      outputTokens: modelAttempts.reduce((sum, attempt) => sum + attempt.outputTokens, 0),
+      costUsd: modelAttempts.reduce((sum, attempt) => sum + attempt.costUsd, 0),
+      browserActions: toolCount,
+      startedAt: configuration.startedAt,
+      completedAt: new Date().toISOString()
+    },
+    modelAttempts
+  };
+}
+
+async function modelAttemptSummary(db: D1Database, runId: string) {
+  const result = await db.prepare(`SELECT a.requested_provider,a.actual_provider,a.requested_model,a.actual_model,
+      a.requested_gateway,a.actual_gateway,a.requested_deployment,a.actual_deployment,a.state,
+      a.input_tokens,a.output_tokens,a.cost_usd,a.latency_ms
+    FROM agent_model_call_attempts a JOIN agent_model_calls c ON c.id=a.model_call_id
+    WHERE c.run_id=? ORDER BY c.created_at ASC,a.attempt ASC`).bind(runId).all<Record<string, unknown>>();
+  return result.results.map((row) => ({
+    requestedProvider: String(row.requested_provider),
+    actualProvider: row.actual_provider ? String(row.actual_provider) : undefined,
+    requestedModel: String(row.requested_model),
+    actualModel: row.actual_model ? String(row.actual_model) : undefined,
+    requestedGateway: String(row.requested_gateway),
+    actualGateway: row.actual_gateway ? String(row.actual_gateway) : undefined,
+    requestedDeployment: String(row.requested_deployment),
+    actualDeployment: row.actual_deployment ? String(row.actual_deployment) : undefined,
+    state: String(row.state),
+    inputTokens: Number(row.input_tokens),
+    outputTokens: Number(row.output_tokens),
+    costUsd: Number(row.cost_usd),
+    latencyMs: Number(row.latency_ms)
+  }));
+}
+
+async function observationProvenanceSummary(db: D1Database, runId: string) {
+  const row = await db.prepare(`SELECT COUNT(*) AS count,
+      MAX(json_extract(envelope_json,'$.id')) AS latest_observation_id,
+      MAX(json_extract(envelope_json,'$.raw.hash')) AS latest_raw_hash,
+      MAX(json_extract(envelope_json,'$.presented.hash')) AS latest_presented_hash
+    FROM agent_observations WHERE run_id=?`).bind(runId).first<Record<string, unknown>>();
+  return {
+    count: Number(row?.count ?? 0),
+    latestObservationId: row?.latest_observation_id ? String(row.latest_observation_id) : undefined,
+    latestRawHashPresent: Boolean(row?.latest_raw_hash),
+    latestPresentedHashPresent: Boolean(row?.latest_presented_hash)
+  };
+}
+
+async function latestCompletionOutcome(db: D1Database, runId: string) {
+  const row = await db.prepare(`SELECT acceptance_json FROM agent_completion_acceptances
+    WHERE run_id=? ORDER BY decided_at DESC LIMIT 1`).bind(runId).first<Record<string, unknown>>();
+  if (!row?.acceptance_json) return undefined;
+  const parsed = JSON.parse(String(row.acceptance_json)) as { outcome?: unknown; deficits?: unknown };
+  return {
+    outcome: typeof parsed.outcome === "string" ? parsed.outcome : undefined,
+    deficits: Array.isArray(parsed.deficits) ? parsed.deficits : []
+  };
+}
+
+async function countRows(db: D1Database, query: string, value: string): Promise<number> {
+  const row = await db.prepare(query).bind(value).first<Record<string, unknown>>();
+  return Number(row?.count ?? 0);
 }
 
 function publicAccount(account: AccountRecord) {
@@ -997,6 +2162,13 @@ function errorProperty(error: unknown, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function readNextBriefingAt(feed:BriefingConfig):string|undefined {
+  if(feed.paused)return undefined;
+  if(!feed.updateIntervalMinutes)return feed.nextBriefingAt;
+  const schedule={durationMinutes:feed.updateIntervalMinutes,timezone:feed.briefingTimezone,deliveryAnchor:feed.updateIntervalMinutes===1440?feed.briefingTimeOfDay:'00:00',...(feed.updateIntervalMinutes<1440&&feed.briefingScheduleOriginAt?{originAt:feed.briefingScheduleOriginAt}:{}),...(feed.briefingScheduleClockStartAt?{clockStartAt:feed.briefingScheduleClockStartAt}:{}),...(feed.briefingSchedulePolicy?{clockPolicy:feed.briefingSchedulePolicy}:{})},next=nextLiveBriefingAt(schedule,new Date());
+  return feed.nextBriefingAt&&Date.parse(feed.nextBriefingAt)>Date.parse(next)?feed.nextBriefingAt:next;
+}
+
 function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interestProfile" | "styleInstruction"> {
   return {
     id: briefing.id,
@@ -1005,14 +2177,15 @@ function publicBriefing(briefing: BriefingConfig): Omit<BriefingConfig, "interes
     slug: briefing.slug,
     title: briefing.title,
     stars: briefing.stars,
-    publicFeedEnabled: true,
+    publicFeedEnabled: briefing.publicFeedEnabled,
+    updateIntervalMinutes: briefing.updateIntervalMinutes,
     paused: briefing.paused,
     language: briefing.language,
     intensity: briefing.intensity,
     briefingCadence: briefing.briefingCadence,
     briefingTimeOfDay: briefing.briefingTimeOfDay,
     briefingTimezone: briefing.briefingTimezone,
-    nextBriefingAt: briefing.nextBriefingAt,
+    nextBriefingAt: readNextBriefingAt(briefing),
     retentionDays: FIXED_RETENTION_DAYS
   };
 }
@@ -1071,7 +2244,7 @@ function localizedPublicSectionTitle(title: string, language: BriefingConfig["la
     const normalized = title.trim().toLowerCase();
     if (normalized.includes("economy")) return "اقتصاد";
     if (normalized.includes("infrastructure")) return "بنية تحتية";
-    if (normalized.includes("security")) return "أمن";
+    if (normalized.includes("security")) return "أ�…ن";
     if (normalized.includes("no update")) return "لا تحديثات";
     return "تحديث";
   }
@@ -1093,9 +2266,15 @@ async function maybeRedirectUsernameRoute(
 ): Promise<Response | null> {
   if (c.req.method !== "GET") return null;
   const path = new URL(c.req.url).pathname;
+  // Bundled files are assets, never username/feed aliases. Keep app loading independent of D1.
+  if (/^\/assets\/[^/]+\.(?:js|css|map)$/.test(path)) return null;
   const match = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
   if (!match) return null;
-  const [, username, slug] = match;
+  let username: string, slug: string;
+  try {
+    username = decodeURIComponent(match[1]);
+    slug = decodeURIComponent(match[2]);
+  } catch { return null; }
   const resolved = await repo.resolveUsernameAlias(username);
   if (!resolved || resolved.alias.isCurrent || resolved.account.username === username) return null;
   const briefing = await repo.getBriefingBySlug(resolved.account.id, slug);
@@ -1103,4 +2282,12 @@ async function maybeRedirectUsernameRoute(
   const url = new URL(c.req.url);
   url.pathname = `/${resolved.account.username}/${briefing.slug}/`;
   return c.redirect(url.toString(), 301);
+}
+
+/** RFC 9110 weak comparison for If-None-Match. */
+export function etagMatches(header:string|undefined,etag:string):boolean {
+  if(!header)return false;
+  if(header.trim()==='*')return true;
+  const opaque=(tag:string)=>tag.trim().replace(/^W\//,'');
+  return header.split(',').some(tag=>opaque(tag)===opaque(etag));
 }

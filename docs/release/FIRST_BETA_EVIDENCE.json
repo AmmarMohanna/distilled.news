@@ -1,0 +1,439 @@
+{
+  "checkedAt": "2026-11-16T14:31:15.087528+00:00",
+  "baseCommit": "59c7c5991dd35e4bb5b4d4db793cff6b2a1c8dfb",
+  "codeCandidateCommit": "5dd994ee00215d986692b1d2fcc527e02c7f06d8",
+  "newPaidInferenceCalls": 0,
+  "productionWrites": 0,
+  "decision": "NO_GO_PUBLIC_BETA_PENDING_SECURITY_AND_PRODUCTION_QUALIFICATION",
+  "deployedProductionVersion": "c1251f19-5b0e-4780-b97b-1ca5f740f6e4",
+  "moduleComparison": {
+    "deployedModuleSha256": "b2dd4c8a906da6ce5915ea7efc6d2aeb2a30f7ebcb80291ec47f52a240ddeda8",
+    "localModuleSha256": "7f12bad487e259b330fd7d7740a337b36a67f2124b646455adb32da9c698dbec",
+    "comparisons": [
+      {
+        "name": "prepareV3Window",
+        "sameLeafCount": true,
+        "differences": [
+          {
+            "kind": "Identifier",
+            "deployed": "item2",
+            "local": "item3",
+            "identifierAliasOnly": true
+          }
+        ],
+        "onlyIdentifierSuffixDifferences": true
+      },
+      {
+        "name": "createApp",
+        "sameLeafCount": true,
+        "differences": [
+          {
+            "kind": "Identifier",
+            "deployed": "item2",
+            "local": "item3",
+            "identifierAliasOnly": true
+          },
+          {
+            "kind": "Identifier",
+            "deployed": "url2",
+            "local": "url3",
+            "identifierAliasOnly": true
+          },
+          {
+            "kind": "Identifier",
+            "deployed": "target2",
+            "local": "target3",
+            "identifierAliasOnly": true
+          },
+          {
+            "kind": "Identifier",
+            "deployed": "base2",
+            "local": "base3",
+            "identifierAliasOnly": true
+          },
+          {
+            "kind": "Identifier",
+            "deployed": "assessment2",
+            "local": "assessment3",
+            "identifierAliasOnly": true
+          },
+          {
+            "kind": "Identifier",
+            "deployed": "hash3",
+            "local": "hash4",
+            "identifierAliasOnly": true
+          }
+        ],
+        "onlyIdentifierSuffixDifferences": true
+      },
+      {
+        "name": "normalizeRssSnapshot",
+        "sameLeafCount": true,
+        "differences": [
+          {
+            "kind": "Identifier",
+            "deployed": "base2",
+            "local": "base3",
+            "identifierAliasOnly": true
+          },
+          {
+            "kind": "Identifier",
+            "deployed": "url2",
+            "local": "url3",
+            "identifierAliasOnly": true
+          }
+        ],
+        "onlyIdentifierSuffixDifferences": true
+      }
+    ],
+    "limitation": "Selected function comparisons and bundler alias differences are not a full deployed Git SHA attestation."
+  },
+  "ci": [
+    {
+      "id": 43859464577,
+      "sha": "5dd994ee00215d986692b1d2fcc527e02c7f06d8",
+      "name": "Project checks",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/AmmarMohanna/distilled.news/actions/runs/43859464577",
+      "jobs": [
+        {
+          "id": 133272153871,
+          "name": "agentops-fixture-smoke",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154053,
+          "name": "agentops-correctness-fixtures (browser)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154092,
+          "name": "agentops-correctness-fixtures (accounts)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154167,
+          "name": "agentops-fixture-campaigns (soak)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154230,
+          "name": "agentops-fixture-campaigns (recovery)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154238,
+          "name": "agentops-fixture-campaigns (spike)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154281,
+          "name": "verify",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154319,
+          "name": "agentops-fixture-campaigns (stress)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154322,
+          "name": "agentops-fixture-campaigns (load)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154355,
+          "name": "agentops-fixture-campaigns (fault)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154381,
+          "name": "agentops-correctness-fixtures (v3)",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        },
+        {
+          "id": 133272154415,
+          "name": "Browser checks",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        }
+      ]
+    },
+    {
+      "id": 43859464645,
+      "sha": "5dd994ee00215d986692b1d2fcc527e02c7f06d8",
+      "name": "Briefing evaluation",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/AmmarMohanna/distilled.news/actions/runs/43859464645",
+      "jobs": [
+        {
+          "id": 133272153659,
+          "name": "Offline evaluation checks",
+          "status": "completed",
+          "conclusion": "success",
+          "failedSteps": []
+        }
+      ]
+    }
+  ],
+  "stagingWindows": [
+    {
+      "editionId": "6565526d449edb3043d194c825d28613558c436c92c21c8cd1af34a5d4287581",
+      "scheduledFor": "2026-11-16T10:00:00.000Z",
+      "publishedAt": "2026-11-16T10:00:24.705Z",
+      "delaySeconds": 24.705,
+      "promptVersion": 4,
+      "sourceRevisionReferences": 31,
+      "priorItems": 159,
+      "publishedItems": 2,
+      "retainedCitationIds": [
+        "3879677e-1535-4fa4-9054-d1072ada173f",
+        "a3efb252-fece-437e-8bd9-b1f4cec63fb5",
+        "1a83a843-bb38-4550-b39f-9615c04cf6e7",
+        "ffee11e6-5e8e-4c99-af36-d20a0b457745",
+        "c72f0829-6b5a-4c9d-8282-78e85ca6fb7b"
+      ],
+      "calls": 3,
+      "generationCostUsd": 0.036278000000000005,
+      "generationLatencyMs": 14141,
+      "coverage": {
+        "state": "INCOMPLETE",
+        "pendingJobs": 0,
+        "failedJobs": 1,
+        "blockedJobs": 1,
+        "failures": [
+          {
+            "kind": "ACQUIRE",
+            "code": "INVALID_RESULT",
+            "count": 1
+          }
+        ]
+      },
+      "frozenInputJsonSha256": "65c782ff4f41abd5544d3c4033022e4ed544b2becc1c9f9505752d6c4fd103be"
+    },
+    {
+      "editionId": "12c8b366b06e291cf1ac130ece767ffc0e98eac1ad0e7be73e9ec4b7777df083",
+      "scheduledFor": "2026-11-16T10:30:00.000Z",
+      "publishedAt": "2026-11-16T10:30:10.666Z",
+      "delaySeconds": 10.666,
+      "promptVersion": 4,
+      "sourceRevisionReferences": 21,
+      "priorItems": 161,
+      "publishedItems": 1,
+      "retainedCitationIds": [
+        "6f7ba72a-0f8f-41c4-9532-234c94809cc8"
+      ],
+      "calls": 3,
+      "generationCostUsd": 0.0272168,
+      "generationLatencyMs": 20666,
+      "coverage": {
+        "state": "INCOMPLETE",
+        "pendingJobs": 0,
+        "failedJobs": 1,
+        "blockedJobs": 1,
+        "failures": [
+          {
+            "kind": "ACQUIRE",
+            "code": "INVALID_RESULT",
+            "count": 1
+          }
+        ]
+      },
+      "frozenInputJsonSha256": "ddc28e1914e4aaa7d54d1bd31c66c2d57a96922693cb65056feb5c0dd72f271e"
+    },
+    {
+      "editionId": "f550b87842b84c0bb9479b025898dfacd0ff664e843c0bd76793074d458bab1f",
+      "scheduledFor": "2026-11-16T11:00:00.000Z",
+      "publishedAt": "2026-11-16T11:00:08.744Z",
+      "delaySeconds": 8.744,
+      "promptVersion": 4,
+      "sourceRevisionReferences": 34,
+      "priorItems": 162,
+      "publishedItems": 1,
+      "retainedCitationIds": [
+        "abb39969-fc7c-4915-aea2-4c99fc1f63fd",
+        "cf4077af-03d8-4599-b27a-9a13116bfbcf"
+      ],
+      "calls": 3,
+      "generationCostUsd": 0.0426128,
+      "generationLatencyMs": 33374,
+      "coverage": {
+        "state": "INCOMPLETE",
+        "pendingJobs": 0,
+        "failedJobs": 1,
+        "blockedJobs": 1,
+        "failures": [
+          {
+            "kind": "ACQUIRE",
+            "code": "INVALID_RESULT",
+            "count": 1
+          }
+        ]
+      },
+      "frozenInputJsonSha256": "81501c6228df44733f74f17a44fc4bb2b920f85dc17cf2f82559dee015214ab5"
+    }
+  ],
+  "reportedSettlementsMatched": 9,
+  "reportedSettlementCostUsd": 0.1061076,
+  "productionEvaluatorMeta": [
+    {
+      "key": "discovery",
+      "value": "{\"at\":\"2026-11-16T14:35:19.820Z\",\"status\":\"ok\",\"pageSize\":0,\"sweepComplete\":true,\"enrollFrom\":\"2026-11-01T00:00:00Z\",\"source\":\"distilled-news-production\"}"
+    },
+    {
+      "key": "grafana",
+      "value": "{\"status\":\"exported\",\"at\":\"2026-11-16T14:35:24.863Z\"}"
+    },
+    {
+      "key": "last_tick",
+      "value": "{\"at\":\"2026-11-16T14:35:20.722Z\",\"status\":\"ok\",\"enabled\":true,\"queued\":0,\"spendingFenced\":false}"
+    }
+  ],
+  "citationAccess": [
+    {
+      "edition": "12c8b366b06e291cf1ac130ece767ffc0e98eac1ad0e7be73e9ec4b7777df083",
+      "revision": "6f7ba72a-0f8f-41c4-9532-234c94809cc8",
+      "status": 200,
+      "bytes": 420
+    },
+    {
+      "edition": "6565526d449edb3043d194c825d28613558c436c92c21c8cd1af34a5d4287581",
+      "revision": "3879677e-1535-4fa4-9054-d1072ada173f",
+      "status": 200,
+      "bytes": 389
+    },
+    {
+      "edition": "6565526d449edb3043d194c825d28613558c436c92c21c8cd1af34a5d4287581",
+      "revision": "a3efb252-fece-437e-8bd9-b1f4cec63fb5",
+      "status": 200,
+      "bytes": 369
+    },
+    {
+      "edition": "6565526d449edb3043d194c825d28613558c436c92c21c8cd1af34a5d4287581",
+      "revision": "1a83a843-bb38-4550-b39f-9615c04cf6e7",
+      "status": 200,
+      "bytes": 543
+    },
+    {
+      "edition": "6565526d449edb3043d194c825d28613558c436c92c21c8cd1af34a5d4287581",
+      "revision": "ffee11e6-5e8e-4c99-af36-d20a0b457745",
+      "status": 200,
+      "bytes": 388
+    },
+    {
+      "edition": "6565526d449edb3043d194c825d28613558c436c92c21c8cd1af34a5d4287581",
+      "revision": "c72f0829-6b5a-4c9d-8282-78e85ca6fb7b",
+      "status": 200,
+      "bytes": 429
+    },
+    {
+      "edition": "f550b87842b84c0bb9479b025898dfacd0ff664e843c0bd76793074d458bab1f",
+      "revision": "abb39969-fc7c-4915-aea2-4c99fc1f63fd",
+      "status": 200,
+      "bytes": 329
+    },
+    {
+      "edition": "f550b87842b84c0bb9479b025898dfacd0ff664e843c0bd76793074d458bab1f",
+      "revision": "cf4077af-03d8-4599-b27a-9a13116bfbcf",
+      "status": 200,
+      "bytes": 361
+    },
+    {
+      "url": "https://x.com/i/status/2122280311035773317",
+      "status": 200,
+      "finalUrl": "https://x.com/Annahar/status/2122280311035773317",
+      "bodyAccessible": true,
+      "note": "HTTP response alone does not certify independent access to the original source."
+    },
+    {
+      "url": "https://x.com/i/status/2122280722178150621",
+      "status": 200,
+      "finalUrl": "https://x.com/lebanondebate/status/2122280722178150621",
+      "bodyAccessible": true,
+      "note": "HTTP response alone does not certify independent access to the original source."
+    }
+  ],
+  "limits": [
+    "Four items reviewed against retained sources; not population factual accuracy or independent human annotation.",
+    "No paid judge was run and no synthetic-control scores are used as live quality evidence.",
+    "Production has no feeds; signup/email/source/publication/private-feed lifecycle is not qualified.",
+    "All sampled windows record incomplete acquisition coverage.",
+    "Historical credential detections are candidates, not confirmed active exposures.",
+    "Cloudflare and acquisition/evaluation costs are not included in the generation cost sample."
+  ],
+  "privateArtifactSha256": {
+    "deployment-readonly.json": "6369ca1c76f4b05591ee87aa92ffe2533fdbae886d88aa49ce0039e78af9873f",
+    "live-readonly.json": "47ba10efd71ae0663680fa44cd39a4d51ced965be9d97f98a699b410c608f5b3",
+    "schema-code.json": "23d34b996bb5b9f9a5cf345caf7f981427511364ba6b599460ab28e1430b7a34",
+    "product-state.json": "7d608707328f9f5c667eb2a9fc38b94afc3b13ba3b3c64ba0924968f7db5d969",
+    "recent-window-records.json": "3f7971e9eb5bc83144c71d587f0c845ecef8ea7bd2b534cca3bc847ca8ba5a88",
+    "access-spending.json": "a1fab65bc924f3f755e8cd43eb6cb6aecf0c416d2880343c5136543de974cb75",
+    "finance-monitoring.json": "d67d738d2a189dceee9fa46af57d5f0e84ffcced6e7a0f9f9293ea9903de7073",
+    "acquisition-failures.json": "1110125c5651b5f74b198e2bd5eba5827983509f4811759a76fc4a9c0f86c46c",
+    "production-admin-budget.json": "cc072a8fc0169ca253fd8443652440deddd4ee6b35a1e06915f46e49c1902471",
+    "live-browser-readonly.json": "5fd9773cffcf7332ee22fd6d6dc103391bdf45fba5b4e9e2dd197bb05cef5eaa",
+    "code-comparison.json": "94c3b321144f45cb3010281007b5af04dee4c44ef07cdb225e3b5b9343248155",
+    "code-leaf-comparison.json": "ba893f12861c083ccf6b229ab00325f85df610904ddce9305030703bad51f984",
+    "final-readonly-refresh.json": "e1f75514cdb6ac020040d393d7c7c5ee67496daad3165ba38aaaf945f9a46d38"
+  },
+  "finalReadOnlyRefresh": {
+    "at": "2026-11-16T14:35:54.317Z",
+    "deployment": [
+      {
+        "version_id": "c1251f19-5b0e-4780-b97b-1ca5f740f6e4",
+        "percentage": 100
+      }
+    ],
+    "counts": [
+      {
+        "accounts": 1,
+        "feeds": 0
+      }
+    ],
+    "sessionStatus": 200,
+    "session": {
+      "authenticated": false,
+      "setupRequired": false
+    },
+    "evaluatorMeta": [
+      {
+        "key": "discovery",
+        "value": "{\"at\":\"2026-11-16T14:35:19.820Z\",\"status\":\"ok\",\"pageSize\":0,\"sweepComplete\":true,\"enrollFrom\":\"2026-11-01T00:00:00Z\",\"source\":\"distilled-news-production\"}"
+      },
+      {
+        "key": "grafana",
+        "value": "{\"status\":\"exported\",\"at\":\"2026-11-16T14:35:24.863Z\"}"
+      },
+      {
+        "key": "last_tick",
+        "value": "{\"at\":\"2026-11-16T14:35:20.722Z\",\"status\":\"ok\",\"enabled\":true,\"queued\":0,\"spendingFenced\":false}"
+      }
+    ]
+  },
+  "localCompleteWorkspaceRun": "Cancelled as redundant after the exact code commit passed complete GitHub verification; partial log retained, not counted as a pass."
+}

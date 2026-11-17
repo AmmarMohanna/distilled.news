@@ -1,0 +1,65 @@
+{
+  "scope": "OPENROUTER_ONLY_TARGETED_CORRECTNESS",
+  "status": "PERSISTED_OPERATOR_ASSISTED",
+  "successfulRealBriefing": true,
+  "unattendedSuccess": false,
+  "independentBriefingReview": "INDEPENDENT_AI_ASSISTED_SOURCE_CONTENT_PASS_WITH_MINOR_EDITORIAL_LIMITATIONS",
+  "providerComparisonsStopped": true,
+  "architectureOptimizationFrozen": true,
+  "edition": {
+    "editionId": "76fef1ee37c0648eff3da81fb52dc9cd923fbbe1031207acf27bae0c8e661dc6",
+    "status": "PUBLISHED",
+    "private": true,
+    "scope": "ISOLATED_LOCAL_D1_NOT_EXTERNAL_DEPLOYMENT",
+    "stories": 3,
+    "evidenceRevisions": 3,
+    "readerWitnesses": 29,
+    "verifiedProtocol": "verification-reader-claim-reference-v6",
+    "exactReviewedText": true,
+    "zeroCallReplay": true,
+    "generationUsageConfirmed": false,
+    "editionHash": "9f2760b7082946fcc69b804bf314da1ee7d797a5951c658e4b11a2b4d67b64c4",
+    "at": "2026-10-20T21:43:17.320Z"
+  },
+  "paidCalls": 13,
+  "actualCostUsd": 0.828278,
+  "finalResumeWallMs": 82143.621,
+  "latencyLimitation": "Final resume reused construction, editorial and writer results; 82 seconds is not cold end-to-end processing time. Recovery and engineering interruptions occurred.",
+  "operatorAssistance": [
+    "Pre-dispatch local bookkeeping recovery",
+    "Exact saved provider response recovery with confirmed financial receipts",
+    "Independent source review prompted a paid writer repair",
+    "Deleted only the unsupported word previous in a new immutable draft; full new verification followed"
+  ],
+  "quality": {
+    "distinctStories": [
+      "Laplace physical-AI simulation",
+      "Replit default-model change and revenue context",
+      "Anthropic public benefit fund"
+    ],
+    "requiredReaderWitnesses": 29,
+    "preserved": [
+      "Developmental state",
+      "Disputed partnership status and later clarification",
+      "Conditional contributions and future governance",
+      "Exact source ownership"
+    ],
+    "minorLimitations": [
+      "Liu introduced only by surname",
+      "Laplace naming history over-weighted relative to commercial details",
+      "Different-corpus automatic reliability not established"
+    ]
+  },
+  "verification": {
+    "focusedUnitsPassed": 99,
+    "controlledIntegrationPassed": 4,
+    "persistedReadbackPassed": 1,
+    "zeroCallReplay": true,
+    "fullWorkerSuiteClaimed": false
+  },
+  "remaining": [
+    "Fresh independent corpus requires separately scoped paid authorization",
+    "Historical UNKNOWN execution metadata causes generation.usageConfirmed=false although saved provider operations are accounted; original immutable metadata retained",
+    "No shared staging or production deployment"
+  ]
+}

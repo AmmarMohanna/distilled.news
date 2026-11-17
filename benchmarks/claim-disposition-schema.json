@@ -1,0 +1,399 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "confidence",
+    "originDependencyLabel",
+    "groups",
+    "dispositionByUnitId"
+  ],
+  "properties": {
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "originDependencyLabel": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "eventId",
+              "storylineId",
+              "structuralRelation",
+              "epistemicEffects",
+              "entities",
+              "storylineState",
+              "slots",
+              "groupId",
+              "occurrence"
+            ],
+            "properties": {
+              "eventId": {
+                "type": "null"
+              },
+              "storylineId": {
+                "type": "null"
+              },
+              "structuralRelation": {
+                "$ref": "#/$defs/Enum1"
+              },
+              "epistemicEffects": {
+                "type": "array",
+                "maxItems": 7,
+                "items": {
+                  "$ref": "#/$defs/Enum2"
+                }
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "canonicalLabel",
+                    "aliases",
+                    "claimMentionIds"
+                  ],
+                  "properties": {
+                    "canonicalLabel": {
+                      "type": "string"
+                    },
+                    "aliases": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "claimMentionIds": {
+                      "type": "array",
+                      "minItems": 1,
+                      "items": {
+                        "$ref": "#/$defs/Enum0"
+                      }
+                    }
+                  }
+                }
+              },
+              "storylineState": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "lifecycle",
+                  "openQuestionMentionIds",
+                  "expectedNextDate"
+                ],
+                "properties": {
+                  "lifecycle": {
+                    "$ref": "#/$defs/Enum3"
+                  },
+                  "openQuestionMentionIds": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/Enum0"
+                    }
+                  },
+                  "expectedNextDate": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "claimMentionId",
+                          "text"
+                        ],
+                        "properties": {
+                          "claimMentionId": {
+                            "$ref": "#/$defs/Enum0"
+                          },
+                          "text": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "slots": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "claimMentionId",
+                    "entityLabel",
+                    "value",
+                    "asOf"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "$ref": "#/$defs/Enum4"
+                    },
+                    "claimMentionId": {
+                      "$ref": "#/$defs/Enum0"
+                    },
+                    "entityLabel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "value": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "groupId": {
+                "type": "string",
+                "enum": [
+                  "G0",
+                  "G1",
+                  "G2",
+                  "G3",
+                  "G4",
+                  "G5",
+                  "G6",
+                  "G7",
+                  "G8"
+                ]
+              },
+              "occurrence": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 9
+    },
+    "dispositionByUnitId": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8"
+      ],
+      "properties": {
+        "C0": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8"
+          ]
+        },
+        "C1": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8"
+          ]
+        },
+        "C2": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8"
+          ]
+        },
+        "C3": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8"
+          ]
+        },
+        "C4": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8"
+          ]
+        },
+        "C5": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8"
+          ]
+        },
+        "C6": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "BACKGROUND"
+          ]
+        },
+        "C7": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8",
+            "BACKGROUND"
+          ]
+        },
+        "C8": {
+          "type": "string",
+          "enum": [
+            "G0",
+            "G1",
+            "G2",
+            "G3",
+            "G4",
+            "G5",
+            "G6",
+            "G7",
+            "G8"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "Enum0": {
+      "type": "string",
+      "enum": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8"
+      ]
+    },
+    "Enum1": {
+      "type": "string",
+      "enum": [
+        "NEW_STORYLINE",
+        "DEFER"
+      ]
+    },
+    "Enum2": {
+      "type": "string",
+      "enum": [
+        "CORROBORATES",
+        "ADDS_DETAIL",
+        "CHANGES_STATE",
+        "CHANGES_CERTAINTY",
+        "CONTRADICTS",
+        "CORRECTS",
+        "RETRACTS"
+      ]
+    },
+    "Enum3": {
+      "type": "string",
+      "enum": [
+        "ACTIVE",
+        "WATCHING",
+        "DORMANT",
+        "CLOSED"
+      ]
+    },
+    "Enum4": {
+      "type": "string",
+      "enum": [
+        "count",
+        "role_holder",
+        "role_status",
+        "process_status",
+        "decision_outcome",
+        "vote_result",
+        "monetary_amount",
+        "percentage",
+        "date_time",
+        "score_result"
+      ]
+    }
+  }
+}

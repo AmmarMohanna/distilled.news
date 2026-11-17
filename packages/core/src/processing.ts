@@ -2,6 +2,7 @@ import { clusterMessages } from "./clustering";
 import {
   areSameEventDeterministic,
   collapseDuplicateBriefingItems,
+  haveConflictingNamedStorms,
   primaryEventKeyForEvidence
 } from "./events";
 import {
@@ -24,7 +25,7 @@ import type {
   SuppressedMessage
 } from "./types";
 
-const UPDATE_MERGE_THRESHOLD = 0.42;
+const UPDATE_MERGE_THRESHOLD = 0.72;
 
 export function processMessages(input: ProcessingInput): ProcessingResult {
   const accepted: NormalizedMessage[] = [];
@@ -61,7 +62,23 @@ export function processMessages(input: ProcessingInput): ProcessingResult {
     accepted.push(message);
   }
 
-  const existingItems = input.existingItems ?? [];
+  const existingItems = structuredClone(input.existingItems ?? []);
+  // Refresh evidence before relevance filtering: a correction must not leave old
+  // text public just because its new wording no longer matches the interest profile.
+  const messagesById = new Map(input.messages.map((message) => [message.id, message]));
+  for (const item of existingItems) {
+    let changed = false;
+    item.evidence = item.evidence.map((entry) => {
+      const message = messagesById.get(entry.messageId);
+      if (!message || (entry.text === message.text && JSON.stringify(entry.links) === JSON.stringify(message.links))) return entry;
+      changed = true;
+      return { ...entry, text: message.text, links: message.links, media: message.media };
+    });
+    if (changed) {
+      item.summary = createEvidenceOnlySummary(input.briefing, item.evidence);
+      item.updatedAt = (input.now ?? new Date()).toISOString();
+    }
+  }
   const newItems: BriefingItem[] = [];
 
   for (const cluster of clusterMessages(accepted)) {
@@ -159,7 +176,7 @@ function createBriefingItem(briefing: ProcessingInput["briefing"], cluster: Clus
 
   return {
     id: `item_${stableHash(`${briefing.id}:${eventKey}`)}`,
-    clusterId: `cluster_${stableHash(eventKey)}`,
+    clusterId: `cluster_${stableHash(`${briefing.id}:${eventKey}`)}`,
     eventKey,
     summary,
     itemAt,
@@ -172,6 +189,9 @@ function createBriefingItem(briefing: ProcessingInput["briefing"], cluster: Clus
 
 function toEvidence(message: NormalizedMessage): BriefingEvidence {
   return {
+    documentId:message.news?.acquiredItemId,
+    contentHash:message.news?.contentHash,
+    headline:message.news?.headline,
     messageId: message.id,
     sourceId: message.source.id,
     sourceTitle: message.source.title,
@@ -213,6 +233,8 @@ function findMergeTarget(
   const clusterEvidence = cluster.messages.map(toEvidence);
 
   return candidates.find((item) => {
+    if (cluster.messages.some((message) => item.evidence.some((entry) => entry.messageId === message.id))) return true;
+    if (haveConflictingNamedStorms(clusterEvidence,item.evidence)) return false;
     if (areSameEventDeterministic(clusterEvidence, item.evidence)) return true;
 
     const itemTexts = [item.summary, ...item.evidence.map((evidence) => evidence.text)];
@@ -298,7 +320,7 @@ function shouldKeepDuplicateAsEvidence(
   duplicate: NormalizedMessage,
   important: boolean
 ): boolean {
-  if (!important) return false;
+  // Similar reporting from different publishers is evidence, not one document.
   if (message.id === duplicate.id) return false;
   if (message.sourceUrl && duplicate.sourceUrl && message.sourceUrl === duplicate.sourceUrl) return false;
   return message.source.id !== duplicate.source.id || message.links.some((link) => !duplicate.links.includes(link));

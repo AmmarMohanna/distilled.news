@@ -1,0 +1,56 @@
+{
+  "at": "2026-10-28T22:58:07.762Z",
+  "scope": "Read-only follow-up after exact quarantine and poll recovery; no new code, manual model requests or additional recovery.",
+  "latestWindows": [
+    {
+      "windowEnd": "2026-10-28T22:32:09.437Z",
+      "state": "PENDING",
+      "result": null,
+      "reason": null,
+      "completedAt": null
+    },
+    {
+      "windowEnd": "2026-10-28T22:02:09.437Z",
+      "state": "DONE",
+      "result": "QUIET",
+      "reason": "NO_SELECTED_DEVELOPMENTS",
+      "completedAt": "2026-10-28T22:15:00.083Z"
+    },
+    {
+      "windowEnd": "2026-10-28T21:32:09.437Z",
+      "state": "DONE",
+      "result": "QUIET",
+      "reason": "NO_SELECTED_DEVELOPMENTS",
+      "completedAt": "2026-10-28T21:37:00.770Z"
+    },
+    {
+      "windowEnd": "2026-10-28T21:02:09.437Z",
+      "state": "DONE",
+      "result": "QUIET",
+      "reason": "NO_SELECTED_DEVELOPMENTS",
+      "completedAt": "2026-10-28T21:11:36.110Z"
+    },
+    {
+      "windowEnd": "2026-10-28T20:32:09.437Z",
+      "state": "DONE",
+      "result": "QUIET",
+      "reason": "NO_SELECTED_DEVELOPMENTS",
+      "completedAt": "2026-10-28T20:41:10.404Z"
+    }
+  ],
+  "remainingCollection": {
+    "scheduledAt": "2026-10-28T22:32:02.550Z",
+    "status": "PENDING",
+    "checkpointAtFinalObservation": "ADVANCED",
+    "observedGate": {
+      "pendingCollections": 1,
+      "pendingIntake": 0
+    },
+    "telegramBatchLimitInCode": 3
+  },
+  "mostRecentEdition": {
+    "windowEnd": "2026-10-28T10:02:09.437Z",
+    "publishedAt": "2026-10-28T10:49:48.905Z"
+  },
+  "conclusion": "Selected quarantine/poll recovered. Latest briefing still awaiting a continuing pre-deadline collection; V3 has not started for that window. No new successful briefing proven."
+}

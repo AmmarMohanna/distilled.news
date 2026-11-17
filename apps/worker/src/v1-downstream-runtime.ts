@@ -1,0 +1,159 @@
+import {enqueueV1,pendingV1Jobs} from './v1-queue-dispatch';
+import { connectorHandoffRequestSchema, HandoffError,type SourceObservation } from '@distilled/contracts';
+import { z } from 'zod';
+import type { Env } from './types';
+import { V1IntakeStore } from './v1-intake/store';
+import { createCandidateIntakePort } from './v1-intake/intake';
+import { createCandidateAcquisitionRouter } from './v1-intake/acquisition-router';
+import { runAcquisitionJob, AcquisitionFailure } from './v1-intake/acquisition';
+import {deferInitialAcquisitionBacklog} from './v1-intake/acquisition-backlog';
+import type { DownstreamJob, IntakePolicy } from './v1-intake/types';
+import { WorkerPublicSourceFetch } from './public-source-fetch';
+import {synchronizeV1ProductSource} from './v1-intelligence/product';
+import {createV1BrowserStages} from './v1-intake/browser-stages';
+import {languageResolutionSchema} from './v1-intelligence/language';
+import {readConnectorPayload} from './connector-payload';
+import {HttpSourceExecution,BoundedFeedHttp,SourceHandoffWait} from '@distilled/connectors';
+import {admittedSourceExecution} from './source-execution-admission';
+import {verifyConnectorAuthority} from './connector-authority';
+import {sharedPublicHttp} from './connector-public-cache';
+import {withFeedWriteTurn,IntelligenceTurnBusy} from './connector-intelligence-turn';
+import {readPublicArticle,PUBLIC_ARTICLE_MAX_BYTES} from './v1-intake/public-article-http';
+import {runtimeArticleFallback,createArticleFallback} from './v1-intake/article-fallback';
+import {reviewedRedirectFor} from './v1-intake/reviewed-redirect';
+import {productConnectorSource} from './connector-source';
+import {sharedGoogleArticleResolver} from './google-article-resolution';
+
+function enabledSources(env:Env):string[] {
+ const ids=[...new Set((env.V1_DOWNSTREAM_FEED_SOURCE_IDS??'').split(',').map(s=>s.trim()).filter(Boolean))];
+ return env.V1_DOWNSTREAM_ENABLED==='true'?ids:[];
+}
+
+export function v1SourceEnabled(env:Env,id:string):boolean {
+ return enabledSources(env).includes(id);
+}
+async function approvedDynamicSource(env:Env,id:string):Promise<boolean>{
+ if(env.SOURCE_QUEUE_SCHEDULING_ENABLED!=='true')return v1SourceEnabled(env,id);
+ return !!await env.DB.prepare("SELECT s.id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.collection_owner='connector' AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL").bind(id).first();
+}
+export function createV1RuntimePolicy(fetcher:typeof fetch=fetch,bucket?:R2Bucket,verifyAuthority?:(o:SourceObservation)=>Promise<boolean>):IntakePolicy {
+ // Scope-bound content-addressed payload verification is immutable. Keep only
+ // its small verified metadata for this call's CAS retries, never article bytes
+ // or current-origin/restriction checks, and never share it across requests.
+ const supplied=new Map<string,ReturnType<IntakePolicy['verifySuppliedContent']>>();
+ return {version:'v1-runtime-1',now:()=>new Date().toISOString(),factsFor:async()=>({}),verifySuppliedContent:async o=>{
+  if(!bucket)return undefined;
+  const key=JSON.stringify([o.feedId,o.feedSourceId,o.sourceId,o.id,o.suppliedPayloadRef,o.contentHash,o.representation,o.contentCompleteness,o.canonicalUrl,o.publisherId]);
+  let verified=supplied.get(key);
+  if(!verified){verified=readConnectorPayload(bucket,o).then(payload=>payload?{representation:o.representation,contentCompleteness:o.contentCompleteness,contentHash:o.contentHash!}:undefined);supplied.set(key,verified);}
+  return verified;
+ },
+ orderingFor:async observation=>{
+  let authoritativeReplacementAllowed=verifyAuthority?await verifyAuthority(observation):false;
+  // An origin 410 is independent explicit deletion evidence. Provider-specific deletion checks remain connector integrations.
+  if(!authoritativeReplacementAllowed&&observation.operation==='DELETE' && observation.authoritativeCurrentState && observation.canonicalUrl) {
+   try {authoritativeReplacementAllowed=(await new WorkerPublicSourceFetch(observation.canonicalUrl,fetcher).get(observation.canonicalUrl)).status===410} catch { /* unresolved, fail closed */ }
+  }
+  return {authoritativeReplacementAllowed,compareRevisions:(a,b)=>{
+   if(a.scheme!==b.scheme || a.authority!==b.authority) return null;
+   if(['provider_integer','telegram_edit_date'].includes(a.scheme) && /^\d{1,30}$/.test(a.value) && /^\d{1,30}$/.test(b.value)) return BigInt(a.value)===BigInt(b.value)?0:BigInt(a.value)>BigInt(b.value)?1:-1;
+   if(['telegram_edit_date','telegram_edit_timestamp'].includes(a.scheme) && Number.isFinite(Date.parse(a.value)) && Number.isFinite(Date.parse(b.value))) return Math.sign(Date.parse(a.value)-Date.parse(b.value)) as -1|0|1;
+   return null;
+  }};
+ }};
+}
+export async function acceptV1Handoff(env:Env,raw:unknown,expectedFeedRevision?:number,unpaidOnly?:true) {
+ const parsed=connectorHandoffRequestSchema.safeParse(raw);
+ if(!parsed.success) throw new HandoffError('INVALID_REQUEST');
+ if(env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,parsed.data.coverage.feedSourceId)) throw new HandoffError('SCOPE_DENIED');
+ const policy=createV1RuntimePolicy(fetch,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
+ // Verify immutable scoped payloads before admission. Four concurrent R2
+ // reads avoid serial network waits inside the Feed turn. Mutable authority,
+ // restrictions and canonical ordering are still checked inside acceptance.
+ const retained=await new V1IntakeStore(env.DB).readMany(parsed.data.observations.map(o=>({table:'intake_receipts' as const,id:o.id})));
+ const supplied=parsed.data.observations.filter(o=>o.operation==='UPSERT'&&o.suppliedPayloadRef&&!retained.get(JSON.stringify(['intake_receipts',o.id])));
+ for(let offset=0;offset<supplied.length;offset+=4)await Promise.all(supplied.slice(offset,offset+4).map(o=>policy.verifySuppliedContent(o)));
+ try{return await withFeedWriteTurn(env,parsed.data.coverage.feedId,async()=>{
+  await synchronizeV1ProductSource(env.DB,parsed.data.coverage.feedSourceId,new Date().toISOString());
+  return createCandidateIntakePort(new V1IntakeStore(env.DB),{
+   ...policy,expectedFeedRevision,unpaidOnly,
+   ...(env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?{deferInitialBacklog:true as const}:{}),
+  }).acceptBatch(parsed.data);
+ },'handoff:'+parsed.data.handoffId);}catch(error){if(error instanceof IntelligenceTurnBusy)throw new SourceHandoffWait();throw error;}
+}
+const payloadSchema=z.object({sourceObservationId:z.string().min(1),title:z.string().optional(),body:z.string().min(1).max(512000),language:z.string().optional(),languageResolution:languageResolutionSchema.optional(),publishedAt:z.string().datetime().optional()}).strict();
+export async function processV1Acquisition(env:Env,id:string,fetcher:typeof fetch=fetch) {
+ const store=new V1IntakeStore(env.DB),job=await store.read<DownstreamJob>('jobs',id);
+ if(!job || env.V1_DOWNSTREAM_ENABLED!=='true'||!await approvedDynamicSource(env,job.feedSourceId)) return 'SKIPPED' as const;
+ const unpaidOnly=job.value.unpaidOnly===true||job.value.recoveryAuthorizations?.at(-1)?.unpaidOnly===true;
+ const reviewed=unpaidOnly&&job.value.recoveryAuthorizations?.at(-1)?.reviewedRedirect;
+ await synchronizeV1ProductSource(env.DB,job.feedSourceId,new Date().toISOString());
+ if(env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'){
+  await deferInitialAcquisitionBacklog(store,job.feedSourceId,new Date().toISOString(),[id]);
+  if((await store.read<DownstreamJob>('jobs',id))?.value.state==='DEFERRED')return 'SKIPPED' as const;
+ }
+ const policy=createV1RuntimePolicy(fetcher,env.RAW_ARCHIVE,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?o=>verifyConnectorAuthority(env,o):undefined);
+ const authorizeArticle=async(url:string)=>{new WorkerPublicSourceFetch(url,fetcher);if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);};
+ const articleMaxBytes=PUBLIC_ARTICLE_MAX_BYTES;
+ const articleHttp=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,new BoundedFeedHttp(async(url,init)=>{await authorizeArticle(url);return fetcher(url,{...init,redirect:'manual'})},{maxBytes:articleMaxBytes}),authorizeArticle,Date.now,articleMaxBytes):undefined;
+ const helper=!unpaidOnly&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
+  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):undefined;
+ // Explicit reviewed recovery permits only the existing anonymous browser
+ // helper. It never enables public helpers, Google, models or paid providers.
+ const reviewedBrowser=reviewed&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN&&env.SOURCE_EXECUTION_SERVICE?
+  new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,async(value,init)=>{if(!await approvedDynamicSource(env,job.feedSourceId))throw new AcquisitionFailure('POLICY_DENIED',false);return admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(value,init))},true):undefined;
+ const execution=composeSourceExecution(unpaidOnly||env.SOURCE_NATIVE_EXECUTION_ENABLED==='true',helper,async(value,init)=>{await authorizeArticle(String(value));return fetcher(value,init)});
+ const router=createCandidateAcquisitionRouter({now:policy.now,fetcher,preferFullArticle:env.SOURCE_FULL_ARTICLES_ENABLED==='true',
+ resolveGoogleArticle:helper&&env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'?sharedGoogleArticleResolver(env.DB,env.RAW_ARCHIVE,helper,authorizeArticle):undefined,
+ publicGet:articleHttp?url=>readPublicArticle(articleHttp,url):undefined,
+ publicArticle:execution&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async(url)=>{await authorizeArticle(url);const result=await execution.execute('public_article',{url},{timeoutMs:60_000});await authorizeArticle(url);return result;}:undefined,
+ articleFallback:(!unpaidOnly||reviewedBrowser)&&env.SOURCE_FULL_ARTICLES_ENABLED==='true'?async claim=>{
+  const source=await env.DB.prepare('SELECT source_url,provider,kind,input,actor_id FROM sources WHERE id=?').bind(job.feedSourceId).first<{source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null}>();
+  const approved=source&&productConnectorSource(source);
+  if(!approved||!['rss','google_news','website'].includes(approved.source.family))return undefined;
+  if(unpaidOnly){if(!reviewedRedirectFor(claim.job,claim.input.observation.canonicalUrl!))return undefined;return createArticleFallback({execution:reviewedBrowser,authorize:authorizeArticle})(claim);}
+  return runtimeArticleFallback(env,execution,authorizeArticle,fetcher)(claim);
+ }:undefined,
+ extractHtml:execution?async(url,html)=>{
+  await authorizeArticle(url);const result=await execution!.execute('extract',{url,html},{timeoutMs:60_000});await authorizeArticle(url);return result;
+ }:undefined,stagesForClaim:unpaidOnly?undefined:claim=>createV1BrowserStages(env,claim),readPayload:async claim=>{
+  const ref=claim.input.observation.suppliedPayloadRef;
+  const connectorPayload=await readConnectorPayload(env.RAW_ARCHIVE,claim.input.observation);
+  if(connectorPayload)return connectorPayload;
+  // Scoped payload object keys are a capability, never an arbitrary R2 pointer supplied by a client.
+  if(!ref?.startsWith(`v1/payloads/${encodeURIComponent(claim.job.feedSourceId)}/`)) return undefined;
+  const object=await env.RAW_ARCHIVE.get(ref);if(!object) return undefined;
+  if(object.size>512000) throw new AcquisitionFailure('INVALID_RESULT',false);
+  let raw:unknown;try {raw=await object.json()} catch {throw new AcquisitionFailure('INVALID_RESULT',false)}
+  const payload=payloadSchema.safeParse(raw);
+  if(!payload.success || payload.data.sourceObservationId!==claim.job.observationId) throw new AcquisitionFailure('INVALID_RESULT',false);
+  const {sourceObservationId:_,...content}=payload.data;return content;
+ }});
+ return runAcquisitionJob(store,id,policy,router,{
+  run:complete=>withFeedWriteTurn(env,job.value.feedId,complete,JSON.stringify({type:'v1_acquisition',jobId:id})),
+  isBusy:error=>error instanceof IntelligenceTurnBusy
+ },env.SOURCE_FULL_ARTICLES_ENABLED==='true'?180_000:90_000);
+}
+/** Existing queue transport; bounded relay recovers crashes, lost sends and delayed transient retries. */
+export async function dispatchV1Acquisitions(env:Env,now=new Date()):Promise<number> {
+ if(env.V1_DOWNSTREAM_ENABLED!=='true') return 0;
+ const ids=enabledSources(env);
+ const productOnly=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&env.PRODUCT_FEEDS_ENABLED==='true';
+ let sent=0;const groups:{id:string}[][]=[];
+ // Share bounded transport slots across sources. Rotate the first source so
+ // repeated relays with one free slot cannot always favor the same backlog.
+ const offset=ids.length?Math.floor(now.getTime()/5000)%ids.length:0;
+ for(const id of [...ids.slice(offset),...ids.slice(0,offset)]) {
+  try {await synchronizeV1ProductSource(env.DB,id,now.toISOString(),productOnly)} catch(error) {if(error instanceof HandoffError && ['SCOPE_DENIED','IDEMPOTENCY_CONFLICT','INVALID_REQUEST'].includes(error.code)) continue;throw error}
+  const pending=await pendingV1Jobs(env,id,'ACQUIRE',now);
+  const deferred=env.BRIEFING_ENGINE==='v3'&&env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'
+   ?await deferInitialAcquisitionBacklog(new V1IntakeStore(env.DB),id,now.toISOString(),pending.map(job=>job.id))
+   :undefined;
+  groups.push(deferred?.size?pending.filter(job=>!deferred.has(job.id)):pending);
+ }
+ for(let round=0;round<Math.max(0,...groups.map(rows=>rows.length));round++)for(const rows of groups){
+  const row=rows[round];if(row&&await enqueueV1(env,'v1_acquisition',row.id,{type:'v1_acquisition',jobId:row.id},now))sent++;
+ }
+ return sent;
+}
+import {composeSourceExecution} from './native-source-execution';

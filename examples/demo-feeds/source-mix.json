@@ -1,0 +1,418 @@
+{
+  "feeds": 40,
+  "sourceAssignments": 200,
+  "uniqueInputs": 159,
+  "sourceKindCounts": {
+    "rss_feed": 80,
+    "google_news": 40,
+    "telegram_channel": 7,
+    "web_page": 33,
+    "x_profile": 13,
+    "linkedin_company": 15,
+    "linkedin_profile": 2,
+    "x_search": 10
+  },
+  "advancedApifyExamples": 2,
+  "feedMix": [
+    {
+      "id": "demo20_01_lebanon_levant",
+      "title": "لبنان وبلاد الشام",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "telegram_channel",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_02_middle_east",
+      "title": "Middle East Developments",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_03_humanitarian",
+      "title": "العمل الإنساني والنزوح",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_04_global_economy",
+      "title": "Global Economy",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "linkedin_company"
+      ]
+    },
+    {
+      "id": "demo20_05_artificial_intelligence",
+      "title": "AI Research and Deployment",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "linkedin_company"
+      ]
+    },
+    {
+      "id": "demo20_06_cybersecurity",
+      "title": "Cybersecurity Watch",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_07_digital_rights",
+      "title": "Digital Rights and Platforms",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "telegram_channel",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_08_space",
+      "title": "Space and Astronomy",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "linkedin_company"
+      ]
+    },
+    {
+      "id": "demo20_09_climate",
+      "title": "Climate and Environment",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_10_energy",
+      "title": "Energy and Infrastructure",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_11_public_health",
+      "title": "الصحة العامة والأبحاث الطبية",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_profile",
+        "x_profile"
+      ]
+    },
+    {
+      "id": "demo20_12_science",
+      "title": "Science Worth Knowing",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_13_europe",
+      "title": "Europe : décisions et conséquences",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_14_africa",
+      "title": "Africa: Governance and Development",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_15_asia_pacific",
+      "title": "Asia-Pacific Briefing",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_16_food_water",
+      "title": "الغذاء والمياه والزراعة",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_17_education",
+      "title": "Education and Universities",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_18_culture",
+      "title": "Culture, patrimoine et création",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_19_sport",
+      "title": "أهم تطورات الرياضة",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_20_economie_francophone",
+      "title": "Économie et politiques publiques",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_21_open_source",
+      "title": "Open Source and Developer Tools",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "telegram_channel",
+        "linkedin_company"
+      ]
+    },
+    {
+      "id": "demo20_22_semiconductors",
+      "title": "Semiconductors and Computing Hardware",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "linkedin_company"
+      ]
+    },
+    {
+      "id": "demo20_23_transport",
+      "title": "Transport and Mobility",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_24_housing",
+      "title": "Housing and Urban Services",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_25_oceans",
+      "title": "Oceans and Marine Systems",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_26_biodiversity",
+      "title": "Wildlife and Biodiversity",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_27_natural_hazards",
+      "title": "Earthquakes and Natural Hazards",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_28_mena_economy",
+      "title": "اقتصاد الشرق الأوسط وشمال أفريقيا",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "telegram_channel",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_29_labour",
+      "title": "العمل والأجور وحقوق العمال",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_30_accessibility",
+      "title": "الإتاحة وحقوق الأشخاص ذوي الإعاقة",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_31_public_governance",
+      "title": "الحوكمة والمساءلة العامة",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "telegram_channel",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_32_north_america",
+      "title": "North America: Policy and Society",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_33_latin_america",
+      "title": "Latin America and the Caribbean",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_company",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_34_justice",
+      "title": "Justice et libertés publiques",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_35_archaeology",
+      "title": "Archéologie et histoire matérielle",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_36_elections",
+      "title": "Elections and Democratic Institutions",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_37_media",
+      "title": "Media and Information Integrity",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "telegram_channel",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_38_supply_chains",
+      "title": "Supply Chains and Shipping",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_search",
+        "web_page"
+      ]
+    },
+    {
+      "id": "demo20_39_football",
+      "title": "كرة القدم: قرارات ونتائج حاسمة",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "x_profile",
+        "telegram_channel"
+      ]
+    },
+    {
+      "id": "demo20_40_civil_society",
+      "title": "Associations et société civile",
+      "kinds": [
+        "rss_feed",
+        "google_news",
+        "linkedin_profile",
+        "web_page"
+      ]
+    }
+  ]
+}

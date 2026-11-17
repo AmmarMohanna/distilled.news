@@ -1,0 +1,331 @@
+{
+  "scope": "Controlled local Miniflare database/persistence experiment; synthetic evidence and model outputs. Not Cloudflare capacity, model latency, factual quality or acquisition-to-delivery validation.",
+  "baseline": {
+    "sha256": "17235e53f2247c02caee096a033bfa45c07775e4fa080a4d686c87de9b39f1bc",
+    "startedAt": "2026-10-28T12:42:10.343Z",
+    "finishedAt": "2026-10-28T13:04:40.296Z",
+    "preparation": {
+      "latency": {
+        "n": 1000,
+        "totalMs": 994494.0608000002,
+        "p50Ms": 992.7050999999628,
+        "p95Ms": 1350.1469999999972
+      },
+      "queries": 6133,
+      "rowsRead": 345510603,
+      "returnedBytes": 114998772,
+      "reportedSqlMs": 807420
+    },
+    "publication": {
+      "tested": 24,
+      "persisted": 10,
+      "quiet": 5,
+      "providerWait": 9,
+      "controlledModelCalls": 20
+    }
+  },
+  "fixed": {
+    "sha256": "e10f10f492aca0492d7082942bc2246ce1c30fa7cb0a506d02bb368242ce7631",
+    "startedAt": "2026-10-28T13:13:33.629Z",
+    "finishedAt": "2026-10-28T13:22:44.637Z",
+    "preparation": {
+      "latency": {
+        "n": 1000,
+        "totalMs": 205187.66930000094,
+        "p50Ms": 198.77030000003288,
+        "p95Ms": 317.1734000000288
+      },
+      "queries": 6133,
+      "rowsRead": 985803,
+      "returnedBytes": 114998772,
+      "reportedSqlMs": 9080
+    },
+    "publication": {
+      "tested": 24,
+      "persisted": 10,
+      "quiet": 5,
+      "providerWait": 9,
+      "controlledModelCalls": 20
+    }
+  },
+  "fixture": {
+    "articles": 5800,
+    "historyEditions": 191808,
+    "articleChars": 8307,
+    "seededRows": 767232
+  },
+  "cohorts": [
+    {
+      "history": 0,
+      "articles": 0,
+      "baseline": {
+        "feeds": 67,
+        "latency": {
+          "n": 67,
+          "totalMs": 52468.3759000001,
+          "p50Ms": 755.8485000000801,
+          "p95Ms": 1024.5293999999994
+        },
+        "rowsRead": 12851471,
+        "rowsReadPerFeed": 191813,
+        "returnedBytes": 30954
+      },
+      "fixed": {
+        "feeds": 67,
+        "latency": {
+          "n": 67,
+          "totalMs": 8411.032499999972,
+          "p50Ms": 122.02920000004815,
+          "p95Ms": 177.77960000000894
+        },
+        "rowsRead": 268,
+        "rowsReadPerFeed": 4,
+        "returnedBytes": 30954
+      }
+    },
+    {
+      "history": 0,
+      "articles": 3,
+      "baseline": {
+        "feeds": 200,
+        "latency": {
+          "n": 200,
+          "totalMs": 198933.84709999932,
+          "p50Ms": 983.5129999998026,
+          "p95Ms": 1293.6140000000014
+        },
+        "rowsRead": 76732600,
+        "rowsReadPerFeed": 383663,
+        "returnedBytes": 5921200
+      },
+      "fixed": {
+        "feeds": 200,
+        "latency": {
+          "n": 200,
+          "totalMs": 36722.719599999895,
+          "p50Ms": 172.22460000001593,
+          "p95Ms": 262.28249999997206
+        },
+        "rowsRead": 9200,
+        "rowsReadPerFeed": 46,
+        "returnedBytes": 5921200
+      }
+    },
+    {
+      "history": 0,
+      "articles": 20,
+      "baseline": {
+        "feeds": 67,
+        "latency": {
+          "n": 67,
+          "totalMs": 68839.9491999991,
+          "p50Ms": 994.4341999999597,
+          "p95Ms": 1711.1796999999788
+        },
+        "rowsRead": 25713524,
+        "rowsReadPerFeed": 383783.94029850746,
+        "returnedBytes": 13055888
+      },
+      "fixed": {
+        "feeds": 67,
+        "latency": {
+          "n": 67,
+          "totalMs": 13213.072500000068,
+          "p50Ms": 181.52569999999832,
+          "p95Ms": 287.3899000000092
+        },
+        "rowsRead": 11185,
+        "rowsReadPerFeed": 166.9402985074627,
+        "returnedBytes": 13055888
+      }
+    },
+    {
+      "history": 96,
+      "articles": 0,
+      "baseline": {
+        "feeds": 66,
+        "latency": {
+          "n": 66,
+          "totalMs": 50143.37209999992,
+          "p50Ms": 744.7457000000868,
+          "p95Ms": 1005.39300000004
+        },
+        "rowsRead": 12665994,
+        "rowsReadPerFeed": 191909,
+        "returnedBytes": 1106886
+      },
+      "fixed": {
+        "feeds": 66,
+        "latency": {
+          "n": 66,
+          "totalMs": 8083.400300000387,
+          "p50Ms": 114.33079999999609,
+          "p95Ms": 172.7379999999539
+        },
+        "rowsRead": 25740,
+        "rowsReadPerFeed": 390,
+        "returnedBytes": 1106886
+      }
+    },
+    {
+      "history": 96,
+      "articles": 3,
+      "baseline": {
+        "feeds": 200,
+        "latency": {
+          "n": 200,
+          "totalMs": 210895.95470000023,
+          "p50Ms": 1037.342500000028,
+          "p95Ms": 1368.200199999963
+        },
+        "rowsRead": 76752400,
+        "rowsReadPerFeed": 383762,
+        "returnedBytes": 12368200
+      },
+      "fixed": {
+        "feeds": 200,
+        "latency": {
+          "n": 200,
+          "totalMs": 44957.65210000024,
+          "p50Ms": 211.5967000000528,
+          "p95Ms": 320.8179999999702
+        },
+        "rowsRead": 106400,
+        "rowsReadPerFeed": 532,
+        "returnedBytes": 12368200
+      }
+    },
+    {
+      "history": 96,
+      "articles": 20,
+      "baseline": {
+        "feeds": 67,
+        "latency": {
+          "n": 67,
+          "totalMs": 68809.02320000023,
+          "p50Ms": 1051.7939999999944,
+          "p95Ms": 1283.3678000000073
+        },
+        "rowsRead": 25720161,
+        "rowsReadPerFeed": 383883,
+        "returnedBytes": 15215633
+      },
+      "fixed": {
+        "feeds": 67,
+        "latency": {
+          "n": 67,
+          "totalMs": 16097.568800000125,
+          "p50Ms": 232.78120000002673,
+          "p95Ms": 318.57519999996293
+        },
+        "rowsRead": 43751,
+        "rowsReadPerFeed": 653,
+        "returnedBytes": 15215633
+      }
+    },
+    {
+      "history": 480,
+      "articles": 0,
+      "baseline": {
+        "feeds": 67,
+        "latency": {
+          "n": 67,
+          "totalMs": 51037.32630000042,
+          "p50Ms": 802.8570000000182,
+          "p95Ms": 975.0228000000352
+        },
+        "rowsRead": 12883631,
+        "rowsReadPerFeed": 192293,
+        "returnedBytes": 5522877
+      },
+      "fixed": {
+        "feeds": 67,
+        "latency": {
+          "n": 67,
+          "totalMs": 9933.348300000187,
+          "p50Ms": 138.1364000000176,
+          "p95Ms": 211.83270000002813
+        },
+        "rowsRead": 129042,
+        "rowsReadPerFeed": 1926,
+        "returnedBytes": 5522877
+      }
+    },
+    {
+      "history": 480,
+      "articles": 3,
+      "baseline": {
+        "feeds": 200,
+        "latency": {
+          "n": 200,
+          "totalMs": 219539.16550000035,
+          "p50Ms": 1048.715499999933,
+          "p95Ms": 1393.784500000067
+        },
+        "rowsRead": 76829200,
+        "rowsReadPerFeed": 384146,
+        "returnedBytes": 38248200
+      },
+      "fixed": {
+        "feeds": 200,
+        "latency": {
+          "n": 200,
+          "totalMs": 50087.843399999954,
+          "p50Ms": 240.84429999999702,
+          "p95Ms": 332.71630000002915
+        },
+        "rowsRead": 490399,
+        "rowsReadPerFeed": 2451.995,
+        "returnedBytes": 38248200
+      }
+    },
+    {
+      "history": 480,
+      "articles": 20,
+      "baseline": {
+        "feeds": 66,
+        "latency": {
+          "n": 66,
+          "totalMs": 73827.04680000053,
+          "p50Ms": 1062.6350000000093,
+          "p95Ms": 1536.688300000038
+        },
+        "rowsRead": 25361622,
+        "rowsReadPerFeed": 384267,
+        "returnedBytes": 23528934
+      },
+      "fixed": {
+        "feeds": 66,
+        "latency": {
+          "n": 66,
+          "totalMs": 17681.031800000113,
+          "p50Ms": 251.86119999998482,
+          "p95Ms": 366.7057999999961
+        },
+        "rowsRead": 169818,
+        "rowsReadPerFeed": 2573,
+        "returnedBytes": 23528934
+      }
+    }
+  ],
+  "dispatch": {
+    "feeds": 1000,
+    "batches": 10,
+    "baselineMs": 306.93880000011995,
+    "fixedMs": 437.85210000001825,
+    "note": "Real bounded dispatcher with controlled queue send; downstream collection/relay not run. All dispatch calls use the same instant to isolate one due cohort without expiring delivery leases. Real cron drain time is modeled separately; consumers are not simulated."
+  },
+  "unchangedProviderLimits": {
+    "maxConcurrent": 6,
+    "requestsPerMinute": 20
+  },
+  "actualAdditionalPaidCalls": 0,
+  "actualAdditionalInferenceUsd": 0,
+  "limitations": [
+    "Only <=24 feeds execute serial full publication, not 1,000 concurrent end-to-end deliveries.",
+    "Fixed logical clock deliberately retains one rate-admission minute across serial trials.",
+    "All historical publication dates are expired; minimal historical fixtures share one historical revision per feed.",
+    "Historical active-evidence diversity, recent reader prose, financial history and large carry payloads are not qualified.",
+    "Fake token counts and costs are not performance or recurring-cost estimates."
+  ]
+}

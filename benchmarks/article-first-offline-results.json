@@ -1,0 +1,34 @@
+{
+  "mode": "OFFLINE_INPUT_ADMISSION_ONLY",
+  "policy": "article-occurrence-identity-v1",
+  "paidCalls": 0,
+  "paidCostUsd": 0,
+  "sourceUnits": 9,
+  "inputBytes": 14836,
+  "inputTokenUpperBound": 14836,
+  "reservationUpperUsd": 0.0190416,
+  "maximumConstructionCalls": 2,
+  "additionalInferenceStages": 0,
+  "previousActual": {
+    "tokensIn": 3491,
+    "tokensOut": 497,
+    "costUsd": 0.0021916,
+    "modelLatencyMs": 4717,
+    "groups": 7,
+    "deferredGroups": 6
+  },
+  "revisedActual": {
+    "firstCallAcceptance": null,
+    "falseSplits": null,
+    "falseMerges": null,
+    "unnecessaryDefer": null,
+    "tokensIn": null,
+    "tokensOut": null,
+    "costUsd": null,
+    "latencyMs": null
+  },
+  "limitations": [
+    "Prompt and controlled graph fixtures cannot establish actual model grouping quality.",
+    "No provider call, compatible new verdict or successful publication exists for this policy."
+  ]
+}

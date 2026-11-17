@@ -1,0 +1,210 @@
+import {sharesReaderEvidence,witnessedApprovedHistory} from './reader-history';
+import {sha256,type BriefingCandidate,type EventVersion,type EvidenceRevision,type TargetType} from '@distilled/contracts';
+import {canonicalJson} from '../v1-intake/canonical';
+import type {FeedTransaction} from './store';
+import type {BriefingEditionRecord} from './publication';
+import type {StorylineVersion} from './types';
+import {features} from './policies';
+import {assessFreshness,type Freshness} from './freshness';
+import {nonFactRole} from './claims';
+import {ledgerProjectionId,type LedgerEntry,type LedgerProjection} from './ledger';
+
+export const EDITORIAL_POLICY='supported-delta-ledger-v6';
+export type EditorialReason='MAJOR_STATE_CHANGE'|'MATERIAL_NEW_FACT'|'NEW_SUPPORTED_DEVELOPMENT'|'ALREADY_COMMUNICATED'|'CORROBORATION_ONLY'|'LOW_INFORMATION_GAIN'|'LOW_RELEVANCE'|'OLD_RECAP'|'DEFERRED_EDITORIAL_WORK'|'OMITTED_BY_EDITOR';
+/** Reader-state novelty: what this target adds relative to what the reader was already told. */
+export type NoveltyClass='NEW_EVENT'|'NEW_FACT'|'ADDS_DETAIL'|'CHANGES_STATE'|'CHANGES_CERTAINTY'|'CONTRADICTS'|'CORRECTS'|'RETRACTS'|'CORROBORATION_ONLY'|'OLD_RECAP'|'ALREADY_COMMUNICATED'|'LOW_RELEVANCE'|'LOW_INFORMATION_GAIN';
+const effectNovelty:Record<string,NoveltyClass>={RETRACTS:'RETRACTS',CORRECTS:'CORRECTS',CONTRADICTS:'CONTRADICTS',CHANGES_CERTAINTY:'CHANGES_CERTAINTY',CHANGES_STATE:'CHANGES_STATE'};
+/** Epistemic effects from the semantic path outrank the lexical reason: they must survive ordinary suppression. */
+export function noveltyClass(reason:EditorialReason,effects:string[]=[]):NoveltyClass {
+ for(const e of ['RETRACTS','CORRECTS','CONTRADICTS','CHANGES_CERTAINTY','CHANGES_STATE'])if(effects.includes(e))return effectNovelty[e];
+ return {MAJOR_STATE_CHANGE:'CHANGES_STATE',MATERIAL_NEW_FACT:'ADDS_DETAIL',NEW_SUPPORTED_DEVELOPMENT:'NEW_EVENT',ALREADY_COMMUNICATED:'ALREADY_COMMUNICATED',CORROBORATION_ONLY:'CORROBORATION_ONLY',LOW_INFORMATION_GAIN:'LOW_INFORMATION_GAIN',LOW_RELEVANCE:'LOW_RELEVANCE',OLD_RECAP:'OLD_RECAP',DEFERRED_EDITORIAL_WORK:'NEW_FACT',OMITTED_BY_EDITOR:'NEW_FACT'}[reason] as NoveltyClass;
+}
+export interface EditorialFact {text:string;evidenceRevisionIds:string[]}
+export interface CommunicatedState {editionId:string;targetType:TargetType;targetVersionId:string;claimIds:string[];facts:string[];evidenceRevisionIds:string[];factEvidenceRevisionIds?:string[][];withdrawn?:boolean;ledgerEntryIds?:string[];sourceOnly?:boolean}
+export interface EditorialDecision {
+ policyVersion:string;targetType:TargetType;targetVersionId:string;stableTargetId:string;storylineId?:string;
+ decision:'INCLUDE'|'SUPPRESS';reasonCodes:EditorialReason[];previouslyCommunicated:CommunicatedState[];
+ newUnderstanding:EditorialFact[];repeatedFactCount:number;repeatPenalty:number;
+ contextNeed:'NONE'|'SMALL'|'MODERATE'|'HIGH';treatment:'OMIT'|'BRIEF'|'STANDARD'|'DETAILED';freshness?:Freshness;
+}
+export interface EditorialTarget {type:TargetType;id:string;stableId:string;storylineId?:string;evidence:EvidenceRevision[];eventVersionIds:string[]}
+/** Keep the complete immutable history in selection metadata, but give synthesis
+ * only the latest relevant edition's small context. The full delta is retained. */
+export function boundedEditorialContext(value:EditorialDecision):EditorialDecision {
+ return {...value,previouslyCommunicated:value.previouslyCommunicated.slice(0,1).map(p=>({...p,claimIds:p.claimIds.slice(0,2),facts:p.facts.slice(0,2).map(f=>f.slice(0,400)),factEvidenceRevisionIds:p.factEvidenceRevisionIds?.slice(0,2),evidenceRevisionIds:p.evidenceRevisionIds.slice(0,3)}))};
+}
+// Deterministic equivalence is limited to number (plural) and abbreviation of the same word; verb tense is never normalised because it carries temporal state. Real synonymy
+// (approved/passed, legislation/law) is a semantic judgment for the JEV/entailment path, never a lexical table.
+const aliases:Record<string,string>={ads:'advertisement',advertisements:'advertisement',laws:'law'};
+// Epistemic strength classes. "may/might/could" are interchangeable hedges of
+// the same strength; stronger or weaker markers are never merged with them.
+const modalClass:Record<string,string>={may:'possible',might:'possible',could:'possible',possibly:'possible',reportedly:'reported',allegedly:'alleged',alleged:'alleged'};
+const droppable=new Set(['the','a','an']);
+export function supportedSentences(text:string):string[] {
+ return text.normalize('NFKC').trim().split(/(?<=[.!?])\s+(?=[\p{Lu}\p{N}])/u).map(s=>s.trim()).filter(Boolean);
+}
+/** Conservative deterministic equivalence, not entailment. Critical qualifiers
+ * and ordered quantities must match before lexical paraphrases can be collapsed. */
+export function equivalentFact(a:string,b:string):boolean {
+ return (typeof a==='string'&&a===b)||sameFactSignature(factSignature(a),factSignature(b));
+}
+interface FactSignature {normalized:string;quantities?:string;qualifiers?:string;words?:string}
+const factSignature=(text:string):FactSignature=>({normalized:text.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()});
+function sameFactSignature(a:FactSignature,b:FactSignature):boolean {
+ if(a.normalized===b.normalized)return true;
+ const quantities=(s:FactSignature)=>s.quantities??=JSON.stringify(s.normalized.match(/\b\d+(?:[.,]\d+)*%?\b/g)??[]);
+ const qualifiers=(s:FactSignature)=>s.qualifiers??=JSON.stringify([...new Set((s.normalized.match(/\b(?:not|no|never|without|may|might|could|possibly|expected|alleged|allegedly|reportedly|unconfirmed|unresolved|estimated|more than|less than|at least|up to)\b/g)??[]).map(q=>modalClass[q]??q))].sort());
+ if(quantities(a)!==quantities(b)||qualifiers(a)!==qualifiers(b))return false;
+ // Preserve argument order and attribution. A shared bag of words does not
+ // establish that the same actor performed the same action on the same object.
+ // Retain punctuation in its position: signs/units attach to quantities and
+ // quotation/parenthetical punctuation can change attribution.
+ const words=(s:FactSignature)=>s.words??=JSON.stringify((s.normalized.match(/[\p{L}\p{N}]+|[^\s]/gu)??[]).map(w=>modalClass[w]?'<'+modalClass[w]+'>':aliases[w]??w).filter(w=>!droppable.has(w)&&!/^[.!?]$/.test(w)));
+ return words(a)===words(b);
+}
+/** Immutable lexical preprocessing only; no identity/novelty judgment is cached.
+ * Own one comparator per operation. FIFO eviction bounds retained input to
+ * 262,144 UTF-16 characters/2,048 entries and only causes exact recomputation.
+ * Oversized facts remain fully compared; nothing is truncated or suppressed. */
+export function createFactEquivalence():(a:string,b:string)=>boolean {
+ const cache=new Map<string,FactSignature>();let characters=0;
+ const read=(text:string)=>{
+  const prior=cache.get(text);if(prior)return prior;
+  const value=factSignature(text);
+  if(text.length<=262144){
+   while(cache.size&&(cache.size>=2048||characters+text.length>262144)){
+    const oldest=cache.keys().next().value!;characters-=oldest.length;cache.delete(oldest);
+   }
+   cache.set(text,value);characters+=text.length;
+  }
+  return value;
+ };
+ return (a,b)=>(typeof a==='string'&&a===b)||sameFactSignature(read(a),read(b));
+}
+/** Collapse equivalent reader-facing facts into one entry. Every support
+ * reference of the collapsed entries is retained on the survivor, so citations
+ * are never lost. Equivalence stays conservative: changed values, certainty or
+ * attribution never merge. The first (stable-order) entry survives. */
+export function mergeEquivalentFacts<T extends {text:string;evidenceRevisionIds:string[]}>(facts:T[],merge:(survivor:T,duplicate:T)=>void=()=>{},compatible:(a:T,b:T)=>boolean=()=>true):T[] {
+ const out:T[]=[],equivalent=createFactEquivalence();
+ for(const fact of facts){
+  const same=out.find(f=>compatible(f,fact)&&equivalent(f.text,fact.text));
+  if(!same){out.push(fact);continue}
+  same.evidenceRevisionIds=[...new Set([...same.evidenceRevisionIds,...fact.evidenceRevisionIds])];merge(same,fact);
+ }
+ return out;
+}
+/** Immutable edition IDs stand for immutable claims; published status remains
+ * mutable. Fence both cache reuse and publication against changed reader state. */
+export async function communicationFingerprint(tx:FeedTransaction,windowEnd:string):Promise<string> {
+ const ids:string[]=[];
+ for(const edition of await tx.list<BriefingEditionRecord>('editions')) {
+  if(Date.parse(edition.windowEnd)>=Date.parse(windowEnd)) continue;
+  const status=await tx.read<{status:string;withdrawnAt?:string}>('publication_status',edition.id);
+  if(status && ['PUBLISHED','WITHDRAWN'].includes(status.status))ids.push(JSON.stringify([edition.id,status.status,status.withdrawnAt]));
+ }
+ return sha256(canonicalJson({feedId:tx.snapshot.feed.id,editionIds:ids.sort()}));
+}
+export async function communicatedState(tx:FeedTransaction,target:EditorialTarget,windowEnd:string):Promise<CommunicatedState[]> {
+ const lineage=new Set<string>();
+ for(const id of target.eventVersionIds) {const version=await tx.read<EventVersion>('event_versions',id);if(version) lineage.add(version.eventId)}
+ if(target.storylineId) for(const version of await tx.list<StorylineVersion>('storyline_versions')) {
+  if(version.storylineId!==target.storylineId) continue;
+  for(const id of version.eventVersionIds) {const event=await tx.read<EventVersion>('event_versions',id);if(event) lineage.add(event.eventId)}
+ }
+ const result:CommunicatedState[]=[];
+ const approvedHistory=async(edition:BriefingEditionRecord,candidateIds:string[])=>{
+  const selection=await tx.read<import('./scoring').SelectionRecord>('selections',edition.selectionId);
+  const plan=selection?.editorialPlanId?await tx.read<import('./editorial-plan').EditorialPlanRecord>('editorial_plans',selection.editorialPlanId):undefined;
+  const shortlist=plan?await tx.read<import('./shortlist').ShortlistRecord>('shortlists',plan.shortlistId):undefined;
+  const verification=await tx.read<{semanticChecks?:import('./fidelity').SemanticFactCheck[]}>('verification_results',edition.generation.verificationId??edition.selectionId);
+  if(!shortlist||!verification?.semanticChecks)return [];
+  const out:EditorialFact[]=[];
+  for(const story of edition.stories.filter(s=>candidateIds.includes(s.candidateId))){
+   const candidate=await tx.read<BriefingCandidate>('candidates',story.candidateId);
+   const scope=shortlist.candidates.find(c=>c.targetVersionId===candidate?.targetVersionId),planned=plan?.stories.find(s=>s.targetVersionId===candidate?.targetVersionId);
+   if(scope)out.push(...witnessedApprovedHistory(scope,shortlist,planned,verification.semanticChecks,story).map(f=>({text:f.text,evidenceRevisionIds:f.evidenceRevisionIds})));
+  }return out;
+ };
+ const editions=(await tx.list<BriefingEditionRecord>('editions')).filter(e=>Date.parse(e.windowEnd)<Date.parse(windowEnd)).sort((a,b)=>b.windowEnd.localeCompare(a.windowEnd)||a.id.localeCompare(b.id));
+ for(const edition of editions) {
+  const status=await tx.read<{status:string}>('publication_status',edition.id);if(!status || !['PUBLISHED','WITHDRAWN'].includes(status.status))continue;
+  const projection=await tx.read<LedgerProjection>('ledger_projections',ledgerProjectionId(edition.id));
+  if(projection){
+   const entries=(await Promise.all(projection.entryIds.map(id=>tx.read<LedgerEntry>('ledger_entries',id)))).filter((e):e is LedgerEntry=>Boolean(e));
+   if(entries.length===projection.entryIds.length){
+    const related=entries.filter(e=>e.eventIds.some(id=>lineage.has(id)) || Boolean(target.storylineId && e.storylineIds.includes(target.storylineId)) || sharesReaderEvidence(target.evidence.map(r=>r.id),e));
+    const groups=new Map<string,LedgerEntry[]>();for(const entry of related){const group=groups.get(entry.candidateId)??[];group.push(entry);groups.set(entry.candidateId,group)}
+    for(const group of groups.values()){const approved=await approvedHistory(edition,[group[0].candidateId]);result.push({editionId:edition.id,targetType:group[0].targetType,targetVersionId:group[0].targetVersionId,claimIds:group.map(e=>e.claimId),facts:[...group.flatMap(e=>e.claimFacts),...approved.map(f=>f.text)],factEvidenceRevisionIds:[...group.flatMap(e=>e.claimFacts.map(()=>e.evidenceRevisionIds)),...approved.map(f=>f.evidenceRevisionIds)],evidenceRevisionIds:[...new Set(group.flatMap(e=>e.evidenceRevisionIds))],withdrawn:status.status==='WITHDRAWN',ledgerEntryIds:group.map(e=>e.id),...(!group.some(e=>e.eventIds.some(id=>lineage.has(id))||target.storylineId&&e.storylineIds.includes(target.storylineId))?{sourceOnly:true}:{})});}
+    continue;
+   }
+  }
+  for(const story of edition.stories) {
+   const candidate=await tx.read<BriefingCandidate>('candidates',story.candidateId);if(!candidate) continue;
+   let related=false;
+   if(candidate.targetType==='EVENT') {
+    const old=await tx.read<EventVersion>('event_versions',candidate.targetVersionId);related=Boolean(old && lineage.has(old.eventId));
+   } else {
+    const old=await tx.read<StorylineVersion>('storyline_versions',candidate.targetVersionId);
+    related=Boolean(old && old.storylineId===target.storylineId);
+    if(old && !related) for(const id of old.eventVersionIds) {const event=await tx.read<EventVersion>('event_versions',id);if(event && lineage.has(event.eventId)) related=true}
+   }
+   const identityRelated=related;
+   if(!related)related=story.claims.some(c=>sharesReaderEvidence(target.evidence.map(e=>e.id),{evidenceRevisionIds:c.support.map(s=>s.evidenceRevisionId)}));
+   if(!related) continue;
+   result.push({editionId:edition.id,targetType:candidate.targetType,targetVersionId:candidate.targetVersionId,claimIds:story.claims.map(c=>c.id),facts:story.claims.flatMap(c=>supportedSentences(c.text)),factEvidenceRevisionIds:story.claims.flatMap(c=>supportedSentences(c.text).map(()=>[...new Set(c.support.map(s=>s.evidenceRevisionId))])),evidenceRevisionIds:[...new Set(story.claims.flatMap(c=>c.support.map(s=>s.evidenceRevisionId)))],withdrawn:status.status==='WITHDRAWN',...(!identityRelated?{sourceOnly:true}:{})});
+  }
+ }
+ return result;
+}
+export async function evaluateEditorialDelta(tx:FeedTransaction,target:EditorialTarget,windowEnd:string,windowStart?:string,ownedFacts?:EditorialFact[]):Promise<EditorialDecision> {
+ const previous=await communicatedState(tx,target,windowEnd),facts:EditorialFact[]=[],equivalent=createFactEquivalence();
+ // Sharing an article is support provenance, not ownership of every development
+ // in it. Semantic shortlists supply the complete facts assigned to this target.
+ const supported=ownedFacts??target.evidence.flatMap(evidence=>[evidence.title,evidence.body].flatMap(value=>supportedSentences(value??'')).filter(text=>!nonFactRole(text)).map(text=>({text,evidenceRevisionIds:[evidence.id]})));
+ for(const {text,evidenceRevisionIds} of supported) {
+  const same=facts.find(f=>equivalent(f.text,text));
+  if(same) same.evidenceRevisionIds=[...new Set([...same.evidenceRevisionIds,...evidenceRevisionIds])];else facts.push({text,evidenceRevisionIds:[...evidenceRevisionIds]});
+ }
+ const known=previous.filter(p=>!p.withdrawn).flatMap(p=>p.facts),newUnderstanding=facts.filter(f=>!known.some(old=>equivalent(old,f.text)));
+ const repeatedFactCount=facts.length-newUnderstanding.length,repeatPenalty=facts.length?repeatedFactCount/facts.length:1;
+ const priorPhases=new Set(known.map(t=>features(t).development));
+ const changedPhase=previous.length>0 && newUnderstanding.some(f=>{
+  const phase=features(f.text).development;
+  return phase!=='report' && !priorPhases.has(phase);
+ });
+ const freshness=windowStart?assessFreshness(target.evidence,{start:windowStart,end:windowEnd}):undefined;
+ // Old reporting the Feed only just saw is not a development of this window, but the reader may genuinely never have been told it.
+ // Source age alone therefore never suppresses: it is labelled OLD_RECAP, demoted and dated, and left to the editor. First editions still require temporally honest framing.
+ const staleRecap=freshness?.state==='STALE' && !previous.length;
+ const include=newUnderstanding.length>0;
+ const reasonCodes:EditorialReason[]=include&&staleRecap?['OLD_RECAP']:!include?[previous.length && target.evidence.some(e=>!previous.some(p=>p.evidenceRevisionIds.includes(e.id)))?'CORROBORATION_ONLY':'ALREADY_COMMUNICATED']:!previous.length?['NEW_SUPPORTED_DEVELOPMENT']:changedPhase?['MAJOR_STATE_CHANGE']:['MATERIAL_NEW_FACT'];
+ const caveats=newUnderstanding.some(f=>/\b(unresolved|uncertain|disputed|may|might|no new date|not confirmed|however|but)\b/i.test(f.text));
+ const contextNeed=!include?'NONE':changedPhase || caveats?'MODERATE':previous.length||staleRecap?'SMALL':'NONE';
+ return {freshness,policyVersion:ownedFacts?EDITORIAL_POLICY+'-owned-facts-v1':EDITORIAL_POLICY,targetType:target.type,targetVersionId:target.id,stableTargetId:target.stableId,storylineId:target.storylineId,decision:include?'INCLUDE':'SUPPRESS',reasonCodes,previouslyCommunicated:previous,newUnderstanding,repeatedFactCount,repeatPenalty,contextNeed,treatment:!include?'OMIT':staleRecap&&!changedPhase&&!caveats?'BRIEF':caveats || newUnderstanding.length>=4?'DETAILED':changedPhase || newUnderstanding.length>1?'STANDARD':'BRIEF'};
+}
+
+/** Necessary prior comparison context follows the same latest-edition/two-fact
+ * bound as model history. Never accumulate every historical estimate or use a
+ * revoked/non-current revision. Every returned byte remains budgeted normally. */
+export function priorContextEvidence(value:EditorialDecision,evidence:EvidenceRevision[]):EvidenceRevision[] {
+ const material=(text:string)=>/\p{N}|\b(two|three|four|five|six|seven|eight|nine|ten|hundred|thousand|million|billion|all|some|none|most|minority|not|never|uncertain|unresolved|disputed|may|might|could)\b/iu.test(text);
+ if(value.decision!=='INCLUDE' || !(value.contextNeed==='MODERATE' || value.contextNeed==='HIGH' || value.newUnderstanding.some(f=>material(f.text)))) return [];
+ const previous=value.previouslyCommunicated[0];if(!previous) return [];
+ const selected=new Map<string,EvidenceRevision>();
+ for(const [index,fact] of previous.facts.slice(0,2).entries()) {
+  if(!material(fact)) continue;
+  const exact=previous.factEvidenceRevisionIds?.[index];
+  if(exact) {
+   // Grounded publication already validated this immutable claim-support map.
+   // Model paraphrases need not lexically equal their source. A published claim
+   // has at most three supports, so two context facts offer at most six sides.
+   for(const revision of evidence) if(exact.includes(revision.id)) selected.set(revision.id,revision);
+  } else {
+   // Compatibility for old selection metadata without per-fact references.
+   const matches=evidence.filter(e=>previous.evidenceRevisionIds.includes(e.id) && supportedSentences(e.body??e.title??'').some(sentence=>equivalentFact(sentence,fact))).sort((a,b)=>(a.body?.length??0)-(b.body?.length??0)||a.id.localeCompare(b.id));
+   if(matches[0]) selected.set(matches[0].id,matches[0]);
+  }
+ }
+ return [...selected.values()];
+}

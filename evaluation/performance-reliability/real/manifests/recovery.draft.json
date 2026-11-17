@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "distilled-real-campaign.v1",
+  "runId": "recovery0001",
+  "profile": "recovery",
+  "origin": "https://distilled-news-staging-campaign-pilot.distillednews-platform.workers.dev",
+  "revision": "a39deb40b6af07c0e7d6c4e7c44fc7c2a6b5b21e",
+  "users": 2,
+  "feedsPerUser": 2,
+  "feeds": [
+    {
+      "topic": "Important political, government and security developments affecting Lebanon, grounded in the source reporting",
+      "language": "en",
+      "intervalMinutes": 30,
+      "timezone": "Asia/Beirut",
+      "public": true,
+      "sources": [
+        "https://t.me/lebanonnews2"
+      ]
+    },
+    {
+      "topic": "Important economic, banking and public-service developments affecting Lebanon and the Middle East, grounded in the source reporting",
+      "language": "ar",
+      "intervalMinutes": 60,
+      "timezone": "Asia/Beirut",
+      "public": false,
+      "sources": [
+        "https://t.me/lebanonnews2",
+        "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml"
+      ]
+    }
+  ],
+  "durationSeconds": 3600,
+  "observeSeconds": 7200,
+  "pollSeconds": 60,
+  "deadlineGraceMs": 300000,
+  "setupConcurrency": 1,
+  "requestBudget": 2000,
+  "trafficRequests": 120,
+  "cleanupReserveRequests": 60,
+  "maxVus": 2,
+  "stages": [
+    {
+      "seconds": 3600,
+      "vus": 2
+    }
+  ],
+  "notifications": false,
+  "cleanup": "archive",
+  "budget": {
+    "totalUsd": 2.0,
+    "drainUsd": 0.5,
+    "maxModelCalls": 40,
+    "cloudUsd": 0.1
+  },
+  "stop": {
+    "httpErrorRate": 0.05,
+    "p95Ms": 3000,
+    "maxBacklog": 20,
+    "oldestPendingMs": 900000,
+    "safetyViolations": 0
+  },
+  "faults": [
+    {
+      "kind": "duplicate-delivery",
+      "afterSeconds": 3000,
+      "seconds": 30
+    }
+  ],
+  "sourceAuthorization": {
+    "evidenceId": "DRAFT_REQUIRES_SOURCE_AND_SPENDING_APPROVAL"
+  },
+  "controlPlaneRequestBudget": 512,
+  "modelConfiguration": {
+    "provider": "openrouter",
+    "editor": "openai/gpt-4.1",
+    "verifier": "openai/gpt-4.1-mini",
+    "repair": "openai/gpt-4.1"
+  }
+}

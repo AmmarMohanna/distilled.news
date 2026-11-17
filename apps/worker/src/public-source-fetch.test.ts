@@ -1,0 +1,46 @@
+import { describe, expect, it } from "vitest";
+import { WorkerPublicSourceFetch } from "./public-source-fetch";
+
+describe("public source HTTP admission", () => {
+  it('follows explicitly enabled publisher-local redirects and still rejects origin changes and loops',async()=>{
+    const calls:string[]=[];
+    const fetcher=(async(url:string)=>{calls.push(url);return url.endsWith('/old')?new Response(null,{status:301,headers:{location:'/new'}}):new Response('Actual article')}) as typeof fetch;
+    expect((await new WorkerPublicSourceFetch('https://news.example.com/old',fetcher,{followSameOriginRedirects:true}).get('https://news.example.com/old')).body).toBe('Actual article');
+    expect(calls).toHaveLength(2);
+    for(const location of ['https://other.example.com/new','https://127.0.0.1/private','http://news.example.com/new','/loop']){
+      const port=new WorkerPublicSourceFetch('https://news.example.com/loop',(async()=>new Response(null,{status:302,headers:{location}})) as typeof fetch,{followSameOriginRedirects:true});
+      await expect(port.get('https://news.example.com/loop')).rejects.toThrow('public source policy denied');
+    }
+  });
+  it.each(["https://localhost/","https://127.1/","https://2130706433/","https://[::1]/","https://[fd00::1]/","https://169.254.169.254/","https://metadata.internal/","https://news.example.com:8443/"])("rejects non-public authority %s before fetch",url=>{
+    expect(()=>new WorkerPublicSourceFetch(url)).toThrow("public source policy denied");
+  });
+  it("fetches bounded same-origin HTML without following redirects", async () => {
+    const called: string[] = [];
+    const fetcher = (async (url: string, init: RequestInit) => {
+      called.push(url);
+      expect(init.redirect).toBe("manual");
+      expect(new Headers(init.headers).get('user-agent')).toBe('DistilledNewsBot/0.1 (+https://distilled.news)');
+      return new Response("<html>News</html>", { headers: { "content-type": "text/html" } });
+    }) as typeof fetch;
+    const port = new WorkerPublicSourceFetch("https://news.example.com/section", fetcher);
+    const result = await port.get("https://news.example.com/article/a");
+    expect(result.body).toBe("<html>News</html>");
+    await expect(port.get("https://foreign.example.com/article/a")).rejects.toThrow("public source policy denied");
+    expect(called).toHaveLength(1);
+  });
+
+  it("rejects private, non-HTTPS, redirect, and oversized responses", async () => {
+    expect(() => new WorkerPublicSourceFetch("https://127.0.0.1/")).toThrow();
+    expect(() => new WorkerPublicSourceFetch("https://metadata.internal/")).toThrow();
+    expect(() => new WorkerPublicSourceFetch("http://news.example.com/")).toThrow();
+    const redirect = new WorkerPublicSourceFetch("https://news.example.com/", (async () => new Response(null, { status: 302, headers: { location: "https://foreign.example.com/" } })) as typeof fetch);
+    await expect(redirect.get("https://news.example.com/")).rejects.toThrow("public source policy denied");
+    const oversized = new WorkerPublicSourceFetch("https://news.example.com/", (async () => new Response("x".repeat(2_000_001))) as typeof fetch);
+    await expect(oversized.get("https://news.example.com/")).rejects.toMatchObject({ category: "BODY_BUDGET_EXCEEDED" });
+    const rejected = new WorkerPublicSourceFetch("https://news.example.com/", (async () => { throw new TypeError("unsafe provider details must not escape"); }) as typeof fetch);
+    await expect(rejected.get("https://news.example.com/")).rejects.toMatchObject({ category: "FETCH_REJECTED", message: "FETCH_REJECTED" });
+    const policy = new WorkerPublicSourceFetch("https://news.example.com/", (async () => { throw new TypeError("1024 private platform policy details"); }) as typeof fetch);
+    await expect(policy.get("https://news.example.com/")).rejects.toThrow("public source policy denied");
+  });
+});

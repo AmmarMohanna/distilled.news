@@ -1,0 +1,73 @@
+{
+  "baseCommit": "cc450d21",
+  "researchReference": "02de7798",
+  "branch": "integration/v4-finalized",
+  "paidInferenceCalls": 0,
+  "newInferenceCostUsd": 0,
+  "financialRowsUnchanged": 1239,
+  "quarantinesUnchanged": 5,
+  "actualCampaignUsd": 4.472889622,
+  "heldCampaignUsd": 0.188534125,
+  "preservedBufferUsd": 1.25,
+  "retainedReplayCases": 18,
+  "retainedReplayCalls": 38,
+  "representedHistoricalReplayUsd": 0.1215764,
+  "sourcePackSha256": "748d7aa62914db5ab74d213ab99bcbc965d01dc9c494ac70a217acfa247eb3a5",
+  "unchangedRuntimeFiles": {
+    "packages/briefing/src/prompts.ts": "5592874e7d6612ae309ee323adb49d5e1917c07fb03d17c80e22d5a98c1ff731",
+    "packages/briefing/src/model.ts": "5195769e2e1b16e558142f71c98f84f924878a8949b6e92882d9eccddf5c24b8",
+    "packages/briefing/src/prepare.ts": "2b79d5a51e0f6ab0368a3adeda57b98ee2a7b17d8b9c8a4e70c6cdbe95feb94a",
+    "apps/worker/src/v1-intelligence/v3-window.ts": "76602767e4a05a1a3dac614d03570229dab9a7f550cdb1da6041467c28e74fa6"
+  },
+  "deployment": false,
+  "semantics": "No new retention/Arabic-quality qualification; source-linked 18-case checklist retains known semantic limitations.",
+  "financialComparisonColumns": [
+    "id",
+    "account_id",
+    "model",
+    "reserved_cost_usd",
+    "cost_usd",
+    "reported"
+  ],
+  "fullQuarantineJsonUnchanged": true,
+  "checks": {
+    "briefing": {
+      "files": 51,
+      "passed": 303
+    },
+    "web": {
+      "files": 24,
+      "passed": 122
+    },
+    "workerRelevant": {
+      "files": 4,
+      "passed": 94
+    },
+    "typechecks": [
+      "briefing",
+      "web",
+      "worker"
+    ],
+    "webBuild": "PASS",
+    "arabicBrowserSmoke": {
+      "desktop": [
+        1440,
+        1000
+      ],
+      "mobile": [
+        390,
+        844
+      ],
+      "language": "ar",
+      "direction": "rtl",
+      "pageErrors": 0,
+      "horizontalOverflow": false,
+      "externalRequestsBlocked": true
+    }
+  },
+  "integrationEngineSha256": "cd49d8c002fbc38acc6d00a42289d30e03e7b3517c1e101b959138c56f9aeafe",
+  "integrationCommits": [
+    "fd2cce48",
+    "5d33ca7f"
+  ]
+}

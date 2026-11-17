@@ -1,0 +1,90 @@
+{
+  "asOf": "2026-10-19T10:11:42.624Z",
+  "newRealBriefingAttempts": 0,
+  "newRealPublishedBriefings": 0,
+  "costPerSuccessfulBriefingUsd": null,
+  "underTenCentsTarget": "NOT_DEMONSTRATED",
+  "historicalUnsuccessfulWindows": [
+    {
+      "scope": "Saved unsuccessful window 1",
+      "editionId": "e7c079c3a7027ebfb7a7dbb009c8a2bc7cec17871ade7774946b57f0fe7b67b2",
+      "hasPersistedEdition": false,
+      "requestState": "FAILED",
+      "stages": [
+        {
+          "kind": "COMPARATIVE_EDITORIAL_PLAN",
+          "operations": 1,
+          "reportedOperations": 1,
+          "reportedCostUsd": 0.0474136,
+          "heldExposureUsd": 0
+        },
+        {
+          "kind": "PUBLICATION_REPAIR",
+          "operations": 1,
+          "reportedOperations": 1,
+          "reportedCostUsd": 0.034454,
+          "heldExposureUsd": 0
+        },
+        {
+          "kind": "PUBLICATION_SYNTHESIS",
+          "operations": 1,
+          "reportedOperations": 1,
+          "reportedCostUsd": 0.03267,
+          "heldExposureUsd": 0
+        }
+      ],
+      "knownBoundCostUsd": 0.11453759999999999,
+      "attributableIntelligenceAndCollectionCostUsd": null,
+      "completeAttemptCostUsd": null,
+      "attributionStatus": "LOWER_BOUND_ONLY; shared/reused intelligence, acquisition and collection not causally allocated by this query. Missing costs are not zero."
+    },
+    {
+      "scope": "Saved unsuccessful window 2",
+      "editionId": "4e7f5da021087f81ddf24d75af98dbf097a639a4b06105d77376429bad3916e5",
+      "hasPersistedEdition": false,
+      "requestState": "FAILED",
+      "stages": [
+        {
+          "kind": "PUBLICATION_GROUNDING",
+          "operations": 1,
+          "reportedOperations": 1,
+          "reportedCostUsd": 0.0059032,
+          "heldExposureUsd": 0
+        },
+        {
+          "kind": "PUBLICATION_REPAIR",
+          "operations": 1,
+          "reportedOperations": 1,
+          "reportedCostUsd": 0.0035208,
+          "heldExposureUsd": 0
+        },
+        {
+          "kind": "PUBLICATION_SYNTHESIS",
+          "operations": 1,
+          "reportedOperations": 1,
+          "reportedCostUsd": 0.003116,
+          "heldExposureUsd": 0
+        }
+      ],
+      "knownBoundCostUsd": 0.012539999999999999,
+      "attributableIntelligenceAndCollectionCostUsd": null,
+      "completeAttemptCostUsd": null,
+      "attributionStatus": "LOWER_BOUND_ONLY; shared/reused intelligence, acquisition and collection not causally allocated by this query. Missing costs are not zero."
+    }
+  ],
+  "knownUnsuccessfulWindowSpendUsd": 0.12707759999999999,
+  "newEvaluation": {
+    "v4": 0.0056656,
+    "v5": 0.0053996,
+    "total": 0.0110652,
+    "successfulEditions": 0,
+    "classification": "EXPERIMENT_COST_NOT_BRIEFING_COST; retain failed/incomplete evaluation separately"
+  },
+  "legacyAuditComparisonEvaluation": {
+    "verifier12CallsUsd": 0.0114568,
+    "judgeUsd": 0.0010136,
+    "totalUsd": 0.0124704,
+    "classification": "PRIOR_EXPERIMENT_COST; not newly charged or divided by publication successes"
+  },
+  "constraints": "No deleted holds, caps changed, source bypass or paid retry. No new acquisition/intelligence/planning/writing calls in this work; those stage costs for a real candidate briefing remain unmeasured."
+}

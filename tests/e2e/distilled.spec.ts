@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import {expectCopiedSource, toggleTheme} from "./helpers";
 
 const briefing = {
   id: "briefing_default",
@@ -99,6 +100,7 @@ const arabicEdition = {
 
 const feedEditions = Array.from({ length: 25 }, (_, index) => ({
   ...edition,
+  title: `Published briefing item ${index + 1}.`,
   id: `edition_${index + 1}`,
   summary: `Published briefing item ${index + 1}.`,
   windowStart: new Date(Date.UTC(2026, 5, 16, 7, 0 - index, 0)).toISOString(),
@@ -154,15 +156,29 @@ test("public signup asks for email, username, and password", async ({ page }) =>
   await page.goto("/");
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
   await expect(page.getByRole("link", { name: "create" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "explore" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
-  await page.getByRole("button", { name: "new account" }).click();
-  await expect(page.getByRole("button", { name: /^create account$/ })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "A calmer perspective on a complex world." })).toBeVisible();
+  await toggleTheme(page);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(page.locator(".theme-toggle")).toHaveAttribute("aria-label", /light mode/i);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await toggleTheme(page);
+  await page.getByRole("button", { name: "Create feed", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Continue with Email" })).toBeVisible();
+  await expect(page.getByLabel("admin setup token")).toHaveCount(0);
+  await page.getByLabel("email").fill("ammar@example.com");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("password", { exact: true }).fill("preview-password");
+  await page.getByRole("button", { name: "Show password" }).click();
+  await expect(page.getByLabel("password", { exact: true })).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Hide password" }).click();
+  await page.getByRole("button", { name: "Create an account" }).click();
+  await expect(page.getByRole("button", { name: /^create account$/i })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /^register$/ })).toHaveCount(0);
   await page.getByLabel("email").fill("ammar@example.com");
   await page.getByLabel("username").fill("Ammar Mohanna");
-  await page.getByLabel("password").fill("password123");
-  await page.getByRole("button", { name: /^create account$/ }).click();
+  await page.getByLabel("password", { exact: true }).fill("password123");
+  await page.getByRole("button", { name: /^create account$/i }).click();
   await expect(page.getByText(/verification email sent/i)).toBeVisible();
 });
 
@@ -234,51 +250,43 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 
   await page.goto("/ammar-mohanna/personal/");
 
-  await expect(page.getByRole("link", { name: "Distilled.news" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back", exact: true })).toHaveAttribute("href", "/");
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
-  await expect(page.locator(".page-heading .status-dot.live")).toBeVisible();
-  await expect(page.getByText("waiting for the next accepted update.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /brief now/i })).toHaveAttribute("title", "create a brief since the last one");
-  await page.getByRole("button", { name: /brief now/i }).click();
-  await expect(page.getByText("new brief published.")).toBeVisible();
-  expect(summaryRequests).toBe(1);
+  await expect(page.getByRole("status", { name: "waiting for the next accepted update.", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
+  expect(summaryRequests).toBe(0);
   feedPaused = true;
-  await page.getByRole("button", { name: /^refresh$/i }).click();
-  await expect(page.locator(".page-heading .status-dot.paused")).toBeVisible();
-  await expect(page.getByText("feed paused; no new briefings will publish until it resumes.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("status", { name: "feed paused; no new briefings will publish until it resumes.", exact: true })).toBeVisible();
   await expect(page.getByText(/is due/i)).toHaveCount(0);
   await expect(page.getByText("by ammar-mohanna")).toBeVisible();
-  await expect(page.getByRole("button", { name: /refresh/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /explore/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: /explore/i })).toHaveAttribute("title", "explore feeds");
-  expect(sessionRequests).toBe(0);
-  await expect(page.getByPlaceholder("search published briefing")).toBeVisible();
-  await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
-  await expect(page.getByText("A third operational note stays in the full brief")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /explore/i })).toHaveCount(0);
+  expect(sessionRequests).toBeGreaterThan(0);
+  await expect(page.getByPlaceholder("Search briefings")).toBeVisible();
+  await expect(page.locator(".news-headline > bdi")).toHaveText("Verified updates");
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
-  await page.getByRole("button", { name: /show .*updates/i }).first().click();
-  await expect(page.getByText("A third operational note stays in the full brief").first()).toBeVisible();
-  await expect(page.locator(".reference-digest-row").first()).toBeVisible();
+  await expect(page.locator(".news-summary")).toHaveCount(0);
   await expect(page.locator(".brief-synthesis-text")).toHaveCount(0);
-  await page.getByRole("button", { name: /open reference 1/i }).first().click();
-  const reportDialog = page.getByRole("dialog", { name: "report" });
+  await page.locator(".briefing-reference").first().click();
+  const reportDialog = page.getByRole("dialog", { name: "News Briefing" });
   await expect(reportDialog).toBeVisible();
-  await expect(reportDialog.getByText("Beirut Local")).toBeVisible();
-  await expect(reportDialog.getByRole("link", { name: /original/i })).toHaveAttribute("href", item.evidence[0].sourceUrl);
-  await page.getByRole("button", { name: "close report" }).click();
+  await expect(reportDialog.locator('.news-briefing-publisher')).toContainText("t.me");
+  await expect(reportDialog.locator('.news-briefing-description')).toContainText("A third operational note stays in the full brief");
+  await expectCopiedSource(page, item.evidence[0].links[0]);
+  await expect(reportDialog.locator(".news-briefing-read")).toHaveAttribute("href", item.evidence[0].links[0]);
+  await page.getByRole("button", { name: "Close", exact: true }).click();
 
-  await page.getByPlaceholder("search published briefing").fill("power supply");
+  await page.getByPlaceholder("Search briefings").fill("power supply");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".news-item").filter({ hasText: "Electricite du Liban confirmed two extra hours" }).first()).toBeVisible();
+  await expect(page.locator(".news-headline > bdi")).toHaveText("Infrastructure");
 
-  await page.getByRole("button", { name: /explore/i }).click();
-  await expect(page.getByRole("dialog", { name: "explore" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /City Watch/ })).toHaveAttribute("href", "/city-user/city-watch/");
-  expect(sessionRequests).toBe(0);
+  expect(sessionRequests).toBeGreaterThan(0);
 });
 
-test("arabic feed keeps public chrome localized and summary stable on expand", async ({ page }) => {
+test("arabic feed keeps public chrome localized and summary stable when opening sources", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("dn_language", "ar"));
+  await page.route("**/api/auth/session", route => route.fulfill({ json: { authenticated: false, setupRequired: false } }));
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -298,22 +306,28 @@ test("arabic feed keeps public chrome localized and summary stable on expand", a
 
   await page.goto("/ammar-mohanna/personal/");
 
-  await expect(page.getByRole("button", { name: /^تحديث$/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /استكشاف/ })).toBeVisible();
-  await expect(page.getByPlaceholder("ابحث في الموجز المنشور")).toBeVisible();
+  await expect(page.getByRole("button", { name: /موجز الآن/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /استكشاف/ })).toHaveCount(0);
+  await expect(page.getByPlaceholder("البحث في الموجزات")).toBeVisible();
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
-  await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
+  await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
 
-  await page.getByRole("button", { name: /عرض تحديثات موثوقة/i }).click();
-  await expect(page.getByText("تحديثات موثوقة: أعلنت كهرباء لبنان زيادة التغذية ساعتين هذه الليلة").first()).toBeVisible();
-  await expect(page.locator(".news-summary").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
-  await expect(page.getByText("المراجع")).toBeVisible();
+  await page.locator(".briefing-reference").first().click();
+  await expect(page.getByRole("dialog", { name: "موجز الأخبار" })).toBeVisible();
+  await page.getByRole("button", { name: "إغلاق", exact: true }).click();
+  await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
+  await expect(page.locator(".news-item").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);
-  await expect(page.getByText("search published briefing")).toHaveCount(0);
+  await expect(page.getByText("Search briefings")).toHaveCount(0);
 });
 
-test("feed shows twenty unread items and backfills when one is read", async ({ page }) => {
+test("feed pages twenty editions with unread editions first and keeps read editions accessible", async ({ page }) => {
+  // Read tracking requires a confirmed viewer; a missing session route exercises
+  // the unresolved-session safeguard rather than this pagination scenario.
+  await page.route("**/api/auth/session", route => route.fulfill({
+    json: { authenticated: false, setupRequired: false }
+  }));
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -330,18 +344,36 @@ test("feed shows twenty unread items and backfills when one is read", async ({ p
 
   await page.goto("/ammar-mohanna/personal/");
 
-  const visibleUnread = page.locator(".news-line:not(.news-line-read) .news-item");
+  const visibleUnread = page.locator(".news-item:not(.is-read)");
   await expect(visibleUnread).toHaveCount(20);
   await expect(page.getByText("Published briefing item 20.")).toBeVisible();
   await expect(page.getByText("Published briefing item 21.")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "load more" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load More" })).toBeVisible();
 
   await visibleUnread.first().getByRole("button", { name: /mark .* read/i }).click();
   await expect(visibleUnread).toHaveCount(20);
-  await expect(page.getByText("Published briefing item 21.")).toBeVisible();
+  await expect(visibleUnread.last()).toContainText("Published briefing item 21.");
+  await expect(page.getByText("Published briefing item 1.", { exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "load more" }).click();
+  // A background status refresh can leave the debounced payload reconciliation
+  // pending while the reader loads another page. Advancing that callback must
+  // not undo the reader's explicit pagination choice.
+  const now = new Date();
+  await page.clock.install({ time: now });
+  await page.clock.pauseAt(new Date(now.getTime() + 1000));
+  await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname === "/api/feed/ammar-mohanna/personal"),
+    page.evaluate(() => window.dispatchEvent(new Event("focus")))
+  ]);
+  await page.clock.runFor(50);
+  await page.getByRole("button", { name: "Load More" }).click();
+  await page.clock.runFor(50);
   await expect(page.getByText("Published briefing item 25.")).toBeVisible();
+  await expect(page.locator(".news-item").last()).toHaveClass(/is-read/);
+  await expect(page.locator(".news-item").last()).toContainText("Published briefing item 1.");
+  await page.clock.runFor(300);
+  await expect(page.getByText("Published briefing item 25.")).toBeVisible();
+  await expect(page.locator(".news-item.is-read")).toHaveCount(1);
 });
 
 test("admin setup keeps account settings tucked behind subtle controls", async ({ page }) => {
@@ -422,159 +454,61 @@ test("admin setup keeps account settings tucked behind subtle controls", async (
     });
   });
 
+  await page.route("**/api/feed/ammar-mohanna/personal", route => route.fulfill({ json: { briefing, editions: [], viewerHasStarred: false } }));
+  await page.route("**/api/me/feeds", async route => {
+    const input = route.request().postDataJSON();
+    savedBriefings.push(input);
+    await route.fulfill({ json: { briefing: { ...briefing, ...input } } });
+  });
   await page.goto("/");
-
-  await expect(page.getByRole("heading", { name: "create" })).toBeVisible();
-  await expect(page.getByText("define the feed and add sources.")).toBeVisible();
-  await expect(page.getByLabel("interest profile")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "account settings" })).toHaveAttribute("title", "account settings");
-  await expect(page.getByRole("button", { name: "feed settings for Personal Briefing" })).toHaveAttribute("title", "feed settings");
-  await expect(page.getByRole("button", { name: "fetch latest" })).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "fetch latest" })).toHaveAttribute("title", "refresh");
-  await expect(page.getByPlaceholder("https://t.me/LebUpdate, https://x.com/NASA, or Lebanon electricity")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Telegram URL" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "X URL" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Search topic" })).toBeVisible();
-  await expect(page.locator(".health-summary .status-dot.live")).toBeVisible();
-  await expect(page.getByRole("button", { name: "retry processing" })).toHaveCount(0);
-  await page.locator(".health-summary > summary").click();
-  await expect(page.getByRole("button", { name: "retry processing" })).toBeVisible();
-  await page.getByRole("button", { name: "feed settings for Personal Briefing" }).click();
-  await expect(page.getByRole("dialog", { name: "feed settings" })).toBeVisible();
-  await expect(page.getByLabel("interest profile")).toBeVisible();
-  const feedSettingsDialog = page.getByRole("dialog", { name: "feed settings" });
-  await expect(feedSettingsDialog.getByText("intensity")).toHaveCount(0);
-  await expect(feedSettingsDialog.getByLabel("feed intensity")).toHaveCount(0);
-  await expect(feedSettingsDialog.getByText("briefing time")).toHaveCount(0);
-  await expect(feedSettingsDialog.getByText("monthly")).toHaveCount(0);
-  await expect(feedSettingsDialog.getByRole("button", { name: "weekly" })).toBeVisible();
-  await expect(page.getByLabel("public feed")).toHaveCount(0);
-  await expect(page.getByText("retention days")).toHaveCount(0);
-  await page.getByLabel("title").fill("Local Briefing");
-  await expect.poll(() => savedBriefings.some((saved) => saved.title === "Local Briefing")).toBe(true);
-  await page.getByRole("button", { name: "close feed settings" }).click();
-  await expect(page.getByLabel("username")).toHaveCount(0);
-  await page.getByRole("button", { name: "account settings" }).click();
-  await expect(page.getByRole("dialog", { name: "account" })).toBeVisible();
-  await expect(page.getByLabel("username")).toHaveValue("ammar-mohanna");
-  await expect(page.getByLabel("current password")).toBeVisible();
-  await expect(page.getByLabel("new password")).toBeVisible();
-  await page.getByRole("button", { name: "close account settings" }).click();
-  await expect(page.getByRole("link", { name: "open Local Briefing", exact: true })).toHaveAttribute(
-    "href",
-    "/ammar-mohanna/local-briefing/"
-  );
-  await expect(page.getByText("private", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "feed help" }).click();
-  await expect(page.getByRole("dialog", { name: "feed help" })).toBeVisible();
-  await expect(page.getByText("Paste a Telegram or X URL, or type a search topic.")).toBeVisible();
-  await expect(page.getByText("Copy the feed URL when you want someone to read it.")).toBeVisible();
-  await page.getByRole("button", { name: "close feed help" }).click();
-  await expect(page.getByText("Beirut Local")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "accounts" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "manage ammar-mohanna" })).toHaveCount(0);
-  await page.locator(".accounts-summary").click();
-  await page.getByRole("button", { name: "manage ammar-mohanna" }).click();
-  await expect(page.getByRole("dialog", { name: "manage account" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "disable account" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Welcome back/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Manage", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Account profile", exact: true }).click();
+  const accountDialog = page.getByRole("dialog", { name: "account", exact: true });
+  await expect(accountDialog.getByLabel("username", { exact: true })).toHaveValue("ammar-mohanna");
+  await expect(accountDialog.getByLabel("Current Password", { exact: true })).toBeHidden();
+  await accountDialog.getByRole("button", { name: /Security/ }).click();
+  await expect(accountDialog.getByLabel("Current Password", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.goto("/ammar-mohanna/personal/?edit=1");
+  const editor = page.getByRole("dialog", { name: "Edit feed settings", exact: true });
+  await expect(editor.getByLabel("Feed name", { exact: true })).toHaveValue(briefing.title);
+  await page.route("**/api/me/sources/assess", route => route.fulfill({json:{assessment:{status:"accepted",input:route.request().postDataJSON().source,reason:"Fixture matches",checkedAt:"2026-10-24T12:00:00Z"}}}));
+  await editor.getByLabel("Sources", { exact: true }).fill("https://t.me/LebUpdate");
+  await editor.getByRole("button", { name: "Add source", exact: true }).click();
+  await editor.getByRole("button", { name: "Preferences", exact: true }).click();
+  await expect(editor.getByLabel("Visibility", { exact: true })).toHaveCount(0);
+  await editor.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  expect(savedBriefings).toHaveLength(1);
+  expect(savedBriefings[0]).toMatchObject({ publicFeedEnabled: true, sourceInputs: ["https://t.me/LebUpdate"] });
 });
 
-test("first-run setup sheet creates the first feed and source", async ({ page }) => {
-  let savedBriefing: typeof briefing | undefined;
-  let sourceBody: { briefingId: string; input: string } | undefined;
-
-  await page.route("**/api/auth/session", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        authenticated: true,
-        setupRequired: false,
-        account: {
-          id: "account_1",
-          email: "ammar@example.com",
-          username: "ammar-mohanna",
-          role: "user",
-          emailVerifiedAt: "2026-06-16T08:00:00.000Z"
-        }
-      })
-    });
+test("first feed creation submits its source and configuration atomically", async ({ page }) => {
+  let saved: any;
+  const account = { id: "account_1", email: "ammar@example.com", username: "ammar-mohanna", role: "user", emailVerifiedAt: "2026-06-16T08:00:00.000Z" };
+  await page.route("**/api/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/me/feeds" && route.request().method() === "POST") saved = { ...briefing, ...route.request().postDataJSON(), ownerUsername: account.username, slug: "city-watch" };
+    const body = path === "/api/auth/session" ? { authenticated: true, setupRequired: false, account }
+      : path === "/api/me/feeds" ? { briefing: saved }
+      : path === "/api/me/briefings" ? { briefings: saved ? [saved] : [] }
+      : path === "/api/explore/feeds" ? { feeds: [] }
+      : path === "/api/me/sources/assess" ? {assessment:{status:"accepted",input:route.request().postDataJSON().source,reason:"Fixture source matches",checkedAt:"2026-10-24T12:00:00Z"}}
+      : path === "/api/me/sources" ? { sources: [] }
+      : path.startsWith("/api/feed/") ? { briefing: saved, editions: [], viewerHasStarred: false }
+      : { health: { processing: { queued: 0, completed: 0, failed: 0 } } };
+    await route.fulfill({ json: body });
   });
-  await page.route("**/api/me/briefings", async (route) => {
-    if (route.request().method() === "POST") {
-      savedBriefing = JSON.parse(route.request().postData() ?? "{}");
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ briefing: savedBriefing }) });
-      return;
-    }
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ briefings: [firstRunBriefing] }) });
-  });
-  await page.route("**/api/me/account", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        account: {
-          id: "account_1",
-          email: "ammar@example.com",
-          username: "ammar-news",
-          role: "user",
-          emailVerifiedAt: "2026-06-16T08:00:00.000Z"
-        },
-        briefings: [{ ...firstRunBriefing, ownerUsername: "ammar-news" }]
-      })
-    });
-  });
-  await page.route("**/api/me/sources**", async (route) => {
-    if (route.request().method() === "GET") {
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ sources: [] }) });
-      return;
-    }
-    sourceBody = JSON.parse(route.request().postData() ?? "{}");
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        sources: [
-          {
-            id: "telegram_-100123",
-            briefingId: "briefing_default",
-            title: "Beirut Local",
-            type: "channel",
-            provider: "telegram",
-            kind: "telegram_channel",
-            enabled: true,
-            lastSeenAt: "2026-06-16T08:00:00.000Z"
-          }
-        ],
-        health: {
-          lastSourceEventAt: "2026-06-16T08:00:00.000Z",
-          latestPublishedAt: undefined,
-          processing: { queued: 1, completed: 0, failed: 0 }
-        }
-      })
-    });
-  });
-  await page.route("**/api/me/health?briefingId=briefing_default", async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        health: {
-          lastSourceEventAt: undefined,
-          latestPublishedAt: undefined,
-          processing: { queued: 0, completed: 0, failed: 0 }
-        }
-      })
-    });
-  });
-
   await page.goto("/");
-
-  await expect(page.getByRole("dialog", { name: "setup feed" })).toBeVisible();
-  await page.getByLabel("username").fill("Ammar News");
-  await page.getByLabel("feed name").fill("City Watch");
-  await page.getByLabel("interest profile").fill("Track Beirut infrastructure and public safety.");
-  await page.getByLabel("first source").fill("https://t.me/LebUpdate");
-  await page.getByRole("button", { name: "finish setup" }).click();
-
-  await expect.poll(() => savedBriefing?.title).toBe("City Watch");
-  expect(savedBriefing?.publicFeedEnabled).toBe(true);
-  expect(sourceBody).toEqual({ briefingId: "briefing_default", input: "https://t.me/LebUpdate" });
-  await expect(page.getByRole("dialog", { name: "setup feed" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Create feed", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add feed" });
+  await dialog.getByLabel("Feed name", { exact: true }).fill("City Watch");
+  await dialog.getByLabel("What would you like to follow?", { exact: true }).fill("Track Beirut infrastructure and public safety.");
+  await dialog.getByLabel("Sources", { exact: true }).fill("https://t.me/LebUpdate");
+  await dialog.getByRole("button", { name: "Add source", exact: true }).click();
+  await dialog.getByRole("button", { name: "Create feed", exact: true }).click();
+  await expect(page).toHaveURL(/\/ammar-mohanna\/city-watch\/$/);
+  expect(saved).toMatchObject({ title: "City Watch", publicFeedEnabled: true, sourceInputs: ["https://t.me/LebUpdate"] });
+  await expect(page.getByRole("heading", { name: "City Watch" })).toBeVisible();
 });

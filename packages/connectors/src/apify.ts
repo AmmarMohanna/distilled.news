@@ -38,7 +38,7 @@ export function normalizeGoogleNewsItems(items: unknown[], options: ApifyNormali
       sourceTitle,
       stableId: url,
       messageId: url,
-      text: [title, description].filter(Boolean).join(". "),
+      text: googleNewsText(title, description, stringValue(record.source)),
       links: [url],
       media: imageMedia(record.image ?? record.imageUrl),
       postedAt,
@@ -47,18 +47,31 @@ export function normalizeGoogleNewsItems(items: unknown[], options: ApifyNormali
   });
 }
 
-function googleNewsPostedAt(record: Record<string, unknown>, receivedAt?: Date): string | undefined {
-  const direct = dateValue(record.publishedAt ?? record.published_at ?? record.publishedTimestamp ?? record.timestamp);
-  if (direct) return direct;
+function googleNewsText(title: string, description: string | undefined, publisher: string | undefined): string {
+  const suffix = publisher ? ` - ${publisher}` : undefined;
+  const headline = suffix && title.endsWith(suffix)
+    ? title.slice(0, -suffix.length).trim() || title
+    : title;
+  const comparable = (value: string) => value.replace(/\s+/gu, " ").trim();
+  const duplicates = [title, headline];
+  if (publisher) duplicates.push(`${headline} ${publisher}`);
+  // Drop only an exact repeated headline (optionally with publisher), never a
+  // genuine summary that happens to start with the same words.
+  const summary = description && !duplicates.some((value) => comparable(value) === comparable(description))
+    ? description : undefined;
+  return [headline, summary].filter(Boolean).join(". ");
+}
 
-  const date = dateValue(record.date);
-  if (date) return date;
+function googleNewsPostedAt(record: Record<string, unknown>, receivedAt?: Date): string | undefined {
+  for (const value of [record.publishedAt, record.published_at, record.publishedTimestamp, record.timestamp, record.date]) {
+    const date = dateValue(value);
+    if (date) return date;
+  }
 
   const base = dateObject(record.fetchedAt ?? record.fetched_at ?? record.scrapedAt) ?? receivedAt ?? new Date();
-  const relative = relativeDateValue(record.date, base);
-  if (relative) return relative;
-
-  return dateValue(record.fetchedAt ?? record.fetched_at ?? record.scrapedAt) ?? receivedAt?.toISOString();
+  // Collection time can anchor an explicit relative date, but is not publication evidence.
+  // The message schema requires postedAt, so unrecoverably undated items are skipped.
+  return relativeDateValue(record.date, base);
 }
 
 export function normalizeXItems(items: unknown[], options: ApifyNormalizeOptions): NormalizedMessage[] {
@@ -81,7 +94,7 @@ export function normalizeXItems(items: unknown[], options: ApifyNormalizeOptions
       stableId: id,
       messageId: id,
       text,
-      links: uniqueStrings([url, ...extractUrls(text)]),
+      links: uniqueStrings([url, ...extractUrls(text), ...xExpandedUrls(record)]),
       media: extractXMedia(record),
       postedAt,
       sourceUrl: url
@@ -93,17 +106,26 @@ export function normalizeLinkedInItems(items: unknown[], options: ApifyNormalize
   return items.flatMap((item) => {
     const record = asRecord(item);
     const text = stringValue(record.text) ?? stringValue(record.content) ?? stringValue(record.commentary);
-    const url = stringValue(record.url) ?? stringValue(record.postUrl) ?? stringValue(record.link);
-    const postedAt = dateValue(record.postedAt ?? record.date ?? record.createdAt);
+    const url = stringValue(record.url) ?? stringValue(record.postUrl) ?? stringValue(record.link) ?? httpUrl(record.linkedinUrl);
+    const posted = asRecord(record.postedAt);
+    const postedAt = dateValue(record.postedAt) ?? dateValue(posted.date) ?? dateValue(posted.timestamp) ?? dateValue(record.date ?? record.createdAt);
     if (!text || !postedAt || !url) return [];
+
+    const author = asRecord(record.author);
+    const attributes = Array.isArray(record.contentAttributes) ? record.contentAttributes : [];
+    const attributeLinks = attributes.flatMap((value) => {
+      const link = httpUrl(asRecord(value).hyperlink);
+      return link ? [link] : [];
+    });
 
     return [toMessage({
       options,
-      sourceTitle: stringValue(record.authorName) ?? stringValue(record.companyName) ?? options.sourceTitle,
+      sourceTitle: stringValue(record.authorName) ?? stringValue(record.companyName) ?? stringValue(author.name) ?? options.sourceTitle,
+      username: stringValue(author.publicIdentifier) ?? stringValue(author.universalName),
       stableId: url,
       messageId: url,
       text,
-      links: uniqueStrings([url, ...extractUrls(text)]),
+      links: uniqueStrings([url, ...extractUrls(text), ...attributeLinks]),
       media: imageMedia(record.image ?? record.imageUrl),
       postedAt,
       sourceUrl: url
@@ -230,7 +252,8 @@ function relativeDateValue(value: unknown, base: Date): string | undefined {
   };
   const multiplier = multipliers[unit];
   if (!Number.isFinite(amount) || !multiplier) return undefined;
-  return new Date(base.getTime() - amount * multiplier).toISOString();
+  const date = new Date(base.getTime() - amount * multiplier);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
 }
 
 function imageMedia(value: unknown): MediaReference[] {
@@ -239,12 +262,50 @@ function imageMedia(value: unknown): MediaReference[] {
 }
 
 function extractXMedia(record: Record<string, unknown>): MediaReference[] {
-  const media = Array.isArray(record.media) ? record.media : Array.isArray(record.extendedEntities) ? record.extendedEntities : [];
-  return media.flatMap((entry) => {
+  const nested = asRecord(record.extendedEntities).media;
+  const media = [record.media, Array.isArray(record.extendedEntities) ? record.extendedEntities : nested]
+    .flatMap((value) => Array.isArray(value) ? value : []);
+  const seen = new Set<string>();
+  return media.flatMap((entry): MediaReference[] => {
     const item = asRecord(entry);
-    const url = stringValue(item.url) ?? stringValue(item.media_url_https) ?? stringValue(item.mediaUrl);
-    if (!url) return [];
-    return [{ type: "photo" as const, url, label: "X media" }];
+    const type = item.type === "animated_gif" ? "animation" : item.type === "video" ? "video"
+      : item.type === "photo" || !item.type ? "photo" : "unknown";
+    let url: string | undefined;
+    if (type === "video" || type === "animation") {
+      const variants = asRecord(item.video_info).variants;
+      const candidates = (Array.isArray(variants) ? variants : []).map(asRecord)
+        .filter((variant) => httpUrl(variant.url));
+      candidates.sort((a, b) => Number(b.content_type === "video/mp4") - Number(a.content_type === "video/mp4")
+        || (typeof b.bitrate === "number" ? b.bitrate : 0) - (typeof a.bitrate === "number" ? a.bitrate : 0));
+      url = httpUrl(candidates[0]?.url);
+      // A video thumbnail or t.co link is not a playable video URL.
+      if (!url) url = [item.url, item.mediaUrl].map(httpUrl).find((value) => value && /\.(mp4|m3u8)(?:[?#]|$)/i.test(value));
+    } else {
+      url = httpUrl(item.media_url_https) ?? httpUrl(item.mediaUrl) ?? httpUrl(item.url);
+    }
+    const fileId = stringValue(item.id_str) ?? stringValue(item.media_key);
+    if (!url && !fileId) return [];
+    const key = `${type}:${url ?? fileId}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ type, ...(url ? { url } : { fileId }), label: stringValue(item.ext_alt_text) ?? "X media" }];
+  });
+}
+
+function httpUrl(value: unknown): string | undefined {
+  const text = stringValue(value);
+  if (!text) return undefined;
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" || url.protocol === "http:" ? text : undefined;
+  } catch { return undefined; }
+}
+
+function xExpandedUrls(record: Record<string, unknown>): string[] {
+  const urls = asRecord(record.entities).urls;
+  return (Array.isArray(urls) ? urls : []).flatMap((entry) => {
+    const url = httpUrl(asRecord(entry).expanded_url);
+    return url ? [url] : [];
   });
 }
 

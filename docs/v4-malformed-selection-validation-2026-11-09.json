@@ -1,0 +1,42 @@
+{
+  "branch": "integration/v4-finalized",
+  "reviewedBase": "72218077",
+  "issues": [
+    "P1 malformed selected editor headline silently skipped",
+    "P1 malformed selected consolidation fields silently skipped",
+    "P2 JSON null error response bypassed canonical localization"
+  ],
+  "checks": {
+    "briefing": {"passed": 334, "files": 52},
+    "frontend": {"passed": 151, "files": 25},
+    "affectedWorker": {"passed": 99, "files": 4},
+    "targetedWorker": {"passed": 5},
+    "exactV4ReplayCases": 18,
+    "exactHistoricalCalls": 38,
+    "typechecks": ["briefing", "web", "worker"],
+    "webBuild": "PASS",
+    "diffWhitespace": "PASS",
+    "nullErrorLocales": ["en", "ar", "fr"],
+    "mountedLanguageSwitchAndRtl": "PASS"
+  },
+  "p1WorkerOutcome": {
+    "malformedEditorHeadline": "PENDING/PUBLICATION_FAILED; typed TEMPORARY_UNAVAILABLE",
+    "malformedMultiChunkConsolidation": "PENDING/PUBLICATION_FAILED; typed TEMPORARY_UNAVAILABLE",
+    "successfulResultEditionOrDeliveryCreated": false,
+    "settledCallsResentOnRetry": 0,
+    "explicitEmptySelection": "DONE/QUIET"
+  },
+  "financialPreservation": {
+    "newPaidCalls": 0,
+    "unchangedCampaignRows": 1239,
+    "unchangedFullQuarantineDocuments": 5,
+    "bufferChanged": false,
+    "holdsChanged": false
+  },
+  "deployment": false,
+  "modelsOrMandatoryStagesChanged": false,
+  "knownLimitations": [
+    "Offline tests establish functional invariants and replay compatibility, not new semantic or Arabic naturalness improvements.",
+    "Valid responses add no model calls; malformed responses can use the existing bounded correction. No new live cost or latency measurement was performed."
+  ]
+}

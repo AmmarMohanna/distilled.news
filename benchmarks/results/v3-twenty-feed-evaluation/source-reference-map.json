@@ -1,0 +1,86 @@
+[
+  {
+    "item": 1,
+    "headline": "NASA's Roman Space Telescope launches to L2 to study dark energy and exoplanets",
+    "sources": [
+      {
+        "originalRevisionId": "10255c9f-5663-4f23-be61-73c717cba800",
+        "localRevisionId": "33bf3469-7921-4b1c-93eb-058f22ac756f",
+        "sourceId": "bc0543c4ba562dce776076e5ea357e66687189d7d4b38ced08580c1aa91f426a",
+        "url": "https://www.sciencedaily.com/releases/2026/08/260831035213.htm",
+        "title": "NASA’s Roman Space Telescope launches to reveal the Universe’s darkest secrets",
+        "publishedAt": "2026-10-21T00:00:00.000Z"
+      }
+    ]
+  },
+  {
+    "item": 2,
+    "headline": "Japan prepares to launch mission to return samples from Mars moon Phobos",
+    "sources": [
+      {
+        "originalRevisionId": "d8728d2b-4369-4cc5-a5a3-87a30fc70b26",
+        "localRevisionId": "e5b4e117-0902-48c8-a95f-07f4110d063f",
+        "sourceId": "bc0543c4ba562dce776076e5ea357e66687189d7d4b38ced08580c1aa91f426a",
+        "url": "https://www.tribdem.com/news/japan-to-launch-spacecraft-on-mission-to-get-samples-from-mars-moon/article_66979f1b-a384-57c8-95e4-85a55afd8745.html",
+        "title": "Japan to launch spacecraft on mission to get samples from Mars moon",
+        "publishedAt": "2026-10-18T14:00:00.000Z"
+      }
+    ]
+  },
+  {
+    "item": 3,
+    "headline": "NASA provides update on Moon Base rover development and upcoming lunar missions",
+    "sources": [
+      {
+        "originalRevisionId": "2480d6dc-9516-43da-a1fc-1985ebdeaa40",
+        "localRevisionId": "7ba46c8a-9d3f-48d2-9157-0324a27641a2",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "url": "https://www.nasa.gov/missions/moon-base/nasa-provides-progress-update-on-moon-base-rovers/",
+        "title": "NASA Provides Progress Update on Moon Base Rovers",
+        "publishedAt": "2026-10-20T15:00:10.000Z"
+      }
+    ]
+  },
+  {
+    "item": 4,
+    "headline": "NASA advances nuclear-powered SR-1 Freedom spacecraft for 2028 Mars mission",
+    "sources": [
+      {
+        "originalRevisionId": "752ac255-0c0b-4d73-a827-d30b5d8a5753",
+        "localRevisionId": "b53cfdf1-f372-4275-8d2e-72e3442ff240",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "url": "https://www.nasa.gov/centers-and-facilities/glenn/sr-1-freedom-advances-with-progress-on-nuclear-power-module/",
+        "title": "NASA’s SR-1 Freedom Advances with Progress on Nuclear Power Module",
+        "publishedAt": "2026-10-20T18:11:33.000Z"
+      }
+    ]
+  },
+  {
+    "item": 5,
+    "headline": "NASA tests new Mars helicopter blade design for longer, safer flights",
+    "sources": [
+      {
+        "originalRevisionId": "4e798d2c-226e-4478-9041-d0431eec2207",
+        "localRevisionId": "56f3ce1d-fe02-4433-afc5-d10f63aa53a8",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "url": "https://www.nasa.gov/science-research/aeronautics-research/nasa-experimental-mars-helicopter-blade-designs-target-longer-flights/",
+        "title": "NASA Experimental Mars Helicopter Blade Designs Target Longer Flights",
+        "publishedAt": "2026-10-20T16:02:35.000Z"
+      }
+    ]
+  },
+  {
+    "item": 6,
+    "headline": "Uzbekistan becomes 77th signatory of Artemis Accords for lunar exploration",
+    "sources": [
+      {
+        "originalRevisionId": "dffb9da5-c1ae-4743-aa87-65bbafd3f3c9",
+        "localRevisionId": "0f8a9684-230f-422d-a997-389b74b29029",
+        "sourceId": "0d1a0561253fe9d1764a57adbafbd61fb2b27f51ba444e5760044716fd659b07",
+        "url": "https://www.nasa.gov/organizations/oiir/artemis-accords/nasa-welcomes-uzbekistan-as-newest-artemis-accords-signatory/",
+        "title": "NASA Welcomes Uzbekistan as Newest Artemis Accords Signatory",
+        "publishedAt": "2026-10-20T14:21:42.000Z"
+      }
+    ]
+  }
+]

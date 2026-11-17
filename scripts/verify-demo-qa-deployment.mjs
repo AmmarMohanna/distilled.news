@@ -1,0 +1,27 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+const baseline='.local-reports/demo-platform-20261021';
+const dir=process.env.DATASET_REPORT_DIR??baseline;
+await fs.mkdir(dir,{recursive:true});
+const before=JSON.parse(await fs.readFile(baseline+'/deployed-settings-before.json','utf8'));
+const cfg=JSON.parse(await fs.readFile('apps/worker/wrangler.dataset-qa.jsonc','utf8'));
+const token=(await fs.readFile(path.join(process.env.APPDATA,'xdg.config','.wrangler','config','default.toml'),'utf8')).match(/^oauth_token\s*=\s*"([^"]+)"/m)?.[1];
+async function cf(tail){const r=await fetch('https://api.cloudflare.com/client/v4/accounts/e32b564514d4f9b9e383b7dd30dbb026/workers/scripts/distilled-news-sources-qa/'+tail,{headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(60000)});const d=await r.json();if(!r.ok||!d.success)throw Error('CF_'+r.status);return d.result;}
+const settings=await cf('settings');
+await fs.writeFile(dir+'/deployed-settings-after.json',JSON.stringify(settings,null,2));
+const bindings=settings.bindings,vars=Object.fromEntries(bindings.filter(x=>x.type==='plain_text').map(x=>[x.name,x.text]));
+const missingSecrets=before.bindings.filter(x=>x.type==='secret_text'&&!bindings.some(b=>b.name===x.name&&b.type===x.type)).map(x=>x.name);
+const mismatches=Object.entries(cfg.vars).filter(([name,value])=>vars[name]!==value).map(([name])=>name);
+if(missingSecrets.length||mismatches.length||bindings.find(x=>x.name==='DB')?.id!==cfg.d1_databases[0].database_id||bindings.find(x=>x.name==='RAW_ARCHIVE')?.bucket_name!==cfg.r2_buckets[0].bucket_name)throw Error('QA_BINDING_MISMATCH:'+JSON.stringify({missingSecrets,mismatches}));
+const deployment=await cf('deployments');
+await fs.writeFile(dir+'/deployments-after.json',JSON.stringify(deployment,null,2));
+const response=await fetch(cfg.vars.PUBLIC_WEB_BASE_URL,{signal:AbortSignal.timeout(30000)}),html=await response.text();
+const local=await fs.readFile('apps/web/dist/index.html','utf8');
+const hash=x=>createHash('sha256').update(x).digest('hex');
+const financialResponse=await fetch('https://api.cloudflare.com/client/v4/accounts/e32b564514d4f9b9e383b7dd30dbb026/d1/database/'+cfg.d1_databases[0].database_id+'/query',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({sql:"SELECT (SELECT COUNT(*) FROM v1_model_spending_authorizations) AS model_grants,(SELECT COUNT(*) FROM settings WHERE key LIKE 'model-spending:tracking-only:%' AND json_extract(value,'$.mode')='TRACK_ONLY') AS tracking_only_accounts;",params:[]}),signal:AbortSignal.timeout(30000)});
+const financial=await financialResponse.json();if(!financialResponse.ok||!financial.success)throw Error('FINANCIAL_MODE_READ_FAILED');
+const result={at:new Date().toISOString(),branch:'codex/twenty-feed-dataset',commit:'ac6299f',version:deployment.deployments?.[0],allPriorSecretsRetained:true,configuredVarsMatch:true,database:cfg.d1_databases[0].database_id,bucket:cfg.r2_buckets[0].bucket_name,frontendStatus:response.status,frontendMatchesBuild:hash(local)===hash(html),financialMode:financial.result[0].results[0]};
+await fs.writeFile(dir+'/deployment-verification.json',JSON.stringify(result,null,2));
+if(!result.frontendMatchesBuild||response.status!==200)throw Error('FRONTEND_MISMATCH');
+console.log(JSON.stringify(result));

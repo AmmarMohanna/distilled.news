@@ -1,0 +1,1 @@
+ALTER TABLE agent_model_call_attempts ADD COLUMN gateway_diagnostic_json TEXT;

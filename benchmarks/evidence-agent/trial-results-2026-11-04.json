@@ -1,0 +1,2984 @@
+{
+  "schemaVersion": 1,
+  "executedRevision": "8a80d2f",
+  "approval": {
+    "maxExposureUsd": 7,
+    "maxCalls": 72,
+    "maxAdmissionBytes": 64000,
+    "validFrom": "2026-11-03T23:17:46.695Z",
+    "validUntil": "2026-11-04T03:17:46.716Z"
+  },
+  "completedAt": "2026-11-03T23:23:53.309Z",
+  "models": {
+    "openai/gpt-4.1": {
+      "contextTokens": 1047576,
+      "maxOutputTokens": 4000,
+      "inputUsdPerToken": 0.000002,
+      "outputUsdPerToken": 0.000008,
+      "source": "fresh-catalog-2026-11-03T23:20:38.983Z"
+    },
+    "openai/gpt-4.1-mini": {
+      "contextTokens": 1047576,
+      "maxOutputTokens": 4000,
+      "inputUsdPerToken": 4e-7,
+      "outputUsdPerToken": 0.0000016,
+      "source": "fresh-catalog-2026-11-03T23:20:38.984Z"
+    }
+  },
+  "calls": 39,
+  "actualUsd": 0.24914480000000006,
+  "reservationSumUsd": 1.3829151999999998,
+  "heldUsd": 0,
+  "uncertainOperations": 0,
+  "publication": false,
+  "decision": "REVISE_DO_NOT_PROMOTE",
+  "labelAuthority": "AI-assisted engineering review of full retained sources and exact outputs; not human ground truth or a paid independent judge.",
+  "summary": [
+    {
+      "variant": "v4",
+      "pipelines": 6,
+      "engineAccepted": 5,
+      "rejected": 1,
+      "quiet": 0,
+      "calls": 16,
+      "repairCalls": 2,
+      "recheckCalls": 2,
+      "actualUsd": 0.0754548,
+      "pipelineWallMs": 66685.60260000001,
+      "providerHttpWallMs": 33118,
+      "inputTokens": 41925,
+      "outputTokens": 3323,
+      "acceptedOutputWords": 816,
+      "cachedInputTokens": 3968
+    },
+    {
+      "variant": "v7",
+      "pipelines": 6,
+      "engineAccepted": 6,
+      "rejected": 0,
+      "quiet": 0,
+      "calls": 14,
+      "repairCalls": 1,
+      "recheckCalls": 1,
+      "actualUsd": 0.059784,
+      "pipelineWallMs": 58736.48360000001,
+      "providerHttpWallMs": 29117,
+      "inputTokens": 30080,
+      "outputTokens": 2906,
+      "acceptedOutputWords": 814,
+      "cachedInputTokens": 0
+    },
+    {
+      "variant": "evidence-first-v1",
+      "pipelines": 6,
+      "engineAccepted": 3,
+      "rejected": 3,
+      "quiet": 0,
+      "calls": 9,
+      "repairCalls": 0,
+      "recheckCalls": 0,
+      "actualUsd": 0.113906,
+      "pipelineWallMs": 66024.68960000001,
+      "providerHttpWallMs": 47619,
+      "inputTokens": 34777,
+      "outputTokens": 8539,
+      "acceptedOutputWords": 302,
+      "cachedInputTokens": 0
+    }
+  ],
+  "ledgerRows": [
+    {
+      "id": "evidence-ef85ba9926bc1af319:1",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.063884,
+      "cost_usd": 0.011614,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:10",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.014956,
+      "cost_usd": 0.0026312,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:11",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.063882,
+      "cost_usd": 0.012174,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:12",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0087608,
+      "cost_usd": 0.0009508,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:13",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.075206,
+      "cost_usd": 0.026452,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:14",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.07986399999999999,
+      "cost_usd": 0.013714,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:15",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0140104,
+      "cost_usd": 0.0019604,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:16",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.039756,
+      "cost_usd": 0.004232,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:17",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0094408,
+      "cost_usd": 0.0009248,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:18",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.072658,
+      "cost_usd": 0.011954,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:19",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0131948,
+      "cost_usd": 0.0016448,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:2",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.008594399999999999,
+      "cost_usd": 0.000936,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:20",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.07986199999999999,
+      "cost_usd": 0.01397,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:21",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.014182,
+      "cost_usd": 0.0009596,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:22",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.072656,
+      "cost_usd": 0.012818,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:23",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0128984,
+      "cost_usd": 0.0015656,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:24",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.075206,
+      "cost_usd": 0.029428,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:25",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.044053999999999996,
+      "cost_usd": 0.003392,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:26",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0065308,
+      "cost_usd": 0.0004352,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:27",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.028978,
+      "cost_usd": 0.001286,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:28",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0068119999999999995,
+      "cost_usd": 0.000416,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:29",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.044026,
+      "cost_usd": 0.006052,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:3",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.056678,
+      "cost_usd": 0.010206,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:30",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.007981599999999998,
+      "cost_usd": 0.0007628,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:31",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.05126,
+      "cost_usd": 0.005448,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:32",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.007292399999999999,
+      "cost_usd": 0.0006112,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:33",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.030972,
+      "cost_usd": 0.001622,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:34",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.007607599999999999,
+      "cost_usd": 0.0004048,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:35",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.044026,
+      "cost_usd": 0.006228,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:36",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.051258,
+      "cost_usd": 0.005424,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:37",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0072476,
+      "cost_usd": 0.0005092,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:38",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.044052,
+      "cost_usd": 0.003624,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:39",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.0064751999999999995,
+      "cost_usd": 0.0003452,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:4",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.007604399999999999,
+      "cost_usd": 0.0007108,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:5",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.06589400000000001,
+      "cost_usd": 0.019406,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:6",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.014574399999999998,
+      "cost_usd": 0.002596,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:7",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.056676000000000004,
+      "cost_usd": 0.010598,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:8",
+      "model": "openai/gpt-4.1-mini",
+      "reserved_cost_usd": 0.008009599999999999,
+      "cost_usd": 0.0007884,
+      "reported": 1
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:9",
+      "model": "openai/gpt-4.1",
+      "reserved_cost_usd": 0.06589400000000001,
+      "cost_usd": 0.02035,
+      "reported": 1
+    }
+  ],
+  "records": [
+    {
+      "id": "evidence-ef85ba9926bc1af319:1",
+      "caseId": "lebanon-roundup-en",
+      "variant": "v4",
+      "stage": "editor",
+      "requestHash": "0260c2fe63fdb72125ddd1e9d59563e9e5de0d71e05ca39975707083e278e775",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"Lebanon's state electricity company to cut power to public entities with unpaid bills from November 2\",\n      \"body\": \"The board of Electricité du Liban decided to disconnect electricity supply to government departments, public institutions, and independent agencies that have not settled their dues, starting November 2.\",\n      \"sources\": [\"S14\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Israeli airstrike reported near Barashit, southern Lebanon\",\n      \"body\": \"An Israeli air raid reportedly targeted the outskirts of Barashit, near Kounin, in southern Lebanon. No details on casualties or damage were provided.\",\n      \"sources\": [\"S10\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    },\n    {\n      \"headline\": \"Large explosion reported in Qantara, southern Lebanon\",\n      \"body\": \"A major explosion attributed to Israeli forces was reported in the town of Qantara, southern Lebanon. No further details were given.\",\n      \"sources\": [\"S7\", \"S8\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    },\n    {\n      \"headline\": \"Israeli regional council announces imminent airstrikes on Lebanese front\",\n      \"body\": \"The Upper Galilee Regional Council stated that airstrikes on the Lebanese front will be launched in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.\",\n      \"sources\": [\"S13\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S1\", \"S2\", \"S6\"],\n      \"why\": \"attack in Jordan, not Lebanon\"\n    },\n    {\n      \"sources\": [\"S3\"],\n      \"why\": \"repeat of already told item\"\n    },\n    {\n      \"sources\": [\"S4\"],\n      \"why\": \"minor incident abroad\"\n    },\n    {\n      \"sources\": [\"S5\"],\n      \"why\": \"repeat of already told item\"\n    },\n    {\n      \"sources\": [\"S9\", \"S11\", \"S12\", \"S15\"],\n      \"why\": \"off-topic, not Lebanon\"\n    }\n  ]\n}",
+        "inputTokens": 3775,
+        "outputTokens": 508,
+        "costUsd": 0.011614,
+        "finishReason": "stop"
+      },
+      "wallMs": 3770,
+      "costUsd": 0.011614,
+      "reservedUsd": 0.063884,
+      "generationId": "gen-1793748043-u6fj4Lc5vYWpWSXlF3kN",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:2",
+      "caseId": "lebanon-roundup-en",
+      "variant": "v4",
+      "stage": "verifier",
+      "requestHash": "a0a2b32d6958c4341bf4d10ef67d8f013356596e87f0cbc643a738e61f07ae5b",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 2124,
+        "outputTokens": 54,
+        "costUsd": 0.000936,
+        "finishReason": "stop"
+      },
+      "wallMs": 1141,
+      "costUsd": 0.000936,
+      "reservedUsd": 0.008594399999999999,
+      "generationId": "gen-1793748049-lPxcxKeSHxkzcvLJmRmI",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:3",
+      "caseId": "lebanon-roundup-en",
+      "variant": "v7",
+      "stage": "editor",
+      "requestHash": "68ebf2745ce4518b9dbf5c7219340ea30517dbbbf3350ebc850aabe03da69bbe",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"Lebanon's state electricity company to cut power to public entities behind on payments starting November 2\",\n      \"body\": \"The board of Electricité du Liban decided to disconnect electricity supply to government administrations, public institutions, and independent agencies that have not paid their dues, effective November 2.\",\n      \"sources\": [\"S14\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Israeli airstrike targets outskirts of Barashit near Kounin in southern Lebanon\",\n      \"body\": \"\",\n      \"sources\": [\"S10\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Large explosion reported in Qantara, southern Lebanon, attributed to Israeli forces\",\n      \"body\": \"\",\n      \"sources\": [\"S7\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Israeli regional council announces imminent airstrikes on Lebanese front\",\n      \"body\": \"The Upper Galilee Regional Council stated that airstrikes will be launched on the Lebanese front in the coming hours, warning residents about expected explosions and aircraft noise.\",\n      \"sources\": [\"S13\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S1\", \"S2\", \"S6\"],\n      \"why\": \"off-topic; developments concern Jordan, not Lebanon\"\n    },\n    {\n      \"sources\": [\"S3\"],\n      \"why\": \"repeat; Israeli military drills already covered\"\n    },\n    {\n      \"sources\": [\"S4\"],\n      \"why\": \"off-topic; incident in China unrelated to Lebanon\"\n    },\n    {\n      \"sources\": [\"S5\"],\n      \"why\": \"repeat; Brent crude price already covered\"\n    },\n    {\n      \"sources\": [\"S8\"],\n      \"why\": \"repeat; explosion in Qantara already covered\"\n    },\n    {\n      \"sources\": [\"S9\", \"S11\", \"S15\"],\n      \"why\": \"off-topic; developments concern Iran, US, Europe, not Lebanon\"\n    },\n    {\n      \"sources\": [\"S12\"],\n      \"why\": \"off-topic; attack in Saudi Arabia, not Lebanon\"\n    }\n  ]\n}",
+        "inputTokens": 3007,
+        "outputTokens": 524,
+        "costUsd": 0.010206,
+        "finishReason": "stop"
+      },
+      "wallMs": 3437,
+      "costUsd": 0.010206,
+      "reservedUsd": 0.056678,
+      "generationId": "gen-1793748053-ZSygW7tGtrHkfxrfWcbo",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:4",
+      "caseId": "lebanon-roundup-en",
+      "variant": "v7",
+      "stage": "verifier",
+      "requestHash": "c6a95c89f0ebd445d9847fe78d60c700f51560c38a05d7d41955a0b18f74b793",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 1561,
+        "outputTokens": 54,
+        "costUsd": 0.0007108,
+        "finishReason": "stop"
+      },
+      "wallMs": 1175,
+      "costUsd": 0.0007108,
+      "reservedUsd": 0.007604399999999999,
+      "generationId": "gen-1793748058-XqDVaYgFxP04znCrnSwL",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:5",
+      "caseId": "lebanon-roundup-en",
+      "variant": "evidence-first-v1",
+      "stage": "editor",
+      "requestHash": "2141568ba65df571eb901c8f722fc1920d039b9aed1dc7e8ae8985cb540101d9",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"developmentId\": \"D1\",\n      \"headline\": \"Lebanon's electricity company to cut power to public entities behind on payments from November 2\",\n      \"body\": \"The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2.\"\n    },\n    {\n      \"developmentId\": \"D2\",\n      \"headline\": \"Israeli airstrike targets outskirts of Barashit near Kounin in southern Lebanon\",\n      \"body\": \"An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon.\"\n    },\n    {\n      \"developmentId\": \"D3\",\n      \"headline\": \"Large explosion reported in Qantara shakes southern Lebanon\",\n      \"body\": \"A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon.\"\n    },\n    {\n      \"developmentId\": \"D4\",\n      \"headline\": \"Israeli regional council announces imminent airstrikes on Lebanese front\",\n      \"body\": \"The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.\"\n    }\n  ],\n  \"developments\": [\n    {\n      \"id\": \"D1\",\n      \"occurrence\": \"The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2.\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C1\",\n          \"statement\": \"The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"planned\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S14.B1\"],\n              \"quote\": \"مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D2\",\n      \"occurrence\": \"An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon.\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C2\",\n          \"statement\": \"An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"reported\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S10.B1\"],\n              \"quote\": \"غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D3\",\n      \"occurrence\": \"A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon.\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C3\",\n          \"statement\": \"A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"reported\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S7.B1\"],\n              \"quote\": \"تفجير ضخم نفذه العدو الإســـرائيلي في بلدة القنطرة\\nهز جنوب لبنان\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D4\",\n      \"occurrence\": \"The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C4\",\n          \"statement\": \"The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"planned\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S13.B1\"],\n              \"quote\": \"المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.\"\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S1\", \"S2\", \"S3\", \"S4\", \"S5\", \"S6\", \"S8\", \"S9\", \"S11\", \"S12\", \"S15\"],\n      \"why\": \"No new or significant developments directly affecting Lebanon's politics, government, security, economy, banking, public services, electricity, infrastructure, or major social developments within the specified window.\"\n    }\n  ]\n}",
+        "inputTokens": 4559,
+        "outputTokens": 1286,
+        "costUsd": 0.019406,
+        "finishReason": "stop"
+      },
+      "wallMs": 6957,
+      "costUsd": 0.019406,
+      "reservedUsd": 0.06589400000000001,
+      "generationId": "gen-1793748062-e0JbHBTJYVxk3Wt6PYAE",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:6",
+      "caseId": "lebanon-roundup-en",
+      "variant": "evidence-first-v1",
+      "stage": "verifier",
+      "requestHash": "62675c83c46c914659cafc52e819123382cdab2b162544fdfd7dd9cbd2b524c7",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]}],\"coverage\":{\"status\":\"complete\",\"issues\":[]}}",
+        "inputTokens": 6238,
+        "outputTokens": 63,
+        "costUsd": 0.002596,
+        "finishReason": "stop"
+      },
+      "wallMs": 1236,
+      "costUsd": 0.002596,
+      "reservedUsd": 0.014574399999999998,
+      "generationId": "gen-1793748071-aFNRoon0wxNait7yuBA5",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:7",
+      "caseId": "lebanon-roundup-ar",
+      "variant": "v7",
+      "stage": "editor",
+      "requestHash": "083975685509079f2b3beb82f87d7c6bd31b4caa225826b30ae5ecc876c460c3",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"مؤسسة كهرباء لبنان تقرر قطع الكهرباء عن الإدارات والمؤسسات العامة المتخلفة عن الدفع ابتداءً من 2 تشرين الثاني\",\n      \"body\": \"مجلس إدارة مؤسسة كهرباء لبنان قرر وقف التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي لم تسدد مستحقاتها، وذلك اعتباراً من 2 تشرين الثاني.\",\n      \"sources\": [\"S14\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"غارة جوية إسرائيلية استهدفت أطراف بلدة برعشيت جنوب لبنان\",\n      \"body\": \"أفادت مصادر عن تنفيذ غارة حربية إسرائيلية على أطراف بلدة برعشيت باتجاه كونين في جنوب لبنان.\",\n      \"sources\": [\"S10\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة جنوب لبنان\",\n      \"body\": \"وقع تفجير كبير في بلدة القنطرة جنوب لبنان ونُسب إلى الجيش الإسرائيلي.\",\n      \"sources\": [\"S7\", \"S8\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"المجلس الإقليمي للجليل الأعلى يعلن عن غارات جوية مرتقبة على الجبهة اللبنانية خلال ساعات\",\n      \"body\": \"أعلن المجلس الإقليمي للجليل الأعلى أن غارات جوية ستُشن على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في المنطقة.\",\n      \"sources\": [\"S13\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S1\", \"S2\", \"S6\"],\n      \"why\": \"أحداث في الأردن؛ خارج نطاق الاهتمام المباشر بلبنان\"\n    },\n    {\n      \"sources\": [\"S3\", \"S5\"],\n      \"why\": \"تكرار أو تأكيد لمعلومات سبق إبلاغها\"\n    },\n    {\n      \"sources\": [\"S4\"],\n      \"why\": \"حدث فردي في الصين؛ لا يحمل أهمية مباشرة للبنان\"\n    },\n    {\n      \"sources\": [\"S9\", \"S11\", \"S12\", \"S15\"],\n      \"why\": \"تطورات تخص إيران أو السعودية أو السياسة الدولية؛ ليست ذات صلة مباشرة بلبنان\"\n    }\n  ]\n}",
+        "inputTokens": 3007,
+        "outputTokens": 573,
+        "costUsd": 0.010598,
+        "finishReason": "stop"
+      },
+      "wallMs": 3527,
+      "costUsd": 0.010598,
+      "reservedUsd": 0.056676000000000004,
+      "generationId": "gen-1793748074-C1xIf6X6bUjjrWSmloPh",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:8",
+      "caseId": "lebanon-roundup-ar",
+      "variant": "v7",
+      "stage": "verifier",
+      "requestHash": "8ec75f804ef71ffa45d3dff2753f76253a0ef0381b05f9a2f6758fca70c28057",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 1755,
+        "outputTokens": 54,
+        "costUsd": 0.0007884,
+        "finishReason": "stop"
+      },
+      "wallMs": 1200,
+      "costUsd": 0.0007884,
+      "reservedUsd": 0.008009599999999999,
+      "generationId": "gen-1793748080-9Xf8lR6jPoTG8zBKrt8V",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:9",
+      "caseId": "lebanon-roundup-ar",
+      "variant": "evidence-first-v1",
+      "stage": "editor",
+      "requestHash": "f3b0b31855d13b10a1e053a2cd03e78fe7e3b1518b94ffa013a2ba6b40e50e9b",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"developmentId\": \"D1\",\n      \"headline\": \"مؤسسة كهرباء لبنان تقرر قطع التيار عن المؤسسات العامة المتخلفة عن السداد بدءاً من 2 تشرين الثاني\",\n      \"body\": \"قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتباراً من 2 تشرين الثاني.\"\n    },\n    {\n      \"developmentId\": \"D2\",\n      \"headline\": \"تفجير إسرائيلي ضخم يهز بلدة القنطرة جنوب لبنان\",\n      \"body\": \"وقع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة، ما أدى إلى هز جنوب لبنان.\"\n    },\n    {\n      \"developmentId\": \"D3\",\n      \"headline\": \"غارة جوية إسرائيلية تستهدف أطراف بلدة برعشيت باتجاه كونين\",\n      \"body\": \"نفذت طائرات حربية إسرائيلية غارة استهدفت أطراف بلدة برعشيت لجهة كونين.\"\n    },\n    {\n      \"developmentId\": \"D4\",\n      \"headline\": \"المجلس الإقليمي للجليل الأعلى يعلن عن غارات جوية مرتقبة على الجبهة اللبنانية خلال ساعات\",\n      \"body\": \"أعلن المجلس الإقليمي للجليل الأعلى عن شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.\"\n    }\n  ],\n  \"developments\": [\n    {\n      \"id\": \"D1\",\n      \"occurrence\": \"قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 3,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C1\",\n          \"statement\": \"قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"planned\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S14.B1\"\n              ],\n              \"quote\": \"مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D2\",\n      \"occurrence\": \"وقع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة، ما أدى إلى هز جنوب لبنان\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 3,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C2\",\n          \"statement\": \"تفجير ضخم نفذه العدو الإسرائيلي في بلدة القنطرة هز جنوب لبنان\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"reported\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S7.B1\"\n              ],\n              \"quote\": \"تفجير ضخم نفذه العدو الإســـرائيلي في بلدة القنطرة\\nهز جنوب لبنان\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D3\",\n      \"occurrence\": \"نفذت طائرات حربية إسرائيلية غارة استهدفت أطراف بلدة برعشيت لجهة كونين\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C3\",\n          \"statement\": \"غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"reported\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S10.B1\"\n              ],\n              \"quote\": \"غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D4\",\n      \"occurrence\": \"أعلن المجلس الإقليمي للجليل الأعلى عن شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C4\",\n          \"statement\": \"المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"planned\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S13.B1\"\n              ],\n              \"quote\": \"المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.\"\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\n        \"S1\",\n        \"S2\",\n        \"S3\",\n        \"S4\",\n        \"S5\",\n        \"S6\",\n        \"S8\",\n        \"S9\",\n        \"S11\",\n        \"S12\",\n        \"S15\"\n      ],\n      \"why\": \"لا تتعلق بتطورات جديدة أو مؤثرة تخص لبنان بشكل مباشر ضمن مجالات السياسة، الحكومة، الأمن، الاقتصاد، الخدمات العامة، الكهرباء، البنية التحتية أو التطورات الاجتماعية الكبرى خلال نافذة الوقت المحددة.\"\n    }\n  ]\n}",
+        "inputTokens": 4559,
+        "outputTokens": 1404,
+        "costUsd": 0.02035,
+        "finishReason": "stop"
+      },
+      "wallMs": 6777,
+      "costUsd": 0.02035,
+      "reservedUsd": 0.06589400000000001,
+      "generationId": "gen-1793748083-IF3q6HcgJuzjt1SDGclg",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:10",
+      "caseId": "lebanon-roundup-ar",
+      "variant": "evidence-first-v1",
+      "stage": "verifier",
+      "requestHash": "92fc290f270de172c2fa301b0fcdedca281780a2bdc9de63246a78e7288667ab",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]}],\"coverage\":{\"status\":\"complete\",\"issues\":[]}}",
+        "inputTokens": 6326,
+        "outputTokens": 63,
+        "costUsd": 0.0026312,
+        "finishReason": "stop"
+      },
+      "wallMs": 1300,
+      "costUsd": 0.0026312,
+      "reservedUsd": 0.014956,
+      "generationId": "gen-1793748092-FUG10hLeni8Y2Msj7jfY",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:11",
+      "caseId": "lebanon-roundup-ar",
+      "variant": "v4",
+      "stage": "editor",
+      "requestHash": "018d6ab4543ae1b8bcfc7239ddc14a915983f16538d891f09600e7263cd56c8c",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"مؤسسة كهرباء لبنان تقرر قطع التيار عن المؤسسات العامة المتخلفة عن الدفع بدءاً من 2 تشرين الثاني\",\n      \"body\": \"قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي لم تسدد مستحقاتها، اعتباراً من 2 تشرين الثاني.\",\n      \"sources\": [\"S14\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"غارة إسرائيلية استهدفت أطراف بلدة برعشيت جنوب لبنان\",\n      \"body\": \"أفادت تقارير عن تنفيذ غارة حربية إسرائيلية على أطراف بلدة برعشيت باتجاه كونين في جنوب لبنان.\",\n      \"sources\": [\"S10\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    },\n    {\n      \"headline\": \"تفجير كبير هز بلدة القنطرة جنوب لبنان\",\n      \"body\": \"أفادت تقارير عن وقوع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة جنوب لبنان.\",\n      \"sources\": [\"S7\", \"S8\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    },\n    {\n      \"headline\": \"المجلس الإقليمي للجليل الأعلى: غارات جوية إسرائيلية مرتقبة على الجبهة اللبنانية خلال ساعات\",\n      \"body\": \"أعلن المجلس الإقليمي للجليل الأعلى عن نية شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي انفجارات وأصوات طائرات في المنطقة.\",\n      \"sources\": [\"S13\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S1\", \"S2\", \"S6\"],\n      \"why\": \"حادث أمني في الأردن، خارج نطاق لبنان\"\n    },\n    {\n      \"sources\": [\"S3\"],\n      \"why\": \"تكرار ما أُبلغ به القارئ سابقاً\"\n    },\n    {\n      \"sources\": [\"S4\"],\n      \"why\": \"حادث فردي خارج لبنان\"\n    },\n    {\n      \"sources\": [\"S5\"],\n      \"why\": \"تكرار ما أُبلغ به القارئ سابقاً\"\n    },\n    {\n      \"sources\": [\"S9\", \"S11\", \"S12\", \"S15\"],\n      \"why\": \"تطورات إقليمية لا تتعلق مباشرة بلبنان\"\n    }\n  ]\n}",
+        "inputTokens": 3775,
+        "outputTokens": 578,
+        "costUsd": 0.012174,
+        "finishReason": "stop"
+      },
+      "wallMs": 3578,
+      "costUsd": 0.012174,
+      "reservedUsd": 0.063882,
+      "generationId": "gen-1793748095-cF55GBWFninS7VHchmb5",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:12",
+      "caseId": "lebanon-roundup-ar",
+      "variant": "v4",
+      "stage": "verifier",
+      "requestHash": "1c8490a24166c90f0ddb173f867efac92f171962e8c7ae8af942f29ff2242360",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]},{\"i\":3,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 2161,
+        "outputTokens": 54,
+        "costUsd": 0.0009508,
+        "finishReason": "stop"
+      },
+      "wallMs": 1230,
+      "costUsd": 0.0009508,
+      "reservedUsd": 0.0087608,
+      "generationId": "gen-1793748101-Bs2EJx9jFSFd61fnoiRR",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:13",
+      "caseId": "ai-multisource-en",
+      "variant": "evidence-first-v1",
+      "stage": "editor",
+      "requestHash": "9ee4c977d0dbd1866cfab2c6f505e518b5009b6c3540a5e1b592ae5b1e2bc48c",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"developmentId\": \"D1\",\n      \"headline\": \"Anthropic launches Public Benefit Fund, commits 5% of shares with potential for more\",\n      \"body\": \"Anthropic has announced the creation of the Anthropic Public Benefit Fund, initially committing 5% of its shares, with the possibility of increasing this by 2% for every 50% rise in company value above a set baseline, subject to stockholder approval. The Fund, structured as a wholly-owned LLC, is designed to support public benefit initiatives with flexibility, including large donations to nonprofits or direct distributions. Combined with previous equity donation pledges and programs, about 20% of Anthropic shares are now dedicated to public good, with further increases possible if valuation milestones are met. The Fund will not use equity for lobbying or political giving. Details on governance and valuation milestones will be shared in the coming months.\"\n    },\n    {\n      \"developmentId\": \"D2\",\n      \"headline\": \"Anthropic grants METR employee-like access for independent AI risk evaluation\",\n      \"body\": \"Anthropic has begun providing a team from the nonprofit METR with employee-like access to internal tools, systems, and information (excluding certain sensitive categories) to enable independent risk assessment of its AI models. METR will publish its risk assessment results, and Anthropic cannot veto publication but may require redactions in predefined categories. Anthropic is also working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights. The company is developing a three-tier access system for evaluators, aiming for robust, independent oversight of its AI safety practices.\"\n    },\n    {\n      \"developmentId\": \"D3\",\n      \"headline\": \"Replit shifts default AI partner from Anthropic to OpenAI, citing performance and cost\",\n      \"body\": \"Replit has made OpenAI's ChatGPT its default AI model over Anthropic's Claude, citing performance, cost, and partnership strength as reasons. While Anthropic models remain available on the platform, this change is expected to significantly reduce Replit's spend with Anthropic, as most users stick with the default. Replit's CEO emphasized the company's model-agnostic approach and noted that enterprise and government contracts are becoming a larger share of revenue.\"\n    }\n  ],\n  \"developments\": [\n    {\n      \"id\": \"D1\",\n      \"occurrence\": \"Anthropic announced the creation of the Anthropic Public Benefit Fund, committing 5% of its shares with potential for further increases tied to company valuation milestones, and outlined the Fund's structure and intended uses.\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C1\",\n          \"statement\": \"Anthropic is committing a portion of its shares to the Anthropic Public Benefit Fund, with 5% committed today and an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline, subject to stockholder approval.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"proposed\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S1.B1\"],\n              \"quote\": \"Today, we’re committing a portion of Anthropic’s shares to the Anthropic Public Benefit Fund, a new entity with a structure that increases the stake as the company grows. Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C2\",\n          \"statement\": \"The Fund is structured as a wholly-owned LLC to allow flexibility in forms of giving, and none of the equity held by the LLC will be used for lobbying or political giving.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"proposed\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S1.B1\"],\n              \"quote\": \"We’re establishing the Anthropic Public Benefit Fund as a wholly-owned LLC—rather than a 501(c)(3) or other format—to give adjustability between different forms of giving. None of the Anthropic equity held by the LLC will be used for lobbying or political giving, in the US or abroad.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C3\",\n          \"statement\": \"Combined with previous equity donation pledges and programs, roughly 20% of Anthropic shares will be dedicated to the public good, with further increases possible if valuation milestones are met.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"proposed\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S1.B2\"],\n              \"quote\": \"When combined with today’s announcement, roughly 20% of Anthropic shares will be dedicated to the public good, plus any additional percentage that could be added if the company reaches specific valuation milestones.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C4\",\n          \"statement\": \"Anthropic will share more about the Fund’s structure, governance, and valuation milestones in the coming months.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"planned\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S1.B2\"],\n              \"quote\": \"In the coming months, we will share more about the Anthropic Public Benefit Fund’s structure and governance, including the valuation milestones that may add to its stake.\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D2\",\n      \"occurrence\": \"Anthropic has started giving a team from METR employee-like access to internal systems for independent risk assessment of its AI models, with METR to publish results and Anthropic able to require redactions only in predefined categories.\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C5\",\n          \"statement\": \"Anthropic has started to give employee-like access to a team from METR, a nonprofit that evaluates frontier AI models.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"ongoing\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S4.B1\"],\n              \"quote\": \"Today, we’re announcing that we’ve started to give employee-like access to a team from METR, a nonprofit that evaluates frontier AI models.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C6\",\n          \"statement\": \"METR will publish the results of its risk assessments, and Anthropic cannot veto publication but can require redactions if information falls into predefined categories.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"planned\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S4.B2\"],\n              \"quote\": \"METR will publish its analysis of our risk levels, incidents, or practices. Anthropic can’t veto publication, but we can require them to redact information if it falls into predefined categories such as reproducing confidential IP.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C7\",\n          \"statement\": \"Anthropic is working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights, and is developing a three-tier access system for evaluators.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"ongoing\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S4.B3\"],\n              \"quote\": \"We’re developing three tiers of access for evaluators. Over time, we hope to have several evaluators at the third tier, with each team publishing their own analysis of our risk posture and key decisions.\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D3\",\n      \"occurrence\": \"Replit has made OpenAI's ChatGPT its default AI model over Anthropic's Claude, citing performance, cost, and partnership strength, though Anthropic models remain available on the platform.\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C8\",\n          \"statement\": \"Replit is no longer working with Anthropic as its default AI provider, making OpenAI's ChatGPT the default due to performance, cost, and partnership considerations, though Anthropic models remain available.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"completed\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S3.B1\"],\n              \"quote\": \"Replit, the AI coding platform ... is no longer working with Anthropic, the company’s CEO and co-founder Amjad Masad said ... After Disrupt, Masad clarified that customers can still access Anthropic models on the platform, but that OpenAI’s ChatGPT is now the default.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C9\",\n          \"statement\": \"This change is expected to significantly reduce Replit’s spend with Anthropic, as most customers stick with the default model.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"planned\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\"S3.B1\"],\n              \"quote\": \"This shift could significantly reduce Replit’s spend with Anthropic since most customers stick with the default rather than selecting a model themselves.\"\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S2\"],\n      \"why\": \"All developments in S2 are fully covered by S1, which provides more detailed and direct evidence.\"\n    }\n  ]\n}",
+        "inputTokens": 4282,
+        "outputTokens": 2236,
+        "costUsd": 0.026452,
+        "finishReason": "stop"
+      },
+      "wallMs": 11068,
+      "costUsd": 0.026452,
+      "reservedUsd": 0.075206,
+      "generationId": "gen-1793748104-tAgccxVJPXla7ADfibII",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:14",
+      "caseId": "ai-multisource-en",
+      "variant": "v4",
+      "stage": "editor",
+      "requestHash": "fbc9deb74f3a030250d6fb54a9d82b314fd69599c2097e7a778fedeb1d4258d5",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"Anthropic grants employee-like access to METR for independent safety evaluation\",\n      \"body\": \"Anthropic has begun providing a team from METR, a nonprofit evaluator, with access to internal tools, systems, and information comparable to its own risk assessment teams, excluding certain sensitive categories. METR will publish its risk assessments independently, though Anthropic can require redactions in predefined cases. Anthropic is also working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights. The company aims to embed more independent evaluators over time and is developing a three-tier access structure for such partnerships.\",\n      \"sources\": [\"S1\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Anthropic to commit 5% of shares to new Public Benefit Fund, with potential for more as company grows\",\n      \"body\": \"Anthropic announced the creation of the Anthropic Public Benefit Fund, initially committing 5% of its shares, subject to stockholder approval. The fund's stake will increase by 2% for every 50% rise in company value above a set baseline, at the board's discretion. The fund, structured as a wholly-owned LLC, will support projects for societal good and will not use equity for lobbying or political giving. Combined with prior commitments, about 20% of Anthropic shares will be dedicated to public benefit if the plan is approved. Details on governance and valuation milestones will be released in the coming months.\",\n      \"sources\": [\"S3\", \"S4\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Replit makes OpenAI its default AI provider, reducing reliance on Anthropic\",\n      \"body\": \"Replit CEO Amjad Masad stated that OpenAI's ChatGPT is now the default model on Replit, citing performance, cost, and partnership factors. While Anthropic models remain available, this change is expected to significantly reduce Replit's spend with Anthropic, as most users use the default. Masad said Replit remains model agnostic, but OpenAI is now the preferred partner for powering Replit Agent. There is disagreement about the current status of the Anthropic partnership, but recent evidence shows Anthropic models were still promoted on Replit's platform in late September.\",\n      \"sources\": [\"S2\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S4\"],\n      \"why\": \"duplicate of S3\"\n    }\n  ]\n}",
+        "inputTokens": 4569,
+        "outputTokens": 572,
+        "costUsd": 0.013714,
+        "finishReason": "stop"
+      },
+      "wallMs": 5310,
+      "costUsd": 0.013714,
+      "reservedUsd": 0.07986399999999999,
+      "generationId": "gen-1793748117-KY8ZeinT7KoTb4fY2gUF",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:15",
+      "caseId": "ai-multisource-en",
+      "variant": "v4",
+      "stage": "verifier",
+      "requestHash": "7ca43aaca89f8b0bcf4c815f272fc1bf0aa03f9661090879517bb1856ccb4624",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"fix\",\"issues\":[\"reducing reliance on Anthropic -> reducing spend with Anthropic (the source says 'significantly reduce Replit’s spend with Anthropic', not explicitly 'reliance')\",\"There is disagreement about the current status of the Anthropic partnership -> One insider disputed the claim that the partnership ended, saying it was still in place (the source says 'Masad’s comments onstage were rejected by insiders familiar with the partnership')\"]}]}",
+        "inputTokens": 4385,
+        "outputTokens": 129,
+        "costUsd": 0.0019604,
+        "finishReason": "stop"
+      },
+      "wallMs": 1663,
+      "costUsd": 0.0019604,
+      "reservedUsd": 0.0140104,
+      "generationId": "gen-1793748125-30skbzSF3XhL8BVsXNQj",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:16",
+      "caseId": "ai-multisource-en",
+      "variant": "v4",
+      "stage": "repair",
+      "requestHash": "6a45cb27509a0fe95e6a9297395c610bfe9542429ff3026ae158dff97c9d4e37",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"items\":[{\"i\":0,\"headline\":\"Replit makes OpenAI its default AI provider, reducing spend with Anthropic\",\"body\":\"Replit CEO Amjad Masad stated that OpenAI's ChatGPT is now the default model on Replit, citing performance, cost, and partnership factors. While Anthropic models remain available, this change is expected to significantly reduce Replit's spend with Anthropic, as most users use the default. Masad said Replit remains model agnostic, but OpenAI is now the preferred partner for powering Replit Agent. One insider disputed the claim that the partnership ended, saying it was still in place, but recent evidence shows Anthropic models were still promoted on Replit's platform in late September.\",\"drop\":false}]}",
+        "inputTokens": 1496,
+        "outputTokens": 155,
+        "costUsd": 0.004232,
+        "finishReason": "stop"
+      },
+      "wallMs": 1325,
+      "costUsd": 0.004232,
+      "reservedUsd": 0.039756,
+      "generationId": "gen-1793748128-M5H38KZlXZQSF9NTDbOF",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:17",
+      "caseId": "ai-multisource-en",
+      "variant": "v4",
+      "stage": "recheck",
+      "requestHash": "20431c06eb965633b6ee78c43361286f4c0b07c29641bf4a4d93ed4a86640939",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 2240,
+        "outputTokens": 18,
+        "costUsd": 0.0009248,
+        "finishReason": "stop"
+      },
+      "wallMs": 948,
+      "costUsd": 0.0009248,
+      "reservedUsd": 0.0094408,
+      "generationId": "gen-1793748132-7cpl6ArMFfkNTxwPtBlg",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:18",
+      "caseId": "ai-multisource-en",
+      "variant": "v7",
+      "stage": "editor",
+      "requestHash": "086fc4e76c4d1fc88a63dec7fc4ebc61bb7eca82b68de907155a314ca6c1930d",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"Anthropic grants employee-like access to METR for independent AI risk evaluation\",\n      \"body\": \"Anthropic has begun providing a team from the nonprofit METR with access to internal tools, systems, and information comparable to its own risk assessment teams, excluding certain sensitive categories. METR will independently publish risk assessments of Anthropic's models and practices, with Anthropic able to require redactions only for predefined confidential information. Anthropic is also working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights. This move follows Anthropic's commitment to the White House Accord on Super Intelligence and aims to increase transparency and public accountability in AI safety.\",\n      \"sources\": [\"S1\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Anthropic to commit at least 5% of company shares to new Public Benefit Fund\",\n      \"body\": \"Anthropic will allocate 5% of its shares to a newly created Public Benefit Fund, with the potential to increase by 2% for every 50% rise in company value, subject to board discretion and stockholder approval. The fund, structured as a wholly-owned LLC, is intended to support societal good projects, including large donations or direct distributions, and will not be used for lobbying or political giving. Combined with prior equity donation commitments, about 20% of Anthropic shares will be dedicated to public benefit if the plan is approved.\",\n      \"sources\": [\"S3\", \"S4\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Replit makes OpenAI its default AI provider, reducing reliance on Anthropic\",\n      \"body\": \"Replit's CEO announced that OpenAI's ChatGPT is now the default model for its platform, citing cost, performance, and partnership factors. While Anthropic models remain available for users to select, this change is expected to significantly reduce Replit's spending with Anthropic, as most customers use the default. There is disagreement about whether the Anthropic partnership has ended, but Replit confirms it remains model-agnostic and continues to offer Anthropic's Claude models as an option.\",\n      \"sources\": [\"S2\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S4\"],\n      \"why\": \"repeat; no material change\"\n    }\n  ]\n}",
+        "inputTokens": 3801,
+        "outputTokens": 544,
+        "costUsd": 0.011954,
+        "finishReason": "stop"
+      },
+      "wallMs": 4066,
+      "costUsd": 0.011954,
+      "reservedUsd": 0.072658,
+      "generationId": "gen-1793748135-eCP04A9WHocrd0jLBGZm",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:19",
+      "caseId": "ai-multisource-en",
+      "variant": "v7",
+      "stage": "verifier",
+      "requestHash": "58bc30adb31a7709f548558e3fc1625630cdcc6c0cc0292adcf4816d07875c44",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 3944,
+        "outputTokens": 42,
+        "costUsd": 0.0016448,
+        "finishReason": "stop"
+      },
+      "wallMs": 2053,
+      "costUsd": 0.0016448,
+      "reservedUsd": 0.0131948,
+      "generationId": "gen-1793748141-BS3loW0mfxhCdUfiO9Bu",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:20",
+      "caseId": "ai-multisource-ar",
+      "variant": "v4",
+      "stage": "editor",
+      "requestHash": "48302601cdb985ff8ce206953556ef0ca06d96bcf5be1366c441f4d2e852b94c",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"أنثروبيك تمنح فريق METR وصولاً شبيهاً بالموظفين لتقييمات مستقلة للسلامة\",\n      \"body\": \"أعلنت أنثروبيك أنها بدأت منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أنظمتها وأدواتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي لديها. سيتمكن فريق METR من نشر نتائج تقييماته دون موافقة أنثروبيك، مع إمكانية حجب معلومات محددة فقط ضمن فئات متفق عليها. تعمل أنثروبيك أيضاً مع SecureBio وAccenture كمقيمين مستقلين، وتخطط لتوسيع الشراكات مع جهات أخرى. تهدف الشركة إلى تعزيز الشفافية والمساءلة في تقييم سلامة نماذجها.\",\n      \"sources\": [\"S1\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"أنثروبيك تعلن إنشاء صندوق منفعة عامة وتخصيص 5% من أسهمها له\",\n      \"body\": \"أعلنت أنثروبيك عن تأسيس صندوق منفعة عامة جديد سيحصل على 5% من أسهم الشركة، مع إمكانية زيادة الحصة بنسبة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة، وذلك بعد موافقة المساهمين. يهدف الصندوق إلى دعم مشاريع ذات منفعة مجتمعية، مثل التبرعات للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. لن تُستخدم أسهم الصندوق في أنشطة الضغط السياسي. ومع الإعلان الجديد، سيُخصص نحو 20% من أسهم أنثروبيك للأغراض العامة، مع إمكانية زيادة النسبة مستقبلاً.\",\n      \"sources\": [\"S3\", \"S4\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Replit تعتمد OpenAI شريكاً افتراضياً بدلاً من أنثروبيك\",\n      \"body\": \"قال الرئيس التنفيذي لشركة Replit إن الشركة جعلت OpenAI الشريك الافتراضي لمنصتها بدلاً من أنثروبيك، لأسباب تتعلق بالأداء والتكلفة والشراكة. لا تزال نماذج أنثروبيك متاحة للعملاء، لكن OpenAI أصبحت الخيار الافتراضي، ما قد يقلل من إنفاق Replit مع أنثروبيك. لم يُؤكد إنهاء الشراكة بالكامل، إذ تشير مصادر إلى استمرار التعاون بين الشركتين.\",\n      \"sources\": [\"S2\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 2\n    }\n  ],\n  \"left_out\": []\n}",
+        "inputTokens": 4569,
+        "outputTokens": 604,
+        "costUsd": 0.01397,
+        "finishReason": "stop"
+      },
+      "wallMs": 5142,
+      "costUsd": 0.01397,
+      "reservedUsd": 0.07986199999999999,
+      "generationId": "gen-1793748146-6QUznSUfZaIa4n3joGdQ",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:21",
+      "caseId": "ai-multisource-ar",
+      "variant": "v4",
+      "stage": "verifier",
+      "requestHash": "0f86261de68baf773f871104ef8e0d2f53d62f5062a04ef613295de3f8213549",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 4439,
+        "outputTokens": 42,
+        "costUsd": 0.0009596,
+        "finishReason": "stop"
+      },
+      "wallMs": 1255,
+      "costUsd": 0.0009596,
+      "reservedUsd": 0.014182,
+      "generationId": "gen-1793748153-IxtKgH9DkadBiq3FuGs1",
+      "cachedInputTokens": 2944
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:22",
+      "caseId": "ai-multisource-ar",
+      "variant": "v7",
+      "stage": "editor",
+      "requestHash": "a801adcbd7f7a18a174141d7a899a6b541ab93412eeaf1c507cc1cd75c750c50",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"Anthropic تمنح فريق METR المستقل وصولاً شبيهاً بالموظفين لتقييم مخاطر الذكاء الاصطناعي\",\n      \"body\": \"أعلنت Anthropic أنها بدأت في منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي. سيقوم فريق METR بنشر نتائج تقييماته بشكل مستقل، ولا يمكن لـ Anthropic منع النشر إلا في حالات محددة تتعلق بالملكية الفكرية أو السرية. كما تعمل Anthropic مع SecureBio وAccenture كمقيمين خارجيين، وتخطط لتوسيع الشراكات مع منظمات أخرى. تم توضيح أن هناك ثلاث مستويات من الوصول للمقيمين، مع منح METR أعلى مستوى حالياً.\",\n      \"sources\": [\"S1\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Replit تعتمد OpenAI كمزود افتراضي بدلاً من Anthropic وتقلل من شراكتها معها\",\n      \"body\": \"أكد الرئيس التنفيذي لشركة Replit أن المنصة لم تعد تعتمد على Anthropic كمزود رئيسي لنماذج الذكاء الاصطناعي، وأن OpenAI أصبحت المزود الافتراضي بسبب الأداء والتكلفة وقوة الشراكة. رغم ذلك، لا تزال نماذج Anthropic متاحة للعملاء، لكن الاستخدام المتوقع سينخفض بشكل كبير. تصريحات الرئيس التنفيذي حول إنهاء الشراكة قوبلت بنفي من مصادر مطلعة داخل Anthropic، مع استمرار وجود أدلة على ترويج Replit لنماذج Anthropic مؤخراً.\",\n      \"sources\": [\"S2\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    },\n    {\n      \"headline\": \"Anthropic تخصص 5% من أسهمها لصندوق منفعة عامة مع إمكانية زيادة النسبة مع نمو الشركة\",\n      \"body\": \"أعلنت Anthropic عن تأسيس صندوق منفعة عامة جديد سيحصل مبدئياً على 5% من أسهم الشركة، مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة فوق حد معين. يهدف الصندوق إلى دعم مشاريع ذات منفعة مجتمعية بمرونة أكبر، مثل التبرعات الكبرى للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. لن تُستخدم أسهم الصندوق في الضغط السياسي أو التبرعات السياسية. مع التزامات سابقة من المؤسسين والموظفين، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة.\",\n      \"sources\": [\"S3\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S4\"],\n      \"why\": \"تكرار؛ لا تغيير جوهري عن S3\"\n    }\n  ]\n}",
+        "inputTokens": 3801,
+        "outputTokens": 652,
+        "costUsd": 0.012818,
+        "finishReason": "stop"
+      },
+      "wallMs": 5078,
+      "costUsd": 0.012818,
+      "reservedUsd": 0.072656,
+      "generationId": "gen-1793748156-VyRsrtaOKFkdv3S9c3jH",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:23",
+      "caseId": "ai-multisource-ar",
+      "variant": "v7",
+      "stage": "verifier",
+      "requestHash": "99c74332530a0862836ab916f86301f132231bd0acd055f2282bd16d6c245788",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]},{\"i\":1,\"verdict\":\"ok\",\"issues\":[]},{\"i\":2,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 3746,
+        "outputTokens": 42,
+        "costUsd": 0.0015656,
+        "finishReason": "stop"
+      },
+      "wallMs": 1350,
+      "costUsd": 0.0015656,
+      "reservedUsd": 0.0128984,
+      "generationId": "gen-1793748163-4YVEljemMydIdf1nLJPM",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:24",
+      "caseId": "ai-multisource-ar",
+      "variant": "evidence-first-v1",
+      "stage": "editor",
+      "requestHash": "2a15f874d63aa39eedc125731b74a571e17ac274b758022524a4c3e3cfe44c63",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"developmentId\": \"D1\",\n      \"headline\": \"Anthropic تؤسس صندوق منفعة عامة وتخصص له حصة متزايدة من أسهمها\",\n      \"body\": \"أعلنت Anthropic عن التزامها بتخصيص 5% من أسهمها لصندوق منفعة عامة جديد، مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة فوق خط أساس محدد، وذلك بعد موافقة المساهمين. سيمنح الصندوق مرونة أكبر لدعم مشاريع ذات منفعة مجتمعية، مثل التبرعات الكبيرة للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. لن تُستخدم أسهم الصندوق في الضغط السياسي أو التبرعات السياسية. مع هذا الإعلان، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة، مع إمكانية زيادة النسبة عند تحقيق الشركة لمعايير تقييم محددة.\"\n    },\n    {\n      \"developmentId\": \"D2\",\n      \"headline\": \"Anthropic تمنح فريق METR حق وصول شبيه بالموظفين لتقييم سلامة نماذجها بشكل مستقل\",\n      \"body\": \"بدأت Anthropic في منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أدواتها وأنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي الخاصة بها. سيقوم METR بنشر نتائج تقييماته للمخاطر، ولا تملك Anthropic حق الاعتراض على النشر، لكنها تستطيع طلب حجب معلومات ضمن فئات محددة مثل الأسرار التجارية. تعمل Anthropic أيضاً مع SecureBio وAccenture كمقيمين، وتجري محادثات أولية مع منظمات أخرى مثل Hugging Face. تهدف الشركة إلى تطوير ثلاث مستويات من الوصول للمقيمين المستقلين، مع منح أعلى مستوى وصول وحقوق نشر لفريق METR حالياً.\"\n    },\n    {\n      \"developmentId\": \"D3\",\n      \"headline\": \"منصة Replit تعتمد OpenAI شريكاً مفضلاً بدلاً من Anthropic وتغير نموذجها الافتراضي\",\n      \"body\": \"أعلن الرئيس التنفيذي لمنصة Replit أن الشركة لم تعد تتعاون مع Anthropic، وأن OpenAI أصبح الشريك المفضل لتشغيل وكيل Replit Agent، وذلك بناءً على الأداء والتكلفة وقوة الشراكة. رغم ذلك، لا تزال نماذج Anthropic متاحة للعملاء، لكن OpenAI أصبح الخيار الافتراضي، ما قد يقلل بشكل كبير من إنفاق Replit مع Anthropic. هناك تضارب في التصريحات حول استمرار الشراكة، حيث أشار مصدر مطلع إلى أن الشراكة لا تزال قائمة، وتظهر أدلة حديثة على استمرار استخدام منتجات Anthropic في المنصة.\"\n    }\n  ],\n  \"developments\": [\n    {\n      \"id\": \"D1\",\n      \"occurrence\": \"إعلان Anthropic عن تأسيس صندوق منفعة عامة وتخصيص حصة متزايدة من أسهمها له\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C1\",\n          \"statement\": \"تلتزم Anthropic بتخصيص 5% من أسهمها لصندوق منفعة عامة جديد، مع إمكانية إضافة 2% لكل زيادة بنسبة 50% في قيمة الشركة فوق خط أساس محدد، وذلك بعد موافقة المساهمين.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"proposed\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S1.B1\"\n              ],\n              \"quote\": \"Subject to stockholder approval, 5% of Anthropic’s shares will be committed today, with an additional 2% added at the board’s discretion for every 50% increase in the company’s value above a set baseline.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C2\",\n          \"statement\": \"لن تُستخدم أسهم الصندوق في الضغط السياسي أو التبرعات السياسية داخل الولايات المتحدة أو خارجها.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"proposed\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S1.B1\"\n              ],\n              \"quote\": \"None of the Anthropic equity held by the LLC will be used for lobbying or political giving, in the US or abroad.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C3\",\n          \"statement\": \"مع هذا الإعلان، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة، مع إمكانية زيادة النسبة عند تحقيق الشركة لمعايير تقييم محددة.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"proposed\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S1.B2\"\n              ],\n              \"quote\": \"When combined with today’s announcement, roughly 20% of Anthropic shares will be dedicated to the public good, plus any additional percentage that could be added if the company reaches specific valuation milestones.\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D2\",\n      \"occurrence\": \"منح Anthropic فريق METR وصولاً شبيهاً بالموظفين لتقييم نماذجها وسلامتها بشكل مستقل\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C4\",\n          \"statement\": \"بدأت Anthropic في منح فريق من METR وصولاً شبيهاً بالموظفين إلى أدواتها وأنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي الخاصة بها.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"ongoing\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S4.B1\"\n              ],\n              \"quote\": \"Today, we’re announcing that we’ve started to give employee-like access to a team from METR, a nonprofit that evaluates frontier AI models.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C5\",\n          \"statement\": \"سيقوم METR بنشر نتائج تقييماته للمخاطر، ولا تملك Anthropic حق الاعتراض على النشر، لكنها تستطيع طلب حجب معلومات ضمن فئات محددة مثل الأسرار التجارية.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"ongoing\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S4.B2\"\n              ],\n              \"quote\": \"METR will publish its analysis of our risk levels, incidents, or practices. Anthropic can’t veto publication, but we can require them to redact information if it falls into predefined categories such as reproducing confidential IP.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C6\",\n          \"statement\": \"تعمل Anthropic أيضاً مع SecureBio وAccenture كمقيمين، وتجري محادثات أولية مع منظمات أخرى مثل Hugging Face.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"ongoing\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S4.B1\"\n              ],\n              \"quote\": \"We’re also working with SecureBio and Accenture as evaluators, and are in early discussions with several other organizations, including Hugging Face.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C7\",\n          \"statement\": \"تطور Anthropic ثلاث مستويات من الوصول للمقيمين المستقلين، مع منح أعلى مستوى وصول وحقوق نشر لفريق METR حالياً.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"ongoing\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S4.B3\"\n              ],\n              \"quote\": \"We’re developing three tiers of access for evaluators. Over time, we hope to have several evaluators at the third tier, with each team publishing their own analysis of our risk posture and key decisions. ... The third tier is the arrangement we’ve described with METR, with employee-like access and publication rights similar to those of the second tier.\"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      \"id\": \"D3\",\n      \"occurrence\": \"Replit تعتمد OpenAI شريكاً مفضلاً بدلاً من Anthropic وتغير النموذج الافتراضي\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C8\",\n          \"statement\": \"أعلن الرئيس التنفيذي لمنصة Replit أن الشركة لم تعد تتعاون مع Anthropic، وأن OpenAI أصبح الشريك المفضل لتشغيل وكيل Replit Agent، وذلك بناءً على الأداء والتكلفة وقوة الشراكة.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"completed\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S3.B1\"\n              ],\n              \"quote\": \"Replit, the AI coding platform ... is no longer working with Anthropic, the company’s CEO and co-founder Amjad Masad said Thursday while onstage at TechCrunch Disrupt. ... 'I think ChatGPT is better now,' Masad said ... 'It was a decision based on both cost, partnership, and performance. And for all these reasons, we just felt like they were a better partner for now.'\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C9\",\n          \"statement\": \"لا تزال نماذج Anthropic متاحة للعملاء، لكن OpenAI أصبح الخيار الافتراضي، ما قد يقلل بشكل كبير من إنفاق Replit مع Anthropic.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"ongoing\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S3.B1\"\n              ],\n              \"quote\": \"After Disrupt, Masad clarified that customers can still access Anthropic models on the platform, but that OpenAI’s ChatGPT is now the default. This shift could significantly reduce Replit’s spend with Anthropic since most customers stick with the default rather than selecting a model themselves.\"\n            }\n          ]\n        },\n        {\n          \"id\": \"C10\",\n          \"statement\": \"هناك تضارب في التصريحات حول استمرار الشراكة، حيث أشار مصدر مطلع إلى أن الشراكة لا تزال قائمة، وتظهر أدلة حديثة على استمرار استخدام منتجات Anthropic في المنصة.\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"ongoing\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S3.B2\"\n              ],\n              \"quote\": \"Masad’s comments onstage were rejected by insiders familiar with the partnership between Anthropic and Replit. One person familiar, who asked not to be named, said the partnership was still in place. There is evidence on the company’s website, blog posts, and social media posts that Replit was promoting Anthropic products as recently as a few weeks ago.\"\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\n        \"S2\"\n      ],\n      \"why\": \"يغطي المصدر S2 نفس التطورات الجوهرية حول صندوق المنفعة العامة لـ Anthropic كما في S1، دون إضافة تفاصيل استراتيجية أو قرارات مستقلة جديدة.\"\n    }\n  ]\n}",
+        "inputTokens": 4282,
+        "outputTokens": 2608,
+        "costUsd": 0.029428,
+        "finishReason": "stop"
+      },
+      "wallMs": 13401,
+      "costUsd": 0.029428,
+      "reservedUsd": 0.075206,
+      "generationId": "gen-1793748167-NuYL40EEUuMz7CBF0DvP",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:25",
+      "caseId": "casualty-update-en",
+      "variant": "v7",
+      "stage": "editor",
+      "requestHash": "771371ae5e01fac8ca1da2e7ec68ae5a5e05f925fa110be105b72db135932861",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\"items\":[{\"headline\":\"Jordanian government: 6 killed and 28 injured in attack during funeral at church in Karak\",\"body\":\"The official spokesperson reported 6 deaths and 28 injuries from a criminal incident during a funeral at a church in Karak province.\",\"sources\":[\"S2\"],\"relation\":\"new\",\"updates\":null,\"importance\":1}],\"left_out\":[{\"sources\":[\"S1\"],\"why\":\"higher casualty count than official update; official figures preferred\"},{\"sources\":[\"S3\"],\"why\":\"repeat; no material change beyond previously reported video of attack\"}]}",
+        "inputTokens": 1220,
+        "outputTokens": 119,
+        "costUsd": 0.003392,
+        "finishReason": "stop"
+      },
+      "wallMs": 1433,
+      "costUsd": 0.003392,
+      "reservedUsd": 0.044053999999999996,
+      "generationId": "gen-1793748182-Ogok1SfOJFCbiYh2w4nw",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:26",
+      "caseId": "casualty-update-en",
+      "variant": "v7",
+      "stage": "verifier",
+      "requestHash": "e56b6d9de0fa2972c00b50cc81178ebefc2d8bd6dafe68cd40e04c21cf113608",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"fix\",\"issues\":[\"The headline and body claim '6 killed and 28 injured' citing source S2, but S2 only confirms '6 killed' and does not mention '28 injured'. The number of injured is not supported by the cited source.\"]}]}",
+        "inputTokens": 824,
+        "outputTokens": 66,
+        "costUsd": 0.0004352,
+        "finishReason": "stop"
+      },
+      "wallMs": 1300,
+      "costUsd": 0.0004352,
+      "reservedUsd": 0.0065308,
+      "generationId": "gen-1793748186-XmcphnSaA8ZKUmTW0EO6",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:27",
+      "caseId": "casualty-update-en",
+      "variant": "v7",
+      "stage": "repair",
+      "requestHash": "d2f9d8f7df58cd9787c83f2b67c07f37c9126f9ae939994c3a567744af1f440b",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"items\":[{\"i\":0,\"headline\":\"Jordanian government: 6 killed in attack during funeral in Karak\",\"body\":\"The official spokesperson reported 6 deaths from a criminal incident during a funeral in Karak province.\",\"drop\":false}]}",
+        "inputTokens": 435,
+        "outputTokens": 52,
+        "costUsd": 0.001286,
+        "finishReason": "stop"
+      },
+      "wallMs": 1085,
+      "costUsd": 0.001286,
+      "reservedUsd": 0.028978,
+      "generationId": "gen-1793748189-T2HcNfi9kcudknWiqUXO",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:28",
+      "caseId": "casualty-update-en",
+      "variant": "v7",
+      "stage": "recheck",
+      "requestHash": "d31cd02dafc6bfdfeab904eaec088c2bdfb749b14644b97b02471ebd1861cf01",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 968,
+        "outputTokens": 18,
+        "costUsd": 0.000416,
+        "finishReason": "stop"
+      },
+      "wallMs": 911,
+      "costUsd": 0.000416,
+      "reservedUsd": 0.0068119999999999995,
+      "generationId": "gen-1793748193-qflTWaxbRK2tePyn8Ris",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:29",
+      "caseId": "casualty-update-en",
+      "variant": "evidence-first-v1",
+      "stage": "editor",
+      "requestHash": "74f8b7d6a561fea25ab6575f7b71a8e4971f3d2d82e82769380d245aacde564c",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"developmentId\": \"D1\",\n      \"headline\": \"Jordanian government: 6 killed, 28 injured in Karak church funeral attack\",\n      \"body\": \"The Jordanian government spokesperson reported that 6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate.\"\n    }\n  ],\n  \"developments\": [\n    {\n      \"id\": \"D1\",\n      \"occurrence\": \"Jordanian government spokesperson announced that 6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate.\",\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C1\",\n          \"statement\": \"6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate, according to the Jordanian government spokesperson.\",\n          \"conditions\": [],\n          \"attribution\": \"Jordanian government spokesperson\",\n          \"uncertainty\": null,\n          \"temporalStatus\": \"reported\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S2.B1\"\n              ],\n              \"quote\": \"🔴 الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجــ ـرامي الذي وقع خلال جنازة بمحافظة الكرك\"\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\n        \"S1\"\n      ],\n      \"why\": \"Earlier, less precise casualty figures (at least 7 dead) superseded by official government update.\"\n    },\n    {\n      \"sources\": [\n        \"S3\"\n      ],\n      \"why\": \"Video evidence of the attack's occurrence already covered in previous briefing; no new details or casualty information.\"\n    }\n  ]\n}",
+        "inputTokens": 1366,
+        "outputTokens": 415,
+        "costUsd": 0.006052,
+        "finishReason": "stop"
+      },
+      "wallMs": 3064,
+      "costUsd": 0.006052,
+      "reservedUsd": 0.044026,
+      "generationId": "gen-1793748195-Lm76Eqqc4Ukr9jPYrt2l",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:30",
+      "caseId": "casualty-update-en",
+      "variant": "evidence-first-v1",
+      "stage": "verifier",
+      "requestHash": "9e809f3255e787f345fc296904b0cbcf75ed0e8873078a061c0113df4c101529",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]}],\"coverage\":{\"status\":\"complete\",\"issues\":[]}}",
+        "inputTokens": 1799,
+        "outputTokens": 27,
+        "costUsd": 0.0007628,
+        "finishReason": "stop"
+      },
+      "wallMs": 858,
+      "costUsd": 0.0007628,
+      "reservedUsd": 0.007981599999999998,
+      "generationId": "gen-1793748200-ypUr0FKV3trJat5FsEOM",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:31",
+      "caseId": "casualty-update-en",
+      "variant": "v4",
+      "stage": "editor",
+      "requestHash": "7038e53e1711772667a7e765b1e5dc958047e0fad1ee4823434a95334670963a",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"Jordanian government reports 6 killed, 28 injured in Karak church attack\",\n      \"body\": \"The official government spokesperson stated that the incident occurred during a funeral in Karak governorate.\",\n      \"sources\": [\"S2\"],\n      \"relation\": \"update\",\n      \"updates\": \"74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8\",\n      \"importance\": 1\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S1\"],\n      \"why\": \"contradicts official casualty figures; official update prioritized\"\n    },\n    {\n      \"sources\": [\"S3\"],\n      \"why\": \"repeat of already told item\"\n    }\n  ]\n}",
+        "inputTokens": 1988,
+        "outputTokens": 184,
+        "costUsd": 0.005448,
+        "finishReason": "stop"
+      },
+      "wallMs": 1791,
+      "costUsd": 0.005448,
+      "reservedUsd": 0.05126,
+      "generationId": "gen-1793748203-QwesD2I1om8YSmNth04T",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:32",
+      "caseId": "casualty-update-en",
+      "variant": "v4",
+      "stage": "verifier",
+      "requestHash": "08d80b59cce78a7c26bf7b274813467146c922522f77c6f1314165243d4e85a4",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"fix\",\"issues\":[\"28 injured -> The source states 6 killed and 28 injured, but the source text snippet only explicitly mentions 6 killed; the number 28 injured is implied but not directly quoted in the provided excerpt. The item should clarify or directly quote the source to support '28 injured'.\"]}]}",
+        "inputTokens": 1224,
+        "outputTokens": 76,
+        "costUsd": 0.0006112,
+        "finishReason": "stop"
+      },
+      "wallMs": 1107,
+      "costUsd": 0.0006112,
+      "reservedUsd": 0.007292399999999999,
+      "generationId": "gen-1793748207-uYwaAyxNzneX55Ab0C1N",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:33",
+      "caseId": "casualty-update-en",
+      "variant": "v4",
+      "stage": "repair",
+      "requestHash": "602ef3a3d1755200650c5e7fcc5cae0d973ead359df4e371a0a8c6191e552c50",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"items\":[{\"i\":0,\"headline\":\"Jordanian government reports 6 killed in Karak funeral incident\",\"body\":\"The official government spokesperson stated that the incident occurred during a funeral in Karak governorate.\",\"drop\":false}]}",
+        "inputTokens": 615,
+        "outputTokens": 49,
+        "costUsd": 0.001622,
+        "finishReason": "stop"
+      },
+      "wallMs": 917,
+      "costUsd": 0.001622,
+      "reservedUsd": 0.030972,
+      "generationId": "gen-1793748210-IQUFwps5sqD8nFXu1emj",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:34",
+      "caseId": "casualty-update-en",
+      "variant": "v4",
+      "stage": "recheck",
+      "requestHash": "cb3bb6673a1bf7259050f985bf63a0f68fb549563042b6ab8239409aea028de1",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"fix\",\"issues\":[\"headline: '6 killed' -> source states '6 قتلى' (6 killed) which is correct; however, the previous item included '28 injured' which is also in the source text snippet ('28 جريحاً'), so the headline should mention both '6 killed and 28 injured' to fully reflect the source. The current headline omits '28 injured', which is supported by the source.\"]}]}",
+        "inputTokens": 1376,
+        "outputTokens": 101,
+        "costUsd": 0.0004048,
+        "finishReason": "stop"
+      },
+      "wallMs": 1388,
+      "costUsd": 0.0004048,
+      "reservedUsd": 0.007607599999999999,
+      "generationId": "gen-1793748213-4OzdKOP8iXTjIAb9oMVY",
+      "cachedInputTokens": 1024
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:35",
+      "caseId": "casualty-update-ar",
+      "variant": "evidence-first-v1",
+      "stage": "editor",
+      "requestHash": "9616c8531d99a759b105599aec51e1d04ed4d2779fae79d2e5180b3cc9aa16b0",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"developmentId\": \"D1\",\n      \"headline\": \"الحكومة الأردنية: 6 قتلى و28 جريحاً في حادث إطلاق نار خلال جنازة بمحافظة الكرك\",\n      \"body\": \"أعلن الناطق باسم الحكومة الأردنية أن حصيلة الحادث الإجرامي الذي وقع خلال جنازة في محافظة الكرك بلغت 6 قتلى و28 جريحاً.\"\n    }\n  ],\n  \"developments\": [\n    {\n      \"id\": \"D1\",\n      \"occurrence\": \"الناطق باسم الحكومة الأردنية أعلن أن حصيلة الحادث الإجرامي الذي وقع خلال جنازة بمحافظة الكرك بلغت 6 قتلى و28 جريحاً.\",\n      \"relation\": \"update\",\n      \"updates\": null,\n      \"importance\": 1,\n      \"essentialClaims\": [\n        {\n          \"id\": \"C1\",\n          \"statement\": \"الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجرامي الذي وقع خلال جنازة بمحافظة الكرك\",\n          \"conditions\": [],\n          \"attribution\": null,\n          \"uncertainty\": null,\n          \"temporalStatus\": \"reported\",\n          \"time\": null,\n          \"evidence\": [\n            {\n              \"passages\": [\n                \"S2.B1\"\n              ],\n              \"quote\": \"🔴 الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجــ ـرامي الذي وقع خلال جنازة بمحافظة الكرك\"\n            }\n          ]\n        }\n      ]\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\n        \"S1\"\n      ],\n      \"why\": \"تغطية عدد القتلى في S1 تم تحديثها بمعلومات رسمية أكثر دقة في S2.\"\n    },\n    {\n      \"sources\": [\n        \"S3\"\n      ],\n      \"why\": \"لا يحتوي على تطورات جديدة أو تفاصيل إضافية عن الإصابات أو الضحايا مقارنة بالتغطية السابقة.\"\n    }\n  ]\n}",
+        "inputTokens": 1366,
+        "outputTokens": 437,
+        "costUsd": 0.006228,
+        "finishReason": "stop"
+      },
+      "wallMs": 2958,
+      "costUsd": 0.006228,
+      "reservedUsd": 0.044026,
+      "generationId": "gen-1793748217-roTFgEOJ0QWoUmec4uQ8",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:36",
+      "caseId": "casualty-update-ar",
+      "variant": "v4",
+      "stage": "editor",
+      "requestHash": "b02f36f40f154942fdb9c77ae76335fe3d044961ed9a9157119cd135ca60dd36",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"الحكومة الأردنية: 6 قتلى و28 جريحاً في حادث إطلاق نار خلال جنازة في الكرك\",\n      \"body\": \"\",\n      \"sources\": [\"S2\"],\n      \"relation\": \"update\",\n      \"updates\": \"74cf072e7e3426857b00d27c748f55fd874d7047fc1243d2379b182fe1e9b5b8\",\n      \"importance\": 1\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S1\"],\n      \"why\": \"حصيلة غير رسمية أقل دقة من بيان الحكومة\"\n    },\n    {\n      \"sources\": [\"S3\"],\n      \"why\": \"تكرار لمقطع الفيديو المبلغ عنه سابقاً\"\n    }\n  ]\n}",
+        "inputTokens": 1988,
+        "outputTokens": 181,
+        "costUsd": 0.005424,
+        "finishReason": "stop"
+      },
+      "wallMs": 1628,
+      "costUsd": 0.005424,
+      "reservedUsd": 0.051258,
+      "generationId": "gen-1793748222-uyYy0m0Il79N69jejTEt",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:37",
+      "caseId": "casualty-update-ar",
+      "variant": "v4",
+      "stage": "verifier",
+      "requestHash": "53674a7c62f0fbb4221f99bdc0157f310689064bca2e13b4da882ea6942de121",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 1201,
+        "outputTokens": 18,
+        "costUsd": 0.0005092,
+        "finishReason": "stop"
+      },
+      "wallMs": 925,
+      "costUsd": 0.0005092,
+      "reservedUsd": 0.0072476,
+      "generationId": "gen-1793748225-iEGpOhdDk8NOnQYo0RDe",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:38",
+      "caseId": "casualty-update-ar",
+      "variant": "v7",
+      "stage": "editor",
+      "requestHash": "0179fac6815cb402f1e1f62181f14281a62df9c6f2497f5bb1dc5073e81b4298",
+      "model": "openai/gpt-4.1",
+      "maxTokens": 4000,
+      "response": {
+        "text": "{\n  \"items\": [\n    {\n      \"headline\": \"الحكومة الأردنية: 6 قتلى و28 جريحاً في حادث إطلاق نار خلال جنازة في كنيسة بالكرك\",\n      \"body\": \"\",\n      \"sources\": [\"S2\"],\n      \"relation\": \"new\",\n      \"updates\": null,\n      \"importance\": 1\n    }\n  ],\n  \"left_out\": [\n    {\n      \"sources\": [\"S1\"],\n      \"why\": \"أرقام ضحايا مختلفة؛ تم اختيار التصريح الرسمي الأحدث\"\n    },\n    {\n      \"sources\": [\"S3\"],\n      \"why\": \"تكرار لمقطع فيديو الهجوم دون تفاصيل جديدة\"\n    }\n  ]\n}",
+        "inputTokens": 1220,
+        "outputTokens": 148,
+        "costUsd": 0.003624,
+        "finishReason": "stop"
+      },
+      "wallMs": 1463,
+      "costUsd": 0.003624,
+      "reservedUsd": 0.044052,
+      "generationId": "gen-1793748228-kRnr7LFqGqxxo2kdbK7L",
+      "cachedInputTokens": 0
+    },
+    {
+      "id": "evidence-ef85ba9926bc1af319:39",
+      "caseId": "casualty-update-ar",
+      "variant": "v7",
+      "stage": "verifier",
+      "requestHash": "c3a99f977fdef28c74e3c004c023cac6032dc6e84ac0ae279854b6c18a89f8c6",
+      "model": "openai/gpt-4.1-mini",
+      "maxTokens": 3000,
+      "response": {
+        "text": "{\"results\":[{\"i\":0,\"verdict\":\"ok\",\"issues\":[]}]}",
+        "inputTokens": 791,
+        "outputTokens": 18,
+        "costUsd": 0.0003452,
+        "finishReason": "stop"
+      },
+      "wallMs": 1039,
+      "costUsd": 0.0003452,
+      "reservedUsd": 0.0064751999999999995,
+      "generationId": "gen-1793748232-43A16pOmzN7VaPaug1st",
+      "cachedInputTokens": 0
+    }
+  ],
+  "pipelines": [
+    {
+      "caseId": "lebanon-roundup-en",
+      "variant": "v4",
+      "evidenceHash": "5eb5747de9d4694c8fe22544792c222e51c483a2be136c077ada90115451b4a6",
+      "wallMs": 9262.8413,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Lebanon's state electricity company to cut power to public entities with unpaid bills from November 2",
+            "body": "The board of Electricité du Liban decided to disconnect electricity supply to government departments, public institutions, and independent agencies that have not settled their dues, starting November 2.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ]
+          },
+          {
+            "headline": "Israeli airstrike reported near Barashit, southern Lebanon",
+            "body": "An Israeli air raid reportedly targeted the outskirts of Barashit, near Kounin, in southern Lebanon. No details on casualties or damage were provided.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+            ]
+          },
+          {
+            "headline": "Large explosion reported in Qantara, southern Lebanon",
+            "body": "A major explosion attributed to Israeli forces was reported in the town of Qantara, southern Lebanon. No further details were given.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "6e70783f-0769-4ab9-a519-93d270aec4c2",
+              "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+            ]
+          },
+          {
+            "headline": "Israeli regional council announces imminent airstrikes on Lebanese front",
+            "body": "The Upper Galilee Regional Council stated that airstrikes on the Lebanese front will be launched in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "attack in Jordan, not Lebanon",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57",
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "repeat of already told item",
+            "sourceIds": [
+              "e640d1b3-d69c-450f-9745-0542dfc3adad"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "minor incident abroad",
+            "sourceIds": [
+              "f619024d-bab6-4a88-8d82-31222f97521d"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "repeat of already told item",
+            "sourceIds": [
+              "545f5560-9ac3-42e6-8531-957d9fe10af9"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "off-topic, not Lebanon",
+            "sourceIds": [
+              "3c52259a-6f75-4df0-a273-0f8574ec0557",
+              "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+              "69c9f685-3339-4057-ba7e-07678a33816e",
+              "1e764cd1-5749-4428-8449-8e09d5e86751"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 5899,
+          "outputTokens": 562,
+          "costUsd": 0.012549999999999999
+        },
+        "timings": {
+          "totalMs": 9262,
+          "stages": {
+            "edit": 5948,
+            "verify": 3276
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 143
+    },
+    {
+      "caseId": "lebanon-roundup-en",
+      "variant": "v7",
+      "evidenceHash": "5eb5747de9d4694c8fe22544792c222e51c483a2be136c077ada90115451b4a6",
+      "wallMs": 9119.694000000001,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Lebanon's state electricity company to cut power to public entities behind on payments starting November 2",
+            "body": "The board of Electricité du Liban decided to disconnect electricity supply to government administrations, public institutions, and independent agencies that have not paid their dues, effective November 2.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ]
+          },
+          {
+            "headline": "Israeli airstrike targets outskirts of Barashit near Kounin in southern Lebanon",
+            "body": "",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+            ]
+          },
+          {
+            "headline": "Large explosion reported in Qantara, southern Lebanon, attributed to Israeli forces",
+            "body": "",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "6e70783f-0769-4ab9-a519-93d270aec4c2"
+            ]
+          },
+          {
+            "headline": "Israeli regional council announces imminent airstrikes on Lebanese front",
+            "body": "The Upper Galilee Regional Council stated that airstrikes will be launched on the Lebanese front in the coming hours, warning residents about expected explosions and aircraft noise.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "off-topic; developments concern Jordan, not Lebanon",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57",
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "repeat; Israeli military drills already covered",
+            "sourceIds": [
+              "e640d1b3-d69c-450f-9745-0542dfc3adad"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "off-topic; incident in China unrelated to Lebanon",
+            "sourceIds": [
+              "f619024d-bab6-4a88-8d82-31222f97521d"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "repeat; Brent crude price already covered",
+            "sourceIds": [
+              "545f5560-9ac3-42e6-8531-957d9fe10af9"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "repeat; explosion in Qantara already covered",
+            "sourceIds": [
+              "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "off-topic; developments concern Iran, US, Europe, not Lebanon",
+            "sourceIds": [
+              "3c52259a-6f75-4df0-a273-0f8574ec0557",
+              "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+              "1e764cd1-5749-4428-8449-8e09d5e86751"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "off-topic; attack in Saudi Arabia, not Lebanon",
+            "sourceIds": [
+              "69c9f685-3339-4057-ba7e-07678a33816e"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 4568,
+          "outputTokens": 578,
+          "costUsd": 0.010916799999999999
+        },
+        "timings": {
+          "totalMs": 9119,
+          "stages": {
+            "edit": 5698,
+            "verify": 3413
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 102
+    },
+    {
+      "caseId": "lebanon-roundup-en",
+      "variant": "evidence-first-v1",
+      "evidenceHash": "5eb5747de9d4694c8fe22544792c222e51c483a2be136c077ada90115451b4a6",
+      "wallMs": 12461.630000000001,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Lebanon's electricity company to cut power to public entities behind on payments from November 2",
+            "body": "The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ]
+          },
+          {
+            "headline": "Israeli airstrike targets outskirts of Barashit near Kounin in southern Lebanon",
+            "body": "An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+            ]
+          },
+          {
+            "headline": "Large explosion reported in Qantara shakes southern Lebanon",
+            "body": "A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "6e70783f-0769-4ab9-a519-93d270aec4c2"
+            ]
+          },
+          {
+            "headline": "Israeli regional council announces imminent airstrikes on Lebanese front",
+            "body": "The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57",
+              "e640d1b3-d69c-450f-9745-0542dfc3adad",
+              "f619024d-bab6-4a88-8d82-31222f97521d",
+              "545f5560-9ac3-42e6-8531-957d9fe10af9",
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c",
+              "b2ea311c-7b1b-4f0c-b313-593d2d1d437a",
+              "3c52259a-6f75-4df0-a273-0f8574ec0557",
+              "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+              "69c9f685-3339-4057-ba7e-07678a33816e",
+              "1e764cd1-5749-4428-8449-8e09d5e86751"
+            ],
+            "reason": "No new or significant developments directly affecting Lebanon's politics, government, security, economy, banking, public services, electricity, infrastructure, or major social developments within the specified window."
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 10797,
+          "outputTokens": 1349,
+          "costUsd": 0.022002
+        },
+        "timings": {
+          "totalMs": 12460,
+          "stages": {
+            "editor": 9177,
+            "verifier": 3267
+          }
+        },
+        "evidenceAgent": {
+          "architecture": "evidence-first-v1",
+          "semanticTruthEstablished": false,
+          "developments": [
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D1",
+                "occurrence": "The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2.",
+                "relation": "new",
+                "updates": null,
+                "importance": 2,
+                "essentialClaims": [
+                  {
+                    "id": "C1",
+                    "statement": "The board of Electricité du Liban decided to cut electricity supply to government administrations, public institutions, and independent agencies that have failed to pay their dues, starting November 2.",
+                    "conditions": [],
+                    "attribution": null,
+                    "uncertainty": null,
+                    "temporalStatus": "planned",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S14.B1"
+                        ],
+                        "quote": "مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D2",
+                "occurrence": "An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon.",
+                "relation": "new",
+                "updates": null,
+                "importance": 2,
+                "essentialClaims": [
+                  {
+                    "id": "C2",
+                    "statement": "An Israeli warplane conducted an airstrike on the outskirts of Barashit, towards Kounin, in southern Lebanon.",
+                    "conditions": [],
+                    "attribution": null,
+                    "uncertainty": null,
+                    "temporalStatus": "reported",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S10.B1"
+                        ],
+                        "quote": "غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D3",
+                "occurrence": "A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon.",
+                "relation": "new",
+                "updates": null,
+                "importance": 2,
+                "essentialClaims": [
+                  {
+                    "id": "C3",
+                    "statement": "A large explosion, attributed to Israeli forces, occurred in the town of Qantara, shaking the surrounding area in southern Lebanon.",
+                    "conditions": [],
+                    "attribution": null,
+                    "uncertainty": null,
+                    "temporalStatus": "reported",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S7.B1"
+                        ],
+                        "quote": "تفجير ضخم نفذه العدو الإســـرائيلي في بلدة القنطرة\nهز جنوب لبنان"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D4",
+                "occurrence": "The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.",
+                "relation": "new",
+                "updates": null,
+                "importance": 2,
+                "essentialClaims": [
+                  {
+                    "id": "C4",
+                    "statement": "The Upper Galilee Regional Council announced that airstrikes will be launched on the Lebanese front in the coming hours, warning residents that explosions and aircraft noise will be heard throughout the area.",
+                    "conditions": [],
+                    "attribution": null,
+                    "uncertainty": null,
+                    "temporalStatus": "planned",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S13.B1"
+                        ],
+                        "quote": "المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة."
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "proofs": [
+            {
+              "ref": "S14",
+              "sourceId": "7951d27e-8979-4bfa-b3fe-9b20d87855db",
+              "field": "body",
+              "start": 3,
+              "end": 171,
+              "quote": "مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني",
+              "digest": "4c8514755e5a23a2f137f4f5881d2e0f99dd2960d64e3e7d1d277f7da020e22d"
+            },
+            {
+              "ref": "S10",
+              "sourceId": "63bdd3de-7a11-4674-8fc7-c5a826b53836",
+              "field": "body",
+              "start": 3,
+              "end": 65,
+              "quote": "غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين",
+              "digest": "1150af7be6d169edad109545341157e741bf9c769d3f60fb2f0ee38a0fe02319"
+            },
+            {
+              "ref": "S7",
+              "sourceId": "6e70783f-0769-4ab9-a519-93d270aec4c2",
+              "field": "body",
+              "start": 2,
+              "end": 66,
+              "quote": "تفجير ضخم نفذه العدو الإســـرائيلي في بلدة القنطرة\nهز جنوب لبنان",
+              "digest": "daf9565cbd267c0f02ac2010c553c34606b63984e7b484ce406b5934a8e1e808"
+            },
+            {
+              "ref": "S13",
+              "sourceId": "d54d92e1-3175-4465-8f47-09031a4de464",
+              "field": "body",
+              "start": 2,
+              "end": 150,
+              "quote": "المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.",
+              "digest": "9bdd4d1bd53c6981be21001934615b478aba80b5615637d90e25117080482fe2"
+            }
+          ],
+          "reviews": [
+            {
+              "stage": "verifier",
+              "itemDevelopmentIds": [
+                "D1",
+                "D2",
+                "D3",
+                "D4"
+              ],
+              "result": {
+                "results": [
+                  {
+                    "i": 0,
+                    "verdict": "ok",
+                    "issues": []
+                  },
+                  {
+                    "i": 1,
+                    "verdict": "ok",
+                    "issues": []
+                  },
+                  {
+                    "i": 2,
+                    "verdict": "ok",
+                    "issues": []
+                  },
+                  {
+                    "i": 3,
+                    "verdict": "ok",
+                    "issues": []
+                  }
+                ],
+                "coverage": {
+                  "status": "complete",
+                  "issues": []
+                }
+              }
+            }
+          ],
+          "diagnostics": [],
+          "toolUsage": {
+            "reads": 18,
+            "returnedChars": 14193
+          },
+          "acceptedDevelopmentIds": [
+            "D1",
+            "D2",
+            "D3",
+            "D4"
+          ]
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 140
+    },
+    {
+      "caseId": "lebanon-roundup-ar",
+      "variant": "v7",
+      "evidenceHash": "dd8eb0da38f1348a36c4d78a3b66ef59ff2ad006cd23b83dac6aab2eb86bf42e",
+      "wallMs": 8854.4948,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "مؤسسة كهرباء لبنان تقرر قطع الكهرباء عن الإدارات والمؤسسات العامة المتخلفة عن الدفع ابتداءً من 2 تشرين الثاني",
+            "body": "مجلس إدارة مؤسسة كهرباء لبنان قرر وقف التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي لم تسدد مستحقاتها، وذلك اعتباراً من 2 تشرين الثاني.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ]
+          },
+          {
+            "headline": "غارة جوية إسرائيلية استهدفت أطراف بلدة برعشيت جنوب لبنان",
+            "body": "أفادت مصادر عن تنفيذ غارة حربية إسرائيلية على أطراف بلدة برعشيت باتجاه كونين في جنوب لبنان.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+            ]
+          },
+          {
+            "headline": "تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة جنوب لبنان",
+            "body": "وقع تفجير كبير في بلدة القنطرة جنوب لبنان ونُسب إلى الجيش الإسرائيلي.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "6e70783f-0769-4ab9-a519-93d270aec4c2",
+              "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+            ]
+          },
+          {
+            "headline": "المجلس الإقليمي للجليل الأعلى يعلن عن غارات جوية مرتقبة على الجبهة اللبنانية خلال ساعات",
+            "body": "أعلن المجلس الإقليمي للجليل الأعلى أن غارات جوية ستُشن على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في المنطقة.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "أحداث في الأردن؛ خارج نطاق الاهتمام المباشر بلبنان",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57",
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "تكرار أو تأكيد لمعلومات سبق إبلاغها",
+            "sourceIds": [
+              "e640d1b3-d69c-450f-9745-0542dfc3adad",
+              "545f5560-9ac3-42e6-8531-957d9fe10af9"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "حدث فردي في الصين؛ لا يحمل أهمية مباشرة للبنان",
+            "sourceIds": [
+              "f619024d-bab6-4a88-8d82-31222f97521d"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "تطورات تخص إيران أو السعودية أو السياسة الدولية؛ ليست ذات صلة مباشرة بلبنان",
+            "sourceIds": [
+              "3c52259a-6f75-4df0-a273-0f8574ec0557",
+              "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+              "69c9f685-3339-4057-ba7e-07678a33816e",
+              "1e764cd1-5749-4428-8449-8e09d5e86751"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 4762,
+          "outputTokens": 627,
+          "costUsd": 0.0113864
+        },
+        "timings": {
+          "totalMs": 8854,
+          "stages": {
+            "edit": 5569,
+            "verify": 3279
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 129
+    },
+    {
+      "caseId": "lebanon-roundup-ar",
+      "variant": "evidence-first-v1",
+      "evidenceHash": "dd8eb0da38f1348a36c4d78a3b66ef59ff2ad006cd23b83dac6aab2eb86bf42e",
+      "wallMs": 12138.585400000004,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "مؤسسة كهرباء لبنان تقرر قطع التيار عن المؤسسات العامة المتخلفة عن السداد بدءاً من 2 تشرين الثاني",
+            "body": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتباراً من 2 تشرين الثاني.",
+            "relation": "new",
+            "importance": 3,
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ]
+          },
+          {
+            "headline": "تفجير إسرائيلي ضخم يهز بلدة القنطرة جنوب لبنان",
+            "body": "وقع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة، ما أدى إلى هز جنوب لبنان.",
+            "relation": "new",
+            "importance": 3,
+            "sourceIds": [
+              "6e70783f-0769-4ab9-a519-93d270aec4c2"
+            ]
+          },
+          {
+            "headline": "غارة جوية إسرائيلية تستهدف أطراف بلدة برعشيت باتجاه كونين",
+            "body": "نفذت طائرات حربية إسرائيلية غارة استهدفت أطراف بلدة برعشيت لجهة كونين.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+            ]
+          },
+          {
+            "headline": "المجلس الإقليمي للجليل الأعلى يعلن عن غارات جوية مرتقبة على الجبهة اللبنانية خلال ساعات",
+            "body": "أعلن المجلس الإقليمي للجليل الأعلى عن شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57",
+              "e640d1b3-d69c-450f-9745-0542dfc3adad",
+              "f619024d-bab6-4a88-8d82-31222f97521d",
+              "545f5560-9ac3-42e6-8531-957d9fe10af9",
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c",
+              "b2ea311c-7b1b-4f0c-b313-593d2d1d437a",
+              "3c52259a-6f75-4df0-a273-0f8574ec0557",
+              "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+              "69c9f685-3339-4057-ba7e-07678a33816e",
+              "1e764cd1-5749-4428-8449-8e09d5e86751"
+            ],
+            "reason": "لا تتعلق بتطورات جديدة أو مؤثرة تخص لبنان بشكل مباشر ضمن مجالات السياسة، الحكومة، الأمن، الاقتصاد، الخدمات العامة، الكهرباء، البنية التحتية أو التطورات الاجتماعية الكبرى خلال نافذة الوقت المحددة."
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 10885,
+          "outputTokens": 1467,
+          "costUsd": 0.0229812
+        },
+        "timings": {
+          "totalMs": 12138,
+          "stages": {
+            "editor": 8784,
+            "verifier": 3340
+          }
+        },
+        "evidenceAgent": {
+          "architecture": "evidence-first-v1",
+          "semanticTruthEstablished": false,
+          "developments": [
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D1",
+                "occurrence": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني",
+                "relation": "new",
+                "updates": null,
+                "importance": 3,
+                "essentialClaims": [
+                  {
+                    "id": "C1",
+                    "statement": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني",
+                    "conditions": [],
+                    "attribution": null,
+                    "uncertainty": null,
+                    "temporalStatus": "planned",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S14.B1"
+                        ],
+                        "quote": "مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D2",
+                "occurrence": "وقع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة، ما أدى إلى هز جنوب لبنان",
+                "relation": "new",
+                "updates": null,
+                "importance": 3,
+                "essentialClaims": [
+                  {
+                    "id": "C2",
+                    "statement": "تفجير ضخم نفذه العدو الإسرائيلي في بلدة القنطرة هز جنوب لبنان",
+                    "conditions": [],
+                    "attribution": null,
+                    "uncertainty": null,
+                    "temporalStatus": "reported",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S7.B1"
+                        ],
+                        "quote": "تفجير ضخم نفذه العدو الإســـرائيلي في بلدة القنطرة\nهز جنوب لبنان"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D3",
+                "occurrence": "نفذت طائرات حربية إسرائيلية غارة استهدفت أطراف بلدة برعشيت لجهة كونين",
+                "relation": "new",
+                "updates": null,
+                "importance": 2,
+                "essentialClaims": [
+                  {
+                    "id": "C3",
+                    "statement": "غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين",
+                    "conditions": [],
+                    "attribution": null,
+                    "uncertainty": null,
+                    "temporalStatus": "reported",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S10.B1"
+                        ],
+                        "quote": "غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D4",
+                "occurrence": "أعلن المجلس الإقليمي للجليل الأعلى عن شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة",
+                "relation": "new",
+                "updates": null,
+                "importance": 2,
+                "essentialClaims": [
+                  {
+                    "id": "C4",
+                    "statement": "المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.",
+                    "conditions": [],
+                    "attribution": null,
+                    "uncertainty": null,
+                    "temporalStatus": "planned",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S13.B1"
+                        ],
+                        "quote": "المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة."
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "proofs": [
+            {
+              "ref": "S14",
+              "sourceId": "7951d27e-8979-4bfa-b3fe-9b20d87855db",
+              "field": "body",
+              "start": 3,
+              "end": 171,
+              "quote": "مجلس إدارة مؤسسة كهرباء لبنان قرّر قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي تخلّفت عن تسديد مستحقاتها اعتبارا من 2 تشرين الثاني",
+              "digest": "4c8514755e5a23a2f137f4f5881d2e0f99dd2960d64e3e7d1d277f7da020e22d"
+            },
+            {
+              "ref": "S7",
+              "sourceId": "6e70783f-0769-4ab9-a519-93d270aec4c2",
+              "field": "body",
+              "start": 2,
+              "end": 66,
+              "quote": "تفجير ضخم نفذه العدو الإســـرائيلي في بلدة القنطرة\nهز جنوب لبنان",
+              "digest": "daf9565cbd267c0f02ac2010c553c34606b63984e7b484ce406b5934a8e1e808"
+            },
+            {
+              "ref": "S10",
+              "sourceId": "63bdd3de-7a11-4674-8fc7-c5a826b53836",
+              "field": "body",
+              "start": 3,
+              "end": 65,
+              "quote": "غارة حربية اســـــرائيلية استهدفت اطراف بلدة برعشيت لجهة كونين",
+              "digest": "1150af7be6d169edad109545341157e741bf9c769d3f60fb2f0ee38a0fe02319"
+            },
+            {
+              "ref": "S13",
+              "sourceId": "d54d92e1-3175-4465-8f47-09031a4de464",
+              "field": "body",
+              "start": 2,
+              "end": 150,
+              "quote": "المجلس الإقليمي للجليل الأعلى : سنشنّ غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، وسيُسمع دوي الانفجارات وأصوات الطائرات في أنحاء المنطقة.",
+              "digest": "9bdd4d1bd53c6981be21001934615b478aba80b5615637d90e25117080482fe2"
+            }
+          ],
+          "reviews": [
+            {
+              "stage": "verifier",
+              "itemDevelopmentIds": [
+                "D1",
+                "D2",
+                "D3",
+                "D4"
+              ],
+              "result": {
+                "results": [
+                  {
+                    "i": 0,
+                    "verdict": "ok",
+                    "issues": []
+                  },
+                  {
+                    "i": 1,
+                    "verdict": "ok",
+                    "issues": []
+                  },
+                  {
+                    "i": 2,
+                    "verdict": "ok",
+                    "issues": []
+                  },
+                  {
+                    "i": 3,
+                    "verdict": "ok",
+                    "issues": []
+                  }
+                ],
+                "coverage": {
+                  "status": "complete",
+                  "issues": []
+                }
+              }
+            }
+          ],
+          "diagnostics": [],
+          "toolUsage": {
+            "reads": 18,
+            "returnedChars": 14193
+          },
+          "acceptedDevelopmentIds": [
+            "D1",
+            "D2",
+            "D3",
+            "D4"
+          ]
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 125
+    },
+    {
+      "caseId": "lebanon-roundup-ar",
+      "variant": "v4",
+      "evidenceHash": "dd8eb0da38f1348a36c4d78a3b66ef59ff2ad006cd23b83dac6aab2eb86bf42e",
+      "wallMs": 9072.484300000004,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "مؤسسة كهرباء لبنان تقرر قطع التيار عن المؤسسات العامة المتخلفة عن الدفع بدءاً من 2 تشرين الثاني",
+            "body": "قرر مجلس إدارة مؤسسة كهرباء لبنان قطع التغذية بالتيار الكهربائي عن الإدارات والمؤسسات العامة والمصالح المستقلة التي لم تسدد مستحقاتها، اعتباراً من 2 تشرين الثاني.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "7951d27e-8979-4bfa-b3fe-9b20d87855db"
+            ]
+          },
+          {
+            "headline": "غارة إسرائيلية استهدفت أطراف بلدة برعشيت جنوب لبنان",
+            "body": "أفادت تقارير عن تنفيذ غارة حربية إسرائيلية على أطراف بلدة برعشيت باتجاه كونين في جنوب لبنان.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "63bdd3de-7a11-4674-8fc7-c5a826b53836"
+            ]
+          },
+          {
+            "headline": "تفجير كبير هز بلدة القنطرة جنوب لبنان",
+            "body": "أفادت تقارير عن وقوع تفجير ضخم نفذه الجيش الإسرائيلي في بلدة القنطرة جنوب لبنان.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "6e70783f-0769-4ab9-a519-93d270aec4c2",
+              "b2ea311c-7b1b-4f0c-b313-593d2d1d437a"
+            ]
+          },
+          {
+            "headline": "المجلس الإقليمي للجليل الأعلى: غارات جوية إسرائيلية مرتقبة على الجبهة اللبنانية خلال ساعات",
+            "body": "أعلن المجلس الإقليمي للجليل الأعلى عن نية شن غارات جوية على الجبهة اللبنانية خلال الساعات المقبلة، مع توقع سماع دوي انفجارات وأصوات طائرات في المنطقة.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "d54d92e1-3175-4465-8f47-09031a4de464"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "حادث أمني في الأردن، خارج نطاق لبنان",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57",
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "تكرار ما أُبلغ به القارئ سابقاً",
+            "sourceIds": [
+              "e640d1b3-d69c-450f-9745-0542dfc3adad"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "حادث فردي خارج لبنان",
+            "sourceIds": [
+              "f619024d-bab6-4a88-8d82-31222f97521d"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "تكرار ما أُبلغ به القارئ سابقاً",
+            "sourceIds": [
+              "545f5560-9ac3-42e6-8531-957d9fe10af9"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "تطورات إقليمية لا تتعلق مباشرة بلبنان",
+            "sourceIds": [
+              "3c52259a-6f75-4df0-a273-0f8574ec0557",
+              "de74a30a-f9f7-4370-ba0c-2bdb05afdc3e",
+              "69c9f685-3339-4057-ba7e-07678a33816e",
+              "1e764cd1-5749-4428-8449-8e09d5e86751"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 5936,
+          "outputTokens": 632,
+          "costUsd": 0.0131248
+        },
+        "timings": {
+          "totalMs": 9070,
+          "stages": {
+            "edit": 5808,
+            "verify": 3260
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 125
+    },
+    {
+      "caseId": "ai-multisource-en",
+      "variant": "evidence-first-v1",
+      "evidenceHash": "d6ed61176a250539ee2705634b657122f095bff95f8c82e3aad98ec4aac19854",
+      "wallMs": 13116.5671,
+      "result": {
+        "status": "rejected",
+        "items": [],
+        "skipped": [],
+        "dropped": [
+          {
+            "headline": "",
+            "reason": "QUOTE_NOT_IN_SOURCE",
+            "sourceIds": [
+              "public-benefit-fund",
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+              "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+              "an-update-on-independent-evaluators"
+            ],
+            "carry": true
+          }
+        ],
+        "omitted": [],
+        "unaccounted": [],
+        "usage": {
+          "calls": 1,
+          "inputTokens": 4282,
+          "outputTokens": 2236,
+          "costUsd": 0.026452
+        },
+        "timings": {
+          "totalMs": 13117,
+          "stages": {
+            "editor": 13113
+          }
+        },
+        "evidenceAgent": {
+          "architecture": "evidence-first-v1",
+          "semanticTruthEstablished": false,
+          "developments": [],
+          "proofs": [],
+          "reviews": [],
+          "diagnostics": [
+            "QUOTE_NOT_IN_SOURCE"
+          ],
+          "toolUsage": {
+            "reads": 9,
+            "returnedChars": 19718
+          },
+          "acceptedDevelopmentIds": []
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 0
+    },
+    {
+      "caseId": "ai-multisource-en",
+      "variant": "v4",
+      "evidenceHash": "d6ed61176a250539ee2705634b657122f095bff95f8c82e3aad98ec4aac19854",
+      "wallMs": 17501.750199999995,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Anthropic grants employee-like access to METR for independent safety evaluation",
+            "body": "Anthropic has begun providing a team from METR, a nonprofit evaluator, with access to internal tools, systems, and information comparable to its own risk assessment teams, excluding certain sensitive categories. METR will publish its risk assessments independently, though Anthropic can require redactions in predefined cases. Anthropic is also working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights. The company aims to embed more independent evaluators over time and is developing a three-tier access structure for such partnerships.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "an-update-on-independent-evaluators"
+            ]
+          },
+          {
+            "headline": "Anthropic to commit 5% of shares to new Public Benefit Fund, with potential for more as company grows",
+            "body": "Anthropic announced the creation of the Anthropic Public Benefit Fund, initially committing 5% of its shares, subject to stockholder approval. The fund's stake will increase by 2% for every 50% rise in company value above a set baseline, at the board's discretion. The fund, structured as a wholly-owned LLC, will support projects for societal good and will not use equity for lobbying or political giving. Combined with prior commitments, about 20% of Anthropic shares will be dedicated to public benefit if the plan is approved. Details on governance and valuation milestones will be released in the coming months.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "public-benefit-fund",
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+            ]
+          },
+          {
+            "headline": "Replit makes OpenAI its default AI provider, reducing spend with Anthropic",
+            "body": "Replit CEO Amjad Masad stated that OpenAI's ChatGPT is now the default model on Replit, citing performance, cost, and partnership factors. While Anthropic models remain available, this change is expected to significantly reduce Replit's spend with Anthropic, as most users use the default. Masad said Replit remains model agnostic, but OpenAI is now the preferred partner for powering Replit Agent. One insider disputed the claim that the partnership ended, saying it was still in place, but recent evidence shows Anthropic models were still promoted on Replit's platform in late September.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "duplicate of S3",
+            "sourceIds": [
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 4,
+          "inputTokens": 12690,
+          "outputTokens": 874,
+          "costUsd": 0.0208312
+        },
+        "timings": {
+          "totalMs": 17501,
+          "stages": {
+            "edit": 7403,
+            "verify": 6721,
+            "repair": 3367
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 311
+    },
+    {
+      "caseId": "ai-multisource-en",
+      "variant": "v7",
+      "evidenceHash": "d6ed61176a250539ee2705634b657122f095bff95f8c82e3aad98ec4aac19854",
+      "wallMs": 10304.8021,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Anthropic grants employee-like access to METR for independent AI risk evaluation",
+            "body": "Anthropic has begun providing a team from the nonprofit METR with access to internal tools, systems, and information comparable to its own risk assessment teams, excluding certain sensitive categories. METR will independently publish risk assessments of Anthropic's models and practices, with Anthropic able to require redactions only for predefined confidential information. Anthropic is also working with SecureBio, Accenture, and others as evaluators, with varying levels of access and publication rights. This move follows Anthropic's commitment to the White House Accord on Super Intelligence and aims to increase transparency and public accountability in AI safety.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "an-update-on-independent-evaluators"
+            ]
+          },
+          {
+            "headline": "Anthropic to commit at least 5% of company shares to new Public Benefit Fund",
+            "body": "Anthropic will allocate 5% of its shares to a newly created Public Benefit Fund, with the potential to increase by 2% for every 50% rise in company value, subject to board discretion and stockholder approval. The fund, structured as a wholly-owned LLC, is intended to support societal good projects, including large donations or direct distributions, and will not be used for lobbying or political giving. Combined with prior equity donation commitments, about 20% of Anthropic shares will be dedicated to public benefit if the plan is approved.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "public-benefit-fund",
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+            ]
+          },
+          {
+            "headline": "Replit makes OpenAI its default AI provider, reducing reliance on Anthropic",
+            "body": "Replit's CEO announced that OpenAI's ChatGPT is now the default model for its platform, citing cost, performance, and partnership factors. While Anthropic models remain available for users to select, this change is expected to significantly reduce Replit's spending with Anthropic, as most customers use the default. There is disagreement about whether the Anthropic partnership has ended, but Replit confirms it remains model-agnostic and continues to offer Anthropic's Claude models as an option.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "repeat; no material change",
+            "sourceIds": [
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 7745,
+          "outputTokens": 586,
+          "costUsd": 0.0135988
+        },
+        "timings": {
+          "totalMs": 10305,
+          "stages": {
+            "edit": 6136,
+            "verify": 4159
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 289
+    },
+    {
+      "caseId": "ai-multisource-ar",
+      "variant": "v4",
+      "evidenceHash": "71811c9715bc003d82fc98c0d565bfd5fddea34558e073d6ce5e4f6465169c58",
+      "wallMs": 10887.514800000004,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "أنثروبيك تمنح فريق METR وصولاً شبيهاً بالموظفين لتقييمات مستقلة للسلامة",
+            "body": "أعلنت أنثروبيك أنها بدأت منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أنظمتها وأدواتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي لديها. سيتمكن فريق METR من نشر نتائج تقييماته دون موافقة أنثروبيك، مع إمكانية حجب معلومات محددة فقط ضمن فئات متفق عليها. تعمل أنثروبيك أيضاً مع SecureBio وAccenture كمقيمين مستقلين، وتخطط لتوسيع الشراكات مع جهات أخرى. تهدف الشركة إلى تعزيز الشفافية والمساءلة في تقييم سلامة نماذجها.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "an-update-on-independent-evaluators"
+            ]
+          },
+          {
+            "headline": "أنثروبيك تعلن إنشاء صندوق منفعة عامة وتخصيص 5% من أسهمها له",
+            "body": "أعلنت أنثروبيك عن تأسيس صندوق منفعة عامة جديد سيحصل على 5% من أسهم الشركة، مع إمكانية زيادة الحصة بنسبة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة، وذلك بعد موافقة المساهمين. يهدف الصندوق إلى دعم مشاريع ذات منفعة مجتمعية، مثل التبرعات للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. لن تُستخدم أسهم الصندوق في أنشطة الضغط السياسي. ومع الإعلان الجديد، سيُخصص نحو 20% من أسهم أنثروبيك للأغراض العامة، مع إمكانية زيادة النسبة مستقبلاً.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "public-benefit-fund",
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+            ]
+          },
+          {
+            "headline": "Replit تعتمد OpenAI شريكاً افتراضياً بدلاً من أنثروبيك",
+            "body": "قال الرئيس التنفيذي لشركة Replit إن الشركة جعلت OpenAI الشريك الافتراضي لمنصتها بدلاً من أنثروبيك، لأسباب تتعلق بالأداء والتكلفة والشراكة. لا تزال نماذج أنثروبيك متاحة للعملاء، لكن OpenAI أصبحت الخيار الافتراضي، ما قد يقلل من إنفاق Replit مع أنثروبيك. لم يُؤكد إنهاء الشراكة بالكامل، إذ تشير مصادر إلى استمرار التعاون بين الشركتين.",
+            "relation": "new",
+            "importance": 2,
+            "sourceIds": [
+              "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 9008,
+          "outputTokens": 646,
+          "costUsd": 0.0149296
+        },
+        "timings": {
+          "totalMs": 10887,
+          "stages": {
+            "edit": 7607,
+            "verify": 3271
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 223
+    },
+    {
+      "caseId": "ai-multisource-ar",
+      "variant": "v7",
+      "evidenceHash": "71811c9715bc003d82fc98c0d565bfd5fddea34558e073d6ce5e4f6465169c58",
+      "wallMs": 10837.1826,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Anthropic تمنح فريق METR المستقل وصولاً شبيهاً بالموظفين لتقييم مخاطر الذكاء الاصطناعي",
+            "body": "أعلنت Anthropic أنها بدأت في منح فريق من منظمة METR غير الربحية وصولاً شبيهاً بالموظفين إلى أنظمتها الداخلية لتقييم مخاطر نماذج الذكاء الاصطناعي. سيقوم فريق METR بنشر نتائج تقييماته بشكل مستقل، ولا يمكن لـ Anthropic منع النشر إلا في حالات محددة تتعلق بالملكية الفكرية أو السرية. كما تعمل Anthropic مع SecureBio وAccenture كمقيمين خارجيين، وتخطط لتوسيع الشراكات مع منظمات أخرى. تم توضيح أن هناك ثلاث مستويات من الوصول للمقيمين، مع منح METR أعلى مستوى حالياً.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "an-update-on-independent-evaluators"
+            ]
+          },
+          {
+            "headline": "Replit تعتمد OpenAI كمزود افتراضي بدلاً من Anthropic وتقلل من شراكتها معها",
+            "body": "أكد الرئيس التنفيذي لشركة Replit أن المنصة لم تعد تعتمد على Anthropic كمزود رئيسي لنماذج الذكاء الاصطناعي، وأن OpenAI أصبحت المزود الافتراضي بسبب الأداء والتكلفة وقوة الشراكة. رغم ذلك، لا تزال نماذج Anthropic متاحة للعملاء، لكن الاستخدام المتوقع سينخفض بشكل كبير. تصريحات الرئيس التنفيذي حول إنهاء الشراكة قوبلت بنفي من مصادر مطلعة داخل Anthropic، مع استمرار وجود أدلة على ترويج Replit لنماذج Anthropic مؤخراً.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "fd0615f8-bf7b-45d3-baab-558fa42c1260"
+            ]
+          },
+          {
+            "headline": "Anthropic تخصص 5% من أسهمها لصندوق منفعة عامة مع إمكانية زيادة النسبة مع نمو الشركة",
+            "body": "أعلنت Anthropic عن تأسيس صندوق منفعة عامة جديد سيحصل مبدئياً على 5% من أسهم الشركة، مع إمكانية إضافة 2% إضافية لكل زيادة بنسبة 50% في قيمة الشركة فوق حد معين. يهدف الصندوق إلى دعم مشاريع ذات منفعة مجتمعية بمرونة أكبر، مثل التبرعات الكبرى للمنظمات غير الربحية أو التوزيعات المباشرة لفئات محددة. لن تُستخدم أسهم الصندوق في الضغط السياسي أو التبرعات السياسية. مع التزامات سابقة من المؤسسين والموظفين، سيُخصص نحو 20% من أسهم Anthropic للمنفعة العامة.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "public-benefit-fund"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "تكرار؛ لا تغيير جوهري عن S3",
+            "sourceIds": [
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 7547,
+          "outputTokens": 694,
+          "costUsd": 0.0143836
+        },
+        "timings": {
+          "totalMs": 10847,
+          "stages": {
+            "edit": 7426,
+            "verify": 3414
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 253
+    },
+    {
+      "caseId": "ai-multisource-ar",
+      "variant": "evidence-first-v1",
+      "evidenceHash": "71811c9715bc003d82fc98c0d565bfd5fddea34558e073d6ce5e4f6465169c58",
+      "wallMs": 15483.112400000013,
+      "result": {
+        "status": "rejected",
+        "items": [],
+        "skipped": [],
+        "dropped": [
+          {
+            "headline": "",
+            "reason": "QUOTE_NOT_IN_SOURCE",
+            "sourceIds": [
+              "public-benefit-fund",
+              "478b532d-62cc-41d0-bf16-3010a8fd98f2",
+              "fd0615f8-bf7b-45d3-baab-558fa42c1260",
+              "an-update-on-independent-evaluators"
+            ],
+            "carry": true
+          }
+        ],
+        "omitted": [],
+        "unaccounted": [],
+        "usage": {
+          "calls": 1,
+          "inputTokens": 4282,
+          "outputTokens": 2608,
+          "costUsd": 0.029428
+        },
+        "timings": {
+          "totalMs": 15483,
+          "stages": {
+            "editor": 15481
+          }
+        },
+        "evidenceAgent": {
+          "architecture": "evidence-first-v1",
+          "semanticTruthEstablished": false,
+          "developments": [],
+          "proofs": [],
+          "reviews": [],
+          "diagnostics": [
+            "QUOTE_NOT_IN_SOURCE"
+          ],
+          "toolUsage": {
+            "reads": 8,
+            "returnedChars": 18980
+          },
+          "acceptedDevelopmentIds": []
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 0
+    },
+    {
+      "caseId": "casualty-update-en",
+      "variant": "v7",
+      "evidenceHash": "597d33cd53a6138a5dcac3eed4af9a86f8700c78cd452662312521a3cfe80dc1",
+      "wallMs": 13198.813699999999,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Jordanian government: 6 killed in attack during funeral in Karak",
+            "body": "The official spokesperson reported 6 deaths from a criminal incident during a funeral in Karak province.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "78a8013d-f33c-4c96-a435-8776f78c5f57"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "higher casualty count than official update; official figures preferred",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "repeat; no material change beyond previously reported video of attack",
+            "sourceIds": [
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 4,
+          "inputTokens": 3447,
+          "outputTokens": 255,
+          "costUsd": 0.0055292
+        },
+        "timings": {
+          "totalMs": 13198,
+          "stages": {
+            "edit": 3596,
+            "verify": 6519,
+            "repair": 3082
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 26
+    },
+    {
+      "caseId": "casualty-update-en",
+      "variant": "evidence-first-v1",
+      "evidenceHash": "597d33cd53a6138a5dcac3eed4af9a86f8700c78cd452662312521a3cfe80dc1",
+      "wallMs": 7864.17300000001,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "Jordanian government: 6 killed, 28 injured in Karak church funeral attack",
+            "body": "The Jordanian government spokesperson reported that 6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate.",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "78a8013d-f33c-4c96-a435-8776f78c5f57"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636"
+            ],
+            "reason": "Earlier, less precise casualty figures (at least 7 dead) superseded by official government update."
+          },
+          {
+            "stage": "editor",
+            "sourceIds": [
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ],
+            "reason": "Video evidence of the attack's occurrence already covered in previous briefing; no new details or casualty information."
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 3165,
+          "outputTokens": 442,
+          "costUsd": 0.0068148
+        },
+        "timings": {
+          "totalMs": 7864,
+          "stages": {
+            "editor": 5027,
+            "verifier": 2833
+          }
+        },
+        "evidenceAgent": {
+          "architecture": "evidence-first-v1",
+          "semanticTruthEstablished": false,
+          "developments": [
+            {
+              "stage": "editor",
+              "record": {
+                "id": "D1",
+                "occurrence": "Jordanian government spokesperson announced that 6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate.",
+                "relation": "new",
+                "updates": null,
+                "importance": 1,
+                "essentialClaims": [
+                  {
+                    "id": "C1",
+                    "statement": "6 people were killed and 28 injured in a criminal incident during a funeral at a church in Karak governorate, according to the Jordanian government spokesperson.",
+                    "conditions": [],
+                    "attribution": "Jordanian government spokesperson",
+                    "uncertainty": null,
+                    "temporalStatus": "reported",
+                    "time": null,
+                    "evidence": [
+                      {
+                        "passages": [
+                          "S2.B1"
+                        ],
+                        "quote": "🔴 الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجــ ـرامي الذي وقع خلال جنازة بمحافظة الكرك"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "proofs": [
+            {
+              "ref": "S2",
+              "sourceId": "78a8013d-f33c-4c96-a435-8776f78c5f57",
+              "field": "body",
+              "start": 0,
+              "end": 110,
+              "quote": "🔴 الناطق باسم الحكومة الأردنية: 6 قتلى و28 جريحاً حصيلة الحادث الإجــ ـرامي الذي وقع خلال جنازة بمحافظة الكرك",
+              "digest": "7e84e89444e8656afaaceb78e7d83e85e8fc5524034e7354f9eb19c3d3e57ece"
+            }
+          ],
+          "reviews": [
+            {
+              "stage": "verifier",
+              "itemDevelopmentIds": [
+                "D1"
+              ],
+              "result": {
+                "results": [
+                  {
+                    "i": 0,
+                    "verdict": "ok",
+                    "issues": []
+                  }
+                ],
+                "coverage": {
+                  "status": "complete",
+                  "issues": []
+                }
+              }
+            }
+          ],
+          "diagnostics": [],
+          "toolUsage": {
+            "reads": 6,
+            "returnedChars": 3084
+          },
+          "acceptedDevelopmentIds": [
+            "D1"
+          ]
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 37
+    },
+    {
+      "caseId": "casualty-update-en",
+      "variant": "v4",
+      "evidenceHash": "597d33cd53a6138a5dcac3eed4af9a86f8700c78cd452662312521a3cfe80dc1",
+      "wallMs": 13330.136900000012,
+      "result": {
+        "status": "rejected",
+        "items": [],
+        "skipped": [],
+        "dropped": [
+          {
+            "headline": "Jordanian government reports 6 killed in Karak funeral incident",
+            "reason": "still flagged after repair: headline: '6 killed' -> source states '6 قتلى' (6 killed) which is correct; however, the previous item included '28 injured' which is also in the source text snippet ('28 جريحاً'), so the headline should mention both '6 killed and 28 injured' to fully reflect the source. The current headline omits '28 injured', which is supported by the source.",
+            "carry": true,
+            "sourceIds": [
+              "78a8013d-f33c-4c96-a435-8776f78c5f57"
+            ]
+          }
+        ],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "contradicts official casualty figures; official update prioritized",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "repeat of already told item",
+            "sourceIds": [
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 4,
+          "inputTokens": 5203,
+          "outputTokens": 410,
+          "costUsd": 0.008086
+        },
+        "timings": {
+          "totalMs": 13330,
+          "stages": {
+            "edit": 3908,
+            "verify": 6545,
+            "repair": 2874
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 0
+    },
+    {
+      "caseId": "casualty-update-ar",
+      "variant": "evidence-first-v1",
+      "evidenceHash": "0c8256f2497c3c2ef06cce20ac3d7c9e1402b341b8eaf31e2e96c109f826384e",
+      "wallMs": 4960.621699999989,
+      "result": {
+        "status": "rejected",
+        "items": [],
+        "skipped": [],
+        "dropped": [
+          {
+            "headline": "",
+            "reason": "INVALID_PRIOR_RELATION",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636",
+              "78a8013d-f33c-4c96-a435-8776f78c5f57",
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ],
+            "carry": true
+          }
+        ],
+        "omitted": [],
+        "unaccounted": [],
+        "usage": {
+          "calls": 1,
+          "inputTokens": 1366,
+          "outputTokens": 437,
+          "costUsd": 0.006228
+        },
+        "timings": {
+          "totalMs": 4960,
+          "stages": {
+            "editor": 4959
+          }
+        },
+        "evidenceAgent": {
+          "architecture": "evidence-first-v1",
+          "semanticTruthEstablished": false,
+          "developments": [],
+          "proofs": [],
+          "reviews": [],
+          "diagnostics": [
+            "INVALID_PRIOR_RELATION"
+          ],
+          "toolUsage": {
+            "reads": 2,
+            "returnedChars": 2183
+          },
+          "acceptedDevelopmentIds": []
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 0
+    },
+    {
+      "caseId": "casualty-update-ar",
+      "variant": "v4",
+      "evidenceHash": "0c8256f2497c3c2ef06cce20ac3d7c9e1402b341b8eaf31e2e96c109f826384e",
+      "wallMs": 6630.875100000005,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "الحكومة الأردنية: 6 قتلى و28 جريحاً في حادث إطلاق نار خلال جنازة في الكرك",
+            "body": "",
+            "relation": "update",
+            "importance": 1,
+            "sourceIds": [
+              "78a8013d-f33c-4c96-a435-8776f78c5f57"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "حصيلة غير رسمية أقل دقة من بيان الحكومة",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "تكرار لمقطع الفيديو المبلغ عنه سابقاً",
+            "sourceIds": [
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 3189,
+          "outputTokens": 199,
+          "costUsd": 0.0059332
+        },
+        "timings": {
+          "totalMs": 6626,
+          "stages": {
+            "edit": 3740,
+            "verify": 2884
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 14
+    },
+    {
+      "caseId": "casualty-update-ar",
+      "variant": "v7",
+      "evidenceHash": "0c8256f2497c3c2ef06cce20ac3d7c9e1402b341b8eaf31e2e96c109f826384e",
+      "wallMs": 6421.496400000004,
+      "result": {
+        "status": "published",
+        "items": [
+          {
+            "headline": "الحكومة الأردنية: 6 قتلى و28 جريحاً في حادث إطلاق نار خلال جنازة في كنيسة بالكرك",
+            "body": "",
+            "relation": "new",
+            "importance": 1,
+            "sourceIds": [
+              "78a8013d-f33c-4c96-a435-8776f78c5f57"
+            ]
+          }
+        ],
+        "skipped": [],
+        "dropped": [],
+        "omitted": [
+          {
+            "stage": "editor",
+            "reason": "أرقام ضحايا مختلفة؛ تم اختيار التصريح الرسمي الأحدث",
+            "sourceIds": [
+              "762779a7-f41a-4d26-8110-143aaca0e636"
+            ]
+          },
+          {
+            "stage": "editor",
+            "reason": "تكرار لمقطع فيديو الهجوم دون تفاصيل جديدة",
+            "sourceIds": [
+              "8fce8732-0ed8-4499-bb4d-ce8367f6008c"
+            ]
+          }
+        ],
+        "unaccounted": [],
+        "usage": {
+          "calls": 2,
+          "inputTokens": 2011,
+          "outputTokens": 166,
+          "costUsd": 0.0039692
+        },
+        "timings": {
+          "totalMs": 6422,
+          "stages": {
+            "edit": 3419,
+            "verify": 3002
+          }
+        }
+      },
+      "actualPublication": false,
+      "outputWords": 15
+    }
+  ],
+  "providerKeyCheck": {
+    "checkedAt": "2026-11-03T23:30:07.979Z",
+    "usageDeltaUsd": 0.24914479999998207,
+    "matchesSettledRun": true
+  }
+}

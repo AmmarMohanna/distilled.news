@@ -1,0 +1,11 @@
+{
+  "queries": ["coconut Australia"],
+  "geo": "AU",
+  "language": "en",
+  "postedWithinDays": 30,
+  "maxItemsPerQuery": 10,
+  "maxQueries": 1,
+  "dedupe": true,
+  "enableAnalysis": false,
+  "monitoringMode": false
+}

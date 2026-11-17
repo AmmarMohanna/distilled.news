@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "pipeline-trace-v1",
+  "feed": {
+    "id": "synthetic-4"
+  },
+  "window": {
+    "start": "2026-10-29T00:00:00Z",
+    "end": "2026-10-29T01:00:00Z"
+  },
+  "view": "overview",
+  "items": [],
+  "page": {
+    "total": 0,
+    "nextCursor": null
+  },
+  "summary": {
+    "publication": {
+      "briefingRequest": {
+        "id": "synthetic-request-4",
+        "state": "PENDING",
+        "result": null,
+        "blocked": {
+          "since": "2026-10-29T00:00:00Z",
+          "checks": 1,
+          "targets": [],
+          "obligationIds": [
+            "synthetic-obligation"
+          ],
+          "reassessment": {
+            "requestIds": [],
+            "prospect": "NONE"
+          },
+          "signature": "synthetic",
+          "lastCheckedAt": "2026-10-29T01:00:00Z"
+        },
+        "coverage": {
+          "state": "INCOMPLETE"
+        },
+        "reason": "BLOCKED_PROTECTED_WORK",
+        "diagnosticState": "DEFERRED"
+      },
+      "recordedEditions": []
+    }
+  }
+}

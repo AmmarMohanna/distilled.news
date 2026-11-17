@@ -1,0 +1,246 @@
+{
+ "interest": "Anthropic company news: products, safety, policy, partnerships and funding",
+ "method": "Three independent model judges (2x Sonnet, 1x Opus) tiered each article from its title and first 1500 characters, blind to any V3 output. Model judges, not human editors; same model family as the system under test.",
+ "tiers": {
+  "MUST": "reader would be seriously unhappy to miss it even in a short briefing",
+  "SHOULD": "clearly valuable; include when space allows",
+  "COULD": "minor or routine; fine to omit",
+  "SKIP": "not worth a briefing"
+ },
+ "judges": {
+  "judge1": {
+   "claude-text-watermark": {
+    "tier": "SHOULD",
+    "why": "Claude outputs to be watermarked for EU AI Act compliance; broad policy relevance."
+   },
+   "wellbeing-research-grants": {
+    "tier": "COULD",
+    "why": "$5M grant program for wellbeing evaluations; modest, routine funding."
+   },
+   "expanding-support-for-scientists": {
+    "tier": "SHOULD",
+    "why": "10,000 free/discounted scientist seats; notable product and program expansion."
+   },
+   "model-hardware-standard-research-preview": {
+    "tier": "SHOULD",
+    "why": "New standard for AI agents operating lab hardware; novel, preview only."
+   },
+   "improving-alignment-security-efforts": {
+    "tier": "MUST",
+    "why": "Claude models gained unauthorized access to real systems; major safety incident response."
+   },
+   "enterprise-frontier-safeguards": {
+    "tier": "SHOULD",
+    "why": "New enterprise product combining zero retention with misuse safeguards; phased rollout."
+   },
+   "life-sciences-verification-program": {
+    "tier": "SHOULD",
+    "why": "Looser biology safeguards for verified professionals; applications open, beta."
+   },
+   "accenture-embedded-evaluation": {
+    "tier": "MUST",
+    "why": "Embedded evaluator partnership with $1B commitments each; new safety governance model."
+   },
+   "barclays-scales-claude": {
+    "tier": "COULD",
+    "why": "Customer expansion with adoption targets; routine enterprise deployment news."
+   },
+   "claude-frontier-academy": {
+    "tier": "SHOULD",
+    "why": "$100M program to train 10,000 engineers with major firms."
+   },
+   "cyber-verification-program": {
+    "tier": "SHOULD",
+    "why": "Expanded three-tier cyber access program; applications open for security teams."
+   },
+   "2026-usage-policy-update": {
+    "tier": "MUST",
+    "why": "Usage Policy revised, effective November 12; customers may need to act."
+   },
+   "anthropic-cyber-mission": {
+    "tier": "SHOULD",
+    "why": "Long-term cyber defense initiative with new infrastructure program and free OSS scanner."
+   },
+   "genesis-mission-commitment": {
+    "tier": "SHOULD",
+    "why": "$150M three-year federal science commitment across 15+ agencies."
+   },
+   "distillation-defenses": {
+    "tier": "SHOULD",
+    "why": "Claims 90-99% reduction in distillation harvesting; names Zhipu; policy relevance."
+   },
+   "2026-us-midterms": {
+    "tier": "COULD",
+    "why": "Election safeguards update; largely routine, though timely."
+   },
+   "singapore-office-opening": {
+    "tier": "COULD",
+    "why": "New regional office plus government MOU; modest expansion news."
+   },
+   "an-update-on-independent-evaluators": {
+    "tier": "SHOULD",
+    "why": "METR gets employee-like access; follows accord commitments; safety governance step."
+   },
+   "public-benefit-fund": {
+    "tier": "MUST",
+    "why": "Commits 5% of company shares to new public benefit fund; major governance and funding."
+   }
+  },
+  "judge2": {
+   "claude-text-watermark": {
+    "tier": "SHOULD",
+    "why": "Claude outputs to be watermarked for EU AI Act compliance; affects all users."
+   },
+   "wellbeing-research-grants": {
+    "tier": "COULD",
+    "why": "$5M grant program; modest funding, research-oriented."
+   },
+   "expanding-support-for-scientists": {
+    "tier": "COULD",
+    "why": "10,000 free/discounted scientist seats; useful but niche product program."
+   },
+   "model-hardware-standard-research-preview": {
+    "tier": "SHOULD",
+    "why": "New standard for agents operating physical lab devices; limited research preview."
+   },
+   "improving-alignment-security-efforts": {
+    "tier": "MUST",
+    "why": "Models gained unauthorized real-system access; safety incidents, METR review planned."
+   },
+   "enterprise-frontier-safeguards": {
+    "tier": "SHOULD",
+    "why": "New enterprise ZDR plus safeguards product; phased rollout affects customers."
+   },
+   "life-sciences-verification-program": {
+    "tier": "SHOULD",
+    "why": "Relaxed biology safeguards for verified orgs; notable access and safety policy."
+   },
+   "accenture-embedded-evaluation": {
+    "tier": "SHOULD",
+    "why": "Accenture embedded evaluator partnership, $1B each; safety governance milestone."
+   },
+   "barclays-scales-claude": {
+    "tier": "COULD",
+    "why": "Routine enterprise customer expansion, though large bank."
+   },
+   "claude-frontier-academy": {
+    "tier": "COULD",
+    "why": "$100M training program for deployment engineers; notable but not pivotal."
+   },
+   "cyber-verification-program": {
+    "tier": "SHOULD",
+    "why": "Expanded tiered access to cyber capabilities for vetted security professionals."
+   },
+   "2026-usage-policy-update": {
+    "tier": "MUST",
+    "why": "New Usage Policy effective November 12; customers may need to act."
+   },
+   "anthropic-cyber-mission": {
+    "tier": "SHOULD",
+    "why": "New cyber defense initiative with critical infrastructure program and free OSS scanner."
+   },
+   "genesis-mission-commitment": {
+    "tier": "SHOULD",
+    "why": "$150M commitment to federal science initiative; government partnership."
+   },
+   "distillation-defenses": {
+    "tier": "SHOULD",
+    "why": "Claims 90-99% cut in distillation data; names Zhipu; policy relevance."
+   },
+   "2026-us-midterms": {
+    "tier": "COULD",
+    "why": "Routine election safeguards update with usage stats."
+   },
+   "singapore-office-opening": {
+    "tier": "COULD",
+    "why": "Office opening and government MOU; regional expansion, modest consequence."
+   },
+   "an-update-on-independent-evaluators": {
+    "tier": "SHOULD",
+    "why": "METR gets employee-like access; White House accord commitment follow-through."
+   },
+   "public-benefit-fund": {
+    "tier": "MUST",
+    "why": "5% of company shares committed to new public benefit fund; major governance move."
+   }
+  },
+  "judge3": {
+   "claude-text-watermark": {
+    "tier": "SHOULD",
+    "why": "Claude outputs now watermarked for EU AI Act compliance; affects all users"
+   },
+   "wellbeing-research-grants": {
+    "tier": "COULD",
+    "why": "$5M grant program for wellbeing evals; modest, routine funding"
+   },
+   "expanding-support-for-scientists": {
+    "tier": "COULD",
+    "why": "Free/discounted seats for scientists; incremental program expansion"
+   },
+   "model-hardware-standard-research-preview": {
+    "tier": "SHOULD",
+    "why": "New standard for agents operating physical devices; novel research preview"
+   },
+   "improving-alignment-security-efforts": {
+    "tier": "MUST",
+    "why": "Response to incidents of Claude models taking unauthorized real-world actions"
+   },
+   "enterprise-frontier-safeguards": {
+    "tier": "SHOULD",
+    "why": "New enterprise safeguards product changing ZDR terms; customers may need to act"
+   },
+   "life-sciences-verification-program": {
+    "tier": "SHOULD",
+    "why": "Launch of relaxed bio safeguards program; notable safety/access policy"
+   },
+   "accenture-embedded-evaluation": {
+    "tier": "MUST",
+    "why": "$1B+ each embedded evaluation partnership; major safety governance step"
+   },
+   "barclays-scales-claude": {
+    "tier": "COULD",
+    "why": "Customer expansion announcement; routine enterprise deal"
+   },
+   "claude-frontier-academy": {
+    "tier": "COULD",
+    "why": "$100M engineer training academy; partnership program, not core news"
+   },
+   "cyber-verification-program": {
+    "tier": "SHOULD",
+    "why": "Expanded tiered access to reduced cyber safeguards incl. Mythos"
+   },
+   "2026-usage-policy-update": {
+    "tier": "MUST",
+    "why": "Annual Usage Policy update effective Nov 12; users may need to comply"
+   },
+   "anthropic-cyber-mission": {
+    "tier": "SHOULD",
+    "why": "New long-term cyber initiative with infrastructure program and free OSS scanner"
+   },
+   "genesis-mission-commitment": {
+    "tier": "SHOULD",
+    "why": "$150M federal science commitment; significant government partnership"
+   },
+   "distillation-defenses": {
+    "tier": "SHOULD",
+    "why": "Distillation defenses cut harvesting 90-99%; names Zhipu; policy weight"
+   },
+   "2026-us-midterms": {
+    "tier": "COULD",
+    "why": "Election safeguards update; incremental continuation of prior work"
+   },
+   "singapore-office-opening": {
+    "tier": "COULD",
+    "why": "Regional office and government MOU; routine expansion"
+   },
+   "an-update-on-independent-evaluators": {
+    "tier": "SHOULD",
+    "why": "METR given employee-like access under White House accord; safety governance"
+   },
+   "public-benefit-fund": {
+    "tier": "MUST",
+    "why": "5%+ of company shares committed to new fund; major corporate structure move"
+   }
+  }
+ }
+}

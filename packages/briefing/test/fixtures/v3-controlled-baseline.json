@@ -1,0 +1,484 @@
+{
+  "version": 1,
+  "createdAt": "2026-10-23T12:53:13.625Z",
+  "sourcePolicy": "Synthetic sources explicitly labelled; real acquired evidence referenced immutably in development only. Do not relabel known cases as unseen.",
+  "development": [
+    {
+      "file": "packages/briefing/test/fixtures/v3-factual-reliability.json",
+      "sha256": "9e47c150df18c991062e0d37dab7f789a3a284a94038b0b5e28573f251c4cba6",
+      "hashEncoding": "JSON.stringify of parsed JSON; independent of checkout line endings"
+    },
+    {
+      "file": "packages/briefing/test/fixtures/v3-date-prompt-comparison.json",
+      "sha256": "ce30bec4911a336970c77b75c7e25eec437f3f0302d40cb3e1aa312bb7da2f61",
+      "hashEncoding": "JSON.stringify of parsed JSON; independent of checkout line endings"
+    }
+  ],
+  "sources": [
+    {
+      "id": "civic",
+      "title": "Separate ministry announcements",
+      "publishedAt": "2026-10-23T10:00:00Z",
+      "text": "The Interior Ministry announced a port safety inspection. Separately, the Health Ministry denied reports that the central hospital would close. The two announcements concern separate decisions.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "d572a0ed60d7c21674b5240475a59eb6ab862f4619909cc4c7e0612abadf5662"
+    },
+    {
+      "id": "utility",
+      "title": "Conditional electricity timetable",
+      "publishedAt": "2026-10-23T10:03:00Z",
+      "text": "The electricity utility plans to restore supply for up to six hours daily from November 2, subject to receiving fuel. Its director said the schedule is not guaranteed.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "e30ceefbc4b85ee97de1ae6cb43fba8b72ff53e8ea237c8e38e385291c8b2278"
+    },
+    {
+      "id": "bank",
+      "title": "Bank rejects withdrawal freeze claim",
+      "publishedAt": "2026-10-23T10:05:00Z",
+      "text": "Cedar Bank denied freezing customer withdrawals. Regulators said they are reviewing the bank but have not concluded that it is insolvent.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "0574862a709dbc370c6bab1d8a977ea92b9169c90d473295bcb831aa0b99fa2f"
+    },
+    {
+      "id": "road",
+      "title": "Road reopening update",
+      "publishedAt": "2026-10-23T10:07:00Z",
+      "text": "The mountain road reopened at 09:00 UTC on October 23 after repairs. Heavy trucks remain prohibited. The road had closed on October 22.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "ca72acff0e1f1a73fa372bd06ccbba3bc2daf4a204a35486b564f0e19b1f0f46"
+    },
+    {
+      "id": "forecast",
+      "title": "Economists issue forecast",
+      "publishedAt": "2026-10-23T10:09:00Z",
+      "text": "A university research team forecasts that food prices could increase by up to 8% next year. This is a forecast, not an observed increase. The estimate excludes energy prices.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "8c3c81c8790b93bbc956a638c50e0eeea4ec9778bad1cf8d9707b03f20b660e7"
+    },
+    {
+      "id": "dates",
+      "title": "Permit article updated",
+      "publishedAt": "2026-10-23T11:00:00Z",
+      "text": "Updated October 23. The council approved the bridge permit on October 19. Construction has not begun. No opening date has been announced.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "8a933592d989fd332f9af4d8d482c1d77174c1fe600413e7bef672bf135a97c2"
+    },
+    {
+      "id": "repeat",
+      "title": "Another outlet confirms earlier closure",
+      "publishedAt": "2026-10-23T11:05:00Z",
+      "text": "A second outlet confirms that the mountain road closed on October 22. This report adds no new information about the closure or repair timetable.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "b3f9a01309019f33fda5544d88b0ba4e210560f162c286d9bf923ff277232416"
+    },
+    {
+      "id": "correction",
+      "title": "Agency corrects inspection total",
+      "publishedAt": "2026-10-23T11:10:00Z",
+      "text": "The agency corrected its earlier report of 30 inspected buildings to 13. The earlier number was a transcription error, not a new inspection campaign.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "ebde33c388a9351646daf4e80aa3ebc68c1be13a5ca191cc9a741e520d6616da"
+    },
+    {
+      "id": "promotion",
+      "title": "Weekend travel package",
+      "publishedAt": "2026-10-23T11:15:00Z",
+      "text": "A tour operator advertises a discounted weekend holiday package with a sponsored hotel promotion. No change in public services, safety or policy is reported.",
+      "source": "Explicitly synthetic evaluation fixture",
+      "sha256": "cd1f64f238dcd4054b87d1739dd6924b9b4d6dc03c0028eb6bc2d0dacf4a7eb7"
+    }
+  ],
+  "cases": [
+    {
+      "id": "actor-good",
+      "split": "heldout",
+      "sourceIds": [
+        "civic"
+      ],
+      "category": "attribution",
+      "headline": "Separate ministry announcements",
+      "body": "The Interior Ministry announced a port safety inspection.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "The source explicitly names this ministry and action.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "actor-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "civic"
+      ],
+      "category": "attribution",
+      "headline": "Separate ministry announcements",
+      "body": "The Health Ministry announced a port safety inspection.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "The inspection was announced by the Interior Ministry.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "scope-good",
+      "split": "heldout",
+      "sourceIds": [
+        "civic"
+      ],
+      "category": "scope",
+      "headline": "Separate ministry announcements",
+      "body": "The Interior Ministry announced an inspection; the Health Ministry denied a hospital closure.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "Accurate separate actors and actions.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "scope-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "civic"
+      ],
+      "category": "scope",
+      "headline": "Separate ministry announcements",
+      "body": "Both ministries announced a port inspection and denied a hospital closure.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "Shared predicates falsely attribute both actions to both ministries.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "condition-good",
+      "split": "heldout",
+      "sourceIds": [
+        "utility"
+      ],
+      "category": "modality",
+      "headline": "Conditional electricity timetable",
+      "body": "The utility plans up to six hours of daily supply from November 2 if fuel arrives.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "Preserves plan, upper bound and fuel condition.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "condition-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "utility"
+      ],
+      "category": "modality",
+      "headline": "Conditional electricity timetable",
+      "body": "The utility guarantees six hours of daily electricity from November 2.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "Plan becomes guarantee; upper bound and fuel condition disappear.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "negation-good",
+      "split": "heldout",
+      "sourceIds": [
+        "bank"
+      ],
+      "category": "negation",
+      "headline": "Bank rejects withdrawal freeze claim",
+      "body": "Cedar Bank denied freezing withdrawals; regulators are reviewing it.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "Accurate concise statement, no need to reproduce every source sentence.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "negation-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "bank"
+      ],
+      "category": "negation",
+      "headline": "Bank rejects withdrawal freeze claim",
+      "body": "Cedar Bank confirmed freezing withdrawals.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "Reverses the explicit denial.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "conclusion-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "bank"
+      ],
+      "category": "attribution",
+      "headline": "Bank rejects withdrawal freeze claim",
+      "body": "Regulators concluded Cedar Bank is insolvent.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "Explicitly contradicts the absence of a regulatory conclusion.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "update-good",
+      "split": "heldout",
+      "sourceIds": [
+        "road"
+      ],
+      "category": "material-update",
+      "headline": "Road reopening update",
+      "body": "The mountain road has reopened after repairs, but heavy trucks remain prohibited.",
+      "relation": "update",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "Reopening materially changes the prior closure.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold",
+      "updatesId": "told-road"
+    },
+    {
+      "id": "restriction-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "road"
+      ],
+      "category": "modality",
+      "headline": "Road reopening update",
+      "body": "The mountain road reopened to all traffic.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "Heavy trucks remain prohibited.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "forecast-good",
+      "split": "heldout",
+      "sourceIds": [
+        "forecast"
+      ],
+      "category": "paraphrase",
+      "headline": "Economists issue forecast",
+      "body": "Researchers forecast food prices could rise by up to 8% next year.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "Concise supported forecast; energy exclusion is optional when reporting only food.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "forecast-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "forecast"
+      ],
+      "category": "modality",
+      "headline": "Economists issue forecast",
+      "body": "Food prices have risen 8% this year.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "Forecast becomes observed increase, next year becomes this year, up-to lost.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "date-good",
+      "split": "heldout",
+      "sourceIds": [
+        "dates"
+      ],
+      "category": "temporal",
+      "headline": "Permit article updated",
+      "body": "The council approved the bridge permit on October 19.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "Body explicitly dates the approval.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "date-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "dates"
+      ],
+      "category": "temporal",
+      "headline": "Permit article updated",
+      "body": "The council approved the bridge permit on October 23.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "Update metadata does not replace explicit approval date.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "no-date-good",
+      "split": "heldout",
+      "sourceIds": [
+        "dates"
+      ],
+      "category": "concise-omission",
+      "headline": "Permit article updated",
+      "body": "The council approved the bridge permit; construction has not begun.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "No exact date needed to report the decision accurately.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "opening-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "dates"
+      ],
+      "category": "unsupported-detail",
+      "headline": "Permit article updated",
+      "body": "The bridge opens on November 1.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "drop",
+        "fix"
+      ],
+      "reason": "No opening date announced; core sentence has no support.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "repeat",
+      "split": "heldout",
+      "sourceIds": [
+        "repeat"
+      ],
+      "category": "repetition",
+      "headline": "Another outlet confirms earlier closure",
+      "body": "The mountain road closed on October 22.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "redundant"
+      ],
+      "reason": "Previously communicated closure, new publisher adds no new facts.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "correction-good",
+      "split": "heldout",
+      "sourceIds": [
+        "correction"
+      ],
+      "category": "correction",
+      "headline": "Agency corrects inspection total",
+      "body": "The agency corrected the previously reported 30 inspected buildings to 13, citing a transcription error.",
+      "relation": "correction",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "Explicitly states the previous claim and corrected count.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold",
+      "updatesId": "told-inspections"
+    },
+    {
+      "id": "correction-bad",
+      "split": "heldout",
+      "sourceIds": [
+        "correction"
+      ],
+      "category": "correction",
+      "headline": "Agency corrects inspection total",
+      "body": "The agency inspected 13 more buildings.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "fix"
+      ],
+      "reason": "Reinterprets a correction as an additional inspection campaign.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    },
+    {
+      "id": "hospital-good",
+      "split": "heldout",
+      "sourceIds": [
+        "civic"
+      ],
+      "category": "attribution",
+      "headline": "Health Ministry denies hospital closure",
+      "body": "The Health Ministry denied reports that the central hospital would close.",
+      "relation": "new",
+      "allowedVerdicts": [
+        "ok"
+      ],
+      "reason": "Separate actor/action from the same article; do not borrow the Interior Ministry inspection.",
+      "labelStatus": "Assistant-reviewed source entailment; not independent human gold"
+    }
+  ],
+  "prior": [
+    {
+      "id": "told-road",
+      "at": "2026-10-22T12:00:00Z",
+      "headline": "Mountain road closed",
+      "body": "The mountain road closed on October 22."
+    },
+    {
+      "id": "told-inspections",
+      "at": "2026-10-23T09:00:00Z",
+      "headline": "Agency inspection count",
+      "body": "The agency reported inspecting 30 buildings."
+    }
+  ],
+  "reportingWindow": {
+    "start": "2026-10-23T10:00:00Z",
+    "end": "2026-10-23T12:00:00Z"
+  },
+  "ordinaryBatch": [
+    "actor-good",
+    "hospital-good",
+    "negation-bad",
+    "condition-good",
+    "update-good",
+    "forecast-bad",
+    "correction-good"
+  ],
+  "editorialRubric": {
+    "interest": "Important public decisions, security, economy, banking, services and infrastructure affecting the reader.",
+    "mustConsider": [
+      "utility",
+      "bank",
+      "road",
+      "correction"
+    ],
+    "optional": [
+      "civic",
+      "forecast",
+      "dates"
+    ],
+    "exclude": [
+      "promotion"
+    ],
+    "repeatWithoutNewFacts": [
+      "repeat"
+    ],
+    "notes": "Consider is not a mandate to publish every article. Distinguish material omission from optional detail; briefings may be concise."
+  },
+  "authorization": {
+    "paidCallsAllowed": 0,
+    "newExplicitAuthorizationRequired": true
+  }
+}

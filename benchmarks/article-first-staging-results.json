@@ -1,0 +1,441 @@
+{
+  "schemaVersion": "article-first-staging-evaluation-v1",
+  "implementationCommit": "b8dc841a0d473401bf1cf7980c41e33e9e303445",
+  "scopeCommit": "6b5c580",
+  "scope": "article-first-20261019-1",
+  "workerVersion": "64abf3d4-62f7-4365-8c1b-37e763b9e6bd",
+  "rollbackWorkerVersion": "bf873d83-d8b5-4eda-9d86-d804345f4889",
+  "published": false,
+  "priorProviderCostUsd": 0.0170216,
+  "newProviderCostUsd": 0.000087738,
+  "cumulativeProviderCostUsd": 0.017109338,
+  "unknownOperations": 0,
+  "providerUpperUsd": 0.1856488,
+  "ceilingUsd": 0.2,
+  "newOperations": [
+    {
+      "id": "5f1624aac4a3787f0740bdeeddbe64f7bf5fdf4daab9095d23246de78f0af363",
+      "kind": "RELATION",
+      "model": "typesafe/jev-1.13",
+      "status": "SUCCEEDED",
+      "usage": {
+        "calls": 1,
+        "costUsd": 0.00004284,
+        "reported": true,
+        "tokensIn": 1020,
+        "tokensOut": 53
+      },
+      "latencyMs": 602,
+      "decisions": {
+        "structure": {
+          "kind": "CHOICE",
+          "choice": "EVENT_0",
+          "confidence": 0.85,
+          "probabilities": {
+            "EVENT_0": 0.89,
+            "STORY_0": 0.07,
+            "NEW": 0.02,
+            "DEFER": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "0528740b9a4478f6d56f22066cbabdc1b64ddd61684afac5b696dd17a23bd53b",
+      "kind": "RELATION_EFFECT",
+      "model": "typesafe/jev-1.13",
+      "status": "SUCCEEDED",
+      "usage": {
+        "calls": 1,
+        "costUsd": 0.000044898,
+        "reported": true,
+        "tokensIn": 1069,
+        "tokensOut": 139
+      },
+      "latencyMs": 417,
+      "decisions": {
+        "effect": {
+          "kind": "CHOICE",
+          "choice": "ADDS_DETAIL",
+          "confidence": 0.84,
+          "probabilities": {
+            "CORROBORATES": 0.14,
+            "ADDS_DETAIL": 0.86,
+            "CHANGES_STATE": 0,
+            "CHANGES_CERTAINTY": 0,
+            "CONTRADICTS": 0,
+            "CORRECTS": 0,
+            "RETRACTS": 0
+          }
+        },
+        "forward": {
+          "kind": "BOOLEAN",
+          "probability": 0.15
+        },
+        "reverse": {
+          "kind": "BOOLEAN",
+          "probability": 0.95
+        },
+        "novelty": {
+          "kind": "SCORE",
+          "value": 0.5100000000000001,
+          "confidence": 0.27,
+          "probabilities": {
+            "0": 0.26,
+            "1": 0.08,
+            "2": 0.53,
+            "3": 0.13
+          }
+        }
+      }
+    },
+    {
+      "id": "6c1a7594a8b7a8940de67f757ee08bc90a21ead9e2f73b6b94de15f6ebe64715",
+      "kind": "SEMANTIC_CONSTRUCTION",
+      "model": "openai/gpt-4.1-mini",
+      "status": "DEFERRED",
+      "failure": "SEMANTIC_PROVIDER_HTTP_400",
+      "usage": {
+        "calls": 1,
+        "tokensIn": 0,
+        "tokensOut": 0,
+        "costUsd": 0,
+        "reported": true
+      },
+      "latencyMs": 858,
+      "diagnostic": {
+        "httpStatus": 400,
+        "generationId": "gen-1792426386-uJ8tGGyxX2ytOtZ3Wp11",
+        "category": "invalid_request_error",
+        "code": "invalid_json_schema",
+        "message": "Invalid schema for response_format 'distilled_evidence': context=('properties', 'groups', 'items', 'anyof', '0', 'properties', 'structuralRelation'), $ref cannot have keywords {'description'}.",
+        "execution": "REJECTED_BEFORE_EXECUTION"
+      }
+    }
+  ],
+  "grouping": null,
+  "briefing": null,
+  "verification": "NOT_REACHED",
+  "repairs": 0,
+  "clientElapsedMs": 7282.0383,
+  "persistedEditionLatencyMs": null,
+  "databaseMetrics": {
+    "queries": 184,
+    "sqlCpuMs": 216.38700000000006,
+    "responseBytes": 355514,
+    "wallMs": 5101,
+    "rowsRead": 132610,
+    "rowsWritten": 140
+  },
+  "trace": {
+    "requests": [
+      {
+        "cpuTime": 170,
+        "wallTime": 6641,
+        "outcome": "ok",
+        "scriptVersion": {
+          "id": "64abf3d4-62f7-4365-8c1b-37e763b9e6bd"
+        },
+        "exceptions": []
+      }
+    ],
+    "traces": [
+      {
+        "type": "V1_SEMANTIC_PREPARATION_CONTEXT",
+        "feedId": "staging-fresh-20261019-run1",
+        "jobId": "[\"REASSESS\",\"ff5958eb9260e657a76c040ca8cea43222457318d967da5fd178208c9dd1aa42\",\"\"]",
+        "durationMs": 336,
+        "eventRoots": 8,
+        "storylineRoots": 8,
+        "offeredEvents": 1,
+        "offeredStorylines": 1,
+        "contextBatchQueries": 4,
+        "leaseRemainingMs": 239465
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "MODEL",
+        "reviewId": "1c260f1c95c2599b030ddada1ca61e39739e2b9ad0def407d757ff792697c71f",
+        "operationId": "5f1624aac4a3787f0740bdeeddbe64f7bf5fdf4daab9095d23246de78f0af363",
+        "outcome": "SUCCEEDED",
+        "durationMs": 1841,
+        "counts": {
+          "casAttempts": 2,
+          "documentReads": 5,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 1,
+          "validationMs": 0,
+          "documentWrites": 2,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.00004284,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 602
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 2,
+            "durationMs": 469
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 2,
+            "durationMs": 251
+          },
+          "GRAPH_VALIDATION": {
+            "count": 2,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 2,
+            "durationMs": 278
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 826
+          },
+          "RELATION": {
+            "count": 1,
+            "durationMs": 602
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 163
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 172
+          }
+        },
+        "receiptOperationId": "5f1624aac4a3787f0740bdeeddbe64f7bf5fdf4daab9095d23246de78f0af363"
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "MODEL",
+        "reviewId": "1c260f1c95c2599b030ddada1ca61e39739e2b9ad0def407d757ff792697c71f",
+        "operationId": "0528740b9a4478f6d56f22066cbabdc1b64ddd61684afac5b696dd17a23bd53b",
+        "outcome": "SUCCEEDED",
+        "durationMs": 1186,
+        "counts": {
+          "casAttempts": 2,
+          "documentReads": 5,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 1,
+          "validationMs": 0,
+          "documentWrites": 2,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0.000044898,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 417
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 2,
+            "durationMs": 49
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 2,
+            "durationMs": 235
+          },
+          "GRAPH_VALIDATION": {
+            "count": 2,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 2,
+            "durationMs": 261
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 386
+          },
+          "RELATION_EFFECT": {
+            "count": 1,
+            "durationMs": 417
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 150
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 159
+          }
+        },
+        "receiptOperationId": "0528740b9a4478f6d56f22066cbabdc1b64ddd61684afac5b696dd17a23bd53b"
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "MODEL",
+        "reviewId": "1c260f1c95c2599b030ddada1ca61e39739e2b9ad0def407d757ff792697c71f",
+        "operationId": "6c1a7594a8b7a8940de67f757ee08bc90a21ead9e2f73b6b94de15f6ebe64715",
+        "outcome": "SUCCEEDED",
+        "durationMs": 2017,
+        "counts": {
+          "casAttempts": 2,
+          "documentReads": 5,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 9,
+          "validationMs": 0,
+          "documentWrites": 2,
+          "jobWrites": 0,
+          "newProviderCalls": 1,
+          "receiptProviderCalls": 1,
+          "receiptReportedCostUsd": 0,
+          "reportedUsage": 1,
+          "receiptProviderLatencyMs": 858
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 2,
+            "durationMs": 56
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 2,
+            "durationMs": 533
+          },
+          "GRAPH_VALIDATION": {
+            "count": 2,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 2,
+            "durationMs": 313
+          },
+          "SPENDING_RESERVATION": {
+            "count": 1,
+            "durationMs": 676
+          },
+          "SEMANTIC_CONSTRUCTION": {
+            "count": 1,
+            "durationMs": 858
+          },
+          "SPENDING_SETTLEMENT": {
+            "count": 1,
+            "durationMs": 173
+          },
+          "RESULT_COMMIT": {
+            "count": 1,
+            "durationMs": 226
+          }
+        },
+        "receiptOperationId": "6c1a7594a8b7a8940de67f757ee08bc90a21ead9e2f73b6b94de15f6ebe64715"
+      },
+      {
+        "type": "V1_PIPELINE_LATENCY",
+        "feedId": "staging-fresh-20261019-run1",
+        "phase": "REMATCH",
+        "reviewId": "1c260f1c95c2599b030ddada1ca61e39739e2b9ad0def407d757ff792697c71f",
+        "outcome": "SUCCEEDED",
+        "durationMs": 6324,
+        "counts": {
+          "casAttempts": 2,
+          "documentReads": 2,
+          "listReads": 0,
+          "revisionReads": 0,
+          "preloadQueries": 0,
+          "validationMs": 0,
+          "documentWrites": 2,
+          "jobWrites": 0,
+          "activeEvidence": 1,
+          "claimMentions": 9
+        },
+        "stages": {
+          "DB_SNAPSHOT": {
+            "count": 2,
+            "durationMs": 46
+          },
+          "TRANSACTION_COMPUTATION": {
+            "count": 2,
+            "durationMs": 152
+          },
+          "GRAPH_VALIDATION": {
+            "count": 2,
+            "durationMs": 0
+          },
+          "CAS_COMMIT": {
+            "count": 2,
+            "durationMs": 89
+          },
+          "SEMANTIC_LEASE_ADMISSION": {
+            "count": 1,
+            "durationMs": 184
+          },
+          "EVIDENCE_LOAD": {
+            "count": 1,
+            "durationMs": 24
+          },
+          "CLAIM_EXTRACTION": {
+            "count": 1,
+            "durationMs": 0
+          },
+          "MODEL_OPERATION": {
+            "count": 3,
+            "durationMs": 5044
+          },
+          "SEMANTIC_PREPARATION": {
+            "count": 1,
+            "durationMs": 5785
+          }
+        }
+      },
+      {
+        "type": "STAGING_MISSION_DB_METRICS",
+        "feedId": "staging-fresh-20261019-run1",
+        "action": "review-disposition-v1",
+        "queries": 184,
+        "sqlCpuMs": 216.38700000000006,
+        "responseBytes": 355514,
+        "wallMs": 5101,
+        "rowsRead": 132610,
+        "rowsWritten": 140
+      }
+    ]
+  },
+  "isolation": [
+    {
+      "surface": "operator",
+      "status": 404
+    },
+    {
+      "surface": "publicFeed",
+      "status": 404
+    },
+    {
+      "surface": "publicDevelopments",
+      "status": 404
+    }
+  ],
+  "blocker": {
+    "httpStatus": 400,
+    "generationId": "gen-1792426386-uJ8tGGyxX2ytOtZ3Wp11",
+    "category": "invalid_request_error",
+    "code": "invalid_json_schema",
+    "message": "Invalid schema for response_format 'distilled_evidence': context=('properties', 'groups', 'items', 'anyof', '0', 'properties', 'structuralRelation'), $ref cannot have keywords {'description'}.",
+    "execution": "REJECTED_BEFORE_EXECUTION"
+  },
+  "privateEvidenceSha256": {
+    "article-first-20261019-1-evidence.json": "f0de2765b18a1c2e022f441dc9259198f202155cb12560e8c4af2a8d8640fc41",
+    "article-first-20261019-1-traces.json": "7166304af31e3de65f49ab24bac92800d97cdf2b04cfdebfe2041a807d45b688",
+    "article-first-20261019-1-client-intent.json": "471e27ebaab60f92955e63580022f59c997464abf781ba59052631e09f4a2bc9",
+    "article-first-20261019-1-client-timing.json": "82e60cfdaf88a2e3fa102a1b0569215ddc683d41d4361873b95d0c92129a39fd",
+    "disposition-run-readonly-article-first-before.json": "70afb30198d6ffc6b976f49957c1acabc98fc1fc7c73524858a0d31e7e429c52",
+    "disposition-run-readonly-article-first-deployed.json": "24752fd24572598e5d1c0ec7b6ba12ec318c58778fefd9b9eb875114690b55f8",
+    "disposition-run-readonly-article-first-after.json": "5f09c9a4cc1ed71775f82627e48f06c9b33a33c5b2fb19a3a65a8dcd8db4b918",
+    "article-first-run-preflight.json": "b0b50a7ba9664559e9bd837fd94a062029a0ab1809ad5b9cb7e1347bc2b6bd4e",
+    "article-first-isolation-after.json": "1da64e4161338664ebe304c5cb46e9d1d85eaf18689c1fb1e4012e7ff3958655"
+  },
+  "limitations": [
+    "GPT grouping was not executed; no conclusion about revised grouping quality.",
+    "Provider cost excludes unavailable per-request Cloudflare invoice allocation.",
+    "Stopped review time is not end-to-end edition persistence latency."
+  ]
+}

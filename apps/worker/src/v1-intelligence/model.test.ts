@@ -1,0 +1,80 @@
+import {expect,it,vi} from 'vitest';
+import {createStoredEvidenceModel} from './model';
+import type {Env} from '../types';
+it.each([['writer',45000],['verifier',45000],['writer',135000],['verifier',135000]] as const)('asynchronous %s accepts a valid response after %i milliseconds',async(phase,delay)=>{
+ vi.useFakeTimers();try{
+  const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'fixture'} as Env,async(_,init)=>new Promise<Response>((resolve,reject)=>{
+   const timer=setTimeout(()=>resolve(new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(phase==='writer'?{language:'en',stories:[]}:{supportedClaimIds:['claim_1'],claimEntailment:[{claimId:'claim_1',fullyEntailed:true,unsupportedMeaning:[],reason:'Supported complete meaning.'}]})}}],usage:{prompt_tokens:80,completion_tokens:10,cost:.001}}))),delay);
+   init?.signal?.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'))},{once:true});
+  }))!;
+  const limits={maxOutputTokens:321,signal:new AbortController().signal};
+  const call=phase==='writer'?model.synthesize({feed:{id:'f',revision:1,title:'Feed',interests:[],outputLanguage:'en'},selectionId:'s',stories:[]},limits):model.verify!([{id:'c',text:'Supported fact',support:[{evidenceRevisionId:'r',quote:'Supported fact'}],context:[{evidenceRevisionId:'r',text:'Supported fact',truncated:false}]}],limits);
+  const outcome=call.then(()=> 'SUCCEEDED',e=>e.message);await vi.advanceTimersByTimeAsync(delay);expect(await outcome).toBe('SUCCEEDED');expect(model.usage!().confirmed).toBe(true);
+ }finally{vi.useRealTimers()}
+});
+it('constrains short writer identities and maps exact durable candidate/support references back',async()=>{
+ const candidateId='["immutable-selection-hash","EVENT","event-version"]';let offered:any,unknown=false;
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic'} as Env,async(_,init)=>{
+  offered=JSON.parse(String(init?.body));
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({language:'en',stories:[{storyId:unknown?'unoffered':'story_1',claims:[{text:'Approved fact',supportIds:['span_1_1'],communicatedFactIds:['fact_1_1']}]}]})}}],usage:{prompt_tokens:80,completion_tokens:10,cost:.001}}));
+ })!;
+ const input={feed:{id:'f',revision:1,title:'Feed',interests:[],outputLanguage:'en'},selectionId:'s',stories:[{candidate:{id:candidateId,targetType:'EVENT' as const,targetVersionId:'event-version'},approvedFacts:[{id:'fact',text:'Approved fact',support:[{evidenceRevisionId:'exact-revision',quote:'Approved fact'}]}],evidence:[{id:'exact-revision',body:'Approved fact',language:'en'}]}]};
+ const limits={maxOutputTokens:321,signal:new AbortController().signal},result=await model.synthesize(input,limits);
+ expect(JSON.parse(offered.messages[1].content).input.stories[0].storyId).toBe('story_1');
+ expect(offered.response_format.json_schema.schema.properties.stories.items.properties.storyId.enum).toEqual(['story_1']);
+ expect(model.synthesisPayload!(input)).toEqual({payload:JSON.parse(offered.messages[1].content),schema:offered.response_format.json_schema.schema});
+ expect(result.draft.stories[0]).toMatchObject({candidateId,claims:[{support:[{evidenceRevisionId:'exact-revision',quote:'Approved fact'}]}]});
+ unknown=true;await expect(model.synthesize(input,limits)).rejects.toThrow('UNRECOGNIZED_WRITER_ID');
+});
+it('uses the existing bounded transport, sends only selected evidence and applies the caller token limit',async()=>{
+ let body:any;
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic-test-key'} as Env,async(_,init)=>{
+  body=JSON.parse(String(init?.body));return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({language:'en',stories:[]})}}],usage:{prompt_tokens:80,completion_tokens:10,cost:.001}}));
+ })!;
+ const result=await model.synthesize({feed:{id:'f',revision:1,title:'Feed',interests:[],outputLanguage:'en'},selectionId:'s',stories:[]},{maxOutputTokens:321,signal:new AbortController().signal});
+ expect(body.max_tokens).toBe(321);expect(body.tools).toBeUndefined();expect(body.messages[1].content).not.toContain('synthetic-test-key');
+ expect(result.usage).toEqual({tokensIn:80,tokensOut:10,cost:.001,confirmed:true});
+ expect(createStoredEvidenceModel({} as Env)).toBeUndefined();
+});
+it('grounding submits only offered claims and treats missing provider cost as unconfirmed',async()=>{
+ let body:any;
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic'} as Env,async(_,init)=>{
+  body=JSON.parse(String(init?.body));return new Response(JSON.stringify({choices:[{message:{content:'{"supportedClaimIds":["claim_1"],"claimEntailment":[{"claimId":"claim_1","fullyEntailed":true,"reason":"Supported complete meaning.","unsupportedMeaning":[]}]}'}}],usage:{prompt_tokens:50,completion_tokens:8}}));
+ })!;
+ const result=await model.verify!([{id:'c',text:'Supported fact',support:[{evidenceRevisionId:'r',quote:'Supported fact'}],context:[{evidenceRevisionId:'r',text:'Supported fact',truncated:false}]}],{maxOutputTokens:99,signal:new AbortController().signal});
+ expect(body.max_tokens).toBe(99);expect(result.supportedClaimIds).toEqual(['c']);expect(result.usage.confirmed).toBe(false);
+});
+it('settles invalid source-only coverage as a negative verdict with confirmed usage',async()=>{
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',DISTILLED_LLM_API_GATEWAY:'openrouter',OPENROUTER_API_KEY:'synthetic'} as Env,async()=>new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({supportedClaimIds:['claim_1'],preservedFactIds:['fact_1'],semanticChecks:[{factId:'fact_1',communicated:true,attribution:true,certainty:true,temporal:true,qualifiers:true,reason:'Copied source incorrectly.',readerSpans:[{claimId:'claim_1',text:'The minister resigned.'}]}]})}}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}})))!;
+ const result=await model.verify!([{id:'c',candidateId:'story',text:'Unrelated prose.',support:[{evidenceRevisionId:'r',quote:'The minister resigned.'}],context:[],requiredFacts:[{id:'f',text:'The minister resigned.',evidenceRevisionIds:['r']}]}],{maxOutputTokens:200,signal:new AbortController().signal});
+ expect(result.preservedFactIds).toEqual([]);expect(result.semanticChecks?.[0].communicated).toBe(false);
+ expect(result.usage).toEqual({tokensIn:100,tokensOut:50,cost:.001,confirmed:true});
+});
+
+it('offers overlapping sources as one development and keeps a separate update with story-owned citations',async()=>{
+ let requests=0,foreignSupport=false,request:any;
+ const model=createStoredEvidenceModel({V1_SYNTHESIS_MODEL_ENABLED:'true',V1_PUBLICATION_VALIDATION_CONTRACT:'EVIDENCE_GROUNDED_V2',DISTILLED_LLM_API_GATEWAY:'openrouter',DISTILLED_LIVE_OPENROUTER_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'synthetic'} as Env,async(_,init)=>{
+  requests++;request=JSON.parse(String(init?.body));
+  return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({language:'en',stories:[
+   {storyId:'story_1',claims:[{text:'Acme announced its model, available today.',supportIds:['span_1_1','span_1_2'],communicatedFactIds:['fact_1_1','fact_1_2']}]},
+   {storyId:'story_2',claims:[{text:'Acme separately withdrew its older model after a security report.',supportIds:[foreignSupport?'span_1_1':'span_2_1'],communicatedFactIds:['fact_2_1']}]}
+  ]})}}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}}));
+ })!;
+ const makeStory=(id:string,revision:string,facts:{id:string;text:string;support:{evidenceRevisionId:string;quote:string}[]}[],evidence:any[])=>({candidate:{id,targetType:'EVENT',targetVersionId:revision},plan:{mustIncludeFactIds:facts.map(f=>f.id),validation:{},previousLedgerEntries:[],correctionObligations:[]},approvedFacts:facts,evidence});
+ const input:any={feed:{id:'f',revision:1,title:'Feed',interests:[],outputLanguage:'en'},selectionId:'selected',stories:[
+  makeStory('announcement','event-launch',[{id:'launch',text:'Acme announced its model.',support:[{evidenceRevisionId:'article-a',quote:'Acme announced its model.'}]},{id:'availability',text:'The model is available today.',support:[{evidenceRevisionId:'article-b',quote:'The model is available today.'}]}],[{id:'article-a',body:'Acme announced its model.',publisherId:'publisher-a'},{id:'article-b',body:'Acme announced its model. The model is available today.',publisherId:'publisher-b'}]),
+  makeStory('withdrawal','event-security',[{id:'withdrawal',text:'Acme separately withdrew its older model after a security report.',support:[{evidenceRevisionId:'article-c',quote:'Acme separately withdrew its older model after a security report.'}]}],[{id:'article-c',body:'Acme separately withdrew its older model after a security report.',publisherId:'publisher-c'}])
+ ]};
+ const limits={maxOutputTokens:400,signal:new AbortController().signal};
+ const result=await model.synthesize(input,limits),payload=JSON.parse(request.messages[1].content);
+ expect(requests).toBe(1);expect(payload.instruction).toContain('each selected story is one development, not one article');
+ expect(payload.instruction).toContain('Keep separate selected developments separate');expect(payload.input.stories).toHaveLength(2);
+ expect(payload.input.stories[0].supportSpans.map((s:any)=>s.publisherId)).toEqual(['publisher-a','publisher-b']);
+ expect(payload.input.stories[0].approvedFacts.every((f:any)=>f.mustInclude)).toBe(true);
+ expect(result.draft.stories.map(s=>s.candidateId)).toEqual(['announcement','withdrawal']);
+ expect(result.draft.stories[0].claims[0].support.map(s=>s.evidenceRevisionId)).toEqual(['article-a','article-b']);
+ expect(result.draft.stories[0].claims[0].communicatedFactIds).toEqual(['launch','availability']);
+ const repair:any=model.repairPayload!(input,result.draft,{issues:[],missingFactIds:[]} as any);
+ expect(repair.payload.instruction).toContain('each selected story is one development, not one article');
+ foreignSupport=true;await expect(model.synthesize(input,limits)).rejects.toThrow('UNRECOGNIZED_SUPPORT_ID');
+});

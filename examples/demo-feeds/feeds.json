@@ -1,0 +1,682 @@
+[
+  {
+    "id": "demo20_01_lebanon_levant",
+    "title": "لبنان وبلاد الشام",
+    "interestProfile": "تابع التطورات الملموسة في لبنان وسوريا والأردن، خصوصاً الأمن والخدمات العامة والكهرباء والحدود والاقتصاد. قدّم الوقائع الجديدة وتأثيرها على السكان، وافصل التصريحات والادعاءات عن الوقائع المؤكدة. استبعد السجالات الحزبية المتكررة والأخبار الإقليمية التي لا تؤثر مباشرة في المنطقة.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
+      "rss: https://rss.dw.com/xml/rss-ar-all",
+      "news: Lebanon Syria Jordan public services electricity",
+      "t: bbcarabic",
+      "https://today.lorientlejour.com/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:00",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_02_middle_east",
+    "title": "Middle East Developments",
+    "interestProfile": "Track material developments across the Middle East: ceasefire terms and violations, diplomacy with concrete outcomes, elections, sanctions, border access and regional trade. Identify what changed and distinguish confirmed events from disputed claims. Skip repeated speeches, speculation and opinion columns without new reporting.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
+      "rss: https://www.france24.com/ar/rss",
+      "news: Middle East diplomacy ceasefire sanctions",
+      "x: UN",
+      "https://www.aljazeera.com/middle-east/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:05",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_03_humanitarian",
+    "title": "العمل الإنساني والنزوح",
+    "interestProfile": "تابع وصول المساعدات والنزوح واللجوء وحماية المدنيين وتمويل الاستجابة الإنسانية. أعط الأولوية لتغيرات الوصول والاحتياجات والقرارات التنفيذية والأرقام المؤرخة مع نسبتها إلى مصدرها. استبعد حملات التبرع العامة واللغة الدعائية، ولا تعرض تقديرات الضحايا أو الاحتياجات كحقائق نهائية.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/global-development/rss",
+      "rss: https://www.france24.com/ar/rss",
+      "news: humanitarian aid displacement refugee protection",
+      "https://www.linkedin.com/company/unhcr/",
+      "https://reliefweb.int/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:10",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_04_global_economy",
+    "title": "Global Economy",
+    "interestProfile": "Track inflation releases, central bank decisions, employment, trade restrictions, public debt and major changes in economic activity. Include the reporting period and revisions when available. Explain concrete policy changes without making investment recommendations. Skip routine daily market moves, unsupported forecasts and personal-finance promotion.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/business/rss.xml",
+      "rss: https://www.lemonde.fr/economie/rss_full.xml",
+      "news: global economy inflation central bank trade",
+      "x: IMFNews",
+      "https://www.linkedin.com/company/the-world-bank/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:15",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_05_artificial_intelligence",
+    "title": "AI Research and Deployment",
+    "interestProfile": "Track substantive AI research, independently supported capability changes, deployed systems, evaluation methods and enforceable AI policy. Separate a lab's claim from independently tested results and distinguish prototypes from available products. Skip funding-only announcements, speculative AGI predictions, promotional demos and minor feature launches.",
+    "sourceInputs": [
+      "rss: https://news.mit.edu/rss/topic/artificial-intelligence2",
+      "rss: https://feeds.arstechnica.com/arstechnica/index",
+      "news: artificial intelligence research model evaluation regulation",
+      "x: OpenAI",
+      "https://www.linkedin.com/company/microsoft/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:20",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_06_cybersecurity",
+    "title": "Cybersecurity Watch",
+    "interestProfile": "Track actively exploited vulnerabilities, significant breaches, ransomware disruptions, security fixes and changes in attacker techniques. State affected products and confirmed impact where reported. Distinguish alleged compromise from confirmed exposure. Skip generic security tips, vendor advertising and duplicate coverage that adds no remediation or incident detail.",
+    "sourceInputs": [
+      "rss: https://krebsonsecurity.com/feed/",
+      "rss: https://feeds.arstechnica.com/arstechnica/index",
+      "news: actively exploited vulnerability ransomware data breach",
+      "x: CISACyber",
+      "https://www.cisa.gov/news-events/cybersecurity-advisories"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:25",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_07_digital_rights",
+    "title": "Digital Rights and Platforms",
+    "interestProfile": "Track privacy law, surveillance powers, encryption, content moderation, platform competition and internet access restrictions. Prioritize enacted rules, court decisions and documented platform policy changes. Identify advocacy positions as positions. Skip campaign fundraising, general opinion and product reviews unrelated to users' rights.",
+    "sourceInputs": [
+      "rss: https://www.eff.org/rss/updates.xml",
+      "rss: https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "news: privacy encryption surveillance platform regulation",
+      "t: telegram",
+      "https://www.eff.org/updates"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:30",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_08_space",
+    "title": "Space and Astronomy",
+    "interestProfile": "Track mission milestones, launch outcomes, spacecraft operations and significant astronomy findings. Distinguish a planned launch from a completed launch and a scientific hypothesis from an observation. Keep uncertainties and mission dates. Skip image-of-the-day posts, anniversaries and celebrity space coverage without a substantive development.",
+    "sourceInputs": [
+      "rss: https://www.nasa.gov/feed/",
+      "rss: https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+      "news: space mission launch astronomy discovery",
+      "x: NASA",
+      "https://www.linkedin.com/company/nasa/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:35",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_09_climate",
+    "title": "Climate and Environment",
+    "interestProfile": "Track emissions data, climate attribution research, environmental regulation, adaptation and measurable ecosystem changes. Report the baseline, region and uncertainty where available. Distinguish extreme weather reporting from evidence of attribution. Skip lifestyle lists, repeated pledges without implementation and opinion without new evidence.",
+    "sourceInputs": [
+      "rss: https://www.carbonbrief.org/feed/",
+      "rss: https://www.theguardian.com/environment/rss",
+      "news: climate emissions adaptation environmental policy",
+      "x: WMO",
+      "https://www.ipcc.ch/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:40",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_10_energy",
+    "title": "Energy and Infrastructure",
+    "interestProfile": "Track electricity supply, grid reliability, energy infrastructure, oil and gas supply, storage and renewable deployment. Prioritize commissioned capacity, outages, regulatory decisions and dated supply data. Separate proposed projects from operating assets. Skip routine commodity-price ticks, company promotion and unsupported cost forecasts.",
+    "sourceInputs": [
+      "rss: https://www.eia.gov/rss/todayinenergy.xml",
+      "rss: https://www.theguardian.com/business/energy-industry/rss",
+      "news: electricity grid energy infrastructure storage",
+      "https://www.linkedin.com/company/international-energy-agency/",
+      "https://www.iea.org/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:45",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_11_public_health",
+    "title": "الصحة العامة والأبحاث الطبية",
+    "interestProfile": "تابع تغيرات تفشي الأمراض وقدرة الأنظمة الصحية وقرارات الجهات التنظيمية ونتائج الدراسات السريرية المهمة. اذكر نوع الدراسة وحدودها، وافصل التجارب على الحيوانات عن النتائج لدى البشر. استبعد النصائح العلاجية الفردية والمكملات والترويج للعلاجات غير المثبتة والعناوين التي تتجاوز ما تثبته الدراسة.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/health/rss.xml",
+      "rss: https://www.sciencedaily.com/rss/top/science.xml",
+      "news: public health clinical trial disease outbreak",
+      "https://www.linkedin.com/in/billgates/",
+      "x: WHO"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:50",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_12_science",
+    "title": "Science Worth Knowing",
+    "interestProfile": "Track substantial findings in physics, biology, materials and research methods, plus replication failures and corrections. Explain what was measured and retain important study limitations. Distinguish peer-reviewed findings from preprints and press-release claims. Skip incremental papers without a clear development, editorials and institutional announcements.",
+    "sourceInputs": [
+      "rss: https://www.nature.com/nature.rss",
+      "rss: https://www.theguardian.com/science/rss",
+      "news: scientific discovery research replication materials physics",
+      "x: Nature",
+      "https://www.nature.com/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "07:55",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_13_europe",
+    "title": "Europe : décisions et conséquences",
+    "interestProfile": "Suivre les décisions concrètes des institutions européennes et des gouvernements : textes adoptés, décisions de justice, élections, sanctions et infrastructures transfrontalières. Préciser les dates d'application et les populations concernées. Écarter les déclarations répétées, les commentaires partisans et les scénarios sans décision nouvelle.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/world/europe/rss.xml",
+      "rss: https://www.france24.com/fr/rss",
+      "news: European Union court regulation elections policy",
+      "x: EU_Commission",
+      "https://www.consilium.europa.eu/en/press/press-releases/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:00",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "fr"
+  },
+  {
+    "id": "demo20_14_africa",
+    "title": "Africa: Governance and Development",
+    "interestProfile": "Track material political, economic and infrastructure developments across African countries, including elections, public services, regional trade and conflict resolution. Name the country and avoid treating the continent as a single market or conflict. Skip generic crisis narratives, repeated statements and opinion without new facts.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/world/africa/rss.xml",
+      "rss: https://www.theguardian.com/global-development/rss",
+      "news: Africa governance infrastructure regional trade",
+      "https://www.linkedin.com/company/african-development-bank/",
+      "https://www.afdb.org/en/news-and-events"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:05",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_15_asia_pacific",
+    "title": "Asia-Pacific Briefing",
+    "interestProfile": "Track policy decisions, elections, trade, supply-chain changes, public infrastructure and regional security across East Asia, South Asia, Southeast Asia and the Pacific. Explain the concrete change and affected locations. Skip routine diplomatic statements, celebrity news and unsupported escalation scenarios.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/world/asia/rss.xml",
+      "rss: https://feeds.bbci.co.uk/news/world/rss.xml",
+      "news: Asia Pacific elections trade infrastructure security",
+      "x: Asia Pacific trade infrastructure lang:en",
+      "https://www.adb.org/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:10",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_16_food_water",
+    "title": "الغذاء والمياه والزراعة",
+    "interestProfile": "تابع الأمن الغذائي وإمدادات المياه والمحاصيل والجفاف والري وسياسات الزراعة وأسعار الغذاء الأساسية. أعط الأولوية لتغيرات الإنتاج والتوزيع والوصول وتأثيرها على المجتمعات. ميّز بين التوقعات والنتائج الفعلية. استبعد وصفات الطعام ونصائح الحمية والتغطية العامة للمناخ التي لا تتصل بالغذاء أو المياه.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/environment/rss",
+      "rss: https://www.theguardian.com/global-development/rss",
+      "news: food security drought water agriculture",
+      "https://www.linkedin.com/company/fao/",
+      "https://www.fao.org/newsroom/en"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:15",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_17_education",
+    "title": "Education and Universities",
+    "interestProfile": "Track school and university policy, access, funding, examinations, student support and credible evidence about learning. Prioritize enacted decisions and dated findings with a clear effect on students or staff. Identify the education system involved. Skip ranking publicity, campus promotion and individual success stories without broader significance.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/education/rss.xml",
+      "rss: https://www.theguardian.com/education/rss",
+      "news: education school university funding learning policy",
+      "https://www.linkedin.com/company/unesco/",
+      "https://www.unesco.org/en/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:20",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_18_culture",
+    "title": "Culture, patrimoine et création",
+    "interestProfile": "Suivre les découvertes et restitutions patrimoniales, les politiques culturelles, les changements importants des institutions et les créations ayant un impact documenté. Distinguer une annonce d'un événement réalisé. Écarter les rumeurs de célébrités, les promotions commerciales, les listes de recommandations et les critiques sans actualité factuelle.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+      "rss: https://www.theguardian.com/culture/rss",
+      "news: cultural heritage restitution museum policy",
+      "https://www.linkedin.com/company/unesco/",
+      "https://www.unesco.org/en/culture"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:25",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "fr"
+  },
+  {
+    "id": "demo20_19_sport",
+    "title": "أهم تطورات الرياضة",
+    "interestProfile": "تابع نتائج البطولات الكبرى والقرارات التنظيمية والعقوبات والتغييرات المؤكدة التي تؤثر في المنافسات أو سلامة الرياضيين. اذكر البطولة والتاريخ وميّز بين الانتقال المؤكد والشائعة. استبعد توقعات المباريات والمراهنات والشائعات اليومية والمقابلات التي لا تضيف تطوراً جديداً.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/sport/rss.xml",
+      "rss: https://www.france24.com/ar/rss",
+      "news: sport tournament regulation sanctions results",
+      "x: Olympics",
+      "https://www.olympics.com/ioc/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:30",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_20_economie_francophone",
+    "title": "Économie et politiques publiques",
+    "interestProfile": "Suivre l'économie française et les politiques publiques dans l'espace francophone : budget, emploi, inflation, fiscalité, services publics et commerce. Donner les périodes de référence et distinguer les mesures adoptées des propositions. Écarter les conseils de placement, les mouvements boursiers quotidiens et les prises de position sans fait nouveau.",
+    "sourceInputs": [
+      "rss: https://www.lemonde.fr/economie/rss_full.xml",
+      "rss: https://www.france24.com/fr/rss",
+      "news: France francophone economy budget employment public services",
+      "x: economie budget emploi France lang:fr",
+      "https://www.oecd.org/en/about/news.html"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:35",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "fr"
+  },
+  {
+    "id": "demo20_21_open_source",
+    "title": "Open Source and Developer Tools",
+    "interestProfile": "Track substantive open-source releases, maintainer decisions, software licensing changes, package infrastructure and developer tooling. Focus on concrete compatibility, maintenance and security implications. Skip marketing, minor patch roundups, discounts and benchmark claims without reproducible methods.",
+    "sourceInputs": [
+      "rss: https://github.blog/feed/",
+      "rss: https://www.phoronix.com/rss.php",
+      "news: open source software release developer tools licensing",
+      "t: telegram",
+      "https://www.linkedin.com/company/github/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:40",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_22_semiconductors",
+    "title": "Semiconductors and Computing Hardware",
+    "interestProfile": "Track chip design, fabrication capacity, export restrictions, manufacturing processes and verified changes in computing hardware. Distinguish announced specifications from independently measured performance and planned factories from operating capacity. Skip shopping guides, sale prices and routine device refreshes.",
+    "sourceInputs": [
+      "rss: https://feeds.arstechnica.com/arstechnica/index",
+      "rss: https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "news: semiconductor fabrication chip export controls",
+      "x: semiconductor chip fabrication lang:en",
+      "https://www.linkedin.com/company/asml/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:45",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_23_transport",
+    "title": "Transport and Mobility",
+    "interestProfile": "Track rail, aviation, road safety, public transport and mobility infrastructure. Prioritize service changes, completed projects, regulatory decisions and documented disruptions. State locations and affected passengers. Skip travel deals, car reviews and proposed projects with no new implementation step.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/business/rss.xml",
+      "rss: https://feeds.bbci.co.uk/news/world/rss.xml",
+      "news: rail aviation transport mobility infrastructure",
+      "x: rail aviation transport disruption lang:en",
+      "https://www.icao.int/Newsroom/Pages/default.aspx"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:50",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_24_housing",
+    "title": "Housing and Urban Services",
+    "interestProfile": "Track housing supply, rental policy, homelessness, planning decisions and urban public services. Give the city or jurisdiction and distinguish implemented rules from proposals. Prioritize evidence of effects on residents. Skip luxury listings, property advertising and generic decorating or investment advice.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/society/housing/rss",
+      "rss: https://feeds.bbci.co.uk/news/business/rss.xml",
+      "news: housing rent homelessness urban planning",
+      "https://www.linkedin.com/company/un-habitat/",
+      "https://unhabitat.org/news-and-stories"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "08:55",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_25_oceans",
+    "title": "Oceans and Marine Systems",
+    "interestProfile": "Track ocean temperatures, marine ecosystems, fisheries management, marine pollution and coastal protection. Prioritize observations, published findings and implemented protections. Preserve geographic scope and uncertainty. Skip beach tourism, decorative wildlife images and general climate stories without a marine development.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/environment/oceans/rss",
+      "rss: https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+      "news: ocean marine pollution fisheries coastal protection",
+      "x: NOAA",
+      "https://www.noaa.gov/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:00",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_26_biodiversity",
+    "title": "Wildlife and Biodiversity",
+    "interestProfile": "Track species population evidence, habitat loss and restoration, conservation policy and wildlife trade enforcement. Identify the species, location and measured change where available. Distinguish conservation targets from achieved outcomes. Skip pet stories, wildlife entertainment and unsupported recovery claims.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/environment/wildlife/rss",
+      "rss: https://www.theguardian.com/environment/rss",
+      "news: biodiversity wildlife habitat conservation",
+      "https://www.linkedin.com/company/iucn/",
+      "https://www.iucn.org/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:05",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_27_natural_hazards",
+    "title": "Earthquakes and Natural Hazards",
+    "interestProfile": "Track significant earthquakes, volcanic activity and major natural-hazard events with confirmed effects or authoritative updates. State event time, location and revised measurements. Distinguish an observation from a forecast and avoid implying precise earthquake prediction. Skip minor events without material impact.",
+    "sourceInputs": [
+      "rss: https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom",
+      "rss: https://feeds.bbci.co.uk/news/world/rss.xml",
+      "news: earthquake volcano natural hazard confirmed impact",
+      "x: USGS",
+      "https://www.usgs.gov/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:10",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_28_mena_economy",
+    "title": "اقتصاد الشرق الأوسط وشمال أفريقيا",
+    "interestProfile": "تابع القرارات الاقتصادية والتجارة والمالية العامة والعملات والبنية التحتية في الشرق الأوسط وشمال أفريقيا. اذكر البلد والفترة المرجعية وميّز القرار النافذ من المقترح والتوقع من النتيجة الفعلية. استبعد تقلبات الأسواق اليومية والترويج للشركات والنصائح الاستثمارية.",
+    "sourceInputs": [
+      "rss: https://rss.dw.com/xml/rss-ar-all",
+      "rss: https://feeds.bbci.co.uk/news/business/rss.xml",
+      "news: Middle East North Africa economy trade public finance",
+      "t: bbcarabic",
+      "https://www.worldbank.org/en/region/mena"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:15",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_29_labour",
+    "title": "العمل والأجور وحقوق العمال",
+    "interestProfile": "تابع الأجور وقوانين العمل والتوظيف والنقابات والسلامة المهنية والإضرابات ذات الأثر الملموس. اذكر البلد والفئات المتأثرة وميّز الاتفاق النهائي من المطالب والمفاوضات. استبعد نصائح البحث عن وظيفة وإعلانات التوظيف والقصص الفردية التي لا تعكس تطوراً أوسع.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/business/rss.xml",
+      "rss: https://www.theguardian.com/global-development/rss",
+      "news: labour wage employment worker rights strike",
+      "https://www.linkedin.com/company/international-labour-organization/",
+      "https://www.ilo.org/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:20",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_30_accessibility",
+    "title": "الإتاحة وحقوق الأشخاص ذوي الإعاقة",
+    "interestProfile": "تابع إتاحة النقل والمباني والخدمات الرقمية والتعليم والعمل للأشخاص ذوي الإعاقة. أعط الأولوية للقرارات القضائية والتغييرات التنفيذية والأدلة على عوائق الوصول. استبعد قصص الإلهام النمطية والإعلانات العلاجية والأخبار الطبية التي لا ترتبط بالإتاحة أو الحقوق.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/society/disability/rss",
+      "rss: https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "news: disability accessibility transport digital inclusion",
+      "x: disability accessibility policy lang:en",
+      "https://www.w3.org/WAI/news/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:25",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_31_public_governance",
+    "title": "الحوكمة والمساءلة العامة",
+    "interestProfile": "تابع الرقابة على الإنفاق العام والمشتريات والفساد والإصلاح الإداري والشفافية. أعط الأولوية للأحكام والتقارير الرقابية والقرارات المنفذة. انسب الاتهامات إلى أصحابها وافصلها عن النتائج المثبتة. استبعد السجالات الحزبية والتصريحات المتكررة والشائعات.",
+    "sourceInputs": [
+      "rss: https://rss.dw.com/xml/rss-ar-all",
+      "rss: https://www.france24.com/ar/rss",
+      "news: public procurement audit transparency corruption court",
+      "t: bbcarabic",
+      "https://www.transparency.org/en/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:30",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_32_north_america",
+    "title": "North America: Policy and Society",
+    "interestProfile": "Track material policy, judicial, public-service and cross-border developments in the United States and Canada. Identify the jurisdiction and distinguish an executive announcement from implementation or a court ruling. Skip campaign commentary, daily polling noise and celebrity coverage.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
+      "rss: https://feeds.bbci.co.uk/news/world/rss.xml",
+      "news: United States Canada court public policy services",
+      "x: United States Canada public policy court lang:en",
+      "https://www.canada.ca/en/news.html"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:35",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_33_latin_america",
+    "title": "Latin America and the Caribbean",
+    "interestProfile": "Track governance, public services, regional trade, infrastructure and security developments in Latin America and the Caribbean. Name the country and concrete change rather than treating the region as one story. Skip repeated diplomatic statements, unsupported crisis forecasts and opinion without new reporting.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/world/latin_america/rss.xml",
+      "rss: https://www.theguardian.com/global-development/rss",
+      "news: Latin America Caribbean governance trade infrastructure",
+      "https://www.linkedin.com/company/inter-american-development-bank/",
+      "https://www.iadb.org/en/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:40",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_34_justice",
+    "title": "Justice et libertés publiques",
+    "interestProfile": "Suivre les décisions de justice, les réformes pénales, les garanties procédurales et les libertés publiques. Préciser la juridiction, le stade de la procédure et les effets concrets. Distinguer accusation, condamnation et recours. Écarter les faits divers sensationnalistes et les commentaires sans décision nouvelle.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/law/rss",
+      "rss: https://www.france24.com/fr/rss",
+      "news: justice libertes publiques reforme decision tribunal",
+      "x: justice libertes tribunal reforme lang:fr",
+      "https://www.echr.coe.int/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:45",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "fr"
+  },
+  {
+    "id": "demo20_35_archaeology",
+    "title": "Archéologie et histoire matérielle",
+    "interestProfile": "Suivre les découvertes archéologiques, les nouvelles datations, les méthodes de recherche et la protection des sites. Préciser le lieu, la méthode et les limites des interprétations. Distinguer hypothèse et conclusion étayée. Écarter les récits sensationnalistes, le tourisme et les anniversaires sans découverte nouvelle.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/science/archaeology/rss",
+      "rss: https://www.theguardian.com/science/rss",
+      "news: archaeology excavation dating heritage discovery",
+      "x: archaeology excavation discovery lang:en",
+      "https://www.archaeological.org/news/"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:50",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "fr"
+  },
+  {
+    "id": "demo20_36_elections",
+    "title": "Elections and Democratic Institutions",
+    "interestProfile": "Track election rules, official results, court rulings affecting elections, electoral administration and transfers of power. Separate projections from certified outcomes and proposals from enacted rules. Give the jurisdiction and date. Skip daily opinion polls, campaign insults and unsupported fraud allegations.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/news/world/rss.xml",
+      "rss: https://www.france24.com/fr/rss",
+      "news: election certified results electoral court administration",
+      "x: election certified results court lang:en",
+      "https://www.idea.int/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "09:55",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_37_media",
+    "title": "Media and Information Integrity",
+    "interestProfile": "Track journalism institutions, media ownership, access to information, documented disinformation operations and changes in news distribution. Identify the evidence supporting an attribution or claim. Skip unverified viral content, routine ratings reports, celebrity gossip and commentary without a new factual development.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/media/rss",
+      "rss: https://www.eff.org/rss/updates.xml",
+      "news: journalism media ownership information integrity",
+      "t: telegram",
+      "https://rsf.org/en/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "10:00",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_38_supply_chains",
+    "title": "Supply Chains and Shipping",
+    "interestProfile": "Track ports, shipping routes, freight capacity, trade restrictions and supply disruptions affecting goods. Prioritize dated operational changes and documented effects, distinguishing forecasts from completed shipments or closures. Skip routine stock movements, corporate promotion and general business news without a supply-chain consequence.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/business/supply-chain-crisis/rss",
+      "rss: https://feeds.bbci.co.uk/news/business/rss.xml",
+      "news: shipping port freight supply chain disruption",
+      "x: shipping port freight disruption lang:en",
+      "https://unctad.org/news"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "10:05",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "en"
+  },
+  {
+    "id": "demo20_39_football",
+    "title": "كرة القدم: قرارات ونتائج حاسمة",
+    "interestProfile": "تابع نتائج البطولات الكبرى وقرارات الاتحادات والعقوبات والتغييرات المؤكدة في تنظيم كرة القدم. ميّز النتيجة النهائية من مجريات المباراة والانتقال الرسمي من الشائعة. استبعد المراهنات والتوقعات والمقابلات الروتينية والشائعات اليومية عن الانتقالات.",
+    "sourceInputs": [
+      "rss: https://feeds.bbci.co.uk/sport/football/rss.xml",
+      "rss: https://www.france24.com/ar/rss",
+      "news: football federation disciplinary tournament confirmed result",
+      "x: FIFAcom",
+      "t: bbcarabic"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "10:10",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "ar"
+  },
+  {
+    "id": "demo20_40_civil_society",
+    "title": "Associations et société civile",
+    "interestProfile": "Suivre les changements réglementaires, les financements documentés et les résultats vérifiables des associations et organisations de la société civile. Préciser les bénéficiaires, le pays et les limites des données. Écarter les appels aux dons, les annonces promotionnelles et les promesses sans mise en œuvre.",
+    "sourceInputs": [
+      "rss: https://www.theguardian.com/society/charities/rss",
+      "rss: https://www.theguardian.com/global-development/rss",
+      "news: civil society charity regulation philanthropy outcomes",
+      "https://www.linkedin.com/in/billgates/",
+      "https://www.gatesfoundation.org/ideas/media-center/press-releases"
+    ],
+    "publicFeedEnabled": true,
+    "updateIntervalMinutes": 1440,
+    "briefingTimeOfDay": "10:15",
+    "briefingTimezone": "Asia/Beirut",
+    "language": "fr"
+  }
+]

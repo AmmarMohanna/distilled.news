@@ -1,0 +1,200 @@
+{
+  "reviewType": "INDEPENDENT_AI_ASSISTED_OFFLINE_SOURCE_REVIEW",
+  "mandatoryProductStage": false,
+  "reviewedAt": "2026-10-22",
+  "inputs": [
+    "stage-d-input.json",
+    "stage-d-briefing.md",
+    "stage-d-response.json"
+  ],
+  "scope": "Saved full source corpus and actual Stage D reader prose/response. No network, paid inference, credential access or product edits.",
+  "verdict": "FAIL_MATERIAL_SOURCE_FIDELITY",
+  "summary": "Eight substantive sections generally preserve the supplied sources. The security roundup materially blurs active exploitation with disclosed vulnerabilities. Coverage and event granularity also need editorial improvement.",
+  "sourceCorpus": {
+    "entries": 21,
+    "uniqueSourceIds": 20,
+    "duplicateSourceId": "9aae67c8-b073-47e3-99f9-c461d97df5e1",
+    "note": "Assessment is fidelity to the supplied sources, not independent verification that the sources' underlying claims are true. Several long secondary articles include predictions, related-coverage links and speculative interpretation."
+  },
+  "materialFindings": [
+    {
+      "id": "D-01",
+      "severity": "IMPORTANT",
+      "category": "FACTUAL_SCOPE_AND_CERTAINTY",
+      "story": 9,
+      "sourceIds": [
+        "21e96058-02dc-470a-953e-deebc8d0b3ba"
+      ],
+      "draftAnchor": "active exploitation of vulnerabilities, including ... a critical Linux NVIDIA GPU driver flaw ... and unauthenticated remote code execution in Samsung QA-Board",
+      "sourceAnchors": [
+        "Qilin and Settra ransomware groups are actively exploiting CVE-2026-0257",
+        "Samsung has patched a critical security flaw",
+        "could be exploited to achieve code execution"
+      ],
+      "problem": "The including-list places NVIDIA and Samsung alongside PAN-OS under active exploitation. The source supports active ransomware exploitation for PAN-OS, a researcher-disclosed potential exploitation path for NVIDIA, and a patched Samsung RCE. It does not establish in-the-wild exploitation for the latter two.",
+      "suggestedCorrection": "Separate confirmed active attacks from disclosed/patched flaws; explicitly say only PAN-OS is reported actively exploited among these three."
+    }
+  ],
+  "otherFindings": [
+    {
+      "id": "D-02",
+      "severity": "MINOR",
+      "category": "ATTRIBUTION",
+      "story": 9,
+      "sourceIds": [
+        "21e96058-02dc-470a-953e-deebc8d0b3ba"
+      ],
+      "draftAnchor": "Google and Microsoft have issued new security guidance and raised bug bounty rewards for memory-safety bugs.",
+      "sourceAnchors": [
+        "Google has announced that it's raising bug bounty rewards",
+        "Microsoft is urging organizations to prepare their certificate systems for post-quantum authentication"
+      ],
+      "problem": "Joint wording ambiguously attributes bounty increases to Microsoft. The source attributes Chrome bounty changes to Google and post-quantum preparation guidance to Microsoft.",
+      "suggestedCorrection": "Assign each action to its named company."
+    },
+    {
+      "id": "D-03",
+      "severity": "MINOR",
+      "category": "UNCERTAINTY",
+      "story": 5,
+      "sourceIds": [
+        "b66ef5d4-279d-4762-a6ba-de4875e3fd7f"
+      ],
+      "draftAnchor": "The overall schedule for seven major lunar lander missions remains provisional",
+      "sourceAnchors": [
+        "not yet nailed down, publicly, is a single verified list naming all seven missions in order"
+      ],
+      "problem": "The prose implies an established seven-mission roster with a provisional schedule. The source itself says even the verified seven-mission list is unavailable.",
+      "suggestedCorrection": "Omit the count or identify it as the article's unverified framing."
+    },
+    {
+      "id": "D-04",
+      "severity": "MINOR",
+      "category": "SOURCE_ATTRIBUTION",
+      "story": 6,
+      "sourceIds": [
+        "af21daf3-404a-4a24-8ea0-b8455b7382f7"
+      ],
+      "draftAnchor": "Anthropic has given six employees ... publication rights that Anthropic cannot veto",
+      "sourceAnchors": [
+        "According to Anthropic's own account",
+        "Anthropic says it cannot veto"
+      ],
+      "problem": "The central access and publication-rights details are company-described terms. The draft presents them as established implementation, although it later mentions the company announcement.",
+      "suggestedCorrection": "Lead with 'Anthropic says it has given' to distinguish the company's account from independently audited operation."
+    }
+  ],
+  "importantEditorialOmissions": [
+    {
+      "sourceId": "81e45e51-0c69-4f5e-b85e-72dffaa7d8fe",
+      "title": "AI models may be capable of self-replicating without access to a datacenter",
+      "importance": "HIGH",
+      "sourceAnchors": [
+        "a 9B model got inference running on 8 of the 9 hardware types",
+        "they make mistakes when composing them end to end",
+        "We largely ignore the cyber exploit element"
+      ],
+      "assessment": "Original consequential AI-security research is omitted, while a broad security miscellany is selected. A concise item could report the demonstrated inference setup and simplified replication result while retaining the incomplete end-to-end/simplified-evaluation limitations. Omission is a selection weakness, not evidence that every background detail was mandatory."
+    },
+    {
+      "sourceId": "9aae67c8-b073-47e3-99f9-c461d97df5e1",
+      "title": "SpaceX's ambitious, expensive gamble to replace AT&T, T-Mobile, and Verizon",
+      "importance": "HIGH",
+      "sourceAnchors": [
+        "SpaceX bought 800 Mhz spectrum for $8 billion",
+        "previous agreement to purchase close to $20 billion worth of EchoStar spectrum"
+      ],
+      "assessment": "The current spectrum acquisition and telecom-market expansion are material economic/technology developments absent from a briefing that devotes two sections and substantial length to lunar/Starship schedule context. The interview's competitive forecasts should remain attributed if included."
+    },
+    {
+      "sourceId": "896f5db4-4b2a-43b0-813a-58b58dd24962",
+      "title": "Ransomware Attacks Intensify: Criminals Shift Focus to Target Employees and Their Families",
+      "importance": "MEDIUM",
+      "sourceAnchors": [
+        "37% of successful attacks included threats against workers' friends or relatives",
+        "Semperis surveyed 1,200 IT and security professionals"
+      ],
+      "assessment": "The survey's personal-extortion findings are omitted despite a security roundup slot. They could be more consequential to general readers than an unstructured list of bugs. Any replacement should preserve that these are survey responses, not population-wide observed attack rates."
+    }
+  ],
+  "eventGrouping": {
+    "assessment": "MIXED",
+    "good": [
+      "Iran tanker incidents remain distinct from Russia sanctions and DRC rebellion.",
+      "Anthropic embedded evaluation and its legislative proposal remain separate developments.",
+      "Several overlapping Florida-pad reports are combined rather than repeated as separate articles."
+    ],
+    "concerns": [
+      "Story 9 combines unrelated vulnerabilities, malware campaigns, corporate defensive measures and vendor guidance into one apparent development. This topical aggregation caused the active-exploitation scope error and obscures action priorities.",
+      "Story 8 combines the Texas launch-cadence environmental review with Florida-pad readiness. 'Separately' preserves the distinction, but the very long section is better treated as two bounded developments or substantially shortened.",
+      "Story 5 groups separate lunar programs transparently; it does not falsely call Griffin-1 a crewed Artemis lander."
+    ]
+  },
+  "repetition": {
+    "assessment": "LOW_TO_MODERATE",
+    "details": [
+      "No duplicate story from the duplicated SpaceX telecom source.",
+      "Stories 5 and 8 repeat Starship schedule uncertainty and readiness dependencies, but discuss different main developments.",
+      "Story 8 repeatedly states the date/flight number is unconfirmed; compressing that repetition would improve balance."
+    ]
+  },
+  "readability": {
+    "assessment": "NEEDS_EDITORIAL_IMPROVEMENT",
+    "details": [
+      "Most sections have clear leads and preserve actor identities.",
+      "The Florida section is much longer than the international-affairs stories, repeating several dependencies and caveats.",
+      "The security section is an unprioritized laundry list with jargon and CVE identifiers, rather than a coherent general-reader development.",
+      "The briefing has nine sections but uneven selection weight: space launch schedules occupy more attention than omitted major economic/AI-security findings."
+    ]
+  },
+  "positiveChecks": [
+    {
+      "stories": [
+        1
+      ],
+      "assessment": "IRGC attribution for tanker fires is explicit; approximate crude quantity and energy-disruption context remain faithful. 'Ruled out deploying ground troops' slightly compresses the source's 'not considering' wording, but no central unsupported escalation claim identified."
+    },
+    {
+      "stories": [
+        2
+      ],
+      "assessment": "The 60-day pause rationale, bipartisan criticism, Zelenskyy's expectations and possible three-way talks retain source attribution and uncertainty."
+    },
+    {
+      "stories": [
+        3
+      ],
+      "assessment": "Preserves partial repeal, administration rationale, expert disagreement, modest projected long-run electricity-price benefit versus other policy increases, and emissions/health costs."
+    },
+    {
+      "stories": [
+        4
+      ],
+      "assessment": "Kabila's FRN leadership, replacement coalition, pledge to honor Doha commitments and uncertain peace impact track the source."
+    },
+    {
+      "stories": [
+        5
+      ],
+      "assessment": "Starship tests remain targets/prerequisites; Griffin-1's launch remains a company claim; no guaranteed crewed landing date invented."
+    },
+    {
+      "stories": [
+        6,
+        7
+      ],
+      "assessment": "Six METR staff, publication/redaction terms and other evaluator relationships match the secondary source; draft-bill thresholds, proposal status, Commerce/judicial process and absence of endorsement match the supplied account."
+    },
+    {
+      "stories": [
+        8
+      ],
+      "assessment": "The 456-launch/912-landing request is correctly distinguished from current authorization and final approval; Florida launch date and flight number remain unconfirmed."
+    }
+  ],
+  "limitations": [
+    "No live fact checking, source-quality investigation, runtime persistence certification or paid model call performed.",
+    "This is an independent AI-assisted assessment, not human gold labeling.",
+    "Important omissions are comparative editorial judgments for the supplied feed interest; they are not assertions that every article must be included."
+  ]
+}
