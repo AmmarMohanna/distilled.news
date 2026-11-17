@@ -30,6 +30,7 @@ import {
 import { significantNumbers } from "./text";
 import {selectTopicSources} from './topic-selection';
 import {wordingFidelity,wordingBase} from './wording-fidelity';
+import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,SUPPORTED_CORE_VERIFY_V2,SUPPORTED_CORE_REPAIR_V2,MATERIAL_RECOVERY,auditRepairCoverage,recoveryHistory} from './verification-recovery';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
@@ -374,7 +375,7 @@ async function verify(
         meter,
         {
           model: models.verifier,
-          system: wordingBase(input.feed,'verify',(promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM))+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed,true),
+          system: wordingBase(input.feed,'verify',(promptVersion === 7 ? VERIFY_SYSTEM_V7 : promptVersion >= 6 ? VERIFY_SYSTEM_V6 : promptVersion >= 5 ? VERIFY_SYSTEM_V5 : promptVersion >= 3 ? VERIFY_SYSTEM : LEGACY_VERIFY_SYSTEM))+(noveltyGuard?`\n\n${NOVELTY_RULE}`:'')+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed,true)+(input.feed.verificationRecoveryPolicy?'\n\n'+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?SUPPORTED_CORE_VERIFY_V2:SUPPORTED_CORE_VERIFY):''),
           user: verifyUser({
             promptVersion,
             previousReviews: batch.flatMap((index, localIndex) => {
@@ -438,7 +439,9 @@ async function repair(
   byRef: Map<string, PreparedArticle>,
   headlineOnly = false,
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 4,
-  noveltyPolicy?:EngineOptions['noveltyPolicy']
+  noveltyPolicy?:EngineOptions['noveltyPolicy'],
+  history:Map<number,Array<Omit<PreviousReview,'index'>>>=new Map(),
+  finalRepair=false
 ): Promise<Map<number, { headline: string; body: string } | null>> {
   // Model-facing numbers are local to this subset; translate back mechanically.
   const indices = [...flagged.keys()];
@@ -449,7 +452,7 @@ async function repair(
     meter,
     {
       model: models.editor,
-      system: wordingBase(input.feed,'repair',(promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM))+wordingFidelity(input.feed),
+      system: wordingBase(input.feed,'repair',(promptVersion === 7 ? REPAIR_SYSTEM_V7 : promptVersion >= 6 ? REPAIR_SYSTEM_V6 : headlineOnly ? REPAIR_SYSTEM + '\nReturn body:"" when the headline alone preserves the supported development and all essential qualifications.' : REPAIR_SYSTEM))+wordingFidelity(input.feed)+(input.feed.verificationRecoveryPolicy?'\n\n'+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?SUPPORTED_CORE_REPAIR_V2:SUPPORTED_CORE_REPAIR):''),
       user: repairUser({
         windowEnd: input.windowEnd,
         sources,
@@ -461,7 +464,7 @@ async function repair(
           sources: drafts[index].refs,
           issues: flagged.get(index)!
         }))
-      })+(noveltyPolicy?OCCURRENCE_PROSE:''),
+      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy?recoveryHistory(history,indices,input.feed.verificationRecoveryPolicy==='supported-core-v2'?false:finalRepair)+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?'\n\n'+(finalRepair?'FINAL SUPPORTED-CORE REPAIR: ':'')+MATERIAL_RECOVERY:''):''),
       maxTokens: 3000
     },
     (raw) => {
@@ -639,6 +642,7 @@ export async function generateBriefing(
   }
   const accepted = new Set<number>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
+  const repairHistory = new Map<number,Array<Omit<PreviousReview,'index'>>>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
     const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy,options.noveltyPolicy));
@@ -663,7 +667,8 @@ export async function generateBriefing(
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
     if (flagged.size && round < options.maxRepairs) {
-      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion,options.noveltyPolicy));
+      for(const [index,issues]of flagged)repairHistory.set(index,[...(repairHistory.get(index)??[]),{headline:drafts[index].headline,body:drafts[index].body,issues:[...issues]}]);
+      const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion,options.noveltyPolicy,repairHistory,round===options.maxRepairs-1));
       for (const index of flagged.keys()) {
         const fixed = fixes.get(index);
         if (!fixed) {
@@ -677,6 +682,24 @@ export async function generateBriefing(
     }
   }
   for (const index of todo) dropped.push({ headline: drafts[index].headline, reason: "never confirmed by the verifier", carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
+
+  if(input.feed.verificationRecoveryPolicy==='supported-core-v2'){
+    const repaired=[...accepted].filter(index=>repairHistory.has(index));
+    for(const batch of batchesBySourceSize(repaired,drafts,byRef,options.maxVerifyChars)){
+      const refs=[...new Set(batch.flatMap(index=>drafts[index].refs))];
+      let issues:Map<number,string>;
+      try{
+        issues=await timed('recovery_coverage',()=>auditRepairCoverage(port,meter,models.editor,input,batch.map(index=>({index,...drafts[index],history:repairHistory.get(index)!})),refs.map(ref=>byRef.get(ref)!)));
+      }catch(error){
+        // Only received output that exhausted correction is isolatable. Provider,
+        // accounting, scope and uncertain-payment failures must still propagate.
+        if(!(error instanceof BriefingOutputError)||error.uncertain)throw error;
+        const reason='EDITORIAL_RECOVERY_COVERAGE: unusable after correction: '+error.message.split('; last reply began:')[0];
+        issues=new Map(batch.map(index=>[index,reason]));
+      }
+      for(const [index,reason]of issues){accepted.delete(index);dropped.push({headline:drafts[index].headline,reason,carry:true,sourceIds:sourceIdsOfRefs(drafts[index].refs)});}
+    }
+  }
 
   const items: BriefingItem[] = [...accepted]
     .sort((a, b) => a - b)
