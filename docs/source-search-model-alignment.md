@@ -68,3 +68,11 @@ as well as the article URL. This preserves publisher identity when an indexed
 article still has an opaque Google News URL. A regression uses identical article
 headlines/excerpts from two different publishers. API and UI regressions verify
 mixed accepted/unknown batches remain successful and use their normal caches.
+
+Successful partial searches retain their readable matches in the same owner-
+and topic-scoped cache even when another article fails access checks. Empty
+incomplete searches and provider outages remain uncached, and cached matches
+are rechecked for readability. Source addition reuses both Google listing URLs
+and validated resolved publisher article URLs from that cache, preserving the
+selected article's evidence without accepting client-supplied article text or
+transferring evidence between publishers or feed topics.

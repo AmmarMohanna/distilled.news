@@ -15,6 +15,8 @@ export async function cachedSourceSearch(owner:string,query:string,origin:string
  const key=await cacheKey(owner,query,origin,kind);
  try{const saved=await cache?.match(key);if(saved){const result=await saved.json() as Result;return checkCached?await checkCached(result):result;}}catch{/* A cache failure cannot disable search. */}
  const result=await load();
- if(!result.unavailable&&!result.accessIncomplete)try{await cache?.put(key,Response.json(result,{headers:{'cache-control':'public, max-age=120'}}));}catch{/* Transient optimization only. */}
+ // Retain successful matches even when a sibling failed access checks. Cached
+ // results still pass the caller's normal readability recheck on every read.
+ if(!result.unavailable&&(!result.accessIncomplete||result.results.length>0))try{await cache?.put(key,Response.json(result,{headers:{'cache-control':'public, max-age=120'}}));}catch{/* Transient optimization only. */}
  return result;
 }
