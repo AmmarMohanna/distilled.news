@@ -31,3 +31,13 @@ Read history now persists individual read/unread decisions and baseline migrated
 Feed-refresh failures and query-scoped search failures are separate UI states. A healthy background feed response cannot dismiss a search failure; successful search retry or leaving the failed query clears it.
 
 Successful star changes restart ranked Explore pagination and invalidate an older page still in flight. An overlapping later page also restarts the prefix instead of silently deduplicating away evidence of a ranking shift made by another reader. Offset pagination is not an immutable global snapshot under arbitrary concurrent edits; these paths recover known local changes and detected overlap. Explore search still filters loaded pages, explicitly says so while more pages remain, and offers Load more feeds rather than claiming an unperformed server-wide search returned nothing.
+
+## Confirmed votes, query identity and catalog revision
+
+Confirmed vote events now carry the mutation result. Explore applies viewer-scoped confirmations to refreshed cards (using stable feed identity when already loaded) until the listing acknowledges that vote; an older conflicting response cannot undo a successful star or unstar. Confirmations clear on viewer changes. The ordinary browser fixture now persists votes, while dedicated delayed-response tests deliberately return stale votes in both directions.
+
+Displayed reader editions have a separate feed/query identity. A failed new search settles the request as failed without relabelling previous editions as matches; unrelated rows and detail dialogs remain hidden, and failure is not presented as a confirmed empty publication set.
+
+Migration **0099_explore_catalog_revision.sql must be applied before deploying this Worker**. It adds one catalog revision row and transactional triggers for public eligibility, ranking, relevant feed identity and owner availability changes. Routine scheduling updates do not advance it. Each listing reads this row before and after its bounded query, returns a viewer-scoped revision token, and rejects stale/mixed pages with `EXPLORE_CHANGED` (409). The current client pins subsequent pages to that revision and restarts on rejection, including removals that produce no overlap. This adds two constant-size revision reads per successful page; it does not scan all feed history. A first-page conflict exposes Retry instead of an unbounded automatic retry loop. Older clients that omit tokens retain their prior best-effort pagination until refreshed.
+
+The migration is forward-compatible with the prior Worker for code rollback; it has only been tested on local D1 here. No staging or production migration or deployment is authorized or performed by these review fixes.

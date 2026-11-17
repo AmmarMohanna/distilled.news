@@ -1299,14 +1299,23 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.get("/api/explore/feeds", async (c) => {
-    const repo = repoFor(c);
-    const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
-    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
-    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
-    const feeds = await repo.listExploreBriefings(101, offset, viewer && !viewer.disabledAt ? viewer.id : undefined, await getVoterId(c) ?? undefined);
     c.header('Cache-Control','private, no-store');
     c.header('Vary','Cookie');
-    return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null });
+    const repo = repoFor(c);
+    const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
+    const expected=z.string().max(128).optional().parse(c.req.query('revision'));
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const excludedOwner=viewer&&!viewer.disabledAt?viewer.id:undefined;
+    const before=await repo.getExploreRevision();
+    const revision=await hashToken(JSON.stringify([before,excludedOwner??null]));
+    const changed=()=>c.json({error:'Community feed listing changed. Reload it.',code:'EXPLORE_CHANGED'},409);
+    if(offset>0&&expected!==undefined&&expected!==revision)return changed();
+    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined);
+    // The revision bookends the query, so a page cannot be labelled with a
+    // revision from before or after a concurrent membership/ranking change.
+    if(await repo.getExploreRevision()!==before)return changed();
+    return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null, revision });
   });
 
   app.get("/api/feed/:username/:briefingSlug/sketch", async (c) => {

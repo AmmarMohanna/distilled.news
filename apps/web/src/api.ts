@@ -341,12 +341,13 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
 }
 
 export interface ExplorePage {
+  revision?: string;
   feeds: Array<PublicBriefing & { viewerHasStarred: boolean; latestUpdatedAt?: string }>;
   nextOffset: number | null;
 }
 /** One bounded page. The caller retains earlier pages if a subsequent read fails. */
-export async function getExploreFeeds(offset = 0): Promise<ExplorePage> {
-  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}`);
+export async function getExploreFeeds(offset = 0, revision?:string): Promise<ExplorePage> {
+  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}${revision?'&revision='+encodeURIComponent(revision):''}`);
   return { ...payload, nextOffset: payload.nextOffset ?? null };
 }
 
@@ -362,7 +363,7 @@ export async function setFeedStar(username: string, slug: string, starred: boole
     method: "POST",
     body: JSON.stringify({ starred })
   });
-  window.dispatchEvent(new Event(EXPLORE_CHANGED_EVENT));
+  window.dispatchEvent(new CustomEvent(EXPLORE_CHANGED_EVENT,{detail:{vote:{ownerUsername:username,slug,...result}}}));
   return result;
 }
 

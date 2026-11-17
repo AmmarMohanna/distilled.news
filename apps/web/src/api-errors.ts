@@ -1,5 +1,6 @@
 /** Safe frontend error state. No locale or arbitrary server prose is stored. */
 export const apiErrorCopy = {
+  EXPLORE_CHANGED: ['Community feed listing changed. Reload it.', 'La liste des fils communautaires a changé. Rechargez-la.', 'تغيّرت قائمة الخلاصات المجتمعية. أعد تحميلها.'],
   FEED_CONFIGURATION_CHANGED: ['Feed configuration changed. Reload and try again.', 'La configuration du flux a changé. Rechargez la page et réessayez.', 'تغيّرت إعدادات الموجز. أعد تحميل الصفحة وحاول مجددًا.'],
   SUMMARY_QUOTA_EXCEEDED: ['The hourly summary allowance has been used. Try again later.', 'Le quota horaire de résumés est atteint. Réessayez plus tard.', 'تم استهلاك حصة الملخصات لهذه الساعة. حاول لاحقًا.'],
   REQUEST_FAILED: ['Could not complete the request. Try again.', 'Impossible de terminer la demande. Réessayez.', 'تعذّر إكمال الطلب. حاول مجددًا.'],
@@ -25,6 +26,7 @@ export interface SafeErrorDetails { readonly status?: number; readonly retryAfte
 export interface ApiErrorMessage { readonly id: ApiErrorId; readonly details: SafeErrorDetails }
 export type UiMessage = string | ApiErrorMessage;
 const knownErrors: Record<string, ApiErrorId> = {
+  'community feed listing changed. reload it.': 'EXPLORE_CHANGED',
   'feed configuration changed. reload and try again.': 'FEED_CONFIGURATION_CHANGED',
   'the hourly summary allowance has been used. try again later.': 'SUMMARY_QUOTA_EXCEEDED',
   'verify your email before logging in': 'AUTH_EMAIL_VERIFICATION_REQUIRED',

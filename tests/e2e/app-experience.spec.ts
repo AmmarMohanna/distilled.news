@@ -3,16 +3,18 @@ import { chooseSetting, cycleLanguage, openEditSettings, expectSignedInAppearanc
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
+ let viewerHasStarred=false;
  await page.route("**/api/**", async (route: any) => {
  const path = new URL(route.request().url()).pathname;
  if ((path === '/api/me/briefings' || path === '/api/me/feeds') && route.request().method() === 'POST') {
    const input = route.request().postDataJSON();
    currentFeed = { ...currentFeed, ...input, slug: input.title === 'Science today' ? 'science-today' : currentFeed.slug };
  }
- const body = path.endsWith('/star') ? {stars:4,viewerHasStarred:true}
+ if(path.endsWith('/star'))viewerHasStarred=route.request().postDataJSON().starred;
+ const body = path.endsWith('/star') ? {stars:viewerHasStarred?4:3,viewerHasStarred}
  : path === '/api/auth/session' ? { authenticated, setupRequired:false, account:authenticated ? {id:'joud',username,email:'joud@example.test',role:'user'} : null }
  : path === '/api/me/briefings' || path === '/api/me/feeds' ? (route.request().method()==='POST' ? {briefing:currentFeed} : {briefings:[currentFeed]})
- : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[{...feed,viewerHasStarred:false}],nextOffset:null}
+ : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[{...feed,stars:viewerHasStarred?4:3,viewerHasStarred}],nextOffset:null}
  : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:currentFeed,editions:[],viewerHasStarred:false}
  : path === '/api/me/sources/assess' ? {assessment:{status:'accepted',input:route.request().postDataJSON().source,reason:'Fixture source matches',checkedAt:'2026-10-24T12:00:00Z'}}
  : path === '/api/me/sources' ? {sources:[{id:'rss-1',enabled:true,input:'https://example.test/feed.xml',title:'Science',provider:'rss',kind:'rss_feed'}]}

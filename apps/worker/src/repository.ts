@@ -472,6 +472,12 @@ export class D1Repository implements Repository {
     return rows.map(row => accountId ? rowToBriefingCard(row) : rowToBriefing(row));
   }
 
+  async getExploreRevision():Promise<string>{
+    const row=await first<{revision:number}>(this.db.prepare('SELECT revision FROM explore_catalog_revision WHERE singleton=1'));
+    if(!row)throw new Error('Explore catalog migration is required');
+    return String(row.revision);
+  }
+
   async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
     if (limit <= 0) return [];
     const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null}>(
@@ -1935,6 +1941,13 @@ export class InMemoryRepository implements Repository {
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .map((briefing) => accountId ? this.cardMetadata(briefing, voterId) : briefing);
+  }
+
+  async getExploreRevision():Promise<string>{
+    return canonicalJson(Array.from(this.briefings.values())
+      .filter(feed=>feed.publicFeedEnabled&&!feed.paused&&!this.accounts.get(feed.ownerAccountId)?.disabledAt)
+      .sort((a,b)=>a.id.localeCompare(b.id))
+      .map(feed=>[feed.id,feed.ownerAccountId,this.accounts.get(feed.ownerAccountId)?.username,feed.slug,feed.title,feed.stars,this.briefingCreatedAt.get(feed.id)]));
   }
 
   async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
