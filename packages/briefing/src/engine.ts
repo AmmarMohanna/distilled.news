@@ -687,7 +687,16 @@ export async function generateBriefing(
     const repaired=[...accepted].filter(index=>repairHistory.has(index));
     for(const batch of batchesBySourceSize(repaired,drafts,byRef,options.maxVerifyChars)){
       const refs=[...new Set(batch.flatMap(index=>drafts[index].refs))];
-      const issues=await timed('recovery_coverage',()=>auditRepairCoverage(port,meter,models.editor,input,batch.map(index=>({index,...drafts[index],history:repairHistory.get(index)!})),refs.map(ref=>byRef.get(ref)!)));
+      let issues:Map<number,string>;
+      try{
+        issues=await timed('recovery_coverage',()=>auditRepairCoverage(port,meter,models.editor,input,batch.map(index=>({index,...drafts[index],history:repairHistory.get(index)!})),refs.map(ref=>byRef.get(ref)!)));
+      }catch(error){
+        // Only received output that exhausted correction is isolatable. Provider,
+        // accounting, scope and uncertain-payment failures must still propagate.
+        if(!(error instanceof BriefingOutputError)||error.uncertain)throw error;
+        const reason='EDITORIAL_RECOVERY_COVERAGE: unusable after correction: '+error.message.split('; last reply began:')[0];
+        issues=new Map(batch.map(index=>[index,reason]));
+      }
       for(const [index,reason]of issues){accepted.delete(index);dropped.push({headline:drafts[index].headline,reason,carry:true,sourceIds:sourceIdsOfRefs(drafts[index].refs)});}
     }
   }

@@ -1,5 +1,6 @@
 import {expect,it} from 'vitest';
 import {generateBriefing} from '../src/engine';
+import {BriefingModelError,BriefingBudgetError} from '../src/types';
 import {article,FEED,MODELS,scripted,WINDOW} from './helpers';
 
 // Source-derived development case, not an untouched test or paid-model result.
@@ -74,7 +75,7 @@ it('defers uncertain material coverage without inventing a successful editorial 
 it.each(['sourceQuote','readerQuote','sourceRef'] as const)('rejects invented %s proof in the coverage gate',async field=>{
  const invalid=coverage();invalid.results[0].developments[0][field]='This invented reference was never supplied';
  const x=scripted({edit:[{items:[draft(original)]}],verify:[{results:[{i:0,verdict:'fix',issues:[countIssue]}]},{results:[{i:0,verdict:'ok',issues:[]}]}],repair:[{items:[{i:0,headline:safe,body:'',drop:false}]}],recovery_coverage:[invalid,invalid]});
- await expect(generateBriefing(input,x.port,MODELS)).rejects.toThrow('UNGROUNDED_RECOVERY_COVERAGE');
+ const result=await generateBriefing(input,x.port,MODELS);expect(result.status).toBe('rejected');expect(result.items).toEqual([]);expect(result.dropped[0]).toMatchObject({carry:true,sourceIds:['army'],reason:expect.stringContaining('UNGROUNDED_RECOVERY_COVERAGE')});
 });
 
 
@@ -82,4 +83,26 @@ it('keeps a complete verified sibling while withholding an incomplete repaired s
  const x=scripted({edit:[{items:[draft('Road reopened',['S2']),draft(original)]}],verify:[{results:[{i:0,verdict:'ok',issues:[]},{i:1,verdict:'fix',issues:[countIssue]}]},{results:[{i:0,verdict:'ok',issues:[]}]}],repair:[{items:[{i:0,headline:short,body:'',drop:false}]}],recovery_coverage:[coverage('incomplete',true)]});
  const r=await generateBriefing({...input,articles:[...input.articles,article('road','The municipality reopened the coastal road.')]},x.port,MODELS);
  expect(r.status).toBe('published');expect(r.items.map(i=>i.sourceIds)).toEqual([['road']]);expect(r.dropped[0]).toMatchObject({carry:true,sourceIds:['army'],reason:expect.stringContaining('EDITORIAL_RECOVERY_COVERAGE')});
+});
+
+
+it.each(['not JSON',{results:[{i:0,status:'preserved',reason:'Claimed proof',developments:[{sourceRef:'invented',sourceQuote:'fabricated',readerQuote:'fabricated'}]}]}])('preserves the verified sibling after two unusable coverage replies: %j',async bad=>{
+ const x=scripted({edit:[{items:[draft('Road reopened',['S2']),draft(original)]}],verify:[{results:[{i:0,verdict:'ok',issues:[]},{i:1,verdict:'fix',issues:[countIssue]}]},{results:[{i:0,verdict:'ok',issues:[]}]}],repair:[{items:[{i:0,headline:safe,body:'',drop:false}]}],recovery_coverage:[bad,bad]});
+ const result=await generateBriefing({...input,articles:[...input.articles,article('road','The municipality reopened the coastal road.')]},x.port,MODELS);
+ expect(result.status).toBe('published');expect(result.items.map(i=>i.sourceIds)).toEqual([['road']]);expect(result.dropped).toEqual([expect.objectContaining({carry:true,sourceIds:['army'],reason:expect.stringContaining('EDITORIAL_RECOVERY_COVERAGE: unusable after correction')})]);
+ const checks=x.calls.filter(c=>c.stage==='recovery_coverage');expect(checks).toHaveLength(2);expect(checks[1].request.user).toContain('Your previous reply could not be used');
+ expect(result.usage.calls).toBe(6);expect(result.usage.costUsd).toBeCloseTo(.006);expect(result.dropped[0].reason).not.toContain('last reply began');
+});
+
+it.each([new BriefingModelError('Provider timeout',true,true),new BriefingModelError('Provider unavailable',true,false),new BriefingBudgetError('Not admitted'),new Error('CALL_ALREADY_STARTED_OR_UNKNOWN'),new Error('SCOPE_DENIED')])('does not isolate provider/accounting failure %s during coverage correction',async error=>{
+ const x=scripted({edit:[{items:[draft('Road reopened',['S2']),draft(original)]}],verify:[{results:[{i:0,verdict:'ok',issues:[]},{i:1,verdict:'fix',issues:[countIssue]}]},{results:[{i:0,verdict:'ok',issues:[]}]}],repair:[{items:[{i:0,headline:safe,body:'',drop:false}]}],recovery_coverage:['not JSON',()=>{throw error}]});
+ await expect(generateBriefing({...input,articles:[...input.articles,article('road','The municipality reopened the coastal road.')]},x.port,MODELS)).rejects.toBe(error);
+ expect(x.calls.filter(c=>c.stage==='recovery_coverage')).toHaveLength(2);
+});
+
+
+it('continues coverage checking other repaired batches after one batch exhausts malformed replies',async()=>{
+ const x=scripted({edit:[{items:[draft('Road reopened',['S2']),draft(original),draft('School opened',['S3'])]}],verify:[{results:[{i:0,verdict:'ok',issues:[]}]},{results:[{i:0,verdict:'fix',issues:[countIssue]}]},{results:[{i:0,verdict:'fix',issues:['Retain inspection qualification']}]},{results:[{i:0,verdict:'ok',issues:[]}]},{results:[{i:0,verdict:'ok',issues:[]}]}],repair:[{items:[{i:0,headline:safe,body:'',drop:false},{i:1,headline:'School reopened after inspection',body:'',drop:false}]}],recovery_coverage:['not JSON','not JSON',{results:[{i:0,status:'preserved',reason:'The reopening and inspection remain.',developments:[{sourceRef:'S3',sourceQuote:'The school reopened after its safety inspection.',readerQuote:'School reopened after inspection'}]}]}]});
+ const result=await generateBriefing({...input,articles:[...input.articles,article('road','The municipality reopened the coastal road.'),article('school','The school reopened after its safety inspection.')]},x.port,MODELS,{maxVerifyChars:1});
+ expect(result.items.map(i=>i.sourceIds)).toEqual([['road'],['school']]);expect(result.dropped).toEqual([expect.objectContaining({carry:true,sourceIds:['army']})]);expect(x.calls.filter(c=>c.stage==='recovery_coverage')).toHaveLength(3);
 });

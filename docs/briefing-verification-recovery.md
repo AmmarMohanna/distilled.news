@@ -116,3 +116,27 @@ separate action; existing deferred editions are intentionally unchanged.
 These are offline functional/financial regression results, not measured editorial
 accuracy or real-provider latency/cost. Both paid-model validation and deployment
 remain unperformed.
+
+
+## Exhausted coverage-output isolation
+
+A coverage check's two received but unusable replies no longer abort unrelated
+verified publication. Only `BriefingOutputError` (exhausted JSON/schema correction,
+with no uncertain provider outcome) is isolated at the affected repaired batch.
+Those repaired items are withheld with `EDITORIAL_RECOVERY_COVERAGE: unusable after
+correction` and `carry:true`; unrelated approved stories and other usable coverage
+batches continue. An entirely withheld briefing remains rejected/deferred, never
+QUIET. The reason omits the raw reply excerpt.
+
+Provider, uncertain-payment, admission and scope errors are rethrown unchanged.
+No provider request bytes, frozen policy, operation identities, financial records,
+retry counts or model calls change. Historical completed results remain unchanged.
+Regressions cover malformed JSON, forged source/reader proof, complete siblings,
+continued checking of another repaired batch, known received-call metering, and
+provider/accounting errors during a correction. No deployment or paid inference
+was performed for this follow-up.
+
+Follow-up validation: all six CI-equivalent check groups pass, including 404
+briefing tests (19 recovery regressions), 119 evaluator tests, exporter/Python
+checks and evaluation typechecks. The changed briefing package typecheck and
+`git diff --check` also pass.
