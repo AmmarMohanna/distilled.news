@@ -133,6 +133,10 @@ export async function forgotPassword(email: string, turnstileToken?: string): Pr
   });
 }
 
+export async function resendVerification(email:string,turnstileToken?:string):Promise<void>{
+  await requestJson('/api/auth/verification/resend',{method:'POST',body:JSON.stringify({email,turnstileToken,language:preferredLanguage()})});
+}
+
 export async function resetPassword(token: string, password: string): Promise<void> {
   await requestJson("/api/auth/password/reset", {
     method: "POST",
