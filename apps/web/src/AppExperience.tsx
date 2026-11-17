@@ -136,7 +136,12 @@ export function AppExperience(props: {
     if (notificationEnabled === undefined || notificationBusy) return;
     setNotificationBusy(true); setNotificationError("");
     try { await setNotificationsEnabled(!notificationEnabled); setNotificationEnabled(!notificationEnabled); }
-    catch (cause) { setNotificationError(toUiError(cause)); }
+    catch (cause) {
+      setNotificationError(toUiError(cause));
+      // A rejected server cleanup can still have unsubscribed this browser.
+      try { setNotificationEnabled(await notificationsEnabled()); }
+      catch { setNotificationEnabled(undefined); }
+    }
     finally { setNotificationBusy(false); }
   }
   return <main className={`experience product-refresh ${!props.account ? "guest-browse guest-landing landing-no-menu" : ""}`}>

@@ -6,6 +6,19 @@ import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceC
 import { personalNewsBriefing } from '@distilled/core';
 import {setWebsiteLanguage} from './LanguageControl';
 
+it('submits the public Telegram URL when editing only a verified channel feed title',async()=>{
+ vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+ vi.mocked(getSources).mockResolvedValueOnce([{id:'telegram_-1001234567890',briefingId:personalNewsBriefing.id,title:'@examplechannel',provider:'telegram',kind:'telegram_channel',type:'channel',enabled:true,lastSeenAt:'2026-11-17T00:00:00Z',sourceUrl:'https://t.me/examplechannel',input:JSON.stringify({channelId:'-1001234567890',username:'examplechannel',public:true})}]);
+ const host=document.createElement('div'),root=createRoot(host),onSave=vi.fn(async(_input:unknown)=>{});
+ try{
+  await act(async()=>setWebsiteLanguage('en'));
+  await act(async()=>root.render(<FeedEditor feed={personalNewsBriefing} onClose={()=>{}} onSave={onSave}/>));
+  await act(async()=>{const input=host.querySelector<HTMLInputElement>('input[aria-label="Feed name"]')!;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,'Renamed Telegram feed');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  await act(async()=>host.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({title:'Renamed Telegram feed',sourceInputs:['https://t.me/examplechannel']}));
+ }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
+});
+
 it('clears missing-details feedback once a new feed has a name and interests',async()=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
  vi.mocked(searchSourceCandidates).mockResolvedValueOnce({results:[],unavailable:false});

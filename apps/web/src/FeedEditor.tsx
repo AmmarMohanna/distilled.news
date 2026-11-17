@@ -26,7 +26,18 @@ export function FeedEditor(props: {
   useEffect(() => {
     if (!props.feed) return;
     let active = true;
-    getSources(props.feed.id).then(items => { if (active) { setSources(items.filter(s=>s.enabled).map(s=>s.input || s.sourceUrl || s.url || s.title)); setSourcesReady(true); } }).catch(cause => { if (active) setMessage(toUiError(cause)); });
+    getSources(props.feed.id).then(items => { if (active) {
+      setSources(items.filter(s=>s.enabled).map(s=>{
+        // Telegram input contains verification metadata, not an editable URL.
+        if(s.kind==='telegram_channel'||s.provider==='telegram'){
+          const url=s.sourceUrl||s.url||(s.username?`https://t.me/${s.username.replace(/^@/,'')}`:undefined);
+          if(!url)throw new Error('The Telegram source URL is missing. Reload before saving.');
+          return url;
+        }
+        return s.input||s.sourceUrl||s.url||s.title;
+      }));
+      setSourcesReady(true);
+    } }).catch(cause => { if (active) setMessage(toUiError(cause)); });
     return () => { active = false; };
   }, [props.feed?.id]);
   const [title, setTitle] = useState(props.feed?.title ?? "");

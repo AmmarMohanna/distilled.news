@@ -146,8 +146,13 @@ it('resolves public Telegram usernames privately and keeps source identity stabl
   const first=(await repo.listSources(input.id))[0];
   expect(first).toMatchObject({kind:'telegram_channel',provider:'telegram',sourceUrl:'https://t.me/examplechannel'});
   expect(JSON.parse(first.input!)).toEqual({channelId:'-1001234567890',username:'examplechannel',public:true});
+  const listed=await app.request(`/api/me/sources?briefingId=${input.id}`,{headers:{cookie}},env);
+  expect(listed.status).toBe(200);
+  const {sources}=await listed.json() as {sources:Array<{sourceUrl:string}>};
+  expect((await save({...input,title:'Renamed Telegram feed',sourceInputs:sources.map(source=>source.sourceUrl)})).status).toBe(200);
+  expect(await repo.listSources(input.id)).toEqual([expect.objectContaining({id:first.id,provider:'telegram',kind:'telegram_channel',sourceUrl:first.sourceUrl,input:first.input})]);
   expect((await save({...input,sourceInputs:['@examplechannel']})).status).toBe(200);
   expect((await repo.listSources(input.id)).map(s=>s.id)).toEqual([first.id]);
-  expect(requests).toEqual(['telegram_resolve','telegram_resolve']);
+  expect(requests).toEqual(['telegram_resolve','telegram_resolve','telegram_resolve']);
  }finally{await ctx.dispose()}
 },60000);

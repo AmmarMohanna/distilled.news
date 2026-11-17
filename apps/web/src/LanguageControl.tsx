@@ -8,6 +8,8 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'Notifications are disabled on this device, but server cleanup failed.': ['Les notifications sont désactivées sur cet appareil, mais leur suppression sur le serveur a échoué.', 'تم إيقاف الإشعارات على هذا الجهاز، لكن تعذّر حذف الاشتراك من الخادم.'],
+  'The Telegram source URL is missing. Reload before saving.': ['Le lien de la source Telegram est manquant. Rechargez la page avant d’enregistrer.', 'رابط مصدر تيليغرام مفقود. أعد تحميل الصفحة قبل الحفظ.'],
   'Retry session': ['Réessayer la connexion', 'إعادة محاولة تحميل الجلسة'],
   'We couldn’t confirm your session. Retry to restore your account and read progress.': ['Impossible de confirmer votre session. Réessayez pour retrouver votre compte et votre progression de lecture.', 'تعذّر التحقق من جلستك. أعد المحاولة لاستعادة حسابك وتقدّم القراءة.'],
   'Feed saved. Some sources are awaiting activation. Check source health for updates.': ['Flux enregistré. Certaines sources attendent leur activation. Consultez leur état pour suivre les mises à jour.', 'تم حفظ الموجز. بعض المصادر بانتظار التفعيل. راجع حالة المصادر لمتابعة المستجدات.'],
