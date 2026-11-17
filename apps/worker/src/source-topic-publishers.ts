@@ -69,8 +69,16 @@ export async function readTopicPublishers(env:Env,searchUrl:string,fetcher:typeo
    if(response.status!==200)throw Error('PUBLIC_SEARCH_UNAVAILABLE');
    return topicPublishers(response.body,searchUrl,options);
   };
-  try{return await Promise.any([publicRead(),runtime().then(found=>{if(found===undefined)throw Error('PRIVATE_SEARCH_UNAVAILABLE');return found;})]);}
-  catch{return paidFallback();}
+  let readable=false;
+  const nonempty=async(pending:Promise<TopicPublisherEvidence[]|undefined>)=>{
+   const found=await pending;
+   if(found===undefined)throw Error('SEARCH_ROUTE_UNAVAILABLE');
+   readable=true;
+   if(!found.length)throw Error('SEARCH_ROUTE_EMPTY');
+   return found;
+  };
+  try{return await Promise.any([nonempty(publicRead()),nonempty(runtime())]);}
+  catch{return readable?[]:paidFallback();}
  }
  if(options.preferRuntime){const found=await runtime();if(found)return found;}
  let response;

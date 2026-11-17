@@ -17,7 +17,7 @@ it.each(['ammar mohanna aub','ammar mohanna'])('finds a relevant institutional p
  const fetcher=vi.fn<typeof fetch>(async input=>{
   const url=String(input);
   if(url==='https://www.aub.edu.lb/msfea/Pages/AI-Researchers-at-MSFEA.aspx')return new Response(directory);
-  if(url===target)return new Response('<p>'+('Ammar Mohanna teaches at AUB and researches artificial intelligence. '.repeat(5))+'</p>');
+  if(url===target)return new Response('<html><head><title>Ammar Mohanna — AUB profile</title></head><body><main><h1>Ammar Mohanna</h1><p>'+('Ammar Mohanna teaches at AUB and researches artificial intelligence. '.repeat(3))+'</p><p>'+('His profile describes his research projects and academic publications. '.repeat(3))+'</p></main></body></html>');
   throw Error('The publisher homepage and unrelated news routes must not be fetched');
  });
  const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',SOURCE_RECOMMENDATIONS_WEB_HTML:'true'} as never,query,fetcher,undefined,undefined,{title:'Ammar Mohanna',description:'News and projects related to Ammar Mohanna'});
@@ -43,7 +43,7 @@ it('finds ordinary web pages for a topic outside the institutional directory',as
  const url='https://research.example/people/samira-haddad';
  const fetcher=vi.fn<typeof fetch>(async input=>{
   if(String(input).startsWith('https://html.duckduckgo.com/html/?q='))return new Response(result(url,'Samira Haddad research projects'));
-  if(String(input)===url)return new Response('<p>'+('Samira Haddad research projects and publications. '.repeat(5))+'</p>');
+  if(String(input)===url)return new Response('<html><head><title>Samira Haddad — research profile</title></head><body><main><h1>Samira Haddad</h1><p>'+('Samira Haddad research projects and publications. '.repeat(3))+'</p><p>'+('This profile describes her current research and scientific publications. '.repeat(3))+'</p></main></body></html>');
   return new Response('Unavailable',{status:503});
  });
  const found=await searchSourceCandidates({SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',SOURCE_RECOMMENDATIONS_WEB_HTML:'true'} as never,'Samira Haddad',fetcher,undefined,undefined,{title:'Professor Samira Haddad',description:'I want details about recent work of Samira Haddad'});

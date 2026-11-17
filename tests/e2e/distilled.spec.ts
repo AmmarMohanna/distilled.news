@@ -308,7 +308,7 @@ test("arabic feed keeps public chrome localized and summary stable when opening 
 
   await expect(page.getByRole("button", { name: /موجز الآن/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /استكشاف/ })).toHaveCount(0);
-  await expect(page.getByPlaceholder("ابحث في الموجز المنشور")).toBeVisible();
+  await expect(page.getByPlaceholder("البحث في الموجزات")).toBeVisible();
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
   await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
 

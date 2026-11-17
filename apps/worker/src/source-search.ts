@@ -28,12 +28,12 @@ function matchesArticleQuery(query:string,title:string,excerpt?:string){
 /** Public discovery only. Selection still goes through the normal source assessment.
  * No scope is passed to readTopicPublishers: typing must never start paid collectors.
  */
-export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;topicMismatch?:boolean}> {
+export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}> {
  if(normalize(query).length<2)return {results:[],unavailable:false};
  const load=()=>discoverSourceCandidates(env,query,fetcher,context,discovery?.cache);
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
  const aligned=context?await alignedSearchResults(env,query,context,found.results,fetcher,discovery?.owner):{results:found.results,unavailable:false};
- const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache);
+ const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache,env);
  return {...found,...accessible,unavailable:found.unavailable||aligned.unavailable,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete,...(context&&found.results.length>0&&!aligned.results.length&&!aligned.unavailable?{topicMismatch:true}:{})};
 }
 
@@ -56,6 +56,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   // Independent public lookups overlap; the model sees their combined results once.
   const indexTask=context?readIndex():undefined;
   const webTask=context&&env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'?readWebSearch(scopedQuery,fetcher,directoryCache).catch(()=>({items:[],available:false,accessIncomplete:true})):undefined;
+  const pools:SourceSearchResult[][]=[];
   let publisherAvailable=false;
   // A known publisher can be searched through its actual article feed even
   // when the external news index is unavailable. Catalog scope is not evidence.
@@ -75,11 +76,10 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
         if(page.status!==200||page.authenticationRequired)return [];
         const items=normalizeRssSnapshot(page.body,url).filter(item=>item.identityValid&&item.title&&item.url);
         if(items.length)publisherAvailable=true;
-        return items.slice(0,5).map(item=>({source:row.source,title:item.title!,publisher:new URL(url).hostname,articleUrl:item.url!,excerpt:item.body}));
+        return items.slice(0,60).map(item=>({source:row.source,title:item.title!,publisher:new URL(url).hostname,articleUrl:item.url!,excerpt:item.body}));
       }catch{return [];}
     }));
-    const found=sampled.flat();
-    results.push(...found);
+    pools.push(...sampled);
   }
   let available=publisherAvailable;
   let accessIncomplete=false;
@@ -87,23 +87,36 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
     const web=await (webTask??readWebSearch(scopedQuery,fetcher,directoryCache));
     available=available||web.available;
     accessIncomplete=web.accessIncomplete;
+    const webResults:SourceSearchResult[]=[];
     for(const item of web.items){
-      if(context&&results.length>=40)break;
       const url=new URL(item.url);
       if(!context&&!queryMatches(item.title,item.excerpt+' '+url.hostname.replace(/\./g,' '),url.origin))continue;
       // Keep the actual readable page: institutional homepages may fail even
       // when the indexed profile/article itself is publicly readable.
-      results.push({source:item.url,title:item.title,publisher:url.hostname,articleUrl:item.url,excerpt:item.excerpt});
+      webResults.push({source:item.url,title:item.title,publisher:url.hostname,articleUrl:item.url,excerpt:item.excerpt});
     }
+    if(context)pools.push(webResults);else results.push(...webResults);
     if(results.length&&!context)return {results,unavailable:false,accessIncomplete};
   }
   const evidence=await (indexTask??readIndex());
+  const indexed:SourceSearchResult[]=[];
   for(const item of evidence){
     if(!context&&!queryMatches(item.title,item.excerpt,item.publisherOrigin))continue;
-    if(results.length>=60)break;
-    if(results.some(result=>result.articleUrl===item.url))continue;
+    if(indexed.length>=60)break;
+    if(indexed.some(result=>result.articleUrl===item.url))continue;
     try{prepareProductSourceInput(item.publisherOrigin+'/');}catch{continue;}
-    results.push({source:item.publisherOrigin+'/',title:item.title,publisher:new URL(item.publisherOrigin).hostname,articleUrl:item.url,excerpt:item.excerpt});
+    indexed.push({source:item.publisherOrigin+'/',title:item.title,publisher:new URL(item.publisherOrigin).hostname,articleUrl:item.url,excerpt:item.excerpt});
   }
+  if(context){
+    pools.push(indexed);
+    // Share the bounded model batch across feeds and routes. Limit displayed
+    // matches after relevance rather than cutting each feed to five first.
+    const seen=new Set<string>();
+    for(let index=0;index<60&&results.length<60;index++)for(const pool of pools){
+      const item=pool[index];if(!item)continue;
+      const identity=item.articleUrl??item.source;if(seen.has(identity))continue;
+      seen.add(identity);results.push(item);if(results.length===60)break;
+    }
+  }else results.push(...indexed);
   return {results,unavailable:!(available||indexAvailable),accessIncomplete};
 }

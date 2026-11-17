@@ -4,7 +4,7 @@ self.addEventListener("activate", event => event.waitUntil(self.clients.claim())
 self.addEventListener("fetch", event => {
   if (event.request.mode !== "navigate") return;
   event.respondWith(fetch(event.request).catch(() => {
-    const languages={"en":{"title":"You're offline","body":"Reconnect to load your briefings.","retry":"Try again"},"fr":{"title":"Vous êtes hors ligne","body":"Reconnectez-vous pour charger vos résumés.","retry":"Réessayer"},"ar":{"title":"أنت غير متصل بالإنترنت","body":"أعد الاتصال لتحميل موجزاتك.","retry":"حاول مجددًا"}};
+    const languages={"en":{"title":"You're offline","body":"Reconnect to load your briefings.","retry":"Try again"},"fr":{"title":"Vous êtes hors ligne","body":"Reconnectez-vous à Internet pour charger vos briefs.","retry":"Réessayer"},"ar":{"title":"أنت غير متصل بالإنترنت","body":"أعد الاتصال بالإنترنت لتحميل موجزاتك.","retry":"حاول مجددًا"}};
     const requested=(event.request.headers.get('Accept-Language')||'en').split(',')[0].split('-')[0];
     const lang=languages[requested]?requested:'en',copy=languages[lang];
     return new Response(`<!doctype html><html lang="${lang}" dir="${lang==='ar'?'rtl':'ltr'}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Distilled.News - ${copy.title}</title>

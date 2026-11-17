@@ -14,3 +14,9 @@ it('does not cache transport outages and still works when cache reads fail',asyn
  expect(await cachedSourceSearch('owner','query','https://joud.example',load,cache)).toEqual({results:[],unavailable:true});
  expect(cache.put).not.toHaveBeenCalled();
 });
+it('does not cache an empty search whose access checks are incomplete',async()=>{
+ const cache={match:vi.fn(async()=>undefined),put:vi.fn()};
+ const load=vi.fn(async()=>({results:[],unavailable:false,accessIncomplete:true}));
+ for(let i=0;i<2;i++)await cachedSourceSearch('owner','query','https://joud.example',load,cache);
+ expect(load).toHaveBeenCalledTimes(2);expect(cache.put).not.toHaveBeenCalled();
+});

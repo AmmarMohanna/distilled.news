@@ -39,3 +39,16 @@ it('has readable French and Arabic replacements for recovered interface copy', (
   expect(translateInterface('View {name}', 'fr', {name: 'Home'})).toBe('Voir Home');
   expect(translateInterface('View {name}', 'ar', {name: 'Home'})).toBe('عرض Home');
 });
+
+it('preserves interpolation values and placeholders throughout translated product copy',()=>{
+ const tokens=(text:string)=>[...text.matchAll(/\{\w+\}/g)].map(match=>match[0]).sort();
+ for(const [key,values] of Object.entries(interfaceTranslations))for(const language of ['fr','ar'] as const){
+  expect(tokens(values[language==='fr'?0:1]),key).toEqual(tokens(key));
+  expect(translateInterface(key,language),key).not.toMatch(/[A-Za-zÀ-ÿ]\?[A-Za-zÀ-ÿ]/);
+ }
+ for(const count of [0,1,2,11])for(const language of ['fr','ar'] as const){
+  expect(translateInterface('{count} users',language,{count})).toContain(String(count));
+  expect(translateInterface('{count} feeds',language,{count})).toContain(String(count));
+  expect(translateInterface('{count} stars',language,{count})).toContain(String(count));
+ }
+});

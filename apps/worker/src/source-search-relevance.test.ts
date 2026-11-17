@@ -30,8 +30,8 @@ it.each([
  expect(await alignedSearchResults(env,'Ammar',topic,rows,fetcher,'owner')).toEqual({results:[],unavailable:true});
  expect(fetcher).toHaveBeenCalledTimes(1);
 });
-it('hides unknown results without labelling them off topic',async()=>{
- expect(await alignedSearchResults(env,'Ammar',topic,rows,async()=>reply([{id:0,alignment:'YES'},{id:1,alignment:'UNKNOWN'}]),'owner')).toEqual({results:[rows[0]],unavailable:true});
+it('keeps a mixed successful batch available while hiding unknown results',async()=>{
+ expect(await alignedSearchResults(env,'Ammar',topic,rows,async()=>reply([{id:0,alignment:'YES'},{id:1,alignment:'UNKNOWN'}]),'owner')).toEqual({results:[rows[0]],unavailable:false});
 });
 it('does not retry failed provider calls',async()=>{
  const fetcher=vi.fn<typeof fetch>(async()=>{throw Error('lost response');});
@@ -54,4 +54,22 @@ it('skips inference for empty results and fails closed without configured creden
  expect(await alignedSearchResults({} as Env,'Ammar',topic,rows,fetcher,'owner')).toEqual({results:[],unavailable:true});
  expect(await alignedSearchResults(env,'Ammar',topic,rows,fetcher)).toEqual({results:[],unavailable:true});
  expect(fetcher).not.toHaveBeenCalled();
+});
+
+it('reports a fully unknown batch as unavailable rather than off topic',async()=>{
+ expect(await alignedSearchResults(env,'Ammar',topic,rows,async()=>reply([{id:0,alignment:'UNKNOWN'},{id:1,alignment:'NO'}]),'owner')).toEqual({results:[],unavailable:true});
+});
+
+it('retains distinct publisher identities for indistinguishable indexed article headlines',async()=>{
+ const indexed=[
+  {source:'https://techcrunch.com/',publisher:'techcrunch.com',articleUrl:'https://news.google.com/rss/articles/one',title:'New computing breakthrough',excerpt:'Researchers announce a new processor.'},
+  {source:'https://www.wired.com/',publisher:'www.wired.com',articleUrl:'https://news.google.com/rss/articles/two',title:'New computing breakthrough',excerpt:'Researchers announce a new processor.'}
+ ];
+ const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
+  const request=JSON.parse(init!.body as string),data=JSON.parse(request.messages[1].content);
+  expect(data.results).toEqual(indexed.map((row,id)=>({id,publisher:row.publisher,source:row.source,url:row.articleUrl,title:row.title,excerpt:row.excerpt})));
+  return reply(data.results.map((row:{id:number;publisher:string})=>({id:row.id,alignment:row.publisher==='techcrunch.com'?'YES':'NO'})));
+ });
+ expect(await alignedSearchResults(env,'TechCrunch',{title:'Computing',description:'Computing developments'},indexed,fetcher,'owner')).toEqual({results:[indexed[0]],unavailable:false});
+ expect(fetcher).toHaveBeenCalledTimes(1);
 });

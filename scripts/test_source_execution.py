@@ -337,6 +337,18 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             runtime.resolve_google_articles({'urls': ['https://127.0.0.1/private']})
 
+    def test_google_search_batch_passes_its_short_budget_to_each_decode(self):
+        urls = ['https://news.google.com/rss/articles/one', 'https://news.google.com/rss/articles/two']
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', return_value={'url':'https://publisher.example/post','requests':2}) as resolver:
+            result = runtime.resolve_google_articles({'urls':urls, 'timeoutSeconds':2})
+            self.assertEqual(sum('url' in row for row in result['results']), 2)
+            for call in resolver.call_args_list:
+                self.assertGreaterEqual(call.args[0]['timeoutSeconds'], 1)
+                self.assertLessEqual(call.args[0]['timeoutSeconds'], 2)
+        for budget in [0, 36, True, '2', float('nan')]:
+            with self.assertRaises(ValueError):
+                runtime.resolve_google_articles({'urls':urls, 'timeoutSeconds':budget})
+
     def test_google_cache_makes_progress_beyond_first_thirty_links_without_unbounded_network_work(self):
         urls = [f'https://news.google.com/rss/articles/id{i}' for i in range(40)]
         with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', return_value={'url':'https://publisher.example/post','requests':2}) as resolver:
@@ -347,6 +359,22 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(resolver.call_count,40)
             self.assertEqual(sum('url' in row for row in second['results']),40)
             self.assertEqual(sum(row.get('cached',False) for row in second['results']),30)
+
+    def test_search_batch_attempts_uncached_articles_after_position_thirty(self):
+        urls = [f'https://news.google.com/rss/articles/id{i}' for i in range(60)]
+        def decode(data):
+            return {'url':'https://publisher.example/last','requests':2} if data['url'] == urls[-1] else {'error':'UNAVAILABLE','requests':1}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'public_url'), patch.object(runtime, 'resolve_google_article', side_effect=decode) as resolver:
+            result = runtime.resolve_google_articles({'urls':urls, 'timeoutSeconds':2, 'maxFreshDecodes':60})
+            self.assertEqual(resolver.call_count,60)
+            self.assertEqual(result['results'][-1]['url'],'https://publisher.example/last')
+        for limit in [0, 61, True, 1.5]:
+            with self.assertRaises(ValueError):
+                runtime.resolve_google_articles({'urls':urls, 'maxFreshDecodes':limit})
+        with tempfile.TemporaryDirectory() as directory, patch.dict(runtime.os.environ, {'SOURCE_GOOGLE_CACHE_PATH': str(Path(directory)/'cache.sqlite3')}), patch.object(runtime, 'resolve_google_article', return_value={'error':'UNAVAILABLE','requests':1}) as resolver:
+            result = runtime.resolve_google_articles({'urls':urls, 'maxFreshDecodes':1})
+            self.assertEqual(resolver.call_count,1)
+            self.assertEqual(len(result['results']),60)
 
     def test_missing_telegram_recheck_does_not_invent_deletion(self):
         result, calls = self.run_telegram(True)
