@@ -1,3 +1,4 @@
+import {articlePage} from './test-fixtures/public-article';
 import {expect,it,vi} from 'vitest';
 import {readTopicPublishers} from './source-topic-publishers';
 import {createApp} from './app';
@@ -56,7 +57,7 @@ it('returns and caches a partially successful model batch through the authentica
     indexReads++;
     return new Response('<rss><channel>'+['techcrunch.com','wired.com'].map((host,id)=>`<item><guid>${id}</guid><title>New processor development</title><description>Computing research findings.</description><link>https://${host}/report</link><source url="https://${host}">Publisher</source></item>`).join('')+'</channel></rss>');
    }
-   return new Response('Public computing reporting. '.repeat(10));
+   return articlePage();
   };
   const app=createApp({repository:new InMemoryRepository(),fetcher});
   const env={ADMIN_SESSION_SECRET:'admin-secret',ADMIN_SETUP_TOKEN:'setup-token',PUBLIC_WEB_BASE_URL:'https://distilled.news',SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true',OPENROUTER_API_KEY:'test'} as Env;

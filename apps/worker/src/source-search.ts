@@ -28,7 +28,7 @@ function matchesArticleQuery(query:string,title:string,excerpt?:string){
 /** Public discovery only. Selection still goes through the normal source assessment.
  * No scope is passed to readTopicPublishers: typing must never start paid collectors.
  */
-export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;topicMismatch?:boolean}> {
+export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}> {
  if(normalize(query).length<2)return {results:[],unavailable:false};
  const load=()=>discoverSourceCandidates(env,query,fetcher,context,discovery?.cache);
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();

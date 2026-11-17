@@ -398,6 +398,9 @@ def resolve_google_articles(data):
     budget = data.get('timeoutSeconds', 35)
     if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not 1 <= budget <= 35:
         raise ValueError('INVALID_GOOGLE_BATCH_TIMEOUT')
+    max_fresh = data.get('maxFreshDecodes', 30)
+    if isinstance(max_fresh, bool) or not isinstance(max_fresh, int) or not 1 <= max_fresh <= 60:
+        raise ValueError('INVALID_GOOGLE_BATCH_LIMIT')
     started = time.monotonic()
     deadline = started + budget
     results = {}
@@ -421,10 +424,11 @@ def resolve_google_articles(data):
     pending = {}
     unresolved = [url for url in urls if url not in results]
     # Reading cached URLs spans later snapshot pages. Network work still starts
-    # at most thirty fresh decodes under the same concurrency and time budget.
-    remaining = iter(unresolved[:30])
+    # Legacy collection keeps thirty fresh decodes; search explicitly requests
+    # up to sixty under the same six-thread concurrency and stage deadline.
+    remaining = iter(unresolved[:max_fresh])
     try:
-        for _ in range(min(6, len(unresolved))):
+        for _ in range(min(6, len(unresolved), max_fresh)):
             url = next(remaining)
             pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': min(16, max(1, deadline-time.monotonic()))})] = url
         while pending:

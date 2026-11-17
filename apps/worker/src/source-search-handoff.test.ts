@@ -1,3 +1,4 @@
+import {articlePage} from './test-fixtures/public-article';
 import {afterEach,expect,it,vi} from 'vitest';
 import {createApp} from './app';
 import {InMemoryRepository} from './repository';
@@ -17,7 +18,7 @@ async function setup(blocked=false){
   }
   if(String(input).startsWith('https://news.google.com/rss/search?'))return new Response('<rss><channel>'+['free',...(blocked?['paid']:[])].map((path,id)=>`<item><guid>${id}</guid><title>Economy growth strengthens exports</title><description>Economy reporting with substantive trade developments.</description><link>https://news.google.com/rss/articles/${path}</link><source url="https://publisher.example">Publisher</source></item>`).join('')+'</channel></rss>');
   if(String(input).endsWith('/paid'))return new Response('Forbidden',{status:403});
-  return new Response('Public economy reporting. '.repeat(10));
+  return articlePage();
  };
  const service=vi.fn<typeof fetch>(async(_url,init)=>{
   const request=JSON.parse(init!.body as string);

@@ -77,7 +77,7 @@ export function FeedEditor(props: {
     setSearchResults([]);setSearchStatus("");setSearching(false);
     if(query.length<2||query.length>200||directSource||submittedSearch?.query!==query||submittedSearch.context!==queryContext)return;
     const cacheKey=JSON.stringify([query,queryContext]);
-    const status=(result:Awaited<ReturnType<typeof searchSourceCandidates>>)=>result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.topicMismatch?'The results were off topic for this feed, so they were not shown. Try another search.':result.results.length?'':result.accessIncomplete?'No freely accessible sources found. Try another name or a public feed URL.':'No sources matched your search and this feed’s topic. Try a related search.';
+    const status=(result:Awaited<ReturnType<typeof searchSourceCandidates>>)=>result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.topicMismatch?'The results were off topic for this feed, so they were not shown. Try another search.':result.results.length?'':result.verificationIncomplete?'Some source checks timed out or could not finish. Try searching again.':result.accessIncomplete?'No freely accessible sources found. Try another name or a public feed URL.':'No sources matched your search and this feed’s topic. Try a related search.';
     const cached=searchCache.current.get(cacheKey);
     if(cached&&Date.now()-cached.at<(cached.result.accessIncomplete?15_000:60_000)){setSearchResults(cached.result.results.filter(row=>!row.blocked));setSearchStatus(status(cached.result));return;}
     const controller=new AbortController();

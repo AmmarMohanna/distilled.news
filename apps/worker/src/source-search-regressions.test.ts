@@ -1,3 +1,4 @@
+import {articlePage} from './test-fixtures/public-article';
 import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
 import * as accounting from './agentops-assessment';
@@ -13,7 +14,7 @@ it('returns a relevant indexed article after free Google resolution through the 
  const fetcher:typeof fetch=async(input)=>{
   if(String(input)==='https://openrouter.ai/api/v1/chat/completions')return completion([{id:0,alignment:'YES'}]);
   if(String(input).startsWith('https://news.google.com/rss/search?'))return new Response(`<rss><channel><item><guid>relevant</guid><title>Economy growth strengthens exports</title><description>Economy and trade reporting.</description><link>${listing}</link><source url="https://publisher.example">Publisher</source></item></channel></rss>`);
-  if(String(input).startsWith('https://publisher.example/'))return new Response('Public economy reporting. '.repeat(10));
+  if(String(input).startsWith('https://publisher.example/'))return articlePage();
   return new Response('Google wrapper contents. '.repeat(10));
  };
  try{
@@ -35,7 +36,7 @@ it('includes the sixth relevant RSS article in the bounded model batch',async()=
     return completion(rows.map((r:{id:number;title:string})=>({id:r.id,alignment:r.title.includes('Economy')?'YES':'NO'})));
    }
    if(String(input)===feed)return new Response('<rss><channel>'+headlines.map((title,id)=>`<item><guid>${id}</guid><title>${title}</title><description>${title}</description><link>https://techcrunch.com/article-${id}</link></item>`).join('')+'</channel></rss>');
-   if(String(input)==='https://techcrunch.com/article-5')return new Response('Public economy reporting. '.repeat(10));
+   if(String(input)==='https://techcrunch.com/article-5')return articlePage();
    return new Response('',{status:403});
   };
   const result=await searchSourceCandidates(env,'TechCrunch',fetcher,undefined,{owner:'owner',origin:'https://app.example'},{...context,title:'Economy'});

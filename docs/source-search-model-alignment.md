@@ -46,18 +46,29 @@ Uncached authenticated source assessments are limited to 30 per owner per five
 minutes, with HTTP 429 and Retry-After: 300. Accepted assessment-cache receipts
 can still be reused without spending this allowance.
 
-Readability checks verify both the source and the selected article under the
-existing shared short deadline. Article cache identities are separate from
+Readability checks verify both the source and the selected article through a
+six-worker queue with a 20-second stage deadline. Each started check receives
+up to three seconds, including redirects; queued checks do not lose their own
+budget while waiting. Timeout, transport and temporary-provider failures remain
+unknown, are not cached as access denials, and produce retry feedback when no
+verified matches remain. Article cache identities are separate from
 publisher cache identities, so one blocked article does not hide another free
 article. Public HTTPS redirects are bounded and checked at every hop; private,
 credentialed and login destinations are denied. An unresolved Google article
 wrapper is not treated as readable publisher evidence. When explicitly enabled,
 the existing private `google_resolve` helper resolves up to 60 listing links in
 one four-second bounded batch with a two-second helper decoding budget (other
-collection callers retain their existing default budget). Validated same-publisher public HTTPS targets are
+collection callers retain their existing default budget). Search explicitly
+requests up to 60 fresh decodes; legacy collection keeps its 30-decode default.
+Validated same-publisher public HTTPS targets are
 cached for an hour; actual article readability is checked independently. Invalid
 targets, missing resolutions and blocked articles stay hidden. No paid resolution
 is started. The search-result cache version invalidates older access checks.
+An article must have an extracted title, at least 80 characters of article body,
+article page classification, and a matching canonical identity under the existing
+connector URL rules. Soft-404 titles, listings, empty shells and foreign canonical
+identities cannot establish readability. Cached article-access keys are versioned
+to invalidate earlier HTML-length-only checks.
 
 Completing a source addition clears its query only if the user has not changed
 that query while verification was running. Regression tests cover the review fixes

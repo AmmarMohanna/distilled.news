@@ -29,17 +29,22 @@ it.each(['another topic','https://publisher.example/'])('preserves the new query
  }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
 
-it('shows and reuses successful partial search results without an outage message',async()=>{
+it.each([false,true])('shows successful results or honest timeout feedback (%s)',async timeout=>{
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
  const container=document.createElement('div'),view=createRoot(container);
  vi.mocked(searchSourceCandidates).mockClear();
- vi.mocked(searchSourceCandidates).mockResolvedValue({results:[{source:'https://techcrunch.com/',publisher:'techcrunch.com',title:'New processor development'}],unavailable:false});
+ vi.mocked(searchSourceCandidates).mockResolvedValue(timeout?{results:[],unavailable:false,accessIncomplete:true,verificationIncomplete:true}:{results:[{source:'https://techcrunch.com/',publisher:'techcrunch.com',title:'New processor development'}],unavailable:false});
  const enter=async(value:string)=>act(async()=>{const input=container.querySelector<HTMLInputElement>('#feed-source-search')!;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));});
  try{
   await act(async()=>setWebsiteLanguage('en'));
   await act(async()=>view.render(<FeedEditor feed={{...personalNewsBriefing,title:'Computing',interestProfile:'Computing developments'}} onClose={()=>{}} onSave={async()=>{}}/>));
   await enter('processor');
   await act(async()=>container.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
+  if(timeout){
+   expect(container.querySelector('#feed-source-search-status')?.textContent).toContain('timed out');
+   expect(container.querySelector('#feed-source-search-status')?.textContent).not.toContain('No freely accessible');
+   return;
+  }
   expect(container.querySelector('.source-web-results')?.textContent).toContain('New processor development');
   expect(container.querySelector('#feed-source-search-status')?.textContent).not.toContain('unavailable');
   await enter('another query');await enter('processor');

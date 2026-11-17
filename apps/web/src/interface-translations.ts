@@ -1,6 +1,7 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'Some source checks timed out or could not finish. Try searching again.': ['Certaines vérifications ont expiré ou n’ont pas pu aboutir. Relancez la recherche.', 'انتهت مهلة التحقق من بعض المصادر أو تعذّر إكماله. أعد البحث.'],
   '{count} users': ['Utilisateurs : {count}', 'المستخدمون: {count}'],
   '{count} feeds': ['Fils : {count}', 'الخلاصات: {count}'],
   'https://t.me/LebUpdate, https://x.com/NASA, or Beirut power': ['https://t.me/LebUpdate, https://x.com/NASA, ou électricité à Beyrouth', 'https://t.me/LebUpdate، https://x.com/NASA، أو كهرباء بيروت'],
