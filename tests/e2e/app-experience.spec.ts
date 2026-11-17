@@ -3,17 +3,19 @@ import { chooseSetting, cycleLanguage, openEditSettings, expectSignedInAppearanc
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
+ let viewerHasStarred=false;
  await page.route("**/api/**", async (route: any) => {
  const path = new URL(route.request().url()).pathname;
+ if(path.endsWith('/star')&&route.request().method()==='POST')viewerHasStarred=route.request().postDataJSON().starred;
  if ((path === '/api/me/briefings' || path === '/api/me/feeds') && route.request().method() === 'POST') {
    const input = route.request().postDataJSON();
    currentFeed = { ...currentFeed, ...input, slug: input.title === 'Science today' ? 'science-today' : currentFeed.slug };
  }
- const body = path.endsWith('/star') ? {stars:4,viewerHasStarred:true}
+ const body = path.endsWith('/star') ? {stars:feed.stars+(viewerHasStarred?1:0),viewerHasStarred}
  : path === '/api/auth/session' ? { authenticated, setupRequired:false, account:authenticated ? {id:'joud',username,email:'joud@example.test',role:'user'} : null }
  : path === '/api/me/briefings' || path === '/api/me/feeds' ? (route.request().method()==='POST' ? {briefing:currentFeed} : {briefings:[currentFeed]})
- : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[{...feed,viewerHasStarred:false}],nextOffset:null}
- : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:currentFeed,editions:[],viewerHasStarred:false}
+ : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[{...feed,stars:feed.stars+(viewerHasStarred?1:0),viewerHasStarred}],nextOffset:null}
+ : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:{...currentFeed,stars:feed.stars+(viewerHasStarred?1:0)},editions:[],viewerHasStarred}
  : path === '/api/me/sources/assess' ? {assessment:{status:'accepted',input:route.request().postDataJSON().source,reason:'Fixture source matches',checkedAt:'2026-10-24T12:00:00Z'}}
  : path === '/api/me/sources' ? {sources:[{id:'rss-1',enabled:true,input:'https://example.test/feed.xml',title:'Science',provider:'rss',kind:'rss_feed'}]}
  : path === '/api/me/health' ? {health:{processing:{queued:0,completed:0,failed:0}}} : {};
@@ -38,6 +40,8 @@ test('guests can explore and star feeds',async({page})=>{
  await mock(page,false); await page.goto('/explore');
  await expect(page.getByRole('heading',{name:'Featured feeds',level:2})).toHaveCount(0);
  await page.getByRole('button',{name:'Star Lebanon',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.reload();
  await expect(page.getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(1);
  await expect(page.locator('.experience-brand a')).toHaveCount(0);
