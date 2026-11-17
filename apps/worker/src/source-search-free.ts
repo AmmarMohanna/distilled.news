@@ -1,27 +1,40 @@
-import {extractPublicHtml,isWebsiteListingUrl,normalizeRssSnapshot,sameArticleUrl} from '@distilled/connectors';
+import {extractPublicHtml,HttpSourceExecution,isWebsiteListingUrl,normalizeRssSnapshot,sameArticleUrl} from '@distilled/connectors';
 import {prepareProductSourceInput} from './product-feeds';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {recommendationFetch} from './source-recommendation-fetch';
 import type {SourceSearchResult} from './source-search';
 import type {Env} from './types';
 import {resolveSearchGoogleArticles} from './source-search-google';
+import {admittedSourceExecution} from './source-execution-admission';
 async function accessKey(source:string,article=false){
  const url=prepareProductSourceInput(source).sourceUrl!;
- const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(article?'article-access-v3-listings:'+url:url));
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(article?'article-access-v4-free-helper:'+url:url));
  return new Request('https://source-search-access.invalid/'+Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join(''));
 }
 export async function rememberUnavailableSearchSource(source:string,cache?:Pick<Cache,'put'>){
  try{await cache?.put(await accessKey(source),Response.json({readable:false},{headers:{'cache-control':'public, max-age=120'}}));}catch{}
 }
 /** Search is temporarily free-access only. No models or paid providers are
- * invoked. Six queued checks share a 20-second batch deadline. Each started
- * check gets up to three seconds; queue wait does not consume its own budget.
+ * invoked. Six queued checks share a 20-second batch deadline. Direct HTTP
+ * gets three seconds; the anonymous helper can use eight remaining seconds.
  */
 export async function freelyReadableResults(results:SourceSearchResult[],fetcher:typeof fetch,cache?:Pick<Cache,'match'|'put'>,env?:Env){
  results=await resolveSearchGoogleArticles(results,env,cache);
  type Access='readable'|'denied'|'unknown';
  const bounded=recommendationFetch(fetcher,20_000),checks=new Map<string,Promise<Access>>();
  const deadline=Date.now()+20_000,tasks:(()=>Promise<void>)[]=[];
+ const privateArticle=async(url:string):Promise<Access>=>{
+  if(!env||env.SOURCE_NATIVE_EXECUTION_ENABLED!=='true'||!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_URL||!env.SOURCE_EXECUTION_TOKEN||new URL(url).hostname==='news.google.com'||isWebsiteListingUrl(url))return 'unknown';
+  const remaining=Math.min(8000,deadline-Date.now());if(remaining<=0)return 'unknown';
+  try{
+   const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(target,init)=>env.DB?admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(target,init)):env.SOURCE_EXECUTION_SERVICE!.fetch(target,init),true);
+   const raw=await execution.execute('public_article',{url},{timeoutMs:remaining});
+   if(!raw||typeof raw!=='object')return 'unknown';
+   const page=raw as Record<string,unknown>;
+   if(page.status===429||typeof page.status!=='number'||page.status>=500)return 'unknown';
+   return page.status===200&&page.url===url&&page.pageKind==='article'&&page.authenticationRequired!==true&&page.accessRestricted!==true&&typeof page.title==='string'&&Boolean(page.title.trim())&&!/^(?:404|410|page not found|article not found|page introuvable|article introuvable)(?:\s|$|[|:—-])/iu.test(page.title.trim())&&typeof page.body==='string'&&page.body.trim().length>=80&&new TextEncoder().encode(page.body).length<=500_000&&typeof page.canonicalUrl==='string'&&!isWebsiteListingUrl(page.canonicalUrl)&&sameArticleUrl(page.canonicalUrl,url)?'readable':'denied';
+  }catch{return 'unknown';}
+ };
  const check=async(source:string,article=false)=>{
   const plan=prepareProductSourceInput(source),url=plan.sourceUrl!;
   const key=await accessKey(source,article);
@@ -48,7 +61,7 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
    };
    const page=await new WorkerPublicSourceFetch(url,article?articleFetch:read,{followSameOriginRedirects:!article}).get(url);
    // A temporary transport/provider failure is not a confirmed access denial.
-   if(page.status===429||page.status>=500)return 'unknown' as const;
+   if(page.status===429||page.status>=500)return article?await privateArticle(url):'unknown' as const;
    if(article&&new URL(finalUrl).hostname==='news.google.com')return 'unknown' as const;
    let readable=page.status===200&&!page.authenticationRequired&&page.body.trim().length>=80&&!/<title[^>]*>\s*(?:just a moment|access denied|captcha|verifying you are human)/i.test(page.body);
    if(readable&&article){
@@ -59,9 +72,12 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
     readable=final.hostname!=='news.google.com'&&!isWebsiteListingUrl(finalUrl)&&!isWebsiteListingUrl(extracted.canonicalUrl)&&!extracted.accessRestricted&&extracted.pageKind==='article'&&extracted.body.trim().length>=80&&Boolean(extracted.title?.trim())&&sameIdentity&&!errorTitle;
    }
    if(readable&&!article&&plan.detected.kind==='rss_feed')readable=normalizeRssSnapshot(page.body,url).some(item=>item.identityValid);
+   if(!readable&&article&&env?.SOURCE_NATIVE_EXECUTION_ENABLED==='true'){
+    const native=await privateArticle(url);if(native==='unknown')return native;readable=native==='readable';
+   }
    try{await cache?.put(key,Response.json({readable},{headers:{'cache-control':`public, max-age=${readable?600:120}`}}));}catch{}
    return readable?'readable' as const:'denied' as const;
-  }catch{return 'unknown' as const;}
+  }catch{return article?await privateArticle(url):'unknown' as const;}
  };
  const shared=(source:string,article=false)=>{
   const identity=(article?'article:':'source:')+source;
@@ -71,7 +87,9 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
  };
  const pending=results.slice(0,60).map(async result=>{
   const [source,article]=await Promise.all([shared(result.source),result.articleUrl?shared(result.articleUrl,true):Promise.resolve<Access>('readable')]);
-  return {result,readable:source==='readable'&&article==='readable',unknown:source==='unknown'||article==='unknown'};
+  const plan=prepareProductSourceInput(result.source);
+  const matchingArticle=result.articleUrl&&plan.detected.kind==='web_page'&&new URL(plan.sourceUrl!).hostname.replace(/^www\./,'')===new URL(result.articleUrl).hostname.replace(/^www\./,'');
+  return {result,readable:article==='readable'&&(source==='readable'||Boolean(matchingArticle)),unknown:article==='unknown'||(source==='unknown'&&!matchingArticle)};
  });
  let next=0;
  await Promise.all(Array.from({length:Math.min(6,tasks.length)},async()=>{while(next<tasks.length){const task=tasks[next++];await task();}}));

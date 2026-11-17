@@ -28,7 +28,7 @@ export async function resolveSearchGoogleArticles(results:SourceSearchResult[],e
  const missing=listings.filter(url=>!resolved.has(url));
  if(missing.length)try{
   const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(url,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(url,init),true);
-  const value=await execution.execute('google_resolve',{urls:missing,timeoutSeconds:2,maxFreshDecodes:60},{timeoutMs:4000}) as {results?:unknown[]};
+  const value=await execution.execute('google_resolve',{urls:missing,timeoutSeconds:8,maxFreshDecodes:60},{timeoutMs:10000}) as {results?:unknown[]};
   if(Array.isArray(value?.results))for(const item of value.results.slice(0,60)){
    if(!item||typeof item!=='object')continue;
    const row=item as {inputUrl?:unknown;url?:unknown};

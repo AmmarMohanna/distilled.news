@@ -36,3 +36,9 @@ it.each([503,403,429])('uses the configured Google runtime only for transient HT
  const rows=await readTopicPublishers(env,search,vi.fn(async()=>new Response('unavailable',{status})));
  expect(rows).toHaveLength(status===503?1:0);expect(service).toHaveBeenCalledTimes(status===503?1:0);
 });
+it.each([403,429])('uses explicitly enabled free Google resolution for index HTTP %s',async status=>{
+ const service=vi.fn(async()=>Response.json({status:200,xml:`<rss><channel>${item('https://publisher.example')}</channel></rss>`}));
+ const env={SOURCE_GOOGLE_RESOLUTION_ENABLED:'true',SOURCE_EXECUTION_SERVICE:{fetch:service},SOURCE_EXECUTION_URL:'http://127.0.0.1:8791/v1/source-execution',SOURCE_EXECUTION_TOKEN:'test-only-token-'.repeat(3)} as unknown as Env;
+ const found=await readTopicPublishers(env,search,async()=>new Response('',{status}));
+ expect(found).toHaveLength(1);expect(service).toHaveBeenCalledOnce();
+});

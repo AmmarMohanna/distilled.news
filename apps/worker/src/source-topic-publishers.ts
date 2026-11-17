@@ -85,6 +85,6 @@ export async function readTopicPublishers(env:Env,searchUrl:string,fetcher:typeo
  try{response=await new WorkerPublicSourceFetch(searchUrl,fetcher).get(searchUrl);}catch{response={status:0,body:''};}
  onTransport?.({route:'worker',status:response.status});
  if(response.status===200)return topicPublishers(response.body,searchUrl,options);
- if(!options.preferRuntime&&(response.status===0||response.status>=500)){const found=await runtime();if(found)return found;}
+ if(!options.preferRuntime&&(response.status===0||response.status>=500||(env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'&&[403,429].includes(response.status)))){const found=await runtime();if(found)return found;}
  return paidFallback();
 }
