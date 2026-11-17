@@ -2,6 +2,7 @@ import {HttpSourceExecution} from '@distilled/connectors';
 import type {Env} from './types';
 import type {SourceSearchResult} from './source-search';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
+import {searchArticleChecks} from './source-search-helper';
 
 /** Resolve listing identities only through the configured free helper. Its
  * output is not readable evidence: the normal public article check still runs. */
@@ -27,8 +28,9 @@ export async function resolveSearchGoogleArticles(results:SourceSearchResult[],e
  await Promise.all(listings.map(async url=>{try{const saved=await cache?.match(await key(url));if(saved){const value=await saved.json() as {url?:unknown};if(valid(url,value.url))resolved.set(url,value.url);}}catch{}}));
  const missing=listings.filter(url=>!resolved.has(url));
  if(missing.length)try{
-  const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(url,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(url,init),true);
-  const value=await execution.execute('google_resolve',{urls:missing,timeoutSeconds:8,maxFreshDecodes:60},{timeoutMs:10000}) as {results?:unknown[]};
+  const endpoint=env.SOURCE_EXECUTION_URL,token=env.SOURCE_EXECUTION_TOKEN;
+  const checks=searchArticleChecks(env,Date.now()+10_000);
+  const value=await checks(async helper=>new HttpSourceExecution(endpoint,token,helper,true).execute('google_resolve',{urls:missing,timeoutSeconds:8,maxFreshDecodes:60},{timeoutMs:10000})) as {results?:unknown[]};
   if(Array.isArray(value?.results))for(const item of value.results.slice(0,60)){
    if(!item||typeof item!=='object')continue;
    const row=item as {inputUrl?:unknown;url?:unknown};

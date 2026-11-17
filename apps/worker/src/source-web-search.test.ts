@@ -63,3 +63,11 @@ it.each(['Lebanon','économie française','أخبار العلوم'])('uses dire
  expect(new URL(String(fetcher.mock.calls.find(([url])=>String(url).startsWith('https://www.bing.com/'))![0])).searchParams.get('q')).toBe(query);
  expect(fetcher.mock.calls.every(([url])=>!String(url).includes('127.0.0.1'))).toBe(true);
 });
+it('unwraps only the explicit news-index redirect identity and never fetches its wrapper or unsafe destinations',async()=>{
+ const target='https://independent.example/news/report';
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input).startsWith('https://www.bing.com/news/search?')?new Response(`<rss><channel><item><guid>article</guid><title>Actual reporting</title><description>Publisher reporting.</description><link>http://www.bing.com/news/apiclick.aspx?url=${encodeURIComponent(target)}</link></item><item><guid>private</guid><title>Unsafe</title><link>http://www.bing.com/news/apiclick.aspx?url=${encodeURIComponent('https://127.0.0.1/private')}</link></item></channel></rss>`):new Response('',{status:403}));
+ const found=await readWebSearch('topic',fetcher);
+ expect(found.items).toEqual([{url:target,title:'Actual reporting',excerpt:'Publisher reporting.'}]);
+ expect(found.accessIncomplete).toBe(false);
+ expect(fetcher.mock.calls.every(([url])=>!String(url).includes('/news/apiclick')&&!String(url).includes('127.0.0.1'))).toBe(true);
+});
