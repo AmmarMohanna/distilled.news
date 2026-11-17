@@ -69,6 +69,10 @@ article page classification, and a matching canonical identity under the existin
 connector URL rules. Soft-404 titles, listings, empty shells and foreign canonical
 identities cannot establish readability. Cached article-access keys are versioned
 to invalidate earlier HTML-length-only checks.
+Known listing URLs are excluded even when an introductory paragraph makes the
+extractor classify them as article prose. This applies to the final URL after
+redirects and the canonical URL; search and article-access cache versions prevent
+reuse of earlier listing approvals.
 
 Completing a source addition clears its query only if the user has not changed
 that query while verification was running. Regression tests cover the review fixes

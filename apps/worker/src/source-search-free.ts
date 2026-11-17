@@ -1,4 +1,4 @@
-import {extractPublicHtml,normalizeRssSnapshot,sameArticleUrl} from '@distilled/connectors';
+import {extractPublicHtml,isWebsiteListingUrl,normalizeRssSnapshot,sameArticleUrl} from '@distilled/connectors';
 import {prepareProductSourceInput} from './product-feeds';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {recommendationFetch} from './source-recommendation-fetch';
@@ -7,7 +7,7 @@ import type {Env} from './types';
 import {resolveSearchGoogleArticles} from './source-search-google';
 async function accessKey(source:string,article=false){
  const url=prepareProductSourceInput(source).sourceUrl!;
- const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(article?'article-access-v2-content:'+url:url));
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(article?'article-access-v3-listings:'+url:url));
  return new Request('https://source-search-access.invalid/'+Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join(''));
 }
 export async function rememberUnavailableSearchSource(source:string,cache?:Pick<Cache,'put'>){
@@ -56,7 +56,7 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
     const final=new URL(finalUrl);
     const sameIdentity=sameArticleUrl(extracted.canonicalUrl,finalUrl);
     const errorTitle=/^(?:(?:error|http|oops|sorry)[\s!,:-]*)?(?:404|410|page not found|article not found|not found|page introuvable|article introuvable|الصفحة غير موجودة|المقال غير موجود)(?:\s|$|[|:—-])/iu.test(extracted.title?.trim()??'');
-    readable=final.hostname!=='news.google.com'&&!extracted.accessRestricted&&extracted.pageKind==='article'&&extracted.body.trim().length>=80&&Boolean(extracted.title?.trim())&&sameIdentity&&!errorTitle;
+    readable=final.hostname!=='news.google.com'&&!isWebsiteListingUrl(finalUrl)&&!isWebsiteListingUrl(extracted.canonicalUrl)&&!extracted.accessRestricted&&extracted.pageKind==='article'&&extracted.body.trim().length>=80&&Boolean(extracted.title?.trim())&&sameIdentity&&!errorTitle;
    }
    if(readable&&!article&&plan.detected.kind==='rss_feed')readable=normalizeRssSnapshot(page.body,url).some(item=>item.identityValid);
    try{await cache?.put(key,Response.json({readable},{headers:{'cache-control':`public, max-age=${readable?600:120}`}}));}catch{}
