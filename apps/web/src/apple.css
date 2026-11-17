@@ -3065,15 +3065,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .news-briefing-description p { margin: 0; color: var(--text); font-size: 16px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 :root.apple-ui.apple-ui .news-briefing-related { display: flex; flex-wrap: wrap; gap: 10px 18px; font-size: 14px; overflow-wrap: anywhere; }
 :root.apple-ui.apple-ui .news-briefing-related a { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-ink); }
+:root.apple-ui.apple-ui .news-briefing-additional-sources { display: grid; gap: 16px; }
+:root.apple-ui.apple-ui .news-briefing-additional-source { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 16px; }
 :root.apple-ui.apple-ui .news-briefing-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; }
 :root.apple-ui.apple-ui .news-briefing-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-inline-start: auto; }
 :root.apple-ui.apple-ui .news-briefing-actions :is(a,button) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; box-sizing: border-box; border: 0; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; box-shadow: none; }
 :root.apple-ui.apple-ui .news-briefing-actions svg { flex-shrink: 0; }
 :root.apple-ui.apple-ui .news-briefing-copy { background: color-mix(in srgb,var(--accent) 9%,var(--surface)); color: var(--accent-ink); }
 :root.apple-ui.apple-ui .news-briefing-read { background: var(--accent-fill); color: white; }
-:root.apple-ui.apple-ui .news-briefing-source-nav { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); padding: 0; border: 0; background: transparent; }
-:root.apple-ui.apple-ui .news-briefing-source-nav button { display: inline-flex; align-items: center; justify-content: center; width: 36px; min-height: 36px; padding: 0; background: transparent; color: var(--text); border: 0; box-shadow: none; }
-:root.apple-ui.apple-ui .news-briefing-card[dir="rtl"] .news-briefing-source-nav svg { transform: scaleX(-1); }
 @media (max-width: 600px) {
  :root.apple-ui.apple-ui .news-briefing-card { padding: 20px; gap: 18px; }
  :root.apple-ui.apple-ui .news-briefing-meta { gap: 14px 20px; font-size: 14px; }

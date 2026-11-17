@@ -16,6 +16,7 @@ import {sourceSearchCacheQuery} from './source-search-topic';
 import {sourceQuerySuggestions} from './source-query-suggestions';
 import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
 import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
+import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
 import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
@@ -989,7 +990,7 @@ export function createApp(options: AppOptions = {}) {
     try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
     const owner=c.get('account')!.id,origin=new URL(c.req.url).origin;
     const context=input.data.title&&input.data.description?{title:input.data.title,description:input.data.description}:undefined;
-    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>{const accessible=await freelyReadableResults(result.results,fetcher,accessCache);return {...result,...accessible,accessIncomplete:result.accessIncomplete===true||accessible.accessIncomplete};}));
+    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>{const accessible=await freelyReadableResults(result.results,fetcher,accessCache,c.env);return {...result,...accessible,accessIncomplete:result.accessIncomplete===true||accessible.accessIncomplete};}));
   });
 
   app.post("/api/me/sources/assess", async c => {
@@ -999,12 +1000,22 @@ export function createApp(options: AppOptions = {}) {
     const context={title:input.title,description:input.description};
     const cached=await cachedSourceAssessment(c.env,owner,context,input.source);
     if(cached)return c.json({assessment:cached});
+    try{await assertRateLimit(c.get('repo'),'source-assess:'+owner,'source_assess',30,5*60*1000);}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','300');return c.json({error:'Too many source checks. Please try again shortly.'},429);}
     let publisherEvidence:TopicPublisherEvidence[]|undefined;
     if(input.searchQuery)try{
       const cache=typeof caches==='undefined'?undefined:await caches.open('source-search-v2-free-only');
       const saved=await readSourceSearchCache(owner,sourceSearchCacheQuery(input.searchQuery,{title:input.title,description:input.description}),new URL(c.req.url).origin,cache);
       const origin=new URL(prepareProductSourceInput(input.source).sourceUrl!).origin;
-      const hints=(saved?.results??[]).filter(row=>row.articleUrl&&new URL(prepareProductSourceInput(row.source).sourceUrl!).origin===origin&&new URL(row.articleUrl).hostname==='news.google.com').map(row=>({publisherOrigin:origin,title:row.title,url:row.articleUrl!,excerpt:row.excerpt??''}));
+      const hints=(saved?.results??[]).filter(row=>{
+        if(!row.articleUrl||row.blocked)return false;
+        try{
+          if(new URL(prepareProductSourceInput(row.source).sourceUrl!).origin!==origin)return false;
+          new WorkerPublicSourceFetch(row.articleUrl);
+          const host=new URL(row.articleUrl).hostname.replace(/^www\./,'');
+          return host==='news.google.com'||host===new URL(origin).hostname.replace(/^www\./,'');
+        }catch{return false;}
+      }).map(row=>({publisherOrigin:origin,title:row.title,url:row.articleUrl!,excerpt:row.excerpt??''}));
       if(hints.length)publisherEvidence=hints;
     }catch{/* Missing search receipts never substitute client-supplied evidence. */}
     const assessment=await assessSource(c.env,context,input.source,fetcher,{ownerAccountId:owner,providerFetcher:fetcher},publisherEvidence);

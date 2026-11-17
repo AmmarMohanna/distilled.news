@@ -32,3 +32,13 @@ it('preserves the actionable email-verification login instruction in the real AP
 it('provides every canonical message in all three supported locales',()=>{
  for(const [id,copy] of Object.entries(apiErrorCopy)){expect(copy).toHaveLength(3);expect(copy[0],id).toMatch(/[A-Za-z]/);expect(copy[1],id).not.toMatch(/\?{2}|\uFFFD/);expect(copy[2],id).toMatch(/[\u0600-\u06ff]/);}
 });
+
+it('shows the source-check rate limit in English, French and Arabic instead of a generic failure',()=>{
+ const error=apiError('Too many source checks. Please try again shortly.',new Response(null,{status:429,headers:{'retry-after':'300'}}));
+ expect(error.uiMessage).toEqual({id:'AUTH_TOO_MANY_ATTEMPTS',details:{status:429,retryAfterSeconds:300}});
+ for(const language of ['en','fr','ar'] as const){
+  const text=renderApiError(error.uiMessage,language);
+  expect(text).not.toBe(renderApiError({id:'REQUEST_FAILED',details:{}},language));
+  if(language==='ar')expect(text).toMatch(/[\u0600-\u06ff]/);
+ }
+});

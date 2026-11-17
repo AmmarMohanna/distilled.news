@@ -1,0 +1,45 @@
+import {expect,test} from '@playwright/test';
+
+for(const language of ['fr','ar'] as const)test(`natural ${language} copy across the interface`,async({page},info)=>{
+ await page.addInitScript(value=>localStorage.setItem('dn_language',value),language);
+ const account={id:'owner',username:'owner',role:'admin',email:'owner@example.test'};
+ const feed={id:'science',ownerAccountId:'owner',ownerUsername:'owner',slug:'science',title:'Science',stars:2,interestProfile:'Science news',publicFeedEnabled:true,paused:false,language:'en',briefingCadence:'hourly',updateIntervalMinutes:60,briefingTimezone:'UTC',retentionDays:15,nextBriefingAt:new Date(Date.now()+8*60_000).toISOString()};
+ const evidence={messageId:'item',sourceId:'source',sourceType:'channel',sourceProvider:'rss',sourceTitle:'Publisher',sourceUrl:'https://publisher.example/',postedAt:'2026-11-17T08:00:00Z',text:'Retained source evidence.',links:['https://publisher.example/article'],media:[]};
+ const edition={id:'edition',briefingId:feed.id,title:'Science report',summary:'Research findings',publishedAt:'2026-11-17T08:00:00Z',sections:[{title:'Science report',summary:'Retained explanation.',evidence:[evidence,{...evidence,sourceId:'second',sourceTitle:'Supporting publisher',sourceUrl:'https://supporting.example/',links:['https://supporting.example/report'],media:[{type:'photo',url:'https://supporting.example/photo',label:'Supporting photograph'}]}]}]};
+ await page.route('**/api/**',route=>{
+  const path=new URL(route.request().url()).pathname;
+  const json=path==='/api/auth/session'?{authenticated:true,account}:path==='/api/me/briefings'?{briefings:[feed]}:path.startsWith('/api/explore/')?{feeds:[feed]}:path.startsWith('/api/admin/')?{accounts:[account],briefings:[feed]}:path==='/api/me/sources'?{sources:[]}:path.startsWith('/api/feed/')?{briefing:feed,editions:[edition],viewerHasStarred:false}:{};
+  return route.fulfill({json});
+ });
+ await page.goto('/');
+ await expect(page.locator('html')).toHaveAttribute('dir',language==='ar'?'rtl':'ltr');
+ await expect(page.locator('.home-view .topic-card .feed-card-identity strong').first()).toHaveText('Science');
+ await page.getByRole('navigation').getByRole('button',{name:language==='fr'?'Explorer':'استكشف',exact:true}).click();
+ await expect(page.locator('.explore-view')).toBeVisible();
+ await page.locator('.navigation-settings').click();
+ await expect(page.locator('.settings-view > .experience-title h1')).toHaveText(language==='fr'?'Paramètres':'الإعدادات');
+ await page.screenshot({path:info.outputPath(`settings-${language}.png`)});
+ await page.getByRole('navigation').getByRole('button',{name:language==='fr'?'Accueil':'الرئيسية',exact:true}).click();
+ await page.locator('.home-add-feed').click();
+ const editor=page.locator('.feed-editor');
+ await expect(editor).toBeVisible();
+ await editor.locator('.feed-preferences-disclosure').click();
+ await expect(editor.getByText(language==='fr'?'Langue des briefs':'لغة الموجز',{exact:true})).toBeVisible();
+ await expect(editor.getByText(language==='fr'?'Heure du brief':'موعد الموجز',{exact:true})).toBeVisible();
+ await page.screenshot({path:info.outputPath(`add-feed-${language}.png`)});
+ await editor.locator('.dialog-close').click();
+ await page.goto('/owner/science/');
+ await expect(page.locator('.feed-check-status')).toHaveAttribute('aria-label',language==='fr'?/^prochaine vérif\. dans /:/^التحقق التالي بعد /);
+ if(language==='fr')await expect(page.locator('.feed-check-status-compact')).toHaveText(/^Vérif\. dans /);
+ await page.locator('.briefing-reference').first().click();
+ const details=page.locator('.news-briefing-dialog');
+ await expect(details).toBeVisible();
+ await expect(details.locator('.news-briefing-source-nav')).toHaveCount(0);
+ await expect(details.locator('.news-briefing-additional-sources')).toContainText('supporting.example');
+ await expect(details.locator('.news-briefing-additional-sources a').first()).toHaveAttribute('href','https://supporting.example/report');
+ await expect(details.getByRole('link',{name:'Supporting photograph',exact:true})).toHaveAttribute('href','https://supporting.example/photo');
+ expect(await details.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
+ await expect(details.locator('.news-briefing-read')).toHaveText(language==='fr'?'Lire l’article complet':'قراءة المقال كاملاً');
+ await page.screenshot({path:info.outputPath(`brief-${language}.png`)});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
