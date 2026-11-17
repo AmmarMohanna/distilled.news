@@ -137,6 +137,29 @@ describe('D1/R2 spending and recovery',()=>{
   }finally{vi.unstubAllGlobals()}
  },20000);
 
+
+ it('retains paid contradictory assessments as review failures without scores, correction calls or automatic replay',async()=>{
+  await clear();const c=fixture(),id='citation-inconsistency',snapshotKey='snapshots/'+id+'.json';
+  await env.EVIDENCE.put(snapshotKey,JSON.stringify(c));
+  await env.EVAL_DB.prepare("INSERT INTO eval_jobs(id,edition_id,feed_id,language,window_end,published_at,status,snapshot_key,snapshot_hash,updated_at,review_version) VALUES(?,?,?,?,?,?,'ready',?,?,?,?)").bind(id,c.id,c.feedId,c.language,c.windowEnd,c.publishedAt,snapshotKey,await hash(c),c.frozenAt,PROTOCOL).run();
+  const bad={...assessment(),claims:assessment().claims.map(v=>({...v,citationSupport:'missing'})),coverage:assessment().coverage.map(v=>({...v,priorIds:[]}))};
+  const source={prepare:()=>({bind:()=>({first:async()=>({json:JSON.stringify({status:'PUBLISHED'})})})})} as unknown as D1Database;
+  let sends=0;vi.stubGlobal('fetch',async()=>{
+   sends++;const content=sends===1?development():sends===2?{results:development().developments.map(v=>({developmentId:v.id,support:'supported',explanation:'Current source supports this.'})),limitations:[]}:bad;
+   return Response.json({id:'inconsistent-'+sends,choices:[{finish_reason:'stop',message:{content:JSON.stringify(content)}}],usage:{prompt_tokens:10,completion_tokens:10,cost:.001}});
+  });
+  try{
+   const e={...env,SOURCE_DB:source};await processJob(e,id);
+   expect(await env.EVAL_DB.prepare('SELECT status,error,report_key,metrics_json FROM eval_jobs WHERE id=?').bind(id).first()).toEqual({status:'review_failed',error:'CITATIONS_PRESENT_BUT_MARKED_MISSING',report_key:null,metrics_json:null});
+   const calls=(await env.EVAL_DB.prepare('SELECT stage,state,response_key,cost_micro FROM eval_calls WHERE job_id=? ORDER BY stage').bind(id).all<{stage:string;state:string;response_key:string;cost_micro:number}>()).results;
+   expect(calls).toHaveLength(3);expect(calls.every(v=>v.state==='SETTLED'&&v.cost_micro===1000)).toBe(true);
+   const saved=await env.EVIDENCE.get(calls.find(v=>v.stage==='atomic_claims_and_coverage')!.response_key);
+   const paid=await saved!.json<{choices:Array<{message:{content:string}}>}>();expect(JSON.parse(paid.choices[0].message.content)).toEqual(bad);
+   await recoverReviews({...e,UNCERTAIN_REVIEW_RECOVERY:'isolate-after-20m-v1'});await processJob(e,id);expect(sends).toBe(3);
+   expect(await env.EVAL_DB.prepare('SELECT status FROM eval_jobs WHERE id=?').bind(id).first('status')).toBe('review_failed');
+  }finally{vi.unstubAllGlobals()}
+ });
+
 });
 
 describe('production telemetry isolation',()=>{

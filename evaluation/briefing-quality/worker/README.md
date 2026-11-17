@@ -182,3 +182,43 @@ python evaluation/briefing-quality/quality.py aggregate PRIVATE_MACHINE_REPORTS.
 The toolkit cannot manufacture actual human judgments, participants, factual
 accuracy, scientific improvements, or live-provider results. Those remain measured
 only when the corresponding authorized experiments and independent reviews occur.
+
+
+## Citation consistency validation (candidate, 17 November 2026)
+
+Current grounded reviews use `citation-consistency-v1`, recorded as
+`reviewValidationPolicy` on newly completed reports. An attached citation cannot
+be labelled `missing`. If the judge declares a claim supported and every passage
+it uses to establish that claim comes from attached sources, calling those
+citations `unsupported` is internally contradictory. Both cases fail validation
+with explicit error codes. A claim needing uncited evidence may legitimately have
+unsupported citations; `uncertain` remains an honest abstention. Mere citation-ID
+membership never establishes semantic support.
+
+Contradictory received assessments become `review_failed` with no quality metrics.
+Original paid responses, settled costs and UNKNOWN holds remain intact. These
+errors do not trigger a completeness correction or automatic paid replay. No
+request prompts, schemas, stage identities or budget rules change. Legacy reviews
+keep their existing validator. Historical completed reports are not rewritten.
+
+The snapshot's empty headline field is not evidence of lost V3 headlines: V3 stores
+`headline + "\n" + body` in its published claim text. Snapshot parity tests compare
+against the actual product presenter in English, Arabic and French, including
+multi-claim stories and citation deduplication. Six retained story items across
+three inspected snapshots matched reader-facing text after whitespace normalization
+and had identical citation-ID sets.
+
+The retained training-base omission is still a confirmed example of a semantic
+judge miss: the frozen input explicitly contained training bases and teams. This
+change does not repair that historical finding or claim to eliminate paraphrase
+and coverage errors. No keyword-based score correction is introduced. Treat model
+coverage findings as potential issues requiring source-and-reader comparison.
+
+Local verification: 116 offline evaluator tests pass, including an end-to-end
+paid-record preservation test; evaluator Worker typecheck passes. The fixtures
+are regression controls, not new paid-model accuracy measurements. No deployment,
+paid inference or historical report mutation is included in this change.
+
+The CI-equivalent command also passed all six check groups (Python evaluation,
+116 evaluator tests, 389 briefing tests, exporter tests, replay types and evaluator
+Worker types): `python evaluation/briefing-quality/continuous.py --output <local-report-directory>`.
