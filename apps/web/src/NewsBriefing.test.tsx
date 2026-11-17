@@ -40,6 +40,18 @@ it('supports Arabic, close control and long text without clamping',async()=>{
   expect(host.querySelector('.news-briefing-description')?.textContent).toContain('First explanation.');
  },{language:'ar',onClose});
 });
+it('keeps every supporting source link, attribution, date and attachment reachable without pagination',async()=>{
+ const multiple={...edition,sections:[{...edition.sections[0],evidence:[...edition.sections[0].evidence,evidence({sourceId:'third',sourceTitle:'Third publisher',postedAt:'2026-10-24T12:00:00Z',links:['https://third.example/report','https://third.example/context'],media:[{type:'photo',url:'https://third.example/photo',label:'Source photograph'}]})]},edition.sections[1]]};
+ await render(async host=>{
+  const additional=host.querySelector('.news-briefing-additional-sources')!;
+  expect(additional.textContent).toContain('Other publisher');expect(additional.textContent).toContain('Third publisher');
+  expect(additional.querySelector('time[datetime="2026-10-24T12:00:00Z"]')).not.toBeNull();
+  expect([...additional.querySelectorAll('a')].map(a=>a.href)).toEqual(['https://other.example/article','https://third.example/report','https://third.example/context','https://third.example/photo']);
+  expect(additional.textContent).toContain('Source photograph');expect(host.querySelector('.news-briefing-source-nav')).toBeNull();
+  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Reference 2"]')!.click());
+  expect(host.querySelector('.news-briefing-additional-sources')).toBeNull();expect(host.textContent).not.toContain('Third publisher');
+ },{edition:multiple});
+});
 it('rejects unsafe article and attachment URLs without losing the explanation',async()=>{
  const unsafe={...edition,sections:[{title:'Headline',summary:'Explanation.',evidence:[evidence({sourceUrl:'javascript:alert(1)',links:['data:text/html,unsafe'],media:[{type:'photo',url:'javascript:alert(2)'}]})]}]};
  await render(host=>{expect(host.querySelector('.news-briefing-read')).toBeNull();expect([...host.querySelectorAll('a')].every(a=>/^https?:/.test(a.href))).toBe(true);expect(host.querySelector('.news-briefing-description')?.textContent).toContain('Explanation.');},{edition:unsafe});

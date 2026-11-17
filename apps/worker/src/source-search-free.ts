@@ -3,6 +3,8 @@ import {prepareProductSourceInput} from './product-feeds';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {recommendationFetch} from './source-recommendation-fetch';
 import type {SourceSearchResult} from './source-search';
+import type {Env} from './types';
+import {resolveSearchGoogleArticles} from './source-search-google';
 async function accessKey(source:string,article=false){
  const url=prepareProductSourceInput(source).sourceUrl!;
  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(article?'article-access-v1:'+url:url));
@@ -11,10 +13,11 @@ async function accessKey(source:string,article=false){
 export async function rememberUnavailableSearchSource(source:string,cache?:Pick<Cache,'put'>){
  try{await cache?.put(await accessKey(source),Response.json({readable:false},{headers:{'cache-control':'public, max-age=120'}}));}catch{}
 }
-/** Search is temporarily free-access only. No models, helpers or paid providers
- * are invoked. All uncached checks share one short deadline and six sockets.
+/** Search is temporarily free-access only. No models or paid providers are
+ * invoked. Optional free link resolution precedes the shared article deadline.
  */
-export async function freelyReadableResults(results:SourceSearchResult[],fetcher:typeof fetch,cache?:Pick<Cache,'match'|'put'>){
+export async function freelyReadableResults(results:SourceSearchResult[],fetcher:typeof fetch,cache?:Pick<Cache,'match'|'put'>,env?:Env){
+ results=await resolveSearchGoogleArticles(results,env,cache);
  const bounded=recommendationFetch(fetcher,1500),checks=new Map<string,Promise<boolean>>();let incomplete=false;
  const check=async(source:string,article=false)=>{
   const plan=prepareProductSourceInput(source),url=plan.sourceUrl!;

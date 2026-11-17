@@ -5,7 +5,7 @@ for(const language of ['fr','ar'] as const)test(`natural ${language} copy across
  const account={id:'owner',username:'owner',role:'admin',email:'owner@example.test'};
  const feed={id:'science',ownerAccountId:'owner',ownerUsername:'owner',slug:'science',title:'Science',stars:2,interestProfile:'Science news',publicFeedEnabled:true,paused:false,language:'en',briefingCadence:'hourly',updateIntervalMinutes:60,briefingTimezone:'UTC',retentionDays:15,nextBriefingAt:new Date(Date.now()+8*60_000).toISOString()};
  const evidence={messageId:'item',sourceId:'source',sourceType:'channel',sourceProvider:'rss',sourceTitle:'Publisher',sourceUrl:'https://publisher.example/',postedAt:'2026-11-17T08:00:00Z',text:'Retained source evidence.',links:['https://publisher.example/article'],media:[]};
- const edition={id:'edition',briefingId:feed.id,title:'Science report',summary:'Research findings',publishedAt:'2026-11-17T08:00:00Z',sections:[{title:'Science report',summary:'Retained explanation.',evidence:[evidence,{...evidence,sourceId:'second'}]}]};
+ const edition={id:'edition',briefingId:feed.id,title:'Science report',summary:'Research findings',publishedAt:'2026-11-17T08:00:00Z',sections:[{title:'Science report',summary:'Retained explanation.',evidence:[evidence,{...evidence,sourceId:'second',sourceTitle:'Supporting publisher',sourceUrl:'https://supporting.example/',links:['https://supporting.example/report'],media:[{type:'photo',url:'https://supporting.example/photo',label:'Supporting photograph'}]}]}]};
  await page.route('**/api/**',route=>{
   const path=new URL(route.request().url()).pathname;
   const json=path==='/api/auth/session'?{authenticated:true,account}:path==='/api/me/briefings'?{briefings:[feed]}:path.startsWith('/api/explore/')?{feeds:[feed]}:path.startsWith('/api/admin/')?{accounts:[account],briefings:[feed]}:path==='/api/me/sources'?{sources:[]}:path.startsWith('/api/feed/')?{briefing:feed,editions:[edition],viewerHasStarred:false}:{};
@@ -35,6 +35,10 @@ for(const language of ['fr','ar'] as const)test(`natural ${language} copy across
  const details=page.locator('.news-briefing-dialog');
  await expect(details).toBeVisible();
  await expect(details.locator('.news-briefing-source-nav')).toHaveCount(0);
+ await expect(details.locator('.news-briefing-additional-sources')).toContainText('supporting.example');
+ await expect(details.locator('.news-briefing-additional-sources a').first()).toHaveAttribute('href','https://supporting.example/report');
+ await expect(details.getByRole('link',{name:'Supporting photograph',exact:true})).toHaveAttribute('href','https://supporting.example/photo');
+ expect(await details.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
  await expect(details.locator('.news-briefing-read')).toHaveText(language==='fr'?'Lire l’article complet':'قراءة المقال كاملاً');
  await page.screenshot({path:info.outputPath(`brief-${language}.png`)});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);

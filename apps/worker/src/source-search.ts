@@ -33,7 +33,7 @@ export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof
  const load=()=>discoverSourceCandidates(env,query,fetcher,context,discovery?.cache);
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
  const aligned=context?await alignedSearchResults(env,query,context,found.results,fetcher,discovery?.owner):{results:found.results,unavailable:false};
- const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache);
+ const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache,env);
  return {...found,...accessible,unavailable:found.unavailable||aligned.unavailable,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete,...(context&&found.results.length>0&&!aligned.results.length&&!aligned.unavailable?{topicMismatch:true}:{})};
 }
 

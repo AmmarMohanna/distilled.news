@@ -51,8 +51,13 @@ existing shared short deadline. Article cache identities are separate from
 publisher cache identities, so one blocked article does not hide another free
 article. Public HTTPS redirects are bounded and checked at every hop; private,
 credentialed and login destinations are denied. An unresolved Google article
-wrapper is not treated as readable publisher evidence. No paid resolution is
-started. The search-result cache version invalidates older homepage-only checks.
+wrapper is not treated as readable publisher evidence. When explicitly enabled,
+the existing private `google_resolve` helper resolves up to 60 listing links in
+one four-second bounded batch with a two-second helper decoding budget (other
+collection callers retain their existing default budget). Validated same-publisher public HTTPS targets are
+cached for an hour; actual article readability is checked independently. Invalid
+targets, missing resolutions and blocked articles stay hidden. No paid resolution
+is started. The search-result cache version invalidates older access checks.
 
 Completing a source addition clears its query only if the user has not changed
 that query while verification was running. Regression tests cover the review fixes

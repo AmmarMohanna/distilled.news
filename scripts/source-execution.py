@@ -395,8 +395,11 @@ def resolve_google_articles(data):
         parsed = urlsplit(url)
         if parsed.scheme != 'https' or parsed.netloc != 'news.google.com' or not re.fullmatch(r'/(?:rss/)?articles/[A-Za-z0-9_-]{1,2000}', parsed.path):
             raise ValueError('INVALID_GOOGLE_ARTICLE')
+    budget = data.get('timeoutSeconds', 35)
+    if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not 1 <= budget <= 35:
+        raise ValueError('INVALID_GOOGLE_BATCH_TIMEOUT')
     started = time.monotonic()
-    deadline = started + 35
+    deadline = started + budget
     results = {}
     cache = None
     try:
@@ -423,7 +426,7 @@ def resolve_google_articles(data):
     try:
         for _ in range(min(6, len(unresolved))):
             url = next(remaining)
-            pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': 16})] = url
+            pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': min(16, max(1, deadline-time.monotonic()))})] = url
         while pending:
             done, _ = wait(pending, timeout=max(0, deadline-time.monotonic()), return_when=FIRST_COMPLETED)
             if not done:
@@ -437,7 +440,7 @@ def resolve_google_articles(data):
                 if time.monotonic() < deadline:
                     url = next(remaining, None)
                     if url:
-                        pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': 16})] = url
+                        pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': min(16, max(1, deadline-time.monotonic()))})] = url
         # Only six requests can remain in flight. Finish those bounded requests;
         # do not enqueue more work after the stage deadline. The parent process
         # has a separate hard timeout and kills its entire process group.
