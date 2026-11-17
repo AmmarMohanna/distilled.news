@@ -1494,7 +1494,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const feedRead = useRef<AbortController | null>(null);
   const searchRequest = useRef(0);
   const latestQuery = useRef("");
-  const searchFailed = useRef(false);
   const loadedFeed = useRef<string | null>(null);
   const visibleEditionIds = useRef(new Set<string>());
   const publicationVersion = useRef<string|undefined>(undefined);
@@ -1511,6 +1510,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const [query, setQuery] = useState("");
   const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
   const [error, setError] = useState<UiMessage>("");
+  const [searchError,setSearchError]=useState<{key:string;text:string;message:UiMessage}|null>(null);
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
@@ -1529,7 +1529,7 @@ function FeedPage(props: { username: string; slug: string }) {
     const read = new AbortController();
     feedRead.current = read;
     const key = feedKey, request = ++feedRequest.current;
-    if (!silent || loadedFeed.current !== key) { searchFailed.current = false; setError(""); setSummaryMessage(""); }
+    if (!silent || loadedFeed.current !== key) { setError(""); setSummaryMessage(""); }
     if (loadedFeed.current !== key) setReadState({ key, state: "loading" });
     try {
       const next = await getFeed(props.username, props.slug, {
@@ -1547,7 +1547,7 @@ function FeedPage(props: { username: string; slug: string }) {
       ]);
       setFeedResult({ key, value: next }); setReadState({ key, state: "loaded" });
       const sourceNotice = sessionStorage.getItem(`feed-notice:${next.briefing.id}`);
-      searchFailed.current = false; setError(sourceNotice ?? "");
+      setError(sourceNotice ?? "");
       if (sourceNotice) sessionStorage.removeItem(`feed-notice:${next.briefing.id}`);
       // Only a complete searchable snapshot can prove an edition was withdrawn.
       if(!searching||complete||changed)searchRequest.current++;
@@ -1562,7 +1562,7 @@ function FeedPage(props: { username: string; slug: string }) {
     } catch (cause) {
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       if (!silent || loadedFeed.current !== key) {
-        searchFailed.current = false; setReadState({ key, state: "failed" }); setError(toUiError(cause));
+        setReadState({ key, state: "failed" }); setError(toUiError(cause));
       }
       return cause instanceof ApiError ? cause.uiMessage.details : {};
     } finally {
@@ -1571,7 +1571,7 @@ function FeedPage(props: { username: string; slug: string }) {
   }
 
   useEffect(() => {
-    setError(""); setSummaryMessage(""); latestQuery.current = "";
+    setError("");setSearchError(null); setSummaryMessage(""); latestQuery.current = "";
     setQuery(""); setEditions([]); setEditionBusyIds(new Set());
     setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
     visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
@@ -1618,10 +1618,10 @@ function FeedPage(props: { username: string; slug: string }) {
       const next = text.trim() ? await searchFeed(props.username, props.slug, text) : payload?.editions ?? [];
       if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) {
         visibleEditionIds.current = new Set([...visibleEditionIds.current, ...next.map(edition => edition.id)]);
-        searchFailed.current = false; setError(""); setEditions(next); setSettledSearch({ key, text });
+        setSearchError(null); setEditions(next); setSettledSearch({ key, text });
       }
     } catch (cause) {
-      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { searchFailed.current = true; setError(toUiError(cause)); setSettledSearch({key,text}); }
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { setSearchError({key,text,message:toUiError(cause)}); setSettledSearch({key,text}); }
     }
   }
 
@@ -1629,7 +1629,7 @@ function FeedPage(props: { username: string; slug: string }) {
   useEffect(() => {
     const request = ++searchRequest.current;
     if (!payload) return;
-    if (!query.trim()) { if (searchFailed.current) { searchFailed.current = false; setError(""); } setEditions(payload.editions); return; }
+    if (!query.trim()) { setSearchError(null); setEditions(payload.editions); return; }
     const timeout = window.setTimeout(() => {
       if (request === searchRequest.current && feedIdentity.current === feedKey && query === latestQuery.current) void applySearch(query, request);
     }, 250);
@@ -1765,7 +1765,7 @@ function FeedPage(props: { username: string; slug: string }) {
           feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
           visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
           setFeedResult(null);setEditions([]);setEditionDetails(new Map());setSelectedReport(null);
-          setQuery('');setSettledSearch(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
+          setQuery('');setSettledSearch(null);setSearchError(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
           setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
           if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
           window.location.replace('/');
@@ -1824,6 +1824,7 @@ function FeedPage(props: { username: string; slug: string }) {
         />
       ) : null}
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
+      {searchError?.key===feedKey&&searchError.text===query&&<FeedNotice message={t(searchError.message)} language={language}/>}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}

@@ -1,4 +1,5 @@
 import type { BriefingConfig, BriefingEdition } from "@distilled/core";
+import {EXPLORE_CHANGED_EVENT} from './explore-events';
 import { preferredLanguage } from './LanguageControl';
 import {ApiError, apiError} from './api-errors';
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
@@ -357,10 +358,12 @@ export async function searchFeed(username: string, slug: string, query: string):
 }
 
 export async function setFeedStar(username: string, slug: string, starred: boolean): Promise<FeedStarResult> {
-  return requestJson<FeedStarResult>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/star`, {
+  const result=await requestJson<FeedStarResult>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/star`, {
     method: "POST",
     body: JSON.stringify({ starred })
   });
+  window.dispatchEvent(new Event(EXPLORE_CHANGED_EVENT));
+  return result;
 }
 
 export async function recommendSources(title: string, description: string): Promise<string[]> {

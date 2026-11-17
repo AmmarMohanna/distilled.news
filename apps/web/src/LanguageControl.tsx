@@ -8,6 +8,7 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'No matches in loaded feeds. Load more feeds to continue searching.': ['Aucun résultat parmi les fils chargés. Chargez davantage de fils pour poursuivre la recherche.', 'لا توجد نتائج ضمن الخلاصات المحمّلة. حمّل المزيد من الخلاصات لمتابعة البحث.'],
   'No community feeds are available yet.': ['Aucun fil communautaire n’est disponible pour le moment.', 'لا توجد خلاصات مجتمعية متاحة بعد.'],
   'Retry sources': ['Réessayer le chargement des sources', 'إعادة تحميل المصادر'],
   'All configured sources are disabled. You can save settings without enabling them.': ['Toutes les sources configurées sont désactivées. Vous pouvez enregistrer les paramètres sans les activer.', 'جميع المصادر المضبوطة معطّلة. يمكنك حفظ الإعدادات دون تفعيلها.'],

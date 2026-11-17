@@ -146,7 +146,7 @@ it('loads one Explore page without feed fan-out, keeps cards on page failure and
   const second = {...first,id:'second',title:'Second science',slug:'second'};
   vi.mocked(getExploreFeeds).mockResolvedValueOnce({feeds:[first],nextOffset:100})
     .mockRejectedValueOnce(new Error('Temporary page failure'))
-    .mockResolvedValueOnce({feeds:[first,second],nextOffset:null});
+    .mockResolvedValueOnce({feeds:[second],nextOffset:null});
   const host=document.createElement('div'),root=createRoot(host);
   try {
     await act(async()=>root.render(<AppExperience account={{id:'reader',username:'reader'} as any} briefings={[]} onAccount={()=>{}} onHelp={()=>{}}/>));

@@ -23,3 +23,11 @@ Legacy feed reads now inspect the same bounded 100-edition window as search, ret
 Stable v3 read arrays remain compatible. A reader/feed-scoped `:considered` companion records which discovered edition IDs have already been handled, including explicit unread choices. Search results now supply historical IDs for incremental migration. Legacy records remain intact. Old v3 arrays have no per-ID decision metadata: known omissions are preserved conservatively, but a previously unseen omission cannot retrospectively distinguish a lost migration from a pre-upgrade explicit unread choice. New explicit unread decisions are preserved across discovery and reload; blocked storage retains in-memory decisions but cannot guarantee persistence across reloads.
 
 Explore displays a localized successful-empty state separately from loading, failed requests, and searches with no matches.
+
+## Cross-tab progress and Explore pagination
+
+Read history now persists individual read/unread decisions and baseline migrated-read facts under the existing reader/feed scope. The aggregate v3 array remains a compatibility cache. Independent editions no longer overwrite each other, explicit unread records override baseline read facts, and storage events update other tabs using the latest stored value rather than a delayed event payload. Same-edition conflicts use the last successfully stored decision. Browser-storage failures retain this tab's in-memory progress; they cannot guarantee cross-tab or reload persistence.
+
+Feed-refresh failures and query-scoped search failures are separate UI states. A healthy background feed response cannot dismiss a search failure; successful search retry or leaving the failed query clears it.
+
+Successful star changes restart ranked Explore pagination and invalidate an older page still in flight. An overlapping later page also restarts the prefix instead of silently deduplicating away evidence of a ranking shift made by another reader. Offset pagination is not an immutable global snapshot under arbitrary concurrent edits; these paths recover known local changes and detected overlap. Explore search still filters loaded pages, explicitly says so while more pages remain, and offers Load more feeds rather than claiming an unperformed server-wide search returned nothing.

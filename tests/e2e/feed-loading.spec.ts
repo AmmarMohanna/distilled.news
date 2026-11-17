@@ -86,6 +86,20 @@ for(const fails of [false,true])test(`historical search withdrawal is revalidate
  if(fails)await expect(page.getByRole('alert')).toContainText(requestFailed);
 });
 
+test('an unchanged healthy feed refresh cannot clear a failed historical search',async({page})=>{
+ let reads=0,searches=0;
+ await page.route('**/api/**',route=>{
+  const u=new URL(route.request().url());
+  if(u.pathname===path){reads++;return route.fulfill({json:{briefing:feed,editionsComplete:false,publicationVersion:'unchanged',editions:[edition('recent')]}});}
+  if(u.pathname.endsWith('/search'))return ++searches===1?route.fulfill({status:503,json:{error:'unavailable'}}):route.fulfill({json:{editions:[edition('historical')]}});
+  return route.fulfill({json:{authenticated:false,feeds:[]}});
+ });
+ await page.goto('/reader/news/');await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.getByRole('alert')).toContainText(requestFailed);
+ await refreshFeed(page);await expect.poll(()=>reads).toBe(2);await page.waitForTimeout(350);
+ await expect(page.getByRole('alert')).toContainText(requestFailed);expect(searches).toBe(1);
+ await page.getByPlaceholder('Search briefings').press('Enter');await expect(page.locator('.news-headline')).toContainText('historical');await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
 test('navigation cannot inherit a pending response from another feed',async({page})=>{
  const previous=gate();
  await page.route('**/api/**',async route=>{

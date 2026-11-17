@@ -80,6 +80,7 @@ export function AppExperience(props: {
     let version = 0;
     let inFlight = false;
     let refreshRequested = false;
+    let loadedIds=new Set<string>();
     async function load(offset = 0) {
       if (inFlight) { if (offset === 0) refreshRequested = true; return; }
       inFlight = true;
@@ -89,6 +90,13 @@ export function AppExperience(props: {
       try {
         const result = await getExploreFeeds(offset);
         if (!active || version !== request) return;
+        if(offset>0&&result.feeds.some(feed=>loadedIds.has(feed.id))){
+          // A changed ranking crossed a page boundary. Deduplicating this page
+          // would hide a skipped feed; restart the prefix instead.
+          refreshRequested=true;setNextOffset(null);return;
+        }
+        if(offset===0)loadedIds=new Set(result.feeds.map(feed=>feed.id));
+        else for(const feed of result.feeds)loadedIds.add(feed.id);
         setFeeds(current => offset === 0 ? result.feeds : [...new Map([...current, ...result.feeds].map(feed => [feed.id, feed])).values()]);
         setNextOffset(result.nextOffset);
       } catch (cause) {
@@ -100,7 +108,12 @@ export function AppExperience(props: {
       }
     }
     exploreLoader.current = load;
-    const changed = () => { void load(); };
+    const changed = () => {
+      // A ranking change invalidates every following offset. Discard any old
+      // page still in flight and restart before offering the next page.
+      version++;setNextOffset(null);
+      if(inFlight)refreshRequested=true;else void load();
+    };
     void load();
     window.addEventListener(EXPLORE_CHANGED_EVENT, changed);
     return () => { active = false; window.removeEventListener(EXPLORE_CHANGED_EVENT, changed); };
@@ -176,7 +189,7 @@ export function AppExperience(props: {
           <FeedCardActions feed={feed} owner={props.account?.username === feed.ownerUsername} onError={setError} hideStar latestUpdatedAt={feed.latestUpdatedAt}>
             <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${t(feed.viewerHasStarred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(toUiError(cause)); } finally { setStarBusy(null); } }}><Star size={16}/><span className="feed-star-count">{feed.stars}</span></button>
           </FeedCardActions>
-        </article>)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim()||nextOffset===null) ? <p className="empty-copy" role="status">{t(query.trim()?"No feeds match your search.":"No community feeds are available yet.")}</p> : null}
+        </article>)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim()||nextOffset===null) ? <p className="empty-copy" role="status">{t(query.trim()?(nextOffset!==null?"No matches in loaded feeds. Load more feeds to continue searching.":"No feeds match your search."):"No community feeds are available yet.")}</p> : null}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>
     </section>
