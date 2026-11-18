@@ -136,9 +136,12 @@ const loginInputSchema = z.object({
   turnstileToken: z.string().optional()
 });
 
-const tokenInputSchema = z.object({
-  token: z.string().min(1)
-});
+const verificationCodePattern=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{16}$/;
+const tokenInputSchema = z.union([
+  z.object({token:z.string().min(1).max(256).refine(value=>!value.startsWith("code-v1:"))}).strict(),
+  z.object({email:z.string().trim().email(),code:z.string().max(40).transform(value=>value.replace(/[\s-]/g,'').toUpperCase())
+    .pipe(z.string().regex(verificationCodePattern))}).strict()
+]);
 
 const passwordResetRequestSchema = z.object({
   language: z.enum(['en', 'fr', 'ar']).default('en'),
@@ -650,12 +653,14 @@ export function createApp(options: AppOptions = {}) {
   app.post("/api/auth/verify-email", async (c) => {
     const repo = repoFor(c);
     const input = tokenInputSchema.parse(await c.req.json().catch(() => ({})));
-    const result = await consumeEmailVerificationTokenOrNull(repo, input.token, new Date());
-    if (!result) return c.json({ error: "invalid or expired token" }, 400);
+    if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
+    const result = await consumeEmailVerificationTokenOrNull(repo,
+      "code" in input ? "code-v1:"+input.code : input.token, new Date(),
+      "code" in input ? normalizeEmail(input.email) : undefined);
+    if (!result) return c.json({ error: "code" in input ? "Invalid or expired verification code." : "invalid or expired token" }, 400);
     const verified = result.account.emailVerifiedAt
       ? result.account
       : await repo.updateAccount({ id: result.account.id, emailVerifiedAt: new Date().toISOString() });
-    if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
     if (result.newlyConsumed) setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, verified));
     return c.json({ account: publicAccount(verified) });
   });
@@ -1798,7 +1803,10 @@ async function createAccountOrError(
 }
 
 async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
-  const token = randomToken();
+  const alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const code=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>alphabet[byte&31]).join('');
+  const campaign=env.ENVIRONMENT==='staging'&&env.AGENTOPS_CAMPAIGN_ENABLED==='true'&&env.AGENTOPS_CAMPAIGN_ISOLATED==='true';
+  const token=campaign?randomToken():'code-v1:'+code;
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await repo.createAuthToken({
     accountId: account.id,
@@ -1806,7 +1814,7 @@ async function sendVerificationToken(repo: Repository, env: Env, account: Accoun
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendVerificationEmail(env, account, token, language);
+  await sendVerificationEmail(env, account, campaign?token:code.match(/.{4}/g)!.join("-"), language);
 }
 
 async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
@@ -1840,14 +1848,15 @@ async function consumeToken(
 async function consumeEmailVerificationTokenOrNull(
   repo: Repository,
   token: string,
-  now: Date
+  now: Date,
+  email?:string
 ): Promise<{ account: AccountRecord; newlyConsumed: boolean } | null> {
   const record = await repo.getAuthToken(await hashToken(token), "email_verification");
   if (!record || new Date(record.expiresAt).getTime() <= now.getTime()) return null;
   const account = await repo.getAccountById(record.accountId);
-  if (!account || account.disabledAt) return null;
-  if (record.consumedAt) return account.emailVerifiedAt ? { account, newlyConsumed: false } : null;
-  await repo.consumeAuthToken(record.id, now);
+  if (!account || account.disabledAt || (email && normalizeEmail(account.email)!==email)) return null;
+  if (record.consumedAt) return !email && account.emailVerifiedAt ? { account, newlyConsumed: false } : null;
+  if(!await repo.consumeAuthToken(record.id, now))return null;
   return { account, newlyConsumed: true };
 }
 

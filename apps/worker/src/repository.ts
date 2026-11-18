@@ -421,11 +421,9 @@ export class D1Repository implements Repository {
     return row ? rowToAuthToken(row) : null;
   }
 
-  async consumeAuthToken(id: string, now = new Date()): Promise<void> {
-    await this.db
-      .prepare("UPDATE auth_tokens SET consumed_at = ? WHERE id = ?")
-      .bind(now.toISOString(), id)
-      .run();
+  async consumeAuthToken(id: string, now = new Date()): Promise<boolean> {
+    const result=await this.db.prepare("UPDATE auth_tokens SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL").bind(now.toISOString(),id).run();
+    return result.meta.changes===1;
   }
 
   async countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number> {
@@ -1907,9 +1905,11 @@ export class InMemoryRepository implements Repository {
     return token ? { ...token } : null;
   }
 
-  async consumeAuthToken(id: string, now = new Date()): Promise<void> {
+  async consumeAuthToken(id: string, now = new Date()): Promise<boolean> {
     const token = this.tokens.get(id);
-    if (token) token.consumedAt = now.toISOString();
+    if (!token || token.consumedAt) return false;
+    token.consumedAt = now.toISOString();
+    return true;
   }
 
   async countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number> {
