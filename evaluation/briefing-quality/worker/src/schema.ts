@@ -20,6 +20,16 @@ export function reviewSchema(inventory:boolean,input?:string){
   Object.assign(coverage,{minItems:ids.length,maxItems:ids.length});
   if(ids.length)coverage.items.properties.developmentId=label(ids);
  }
+ if(!inventory&&Array.isArray(packet?.case?.items)){
+  const count=packet.case.items.length;
+  Object.assign(result.properties.items as object,{minItems:count,maxItems:count});
+  if(count){
+   const judgedItems=result.properties.items as {items:{properties:Record<string,unknown>}};
+   judgedItems.items.properties.item={type:'integer',enum:packet.case.items.map((_item:unknown,index:number)=>index)};
+   const claims=result.properties.claims as {items:{properties:Record<string,unknown>}};
+   claims.items.properties.item={type:'integer',minimum:0,maximum:count-1};
+  }
+ }
  if(!inventory&&Array.isArray(packet?.case?.items)&&packet.case.items.length===0){
   Object.assign(result.properties.claims as object,{maxItems:0});Object.assign(result.properties.items as object,{maxItems:0});
   const coverage=result.properties.coverage as {items:{properties:Record<string,unknown>}};
@@ -32,3 +42,8 @@ export function groundingSchema(input:string){const packet=JSON.parse(input),ids
 export function groundedReviewSchema(input:string){const s=reviewSchema(false,input),packet=JSON.parse(input),priorIds=packet.case.prior.map((p:{id:string})=>p.id);const coverage=s.properties.coverage as any;coverage.items.properties.priorIds=priorIds.length?array(label(priorIds)):{...array(string),maxItems:0};coverage.items.required.push('priorIds');const findings=s.properties.findings as any;findings.items.properties.category=label(['factual','citation','relevance','repetition','temporal','language']);if(packet.case.items.length){findings.items.properties.item={type:'integer',minimum:0,maximum:packet.case.items.length-1}}else{findings.maxItems=0}return s}
 
 export function sourceInventorySchema(input:string){const s=reviewSchema(true,input);const developments=s.properties.developments as any;developments.items.properties.relation=label(['new','update','correction']);return s}
+
+export function claimInventoryAuditSchema(input:string){
+ const packet=JSON.parse(input),count=packet.items.length;
+ return object({items:{...array(object({item:{type:'integer',minimum:0,maximum:Math.max(0,count-1)},status:label(['complete','incomplete','uncertain']),missing:array(object({quote:string,explanation:string})),explanation:string})),minItems:count,maxItems:count},limitations:array(string)});
+}

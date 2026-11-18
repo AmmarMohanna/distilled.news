@@ -1,5 +1,6 @@
 import {REVIEW_VALIDATION_POLICY,groundedInventoryRequest,groundingRequest,parseGrounding,groundedInventory,groundedReviewRequest,groundedReview,groundedMetrics,type Grounding} from './grounding';
 import {completeReview} from './complete-review';
+import {assessClaimInventory} from './claim-inventory';
 import {errorCode,failureDetails,sourceRead} from './failures';
 import {PROTOCOL,LEGACY_PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,reviewRequest,timestamp} from './protocol';
 import {activeFenceFor,recoverReviews} from './recovery';
@@ -86,8 +87,12 @@ export async function processJob(env:Env,id:string){
   const d=grounding?groundedInventory(proposed,grounding):proposed;
   phase='inventory_store';const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol,inventoryHash,inventory:d,...(grounding?{proposedInventory:proposed,grounding}:{})}));
   phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',(grounded?groundedReviewRequest(c,d):reviewRequest(c,d)));
-  phase='review_validation';const r=await completeReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_completeness_v1',request),grounded?{request:groundedReviewRequest(c,d),validate:raw=>groundedReview(raw,c,d)}:undefined),m=grounded?groundedMetrics(r,d,c):metrics(r,d,c),hasFindings=flagged(r,d,c);
+  phase='review_validation';const r=await completeReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_completeness_v1',request),grounded?{request:groundedReviewRequest(c,d),validate:raw=>groundedReview(raw,c,d)}:undefined),m=grounded?groundedMetrics(r,d,c):metrics(r,d,c);
+  phase='claim_inventory_audit';const claimInventoryAudit=await assessClaimInventory(c,r,env.CLAIM_INVENTORY_AUDIT_ENABLED==='true'?request=>judge(env,id,'reader_claim_inventory_v1',request):undefined),hasFindings=flagged(r,d,c)||claimInventoryAudit.requiresAttention;
   const report={protocol,...(grounded?{reviewValidationPolicy:REVIEW_VALIDATION_POLICY}:{}),jobId:id,source:env.SOURCE_LABEL,model:env.JUDGE_MODEL,evidenceHash:await hash(c),inventoryHash,labelOrigin:'machine_judge_not_human',calibration:'not_measured',claimExtractionCompleteness:'not_independently_established',reviewedAt:time(),operational:deterministic,inventory:d,...(grounding?{proposedInventory:proposed,inventoryGrounding:grounding}:{}),review:r,metrics:{...m,...(grounded?{inventoryGroundingPolicy:'current-evidence-entailment-v1'}:{})},status:hasFindings?'flagged':'reviewed_no_findings'};
+  Object.assign(report,{claimInventoryAudit,claimExtractionCompleteness:claimInventoryAudit.completeness});
+  Object.assign(report.metrics,{claimExtractionCompleteness:claimInventoryAudit.completeness});
+  Object.assign(m,{claimExtractionCompleteness:claimInventoryAudit.completeness});
   phase='report_store';const key=`reports/${id}.json`;await env.EVIDENCE.put(key,JSON.stringify(report));
   phase='report_commit';await env.EVAL_DB.prepare('UPDATE eval_jobs SET status=?,report_key=?,flagged=?,metrics_json=?,error=NULL,updated_at=? WHERE id=? AND attempt_id=?').bind(report.status,key,hasFindings?1:0,JSON.stringify(m),time(),id,attempt).run();
   console.log(JSON.stringify({event:'evaluation_completed',status:report.status,language:c.language}));

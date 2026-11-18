@@ -1,0 +1,187 @@
+{
+  "provenance": {
+    "jobId": "7767deaac5c9dc9ce9a1831270ba7951bcc106f0fa73b945b68074f43b220b01",
+    "expected": "MISSING_ITEM_JUDGMENT",
+    "originalNormalizedSha256": "c82353e6b7b2f36f393dd539f6165576f55e9148fd880aeb0c279aece7c7a325",
+    "scope": "Reduced exact-response diagnostic: inventory removed; evidence aliases resolved; quotes truncated to 180 characters. Not a full factuality benchmark."
+  },
+  "c": {
+    "id": "9f46df3c6f7e0c4bb74de63ca5edeb9071b4f2dc5da8ccc8ff14e6b973f473a3",
+    "feedId": "briefing_689f18f6-b10a-48eb-853b-d85d7c90aec2",
+    "language": "en",
+    "interest": "I want to follow important developments in artificial intelligence and machine learning, particularly new foundation models, large language models, AI agents, reasoning systems, multimodal AI, open-source models, and major research breakthroughs. Track new model and product releases from OpenAI, Anthropic, Google DeepMind, Meta, and other leading AI companies. I am especially interested in meaningful benchmark improvements, AI coding tools, real-world applications, inference efficiency, AI infrastructure, and major industry investments or regulation. Prioritize technically significant developments and independently verified results over marketing hype, speculation, and minor product updates.",
+    "windowStart": "2026-11-18T03:55:00.000Z",
+    "windowEnd": "2026-11-18T09:55:00.000Z",
+    "frozenAt": "2026-11-18T10:00:22.077Z",
+    "evidenceScope": "all_eligible_frozen_input",
+    "evidenceComplete": false,
+    "articles": [
+      {
+        "id": "55a5dd5b-9381-4823-bb2c-ba7acf963345",
+        "feedId": "briefing_689f18f6-b10a-48eb-853b-d85d7c90aec2",
+        "text": null,
+        "title": "9",
+        "publishedAt": "2026-11-18T06:41:32.000Z",
+        "completeness": "partial"
+      },
+      {
+        "id": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+        "feedId": "briefing_689f18f6-b10a-48eb-853b-d85d7c90aec2",
+        "text": "suming there is a requirement for human accountability and understanding.\nAbsent any pacing, this model predicts Top-Expert-Dominating-AI (TED-AI) in February 2029. If you adjust s\nnd more time understanding AI advances and limits advances that are deployed to those that can be understood by researchers (modeled as limiting ideas that can be used being those \n as ECI increases albeit on only 52 pairs.\n- Anthropic's \"When AI Builds Itself\" notes “In research, Claude can already match or outperform skilled humans at executing a well-speci\nThe recent METR report on AI acceleration at Anthropic has led to several analyses and arguments for rapid takeoff. There are important hard-to-supervise tasks that are necessary t\nhe approach and scaling comprehension audits will take more time but will provide additional pacing and ongoing mitigation of acceleration to justify the investment.\nFigure 3. Comp\nready show AI making progress on supervisable AI research tasks:\n- TasteVal consists of 8 novel tasks representative of frontier AI R&D, spanning pretraining data curation, pretrai\nghly correlated with pretraining, because the task is predicting what an expert would write.\n- LMCA: \"Models evaluate arguments in conceptual domains, and are graded against expert\nace on metrics to those numbers, resulting in real paces of 1.2x and 1.4x respectively. Anthropic's \"How employment is changing at Anthropic\" showed 19 agent hours per researcher h\nsuming there is a requirement for human accountability and understanding.\nAbsent any pacing, this model predicts Top-Expert-Dominating-AI (TED-AI) in February 2029. If you adjust s",
+        "title": "LESSWRONG",
+        "publishedAt": "2026-11-18T04:38:13.000Z",
+        "completeness": "partial"
+      },
+      {
+        "id": "cb8e38dd-a8a2-439d-8127-56a608430b3b",
+        "feedId": "briefing_689f18f6-b10a-48eb-853b-d85d7c90aec2",
+        "text": null,
+        "title": "SID AI Releases SID-2 Agentic Search Model With 0.720 NDCG Swarm Mode",
+        "publishedAt": "2026-11-18T07:10:53.000Z",
+        "completeness": "partial"
+      }
+    ],
+    "prior": [],
+    "items": [
+      {
+        "headline": "",
+        "body": "Detailed model projects 'Top-Expert-Dominating-AI' (TED-AI) could arrive by 2029 without intervention, with pacing measures delaying it to 2030\nA new open-source model, calibrated to Anthropic's reported acceleration, predicts that without interventions, AI systems surpassing top human experts in research (TED-AI) could emerge by early 2029. Interventions such as internal-use lags, compute limits, and comprehension audits could delay this to mid-2030. The model highlights rapid progress on easily supervised research tasks but continued difficulty for AI in hard-to-supervise, judgment-based tasks. Anthropic's agents reportedly perform about five times as much work per researcher as OpenAI's, with a ~90% success rate for open-ended tasks. The model's projections depend on current rates of progress and assume no major market or regulatory disruptions.",
+        "sourceIds": [
+          "bb6f2938-add4-4043-a0d7-da95eb30b200"
+        ]
+      },
+      {
+        "headline": "",
+        "body": "Discussion highlights challenges and possible strategies for adult human intelligence amplification\nA detailed conversation explores the technical and strategic obstacles to increasing adult human intelligence through biotechnological interventions, such as brain gene editing and brain-computer interfaces. The discussion emphasizes the lack of clear technological principles, significant biological barriers, and the need for focused roadmapping and field-building before large-scale investment. Several potential approaches are considered, but no clear pathway is identified as promising for immediate acceleration.",
+        "sourceIds": [
+          "55a5dd5b-9381-4823-bb2c-ba7acf963345"
+        ]
+      },
+      {
+        "headline": "",
+        "body": "SID AI releases SID-2 agentic search model and SID-2 Swarm, reporting state-of-the-art retrieval on internal benchmarks\nSID AI has launched SID-2, an agentic search model that adapts its search strategy and returns ranked document IDs, and SID-2 Swarm, which coordinates multiple agents. SID-2 Swarm reportedly achieves a 0.720 NDCG score on SID's 506-question benchmark, outperforming GPT-6 Astra and Claude Opus 5.5 in retrieval quality and latency according to SID's self-reported results. Model size and weights are undisclosed, and no independent evaluations are cited.",
+        "sourceIds": [
+          "cb8e38dd-a8a2-439d-8127-56a608430b3b"
+        ]
+      }
+    ],
+    "pipelineStatus": "published",
+    "publishedAt": "2026-11-18T10:00:05.487Z",
+    "sourceLabel": "distilled-news-production",
+    "limitations": [
+      "Some original article bodies are incomplete, missing, changed or unlabelled; quality cannot be certified against unavailable evidence."
+    ]
+  },
+  "d": {
+    "developments": [],
+    "limitations": []
+  },
+  "raw": {
+    "claims": [
+      {
+        "id": "C1",
+        "item": 0,
+        "text": "A new open-source model, calibrated to Anthropic's reported acceleration, predicts that without interventions, AI systems surpassing top human experts in research (TED-AI) could emerge by early 2029.",
+        "support": "supported",
+        "citationSupport": "supported",
+        "evidence": [
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": "suming there is a requirement for human accountability and understanding.\nAbsent any pacing, this model predicts Top-Expert-Dominating-AI (TED-AI) in February 2029. If you adjust s"
+          }
+        ],
+        "explanation": "The text in S13 P3 states that the model predicts Top-Expert-Dominating-AI (TED-AI) in February 2029, which supports this claim."
+      },
+      {
+        "id": "C2",
+        "item": 0,
+        "text": "Interventions such as internal-use lags, compute limits, and comprehension audits could delay TED-AI to mid-2030.",
+        "support": "supported",
+        "citationSupport": "supported",
+        "evidence": [
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": "nd more time understanding AI advances and limits advances that are deployed to those that can be understood by researchers (modeled as limiting ideas that can be used being those "
+          },
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": " as ECI increases albeit on only 52 pairs.\n- Anthropic's \"When AI Builds Itself\" notes “In research, Claude can already match or outperform skilled humans at executing a well-speci"
+          }
+        ],
+        "explanation": "The article discusses several interventions (internal-use lags, compute limits, comprehension audits) and their modeled effect of delaying TED-AI until mid-2030."
+      },
+      {
+        "id": "C3",
+        "item": 0,
+        "text": "The model highlights rapid progress on easily supervised research tasks but continued difficulty for AI in hard-to-supervise, judgment-based tasks.",
+        "support": "supported",
+        "citationSupport": "supported",
+        "evidence": [
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": "The recent METR report on AI acceleration at Anthropic has led to several analyses and arguments for rapid takeoff. There are important hard-to-supervise tasks that are necessary t"
+          },
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": "he approach and scaling comprehension audits will take more time but will provide additional pacing and ongoing mitigation of acceleration to justify the investment.\nFigure 3. Comp"
+          },
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": "ready show AI making progress on supervisable AI research tasks:\n- TasteVal consists of 8 novel tasks representative of frontier AI R&D, spanning pretraining data curation, pretrai"
+          },
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": "ghly correlated with pretraining, because the task is predicting what an expert would write.\n- LMCA: \"Models evaluate arguments in conceptual domains, and are graded against expert"
+          }
+        ],
+        "explanation": "Multiple passages describe different progress rates for supervised (transfer) versus judgment-based (validity/fuzzy) tasks."
+      },
+      {
+        "id": "C4",
+        "item": 0,
+        "text": "Anthropic's agents reportedly perform about five times as much work per researcher as OpenAI's, with a ~90% success rate for open-ended tasks.",
+        "support": "supported",
+        "citationSupport": "supported",
+        "evidence": [
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": "ace on metrics to those numbers, resulting in real paces of 1.2x and 1.4x respectively. Anthropic's \"How employment is changing at Anthropic\" showed 19 agent hours per researcher h"
+          }
+        ],
+        "explanation": "S13 P11 states Anthropic's agents do about five times as much work per researcher as OpenAI's, and report a ~90% success rate for open-ended tasks."
+      },
+      {
+        "id": "C5",
+        "item": 0,
+        "text": "The model's projections depend on current rates of progress and assume no major market or regulatory disruptions.",
+        "support": "supported",
+        "citationSupport": "supported",
+        "evidence": [
+          {
+            "sourceId": "bb6f2938-add4-4043-a0d7-da95eb30b200",
+            "quote": "suming there is a requirement for human accountability and understanding.\nAbsent any pacing, this model predicts Top-Expert-Dominating-AI (TED-AI) in February 2029. If you adjust s"
+          }
+        ],
+        "explanation": "In S13 P3, it is stated that, 'it uses a fixed projection of compute growth ... and does not have it respond to progress (which seems reasonable over a ~2 year timeframe, absent a market crash).' This supports the claim of model assumptions."
+      }
+    ],
+    "coverage": [],
+    "items": [
+      {
+        "item": 0,
+        "relevance": "relevant",
+        "repetition": "novel",
+        "temporal": "correct",
+        "language": "correct",
+        "explanation": "The item summarizes and interprets the model for Top-Expert-Dominating-AI timelines, pacing interventions, and Anthropic progress, all of which align with current technical developments and reader interests in AI research, benchmarks, and regulation."
+      }
+    ],
+    "findings": [],
+    "limitations": [
+      "Some original article bodies are incomplete, missing, changed or unlabelled; quality cannot be certified against unavailable evidence.",
+      "All support is assessed strictly by explicit entailment in the supplied evidence; no external content or common knowledge is referenced.",
+      "Self-reported and non-independent claims are annotated as such where called out in the evidence.",
+      "For aggregate statements of performance, judgments are limited to what is wholly documented within passage evidence; underlying data details may be missing."
+    ]
+  }
+}

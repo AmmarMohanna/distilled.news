@@ -138,6 +138,27 @@ describe('D1/R2 spending and recovery',()=>{
  },20000);
 
 
+ it.each([false,true])('accounts for the opt-in independent claim audit without replay or invented success (malformed=%s)',async malformed=>{
+  await clear();const c=fixture(),id='claim-audit-'+malformed,key='snapshots/'+id;
+  await env.EVIDENCE.put(key,JSON.stringify(c));
+  await env.EVAL_DB.prepare("INSERT INTO eval_jobs(id,edition_id,feed_id,language,window_end,published_at,status,snapshot_key,snapshot_hash,updated_at,review_version) VALUES(?,?,?,?,?,?,'ready',?,?,?,?)").bind(id,c.id,c.feedId,c.language,c.windowEnd,c.publishedAt,key,await hash(c),c.frozenAt,PROTOCOL).run();
+  const source={prepare:()=>({bind:()=>({first:async()=>({json:JSON.stringify({status:'PUBLISHED'})})})})} as unknown as D1Database;
+  let sends=0;vi.stubGlobal('fetch',async(_url:string,init:RequestInit)=>{
+   sends++;const packet=JSON.parse(init.body as string);
+   if(sends===4){expect(packet.response_format.json_schema.schema.properties.items.minItems).toBe(1);expect(JSON.parse(packet.messages[1].content).claims[0]).not.toHaveProperty('support')}
+   const content=sends===1?development():sends===2?{results:development().developments.map(v=>({developmentId:v.id,support:'supported',explanation:'Current evidence.'})),limitations:[]}:sends===3?{...assessment(),coverage:assessment().coverage.map(v=>({...v,priorIds:[]}))}:{items:malformed?[]:[{item:0,status:'complete',missing:[],explanation:'Every reader fact is extracted.'}],limitations:[]};
+   return Response.json({id:id+'-'+sends,choices:[{finish_reason:'stop',message:{content:JSON.stringify(content)}}],usage:{prompt_tokens:10,completion_tokens:10,cost:.001}});
+  });
+  try{
+   const e={...env,SOURCE_DB:source,CLAIM_INVENTORY_AUDIT_ENABLED:'true'};await processJob(e,id);
+   const job=await env.EVAL_DB.prepare('SELECT status,error,report_key,metrics_json FROM eval_jobs WHERE id=?').bind(id).first<any>();
+   if(malformed)expect(job).toMatchObject({status:'review_failed',error:'CLAIM_AUDIT_INCOMPLETE_ITEMS',report_key:null,metrics_json:null});
+   else {const report=await (await env.EVIDENCE.get(job.report_key))!.json<any>();expect(report.claimExtractionCompleteness).toBe('model_checked_not_certified');expect(report.review.claims[0].support).toBe('supported');expect(JSON.parse(job.metrics_json).claimSupportScope).toBe('extracted_non_uncertain_claims_only')}
+   const calls=(await env.EVAL_DB.prepare('SELECT state,cost_micro,response_key FROM eval_calls WHERE job_id=?').bind(id).all<any>()).results;
+   expect(calls).toHaveLength(4);expect(calls.every(v=>v.state==='SETTLED'&&v.cost_micro===1000&&v.response_key)).toBe(true);
+   await processJob(e,id);expect(sends).toBe(4);
+  }finally{vi.unstubAllGlobals()}
+ });
  it('retains paid contradictory assessments as review failures without scores, correction calls or automatic replay',async()=>{
   await clear();const c=fixture(),id='citation-inconsistency',snapshotKey='snapshots/'+id+'.json';
   await env.EVIDENCE.put(snapshotKey,JSON.stringify(c));
