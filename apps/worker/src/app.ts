@@ -1386,14 +1386,19 @@ export function createApp(options: AppOptions = {}) {
       if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
       const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
       const publicFeed = publicBriefing(briefing);
+      // The cached status is shared by every viewer; source diagnostics are removed
+      // per request so readers never receive them, and the tag covers only what is sent.
+      const { sourceAvailability, ...readerStatus } = status.value.value;
+      const feedStatus = await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? { sourceAvailability, ...readerStatus } : readerStatus;
+      const statusHash = 'sourceAvailability' in feedStatus ? status.value.hash : fnv1a(JSON.stringify(readerStatus));
       // Content-derived, so every isolate computes the same tag for the same response.
-      const etag = `W/"${version}-${fnv1a([published.hash, status.value.hash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
+      const etag = `W/"${version}-${fnv1a([published.hash, statusHash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
       c.header('ETag', etag);
       if (etagMatches(c.req.header('If-None-Match'), etag)) return c.body(null, 304);
       return c.json({
         unreadSummaryAvailable,
         briefing: publicFeed,
-        ...status.value.value,
+        ...feedStatus,
         editions: presentProductEditions(briefing, published.records),
         editionsComplete:true,
         viewerHasStarred
@@ -1406,7 +1411,7 @@ export function createApp(options: AppOptions = {}) {
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
-      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
+      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await feedSourceAvailability(c.env,briefing.id) : undefined,
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
@@ -1720,6 +1725,17 @@ export function createApp(options: AppOptions = {}) {
     const token = getCookie(c, SESSION_COOKIE);
     const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
     return claims?.sub === row.owner_account_id;
+  }
+
+  /** Source collection errors are operator diagnostics: only the feed owner and
+   * enabled admins receive them. Every other reader gets no source health data. */
+  async function viewerSeesSourceHealth(c: Context<{ Bindings: Env; Variables: Variables }>, ownerAccountId: string) {
+    const token = getCookie(c, SESSION_COOKIE);
+    const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
+    if (!claims) return false;
+    if (claims.sub === ownerAccountId) return true;
+    const account = await repoFor(c).getAccountById(claims.sub);
+    return account?.role === 'admin' && !account.disabledAt;
   }
 
   async function resolvePublicFeed(c: Context<{ Bindings: Env; Variables: Variables }>) {
