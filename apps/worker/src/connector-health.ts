@@ -2,7 +2,8 @@ import {unresolvedProviderOperationSql} from '@distilled/connectors';
 /** Read-only connector diagnostics. Do not expose raw provider responses or
  * operation identifiers: they can contain source data and paid credentials. */
 export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId:string,now=new Date()){
- const [run,providerBatch,rssBatch,providerSuccess,rssSuccess,providerCounts,rssCounts,providerCursor,rssCheckpoint,providerJob,rssJob,nextProviderJob,nextRssJob,failures,latestFailure,unresolved]=await Promise.all([
+ const [firstRun,run,providerBatch,rssBatch,providerSuccess,rssSuccess,providerCounts,rssCounts,providerCursor,rssCheckpoint,providerJob,rssJob,nextProviderJob,nextRssJob,failures,latestFailure,unresolved]=await Promise.all([
+  db.prepare('SELECT MIN(started_at) AS startedAt,COUNT(*) AS checks FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=?').bind(feedId,sourceId).first<{startedAt:string|null;checks:number}>(),
   db.prepare('SELECT started_at AS startedAt,sequence FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? ORDER BY sequence DESC LIMIT 1').bind(feedId,sourceId).first<{startedAt:string;sequence:number}>(),
   db.prepare(`SELECT json_extract(data,'$.providerId') AS provider,
     json_extract(data,'$.request.coverage.status') AS coverage,
@@ -56,12 +57,15 @@ export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId
  if(typeof checkpoint==='string'){try{checkpoint=JSON.parse(checkpoint)}catch{checkpoint=undefined}}
  const nextRunAt=[nextProviderJob?.dueAt,nextRssJob?.dueAt].filter((value):value is string=>!!value).sort()[0]??null;
  const acceptedSequence=Math.max(providerSuccess?.sequence??0,rssSuccess?.sequence??0);
- const alerts=connectorOperationalAlerts({job,nextRunAt,failure:latestFailure,acceptedSequence,uncertainPaidAttempts:failures?.uncertainPaid??0,unresolvedPaidOperations:unresolved?.count??0},now);
+ const lastAcceptedBatchAt=[providerSuccess?.checkedAt,rssSuccess?.checkedAt].filter((value):value is string=>!!value).sort().at(-1)??null;
+ const observations=(providerCounts?.observations??0)+(rssCounts?.observations??0);
+ const alerts=connectorOperationalAlerts({job,nextRunAt,failure:latestFailure,acceptedSequence,uncertainPaidAttempts:failures?.uncertainPaid??0,unresolvedPaidOperations:unresolved?.count??0,
+  collection:{firstCheckedAt:firstRun?.startedAt??null,lastCheckedAt:run?.startedAt??null,lastAcceptedAt:lastAcceptedBatchAt,checks:firstRun?.checks??0,observations}},now);
  return {alerts,provider:providerBatch?.provider??(rssBatch?'rss_native':null),lastCheckedAt:run?.startedAt??null,
-  lastAcceptedBatchAt:[providerSuccess?.checkedAt,rssSuccess?.checkedAt].filter((value):value is string=>!!value).sort().at(-1)??null,
+  lastAcceptedBatchAt,
   latestCoverage:batch?.coverage??null,
   lastBatch:{observations:batch?.observations??0,proposals:batch?.proposals??0,accepted:Boolean(batch?.accepted)},
-  cumulative:{observations:(providerCounts?.observations??0)+(rssCounts?.observations??0),
+  cumulative:{observations,
    proposedInReceiptedBatches:(providerCounts?.proposed??0)+(rssCounts?.proposed??0)},
   checkpoint:providerCursor?{provider:providerCursor.provider,cursor:providerCursor.cursor,sequence:providerCursor.sequence}:
    rssCheckpoint?{provider:'rss_native',sequence:rssCheckpoint.sequence,data:checkpoint}:null,
@@ -72,7 +76,13 @@ export async function connectorSourceHealth(db:D1Database,feedId:string,sourceId
 }
 
 /** Active warnings only; cumulative historical failures remain separate. */
-export function connectorOperationalAlerts(input:{job?:{state:string;lastError:string|null}|null;nextRunAt:string|null;failure?:{failure:string;sequence:number}|null;acceptedSequence:number;uncertainPaidAttempts?:number;unresolvedPaidOperations?:number},now=new Date()){
+/** A source that keeps being checked without an accepted batch is failing
+ * silently. An accepted batch with no new items is a healthy quiet source. */
+export const SOURCE_NO_SUCCESS_AFTER_MS=48*60*60*1000;
+/** A source checked this many times without a single item has never been proven to collect. */
+export const SOURCE_UNPROVEN_AFTER_CHECKS=3;
+export function connectorOperationalAlerts(input:{job?:{state:string;lastError:string|null}|null;nextRunAt:string|null;failure?:{failure:string;sequence:number}|null;acceptedSequence:number;uncertainPaidAttempts?:number;unresolvedPaidOperations?:number;
+ collection?:{firstCheckedAt:string|null;lastCheckedAt:string|null;lastAcceptedAt:string|null;checks:number;observations:number}},now=new Date()){
  const alerts:{code:string;severity:'warning'|'error'}[]=[];
  if(input.job?.state==='BLOCKED')alerts.push({code:'SOURCE_BLOCKED',severity:'error'});
  if(input.failure&&input.failure.sequence>input.acceptedSequence){
@@ -83,5 +93,13 @@ export function connectorOperationalAlerts(input:{job?:{state:string;lastError:s
  const resolutionRequired=input.unresolvedPaidOperations===undefined?(input.uncertainPaidAttempts??0)>0||input.failure?.failure==='UNCERTAIN_PAID_SUBMISSION'||input.job?.lastError==='UNCERTAIN_PAID_SUBMISSION':input.unresolvedPaidOperations>0;
  if(resolutionRequired)alerts.push({code:'PAID_RECONCILIATION_REQUIRED',severity:'warning'});
  if(input.nextRunAt&&now.getTime()-Date.parse(input.nextRunAt)>30*60000)alerts.push({code:'POLL_BACKLOG_OVERDUE',severity:'warning'});
+ const collection=input.collection;
+ if(collection?.lastCheckedAt){
+  const since=collection.lastAcceptedAt??collection.firstCheckedAt;
+  // Still being checked, nothing accepted since: report how long it has been silent.
+  if(since&&Date.parse(collection.lastCheckedAt)>(collection.lastAcceptedAt?Date.parse(collection.lastAcceptedAt):-Infinity)&&now.getTime()-Date.parse(since)>SOURCE_NO_SUCCESS_AFTER_MS)
+   alerts.push({code:'SOURCE_NO_RECENT_SUCCESS',severity:'warning'});
+  if(collection.observations===0&&collection.checks>=SOURCE_UNPROVEN_AFTER_CHECKS)alerts.push({code:'SOURCE_NEVER_COLLECTED',severity:'warning'});
+ }
  return alerts;
 }
