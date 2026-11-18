@@ -153,6 +153,8 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Source collection is unavailable.': ["Le contenu de cette source ne peut pas être récupéré.","جلب المحتوى من هذا المصدر غير متاح."],
   'Paid collection is not authorized or configured.': ["La collecte payante n’est pas autorisée ou n’est pas configurée.","الجلب المدفوع غير مصرّح به أو غير مُعدّ."],
   'The authorized collection budget is exhausted.': ["Le budget autorisé pour la collecte est épuisé.","نفدت ميزانية الجلب المعتمدة."],
+  'No successful collection in the last 48 hours.': ["Aucune récupération réussie depuis 48 heures.","لم ينجح جلب المحتوى خلال آخر 48 ساعة."],
+  'Checked several times without collecting any articles.': ["Vérifiée plusieurs fois sans récupérer d’article.","تم فحصه عدة مرات دون جلب أي مقال."],
   'The latest collection attempt failed.': ["La dernière tentative de récupération a échoué.","لم تنجح آخر محاولة لجلب المحتوى."],
   'A previous paid request needs reconciliation before collection can continue.': ["Le résultat d’une requête payante précédente doit être confirmé avant de reprendre la collecte.","يجب التحقق من نتيجة طلب مدفوع سابق قبل استئناف الجلب."],
   'username saved': ['Nom d’utilisateur enregistré', 'تم حفظ اسم المستخدم'],

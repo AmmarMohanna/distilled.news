@@ -21,7 +21,7 @@ import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
 import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
-import {connectorSourceHealth} from './connector-health';
+import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
 import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
@@ -136,9 +136,12 @@ const loginInputSchema = z.object({
   turnstileToken: z.string().optional()
 });
 
-const tokenInputSchema = z.object({
-  token: z.string().min(1)
-});
+const verificationCodePattern=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{16}$/;
+const tokenInputSchema = z.union([
+  z.object({token:z.string().min(1).max(256).refine(value=>!value.startsWith("code-v1:"))}).strict(),
+  z.object({email:z.string().trim().email(),code:z.string().max(40).transform(value=>value.replace(/[\s-]/g,'').toUpperCase())
+    .pipe(z.string().regex(verificationCodePattern))}).strict()
+]);
 
 const passwordResetRequestSchema = z.object({
   language: z.enum(['en', 'fr', 'ar']).default('en'),
@@ -650,12 +653,14 @@ export function createApp(options: AppOptions = {}) {
   app.post("/api/auth/verify-email", async (c) => {
     const repo = repoFor(c);
     const input = tokenInputSchema.parse(await c.req.json().catch(() => ({})));
-    const result = await consumeEmailVerificationTokenOrNull(repo, input.token, new Date());
-    if (!result) return c.json({ error: "invalid or expired token" }, 400);
+    if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
+    const result = await consumeEmailVerificationTokenOrNull(repo,
+      "code" in input ? "code-v1:"+input.code : input.token, new Date(),
+      "code" in input ? normalizeEmail(input.email) : undefined);
+    if (!result) return c.json({ error: "code" in input ? "Invalid or expired verification code." : "invalid or expired token" }, 400);
     const verified = result.account.emailVerifiedAt
       ? result.account
       : await repo.updateAccount({ id: result.account.id, emailVerifiedAt: new Date().toISOString() });
-    if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
     if (result.newlyConsumed) setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, verified));
     return c.json({ account: publicAccount(verified) });
   });
@@ -1403,14 +1408,19 @@ export function createApp(options: AppOptions = {}) {
       if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
       const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
       const publicFeed = publicBriefing(briefing);
+      // The cached status is shared by every viewer; source diagnostics are removed
+      // per request so readers never receive them, and the tag covers only what is sent.
+      const { sourceAvailability, ...readerStatus } = status.value.value;
+      const feedStatus = await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? { sourceAvailability: await withCollectionAlerts(env, briefing.id, sourceAvailability), ...readerStatus } : readerStatus;
+      const statusHash = fnv1a(JSON.stringify(feedStatus));
       // Content-derived, so every isolate computes the same tag for the same response.
-      const etag = `W/"${version}-${fnv1a([published.hash, status.value.hash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
+      const etag = `W/"${version}-${fnv1a([published.hash, statusHash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
       c.header('ETag', etag);
       if (etagMatches(c.req.header('If-None-Match'), etag)) return c.body(null, 304);
       return c.json({
         unreadSummaryAvailable,
         briefing: publicFeed,
-        ...status.value.value,
+        ...feedStatus,
         editions: presentProductEditions(briefing, published.records),
         editionsComplete:true,
         viewerHasStarred
@@ -1423,7 +1433,7 @@ export function createApp(options: AppOptions = {}) {
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
-      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
+      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await withCollectionAlerts(c.env,briefing.id,await feedSourceAvailability(c.env,briefing.id)) : undefined,
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
@@ -1739,6 +1749,26 @@ export function createApp(options: AppOptions = {}) {
     return claims?.sub === row.owner_account_id;
   }
 
+  /** Adds the stale and never-collected warnings. Computed per request, never cached for readers. */
+  async function withCollectionAlerts<T extends {sourceId:string}>(env: Env, feedId: string, rows: T[] | undefined) {
+    if (!rows?.length) return rows;
+    let alerts: Map<string, CollectionAlertCode[]>;
+    try { alerts = await feedCollectionAlerts(env.DB, feedId); }
+    catch (error) { console.warn('Could not read source collection history', { feedId, error: error instanceof Error ? error.message : 'unknown' }); return rows; }
+    return rows.map(row => alerts.has(row.sourceId) ? { ...row, collectionAlerts: alerts.get(row.sourceId)! } : row);
+  }
+
+  /** Source collection errors are operator diagnostics: only the feed owner and
+   * enabled admins receive them. Every other reader gets no source health data. */
+  async function viewerSeesSourceHealth(c: Context<{ Bindings: Env; Variables: Variables }>, ownerAccountId: string) {
+    const token = getCookie(c, SESSION_COOKIE);
+    const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
+    if (!claims) return false;
+    if (claims.sub === ownerAccountId) return true;
+    const account = await repoFor(c).getAccountById(claims.sub);
+    return account?.role === 'admin' && !account.disabledAt;
+  }
+
   async function resolvePublicFeed(c: Context<{ Bindings: Env; Variables: Variables }>) {
     const repo = repoFor(c);
     const username = c.req.param("username") ?? "";
@@ -1790,7 +1820,10 @@ async function createAccountOrError(
 }
 
 async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
-  const token = randomToken();
+  const alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const code=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>alphabet[byte&31]).join('');
+  const campaign=env.ENVIRONMENT==='staging'&&env.AGENTOPS_CAMPAIGN_ENABLED==='true'&&env.AGENTOPS_CAMPAIGN_ISOLATED==='true';
+  const token=campaign?randomToken():'code-v1:'+code;
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await repo.createAuthToken({
     accountId: account.id,
@@ -1798,7 +1831,7 @@ async function sendVerificationToken(repo: Repository, env: Env, account: Accoun
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendVerificationEmail(env, account, token, language);
+  await sendVerificationEmail(env, account, campaign?token:code.match(/.{4}/g)!.join("-"), language);
 }
 
 async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
@@ -1832,14 +1865,15 @@ async function consumeToken(
 async function consumeEmailVerificationTokenOrNull(
   repo: Repository,
   token: string,
-  now: Date
+  now: Date,
+  email?:string
 ): Promise<{ account: AccountRecord; newlyConsumed: boolean } | null> {
   const record = await repo.getAuthToken(await hashToken(token), "email_verification");
   if (!record || new Date(record.expiresAt).getTime() <= now.getTime()) return null;
   const account = await repo.getAccountById(record.accountId);
-  if (!account || account.disabledAt) return null;
-  if (record.consumedAt) return account.emailVerifiedAt ? { account, newlyConsumed: false } : null;
-  await repo.consumeAuthToken(record.id, now);
+  if (!account || account.disabledAt || (email && normalizeEmail(account.email)!==email)) return null;
+  if (record.consumedAt) return !email && account.emailVerifiedAt ? { account, newlyConsumed: false } : null;
+  if(!await repo.consumeAuthToken(record.id, now))return null;
   return { account, newlyConsumed: true };
 }
 

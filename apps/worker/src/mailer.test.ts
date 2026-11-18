@@ -69,7 +69,9 @@ it("routes verification to Gmail and leaves password resets on the configured tr
   expect(mime).toContain("To: <reader@example.com>\r\n");
   const plain = /Content-Type: text\/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([\s\S]+?)\r\n--/.exec(mime)![1];
   const decoded = new TextDecoder().decode(Uint8Array.from(atob(plain), char => char.charCodeAt(0)));
-  expect(decoded).toContain("https://qa.example.com/verify-email?token=fixture&lang=ar");
+  expect(decoded).toContain("fixture");
+  expect(decoded).not.toMatch(/https?:/);
+  expectVerificationMime(mime,"fixture");
   expect(resetSend).toHaveBeenCalledOnce();
 });
 
@@ -80,6 +82,14 @@ it.each(['en', 'fr', 'ar'] as const)('localizes both authentication emails in %s
   await sendPasswordResetEmail(env, account, 'reset-fixture', language);
   const copy = language === 'ar' ? ['تأكيد البريد الإلكتروني', 'إعادة تعيين كلمة المرور'] : language === 'fr' ? ['Vérifier mon adresse e-mail', 'Réinitialiser le mot de passe'] : ['Verify email', 'Reset password'];
   for (const [index, message] of messages.entries()) {
+    if(index===0){
+      expect(message.text).toContain('verification-fixture');
+      expect(message.text).not.toMatch(/https?:/);
+      expect(message.html).toContain('Distilled<span style="color:#5E5CE6;">.</span>News');
+      expect(message.html).toContain('verification-fixture');
+      expect(message.html).not.toMatch(/https?:|<img/i);
+      continue;
+    }
     expect(message.html).toContain(`lang="${language}" dir="${language === 'ar' ? 'rtl' : 'ltr'}"`);
     expect(message.html).toContain(copy[index]);
     expect(message.html).toContain('role="presentation" dir="ltr"');
@@ -107,13 +117,11 @@ describe("Outlook QA mail", () => {
       "https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName",
       "https://graph.microsoft.com/v1.0/me/sendMail"
     ]);
-    const body = JSON.parse(String(requests[2].init?.body));
-    expect(body.message.subject).toBe('Verify your email for Distilled.News');
-    expect(body.message.body.content).toContain('src="https://qa.example.com/email-logo.png"');
-    expect(body.message.body.content).toContain('bgcolor="#5e5ce6"');
-    expect(body.message.body.content).toContain('color:#ffffff');
-    expect(body.message.toRecipients[0].emailAddress.address).toBe("reader@example.com");
-    expect(body.message.body.content).toContain("https://qa.example.com/verify-email?token=verify-secret");
+    expect(new Headers(requests[2].init?.headers).get("content-type")).toBe("text/plain");
+    const mime=atob(String(requests[2].init?.body));
+    expect(mime).toContain("To: <reader@example.com>\r\n");
+    expect(mime).toContain("Subject: =?UTF-8?B?"+btoa("Your Distilled.News verification code")+"?=");
+    expectVerificationMime(mime,"verify-secret");
     expect(JSON.stringify(getStored())).not.toContain("rotated-refresh-token");
     expect(getStored()?.ciphertext).toBeTruthy();
 
@@ -148,3 +156,22 @@ describe("Outlook QA mail", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+
+function expectVerificationMime(mime:string,code:string){
+  const alt=/multipart\/alternative; boundary="([^"]+)"/.exec(mime)![1];
+  const related=/multipart\/related; boundary="([^"]+)"; type="text\/html"/.exec(mime)![1];
+  expect(alt).not.toBe(related);
+  expect(mime).toContain(`--${related}--\r\n--${alt}--\r\n`);
+  const content=(type:string)=>{
+    const part=mime.split(`Content-Type: ${type}; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n`)[1].split("\r\n--")[0];
+    return new TextDecoder().decode(Uint8Array.from(atob(part),c=>c.charCodeAt(0)));
+  };
+  expect(content("text/plain")).toContain(code);
+  expect(content("text/plain")).not.toMatch(/https?:|<[^>]+>/);
+  expect(content("text/html")).toContain(code);
+  expect(content("text/html")).toContain("cid:distilled-verification-logo");
+  expect(content("text/html")).not.toMatch(/https?:|<a\s|<style|<script/i);
+  expect(mime).toContain("Content-ID: <distilled-verification-logo>");
+  expect(mime).toContain("Content-Type: image/png");
+}

@@ -809,6 +809,152 @@
             "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#observer"
           },
           "for": "2m"
+        },
+        {
+          "uid": "distilled-source-no-recent-success",
+          "title": "A source has had no successful poll for 48 hours",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "sum(distilled_source_no_recent_success{job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "A source has had no successful poll for 48 hours",
+            "description": "A source is still being checked but no collection batch has been accepted for 48 hours. Check its source health for the latest provider failure. Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#sources"
+          },
+          "for": "30m"
+        },
+        {
+          "uid": "distilled-source-never-collected",
+          "title": "A source has never collected an item",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "distilled-metrics",
+              "model": {
+                "refId": "A",
+                "expr": "sum(distilled_source_never_collected{job=\"distilled-snapshot\"})",
+                "instant": true,
+                "intervalMs": 60000,
+                "maxDataPoints": 43200,
+                "queryType": "instant",
+                "format": "time_series"
+              }
+            },
+            {
+              "refId": "C",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "C",
+                "type": "classic_conditions",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "query": {
+                      "params": [
+                        "A"
+                      ]
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "isPaused": true,
+          "labels": {
+            "service": "distilled",
+            "severity": "warning",
+            "threshold_status": "provisional"
+          },
+          "annotations": {
+            "summary": "A source has never collected an item",
+            "description": "A source was checked at least three times without producing a single item. Verify the source URL and its listing layout. Provisional engineering trigger; not a measured SLA.",
+            "runbook_url": "https://github.com/AmmarMohanna/distilled.news/blob/feat/agentops-k6-observability/docs/observability/RUNBOOKS.md#sources"
+          },
+          "for": "30m"
         }
       ]
     }

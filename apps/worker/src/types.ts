@@ -158,6 +158,7 @@ export interface Env extends Cloudflare.Env {
   SOURCE_BUDGET_TIME_ZONE?: string;
   SOURCE_PAID_VERIFICATION_ENABLED?: string;
   SOURCE_NATIVE_EXECUTION_ENABLED?: string;
+  SOURCE_ZYTE_LISTING_RETRY_ENABLED?:string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
   VAPID_PUBLIC_KEY?: string;
@@ -385,7 +386,7 @@ export interface Repository {
     expiresAt: string;
   }, now?: Date): Promise<AuthTokenRecord>;
   getAuthToken(tokenHash: string, purpose: AuthTokenPurpose): Promise<AuthTokenRecord | null>;
-  consumeAuthToken(id: string, now?: Date): Promise<void>;
+  consumeAuthToken(id: string, now?: Date): Promise<boolean>;
   countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number>;
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;

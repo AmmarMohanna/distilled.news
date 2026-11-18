@@ -117,3 +117,40 @@ it('reads only this feed\'s acquisition jobs for source availability',async()=>{
  // Feed 0 alone holds SHAPE.heavyJobs acquisitions. The old join scanned all of them.
  expect(jobs.rowsRead).toBeLessThan(SHAPE.heavyJobs);
 });
+
+it('sends source collection diagnostics only to the feed owner and admins',async()=>{
+ const repo=new D1Repository(ctx.db);
+ const owner=await repo.getAccountById(ownerId);
+ const admin=await repo.createAccount({email:'diag-admin@example.invalid',username:'diagadmin',passwordHash:'hash',role:'admin'});
+ const reader=await repo.createAccount({email:'diag-reader@example.invalid',username:'diagreader',passwordHash:'hash',role:'user'});
+ const cookie=async(account:typeof owner)=>({headers:{cookie:`dn_session=${await createSession('cache-secret',account!)}`}});
+ for(const cache of [false,true]){
+  const body=async(init:RequestInit={})=>(await (await read(0,cache,init)).json()) as Record<string,unknown>;
+  expect(await body()).not.toHaveProperty('sourceAvailability');
+  expect(await body(await cookie(reader))).not.toHaveProperty('sourceAvailability');
+  expect(Array.isArray((await body(await cookie(owner))).sourceAvailability)).toBe(true);
+  expect(Array.isArray((await body(await cookie(admin))).sourceAvailability)).toBe(true);
+ }
+ await ctx.db.prepare('UPDATE accounts SET disabled_at=? WHERE id=?').bind('2027-01-01T00:00:00.000Z',admin.id).run();
+ expect(await (await read(0,true,await cookie(admin))).json()).not.toHaveProperty('sourceAvailability');
+ // A reader's cached tag never validates the owner's diagnostic response.
+ const readerTag=(await read(0,true)).headers.get('ETag');
+ expect((await read(0,true,{headers:{...(await cookie(owner)).headers,'If-None-Match':readerTag!}})).status).toBe(200);
+});
+
+it('adds stale-source warnings for the owner and keeps them out of reader responses',async()=>{
+ const owner=await new D1Repository(ctx.db).getAccountById(ownerId);
+ const cookie={headers:{cookie:`dn_session=${await createSession('cache-secret',owner!)}`}};
+ const first=(await (await read(0,true,cookie)).json()) as {sourceAvailability:{sourceId:string}[]};
+ const sourceId=first.sourceAvailability[0].sourceId;
+ const runs=Array.from({length:3},(_,i)=>ctx.db.prepare('INSERT INTO connector_fetch_runs(feed_id,feed_source_id,run_id,source_id,sequence,started_at,configuration_key) VALUES(?,?,?,?,?,?,?)')
+  .bind(feedId(0),sourceId,`stale-run-${i}`,sourceId,900000+i,`2026-01-0${i+1}T00:00:00.000Z`,'k'));
+ await ctx.db.batch(runs);
+ try{
+  for(const cache of [false,true]){
+   const owned=(await (await read(0,cache,cookie)).json()) as {sourceAvailability:{sourceId:string;collectionAlerts?:string[]}[]};
+   expect(owned.sourceAvailability.find(s=>s.sourceId===sourceId)?.collectionAlerts).toContain('SOURCE_NO_RECENT_SUCCESS');
+   expect(await (await read(0,cache)).json()).not.toHaveProperty('sourceAvailability');
+  }
+ }finally{await ctx.db.prepare("DELETE FROM connector_fetch_runs WHERE run_id LIKE 'stale-run-%'").run();}
+});

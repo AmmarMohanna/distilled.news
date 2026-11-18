@@ -749,6 +749,81 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     execute.mockResolvedValueOnce({body:'Homepage '.repeat(50),pageKind:'article',publishedAt:time,articleLinks:[]});
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');
   });
+  it.each([[500,'https://other-publisher.example/latest-news'],[520,'https://publisher.example/']] as const)(
+    'retries a recorded Zyte HTTP %s for a configured deployment and replays both receipts',async(status,sourceUrl)=>{
+    const html='<h2><a href="/news/one">First story</a></h2><h2><a href="/news/two">Second story</a></h2>';
+    const dispatch=vi.fn(async(_url:RequestInfo|URL,_init?:RequestInit)=>Response.json({statusCode:200,httpResponseBody:btoa(html)}));
+    dispatch.mockResolvedValueOnce(Response.json({}, {status}));
+    const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await http.configureLimit('zyte',.02);
+    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:vi.fn()},http,async()=> 'test-key',.01,
+      undefined,true);
+    const input={...request,source:{family:'website' as const,locator:sourceUrl}};
+    for(let i=0;i<2;i++){
+      const page=await p.fetch(input,run);
+      expect(page.requests).toBe(2);
+      expect(page.items.map(item=>[item.url,item.representation])).toEqual([
+        [new URL('/news/one',sourceUrl).href,'LISTING_RESULT'],[new URL('/news/two',sourceUrl).href,'LISTING_RESULT'],
+      ]);
+    }
+    const plainRequest={url:sourceUrl,httpResponseBody:true,httpResponseHeaders:true};
+    expect(dispatch.mock.calls.map(([,init])=>JSON.parse(String(init?.body)))).toEqual([plainRequest,plainRequest]);
+    expect(s.db.db.prepare('SELECT reserved_usd FROM connector_provider_budgets').get()).toEqual({reserved_usd:.02});
+  });
+  it.each([
+    {status:520,enabled:false,limit:.02,code:'TRANSIENT'},
+    {status:520,enabled:true,limit:.01,code:'BUDGET_EXCEEDED'},
+    {status:401,enabled:true,limit:.02,code:'AUTH_REQUIRED'},
+    {status:451,enabled:true,limit:.02,code:'POLICY_REFUSAL'},
+    {status:429,enabled:true,limit:.02,code:'RATE_LIMIT'},
+    {status:0,enabled:true,limit:.02,code:'UNCERTAIN_PAID_SUBMISSION'},
+    {status:200,enabled:true,limit:.02,code:'MALFORMED'},
+  ])('does not send a second Zyte request for $code',async ({status,enabled,limit,code})=>{
+    const dispatch=vi.fn(async()=>{
+      if(status===0)throw new TypeError('lost response');
+      return Response.json({statusCode:200,httpResponseBody:btoa('<html>Empty shell</html>')}, {status});
+    });
+    const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await http.configureLimit('zyte',limit);
+    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:async()=>({pageKind:'listing',articleLinks:[]})},
+      http,async()=> 'test-key',.01,undefined,enabled);
+    await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run))
+      .rejects.toMatchObject({code});
+    expect(dispatch).toHaveBeenCalledOnce();
+  });
+
+  it.each([false,true])('uses at most one Zyte follow-up when parsing finds no links after a raw response (HTTP retry used: %s)',async usedHttpRetry=>{
+    const url='https://publisher.example/latest-news';
+    const story='https://publisher.example/news/one';
+    const html='<a href="/news/one">First real story</a><nav><a href="/news/menu">Navigation story</a></nav>';
+    const raw={statusCode:200,url,httpResponseBody:btoa(html)};
+    const dispatch=vi.fn(async(_url:RequestInfo|URL,init?:RequestInit)=>{
+      if(JSON.parse(String(init?.body)).articleList)return Response.json({articleList:{url,articles:[
+        {url:story,headline:'Provider headline',articleBody:'Unverified body'},
+        {url:'https://publisher.example/news/invented'},{url:'https://publisher.example/news/menu'},
+        {url:'https://unrelated.example/news/one'},{url:story},
+      ]}});
+      return Response.json(raw);
+    });
+    if(usedHttpRetry)dispatch.mockResolvedValueOnce(Response.json({}, {status:520}));
+    const s=setup([]),paid=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await paid.configureLimit('zyte',.02);
+    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:vi.fn()},paid,async()=> 'test-key',.01,undefined,true);
+    const input={...request,source:{family:'website' as const,locator:url}};
+    for(let i=0;i<2;i++){
+      if(usedHttpRetry)await expect(p.fetch(input,run)).rejects.toMatchObject({code:'MALFORMED',diagnostic:{detail:'NO_LISTING_LINKS'}});
+      else{
+        const result=await p.fetch(input,run);
+        expect(result).toMatchObject({requests:2,complete:false,items:[{url:story,title:'First real story',representation:'LISTING_RESULT'}]});
+        expect(result.items.map(item=>item.body)).toEqual([undefined]);
+      }
+    }
+    const bodies=dispatch.mock.calls.map(([,init])=>JSON.parse(String(init?.body)));
+    const plain={url,httpResponseBody:true,httpResponseHeaders:true};
+    expect(bodies).toEqual([plain,usedHttpRetry?plain:{url,articleList:true,articleListOptions:{extractFrom:'userHtml',userHtml:html}}]);
+    expect(s.db.db.prepare('SELECT reserved_usd FROM connector_provider_budgets').get()).toEqual({reserved_usd:.02});
+  });
+
   it('website uses the third route only after direct HTTP and browser failures',async()=>{
     const http:FeedHttpPort={get:vi.fn(async()=>({status:403,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
     const execution={execute:vi.fn(async(kind:string)=>kind==='playwright'?{status:403}:{body:'Article text '.repeat(50),title:'Article',publishedAt:time})};

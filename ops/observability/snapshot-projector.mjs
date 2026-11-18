@@ -53,6 +53,11 @@ export function projectSnapshots(pages) {
      }
     }
    }
+   // Present only when the collector read collection history; absent is not zero.
+   if(Array.isArray(source.collection?.alerts)){
+    values.source_no_recent_success??=0;values.source_never_collected??=0;
+    for(const code of source.collection.alerts)if(code==='SOURCE_NO_RECENT_SUCCESS'||code==='SOURCE_NEVER_COLLECTED')add(code.toLowerCase(),1);
+   }
    if(source.collection?.pollingState)add('source_'+(['SUCCESS','FAILED','BLOCKED','DEFERRED'].includes(source.collection.pollingState)?source.collection.pollingState.toLowerCase():'unknown'),1);
   }
  }

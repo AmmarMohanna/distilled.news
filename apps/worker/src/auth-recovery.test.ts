@@ -16,16 +16,20 @@ it('resends verification for a normalized pending account without changing its i
  const x=fixture(),before=await x.add();
  const r=await x.post('/api/auth/verification/resend',{email:' PENDING@EXAMPLE.INVALID ',language:'fr'});
  expect(r.status).toBe(200);expect(await r.json()).toEqual({ok:true});expect(r.headers.get('set-cookie')).toBeNull();
- expect(x.messages).toHaveLength(1);expect(x.messages[0].subject).toContain('Distilled.News');expect(x.messages[0].text).toContain('https://distilled.news/verify-email?token=');expect(x.messages[0].text).toContain('lang=fr');
+ expect(x.messages).toHaveLength(1);expect(x.messages[0].text).not.toMatch(/https?:/);
+ const code=x.messages[0].text.match(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/m)![0];
  expect(await x.repo.getAccountById(before.id)).toEqual(before);
  const login=await x.post('/api/auth/login',{email:before.email,password:'original-password'});expect(login.status).toBe(403);expect(await login.json()).toEqual({error:'verify your email before logging in'});
- const token=new URL(x.messages[0].text.match(/https:\/\/[^\s]+/)![0]).searchParams.get('token');
- expect((await x.post('/api/auth/verify-email',{token})).status).toBe(200);
+ expect((await x.post('/api/auth/verify-email',{email:'other@example.invalid',code})).status).toBe(400);
+ const first=await x.post('/api/auth/verify-email',{email:before.email,code:code.toLowerCase()});
+ expect(first.status).toBe(200);expect(first.headers.get('set-cookie')).toContain('dn_session');
+ const replay=await x.post('/api/auth/verify-email',{email:before.email,code});
+ expect(replay.status).toBe(400);expect(replay.headers.get('set-cookie')).toBeNull();
  expect((await x.post('/api/auth/login',{email:before.email,password:'original-password'})).status).toBe(200);
 });
 it('routes password recovery to verification for an unverified account, never issues a reset token first',async()=>{
  const x=fixture(),account=await x.add();const r=await x.post('/api/auth/password/forgot',{email:account.email});
- expect(r.status).toBe(200);expect(x.messages).toHaveLength(1);expect(x.messages[0].text).toContain('/verify-email?');expect(x.messages[0].text).not.toContain('/reset-password?');expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeUndefined();
+ expect(r.status).toBe(200);expect(x.messages).toHaveLength(1);expect(x.messages[0].text).toMatch(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/m);expect(x.messages[0].text).not.toContain('/reset-password?');expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeUndefined();
 });
 it('preserves real password reset for verified accounts and uses generic responses for unknown/disabled/verified resend',async()=>{
  const x=fixture(),verified=await x.add('verified@example.invalid',true),disabled=await x.add('disabled@example.invalid');await x.repo.updateAccount({id:disabled.id,disabled:true});

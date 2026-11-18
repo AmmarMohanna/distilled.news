@@ -616,7 +616,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "register" : "login");
-  const [authStep, setAuthStep] = useState<"email" | "details">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "details" : "email");
+  const [authStep, setAuthStep] = useState<"email" | "details" | "code">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "details" : "email");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -626,8 +626,9 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const [verificationRecoveryEmail,setVerificationRecoveryEmail]=useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<UiMessage>("");
-  const copy = authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
-  const submitLabel = authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
+  const [emailCode,setEmailCode]=useState("");
+  const copy = authStep === "code" ? {title:"Verify your email",description:"Enter the code from your verification email."} : authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
+  const submitLabel = authStep === "code" ? "Verify your email" : authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
   const usernamePreview = username.trim() ? normalizeUsername(username) : "";
 
@@ -650,6 +651,11 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         }
         setSubmitting(true);
         try {
+          if(authStep==="code"){
+            await verifyEmail({email,code:emailCode});
+            await props.onAuthenticated();
+            return;
+          }
           if (requiresTurnstile && !turnstileToken) {
             setError("Complete the verification check.");
             return;
@@ -662,6 +668,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           if (mode === "register") {
             await register({ email, username, password, turnstileToken });
             setPassword("");
+            setAuthStep("code");
             setMessage("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
             setVerificationRecoveryEmail(email.trim().toLowerCase());
             resetTurnstile();
@@ -669,7 +676,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           }
           if (mode === "forgot") {
             await forgotPassword(email, turnstileToken);
-            setMessage("If the account is eligible, an email was requested. Unverified accounts receive a verification link first; verified accounts receive a password-reset link. Check your inbox and spam folder.");
+            setMessage("If the account is eligible, an email was requested. Unverified accounts receive a verification code first; verified accounts receive a password-reset link. Check your inbox and spam folder.");
             setVerificationRecoveryEmail(email.trim().toLowerCase());
             resetTurnstile();
             return;
@@ -698,7 +705,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       ) : null}
       <label className="auth-input">
         <span className="sr-only">{t("email")}</span><Mail size={21} aria-hidden/>
-        <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input type="email" required placeholder={t("Email address")} autoComplete="email" readOnly={authStep==="code"} value={email} onChange={(event) => setEmail(event.target.value)} />
       </label>
       {authStep === "details" && (mode === "register" || props.setupRequired) ? (
         <label>
@@ -723,7 +730,12 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           <button type="button" className="quiet-icon" aria-label={t(showPassword ? "Hide password" : "Show password")} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
         </div>{(mode === "register" || props.setupRequired) && <span className="field-help">{t("At least 8 characters")}</span>}</div>
       ) : null}
-      {authStep === "details" && requiresTurnstile && props.turnstileSiteKey ? (
+      {authStep==="code" && <label className="auth-input">
+        <span className="sr-only">{t("Verification code")}</span>
+        <input required dir="ltr" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false}
+          placeholder={t("Verification code")} value={emailCode} maxLength={40} onChange={event=>setEmailCode(event.target.value)} />
+      </label>}
+      {(authStep === "details" || authStep === "code") && requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
       {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
@@ -731,6 +743,9 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       <div className="auth-feedback" aria-live="polite">
         {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
+      {!props.setupRequired && authStep!=="code" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
+        <button type="button" className="button-link" onClick={()=>{setAuthStep("code");setError("");setMessage("");}}>{t("Enter verification code")}</button>}
+      {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
       {!props.setupRequired&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
         setError("");setMessage("");setSubmitting(true);
         try{
