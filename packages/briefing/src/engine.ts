@@ -372,9 +372,9 @@ async function verify(
     batches.map(async (batch) => {
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
-      if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'){
+      if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||input.feed.identityFidelityPolicy==='source-bound-claims-v2'){
         const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
-          items:batch.map(index=>drafts[index]),sources,prior,
+          items:batch.map(index=>drafts[index]),sources,prior,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:input.feed.identityFidelityPolicy==='source-bound-claims-v2',
           context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
         for(const [local,decision]of verified)results.set(batch[local],decision);
         return;
@@ -473,7 +473,7 @@ async function repair(
           sources: drafts[index].refs,
           issues: flagged.get(index)!
         }))
-      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy?recoveryHistory(history,indices,input.feed.verificationRecoveryPolicy==='supported-core-v2'?false:finalRepair)+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?'\n\n'+(finalRepair?'FINAL SUPPORTED-CORE REPAIR: ':'')+MATERIAL_RECOVERY:''):''),
+      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy?recoveryHistory(history,indices,input.feed.verificationRecoveryPolicy==='supported-core-v2'?false:finalRepair)+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?'\n\n'+(finalRepair?'FINAL SUPPORTED-CORE REPAIR: ':'')+MATERIAL_RECOVERY:'')+(input.feed.identityFidelityPolicy==='source-bound-claims-v2'?'\n\nIDENTITY REPAIR SCOPE: Restore the complete original story from the FIRST repair-history draft, correcting only each demonstrated unsupported name/role or other factual defect against the original evidence. Retain its independently supported actions, quantities, material conditions and developments. Do not repeatedly summarize the last shortened repair. Keep the original body when it contains supported developments beyond the headline. A name/title correction must not erase the body. Earlier reviewer prose is not evidence; preserve only source-supported material. If the role/name is unsupported, use the source-established identity rather than deleting the story context. This instruction takes priority over optional headline-only compression.':''):''),
       maxTokens: 3000
     },
     (raw) => {

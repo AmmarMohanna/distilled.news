@@ -5,11 +5,83 @@ import {createHash,randomUUID} from 'node:crypto';
 import {openAiCompatibleModel,UsageMeter,callJson,type ModelRequest} from '../../packages/briefing/src/model';
 import {verifySourceBoundClaims} from '../../packages/briefing/src/source-bound-claims';
 import {VERIFY_SYSTEM} from '../../packages/briefing/src/prompts';
+import {generateBriefing} from '../../packages/briefing/src/engine';
+import {auditRepairCoverage} from '../../packages/briefing/src/verification-recovery';
 const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const write=(file:string,v:unknown)=>fs.writeFileSync(file,JSON.stringify(v,null,2)+'\n',{flag:'wx'});
 const [mode,dirArg]=process.argv.slice(2),dir=path.resolve(dirArg||'.local-reports/integration/source-bindings-q1');
-type Case={id:string;kind:string;language:string;items:Array<{headline:string;body:string;refs:string[]}>;sources:Array<{ref:string;text:string;title?:string}>;prior:unknown[];context:string;expected:Record<number,'ok'|'reject'>;rationale:string;original?:ModelRequest};
-if(mode==='summarize'){
+type Case={id:string;kind:string;language:string;items:Array<{headline:string;body:string;refs:string[]}>;sources:Array<{ref:string;text:string;title?:string}>;prior:unknown[];context:string;expected:Record<number,'ok'|'reject'>;rationale:string;original?:ModelRequest;engineSnapshot?:any;coverageProbe?:boolean};
+function settledSeeds(runDir:string){
+ const events=fs.readFileSync(path.join(runDir,'ledger.jsonl'),'utf8').trim().split('\n').map(l=>JSON.parse(l));
+ return events.filter(e=>e.state==='SETTLED').flatMap(e=>{const file=path.join(runDir,e.id+'.response.json');if(!fs.existsSync(file))return [];const raw=JSON.parse(fs.readFileSync(file,'utf8')),choice=raw.choices?.[0];if(typeof choice?.message?.content!=='string'||!choice.message.content.trim()||raw.id!==e.generationId||raw.usage.cost!==e.costUsd)return [];
+  return [{id:e.id,request:JSON.parse(fs.readFileSync(path.join(runDir,e.id+'.request.json'),'utf8')),response:{text:choice.message.content,inputTokens:e.inputTokens,outputTokens:e.outputTokens,costUsd:e.costUsd,finishReason:choice.finish_reason},originalUsage:{costUsd:e.costUsd,reported:true,generationId:raw.id}}];
+ });
+}
+if(mode==='coverage-prepare'){
+ const previous=path.resolve(process.argv[4]),totals=JSON.parse(fs.readFileSync(path.join(previous,'totals.json'),'utf8'));if(totals.unresolved)throw Error('PRIOR_UNKNOWN_STOP');
+ const source='The army arrested a wanted suspect in Rehab, Baabda for kidnapping, armed robbery, shooting and drug trafficking. It also detained three Lebanese for unlicensed pistols, one Palestinian for failing to obey checkpoint orders, and 123 Syrians for illegal entry and lack of legal papers. Investigations are supervised by the competent judiciary.';
+ const texts=[['incomplete-core','Army reports arresting a wanted suspect in Rehab, Baabda','reject'],['complete-core','Army arrests a wanted suspect in Rehab, Baabda for kidnapping, armed robbery, shooting and drug trafficking; also detains three Lebanese for unlicensed pistols, one Palestinian for failing to obey checkpoint orders, and 123 Syrians for illegal entry and lack of legal papers. Investigations are supervised by the competent judiciary.','ok']];
+ const cases=texts.map(([id,headline,expected])=>({id,kind:'constructed-material-coverage-regression',coverageProbe:true,language:'en',items:[{headline,body:'',refs:['S1']}],sources:[{ref:'S1',text:source}],prior:[],context:'Source-derived regression; independent groups and their grounds must remain; omit ambiguous aggregate total.',expected:{0:expected},rationale:'Source explicitly reports four distinct material groups; a wanted-suspect-only core loses the large independently supported detention operation.'}));
+ fs.mkdirSync(dir,{recursive:true});write(path.join(dir,'cases.json'),cases);write(path.join(dir,'plan.json'),{version:'beta-material-coverage-v2',ceilingUsd:5,model:'openai/gpt-4.1',systems:['coverage'],casesHash:hash(cases),maxCalls:4,priorSettledUsd:totals.settledUsd,priorHeldUsd:totals.outstandingReservedUsd});console.log('Frozen incomplete/complete source-derived material-retention controls.');
+}else if(mode==='engine-prepare'||mode==='engine-followup-prepare'){
+ const previous=path.resolve(process.argv[4]),totals=JSON.parse(fs.readFileSync(path.join(previous,'totals.json'),'utf8'));
+ if(totals.unresolved)throw Error('PRIOR_UNKNOWN_STOP');
+ const trace='.local-reports/integration/prod-quality-review/trace',cases:Case[]=[];
+ for(const id of ['827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d','72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e']){
+  const snapshot=JSON.parse(fs.readFileSync(path.join(trace,'v3_window_inputs-'+id+'.json'),'utf8'));
+  cases.push({id,kind:'retained-full-engine-replay',language:snapshot.input.feed.language,items:[],sources:[],prior:[],context:'Original frozen source evidence/history/options; isolated candidate identity policy and verifier model.',expected:{},rationale:'Actual generateBriefing, original V4 writer prompt/options. Reuse completed writer response only on exact request equality; real verifier/repair calls. No public publication.',engineSnapshot:snapshot});
+ }
+ const historical=[];
+ for(const file of fs.readdirSync(trace).filter(f=>f.startsWith('semantic_intents-'))){const intent=JSON.parse(fs.readFileSync(path.join(trace,file),'utf8')),request=intent.input.state.request;
+  if(!request.system.startsWith('You are the editor'))continue;
+  const result=JSON.parse(fs.readFileSync(path.join(trace,'semantic_results-'+intent.id+'.json'),'utf8'));
+  if(result.usage?.reported===true&&typeof result.value?.text==='string')historical.push({id:intent.id,request,response:result.value,originalUsage:result.usage});
+ }
+ if(mode==='engine-followup-prepare'){
+  const priorOutcomes=JSON.parse(fs.readFileSync(path.join(previous,'outcomes.json'),'utf8'));
+  const selected=cases.filter(c=>priorOutcomes.some((o:any)=>o.caseId===c.id&&o.engineResult?.dropped?.some((d:any)=>String(d.reason).includes('RECOVERY_COVERAGE'))));cases.splice(0,cases.length,...selected);
+  historical.push(...settledSeeds(previous));if(!cases.length)throw Error('NO_COVERAGE_FAILURE_TO_REPLAY');
+ }
+ fs.mkdirSync(dir,{recursive:true});write(path.join(dir,'cases.json'),cases);write(path.join(dir,'historical-writers.json'),historical);
+ write(path.join(dir,'plan.json'),{version:'beta-full-engine-replay-v2',ceilingUsd:5,model:'openai/gpt-4.1',systems:['engine'],casesHash:hash(cases),historicalWritersHash:hash(historical),maxCalls:60,priorSettledUsd:totals.settledUsd,priorHeldUsd:totals.outstandingReservedUsd,forbiddenRequestHashes:['bc6f0ce8d2714fb6b074b4176850f9565b6abc4bde7abab6ac0b987d041b5971'],scope:'Two immutable production inputs; original options and reader history. New v2 identity policy / GPT-4.1 verifier. No production writes or live publication.'});
+ console.log('Frozen two full-engine replays with exact historical writer reuse and the remaining shared $5 ceiling.');
+}else
+if(mode==='reconcile-refusals'){
+ const ledgerFile=path.join(dir,'ledger.jsonl'),events=fs.readFileSync(ledgerFile,'utf8').trim().split('\n').map(l=>JSON.parse(l));
+ const reconciled=[];
+ for(const r of events.filter(r=>r.state==='RESERVED')){
+  if(events.some(e=>e.id===r.id&&['SETTLED','REFUSED','REFUSAL_RECONCILED'].includes(e.state)))continue;
+  const header=events.find(e=>e.id===r.id&&e.state==='HEADERS'&&e.status===429),failure=events.find(e=>e.id===r.id&&e.state==='UNKNOWN'&&String(e.error).startsWith('BriefingModelError: provider HTTP 429:'));
+  if(!header||!failure)continue;
+  const record={id:r.id,state:'REFUSAL_RECONCILED',costUsd:0,reserveUsd:r.reserveUsd,evidence:{header,failure},reason:'Explicit recorded HTTP 429 provider refusal; the existing transport classifies this as retryable and not uncertain. Original UNKNOWN record retained.'};
+  const fd=fs.openSync(ledgerFile,'a');try{fs.writeSync(fd,JSON.stringify(record)+'\n');fs.fsyncSync(fd)}finally{fs.closeSync(fd)}reconciled.push(record);
+ }
+ if(!reconciled.length)throw Error('NO_PROVEN_REFUSALS');
+ const totals=JSON.parse(fs.readFileSync(path.join(dir,'totals.json'),'utf8'));
+ const after=[...events,...reconciled],pending=after.filter(r=>r.state==='RESERVED'&&!after.some(e=>e.id===r.id&&['SETTLED','REFUSED','REFUSAL_RECONCILED'].includes(e.state)));
+ write(path.join(dir,'reconciled-totals.json'),{...totals,outstandingReservedUsd:(totals.historicalHeldUsd??0)+pending.reduce((s,r)=>s+r.reserveUsd,0),unresolved:pending.length>0,refusalEvidence:reconciled});
+ console.log('Appended proven refusal acknowledgements; original paid records and historical unknown hold unchanged.');
+}else if(mode==='beta-prepare'||mode==='beta-name-prepare'||mode==='beta-remaining-prepare'){
+ const source=path.resolve(process.argv[4]);const cases=JSON.parse(fs.readFileSync(path.join(source,'cases.json'),'utf8'));
+ const previous=process.argv[5]?path.resolve(process.argv[5]):undefined;
+ const totals=previous?JSON.parse(fs.readFileSync(path.join(previous,fs.existsSync(path.join(previous,'reconciled-totals.json'))?'reconciled-totals.json':'totals.json'),'utf8')):undefined;
+ if(totals?.unresolved)throw Error('NEW_UNKNOWN_STOP');
+ if(mode==='beta-name-prepare'||mode==='beta-remaining-prepare'){
+  for(const [id,language,source,headline,expected,rationale]of [
+   ['ar-invented-name','ar','قال سلام إن الجسر سيفتح بعد الفحص.','نجيب قنديل: الجسر سيفتح بعد الفحص.','reject','No cited source establishes the invented full identity.'],
+   ['ar-surname-valid','ar','قال نواف سلام إن الجسر سيفتح بعد الفحص.','سلام: الجسر سيفتح بعد الفحص.','ok','Surname-only reference is supported by the full source identity.'],
+   ['ar-transliteration-valid','ar','John Smith said the bridge will open after inspection.','جون سميث: الجسر سيفتح بعد الفحص.','ok','Legitimate cross-script name translation preserves the statement and condition.'],
+   ['fr-surname-valid','fr','Emmanuel Macron a annoncé la réouverture du pont après inspection.','Macron annonce la réouverture du pont après inspection.','ok','Legitimate shortened person reference, action and condition unchanged.']
+  ])cases.push({id,kind:'constructed-name-regression',language,items:[{headline,body:'',refs:['S1']}],sources:[{ref:'S1',text:source}],prior:[],context:'Reporting cutoff: 2026-11-18T12:00:00Z',expected:{0:expected},rationale});
+ }
+ if(mode==='beta-remaining-prepare'){
+  if(!previous)throw Error('PRIOR_RUN_REQUIRED');const done=JSON.parse(fs.readFileSync(path.join(previous,'outcomes.json'),'utf8'));
+  const remaining=cases.filter((c:Case)=>!done.some((o:any)=>o.caseId===c.id&&!o.error));cases.splice(0,cases.length,...remaining);
+ }
+ fs.mkdirSync(dir,{recursive:true});write(path.join(dir,'cases.json'),cases);
+ write(path.join(dir,'plan.json'),{version:'beta-reader-person-bindings-v2',candidateCommit:'f0a6dc53 plus deterministic reader/source bindings and complete person-name comparison',ceilingUsd:5,authorization:'Explicit new $5 beta fix and verification allowance.',model:process.argv[6]??'openai/gpt-4.1-mini',systems:['candidate'],casesHash:hash(cases),maxCalls:cases.length*6,priorSettledUsd:totals?.settledUsd??0,priorHeldUsd:.012416,forbiddenRequestHashes:['bc6f0ce8d2714fb6b074b4176850f9565b6abc4bde7abab6ac0b987d041b5971'],stopGo:'No faulty approvals, no valid control withholding, complete evidence assessments; earlier results unchanged. This is development qualification, not general beta certification.'});
+ console.log('Frozen new $5 campaign; historical unknown held and exact ambiguous request hash forbidden.');
+}else if(mode==='summarize'){
  fs.mkdirSync(dir,{recursive:true});const runs=[];
  for(const runDir of process.argv.slice(4)){
   const read=(name:string)=>JSON.parse(fs.readFileSync(path.join(runDir,name),'utf8'));
@@ -23,15 +95,15 @@ if(mode==='summarize'){
    if(hash(read(r.id+'.request.json'))!==r.hash)throw Error('REQUEST_HASH_MISMATCH');
    const receipt=receipts.find(v=>v.id===r.id);
    if(receipt){const raw=read(r.id+'.response.json');if(raw.id!==receipt.generationId||raw.usage.cost!==receipt.costUsd)throw Error('RECEIPT_MISMATCH')}
-   else held+=r.reserveUsd;
+   else if(!ledger.some(e=>e.id===r.id&&['REFUSED','REFUSAL_RECONCILED'].includes(e.state)))held+=r.reserveUsd;
   }
-  const settled=receipts.reduce((sum,r)=>sum+r.costUsd,0),totals=read('totals.json');
-  if(Math.abs(settled-(totals.newSettledUsd??totals.settledUsd))>1e-10||Math.abs(held-totals.outstandingReservedUsd)>1e-10)throw Error('TOTALS_MISMATCH');
-  runs.push({run:path.basename(runDir),plan:{...plan,priorDir:plan.priorDir?path.basename(plan.priorDir):undefined},totals,
+  const settled=receipts.reduce((sum,r)=>sum+r.costUsd,0),originalTotals=read('totals.json'),totals=fs.existsSync(path.join(runDir,'reconciled-totals.json'))?read('reconciled-totals.json'):originalTotals;
+  if(Math.abs(settled-(totals.newSettledUsd??totals.settledUsd))>1e-10||Math.abs(held+(totals.historicalHeldUsd??0)-totals.outstandingReservedUsd)>1e-10)throw Error('TOTALS_MISMATCH');
+  runs.push({run:path.basename(runDir),plan:{...plan,priorDir:plan.priorDir?path.basename(plan.priorDir):undefined},totals,originalTotals,
    inputFileHash:hash(cases),ledgerFileHash:hash(fs.readFileSync(path.join(runDir,'ledger.jsonl'),'utf8')),
-   cases:cases.map(c=>({id:c.id,kind:c.kind,language:c.language,expected:c.expected,rationale:c.rationale,itemsHash:hash(c.items),sourcesHash:hash(c.sources),priorHash:hash(c.prior)})),
+   cases:cases.map(c=>({id:c.id,kind:c.kind,language:c.language,expected:c.expected,rationale:c.rationale,itemsHash:hash(c.items),sourcesHash:hash(c.sources),priorHash:hash(c.prior),engineSnapshotHash:c.engineSnapshot?hash(c.engineSnapshot):undefined})),
    controlledCases:cases.filter(c=>c.kind==='constructed-control'),outcomes,
-   operations:reservations.map(r=>({...r,receipt:receipts.find(v=>v.id===r.id),responseHash:fs.existsSync(path.join(runDir,r.id+'.response.json'))?hash(read(r.id+'.response.json')):null}))});
+   operations:reservations.map(r=>({...r,receipt:receipts.find(v=>v.id===r.id),refusal:ledger.find(e=>e.id===r.id&&['REFUSED','REFUSAL_RECONCILED'].includes(e.state)),responseHash:fs.existsSync(path.join(runDir,r.id+'.response.json'))?hash(read(r.id+'.response.json')):null})),reuses:ledger.filter(e=>['REUSED','HISTORICAL_REUSE'].includes(e.state))});
  }
  write(path.join(dir,'measurements.json'),{scope:'Development qualification only. Exact request/response payloads retained privately; immutable hashes and provider receipts below. Hashes use SHA256(JSON.stringify(parsed JSON)); ledger hashes use SHA256(JSON.stringify(raw UTF8 text)). Failed inventories are NOT true-positive factual detections.',runs});
  console.log('Validated every reservation, request hash, receipt, cost and held operation; wrote public measurements.');
@@ -43,7 +115,7 @@ if(mode==='summarize'){
  const cases=JSON.parse(fs.readFileSync(path.join(priorDir,'cases.json'),'utf8'));
  if(hash(cases)!==priorPlan.casesHash)throw Error('PRIOR_CASES_CHANGED');
  fs.mkdirSync(dir,{recursive:true});write(path.join(dir,'cases.json'),cases);
- write(path.join(dir,'plan.json'),{...priorPlan,version:'source-bindings-q2-gap-diagnostics',candidateCommit:'53cfb6eb plus exact missing-span correction diagnostics',systems:['candidate'],priorDir,priorLedgerHash:hash(fs.readFileSync(path.join(priorDir,'ledger.jsonl'),'utf8')),priorSettledUsd:totals.settledUsd,normalCalls:cases.length*2,maxCalls:cases.length*4,change:'Same cases and labels. Only exact missing-span diagnostics added to the bounded parser correction; assertions and first request prompts unchanged. Original results remain negative.'});
+ write(path.join(dir,'plan.json'),{...priorPlan,version:'source-bindings-q2-gap-diagnostics',candidateCommit:'53cfb6eb plus exact missing-span correction diagnostics',systems:['candidate'],priorDir,priorLedgerHash:hash(fs.readFileSync(path.join(priorDir,'ledger.jsonl'),'utf8')),priorSettledUsd:totals.settledUsd,normalCalls:cases.length*2,maxCalls:cases.length*6,change:'Same cases and labels. Only exact missing-span diagnostics added to the bounded parser correction; assertions and first request prompts unchanged. Original results remain negative.'});
  console.log('Frozen candidate-only development follow-up; prior charges count against the same $2.');
 }else if(mode==='prepare'){
  fs.mkdirSync(dir,{recursive:true});
@@ -78,7 +150,7 @@ if(mode==='summarize'){
  write(path.join(dir,'cases.json'),cases);write(path.join(dir,'plan.json'),plan);console.log(JSON.stringify({plan,cases:cases.map(c=>({id:c.id,items:c.items.length,sources:c.sources.length,expected:c.expected}))},null,2));
 }else if(mode==='run'){
  const plan=JSON.parse(fs.readFileSync(path.join(dir,'plan.json'),'utf8')),cases=JSON.parse(fs.readFileSync(path.join(dir,'cases.json'),'utf8')) as Case[];
- if(plan.ceilingUsd!==2||hash(cases)!==plan.casesHash)throw Error('FROZEN_PLAN_CHANGED');
+ if(![2,5].includes(plan.ceilingUsd)||hash(cases)!==plan.casesHash)throw Error('FROZEN_PLAN_CHANGED');
  const journal=path.join(dir,'ledger.jsonl');
  // Single-process, append-only campaign. A restart never resends anything.
  const lock=fs.openSync(path.join(dir,'run.lock'),'wx');fs.closeSync(lock);
@@ -89,35 +161,57 @@ if(mode==='summarize'){
  let key=line?.slice(line.indexOf('=')+1).trim();if(key&&(key[0]==='"'||key[0]==="'"))key=key.slice(1,key.lastIndexOf(key[0]));if(!key?.startsWith('sk-or-'))throw Error('KEY_NOT_CONFIGURED');
  const models=await (await fetch('https://openrouter.ai/api/v1/models')).json() as any;
  const pricing=models.data.find((v:any)=>v.id===plan.model)?.pricing;
- if(!pricing||Number(pricing.prompt)>0.4e-6||Number(pricing.completion)>1.6e-6)throw Error('PRICING_CEILING_CHANGED');
+ const rates=plan.model==='openai/gpt-4.1'?{input:2e-6,output:8e-6}:plan.model==='openai/gpt-4.1-mini'?{input:.4e-6,output:1.6e-6}:undefined;
+ if(!rates||!pricing||Number(pricing.prompt)>rates.input||Number(pricing.completion)>rates.output)throw Error('PRICING_CEILING_CHANGED');
  write(path.join(dir,'pricing.json'),{at:new Date().toISOString(),model:plan.model,pricing});
  if(plan.priorDir&&hash(fs.readFileSync(path.join(plan.priorDir,'ledger.jsonl'),'utf8'))!==plan.priorLedgerHash)throw Error('PRIOR_LEDGER_CHANGED');
- let settled=plan.priorSettledUsd??0,held=0,calls=0,unresolved=false;const outcomes=[];
+ let settled=plan.priorSettledUsd??0,held=plan.priorHeldUsd??0,calls=0,unresolved=false;const outcomes=[];
+ const responseCache=new Map<string,{id:string;response:Awaited<ReturnType<ReturnType<typeof openAiCompatibleModel>['complete']>>}>();let nextDispatch=0;
+ const historical=plan.historicalWritersHash?JSON.parse(fs.readFileSync(path.join(dir,'historical-writers.json'),'utf8')):[];
+ if(plan.historicalWritersHash&&hash(historical)!==plan.historicalWritersHash)throw Error('HISTORICAL_WRITER_CHANGED');
  const portFor=(caseId:string,system:string)=>({complete:async(request:ModelRequest)=>{
   if(unresolved)throw Error('UNKNOWN_OPERATION_STOP');
-  const reserve=Math.ceil(((Buffer.byteLength(JSON.stringify(request),'utf8')+4096)*0.4e-6+request.maxTokens*1.6e-6)*1e6)/1e6;
-  if(settled+held+reserve>2||calls>=plan.maxCalls)throw Error('CAMPAIGN_CEILING');
+  const requestHash=hash(request),cached=responseCache.get(requestHash);
+  if(plan.forbiddenRequestHashes?.includes(requestHash))throw Error('HISTORICAL_UNKNOWN_REQUEST_FORBIDDEN');
+  if(cached){append({state:'REUSED',caseId,system,requestHash,originalId:cached.id});return {...cached.response,costUsd:0}}
+  const old=historical.find((v:any)=>['model','system','user','maxTokens','responseSchema'].every(k=>JSON.stringify(v.request[k]??null)===JSON.stringify((request as any)[k]??null)));
+  if(old){append({state:'HISTORICAL_REUSE',caseId,system,requestHash,originalId:old.id,originalRequestHash:hash(old.request),originalReportedCostUsd:old.originalUsage.costUsd});return {...old.response,costUsd:0}}
+  const reserve=Math.ceil(((Buffer.byteLength(JSON.stringify(request),'utf8')+4096)*rates.input+request.maxTokens*rates.output)*1e6)/1e6;
+  if(settled+held+reserve>plan.ceilingUsd||calls>=plan.maxCalls)throw Error('CAMPAIGN_CEILING');
+  if(plan.forbiddenRequestHashes?.includes(hash(request)))throw Error('HISTORICAL_UNKNOWN_REQUEST_FORBIDDEN');
   const id=randomUUID(),started=Date.now();calls++;held+=reserve;
   write(path.join(dir,id+'.request.json'),request);append({id,caseId,system,state:'RESERVED',reserveUsd:reserve,hash:hash(request),at:new Date().toISOString()});
-  let received:any;const inner=openAiCompatibleModel({url:'https://openrouter.ai/api/v1/chat/completions',apiKey:key!,reportCost:true,retries:0,timeoutMs:90000,
-   onResponseHeaders:async r=>append({id,state:'HEADERS',status:r.status}),
+  const dispatchAt=Math.max(Date.now(),nextDispatch);nextDispatch=dispatchAt+4500;
+  if(Date.now()<dispatchAt)await new Promise(resolve=>setTimeout(resolve,dispatchAt-Date.now()));
+  append({id,state:'DISPATCHED',at:new Date().toISOString()});
+  let received:any,status:number|undefined;const inner=openAiCompatibleModel({url:'https://openrouter.ai/api/v1/chat/completions',apiKey:key!,reportCost:true,retries:0,timeoutMs:90000,
+   onResponseHeaders:async r=>{status=r.status;append({id,state:'HEADERS',status:r.status});if(!r.ok)write(path.join(dir,id+'.refusal-response.json'),{status:r.status,body:await r.clone().text()})},
    onResponseBody:async raw=>{received=raw;write(path.join(dir,id+'.response.json'),raw);const cost=received?.usage?.cost;
     if(!received.id||!Number.isFinite(cost)||cost<0){unresolved=true;append({id,state:'UNKNOWN',reason:'missing receipt or cost'});throw Error('MISSING_RECEIPT_OR_COST')}
     held-=reserve;settled+=cost;append({id,state:'SETTLED',generationId:received.id,costUsd:cost,reserveUsd:reserve,latencyMs:Date.now()-started,inputTokens:received.usage.prompt_tokens,outputTokens:received.usage.completion_tokens});if(cost>reserve){unresolved=true;throw Error('RESERVATION_OVERAGE')}
    }});
-  try{return await inner.complete(request)}catch(error){if(!received){unresolved=true;append({id,state:'UNKNOWN',reserveUsd:reserve,error:String(error)})}throw error}
+  try{const response=await inner.complete(request);responseCache.set(requestHash,{id,response});return response}catch(error){
+   if(!received&&status!==undefined&&(status<500||status===503)&&(error as any)?.uncertain===false){held-=reserve;append({id,state:'REFUSED',status,costUsd:0,reserveUsd:reserve,error:String(error)});if(status===429)nextDispatch=Date.now()+45000}
+   else if(!received){unresolved=true;append({id,state:'UNKNOWN',reserveUsd:reserve,error:String(error)})}throw error}
  }});
  campaign:for(const c of cases)for(const system of plan.systems??['current','candidate']){
-  const meter=new UsageMeter(),start=Date.now();let decisions:unknown,error:string|undefined;
+  const meter=new UsageMeter(),start=Date.now();let decisions:unknown,error:string|undefined,engineResult:any;
   try{const port=portFor(c.id,system);
-   if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(port,meter,{model:plan.model,language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
+   if(system==='coverage'){
+    const input:any={feed:{interest:'Lebanese security developments',language:'en',windowMinutes:120,identityFidelityPolicy:'source-bound-claims-v2'},windowStart:'2026-11-18T00:00:00Z',windowEnd:'2026-11-18T02:00:00Z',articles:[],prior:[]};
+    const blocked=await auditRepairCoverage(port,meter,plan.model,input,c.items.map((item,index)=>({...item,index,history:[{headline:'Army arrests wanted suspect and detains several other groups',body:'Previous reader draft is not current reader evidence.',issues:['Keep independently supported groups and grounds.']}]})),c.sources.map((s,i)=>({...s,id:s.ref,alsoIds:[],similarRefs:[],source:'Army statement',publishedAt:input.windowStart})));
+    decisions=Object.fromEntries(c.items.map((_,i)=>[i,{verdict:blocked.has(i)?'fix':'ok',issues:blocked.has(i)?[blocked.get(i)]:[]} ]));
+   }else if(system==='engine'){
+    const frozen=c.engineSnapshot;if(!frozen)throw Error('ENGINE_SNAPSHOT_REQUIRED');
+    engineResult=await generateBriefing({...frozen.input,feed:{...frozen.input.feed,identityFidelityPolicy:'source-bound-claims-v2'}},port,{...frozen.models,verifier:plan.model},{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(frozen.input.windowEnd),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}});
+   }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(port,meter,{model:plan.model,independentSourceBindings:true,language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
    else{const req=c.original??{model:plan.model,system:VERIFY_SYSTEM,user:JSON.stringify({language:c.language,items:c.items.map((i,index)=>({...i,i:index})),sources:c.sources,prior:c.prior,context:c.context}),maxTokens:3000};
     decisions=await callJson(port,meter,req,raw=>{const rows=(raw as any)?.results;if(!Array.isArray(rows)||rows.length!==c.items.length)throw Error('MISSING_ITEM');const out:Record<number,unknown>={};for(const r of rows){if(!Number.isInteger(r.i)||r.i<0||r.i>=c.items.length||out[r.i]||!['ok','fix','drop','redundant'].includes(r.verdict)||r.issues!==undefined&&(!Array.isArray(r.issues)||r.issues.some((x:unknown)=>typeof x!=='string')))throw Error('INVALID_DECISION');out[r.i]=r}return out});
    }
   }catch(e){error=String(e)}
-  const row={caseId:c.id,system,decisions,error,usage:meter.usage,latencyMs:Date.now()-start};outcomes.push(row);write(path.join(dir,c.id+'.'+system+'.outcome.json'),row);console.log(JSON.stringify({caseId:c.id,system,error,usage:meter.usage,latencyMs:row.latencyMs}));
+  const row={caseId:c.id,system,decisions,error,engineResult,usage:engineResult?.usage??meter.usage,latencyMs:Date.now()-start};outcomes.push(row);write(path.join(dir,c.id+'.'+system+'.outcome.json'),row);console.log(JSON.stringify({caseId:c.id,system,error,usage:row.usage,status:engineResult?.status,items:engineResult?.items?.length,latencyMs:row.latencyMs}));
   if(unresolved)break campaign;
  }
- write(path.join(dir,'outcomes.json'),outcomes);write(path.join(dir,'totals.json'),{settledUsd:settled,newSettledUsd:settled-(plan.priorSettledUsd??0),outstandingReservedUsd:held,calls,unresolved,ceilingUsd:2});
+ write(path.join(dir,'outcomes.json'),outcomes);write(path.join(dir,'totals.json'),{settledUsd:settled,newSettledUsd:settled-(plan.priorSettledUsd??0),outstandingReservedUsd:held,historicalHeldUsd:plan.priorHeldUsd??0,calls,unresolved,ceilingUsd:plan.ceilingUsd});
  console.log(JSON.stringify({settledUsd:settled,outstandingReservedUsd:held,calls,unresolved}));
 }else throw Error('Use prepare or run, followed by a new output directory.');

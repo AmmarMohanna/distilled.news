@@ -212,6 +212,8 @@ export interface Env extends Cloudflare.Env {
   BRIEFING_WORDING_FIDELITY_ENABLED?: string;
   /** Candidate evidence-binding verifier; enable only after real-model qualification. */
   BRIEFING_SOURCE_BINDINGS_ENABLED?: string;
+  /** Opt-in source-binding verifier; frozen per window. Default GPT-4.1. */
+  BRIEFING_SOURCE_BINDINGS_MODEL?: string;
   BRIEFING_TOPIC_SELECTION_ENABLED?: string;
   BRIEFING_EDITOR_MODEL?: string;
   BRIEFING_VERIFIER_MODEL?: string;

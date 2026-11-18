@@ -12,7 +12,7 @@ export interface Article {
 
 export interface FeedSpec {
   /** New inputs use general evidence bindings. The Arabic marker is legacy replay only. */
-  identityFidelityPolicy?: 'arabic-person-role-v1' | 'source-bound-claims-v1';
+  identityFidelityPolicy?: 'arabic-person-role-v1' | 'source-bound-claims-v1' | 'source-bound-claims-v2';
   /** What the reader follows, in the reader's own words. */
   interest: string;
   language: "en" | "ar" | "fr";
