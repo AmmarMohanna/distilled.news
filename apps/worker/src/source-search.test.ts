@@ -1,10 +1,27 @@
 import {articleHtml,articlePage} from './test-fixtures/public-article';
 import {expect,it,vi} from 'vitest';
 import {searchSourceCandidates} from './source-search';
+import {configuredSourceWebIndex} from './source-search-web-index';
+vi.mock('./source-search-web-index',()=>({configuredSourceWebIndex:vi.fn(async()=>({items:[],available:false}))}));
 import type {Env} from './types';
 // Explicit relevance fixture: transport tests do not call a paid model.
 vi.mock('./source-search-relevance',()=>({alignedSearchResults:vi.fn(async(_env:Env,_query:string,_topic:unknown,results:{title:string}[])=>({results:results.filter(row=>!['A football match','Unrelated theatre performance','A theatre production opens','AI workforce trends','Ammar Mohanna joins a theatre production'].includes(row.title)),unavailable:false}))}));
 const enabled={SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
+it('streams free matches before supplementing a sparse search, preserving both sets',async()=>{
+ const events:number[]=[],feed='https://techcrunch.com/feed/',first='https://techcrunch.com/research',extra='https://research.example/project';
+ const fetcher:typeof fetch=async input=>String(input)===feed?new Response(`<rss><channel><item><guid>one</guid><title>Computing research</title><link>${first}</link></item></channel></rss>`):[first,extra].includes(String(input))?articlePage():new Response('',{status:403});
+ vi.mocked(configuredSourceWebIndex).mockImplementationOnce(async()=>{expect(events).toEqual([1]);return {available:true,items:[{url:extra,title:'Computing research project',excerpt:'Computing discoveries'}]};});
+ const result=await searchSourceCandidates({...enabled,SOURCE_SEARCH_WEB_DISCOVERY_ENABLED:'true'},'TechCrunch',fetcher,undefined,{owner:'owner',origin:'https://reader.example'},{title:'Computing',description:'Computing research'},async row=>{events.push(row.results.length);});
+ expect(result.results.map(row=>row.articleUrl)).toEqual([first,extra]);expect(events).toEqual([1,2]);expect(result.unavailable).toBe(false);
+});
+it('does not pay for indexed discovery when the free search already has abundant verified matches',async()=>{
+ vi.mocked(configuredSourceWebIndex).mockClear();
+ const feed='https://techcrunch.com/feed/';
+ const xml='<rss><channel>'+Array.from({length:12},(_,id)=>`<item><guid>${id}</guid><title>Computing discovery ${id}</title><link>https://techcrunch.com/research-${id}</link></item>`).join('')+'</channel></rss>';
+ const fetcher:typeof fetch=async input=>String(input)===feed?new Response(xml):String(input).startsWith('https://techcrunch.com/research-')?articlePage():new Response('',{status:403});
+ const result=await searchSourceCandidates({...enabled,SOURCE_SEARCH_WEB_DISCOVERY_ENABLED:'true'},'TechCrunch',fetcher,undefined,{owner:'owner',origin:'https://reader.example'},{title:'Computing',description:'Computing research'});
+ expect(result.results).toHaveLength(12);expect(configuredSourceWebIndex).not.toHaveBeenCalled();
+});
 it.each([
  {query:'France 24 English',title:'Economy',description:'Economy, finance and international trade',feed:'https://www.france24.com/en/business-tech/rss',headline:'International trade grows as companies invest'},
  {query:'France 24 Français',title:'Économie',description:'Économie, entreprises, finance et commerce international',feed:'https://www.france24.com/fr/%C3%A9co-tech/rss',headline:'Le commerce mondial en progression'},

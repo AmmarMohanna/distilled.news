@@ -11,6 +11,7 @@ import {readWebSearch} from './source-web-search';
 import {normalizeRssSnapshot} from '@distilled/connectors';
 import {searchArticleChecks} from './source-search-helper';
 import {readSearchFeed} from './source-search-feed';
+import {configuredSourceWebIndex} from './source-search-web-index';
 
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
 const publishers = [
@@ -35,6 +36,17 @@ export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
  const aligned=context?await alignedSearchResults(env,query,context,found.results,fetcher,discovery?.owner):{results:found.results,unavailable:false};
  const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache,env,onProgress?results=>onProgress({results,unavailable:false}):undefined);
+ if(context&&env.SOURCE_SEARCH_WEB_DISCOVERY_ENABLED==='true'&&discovery?.owner&&accessible.results.length<12){
+  const index=await configuredSourceWebIndex(env,query,discovery.owner,fetcher);
+  if(index.available){
+   const additional=index.items.map(item=>({source:item.url,title:item.title,publisher:new URL(item.url).hostname,...(new URL(item.url).pathname!=='/'?{articleUrl:item.url}:{}),excerpt:item.excerpt}));
+   const judged=await alignedSearchResults(env,query,context,additional,fetcher,discovery.owner);
+   const merge=(rows:SourceSearchResult[])=>[...new Map([...accessible.results,...rows].map(row=>[row.articleUrl??row.source,row])).values()].slice(0,30);
+   const checked=await freelyReadableResults(judged.results,fetcher,accessCache,env,onProgress?rows=>onProgress({results:merge(rows),unavailable:false}):undefined);
+   const results=merge(checked.results);
+   if(results.length)return {results,unavailable:false,accessIncomplete:accessible.accessIncomplete||checked.accessIncomplete,verificationIncomplete:accessible.verificationIncomplete||checked.verificationIncomplete};
+  }
+ }
  return {...found,...accessible,unavailable:found.unavailable||aligned.unavailable,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete,...(context&&found.results.length>0&&!aligned.results.length&&!aligned.unavailable?{topicMismatch:true}:{})};
 }
 
