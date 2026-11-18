@@ -23,7 +23,7 @@ if(mode==='coverage-prepare'){
  const texts=[['incomplete-core','Army reports arresting a wanted suspect in Rehab, Baabda','reject'],['complete-core','Army arrests a wanted suspect in Rehab, Baabda for kidnapping, armed robbery, shooting and drug trafficking; also detains three Lebanese for unlicensed pistols, one Palestinian for failing to obey checkpoint orders, and 123 Syrians for illegal entry and lack of legal papers. Investigations are supervised by the competent judiciary.','ok']];
  const cases=texts.map(([id,headline,expected])=>({id,kind:'constructed-material-coverage-regression',coverageProbe:true,language:'en',items:[{headline,body:'',refs:['S1']}],sources:[{ref:'S1',text:source}],prior:[],context:'Source-derived regression; independent groups and their grounds must remain; omit ambiguous aggregate total.',expected:{0:expected},rationale:'Source explicitly reports four distinct material groups; a wanted-suspect-only core loses the large independently supported detention operation.'}));
  fs.mkdirSync(dir,{recursive:true});write(path.join(dir,'cases.json'),cases);write(path.join(dir,'plan.json'),{version:'beta-material-coverage-v2',ceilingUsd:5,model:'openai/gpt-4.1',systems:['coverage'],casesHash:hash(cases),maxCalls:4,priorSettledUsd:totals.settledUsd,priorHeldUsd:totals.outstandingReservedUsd});console.log('Frozen incomplete/complete source-derived material-retention controls.');
-}else if(mode==='engine-prepare'||mode==='engine-followup-prepare'){
+}else if(mode==='engine-prepare'||mode==='engine-followup-prepare'||mode==='engine-resume-prepare'){
  const previous=path.resolve(process.argv[4]),totals=JSON.parse(fs.readFileSync(path.join(previous,'totals.json'),'utf8'));
  if(totals.unresolved)throw Error('PRIOR_UNKNOWN_STOP');
  const trace='.local-reports/integration/prod-quality-review/trace',cases:Case[]=[];
@@ -37,9 +37,9 @@ if(mode==='coverage-prepare'){
   const result=JSON.parse(fs.readFileSync(path.join(trace,'semantic_results-'+intent.id+'.json'),'utf8'));
   if(result.usage?.reported===true&&typeof result.value?.text==='string')historical.push({id:intent.id,request,response:result.value,originalUsage:result.usage});
  }
- if(mode==='engine-followup-prepare'){
+ if(mode==='engine-followup-prepare'||mode==='engine-resume-prepare'){
   const priorOutcomes=JSON.parse(fs.readFileSync(path.join(previous,'outcomes.json'),'utf8'));
-  const selected=cases.filter(c=>priorOutcomes.some((o:any)=>o.caseId===c.id&&o.engineResult?.dropped?.some((d:any)=>String(d.reason).includes('RECOVERY_COVERAGE'))));cases.splice(0,cases.length,...selected);
+  const selected=cases.filter(c=>priorOutcomes.some((o:any)=>o.caseId===c.id&&o.engineResult?.dropped?.some((d:any)=>(mode==='engine-resume-prepare'||String(d.reason).includes('RECOVERY_COVERAGE')))));cases.splice(0,cases.length,...selected);
   historical.push(...settledSeeds(previous));if(!cases.length)throw Error('NO_COVERAGE_FAILURE_TO_REPLAY');
  }
  fs.mkdirSync(dir,{recursive:true});write(path.join(dir,'cases.json'),cases);write(path.join(dir,'historical-writers.json'),historical);

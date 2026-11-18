@@ -1,0 +1,9 @@
+{
+  "algorithm": "SHA-256 raw file bytes",
+  "files": {
+    "packages/briefing/src/source-bound-claims.ts": "5799944f14a7a6bd9f057aa6c0fd3d034dcaca5cada09bcb17b5747a82026a1e",
+    "packages/briefing/src/verification-recovery.ts": "d00581b958ff73f99b456b337ba9655dae112ea9c47202b279a602b25080432c",
+    "packages/briefing/src/engine.ts": "90286b83e444a2b387ce54d78880bfcd069104d736b7a39e7a637cd141da784a",
+    "evaluation/briefing-quality/qualify-source-bindings.ts": "9722a8985dfe62a06dff88d329f3e441440bbcd15e69eb93e504c2af63fb5fdc"
+  }
+}

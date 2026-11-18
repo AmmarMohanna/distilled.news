@@ -41,6 +41,17 @@ it('does not accept a current office when the independently bound source role sa
  expect(result.get(0)?.verdict).toBe('fix');
 });
 import {UsageMeter,type ModelPort} from '../src/model';
+it('keeps previous faulty drafts and reviews out of fresh repaired-text factual verification',async()=>{
+ const seen:any[]=[];const port:ModelPort={complete:async request=>{
+  seen.push(request);const p=JSON.parse(request.user);let raw:unknown;
+  if(seen.length===1)raw={units:{'I0.H':[]}};
+  else if(seen.length===2)raw={sources:{S1:[]}};
+  else raw={results:{'0':{inventory:'complete',verdict:'ok',issues:[],priorIds:[],citationChecks:{S1:{support:'supported',quote:'S1:P0',explanation:'Explicit source.'}},facets:{'FULL_READER_I0.H':{support:'supported',evidence:[{source:'S1',quote:'S1:P0'}],explanation:'Explicit source.'}}}}};
+  return {text:JSON.stringify(raw),inputTokens:1,outputTokens:1};
+ }};
+ await verifySourceBoundClaims(port,new UsageMeter(),{model:'m',independentSourceBindings:true,language:'en',items:[{headline:'The bridge opened.',body:'',refs:['S1']}],sources:[{ref:'S1',text:'The bridge opened.'}],prior:[],context:JSON.stringify({windowEnd:'2026-11-18T08:00:00Z',previousReviews:[{body:'POISONED_PREVIOUS_DRAFT',issues:['POISONED_REVIEW']} ]})});
+ const review=seen.at(-1);expect(review.user).not.toContain('POISONED_PREVIOUS_DRAFT');expect(review.user).not.toContain('POISONED_REVIEW');expect(review.user).toContain('2026-11-18T08:00:00Z');
+});
 it.each([
  ['قال نجيب سلام إن القرار اتخذ.','قال سلام إن القرار اتخذ.','نجيب سلام','سلام','fix'],
  ['قال عبد الفتاح الوحش إن القرار اتخذ.','قال عبد الفتاح السيسي إن القرار اتخذ.','عبد الفتاح الوحش','عبد الفتاح السيسي','fix'],
