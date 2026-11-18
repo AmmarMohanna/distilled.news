@@ -1,6 +1,6 @@
 import {BriefingOutputError} from './types';
 import {arabicIdentityIssues} from './identity-fidelity';
-import {verifySourceBoundClaims} from './source-bound-claims';
+import {verifySourceBoundClaims,independentBindingPolicy} from './source-bound-claims';
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OCCURRENCE_RULE} from './novelty';
 import {completeStorySources} from './citation-coverage';
@@ -32,7 +32,7 @@ import {
 import { significantNumbers } from "./text";
 import {selectTopicSources} from './topic-selection';
 import {wordingFidelity,wordingBase} from './wording-fidelity';
-import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,SUPPORTED_CORE_VERIFY_V2,SUPPORTED_CORE_REPAIR_V2,MATERIAL_RECOVERY,auditRepairCoverage,recoveryHistory} from './verification-recovery';
+import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,SUPPORTED_CORE_VERIFY_V2,SUPPORTED_CORE_REPAIR_V2,MATERIAL_RECOVERY,auditRepairCoverage,recoveryHistory,sourceBoundIdentityRepair} from './verification-recovery';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
@@ -372,9 +372,9 @@ async function verify(
     batches.map(async (batch) => {
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
-      if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||input.feed.identityFidelityPolicy==='source-bound-claims-v2'){
+      if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||independentBindingPolicy(input.feed.identityFidelityPolicy)){
         const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
-          items:batch.map(index=>drafts[index]),sources,prior,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:input.feed.identityFidelityPolicy==='source-bound-claims-v2',
+          items:batch.map(index=>drafts[index]),sources,prior,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
           context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
         for(const [local,decision]of verified)results.set(batch[local],decision);
         return;
@@ -453,10 +453,16 @@ async function repair(
   finalRepair=false
 ): Promise<Map<number, { headline: string; body: string } | null>> {
   // Model-facing numbers are local to this subset; translate back mechanically.
-  const indices = [...flagged.keys()];
+  const exact=new Map<number,{headline:string;body:string}|null>();
+  if(input.feed.identityFidelityPolicy==='source-bound-claims-v3')for(const [index,issues]of flagged){
+    const fixed=sourceBoundIdentityRepair({...drafts[index],issues},[...byRef.values()]);
+    if(fixed)exact.set(index,fixed);
+  }
+  const indices = [...flagged.keys()].filter(index=>!exact.has(index));
+  if(!indices.length)return exact;
   const refs = [...new Set(indices.flatMap((i) => drafts[i].refs))];
   const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
-  return callJson(
+  const generated=await callJson(
     port,
     meter,
     {
@@ -473,7 +479,7 @@ async function repair(
           sources: drafts[index].refs,
           issues: flagged.get(index)!
         }))
-      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy?recoveryHistory(history,indices,input.feed.verificationRecoveryPolicy==='supported-core-v2'?false:finalRepair)+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?'\n\n'+(finalRepair?'FINAL SUPPORTED-CORE REPAIR: ':'')+MATERIAL_RECOVERY:'')+(input.feed.identityFidelityPolicy==='source-bound-claims-v2'?'\n\nIDENTITY REPAIR SCOPE: Restore the complete original story from the FIRST repair-history draft, correcting only each demonstrated unsupported name/role or other factual defect against the original evidence. Retain its independently supported actions, quantities, material conditions and developments. Do not repeatedly summarize the last shortened repair. Keep the original body when it contains supported developments beyond the headline. A name/title correction must not erase the body. When an unsupported added given name is the ONLY defect, remove ONLY that given-name expansion and preserve every other supported word, including an independently supported role/title; do not rewrite the whole headline or delete the role merely to shorten it. When a role is explicitly contradicted, replace ONLY that role with the independently source-bound role, keeping the rest of the story unchanged. Earlier reviewer prose is not evidence; preserve only source-supported material. If the role/name is unsupported, use the source-established identity rather than deleting the story context. This instruction takes priority over optional headline-only compression.':''):''),
+      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy?recoveryHistory(history,indices,input.feed.verificationRecoveryPolicy==='supported-core-v2'?false:finalRepair)+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?'\n\n'+(finalRepair?'FINAL SUPPORTED-CORE REPAIR: ':'')+MATERIAL_RECOVERY:'')+(independentBindingPolicy(input.feed.identityFidelityPolicy)?'\n\nIDENTITY REPAIR SCOPE: Restore the complete original story from the FIRST repair-history draft, correcting only each demonstrated unsupported name/role or other factual defect against the original evidence. Retain its independently supported actions, quantities, material conditions and developments. Do not repeatedly summarize the last shortened repair. Keep the original body when it contains supported developments beyond the headline. A name/title correction must not erase the body. When an unsupported added given name is the ONLY defect, remove ONLY that given-name expansion and preserve every other supported word, including an independently supported role/title; do not rewrite the whole headline or delete the role merely to shorten it. When a role is explicitly contradicted, replace ONLY that role with the independently source-bound role, keeping the rest of the story unchanged. Earlier reviewer prose is not evidence; preserve only source-supported material. If the role/name is unsupported, use the source-established identity rather than deleting the story context. This instruction takes priority over optional headline-only compression.':''):''),
       maxTokens: 3000
     },
     (raw) => {
@@ -505,6 +511,7 @@ async function repair(
       return out;
     }
   );
+  return new Map([...exact,...generated]);
 }
 
 /**

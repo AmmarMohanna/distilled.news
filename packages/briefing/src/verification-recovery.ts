@@ -2,7 +2,7 @@ import type {PreviousReview} from './prompts';
 import {callJson,type ModelPort,type UsageMeter} from './model';
 import type {BriefingInput} from './types';
 import type {PreparedArticle} from './prepare';
-import {sourcePassages} from './source-bound-claims';
+import {sourcePassages,independentBindingPolicy} from './source-bound-claims';
 
 /** Opt-in on the immutable input, never applied to retained paid operations. */
 export const SUPPORTED_CORE_VERIFY = `SUPPORTED-CORE VERIFICATION: Judge the CURRENT text against the original cited sources, not a prior reviewer's arithmetic or preferred wording. Do not infer an overall total from categories unless the source explicitly establishes their combined scope and non-overlap. Distinguish individual actors from aggregate groups and preserve each subgroup's stated actions or alleged conduct. Do not attach one subgroup's attributes to the whole group. Do not treat a supported subset as a false total: an item may report one independently supported development without restating every count. An explicit incorrect count, wrong actor/place, missing essential attribution, changed allegation or material condition must still be fixed. Do not request restoration of an optional disputed detail that has been removed. Omission is acceptable only when the remaining central development stays accurate and materially informative. Keep the existing ok/fix/drop/redundant contract.`;
@@ -23,6 +23,29 @@ export const SUPPORTED_CORE_REPAIR_V2 = SUPPORTED_CORE_REPAIR.replace('remove th
 export const MATERIAL_RECOVERY = 'MATERIAL DEVELOPMENT RETENTION: Preserve all material independently source-supported developments in this story, not merely a shortest true subset. Remove ambiguous totals or interpretations, not independently supported groups or actions. Keep each subgroup and its grounds correctly scoped. Defer if meaningful coverage cannot be preserved.';
 
 interface RecoveryItem {index:number;headline:string;body:string;refs:string[];history:Array<Omit<PreviousReview,'index'>>}
+/** A constrained edit, never a publication decision. Non-identity findings,
+ * ambiguous replacements or unattached evidence require the normal repair path. */
+export function sourceBoundIdentityRepair(item:{headline:string;body:string;refs:string[];issues:string[]},sources:Pick<PreparedArticle,'ref'|'text'|'title'>[]):{headline:string;body:string}|undefined{
+ if(!item.issues.length)return;
+ let headline=item.headline,body=item.body,changed=false;
+ const attached=sources.filter(s=>item.refs.includes(s.ref));
+ const replace=(text:string,from:string,to:string)=>text.replace(new RegExp('(?<![\\p{L}\\p{M}\\p{N}])'+from.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\p{L}\\p{M}\\p{N}])','gu'),()=>to);
+ for(const issue of item.issues){
+  const name=/^PERSON_NAME_NOT_SOURCE_BOUND: (.+) -> (.+)\. Use only the identity established by cited evidence\.$/u.exec(issue);
+  const role=/^INDEPENDENT_ROLE_MISMATCH: (.+) \/ (.+) -> (.+)\. Preserve the independently extracted current source role\.$/u.exec(issue);
+  let from:string,to:string;
+  if(name){
+   from=name[1];const choices=[...new Set(name[2].split(' | ').filter(value=>from.endsWith(' '+value)&&attached.some(s=>{const full=`${s.title??''}\n${s.text}`;return replace(full,value,'')!==full})))];
+   if(choices.length!==1)return;to=choices[0];
+  }else if(role){
+   const [,actor,oldRole,newRole]=role;if(newRole.includes(' | ')||oldRole===newRole||!attached.some(s=>{const full=`${s.title??''}\n${s.text}`;return replace(full,`${newRole} ${actor}`,'')!==full}))return;
+   from=`${oldRole} ${actor}`;to=`${newRole} ${actor}`;
+  }else return;
+  const h=replace(headline,from,to),b=replace(body,from,to);if(h===headline&&b===body)return;
+  headline=h;body=b;changed=true;
+ }
+ if(changed)return {headline,body};
+}
 /** Factual approval happens before this gate. This proves only that its independently source-bound identity
  * correction removed no other reader text, never that all source news was selected. */
 function exactIdentityOnlyRepair(item:RecoveryItem,sources:PreparedArticle[]):boolean{
@@ -56,8 +79,14 @@ function exactIdentityOnlyRepair(item:RecoveryItem,sources:PreparedArticle[]):bo
 /** Separate editorial judgment; exact source/reader spans ground its decision.
  * This is a fallible model check, not proof of complete source coverage. */
 export async function auditRepairCoverage(port:ModelPort,meter:UsageMeter,model:string,input:BriefingInput,items:RecoveryItem[],sources:PreparedArticle[]):Promise<Map<number,string>>{
- const bound=input.feed.identityFidelityPolicy==='source-bound-claims-v2';
- if(bound){items=items.filter(item=>!exactIdentityOnlyRepair(item,sources));if(!items.length)return new Map()}
+ const bound=independentBindingPolicy(input.feed.identityFidelityPolicy);
+ if(bound){items=items.filter(item=>{
+  if(input.feed.identityFidelityPolicy==='source-bound-claims-v3'&&item.history[0]){
+   const original=item.history[0],fixed=sourceBoundIdentityRepair({...original,refs:item.refs},sources);
+   if(fixed?.headline===item.headline&&fixed.body===item.body)return false;
+  }
+  return !exactIdentityOnlyRepair(item,sources);
+ });if(!items.length)return new Map()}
  const packet=items.map((item,i)=>({i,headline:item.headline,body:item.body,refs:item.refs,...(bound?{originalSelectedStory:{headline:item.history[0]?.headline,body:item.history[0]?.body}}:{repairHistory:item.history})}));
  const passages=sourcePassages(sources.map(s=>({ref:s.ref,text:s.text})));
  const readers=items.flatMap((item,i)=>[{id:`R${i}.H`,i,text:item.headline},{id:`R${i}.B`,i,text:item.body}].filter(r=>r.text.trim()));
