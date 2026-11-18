@@ -9,7 +9,7 @@ export function createSourceExecution({python, environment={}, timeoutMs=60000, 
   if(!python||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>120000||!Number.isSafeInteger(maxOutputBytes)||maxOutputBytes<1)throw new Error('INVALID_EXECUTION_CONFIG');
   const env={};
   for(const name of ['PATH','SystemRoot','SYSTEMROOT','TEMP','TMP','HOME','LANG'])if(process.env[name])env[name]=process.env[name];
-  for(const name of ['TELEGRAM_API_ID','TELEGRAM_API_HASH','TELEGRAM_SESSION_PATH','SOURCE_BROWSER_EGRESS_CONFIRMED'])if(environment[name])env[name]=environment[name];
+  for(const name of ['TELEGRAM_API_ID','TELEGRAM_API_HASH','TELEGRAM_SESSION_PATH','SOURCE_BROWSER_EGRESS_CONFIRMED','SOURCE_HTTP_IPV4_FIRST'])if(environment[name])env[name]=environment[name];
   env.PYTHONIOENCODING='utf-8';
   return {execute(kind,input){
     if(!['feedparser','telethon','telegram_resolve','google_resolve','google_feed','public_feed','public_article','extract','playwright'].includes(kind))return Promise.reject(new Error('INVALID_EXECUTION_KIND'));

@@ -14,6 +14,8 @@ The Worker and all three VPS components must support `public_feed`:
 
 An older helper can otherwise return HTTP 400 immediately even though Worker unit tests pass. Deploying only the Worker does not upgrade these files. Verify the actual target helper; preserve unrelated local changes, back up changed files and validate the service after its update. The anonymous RSS operation accepts bounded HTTPS input, rejects credentials/private addresses and does not follow redirects.
 
+On a helper host with unreachable IPv6 routes, `SOURCE_HTTP_IPV4_FIRST=true` in the helper environment opts anonymous urllib HTTPS reads into IPv4-first connection ordering. The Node child adapter must forward this flag. Every DNS answer is still checked for public addresses, IPv6 remains a fallback, and standard certificate/hostname verification stays enabled. Telegram, browser sessions and the process-wide DNS resolver are unchanged. This is a measured host-specific opt-in, not a Worker networking flag or a global IPv6 disable.
+
 The free news index's explicit article redirect carries a publisher URL. Search decodes that identity without requesting the index's tracking wrapper, rejects unsafe destinations and applies the normal article checks to the publisher URL. Index availability is not a guarantee that all publishers are freely readable.
 
 Local tests, full CI, live discovery, actual publication and push-service/device delivery are separate evidence. In particular, an empty news window, an off-topic result and a transport timeout must not be reported as the same outcome.
