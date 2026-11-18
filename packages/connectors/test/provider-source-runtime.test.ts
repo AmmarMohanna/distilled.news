@@ -749,6 +749,49 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     execute.mockResolvedValueOnce({body:'Homepage '.repeat(50),pageKind:'article',publishedAt:time,articleLinks:[]});
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');
   });
+  it.each([200,520])('tries rendered Zyte once after a confirmed listing failure (%s) and replays both receipts',async status=>{
+    const sourceUrl='https://publisher.example/';
+    const raw=()=>Response.json(status===200?{statusCode:200,httpResponseBody:btoa('<html>Empty shell</html>')}:{type:'/download/temporary-error'},{status});
+    const rendered=()=>Response.json({statusCode:200,url:sourceUrl,browserHtml:'<h2><a href="/news/one">First story</a></h2><h2><a href="/news/two">Second story</a></h2>'});
+    const dispatch=vi.fn(async(_url:RequestInfo|URL,init?:RequestInit)=>JSON.parse(String(init?.body)).browserHtml?rendered():raw());
+    const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await http.configureLimit('zyte',.02);
+    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:async()=>({pageKind:'listing',articleLinks:[]})},
+      http,async()=> 'test-key',.01,undefined,new Set(['publisher.example']));
+    const input={...request,source:{family:'website' as const,locator:sourceUrl}};
+    for(let i=0;i<2;i++){
+      const page=await p.fetch(input,run);
+      expect(page.requests).toBe(2);
+      expect(page.items.map(item=>[item.url,item.representation])).toEqual([
+        [sourceUrl+'news/one','LISTING_RESULT'],[sourceUrl+'news/two','LISTING_RESULT'],
+      ]);
+    }
+    expect(dispatch.mock.calls.map(([,init])=>JSON.parse(String(init?.body)))).toEqual([
+      {url:sourceUrl,httpResponseBody:true,httpResponseHeaders:true},{url:sourceUrl,browserHtml:true},
+    ]);
+    expect(s.db.db.prepare('SELECT reserved_usd FROM connector_provider_budgets').get()).toEqual({reserved_usd:.02});
+  });
+  it.each([
+    {status:520,enabled:false,limit:.02,code:'TRANSIENT'},
+    {status:520,enabled:true,limit:.01,code:'BUDGET_EXCEEDED'},
+    {status:401,enabled:true,limit:.02,code:'AUTH_REQUIRED'},
+    {status:451,enabled:true,limit:.02,code:'POLICY_REFUSAL'},
+    {status:429,enabled:true,limit:.02,code:'RATE_LIMIT'},
+    {status:0,enabled:true,limit:.02,code:'UNCERTAIN_PAID_SUBMISSION'},
+  ])('does not send a rendered Zyte request for $code',async ({status,enabled,limit,code})=>{
+    const dispatch=vi.fn(async()=>{
+      if(status===0)throw new TypeError('lost response');
+      return Response.json({}, {status});
+    });
+    const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await http.configureLimit('zyte',limit);
+    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:vi.fn()},http,async()=> 'test-key',.01,
+      undefined,enabled?new Set(['publisher.example']):undefined);
+    await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run))
+      .rejects.toMatchObject({code});
+    expect(dispatch).toHaveBeenCalledOnce();
+  });
+
   it('website uses the third route only after direct HTTP and browser failures',async()=>{
     const http:FeedHttpPort={get:vi.fn(async()=>({status:403,headers:{},bytes:new Uint8Array(),telemetry:{requests:1,latencyMs:1,providerCostUsd:0}}))};
     const execution={execute:vi.fn(async(kind:string)=>kind==='playwright'?{status:403}:{body:'Article text '.repeat(50),title:'Article',publishedAt:time})};

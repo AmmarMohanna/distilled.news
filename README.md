@@ -85,6 +85,10 @@ Sending. For public user registration, Cloudflare must also allow sending to
 arbitrary recipients; Email Routing-only bindings can send only to verified
 destination addresses in the Cloudflare account.
 
+### Optional Zyte browser rendering for website listings
+
+Set `SOURCE_ZYTE_RENDERED_LISTING_HOSTS` to a comma-separated list of exact hostnames, such as `nowlebanon.com`. For those hosts, a homepage or recognized listing can get one browser-rendered Zyte request after raw Zyte HTML yields no usable listing or Zyte returns a confirmed HTTP 520. The second request uses the same Zyte budget and its own receipt. Unknown outcomes, access refusals, and rate limits do not trigger rendering. Leave the setting empty to disable it.
+
 ### Optional model fallback for website listings
 
 Set `SOURCE_WEBSITE_LINK_FALLBACK_MODEL` to a model covered by your existing OpenRouter model spending configuration. Leave the variable unset to disable the fallback. It runs only when a recognized public listing yields no links through regular HTTP collection. The model selects from at most 48 visible same-origin links. The collector sends the selected links through normal article acquisition and records the listing coverage as incomplete.

@@ -157,6 +157,7 @@ export interface Env extends Cloudflare.Env {
   SOURCE_BUDGET_TIME_ZONE?: string;
   SOURCE_PAID_VERIFICATION_ENABLED?: string;
   SOURCE_NATIVE_EXECUTION_ENABLED?: string;
+  SOURCE_ZYTE_RENDERED_LISTING_HOSTS?:string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
   VAPID_PUBLIC_KEY?: string;

@@ -28,6 +28,7 @@ export interface SourceBackendEnv {
   SOURCE_DAILY_BUDGET_USD?:string;
   SOURCE_BUDGET_TIME_ZONE?:string;
   SOURCE_NATIVE_EXECUTION_ENABLED?:string;
+  SOURCE_ZYTE_RENDERED_LISTING_HOSTS?:string;
 }
 
 /** Composition shared by the connector staging backend and downstream integration.
@@ -63,6 +64,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.keys(deploymentLimits).some(k=>!['x_twitterapi_io','x_apify','google_apify','linkedin_apify','zyte'].includes(k))))throw new Error('INVALID_SOURCE_BUDGETS');
   const dailyBudget=env.SOURCE_DAILY_BUDGET_USD===undefined?undefined:{limitUsd:Number(env.SOURCE_DAILY_BUDGET_USD),timeZone:env.SOURCE_BUDGET_TIME_ZONE??'UTC'};
   const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,options.paidResponseMaxBytes??4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited');
+  const renderedListingHosts=new Set((env.SOURCE_ZYTE_RENDERED_LISTING_HOSTS??'').split(',').map(host=>host.trim().toLowerCase()).filter(Boolean));
   const makeCollector=(request:SourceFetchRequest)=>{
     const requirePaidApproval=async()=>{
       let approved:boolean;
@@ -104,6 +106,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,originHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):originHttp;
     return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,dispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited',requirePaidApproval),execution,secrets,ceilings,
 
+      renderedListingHosts,
       selectWebsiteLinks:options.selectWebsiteLinks&& (async (url,candidates)=>{await requirePaidApproval();return options.selectWebsiteLinks!(request)(url,candidates);}),
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
       rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake,undefined,helper)};
