@@ -85,7 +85,7 @@ it.each(['en', 'fr', 'ar'] as const)('localizes both authentication emails in %s
     if(index===0){
       expect(message.text).toContain('verification-fixture');
       expect(message.text).not.toMatch(/https?:/);
-      expect(message.html).toContain('Distilled.<span');
+      expect(message.html).toContain('Distilled<span style="color:#5E5CE6;">.</span>News');
       expect(message.html).toContain('verification-fixture');
       expect(message.html).not.toMatch(/https?:|<img/i);
       continue;

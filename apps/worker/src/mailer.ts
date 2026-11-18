@@ -80,7 +80,7 @@ function renderVerificationEmail(language:MailLanguage,code:string,inlineLogo:bo
 <tr><td lang="${language}" dir="${language==='ar'?'rtl':'ltr'}" align="center" style="padding:20px 8px;font-family:Arial,Helvetica,sans-serif;color:#11112F;text-align:center;">
 <table role="presentation" dir="ltr" align="center" cellspacing="0" cellpadding="0"><tr>
 ${inlineLogo?'<td valign="middle" style="padding-right:8px;"><img src="cid:distilled-verification-logo" width="44" height="22" alt="" style="display:block;border:0;"></td>':''}
-<td valign="middle" style="font:bold 22px/28px Arial,Helvetica,sans-serif;color:#11112F;">Distilled.<span style="color:#5E5CE6;">News</span></td>
+<td valign="middle" style="font:bold 22px/28px Arial,Helvetica,sans-serif;color:#11112F;">Distilled<span style="color:#5E5CE6;">.</span>News</td>
 </tr></table>
 <h1 style="margin:25px 0 12px;font-size:24px;line-height:30px;color:#11112F;">${escapeHtml(copy.heading)}</h1>
 <p style="margin:0 0 20px;font-size:15px;line-height:22px;color:#55566B;">${escapeHtml(copy.instructions)}</p>
