@@ -31,7 +31,7 @@ self.addEventListener("push", event => {
   try { data = event.data?.json() || {}; } catch { /* Generic notification for invalid data. */ }
   event.waitUntil(self.registration.showNotification(data.title || "Distilled.News", {
     body: data.body || "A new briefing is ready.", icon: "/notification-icon.png?v=transparent-1", badge: "/notification-badge.png?v=transparent-1",
-    tag: data.tag || "briefing", data: { url: data.url || "/" }
+    tag: data.tag || "briefing", renotify: true, data: { url: data.url || "/" }
   }));
 });
 self.addEventListener("notificationclick", event => {
