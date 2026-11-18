@@ -656,7 +656,7 @@ export async function generateBriefing(
         : undefined;
       const identityIssues=input.feed.identityFidelityPolicy==='arabic-person-role-v1'
         ?arabicIdentityIssues(`${drafts[index].headline}\n${drafts[index].body}`,drafts[index].refs.flatMap(ref=>{const a=byRef.get(ref);return a?[`${a.title??''}\n${a.text}`]:[]})):[];
-      const guardIssue=dateIssue??(identityIssues.length?identityIssues.map(x=>`${x.code}: reader identity "${x.quote}" is not bound to that name/role in the cited sources. Preserve the supported identity, use the supported surname only, or withhold; do not import prior text or outside knowledge.`).join(' '):undefined);
+      const guardIssue=dateIssue??(identityIssues.length?identityIssues.map(x=>x.code==='ARABIC_ROLE_TEMPORAL_UNRESOLVED'?`${x.code}: only explicitly historical cited bindings establish "${x.quote}". Preserve the historical qualification or omit the role; do not infer a current office.`:`${x.code}: reader identity "${x.quote}" is not bound to that name/role in the cited sources. Preserve the supported identity, use the supported surname only, or withhold; do not import prior text or outside knowledge.`).join(' '):undefined);
       if (!verdict) unchecked.push(index);
       // Admission checks, not a general truth oracle: an explicit date
       // contradiction or unbound person/role requires repair or withholding.

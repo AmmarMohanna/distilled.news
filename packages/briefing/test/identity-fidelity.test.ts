@@ -8,6 +8,9 @@ it.each([
  ['أعلن الرئيس عبد الفتاح الوحش قراراً.','أعلن الرئيس عبد الفتاح السيسي قراراً.'],
  ['قال رئيس الحكومة عبد الله بن قنديل إن القرار اتخذ.','قال رئيس الحكومة عبد الله بن سالم إن القرار اتخذ.'],
  ['أعلن الرئيس «عبد الفتاح الوحش» القرار.','أعلن الرئيس «عبد الفتاح السيسي» القرار.'],
+ ["أعلن الرئيس 'عبد الفتاح الوحش' القرار.","أعلن الرئيس 'عبد الفتاح السيسي' القرار."],
+ ['أعلن الرئيس (عبد الفتاح الوحش) القرار.','أعلن الرئيس (عبد الفتاح السيسي) القرار.'],
+ ['الرئيس: عبد الفتاح الوحش، أعلن القرار.','الرئيس: عبد الفتاح السيسي، أعلن القرار.'],
 ])('checks the final surname of the whole multi-token name: %s',(reader,evidence)=>{
  expect(arabicIdentityIssues(reader,[evidence])).toEqual([expect.objectContaining({code:'ARABIC_NAME_UNBOUND'})]);
 });
@@ -28,11 +31,23 @@ it('abstains when unfamiliar trailing Arabic prose leaves the name boundary ambi
 it('does not certify a truncated prefix before an unexpected name separator',()=>{
  expect(arabicIdentityIssues('أعلن الرئيس عبد-الفتاح الوحش القرار.',['أعلن الرئيس عبد-الفتاح السيسي القرار.'])).toEqual([expect.objectContaining({code:'ARABIC_NAME_BOUNDARY_UNCERTAIN'})]);
 });
+it('does not use an explicitly historical source role to authorize an unqualified reader role',()=>{
+ expect(arabicIdentityIssues('قال قائد الجيش جوزيف عون إن القرار اتخذ.',['كان قائد الجيش جوزيف عون قبل انتخابه رئيساً للجمهورية.'])).toEqual([expect.objectContaining({code:'ARABIC_ROLE_TEMPORAL_UNRESOLVED'})]);
+});
+it('preserves a source-supported explicit historical qualification',()=>{
+ expect(arabicIdentityIssues('كان قائد الجيش جوزيف عون قبل انتخابه رئيساً.',['كان قائد الجيش جوزيف عون قبل انتخابه رئيساً للجمهورية.'])).toEqual([]);
+});
+it('uses an actual unqualified role binding when sources contain both historical and unqualified occurrences',()=>{
+ expect(arabicIdentityIssues('قال قائد الجيش جوزيف عون إن القرار اتخذ.',['كان قائد الجيش جوزيف عون قبل ذلك.','قال قائد الجيش جوزيف عون إن القرار اتخذ.'])).toEqual([]);
+});
 it.each([
  ['أعلن الرئيس عبد الفتاح السيسي قراراً.','أعلن الرئيس عبد الفتاح السيسي قراراً.'],
  ['قال رئيس الحكومة عبد الله بن سالم إن القرار اتخذ.','قال رئيس الوزراء عبد الله بن سالم إن القرار اتخذ.'],
  ['الرئيس عبد الفتاح السيسي','الرئيس عبد الفتاح السيسي، قال إن القرار اتخذ.'],
  ['قال الرئيس السيسي إن القرار اتخذ.','الرئيس عبد الفتاح السيسي، قال إن القرار اتخذ.'],
+ ["أعلن الرئيس 'عبد الفتاح السيسي' القرار.","أعلن الرئيس 'عبد الفتاح السيسي' القرار."],
+ ['أعلن الرئيس (عبد الفتاح السيسي) القرار.','أعلن الرئيس (عبد الفتاح السيسي) القرار.'],
+ ['الرئيس: عبد الفتاح السيسي، أعلن القرار.','الرئيس: عبد الفتاح السيسي، أعلن القرار.'],
 ])('preserves source-bound multi-token names and supported surname abbreviations: %s',(reader,evidence)=>{
  expect(arabicIdentityIssues(reader,[evidence])).toEqual([]);
 });

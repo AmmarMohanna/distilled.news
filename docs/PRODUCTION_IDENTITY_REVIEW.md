@@ -90,3 +90,11 @@ An absent surname no longer causes an early pass. Arabic-source mismatches produ
 Regression coverage includes changed third/fourth tokens, completely absent surnames, shared-prefix truncation, quoted names, unfamiliar prose, unexpected separators, supported multi-token names and surname abbreviations, cross-language abstention, and actual engine withholding despite a falsely approving verifier while preserving a healthy sibling. No inference, deployment or historical-record edits were performed for this follow-up.
 
 Follow-up verification: **435/435** engine tests (including 31 identity cases), **142/142** evaluator tests, and briefing/application-Worker/evaluator-Worker typechecks passed. Full retained-artifact replay preserved all four original outcomes and still identified the two original production substitutions. The previously reported 110 durable-window integration checks were not repeated for this parser-only follow-up. Broader real-model quality and false-positive rates remain unmeasured.
+
+### Additional edge-case review
+
+Manual offline probes exposed three more formatting bypasses: single-quoted names, parenthesized names, and a colon immediately following a role. All three were reproduced as failing regression tests before parser changes. They now undergo the same whole-span binding check, with matching valid-format controls. Candidate runs also stop before another recognized role rather than absorbing that role into a name.
+
+A separate probe showed that a source saying `كان قائد الجيش جوزيف عون` could authorize an unqualified reader role. The checker now records an immediately preceding `كان`/`كانت` and emits `ARABIC_ROLE_TEMPORAL_UNRESOLVED` when only historical same-role bindings exist but the reader omits that qualification. Supported explicitly historical wording and an actual unqualified binding remain valid controls. This is a narrow temporal abstention rule, not office-holder lookup or general tense resolution; other temporal phrasing still requires semantic verification.
+
+Verification for these additional changes: **444/444** engine tests (40 identity cases), **142/142** evaluator tests, and three relevant typechecks passed. Original retained replays preserve the original outcomes. No new paid inference or deployment; general model-quality and false-positive rates remain unmeasured.
