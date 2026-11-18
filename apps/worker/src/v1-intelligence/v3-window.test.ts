@@ -27,6 +27,16 @@ import {recoverPendingProviderGenerations} from './provider-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
+it('freezes Arabic identity validation into a distinct input without rewriting source evidence',async()=>{
+ await article();
+ const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,'arabic-person-role-v1');
+ expect(old.input.feed).not.toHaveProperty('identityFidelityPolicy');
+ expect(next.input.feed.identityFidelityPolicy).toBe('arabic-person-role-v1');
+ expect(next.fingerprint).not.toBe(old.fingerprint);
+ const {identityFidelityPolicy:_,...unchanged}=next.input.feed;
+ expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
+});
 function responseArchive(){const objects=new Map<string,string>();return {objects,bucket:{put:async(key:string,value:string)=>{if(objects.has(key))return null;objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket}}
 it('versions wording fidelity without rewriting retained inputs or source evidence',async()=>{
  await article();

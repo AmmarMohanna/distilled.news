@@ -1,4 +1,5 @@
 import {BriefingOutputError} from './types';
+import {arabicIdentityIssues} from './identity-fidelity';
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OCCURRENCE_RULE} from './novelty';
 import {completeStorySources} from './citation-coverage';
@@ -650,13 +651,16 @@ export async function generateBriefing(
     const unchecked: number[] = [];
     for (const index of todo) {
       const verdict = verdicts.get(index);
-      const guardIssue = options.safetyGuard === 'relative-date-v1'
+      const dateIssue = options.safetyGuard === 'relative-date-v1'
         ? relativeDateGuard(drafts[index], byRef, input.windowEnd)
         : undefined;
+      const identityIssues=input.feed.identityFidelityPolicy==='arabic-person-role-v1'
+        ?arabicIdentityIssues(`${drafts[index].headline}\n${drafts[index].body}`,drafts[index].refs.flatMap(ref=>{const a=byRef.get(ref);return a?[`${a.title??''}\n${a.text}`]:[]})):[];
+      const guardIssue=dateIssue??(identityIssues.length?identityIssues.map(x=>`${x.code}: reader identity "${x.quote}" is not bound to that name/role in the cited sources. Preserve the supported identity, use the supported surname only, or withhold; do not import prior text or outside knowledge.`).join(' '):undefined);
       if (!verdict) unchecked.push(index);
-      // Unlike the older numeric/script hints, this guard is a narrowly
-      // decidable temporal contradiction. An "ok" from a fallible verifier
-      // cannot publish it; use the existing repair/recheck path instead.
+      // Admission checks, not a general truth oracle: an explicit date
+      // contradiction or unbound person/role requires repair or withholding.
+      // A fallible model's "ok" cannot override that source-binding requirement.
       else if (guardIssue && round < options.maxRepairs) flagged.set(index, [guardIssue]);
       else if (guardIssue) dropped.push({ headline: drafts[index].headline, reason: `still flagged after repair: ${guardIssue}`, carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
       else if (verdict.verdict === "ok") accepted.add(index);

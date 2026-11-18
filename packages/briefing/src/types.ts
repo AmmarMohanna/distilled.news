@@ -11,6 +11,8 @@ export interface Article {
 }
 
 export interface FeedSpec {
+  /** Frozen on new inputs; unbound Arabic person/role spans require repair. */
+  identityFidelityPolicy?: 'arabic-person-role-v1';
   /** What the reader follows, in the reader's own words. */
   interest: string;
   language: "en" | "ar" | "fr";
