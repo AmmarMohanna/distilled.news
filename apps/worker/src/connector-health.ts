@@ -93,13 +93,37 @@ export function connectorOperationalAlerts(input:{job?:{state:string;lastError:s
  const resolutionRequired=input.unresolvedPaidOperations===undefined?(input.uncertainPaidAttempts??0)>0||input.failure?.failure==='UNCERTAIN_PAID_SUBMISSION'||input.job?.lastError==='UNCERTAIN_PAID_SUBMISSION':input.unresolvedPaidOperations>0;
  if(resolutionRequired)alerts.push({code:'PAID_RECONCILIATION_REQUIRED',severity:'warning'});
  if(input.nextRunAt&&now.getTime()-Date.parse(input.nextRunAt)>30*60000)alerts.push({code:'POLL_BACKLOG_OVERDUE',severity:'warning'});
- const collection=input.collection;
- if(collection?.lastCheckedAt){
-  const since=collection.lastAcceptedAt??collection.firstCheckedAt;
-  // Still being checked, nothing accepted since: report how long it has been silent.
-  if(since&&Date.parse(collection.lastCheckedAt)>(collection.lastAcceptedAt?Date.parse(collection.lastAcceptedAt):-Infinity)&&now.getTime()-Date.parse(since)>SOURCE_NO_SUCCESS_AFTER_MS)
-   alerts.push({code:'SOURCE_NO_RECENT_SUCCESS',severity:'warning'});
-  if(collection.observations===0&&collection.checks>=SOURCE_UNPROVEN_AFTER_CHECKS)alerts.push({code:'SOURCE_NEVER_COLLECTED',severity:'warning'});
- }
+ if(input.collection)alerts.push(...connectorCollectionAlerts(input.collection,now).map(code=>({code,severity:'warning' as const})));
  return alerts;
+}
+
+export type CollectionAlertCode='SOURCE_NO_RECENT_SUCCESS'|'SOURCE_NEVER_COLLECTED';
+export interface CollectionHistory {firstCheckedAt:string|null;lastCheckedAt:string|null;lastAcceptedAt:string|null;checks:number;observations:number}
+/** Shared by source health, the feed page and the pipeline trace, so all three agree. */
+export function connectorCollectionAlerts(collection:CollectionHistory,now=new Date()):CollectionAlertCode[]{
+ const codes:CollectionAlertCode[]=[];
+ if(!collection.lastCheckedAt)return codes;
+ const since=collection.lastAcceptedAt??collection.firstCheckedAt;
+ // Still being checked, nothing accepted since: report how long it has been silent.
+ if(since&&Date.parse(collection.lastCheckedAt)>(collection.lastAcceptedAt?Date.parse(collection.lastAcceptedAt):-Infinity)&&now.getTime()-Date.parse(since)>SOURCE_NO_SUCCESS_AFTER_MS)
+  codes.push('SOURCE_NO_RECENT_SUCCESS');
+ if(collection.observations===0&&collection.checks>=SOURCE_UNPROVEN_AFTER_CHECKS)codes.push('SOURCE_NEVER_COLLECTED');
+ return codes;
+}
+
+/** One grouped read per table for a whole feed. Owner and admin views only. */
+export async function feedCollectionAlerts(db:D1Database,feedId:string,now=new Date()):Promise<Map<string,CollectionAlertCode[]>>{
+ const history=new Map<string,CollectionHistory>();
+ const entry=(id:string)=>{let row=history.get(id);if(!row){row={firstCheckedAt:null,lastCheckedAt:null,lastAcceptedAt:null,checks:0,observations:0};history.set(id,row);}return row;};
+ const later=(a:string|null,b:string|null)=>!a?b:!b?a:a>b?a:b;
+ const [runs,providerBatches,rssBatches]=await db.batch<{sourceId:string;first?:string;last?:string;checks?:number;accepted?:string|null;observations?:number}>([
+  db.prepare('SELECT feed_source_id AS sourceId,MIN(started_at) AS first,MAX(started_at) AS last,COUNT(*) AS checks FROM connector_fetch_runs WHERE feed_id=? GROUP BY feed_source_id').bind(feedId),
+  ...['connector_provider_batches','connector_batches'].map(table=>db.prepare(`SELECT feed_source_id AS sourceId,
+   MAX(CASE WHEN receipts IS NOT NULL THEN json_extract(data,'$.request.coverage.createdAt') END) AS accepted,
+   COALESCE(SUM(json_array_length(json_extract(data,'$.request.observations'))),0) AS observations
+   FROM ${table} WHERE feed_id=? GROUP BY feed_source_id`).bind(feedId)),
+ ]);
+ for(const row of runs.results){const h=entry(row.sourceId);h.firstCheckedAt=row.first??null;h.lastCheckedAt=row.last??null;h.checks=row.checks??0;}
+ for(const row of [...providerBatches.results,...rssBatches.results]){const h=entry(row.sourceId);h.lastAcceptedAt=later(h.lastAcceptedAt,row.accepted??null);h.observations+=row.observations??0;}
+ return new Map([...history].map(([id,row])=>[id,connectorCollectionAlerts(row,now)] as const).filter(([,codes])=>codes.length));
 }

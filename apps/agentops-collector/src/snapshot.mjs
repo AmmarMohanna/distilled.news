@@ -1,11 +1,22 @@
 import {projectSnapshots} from '../../../ops/observability/snapshot-projector.mjs';
+import {collectionAlertCodes} from '../../../ops/observability/collection-alerts.mjs';
 
 export const SQL = {
   feed: "SELECT json_extract(json,'$.briefingSchedule') AS schedule FROM v1_feeds WHERE id=?",
   request: `SELECT id,json_object('id',id,'state',json_extract(json,'$.state'),'result',json_extract(json,'$.result'),'failure',json_extract(json,'$.failure'),'reason',json_extract(json,'$.reason'),'blocked',json_extract(json,'$.blocked'),'coverage',json_extract(json,'$.coverage'),'window',json_extract(json,'$.window'),'scheduledFor',json_extract(json,'$.scheduledFor'),'v3InputId',json_extract(json,'$.v3InputId')) AS metadata FROM v1_feed_documents INDEXED BY v1_clock_schedule_requests WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.window.clockStartAt') IS ? AND json_extract(json,'$.window.durationMinutes') IS ? ORDER BY json_extract(json,'$.window.end') DESC LIMIT 1`,
   run: "SELECT json_extract(json,'$.result.timings') AS timings FROM v1_feed_documents WHERE kind='v3_window_results' AND id=? AND feed_id=?",
   edition: "SELECT json_extract(e.json,'$.scheduledFor') AS scheduledFor,coalesce(json_extract(s.json,'$.publishedAt'),json_extract(e.json,'$.publishedAt'),json_extract(e.json,'$.createdAt')) AS recordedPublishedAt FROM v1_feed_documents e LEFT JOIN v1_feed_documents s ON s.kind='publication_status' AND s.id=e.id AND s.feed_id=e.feed_id WHERE e.kind='editions' AND e.id=? AND e.feed_id=?",
-  sources: 'SELECT id FROM v1_intake_scopes INDEXED BY connector_intake_feed WHERE feed_id=? ORDER BY id LIMIT 5',
+  // Collection history per source from indexed point reads only (0100 adds the accepted-batch indexes).
+  sources: `SELECT s.id,
+   (SELECT started_at FROM connector_fetch_runs r WHERE r.feed_id=s.feed_id AND r.feed_source_id=s.id ORDER BY r.sequence ASC LIMIT 1) AS firstCheckedAt,
+   (SELECT started_at FROM connector_fetch_runs r WHERE r.feed_id=s.feed_id AND r.feed_source_id=s.id ORDER BY r.sequence DESC LIMIT 1) AS lastCheckedAt,
+   (SELECT COUNT(*) FROM (SELECT 1 FROM connector_fetch_runs r WHERE r.feed_id=s.feed_id AND r.feed_source_id=s.id LIMIT 3)) AS checks,
+   (SELECT MAX(at) FROM (
+     SELECT (SELECT json_extract(b.data,'$.request.coverage.createdAt') FROM connector_provider_batches b WHERE b.feed_id=s.feed_id AND b.feed_source_id=s.id AND b.receipts IS NOT NULL ORDER BY json_extract(b.data,'$.request.coverage.createdAt') DESC LIMIT 1) AS at
+     UNION ALL
+     SELECT (SELECT json_extract(b.data,'$.request.coverage.createdAt') FROM connector_batches b WHERE b.feed_id=s.feed_id AND b.feed_source_id=s.id AND b.receipts IS NOT NULL ORDER BY json_extract(b.data,'$.request.coverage.createdAt') DESC LIMIT 1))) AS lastAcceptedAt,
+   EXISTS(SELECT 1 FROM v1_inputs i WHERE i.feed_source_id=s.id) AS collected
+   FROM v1_intake_scopes s INDEXED BY connector_intake_feed WHERE s.feed_id=? ORDER BY s.id LIMIT 5`,
   jobs: "SELECT json_extract(json,'$.kind') AS kind,json_extract(json,'$.state') AS state,json_extract(json,'$.enqueuedAt') AS enqueuedAt FROM v1_jobs INDEXED BY v1_jobs_due WHERE feed_source_id=? AND json_extract(json,'$.kind') IN ('ACQUIRE','REASSESS') AND json_extract(json,'$.state') IN ('PENDING','RUNNING') LIMIT 101",
   operations: `SELECT i.id,json_extract(i.json,'$.reservedCostUsd') AS reserved,json_extract(i.json,'$.input.state.repair.originalOperationId') AS parent,json_extract(r.json,'$.usage') AS usage,json_extract(t.json,'$.usage') AS settlementUsage,json_extract(r.json,'$.latencyMs') AS latencyMs,json_extract(r.json,'$.failure') AS failure,json_extract(r.json,'$.providerDiagnostic.execution') AS execution,json_extract(r.json,'$.providerDiagnostic.reportedCostUsd') AS rejectedCost,m.reserved_cost_usd AS moneyReserved,s.cost_usd AS cost,s.reported FROM v1_feed_documents i INDEXED BY v1_semantic_intent_budget LEFT JOIN v1_feed_documents r ON r.kind='semantic_results' AND r.id=i.id AND r.feed_id=i.feed_id LEFT JOIN v1_feed_documents t ON t.kind='semantic_settlements' AND t.id=i.id AND t.feed_id=i.feed_id LEFT JOIN v1_model_spending_reservations m ON m.id='semantic_intents:'||i.id AND m.feed_id=i.feed_id LEFT JOIN v1_model_spending_settlements s ON s.id=m.id WHERE i.kind='semantic_intents' AND i.feed_id=? AND json_extract(i.json,'$.input.budgetKey')=? LIMIT 25`,
 };
@@ -50,7 +61,9 @@ export async function collectSnapshot(db, feedId, now) {
     const groups=new Map();for(const j of jobs){const key=j.kind+':'+j.state;const g=groups.get(key)??{kind:j.kind,state:j.state,count:0,timestampedJobs:0};g.count++;if(j.enqueuedAt){g.timestampedJobs++;if(!g.oldestEnqueuedAt||j.enqueuedAt<g.oldestEnqueuedAt)g.oldestEnqueuedAt=j.enqueuedAt;}groups.set(key,g);}
     // Completed/failed jobs, total historical attempts and provider health were
     // not read: omit those measurements rather than inventing healthy zeros.
-    items.push({id:source.id,collection:{observedAt:at,jobCounts:[...groups.values()]}});
+    // Items that reached intake stand in for observation counts, which need a scan.
+    const alerts=collectionAlertCodes({firstCheckedAt:source.firstCheckedAt??null,lastCheckedAt:source.lastCheckedAt??null,lastAcceptedAt:source.lastAcceptedAt??null,checks:source.checks??0,observations:source.collected?1:0},now);
+    items.push({id:source.id,collection:{observedAt:at,jobCounts:[...groups.values()],alerts}});
   }
   if(items.length)pages.push(page('sources',items));
   const snapshot=projectSnapshots(pages);

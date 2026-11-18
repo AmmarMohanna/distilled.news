@@ -1,3 +1,4 @@
+import { connectorCollectionAlerts, type CollectionHistory } from '../connector-health';
 type Row = Record<string, any>;
 /** SELECT-only metadata reads; missing connector tables are explicit, not zero polls. */
 export async function traceSourceCollection(db: D1Database, feedId: string, sourceId: string, tables: Set<string>, window?: {
@@ -18,10 +19,25 @@ export async function traceSourceCollection(db: D1Database, feedId: string, sour
     if (tables.has('connector_provider_attempts'))
         reads.push({ kind: 'attempts', statement: db.prepare("SELECT run_id AS id,json_extract(data,'$.providerId') AS provider,json_extract(data,'$.failure') AS failure,json_extract(data,'$.sequence') AS sequence,json_extract(data,'$.diagnostic.detail') AS detail,json_extract(data,'$.diagnostic.httpStatus') AS httpStatus FROM connector_provider_attempts WHERE feed_id=? AND feed_source_id=? ORDER BY json_extract(data,'$.sequence') DESC LIMIT 1").bind(feedId, sourceId) });
     if (tables.has('connector_fetch_runs'))
+        reads.push({ kind: 'history_runs', statement: db.prepare('SELECT MIN(started_at) AS first,MAX(started_at) AS last,COUNT(*) AS checks FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=?').bind(feedId, sourceId) });
+    for (const table of ['connector_provider_batches', 'connector_batches'])
+        if (tables.has(table))
+            reads.push({ kind: 'history_batches', statement: db.prepare(`SELECT MAX(CASE WHEN receipts IS NOT NULL THEN json_extract(data,'$.request.coverage.createdAt') END) AS accepted,COALESCE(SUM(json_array_length(json_extract(data,'$.request.observations'))),0) AS observations FROM ${table} WHERE feed_id=? AND feed_source_id=?`).bind(feedId, sourceId) });
+    if (tables.has('connector_fetch_runs'))
         reads.push({ kind: 'runs', statement: db.prepare('SELECT run_id AS id,started_at AS startedAt,sequence FROM connector_fetch_runs WHERE feed_id=? AND feed_source_id=? ORDER BY sequence DESC LIMIT 1').bind(feedId, sourceId) });
     const results = reads.length ? await db.batch<Row>(reads.map(r => r.statement)) : [];
     let run: Row | undefined;
-    results.forEach((r, i) => { if (reads[i].kind === 'jobs')
+    const history: CollectionHistory = { firstCheckedAt: null, lastCheckedAt: null, lastAcceptedAt: null, checks: 0, observations: 0 };
+    results.forEach((r, i) => { if (reads[i].kind === 'history_runs') {
+        const row = r.results[0];
+        history.firstCheckedAt = row?.first ?? null; history.lastCheckedAt = row?.last ?? null; history.checks = row?.checks ?? 0;
+    }
+    else if (reads[i].kind === 'history_batches') {
+        const row = r.results[0];
+        if (row?.accepted && (!history.lastAcceptedAt || row.accepted > history.lastAcceptedAt)) history.lastAcceptedAt = row.accepted;
+        history.observations += row?.observations ?? 0;
+    }
+    else if (reads[i].kind === 'jobs')
         jobs.push(...r.results);
     else if (reads[i].kind === 'batches')
         batches.push(...r.results);
@@ -33,5 +49,5 @@ export async function traceSourceCollection(db: D1Database, feedId: string, sour
         n: number;
     }>())!.n; };
     const observed = await count('v1_inputs', 'observation.observedAt'), acquired = await count('v1_revisions', 'acceptedAt'), jobsCounts = await db.prepare("SELECT json_extract(json,'$.kind') AS kind,json_extract(json,'$.state') AS state,COUNT(*) AS count,MIN(json_extract(json,'$.enqueuedAt')) AS oldestEnqueuedAt,COUNT(json_extract(json,'$.enqueuedAt')) AS timestampedJobs,SUM(json_extract(json,'$.attempts')) AS attempts,SUM(json_extract(json,'$.resourceWaits')) AS resourceWaits FROM v1_jobs WHERE feed_source_id=? GROUP BY kind,state").bind(sourceId).all<Row>();
-    return { observedAt: new Date().toISOString(), scope: window ? 'WINDOW_OBSERVATIONS_AND_REVISION_ACCEPTANCE' : 'RETAINED_HISTORY', lastRun: run ?? null, lastPollJobs: jobs, lastBatches: batches.map(b => ({ ...b, coverage: b.coverage ? JSON.parse(b.coverage) : null })), lastProviderAttempt: attempts[0] ?? null, pollingState: batches.some(b => b.accepted) ? 'SUCCESS' : jobs.some(j => /AUTH|BUDGET|CREDENTIAL|CONFIG/.test(j.lastError ?? '')) ? 'BLOCKED' : jobs.some(j => j.state === 'FAILED') ? 'FAILED' : run || batches.length ? 'DEFERRED' : 'NOT_OBSERVABLE', lastConfirmedStage: batches.some(b => b.accepted) ? 'INTAKE_RECEIPTED' : batches.length ? 'OBSERVATIONS_SAVED' : run ? 'FETCH_RUN_ALLOCATED' : 'NOT_OBSERVABLE', observedItems: observed, evidenceRevisions: acquired, jobCounts: jobsCounts.results, countsNote: 'Revision count is not distinct-article count. Job counts are current retained states, not restricted to the window. Connector metadata is last known, not a full window poll inventory.', unavailableConnectorTables: ['connector_fetch_runs', 'connector_provider_batches', 'connector_batches', 'connector_provider_attempts'].filter(t => !tables.has(t)) };
+    return { observedAt: new Date().toISOString(), scope: window ? 'WINDOW_OBSERVATIONS_AND_REVISION_ACCEPTANCE' : 'RETAINED_HISTORY', lastRun: run ?? null, lastPollJobs: jobs, lastBatches: batches.map(b => ({ ...b, coverage: b.coverage ? JSON.parse(b.coverage) : null })), lastProviderAttempt: attempts[0] ?? null, pollingState: batches.some(b => b.accepted) ? 'SUCCESS' : jobs.some(j => /AUTH|BUDGET|CREDENTIAL|CONFIG/.test(j.lastError ?? '')) ? 'BLOCKED' : jobs.some(j => j.state === 'FAILED') ? 'FAILED' : run || batches.length ? 'DEFERRED' : 'NOT_OBSERVABLE', alerts: tables.has('connector_fetch_runs') ? connectorCollectionAlerts(history) : [], lastConfirmedStage: batches.some(b => b.accepted) ? 'INTAKE_RECEIPTED' : batches.length ? 'OBSERVATIONS_SAVED' : run ? 'FETCH_RUN_ALLOCATED' : 'NOT_OBSERVABLE', observedItems: observed, evidenceRevisions: acquired, jobCounts: jobsCounts.results, countsNote: 'Revision count is not distinct-article count. Job counts are current retained states, not restricted to the window. Connector metadata is last known, not a full window poll inventory.', unavailableConnectorTables: ['connector_fetch_runs', 'connector_provider_batches', 'connector_batches', 'connector_provider_attempts'].filter(t => !tables.has(t)) };
 }

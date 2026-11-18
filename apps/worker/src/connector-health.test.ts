@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {connectorOperationalAlerts} from './connector-health';
+import {connectorOperationalAlerts,connectorCollectionAlerts,SOURCE_NO_SUCCESS_AFTER_MS,SOURCE_UNPROVEN_AFTER_CHECKS} from './connector-health';
 it('clears credential and budget warnings after a later accepted batch',()=>{
  for(const failure of ['AUTH_REQUIRED','BUDGET_EXCEEDED']){
   expect(connectorOperationalAlerts({nextRunAt:null,failure:{failure,sequence:3},acceptedSequence:2})).toEqual([{code:failure,severity:'error'}]);
@@ -36,4 +36,14 @@ it('warns when a source has been checked repeatedly but never produced an item',
  expect(connectorOperationalAlerts({...base,collection},now)).toEqual([{code:'SOURCE_NEVER_COLLECTED',severity:'warning'}]);
  expect(connectorOperationalAlerts({...base,collection:{...collection,checks:2}},now)).toEqual([]);
  expect(connectorOperationalAlerts({...base,collection:{...collection,observations:1}},now)).toEqual([]);
+});
+it('agrees with the Grafana snapshot rule on every case',async()=>{
+ const {collectionAlertCodes,SOURCE_NO_SUCCESS_AFTER_MS:grafanaAfter,SOURCE_UNPROVEN_AFTER_CHECKS:grafanaChecks}=await import('../../../ops/observability/collection-alerts.mjs');
+ expect([grafanaAfter,grafanaChecks]).toEqual([SOURCE_NO_SUCCESS_AFTER_MS,SOURCE_UNPROVEN_AFTER_CHECKS]);
+ const now=new Date('2026-11-18T12:00:00Z');
+ const times=[null,'2026-11-01T00:00:00Z','2026-11-16T10:00:00Z','2026-11-17T12:00:00Z','2026-11-18T11:00:00Z'];
+ for(const firstCheckedAt of times)for(const lastCheckedAt of times)for(const lastAcceptedAt of times)for(const checks of [0,2,3])for(const observations of [0,1]){
+  const history={firstCheckedAt,lastCheckedAt,lastAcceptedAt,checks,observations};
+  expect(collectionAlertCodes(history,now.getTime()),JSON.stringify(history)).toEqual(connectorCollectionAlerts(history,now));
+ }
 });

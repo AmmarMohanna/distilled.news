@@ -21,7 +21,7 @@ import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
 import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
 import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
-import {connectorSourceHealth} from './connector-health';
+import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
 import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
@@ -1389,8 +1389,8 @@ export function createApp(options: AppOptions = {}) {
       // The cached status is shared by every viewer; source diagnostics are removed
       // per request so readers never receive them, and the tag covers only what is sent.
       const { sourceAvailability, ...readerStatus } = status.value.value;
-      const feedStatus = await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? { sourceAvailability, ...readerStatus } : readerStatus;
-      const statusHash = 'sourceAvailability' in feedStatus ? status.value.hash : fnv1a(JSON.stringify(readerStatus));
+      const feedStatus = await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? { sourceAvailability: await withCollectionAlerts(env, briefing.id, sourceAvailability), ...readerStatus } : readerStatus;
+      const statusHash = fnv1a(JSON.stringify(feedStatus));
       // Content-derived, so every isolate computes the same tag for the same response.
       const etag = `W/"${version}-${fnv1a([published.hash, statusHash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
       c.header('ETag', etag);
@@ -1411,7 +1411,7 @@ export function createApp(options: AppOptions = {}) {
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
-      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await feedSourceAvailability(c.env,briefing.id) : undefined,
+      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await withCollectionAlerts(c.env,briefing.id,await feedSourceAvailability(c.env,briefing.id)) : undefined,
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
@@ -1725,6 +1725,15 @@ export function createApp(options: AppOptions = {}) {
     const token = getCookie(c, SESSION_COOKIE);
     const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
     return claims?.sub === row.owner_account_id;
+  }
+
+  /** Adds the stale and never-collected warnings. Computed per request, never cached for readers. */
+  async function withCollectionAlerts<T extends {sourceId:string}>(env: Env, feedId: string, rows: T[] | undefined) {
+    if (!rows?.length) return rows;
+    let alerts: Map<string, CollectionAlertCode[]>;
+    try { alerts = await feedCollectionAlerts(env.DB, feedId); }
+    catch (error) { console.warn('Could not read source collection history', { feedId, error: error instanceof Error ? error.message : 'unknown' }); return rows; }
+    return rows.map(row => alerts.has(row.sourceId) ? { ...row, collectionAlerts: alerts.get(row.sourceId)! } : row);
   }
 
   /** Source collection errors are operator diagnostics: only the feed owner and
