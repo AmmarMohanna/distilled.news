@@ -8,7 +8,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 
 spec = importlib.util.spec_from_file_location('source_execution', Path(__file__).with_name('source-execution.py'))
 runtime = importlib.util.module_from_spec(spec)
@@ -16,6 +16,35 @@ spec.loader.exec_module(runtime)
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_http_ipv4_preference_keeps_ipv6_fallback_and_closes_failed_sockets(self):
+        addresses = [(runtime.socket.AF_INET6, runtime.socket.SOCK_STREAM, 6, '', ('2001:4860:4860::8888',443,0,0)),(runtime.socket.AF_INET, runtime.socket.SOCK_STREAM, 6, '', ('8.8.8.8',443))]
+        failed, fallback = MagicMock(), MagicMock()
+        failed.connect.side_effect = OSError('unavailable')
+        with patch.object(runtime.socket,'getaddrinfo',return_value=addresses), patch.object(runtime.socket,'socket',side_effect=[failed,fallback]) as create:
+            self.assertIs(runtime.ipv4_first_connection(('publisher.example',443),2),fallback)
+            self.assertEqual([call.args[0] for call in create.call_args_list],[runtime.socket.AF_INET,runtime.socket.AF_INET6])
+            failed.close.assert_called_once()
+            fallback.settimeout.assert_called_once_with(2)
+
+    def test_http_preference_still_rejects_private_dns_answers_in_either_family(self):
+        for address in [(runtime.socket.AF_INET, runtime.socket.SOCK_STREAM,6,'',('127.0.0.1',443)),(runtime.socket.AF_INET6,runtime.socket.SOCK_STREAM,6,'',('::1',443,0,0))]:
+            answers=[(runtime.socket.AF_INET,runtime.socket.SOCK_STREAM,6,'',('8.8.8.8',443)),address]
+            with patch.object(runtime.socket,'getaddrinfo',return_value=answers),patch.object(runtime.socket,'socket') as connect:
+                with self.assertRaises(ValueError):runtime.ipv4_first_connection(('publisher.example',443),2)
+                connect.assert_not_called()
+
+    def test_http_preference_is_opt_in_and_preserves_standard_tls_verification(self):
+        import ssl
+        connection=runtime.SourceHTTPSConnection('publisher.example')
+        self.assertTrue(connection._context.check_hostname)
+        self.assertEqual(connection._context.verify_mode,ssl.CERT_REQUIRED)
+        with patch.object(runtime.urllib.request,'build_opener') as build:
+            with patch.dict(runtime.os.environ,{'SOURCE_HTTP_IPV4_FIRST':'false'}):runtime.source_opener('existing-redirect-policy')
+            self.assertEqual(build.call_args.args,('existing-redirect-policy',))
+            with patch.dict(runtime.os.environ,{'SOURCE_HTTP_IPV4_FIRST':'true'}):runtime.source_opener('existing-redirect-policy')
+            self.assertEqual(build.call_args.args[0],'existing-redirect-policy')
+            self.assertIsInstance(build.call_args.args[1],runtime.SourceHTTPSHandler)
+
     def test_public_feed_fetches_one_bounded_unchanged_url_and_rejects_redirects(self):
         url = 'https://www.theguardian.com/technology/nvidia/rss'
         response = io.BytesIO(b'<rss><channel/></rss>')

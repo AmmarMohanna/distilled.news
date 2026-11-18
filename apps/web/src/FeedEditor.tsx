@@ -11,7 +11,7 @@ import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceC
 import { VoiceInput } from "./VoiceInput";
 import {FeedLanguageSelect, FeedSettingsSelect} from './FeedLanguageSelect';
 import { SourceLogo } from "./SourceLogo";
-import {sourcePublisherKey} from './source-publisher-key';
+import {sourceIsAlreadyAdded} from './source-publisher-key';
 import {sourceSearchSuggestions} from './source-search-suggestions';
 
 export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
@@ -61,8 +61,7 @@ export function FeedEditor(props: {
   const [liveSuggestions,setLiveSuggestions]=useState<{query:string;language:string;values:string[]}|null>(null);
   const suggestionCache=useRef(new Map<string,string[]>());
   const [searchResults, setSearchResults] = useState<SourceSearchResult[]>([]);
-  const addedPublishers=new Set(sources.map(sourcePublisherKey));
-  const visibleSearchResults=searchResults.filter(result=>!addedPublishers.has(sourcePublisherKey(result.source)));
+  const visibleSearchResults=searchResults.filter(result=>!sourceIsAlreadyAdded(result.source,sources));
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
   const searchFeedback=searchStatus||(!searching&&searchResults.length>0&&visibleSearchResults.length===0?'All matching sources are already added to this feed.':'');
@@ -98,7 +97,10 @@ export function FeedEditor(props: {
     if(cached&&Date.now()-cached.at<(cached.result.accessIncomplete?15_000:60_000)){setSearchResults(cached.result.results.filter(row=>!row.blocked));setSearchStatus(status(cached.result));return;}
     const controller=new AbortController();
     setSearching(true);
-      void searchSourceCandidates(query,controller.signal,{title:title.trim(),description:prompt.trim()}).then(result=>{
+      void searchSourceCandidates(query,controller.signal,{title:title.trim(),description:prompt.trim()},result=>{
+        if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
+        setSearchResults(result.results.filter(row=>!row.blocked));setSearchStatus('');
+      }).then(result=>{
         if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
         if(!result.unavailable&&(!result.accessIncomplete||result.results.length>0)){if(searchCache.current.size>=20)searchCache.current.delete(searchCache.current.keys().next().value!);searchCache.current.set(cacheKey,{at:Date.now(),query,result});}
         setSearchResults(result.results.filter(row=>!row.blocked));
@@ -175,7 +177,7 @@ export function FeedEditor(props: {
     const added=await addSource(source);
     if(added&&sourceQueryRef.current===query&&sourceQueryRevision.current===revision){setSourceQuery('');sourceSearchRef.current?.focus();}
   }
-  const matchingSources = recommendations.filter(source => !addedPublishers.has(sourcePublisherKey(source)) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
+  const matchingSources = recommendations.filter(source => !sourceIsAlreadyAdded(source,sources) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(toUiError(cause)); } finally { setBusy(false); } }
   return <Dialog className="feed-editor" label={t(editing ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
 
@@ -205,7 +207,7 @@ export function FeedEditor(props: {
           }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => {sourceQueryRevision.current++;setSourceQuery('');setSubmittedSearch(null);setSuggestionsOpen(false);}}><X size={18}/></button>}</div>
           {suggestionsOpen&&querySuggestions.length>0&&<div className="source-query-suggestions" id="source-query-suggestions" role="listbox" aria-label={t('Suggested searches')}>{querySuggestions.map((query,index)=><button type="button" role="option" id={`source-query-option-${index}`} aria-selected={suggestionIndex===index} key={query} onMouseDown={event=>event.preventDefault()} onClick={()=>submitSourceSearch(query)}><Search size={16} aria-hidden/><span>{query}</span></button>)}</div>}
           <small id="feed-source-search-help">{t("Search by publisher, person or article title. Select a result to follow its source.")}</small>
-          <p id="feed-source-search-status" className={searchFeedback&&!searching?'source-search-feedback':undefined} role="status" hidden={!searching&&!searchFeedback}>{t(searching?'Searching sources...':searchFeedback)}</p>
+          <p id="feed-source-search-status" className={searching?'source-search-loading':searchFeedback?(searchFeedback==='All matching sources are already added to this feed.'?'source-search-feedback source-search-added':'source-search-feedback'):undefined} role="status" hidden={!searching&&!searchFeedback}>{t(searching?'Searching sources...':searchFeedback)}</p>
           {checkingSource&&<small role="status">{t("Checking {source}...",{source:checkingSourceInput})}</small>}
           {visibleSearchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{visibleSearchResults.map((result,index)=>{
             const check=sourceChecks.find(check=>check.input===result.source);

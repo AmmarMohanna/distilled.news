@@ -20,13 +20,20 @@ it('keeps readable articles from the same publisher and caches article failures 
  for(let i=0;i<2;i++)expect((await freelyReadableResults(rows,fetcher,cache)).results.map(row=>row.title)).toEqual(['free']);
  expect(fetcher).toHaveBeenCalledTimes(3);
 });
-it('follows public article redirects and rejects unresolved Google wrappers',async()=>{
+it.each([false,true])('follows public article redirects and rejects unresolved Google wrappers (intermediate Google hop: %s)',async intermediate=>{
  const source='https://publisher.example/',article='https://news.google.com/rss/articles/story';
  const rows=[{source,publisher:'publisher.example',title:'Report',articleUrl:article}];
- const fetcher=vi.fn<typeof fetch>(async input=>String(input)===article?new Response(null,{status:302,headers:{location:source+'report'}}):articlePage());
+ const hop='https://news.google.com/articles/story';
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input)===article?new Response(null,{status:302,headers:{location:intermediate?hop:source+'report'}}):String(input)===hop?new Response(null,{status:302,headers:{location:source+'report'}}):articlePage());
  expect((await freelyReadableResults(rows,fetcher)).results).toHaveLength(1);
  expect(fetcher.mock.calls.some(([url])=>String(url)===source+'report')).toBe(true);
  expect((await freelyReadableResults(rows,async()=>new Response('Google wrapper contents. '.repeat(10)))).results).toEqual([]);
+});
+it('does not follow a Google article redirect to a publisher other than the indexed source',async()=>{
+ const article='https://news.google.com/rss/articles/story';
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input)===article?new Response(null,{status:302,headers:{location:'https://unrelated.example/report'}}):articlePage());
+ expect((await freelyReadableResults([{source:'https://publisher.example/',publisher:'publisher.example',title:'Report',articleUrl:article}],fetcher)).results).toEqual([]);
+ expect(fetcher.mock.calls.some(([target])=>String(target).startsWith('https://unrelated.example/'))).toBe(false);
 });
 it.each(['https://127.0.0.1/private','https://publisher.example/login'])('never follows an unsafe or login redirect to %s',async location=>{
  const article='https://publisher.example/report';
@@ -36,6 +43,18 @@ it.each(['https://127.0.0.1/private','https://publisher.example/login'])('never 
 });
 const listing='https://news.google.com/rss/articles/ArticleA?oc=5';
 function resolverEnv(service:typeof fetch):Env{return {SOURCE_GOOGLE_RESOLUTION_ENABLED:'true',SOURCE_EXECUTION_SERVICE:{fetch:service},SOURCE_EXECUTION_URL:'http://127.0.0.1:8791/v1/source-execution',SOURCE_EXECUTION_TOKEN:'test-only-token-'.repeat(3)} as unknown as Env;}
+it('streams a verified direct article while Google resolution is pending and preserves final result order',async()=>{
+ let release!:()=>void,first!:()=>void;
+ const waiting=new Promise<void>(resolve=>{release=resolve;}),progress=new Promise<void>(resolve=>{first=resolve;});
+ const service=vi.fn<typeof fetch>(async()=>{await waiting;return Response.json({results:[{inputUrl:listing,url:'https://publisher.example/google-report'}]});});
+ const rows=[{source:'https://publisher.example/',publisher:'publisher.example',title:'Indexed report',articleUrl:listing},{source:'https://publisher.example/',publisher:'publisher.example',title:'Direct report',articleUrl:'https://publisher.example/direct-report'}];
+ const received:string[][]=[];
+ const work=freelyReadableResults(rows,async()=>articlePage(),undefined,resolverEnv(service),async results=>{received.push(results.map(row=>row.title));first();});
+ try{await progress;expect(received[0]).toEqual(['Direct report']);}
+ finally{release();}
+ expect((await work).results.map(row=>row.title)).toEqual(['Indexed report','Direct report']);
+ expect(service).toHaveBeenCalledOnce();
+});
 it('checks a readable Google result beyond position thirty in a cold sixty-link batch',async()=>{
  const urls=Array.from({length:60},(_,i)=>listing.replace('ArticleA','Article'+i));
  const service=vi.fn<typeof fetch>(async(_input,init)=>{
@@ -51,7 +70,7 @@ it('checks a readable Google result beyond position thirty in a cold sixty-link 
 it('resolves Google listings through one free helper batch, verifies the actual articles and reuses resolutions',async()=>{
  const second=listing.replace('ArticleA','ArticleB');
  const service=vi.fn<typeof fetch>(async(_url,init)=>{
-  expect(JSON.parse(init!.body as string)).toEqual({kind:'google_resolve',input:{urls:[listing,second],timeoutSeconds:2,maxFreshDecodes:60}});
+  expect(JSON.parse(init!.body as string)).toEqual({kind:'google_resolve',input:{urls:[listing,second],timeoutSeconds:8,maxFreshDecodes:60}});
   return Response.json({results:[{inputUrl:listing,url:'https://publisher.example/free'},{inputUrl:second,url:'https://publisher.example/paid'}]});
  });
  const fetcher=vi.fn<typeof fetch>(async url=>String(url).endsWith('/paid')?new Response('Forbidden',{status:403}):articlePage());

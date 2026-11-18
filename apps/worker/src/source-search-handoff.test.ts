@@ -6,7 +6,7 @@ import * as assessment from './source-assessment';
 import * as accounting from './agentops-assessment';
 import type {Env} from './types';
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
-async function setup(blocked=false){
+async function setup(blocked=false,slow?:()=>Promise<void>){
  vi.spyOn(accounting,'campaignAssessmentFetcher').mockImplementation((_env,_owner,fetcher)=>fetcher);
  const saved=new Map<string,Response>();
  const cache={match:async(key:Request)=>saved.get(key.url)?.clone(),put:async(key:Request,value:Response)=>{saved.set(key.url,value.clone());}};
@@ -17,7 +17,7 @@ async function setup(blocked=false){
    modelCalls++;return Response.json({choices:[{message:{content:JSON.stringify({results:[{id:0,alignment:'YES'},...(blocked?[{id:1,alignment:'YES'}]:[])]})}}]});
   }
   if(String(input).startsWith('https://news.google.com/rss/search?'))return new Response('<rss><channel>'+['free',...(blocked?['paid']:[])].map((path,id)=>`<item><guid>${id}</guid><title>Economy growth strengthens exports</title><description>Economy reporting with substantive trade developments.</description><link>https://news.google.com/rss/articles/${path}</link><source url="https://publisher.example">Publisher</source></item>`).join('')+'</channel></rss>');
-  if(String(input).endsWith('/paid'))return new Response('Forbidden',{status:403});
+  if(String(input).endsWith('/paid')){await slow?.();return new Response('Forbidden',{status:403});}
   return articlePage();
  };
  const service=vi.fn<typeof fetch>(async(_url,init)=>{
@@ -35,6 +35,22 @@ async function setup(blocked=false){
  };
  return {app,env,headers,search,modelCalls:()=>modelCalls};
 }
+it('streams verified matches and exposes their normal assessment evidence before a slow sibling finishes',async()=>{
+ let release!:()=>void;const waiting=new Promise<void>(resolve=>{release=resolve;});
+ const s=await setup(true,()=>waiting);
+ const response=await s.app.request('/api/me/sources/search',{method:'POST',headers:{...s.headers,accept:'application/x-ndjson'},body:JSON.stringify({q:'economy',title:'Economy',description:'Economy reporting'})},s.env);
+ expect(response.headers.get('content-type')).toContain('application/x-ndjson');
+ const reader=response.body!.getReader(),decoder=new TextDecoder();let text='';
+ try{
+  while(!text.includes('"type":"progress"')){const part=await reader.read();expect(part.done).toBe(false);text+=decoder.decode(part.value);}
+  expect(text).toContain('https://publisher.example/free');
+  const spy=vi.spyOn(assessment,'assessSource').mockResolvedValue({input:'https://publisher.example/',status:'unverified',reason:'test',checkedAt:new Date().toISOString()});
+  await s.app.request('/api/me/sources/assess',{method:'POST',headers:s.headers,body:JSON.stringify({title:'Economy',description:'Economy reporting',source:'https://publisher.example/',searchQuery:'economy'})},s.env);
+  expect(spy.mock.calls[0][5]?.[0].url).toBe('https://publisher.example/free');
+  release();for(;;){const part=await reader.read();if(part.done)break;text+=decoder.decode(part.value);}
+  expect(text).toContain('"type":"complete"');
+ }finally{release();await reader.cancel();}
+});
 it.each([false,true])('passes resolved search evidence to assessment, including partial searches (%s)',async blocked=>{
  const s=await setup(blocked);
  const result=await s.search();expect(result.results[0].articleUrl).toBe('https://publisher.example/free');

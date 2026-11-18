@@ -135,7 +135,7 @@ export async function verifiedSourceRecommendations(env:Env,input:{title:string;
  const googleSeed=fastCatalog&&env.SOURCE_RECOMMENDATIONS_GOOGLE_NEWS!=='false'&&sourceAvailability(env,'google_news').state==='AVAILABLE'?[`news: ${input.title}`]:[];
  const publisherWork=(async()=>{
   if(!fastCatalog||!googleSeed.length)return;
-  try{const plan=prepareProductSourceInput(googleSeed[0]);const url=plan.sourceUrl??plan.canonicalUrl;publisherEvidence.push(...await readTopicPublishers(env,url,fetcher,undefined,verification?{...verification,providerFetcher}:undefined));await Promise.allSettled([...new Set(publisherEvidence.map(item=>item.publisherOrigin))].map(verify));}catch(error){console.warn(JSON.stringify({event:'source_discovery_incomplete',stage:'topic_publishers',errorCode:error instanceof Error&&/^[A-Z_]+$/.test(error.message)?error.message:'DISCOVERY_UNAVAILABLE'}));}
+  try{const plan=prepareProductSourceInput(googleSeed[0]);const url=plan.sourceUrl??plan.canonicalUrl;publisherEvidence.push(...await readTopicPublishers(env,url,fetcher,undefined,verification?{...verification,providerFetcher}:undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true',raceRoutes:true,maxPublishers:40,perPublisher:3}));await Promise.allSettled([...new Set(publisherEvidence.map(item=>item.publisherOrigin))].map(verify));}catch(error){console.warn(JSON.stringify({event:'source_discovery_incomplete',stage:'topic_publishers',errorCode:error instanceof Error&&/^[A-Z_]+$/.test(error.message)?error.message:'DISCOVERY_UNAVAILABLE'}));}
  })();
  const seedWork=Promise.allSettled([...seeds.map(seed=>`rss: ${seed.url}`),...channelSeeds,...googleSeed].map(verify));
  const searched=env.SOURCE_RECOMMENDATIONS_WEB_SEARCH==='true';
@@ -148,7 +148,7 @@ export async function verifiedSourceRecommendations(env:Env,input:{title:string;
  if(publisherEvidence.length&&accepted().length<15&&alternate&&seen.size<96&&Date.now()-startedAt<75_000){
   try{
    const plan=prepareProductSourceInput('news: '+alternate);
-   const evidence=await readTopicPublishers(env,plan.sourceUrl??plan.canonicalUrl,fetcher,undefined,verification?{...verification,providerFetcher}:undefined);
+   const evidence=await readTopicPublishers(env,plan.sourceUrl??plan.canonicalUrl,fetcher,undefined,verification?{...verification,providerFetcher}:undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true',raceRoutes:true,maxPublishers:40,perPublisher:3});
    publisherEvidence.push(...evidence);
    await Promise.allSettled([...new Set(evidence.map(item=>item.publisherOrigin))].map(verify));
   }catch(error){diagnose('localized_publishers',error);}
@@ -158,7 +158,7 @@ export async function verifiedSourceRecommendations(env:Env,input:{title:string;
  await seedWork;
  await publisherWork;
  await localizedWork;
- if(accepted().length>=20&&accepted().some(check=>['telegram_channel','x_profile','x_search','linkedin_company','linkedin_profile'].includes(prepareProductSourceInput(check.input).detected.kind)))return {sources:accepted().map(check=>check.input),checks};
+ if(accepted().length>=20)return {sources:accepted().map(check=>check.input),checks};
  // Recover up to two dead feed paths from links actually advertised by that publisher.
  // No redirects, other origins, or guessed feed paths become accepted evidence.
  const recovered:string[]=[],origins=new Set<string>();
@@ -177,7 +177,7 @@ export async function verifiedSourceRecommendations(env:Env,input:{title:string;
  if(recovered.length){
   checks.push(...await assessSources(env,input,recovered,fetcher,...(verification?[{...verification,providerFetcher}] as const:[])));
   await report();
-  if(accepted().length>=20&&accepted().some(check=>['telegram_channel','x_profile','x_search','linkedin_company','linkedin_profile'].includes(prepareProductSourceInput(check.input).detected.kind)))return {sources:accepted().map(check=>check.input),checks};
+  if(accepted().length>=20)return {sources:accepted().map(check=>check.input),checks};
  }
  for(let replacement=0;replacement<3&&seen.size<96;replacement++){
  if(replacement===2&&(accepted().length===0||accepted().length>=15||Date.now()-startedAt>=90_000))break;

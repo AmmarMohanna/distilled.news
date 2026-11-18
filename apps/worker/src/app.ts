@@ -14,7 +14,7 @@ import {sourceRecommendations,verifiedSourceRecommendations,type SourceDiscovery
 import {searchSourceCandidates} from './source-search';
 import {sourceSearchCacheQuery} from './source-search-topic';
 import {sourceQuerySuggestions} from './source-query-suggestions';
-import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
+import {cachedSourceSearch,readSourceSearchCache,cacheSourceSearchProgress} from './source-search-cache';
 import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {assessSource,assessSources} from './source-assessment';
@@ -1007,7 +1007,24 @@ export function createApp(options: AppOptions = {}) {
     try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
     const owner=c.get('account')!.id,origin=new URL(c.req.url).origin;
     const context=input.data.title&&input.data.description?{title:input.data.title,description:input.data.description}:undefined;
-    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>{const accessible=await freelyReadableResults(result.results,fetcher,accessCache,c.env);return {...result,...accessible,accessIncomplete:result.accessIncomplete===true||accessible.accessIncomplete};}));
+    const key=sourceSearchCacheQuery(input.data.q,context);
+    type SearchResult=Awaited<ReturnType<typeof searchSourceCandidates>>;
+    const load=(onProgress?:(result:SearchResult)=>Promise<void>)=>cachedSourceSearch(owner,key,origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context,onProgress),searchCache,async result=>{const accessible=await freelyReadableResults(result.results,fetcher,accessCache,c.env,onProgress?results=>onProgress({results,unavailable:false}):undefined);return {...result,...accessible,accessIncomplete:result.accessIncomplete===true||accessible.accessIncomplete};});
+    if(c.req.header('accept')?.includes('application/x-ndjson')){
+      c.header('Content-Type','application/x-ndjson; charset=utf-8');c.header('X-Content-Type-Options','nosniff');
+      return stream(c,async output=>{
+        const stopHeartbeat=sourceStreamHeartbeat(output);
+        try{
+          const result=await load(async progress=>{
+            await cacheSourceSearchProgress(owner,key,origin,progress,searchCache);
+            await output.writeln(JSON.stringify({type:'progress',...progress}));
+          });
+          await output.writeln(JSON.stringify({type:'complete',...result}));
+        }catch{await output.writeln(JSON.stringify({type:'error',error:'Web search is unavailable right now. You can still paste a source URL.'}));}
+        finally{await stopHeartbeat();}
+      });
+    }
+    return c.json(await load());
   });
 
   app.post("/api/me/sources/assess", async c => {

@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {getExploreFeeds,getFeed,saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword,resendVerification} from './api';
+import {getExploreFeeds,getFeed,saveFeed,recommendSources,recommendSourceCandidates,searchSourceCandidates,register,forgotPassword,resendVerification} from './api';
 
 it.each(['en','fr','ar'])('sends the currently chosen %s language when requesting either auth email',async language=>{
  localStorage.setItem('dn_language',language);
@@ -39,6 +39,22 @@ it('does not retry a cancelled feed read',async()=>{
   vi.stubGlobal('fetch',fetcher);
   await expect(getFeed('owner','news',{signal:controller.signal,retryInitialRead:true})).rejects.toMatchObject({id:'REQUEST_FAILED'});
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('delivers verified source-search matches before completion and keeps complete status separate',async()=>{
+ let output!:ReadableStreamDefaultController<Uint8Array>;
+ const body=new ReadableStream<Uint8Array>({start(controller){output=controller;}}),encoder=new TextEncoder();
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(body,{headers:{'content-type':'application/x-ndjson'}})));
+ const progress=vi.fn(),row={source:'https://fast.example/',publisher:'fast.example',title:'Verified article'};
+ const work=searchSourceCandidates('topic',undefined,{title:'Topic',description:'Topic reporting'},progress);
+ const line=JSON.stringify({type:'progress',results:[row],unavailable:false})+'\n';
+ output.enqueue(encoder.encode('\n'+line.slice(0,20)));output.enqueue(encoder.encode(line.slice(20)));
+ await vi.waitFor(()=>expect(progress).toHaveBeenCalledWith({results:[row],unavailable:false}));
+ output.enqueue(encoder.encode(JSON.stringify({type:'complete',results:[row],unavailable:false,verificationIncomplete:true})+'\n'));output.close();
+ expect(await work).toEqual({results:[row],unavailable:false,verificationIncomplete:true});
+});
+it('does not report an interrupted source-search stream as complete',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({type:'progress',results:[],unavailable:false})+'\n',{headers:{'content-type':'application/x-ndjson'}})));
+ await expect(searchSourceCandidates('topic',undefined,{title:'Topic',description:'Topic reporting'},vi.fn())).rejects.toBeInstanceOf(Error);
 });
 it('delivers verified suggestions before a slower check finishes and handles split stream chunks',async()=>{
  let output!:ReadableStreamDefaultController<Uint8Array>;

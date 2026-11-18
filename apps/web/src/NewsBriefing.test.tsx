@@ -30,7 +30,7 @@ it('navigates numbered references and copies their article without source pagina
   expect(host.querySelector('.news-briefing-publisher')?.textContent).toBe('ABC');
   await act(async()=>host.querySelector<HTMLButtonElement>('.news-briefing-copy')!.click());expect(writeText).toHaveBeenCalledWith('https://abc.example/article');expect(host.querySelector('.news-briefing-copy')?.textContent).toBe('Copied');
   await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Reference 2"]')!.click());
-  expect(host.querySelector('h3')?.textContent).toBe('Second headline');expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://second.example/article');expect(host.querySelector('.news-briefing-copy')?.textContent).toBe('Copy link');
+  expect(host.querySelector('h3')?.textContent).toBe('First headline');expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://other.example/article');expect(host.querySelector('.news-briefing-publisher')?.textContent).toBe('Other publisher');expect(host.querySelector('.news-briefing-copy')?.textContent).toBe('Copy link');
  });
 });
 it('supports Arabic, close control and long text without clamping',async()=>{
@@ -43,16 +43,45 @@ it('supports Arabic, close control and long text without clamping',async()=>{
 it('keeps every supporting source link, attribution, date and attachment reachable without pagination',async()=>{
  const multiple={...edition,sections:[{...edition.sections[0],evidence:[...edition.sections[0].evidence,evidence({sourceId:'third',sourceTitle:'Third publisher',postedAt:'2026-10-24T12:00:00Z',links:['https://third.example/report','https://third.example/context'],media:[{type:'photo',url:'https://third.example/photo',label:'Source photograph'}]})]},edition.sections[1]]};
  await render(async host=>{
-  const additional=host.querySelector('.news-briefing-additional-sources')!;
-  expect(additional.textContent).toContain('Other publisher');expect(additional.textContent).toContain('Third publisher');
-  expect(additional.querySelector('time[datetime="2026-10-24T12:00:00Z"]')).not.toBeNull();
-  expect([...additional.querySelectorAll('a')].map(a=>a.href)).toEqual(['https://other.example/article','https://third.example/report','https://third.example/context','https://third.example/photo']);
-  expect(additional.textContent).toContain('Source photograph');expect(host.querySelector('.news-briefing-source-nav')).toBeNull();
+  expect(host.querySelector('.news-briefing-additional-sources')).toBeNull();
+  expect([...host.querySelectorAll('.news-briefing-references button')].map(button=>button.textContent)).toEqual(['1','2','3']);
+  expect(host.textContent).not.toContain('Other publisher');expect(host.textContent).not.toContain('Third publisher');
+  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Reference 3"]')!.click());
+  expect(host.querySelector('.news-briefing-publisher')?.textContent).toBe('Third publisher');
+  expect(host.querySelector('time[datetime="2026-10-24T12:00:00Z"]')).not.toBeNull();
+  expect([...host.querySelectorAll('a')].map(a=>a.href)).toEqual(['https://third.example/context','https://third.example/photo','https://third.example/report']);
+  expect(host.textContent).toContain('Source photograph');expect(host.querySelector('.news-briefing-source-nav')).toBeNull();
   await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Reference 2"]')!.click());
   expect(host.querySelector('.news-briefing-additional-sources')).toBeNull();expect(host.textContent).not.toContain('Third publisher');
  },{edition:multiple});
 });
+it('opens a later story using its source number after a multi-source story',async()=>{
+ await render(host=>{
+  expect(host.querySelector('h3')?.textContent).toBe('Second headline');
+  expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://second.example/article');
+  expect(host.querySelector('.news-briefing-references button')?.textContent).toBe('3');
+ },{selectedIndex:2});
+});
 it('rejects unsafe article and attachment URLs without losing the explanation',async()=>{
  const unsafe={...edition,sections:[{title:'Headline',summary:'Explanation.',evidence:[evidence({sourceUrl:'javascript:alert(1)',links:['data:text/html,unsafe'],media:[{type:'photo',url:'javascript:alert(2)'}]})]}]};
  await render(host=>{expect(host.querySelector('.news-briefing-read')).toBeNull();expect([...host.querySelectorAll('a')].every(a=>/^https?:/.test(a.href))).toBe(true);expect(host.querySelector('.news-briefing-description')?.textContent).toContain('Explanation.');},{edition:unsafe});
+});
+it('shows duplicate retained versions of one article once while retaining their additional links and media',async()=>{
+ const duplicate={...edition,sections:[{...edition.sections[0],evidence:[evidence(),evidence({messageId:'another-revision',links:['https://abc.example/article?utm_source=rss','https://abc.example/context'],media:[{type:'photo',url:'https://abc.example/photo',label:'Photograph'}]}),evidence({sourceId:'same-publisher-different-article',links:['https://abc.example/different-article']})]}]};
+ await render(async host=>{
+  expect([...host.querySelectorAll('.news-briefing-references button')].map(button=>button.textContent)).toEqual(['1','2']);
+  expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://abc.example/article');
+  expect([...host.querySelectorAll('a')].map(link=>link.href)).toContain('https://abc.example/context');
+  expect(host.textContent).toContain('Photograph');
+  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Reference 2"]')!.click());
+  expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://abc.example/different-article');
+ },{edition:duplicate});
+});
+it('opens each distinct social post rather than the common external article they both discuss',async()=>{
+ const posts={...edition,sections:[{...edition.sections[0],evidence:[evidence({sourceKind:'x_profile',sourceUrl:'https://x.com/author/status/123'}),evidence({messageId:'other-post',sourceKind:'x_profile',sourceUrl:'https://x.com/author/status/456'})]}]};
+ await render(async host=>{
+  expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://x.com/author/status/123');
+  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Reference 2"]')!.click());
+  expect(host.querySelector('.news-briefing-read')?.getAttribute('href')).toBe('https://x.com/author/status/456');
+ },{edition:posts});
 });

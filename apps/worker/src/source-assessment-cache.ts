@@ -9,7 +9,7 @@ async function key(env:Env,owner:string,context:Context,input:string){
  return PREFIX+await sha256(JSON.stringify({policy:'own-publisher-evidence-v4',owner,context,input,model:env.SOURCE_ASSESSMENT_MODEL??env.DISTILLED_JEV_MODEL,
   enabled:env.SOURCE_CONNECTORS_ENABLED,native:env.SOURCE_NATIVE_EXECUTION_ENABLED,paid:env.SOURCE_PAID_VERIFICATION_ENABLED,
   apify:!!env.APIFY_API_TOKEN,twitter:!!env.TWITTERAPI_IO_API_KEY,execution:!!env.SOURCE_EXECUTION_TOKEN&&!!env.SOURCE_EXECUTION_SERVICE,
-  google:env.SOURCE_RECOMMENDATIONS_GOOGLE_NEWS,providers:env.SOURCE_PROVIDER_BUDGETS_JSON}))+'.json';
+  google:env.SOURCE_RECOMMENDATIONS_GOOGLE_NEWS,googleResolution:env.SOURCE_GOOGLE_RESOLUTION_ENABLED,providers:env.SOURCE_PROVIDER_BUDGETS_JSON}))+'.json';
 }
 
 /** Reuse the same verified evidence when a user saves the recommendations they

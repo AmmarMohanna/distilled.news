@@ -6,6 +6,28 @@ import type {Env} from './types';
 const context={title:'Economy and Finance',description:'Economy, finance and international trade'};
 const env={OPENROUTER_API_KEY:'test',SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'} as Env;
 const completion=(results:unknown)=>Response.json({choices:[{message:{content:JSON.stringify({results})}}]});
+it('reuses an actually readable free feed when direct RSS access is blocked, while still checking articles',async()=>{
+ const spy=vi.spyOn(accounting,'campaignAssessmentFetcher').mockImplementation((_env,_owner,fetcher)=>fetcher);
+ const feed='https://www.sciencedaily.com/rss/all.xml',article='https://www.sciencedaily.com/releases/new-discovery.htm';
+ const xml=`<rss><channel><item><guid>science</guid><title>A new scientific discovery</title><description>New research findings.</description><link>${article}</link></item></channel></rss>`;
+ const service=vi.fn<typeof fetch>(async(_url,init)=>{
+  expect(JSON.parse(init!.body as string)).toEqual({kind:'public_feed',input:{url:feed}});
+  return Response.json({status:200,xml});
+ });
+ const fetcher:typeof fetch=async(input,init)=>{
+  if(String(input)==='https://openrouter.ai/api/v1/chat/completions'){
+   const candidates=JSON.parse(JSON.parse(init!.body as string).messages[1].content).results;
+   return completion(candidates.map((row:{id:number})=>({id:row.id,alignment:'YES'})));
+  }
+  return String(input)===article?articlePage():new Response('',{status:403});
+ };
+ const saved=new Map<string,Response>(),cache={match:async(key:Request)=>saved.get(key.url)?.clone(),put:async(key:Request,value:Response)=>{saved.set(key.url,value.clone());}};
+ try{
+  const configured={...env,SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_EXECUTION_SERVICE:{fetch:service},SOURCE_EXECUTION_URL:'http://127.0.0.1:8791/v1/source-execution',SOURCE_EXECUTION_TOKEN:'test-only-token-'.repeat(3)} as unknown as Env;
+  const found=await searchSourceCandidates(configured,'ScienceDaily',fetcher,cache,{owner:'owner',origin:'https://app.example'},{title:'Science',description:'Scientific discoveries'});
+  expect(found.results.map(row=>row.articleUrl)).toEqual([article]);expect(service).toHaveBeenCalledOnce();
+ }finally{spy.mockRestore();}
+});
 it('returns a relevant indexed article after free Google resolution through the search pipeline',async()=>{
  const spy=vi.spyOn(accounting,'campaignAssessmentFetcher').mockImplementation((_env,_owner,fetcher)=>fetcher);
  const listing='https://news.google.com/rss/articles/RelevantArticle';
