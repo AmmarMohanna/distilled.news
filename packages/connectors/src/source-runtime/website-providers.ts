@@ -46,18 +46,19 @@ export class WebsiteSourceProvider implements SourceProvider {
   private async fetchZyte(input:SourceFetchRequest,run:FetchRun,url:string,start:number):Promise<ProviderPage>{
     const key=await this.secrets?.('zyte'),paid=this.paid;
     if(!key||!paid)throw new SourceProviderError('UNAVAILABLE');
-    const request=(operationId:string)=>paid.request(input.scope,operationId,'zyte',this.ceilingUsd,'https://api.zyte.com/v1/extract',{
+    const request=(operationId:string,body:Record<string,unknown>)=>paid.request(input.scope,operationId,'zyte',this.ceilingUsd,'https://api.zyte.com/v1/extract',{
       method:'POST',headers:{authorization:`Basic ${btoa(key+':')}`,'content-type':'application/json'},
-      body:JSON.stringify({url,httpResponseBody:true,httpResponseHeaders:true}),
+      body:JSON.stringify(body),
     });
     const target=new URL(url);
     const canRetry=!input.recheckItemKeys&&this.zyteListingRetryEnabled&&
       (target.pathname==='/'||isWebsiteListingUrl(url));
-    let result=await request(run.id),requests=1;
+    const plainHttp={url,httpResponseBody:true,httpResponseHeaders:true};
+    let result=await request(run.id,plainHttp),requests=1;
     if(canRetry&&[500,520].includes(result.status)){
       // The first response was recorded. A different durable operation ID
       // lets this one retry consume its own budget and replay its own receipt.
-      result=await request('website-zyte-listing-retry-v1:'+run.id);
+      result=await request('website-zyte-listing-retry-v1:'+run.id,plainHttp);
       requests++;
     }
     requireProviderSuccess(result);
@@ -67,7 +68,31 @@ export class WebsiteSourceProvider implements SourceProvider {
     let html:string;
     try{html=new TextDecoder().decode(Uint8Array.from(atob(data.httpResponseBody),c=>c.charCodeAt(0)));}
     catch{throw new SourceProviderError('MALFORMED');}
-    return this.parsePage(input,url,html,requests,start);
+    try{return await this.parsePage(input,url,html,requests,start);}
+    catch(error){
+      if(!canRetry||requests!==1||!(error instanceof SourceProviderError)||error.code!=='MALFORMED'||
+         error.diagnostic?.detail!=='NO_LISTING_LINKS'||articleUrl(data.url)!==url)throw error;
+      const raw=new TextEncoder().encode(html);
+      if(raw.length>1_000_000)throw error;
+      const candidates=listingLinkCandidates(html,url);
+      if(!candidates.length)throw error;
+
+      // The follow-up slot is still unused. Extract from the retained HTML
+      // and admit only the publisher links we can also verify in that HTML.
+      const structured=await request('website-zyte-article-list-v1:'+run.id,{
+        url,articleList:true,articleListOptions:{extractFrom:'userHtml',userHtml:html},
+      });
+      requireProviderSuccess(structured);
+      const list=record(record(structured.json).articleList);
+      if(articleUrl(list.url)!==url||!Array.isArray(list.articles))throw error;
+      const selected=new Set(list.articles.slice(0,100).map(row=>articleUrl(record(row).url)));
+      const items:ProviderPage['items']=candidates.filter(candidate=>selected.has(candidate.url)).slice(0,30)
+        .map(({url:article,title})=>({sourceItemKey:`url:${article}`,upstreamId:article,url:article,
+          publisherId:new URL(article).hostname,title,representation:'LISTING_RESULT',contentCompleteness:'UNKNOWN',
+          identityValid:true,authoritativeCurrentState:false}));
+      if(!items.length)throw error;
+      return {items,raw,complete:false,requests:2,latencyMs:Date.now()-start,providerCostUsd:null};
+    }
   }
 
   private async parsePage(input:SourceFetchRequest,url:string,html:string,requests:number,start:number):Promise<ProviderPage>{
@@ -90,7 +115,7 @@ export class WebsiteSourceProvider implements SourceProvider {
           modelSelected=ids.length>0;
         }
       }
-      if(!discovery.articles.length)throw new SourceProviderError('MALFORMED');
+      if(!discovery.articles.length)throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_LISTING_LINKS'});
       const selected=input.recheckItemKeys?discovery.articles.filter(a=>input.recheckItemKeys!.includes(`url:${a.url}`)):discovery.articles;
       return {items:selected.map(a=>({sourceItemKey:`url:${a.url}`,upstreamId:a.url,url:a.url,publisherId:new URL(a.url).hostname,title:a.title,...(a.publishedAt?{publishedAt:a.publishedAt}:{}),
         representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),
@@ -113,6 +138,8 @@ export class WebsiteSourceProvider implements SourceProvider {
       return {items,raw:new TextEncoder().encode(html),complete:false,
         continuationToken:offset+input.limit<links.length?String(offset+input.limit):undefined,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
+    if(!links.length&&((landing&&result.pageKind!=='catalogue')||result.pageKind==='listing'))
+      throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_LISTING_LINKS'});
     if(!string(result.body)||result.body.length<(result.pageKind==='catalogue'||result.contentCompleteness==='PARTIAL'?80:200))throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
     const unreadable=unreadableArticleReason(result.body);
     if(unreadable)throw new SourceProviderError('MALFORMED',undefined,{detail:unreadable});

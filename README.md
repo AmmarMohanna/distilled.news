@@ -87,7 +87,7 @@ destination addresses in the Cloudflare account.
 
 ### Optional Zyte retry for website listings
 
-Set `SOURCE_ZYTE_LISTING_RETRY_ENABLED=true` on a deployment to allow one additional plain HTTP Zyte request per collection run for any homepage or recognized listing already eligible for paid Zyte collection. It retries only after a recorded Zyte HTTP 500 or 520. The second request uses the same budget and its own receipt. Missing provider responses, rate limits, access refusals, and parsing errors do not trigger the follow-up.
+Set `SOURCE_ZYTE_LISTING_RETRY_ENABLED=true` to allow one Zyte follow-up per collection run for any homepage or recognized listing already eligible for paid Zyte collection. A recorded Zyte HTTP 500 or 520 uses the follow-up for a plain HTTP retry. If the initial request returned usable HTML but regular discovery found no article links, the follow-up can use Zyte Article List on that same HTML. Only links validated against the original page enter article acquisition, and coverage remains incomplete. Both modes use the existing budget and store separate receipts. Unknown provider outcomes, rate limits, and access refusals do not trigger a follow-up.
 
 ### Optional model fallback for website listings
 
