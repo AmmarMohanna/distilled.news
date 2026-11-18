@@ -4,7 +4,7 @@ import { executeSource } from './platform-providers';
 import type { SecretResolver } from './social-providers';
 import { requireProviderSuccess, type ProviderHttpPort } from './provider-http';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type SourceFamily, type ProviderPage } from './provider-types';
-import {discoverWebsiteArticles} from './website-discovery';
+import {discoverWebsiteArticles,websiteCollectionUrl} from './website-discovery';
 import {extractPublicHtml} from './public-html';
 import { record, articleUrl, string } from './provider-normalize';
 import {readArticleDateMetadata,unreadableArticleReason} from './article-integrity';
@@ -17,7 +17,10 @@ export class WebsiteSourceProvider implements SourceProvider {
     // Resume legacy inventory offsets as well as exact same-origin next pages.
     const continuation=input.continuation?.token,inventoryOffset=continuation!==undefined&&/^\d+$/.test(continuation);
     if(inventoryOffset&&!Number.isSafeInteger(Number(continuation)))throw new Error('INVALID_WEBSITE_CONTINUATION');
-    const approved=articleUrl(input.source.locator),url=articleUrl(continuation&&!inventoryOffset?continuation:input.source.locator);if(!approved||!url||new URL(url).origin!==new URL(approved).origin)throw new Error('INVALID_ARTICLE_URL');
+    const approved=articleUrl(input.source.locator);
+    if(!approved)throw new Error('INVALID_ARTICLE_URL');
+    const url=continuation&&!inventoryOffset?articleUrl(continuation):websiteCollectionUrl(approved);
+    if(!url||new URL(url).origin!==new URL(approved).origin)throw new Error('INVALID_ARTICLE_URL');
     const start=Date.now();let html:string,requests=1;
     if(this.id==='website_http'){
       const response=await this.http.get(url,{});

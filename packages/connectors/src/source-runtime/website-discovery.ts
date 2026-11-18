@@ -6,9 +6,25 @@ import {isArticleSchemaType,matchesOpaqueArticlePage} from './article-schema';
 
 interface Node {tagName?:string;attrs?:{name:string;value:string}[];childNodes?:Node[];parentNode?:Node;value?:string}
 export interface WebsiteDiscovery {articles:{url:string;title?:string;publishedAt?:string}[];nextPage?:string;paginationUnresolved?:true}
+/** Known publisher indexes whose article cards do not fit generic discovery. */
+function publisherListing(url:URL):RegExp|undefined {
+ const host=url.hostname.toLowerCase().replace(/^www\./,''),path=url.pathname.replace(/\/$/,'');
+ if(host==='deepmind.google'&&(path==='/blog'||path==='/discover/blog'))return /^\/blog\/[^/]+\/?$/;
+ if(host==='onthewire.ai'&&path==='')return /^\/article\/[^/]+\/?$/;
+ if(host==='inference.report'&&(path===''||path==='/archive'))return /^\/archive\/\d{4}-\d{2}-\d{2}\/?$/;
+}
+
+/** Fetch the dated index for the rolling Inference Report homepage. */
+export function websiteCollectionUrl(value:string):string {
+ const url=new URL(value);
+ if(url.hostname==='inference.report'&&url.pathname==='/')return new URL('/archive',url).href;
+ return value;
+}
+
 /** Section locators are discovery surfaces, never a single full article. */
 export function isWebsiteListingUrl(value:string):boolean {
  const url=new URL(value),host=url.hostname.toLowerCase().replace(/^www\./,''),path=url.pathname.replace(/\/$/,'');
+ if(publisherListing(url))return true;
  if(host==='lovin.co'&&(path===''||path==='/watch'||/^\/beirut(?:\/(?:en|ar))?$/.test(path)))return true;
  // Observed publisher sections: keep this exact and host-scoped so short
  // article URLs on other publishers are not discarded by a generic heuristic.
@@ -30,10 +46,11 @@ const text=(n:Node)=>nodes(n).filter(n=>!n.tagName&&n.value).map(n=>n.value).joi
 /** Discovery is structural, never a judgment about importance or Event identity.
  * Every captured identity survives; the collector's durable snapshot slices work. */
 export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteDiscovery|undefined {
- const origin=new URL(approvedUrl).origin,all=nodes(parse(html) as unknown as Node),articles=new Map<string,{url:string;title?:string}>();
+ const approved=new URL(approvedUrl),publisherPaths=publisherListing(approved);
+ const origin=approved.origin,all=nodes(parse(html) as unknown as Node),articles=new Map<string,{url:string;title?:string}>();
  const promed=discoverPromedReports(all.filter(n=>n.tagName==='script').map(n=>nodes(n).map(child=>child.value??'').join('')),all.filter(n=>n.tagName==='tr').map(text),approvedUrl);if(promed)return promed;
  const scoped=(href:string)=>{try{const url=articleUrl(new URL(href,approvedUrl).href);return url&&new URL(url).origin===origin&&url!==articleUrl(approvedUrl)?url:undefined}catch{return undefined}};
- const add=(href:string,title?:string)=>{const url=scoped(href);if(url&&!isWebsiteListingUrl(url)&&!articles.has(url))articles.set(url,{url,...(title?{title}:{})})};
+ const add=(href:string,title?:string)=>{const url=scoped(href);if(url&&(!publisherPaths||publisherPaths.test(new URL(url).pathname))&&!isWebsiteListingUrl(url)&&!articles.has(url))articles.set(url,{url,...(title?{title}:{})})};
  const canonical=all.find(n=>n.tagName==='link'&&attr(n,'rel').split(/\s+/).includes('canonical'));
  const headline=all.find(n=>n.tagName==='h1');
  let isArticle=false,structuredListing=false,boundSection=false,unboundSection=false,nextPage:string|undefined,paginationUnresolved=false;
@@ -61,7 +78,7 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
  }
  const knownListing=isWebsiteListingUrl(approvedUrl);
  const lovinLanding=new URL(approvedUrl).hostname.replace(/^www\./,'')==='lovin.co'&&knownListing;
- if(!lovinLanding&&primaryTextContainer(all))return undefined;
+ if(!publisherPaths&&!lovinLanding&&primaryTextContainer(all))return undefined;
  const bodies=all.filter(n=>n.tagName==='article');
  const directBody=bodies.length===1&&nodes(bodies[0]).some(n=>n.tagName==='h1'&&!nodes(n).some(child=>child.tagName==='a'))&&nodes(bodies[0]).some(n=>n.tagName==='p'&&text(n));
  // Article pages can embed a CollectionPage for their parent section or
@@ -84,6 +101,14 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
   // A whole-card link can also contain a category, deck, duration or badge.
   // Retain the actual headline rather than turning that chrome into identity.
   const childHeadline=nodes(anchor).find(headlineElement);
+  if(publisherPaths){
+   const card=lineage.find(n=>attr(n,'class').split(/\s+/).includes('card__content'));
+   const cardHeadline=card&&nodes(card).find(headlineElement);
+   // Archive cards include a synopsis. Their report date is the card title.
+   const datedReport=href.match(/\/archive\/(\d{4}-\d{2}-\d{2})\/?(?:[?#].*)?$/);
+   add(href,datedReport?.[1]||text(childHeadline??cardHeadline??anchor)||undefined);
+   continue;
+  }
   if(heading||rel.includes('bookmark')||(entry&&title))add(href,text(childHeadline??anchor)||undefined);
  }
  return section||structuredListing&&articles.size||articles.size>=2?{articles:[...articles.values()],nextPage,...(paginationUnresolved?{paginationUnresolved:true as const}:{})}:undefined;

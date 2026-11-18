@@ -78,3 +78,12 @@ it('retains short explicitly scoped article prose as partial while rejecting an 
  const teaser=extractPublicHtml(`<meta property="og:type" content="article"><meta name="description" content="${brief}"><h1>Election update</h1>`,url);
  expect(teaser.body.length).toBeLessThan(80);expect(teaser.contentCompleteness).toBeUndefined();
 });
+
+it.each([
+ ['https://deepmind.google/discover/blog/', '/blog/weather-models/', 'Weather models', '<div class="card__content"><h3>Weather models</h3><a href="/blog/weather-models/">Read more</a></div>'],
+ ['https://onthewire.ai/', '/article/new-model', 'New model', '<main><p>'+first+'</p><p>'+first+'</p><article><a href="/article/new-model"><h4>New model</h4><p>Deck</p></a></article></main>'],
+ ['https://inference.report/archive', '/archive/2026-11-17', '2026-11-17', '<a href="/archive/2026-11-17"><div>November 17</div><p>Synopsis</p></a>'],
+])('discovers publisher story cards on %s even without a generic listing signal',(source,story,title,html)=>{
+ const extras='<nav><a href="'+story+'-menu">Navigation</a></nav><h2><a href="/about">About</a></h2><h2><a href="https://outside.example'+story+'">Off site</a></h2>';
+ expect(discoverWebsiteArticles(html+extras,source)?.articles).toEqual([{url:new URL(story,source).href,title}]);
+});

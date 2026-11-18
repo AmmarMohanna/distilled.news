@@ -691,6 +691,16 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const second=await p.fetch({...request,limit:1,continuation:{providerId:'website_http',token:first.continuationToken!},source:{family:'website',locator:'https://publisher.example/'}},run);
     expect(second.items.map(i=>i.url)).toEqual(['https://publisher.example/two']);expect(second.continuationToken).toBeUndefined();
   });
+  it('collects dated Inference Report editions from the archive when the homepage is configured',async()=>{
+    const http=feed('<a href="/archive/2026-11-17"><div>November 17</div><p>Synopsis</p></a>');
+    const get=vi.spyOn(http,'get');
+    const execute=vi.fn();
+    const p=new WebsiteSourceProvider('website_http',http,{execute});
+    const result=await p.fetch({...request,source:{family:'website',locator:'https://inference.report/'}},run);
+    expect(get).toHaveBeenCalledWith('https://inference.report/archive',{});
+    expect(result.items).toMatchObject([{url:'https://inference.report/archive/2026-11-17',representation:'LISTING_RESULT'}]);
+    expect(execute).not.toHaveBeenCalled();
+  });
   it('does not report an undated homepage as acquired full news coverage',async()=>{
     const p=new WebsiteSourceProvider('website_http',feed('<html>Homepage</html>'),{execute:async()=>({body:'Homepage '.repeat(100)})});
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');
