@@ -1,4 +1,6 @@
-# Approved bounded staging pilot — in progress
+# Approved bounded staging pilot — completed without live-generation qualification
+
+Follow-up: [actual outcomes and French-feed probe](../../evaluation/briefing-quality/reports/beta-staging-followup-20261118/REPORT.md). The second attempt collected/extracted successfully but admitted zero articles because the article predates subscription. Staging activation is disabled, both private test feeds paused, and temporary guards removed after reconciliation. A new French probe also exposed a quantifier false acceptance. **No public-beta GO.** The historical plan and first-attempt account below are preserved; the follow-up supersedes their future-tense status.
 
 Scope: staging only, with explicit user deployment/pilot approval. Production is unchanged. Candidate `ad5519f50555fe2af323f1c63ce6bf7ac46aafb1` passed Project checks ([44374217325](https://github.com/AmmarMohanna/distilled.news/actions/runs/44374217325)) and Briefing evaluation ([44374217087](https://github.com/AmmarMohanna/distilled.news/actions/runs/44374217087)). Local evidence and previous failures are in the immutable beta evaluation reports.
 

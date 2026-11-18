@@ -1,0 +1,220 @@
+{
+  "scope": "Development qualification only. Exact request/response payloads retained privately; immutable hashes and provider receipts below. Hashes use SHA256(JSON.stringify(parsed JSON)); ledger hashes use SHA256(JSON.stringify(raw UTF8 text)). Failed inventories are NOT true-positive factual detections.",
+  "runs": [
+    {
+      "run": "beta-joud-fr-probe-run2",
+      "plan": {
+        "version": "beta-french-retained-reader-probe-v1",
+        "ceilingUsd": 5,
+        "model": "openai/gpt-4.1",
+        "systems": [
+          "candidate"
+        ],
+        "casesHash": "2ce370274f8dfc782733a58369e47d4edd4e3881bad0555ac323b0d8ebf67ffa",
+        "maxCalls": 12,
+        "priorSettledUsd": 3.129946,
+        "priorHeldUsd": 0.012416,
+        "forbiddenRequestHashes": [
+          "bc6f0ce8d2714fb6b074b4176850f9565b6abc4bde7abab6ac0b987d041b5971"
+        ],
+        "scope": "Two dependent development checks only, original public Joud source and quantifier-corrected control; no writes or deployment to Joud/production. Existing $5 campaign, settled staging activity included conservatively.",
+        "authorization": "Existing $5 beta implementation/verification approval; no additional campaign.",
+        "stopGo": "Reject unsupported universality without withholding the corrected control; failures remain visible. Not independent population accuracy or a production pilot."
+      },
+      "totals": {
+        "settledUsd": 3.166034,
+        "newSettledUsd": 0.0360879999999999,
+        "outstandingReservedUsd": 0.012415999999999996,
+        "historicalHeldUsd": 0.012416,
+        "calls": 5,
+        "unresolved": false,
+        "ceilingUsd": 5
+      },
+      "originalTotals": {
+        "settledUsd": 3.166034,
+        "newSettledUsd": 0.0360879999999999,
+        "outstandingReservedUsd": 0.012415999999999996,
+        "historicalHeldUsd": 0.012416,
+        "calls": 5,
+        "unresolved": false,
+        "ceilingUsd": 5
+      },
+      "inputFileHash": "2ce370274f8dfc782733a58369e47d4edd4e3881bad0555ac323b0d8ebf67ffa",
+      "ledgerFileHash": "3d0fc226fe7c420c3a80b61e8e801783214921d22f326a77a55e3ea76b9e8e56",
+      "cases": [
+        {
+          "id": "fr-retained-gta-unanimity",
+          "kind": "retained-reader-source-probe",
+          "language": "fr",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Overwhelmingly positive reviews do not establish unanimously positive reviews. This is a quantifier/uncertainty overstatement, not a wrong game or score. Frozen source-derived reference before new judge output.",
+          "itemsHash": "0bc702b0128ba4d05b84a23fb52a782f184a7c0aca3b38304ed04f1623d487f0",
+          "sourcesHash": "a8a6309974721c6984ee64d091216b691a235c71ea7e0f87bd9a0ee94f2e9d63",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "fr-corrected-gta-overwhelming",
+          "kind": "constructed-corrected-retained-control",
+          "language": "fr",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "The source explicitly reports overwhelmingly positive reviews, 99/100, eight nominations and the named performer. This corrected control differs only in the unsupported universal quantifier.",
+          "itemsHash": "18c4b0f01e499e05bb58cec52eb73d97b482853d43696a396fecff7b44f41200",
+          "sourcesHash": "a8a6309974721c6984ee64d091216b691a235c71ea7e0f87bd9a0ee94f2e9d63",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "controlledCases": [],
+      "outcomes": [
+        {
+          "caseId": "fr-retained-gta-unanimity",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "ok",
+              "issues": []
+            }
+          },
+          "usage": {
+            "calls": 3,
+            "inputTokens": 9100,
+            "outputTokens": 682,
+            "costUsd": 0.023656
+          },
+          "latencyMs": 12735
+        },
+        {
+          "caseId": "fr-corrected-gta-overwhelming",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "ok",
+              "issues": []
+            }
+          },
+          "usage": {
+            "calls": 3,
+            "inputTokens": 9095,
+            "outputTokens": 667,
+            "costUsd": 0.012431999999999999
+          },
+          "latencyMs": 9680
+        }
+      ],
+      "operations": [
+        {
+          "id": "909b75e5-70ac-48f9-810f-3655be085525",
+          "caseId": "fr-retained-gta-unanimity",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.063603,
+          "hash": "e22cb18a9d5b56e70b57e731d3a43e7aa104c1abdba40d5ddb860e66cab6bd48",
+          "at": "2026-11-18T20:04:19.840Z",
+          "receipt": {
+            "id": "909b75e5-70ac-48f9-810f-3655be085525",
+            "state": "SETTLED",
+            "generationId": "gen-1795032260-ck71grqmKgKtJ9l1Ls9X",
+            "costUsd": 0.00209,
+            "reserveUsd": 0.063603,
+            "latencyMs": 1746,
+            "inputTokens": 873,
+            "outputTokens": 43
+          },
+          "responseHash": "9b70fbe2e523a667926ecad489975a083017e26ca5d0b623c144ddd0a9d18728"
+        },
+        {
+          "id": "9234f419-b496-49ae-8ce8-4b1626442294",
+          "caseId": "fr-retained-gta-unanimity",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.078812,
+          "hash": "3914e44e41e302af13d18194d0dad50ba0e5030f10681ea48ce4f8595a0626d0",
+          "at": "2026-11-18T20:04:21.599Z",
+          "receipt": {
+            "id": "9234f419-b496-49ae-8ce8-4b1626442294",
+            "state": "SETTLED",
+            "generationId": "gen-1795032264-TzPxbpa0s1Md6rc8K5DY",
+            "costUsd": 0.011094,
+            "reserveUsd": 0.078812,
+            "latencyMs": 4961,
+            "inputTokens": 4615,
+            "outputTokens": 233
+          },
+          "responseHash": "8f9663f432eab987b7a1059fb896a899101adc3fbb7ca32ce6814f1c0eb1581f"
+        },
+        {
+          "id": "6d74d894-df0e-47eb-9fb2-992602084599",
+          "caseId": "fr-retained-gta-unanimity",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.106969,
+          "hash": "a02ba1ad062582b155e6a2ce54c3371d98ee798e70859895247c419d7d5e1016",
+          "at": "2026-11-18T20:04:26.593Z",
+          "receipt": {
+            "id": "6d74d894-df0e-47eb-9fb2-992602084599",
+            "state": "SETTLED",
+            "generationId": "gen-1795032269-gpdV9JlIDXCvFtOlemoR",
+            "costUsd": 0.010472,
+            "reserveUsd": 0.106969,
+            "latencyMs": 5946,
+            "inputTokens": 3612,
+            "outputTokens": 406
+          },
+          "responseHash": "5e1c4d07ad2a9ae90b31797edba667d8d457f2b7a92149fb693ee66739e97c56"
+        },
+        {
+          "id": "0dfdb608-82d9-4dc3-8e49-bec1b5a0b33f",
+          "caseId": "fr-corrected-gta-overwhelming",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.063594,
+          "hash": "61e7137fe758f778ba3994bcd693626329ced3aef40587a66c633a4974f1a54f",
+          "at": "2026-11-18T20:04:32.568Z",
+          "receipt": {
+            "id": "0dfdb608-82d9-4dc3-8e49-bec1b5a0b33f",
+            "state": "SETTLED",
+            "generationId": "gen-1795032273-TXocJXZ5jZ9eg2DkuO1L",
+            "costUsd": 0.002086,
+            "reserveUsd": 0.063594,
+            "latencyMs": 2736,
+            "inputTokens": 871,
+            "outputTokens": 43
+          },
+          "responseHash": "dca35ee2557a01346ca64ea487585a5dcfd890f39b20bccfc2598baea0e909c3"
+        },
+        {
+          "id": "9e70f15d-172a-456e-99f1-ce24da0ee2ec",
+          "caseId": "fr-corrected-gta-overwhelming",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.106956,
+          "hash": "b9f46388e375b94680ac85d5bb0b707f5b7d1849f522482a3b70f88f79a82946",
+          "at": "2026-11-18T20:04:35.332Z",
+          "receipt": {
+            "id": "9e70f15d-172a-456e-99f1-ce24da0ee2ec",
+            "state": "SETTLED",
+            "generationId": "gen-1795032278-t7hZpk8hkPdDSQDAJmDH",
+            "costUsd": 0.010346,
+            "reserveUsd": 0.106956,
+            "latencyMs": 6910,
+            "inputTokens": 3609,
+            "outputTokens": 391
+          },
+          "responseHash": "77fe4db6a61767ffe45549a9d2218dfde1dfd84eaa9e1063c4ba9b0725b3937f"
+        }
+      ],
+      "reuses": [
+        {
+          "state": "REUSED",
+          "caseId": "fr-corrected-gta-overwhelming",
+          "system": "candidate",
+          "requestHash": "3914e44e41e302af13d18194d0dad50ba0e5030f10681ea48ce4f8595a0626d0",
+          "originalId": "9234f419-b496-49ae-8ce8-4b1626442294"
+        }
+      ]
+    }
+  ]
+}
