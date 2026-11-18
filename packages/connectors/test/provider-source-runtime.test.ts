@@ -701,6 +701,36 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     expect(result.items).toMatchObject([{url:'https://inference.report/archive/2026-11-17',representation:'LISTING_RESULT'}]);
     expect(execute).not.toHaveBeenCalled();
   });
+  it('uses only vetted listing links when deterministic discovery finds no stories',async()=>{
+    const html='<main><a href="/news/new-story">A newly published story<span hidden>Ignore this</span></a>'+
+      '<div hidden><a href="/news/hidden-story">Hidden story link</a></div><nav><a href="/news/menu">Navigation item</a></nav>'+
+      '<a href="https://other.example/news/story">An external story</a><a href="/admin/delete">An administrative action</a></main>';
+    const select=vi.fn(async()=>[0]);
+    const execute=vi.fn();
+    const p=new WebsiteSourceProvider('website_http',feed(html),{execute},undefined,undefined,undefined,select);
+    const input={...request,source:{family:'website' as const,locator:'https://publisher.example/latest-news'}};
+    const result=await p.fetch(input,run);
+    expect(select).toHaveBeenCalledExactlyOnceWith(input.source.locator,[{url:'https://publisher.example/news/new-story',title:'A newly published story'}]);
+    expect(result.items).toMatchObject([{url:'https://publisher.example/news/new-story',representation:'LISTING_RESULT'}]);
+    expect(result.items[0].body).toBeUndefined();
+    expect(execute).not.toHaveBeenCalled();
+
+    for(const invalid of [[0,0],[1],[]]){
+      select.mockResolvedValueOnce(invalid);
+      await expect(p.fetch(input,run)).rejects.toMatchObject({code:'MALFORMED'});
+    }
+    select.mockClear();
+    await expect(p.fetch({...input,recheckItemKeys:['url:https://publisher.example/news/new-story']},run)).rejects.toMatchObject({code:'MALFORMED'});
+    expect(select).not.toHaveBeenCalled();
+  });
+  it('skips model discovery when deterministic listing links are available',async()=>{
+    const select=vi.fn();
+    const http=feed('<h2><a href="/news/new-story">A newly published story</a></h2>');
+    const p=new WebsiteSourceProvider('website_http',http,{execute:vi.fn()},undefined,undefined,undefined,select);
+    await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/latest-news'}},run))
+      .resolves.toMatchObject({items:[{url:'https://publisher.example/news/new-story'}]});
+    expect(select).not.toHaveBeenCalled();
+  });
   it('does not report an undated homepage as acquired full news coverage',async()=>{
     const p=new WebsiteSourceProvider('website_http',feed('<html>Homepage</html>'),{execute:async()=>({body:'Homepage '.repeat(100)})});
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');

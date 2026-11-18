@@ -43,6 +43,46 @@ export function isWebsiteListingUrl(value:string):boolean {
 const attr=(n:Node,key:string)=>n.attrs?.find(a=>a.name===key)?.value??'';
 function nodes(root:Node):Node[]{const result:Node[]=[],stack=[root];while(stack.length){const n=stack.pop()!;result.push(n);stack.push(...[...(n.childNodes??[])].reverse())}return result}
 const text=(n:Node)=>nodes(n).filter(n=>!n.tagName&&n.value).map(n=>n.value).join('').replace(/\s+/g,' ').trim();
+function linkLineage(anchor:Node):Node[]{
+ const lineage:Node[]=[];
+ for(let n:Node|undefined=anchor;n;n=n.parentNode)lineage.push(n);
+ return lineage;
+}
+function isPageChrome(lineage:Node[]){
+ return lineage.some(n=>['nav','header','footer','aside','script','template','noscript'].includes(n.tagName??'')||
+  n.attrs?.some(a=>a.name==='hidden'||a.name==='inert')||attr(n,'aria-hidden').toLowerCase()==='true'||
+  /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\b/i.test(attr(n,'style'))||
+  attr(n,'role')==='navigation'||!['body','html'].includes(n.tagName??'')&&
+  /(?:^|[\s_-])(?:nav|navigation|menu|footer|header|sidebar|masthead)(?:$|[\s_-])/i.test(
+   attr(n,'class').split(/\s+/).filter(token=>!/^(?:has|with|no)[_-]/i.test(token)).join(' ')+' '+attr(n,'id')));
+}
+
+export type WebsiteLinkSelector=(url:string,candidates:readonly {url:string;title:string}[])=>Promise<readonly number[]>;
+
+export function listingLinkCandidates(html:string,pageUrl:string):{url:string;title:string}[]{
+ const page=new URL(pageUrl),publisherPaths=publisherListing(page);
+ const candidates=new Map<string,{url:string;title:string}>();
+ for(const anchor of nodes(parse(html) as unknown as Node)){
+  if(anchor.tagName!=='a'||isPageChrome(linkLineage(anchor)))continue;
+  const href=attr(anchor,'href');
+  if(!href||href.startsWith('#')||attr(anchor,'rel').split(/\s+/).some(value=>['next','prev'].includes(value.toLowerCase())))continue;
+  let url:string|undefined;
+  try{url=articleUrl(new URL(href,page).href)}catch{continue}
+  if(!url||url===articleUrl(pageUrl)||isWebsiteListingUrl(url))continue;
+  const target=new URL(url),path=target.pathname;
+  if(target.origin!==page.origin||target.search||path.length>300||path==='/'||publisherPaths&&!publisherPaths.test(path)||
+   /\.(?:pdf|zip|xml|jpg|jpeg|png|gif|svg|webp|css|js|mp[34])$/i.test(path)||
+   /^\/(?:about|contact|privacy|terms|search|account|login|logout|signup|subscribe|unsubscribe|help|api|admin|settings)(?:\/|$)/i.test(path))continue;
+  const anchorNodes=nodes(anchor);
+  const label=anchorNodes.find(n=>headlineElement(n)&&!isPageChrome(linkLineage(n)))??anchor;
+  const title=nodes(label).filter(n=>n.value&&!isPageChrome(linkLineage(n))).map(n=>n.value).join(' ').replace(/\s+/g,' ').trim().slice(0,160);
+  if(title.length<8||/^(?:read more|learn more|click here|continue reading)$/i.test(title))continue;
+  candidates.set(url,{url,title});
+  if(candidates.size===48)break;
+ }
+ return [...candidates.values()];
+}
+
 /** Discovery is structural, never a judgment about importance or Event identity.
  * Every captured identity survives; the collector's durable snapshot slices work. */
 export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteDiscovery|undefined {
@@ -90,8 +130,8 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
   const href=attr(anchor,'href');if(!href)continue;
   const rel=attr(anchor,'rel').toLowerCase().split(/\s+/);
   if(rel.includes('next')||/(?:^|\s)next(?:\s|$)/i.test(attr(anchor,'class'))&&attr(anchor,'data-page-number')){const next=scoped(href);nextPage??=next;if(!next)paginationUnresolved=true;continue}
-  const lineage:Node[]=[];for(let n:Node|undefined=anchor;n;n=n.parentNode)lineage.push(n);
-  if(lineage.some(n=>['nav','header','footer','aside','script'].includes(n.tagName??'')||attr(n,'role')==='navigation'||!['body','html'].includes(n.tagName??'')&&/(?:^|[\s_-])(?:nav|navigation|menu|footer|header|sidebar|masthead)(?:$|[\s_-])/i.test(attr(n,'class').split(/\s+/).filter(token=>! /^(?:has|with|no)[_-]/i.test(token)).join(' ')+' '+attr(n,'id'))))continue;
+  const lineage=linkLineage(anchor);
+  if(isPageChrome(lineage))continue;
   if(/(?:^|[\s_-])(?:comment|comments|print|share|reply)(?:$|[\s_-])/i.test(attr(anchor,'class'))||/#(?:comments?|reply)/i.test(href))continue;
   // Publishers commonly wrap the heading in its link (<a><h3>...), rather
   // than placing a link inside the heading. Both are observed headline links.
