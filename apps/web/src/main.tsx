@@ -1756,7 +1756,27 @@ function FeedPage(props: { username: string; slug: string }) {
     </div>
   );
 
-  if(inaccessibleFeed===feedKey)return <PrivateFeedPage language={language}/>;
+  const accountDialog = account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
+        onLogout={async () => {
+          const result = await logout();
+          feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
+          visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
+          setFeedResult(null);setEditions([]);setEditionSource(null);setEditionDetails(new Map());setSelectedReport(null);
+          setQuery('');setSettledSearch(null);setSearchError(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
+          setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
+          if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
+          window.location.replace('/');
+        }}
+        onSaved={async (nextAccount, nextBriefings) => {
+          setAccount(nextAccount);
+          const nextOwned=nextBriefings.find(feed=>feed.id===(ownedFeed?.id??payload?.briefing.id)&&feed.ownerAccountId===nextAccount.id)??null;
+          setOwnedFeed(nextOwned);
+          if(nextAccount.username!==props.username&&nextOwned){
+            window.location.replace(`/${encodeURIComponent(nextAccount.username)}/${encodeURIComponent(nextOwned.slug)}/`);
+          }
+        }}/>;
+
+  if(inaccessibleFeed===feedKey)return <><PrivateFeedPage language={language} header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)}/>}/>{accountDialog}</>;
 
   return (
     <Shell
@@ -1779,25 +1799,7 @@ function FeedPage(props: { username: string; slug: string }) {
       </div>}
       {sessionState==='authenticated'&&!viewerLoading&&ownershipState==='loading'&&<p role="status">{t('Loading feed controls…')}</p>}
       {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
-      {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
-        onLogout={async () => {
-          const result = await logout();
-          feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
-          visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
-          setFeedResult(null);setEditions([]);setEditionSource(null);setEditionDetails(new Map());setSelectedReport(null);
-          setQuery('');setSettledSearch(null);setSearchError(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
-          setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
-          if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
-          window.location.replace('/');
-        }}
-        onSaved={async (nextAccount, nextBriefings) => {
-          setAccount(nextAccount);
-          const nextOwned=nextBriefings.find(feed=>feed.id===(ownedFeed?.id??payload?.briefing.id)&&feed.ownerAccountId===nextAccount.id)??null;
-          setOwnedFeed(nextOwned);
-          if(nextAccount.username!==props.username&&nextOwned){
-            window.location.replace(`/${encodeURIComponent(nextAccount.username)}/${encodeURIComponent(nextOwned.slug)}/`);
-          }
-        }}/>}
+      {accountDialog}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveFeed(input);
         if (saved.sourceActivation === "pending") window.alert(t("Feed saved. Some sources are awaiting activation. Check source health for updates."));

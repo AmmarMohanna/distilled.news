@@ -14,10 +14,22 @@ for(const [language,message] of [
  await page.goto('/owner/private-feed/');
  await expect(page.getByRole('heading',{level:1})).toHaveText(message);
  const view=page.locator('.private-feed-page');await expect(view).toHaveAttribute('dir',language==='ar'?'rtl':'ltr');
- await expect(view.locator('svg')).toBeVisible();
- expect(await view.locator('svg').evaluate(icon=>getComputedStyle(icon).color)).toBe('rgb(94, 92, 230)');
+ await expect(view.locator('.experience-header')).toBeVisible();
+ await expect(view.locator('.experience-brand')).toBeVisible();
+ const logo=await view.locator('.distilled-logo').boundingBox(),actions=await view.locator('.experience-header-actions').boundingBox();
+ expect(logo&&actions&&(logo.x+logo.width<=actions.x+1||actions.x+actions.width<=logo.x+1)).toBe(true);
+ await expect(view.locator('.private-feed-lock')).toBeVisible();
+ expect(await view.locator('.private-feed-lock').evaluate(icon=>getComputedStyle(icon).color)).toBe('rgb(94, 92, 230)');
+ await expect(view.locator('.private-feed-lock circle')).toHaveCount(0);
  await expect(page.locator('.feed-header-actions,.feed-search,.news-item')).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);
+});
+
+test('the private page header retains the signed-in account profile control',async({page})=>{
+ await page.route('**/api/**',route=>new URL(route.request().url()).pathname==='/api/auth/session'?route.fulfill({json:{authenticated:true,setupRequired:false,account:{id:'visitor',username:'visitor',email:'visitor@example.invalid',role:'user'}}}):route.fulfill({status:404,json:{error:'feed not found'}}));
+ await page.goto('/owner/private-feed/');
+ await page.getByRole('button',{name:'Account profile',exact:true}).click();
+ await expect(page.locator('.profile-dialog')).toBeVisible();
 });
 
 test('temporary server errors are not labelled as private access denials',async({page})=>{
