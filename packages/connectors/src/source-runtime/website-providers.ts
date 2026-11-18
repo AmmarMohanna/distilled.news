@@ -4,7 +4,7 @@ import { executeSource } from './platform-providers';
 import type { SecretResolver } from './social-providers';
 import { requireProviderSuccess, type ProviderHttpPort } from './provider-http';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type SourceFamily, type ProviderPage } from './provider-types';
-import {discoverWebsiteArticles,isWebsiteListingUrl,listingLinkCandidates,websiteCollectionUrl,type WebsiteLinkSelector} from './website-discovery';
+import {discoverByUrlPattern,discoverWebsiteArticles,isWebsiteListingUrl,listingLinkCandidates,websiteCollectionUrl,type WebsiteLinkSelector} from './website-discovery';
 import {extractPublicHtml} from './public-html';
 import { record, articleUrl, string } from './provider-normalize';
 import {readArticleDateMetadata,unreadableArticleReason} from './article-integrity';
@@ -28,7 +28,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       if(response.status===429){const h=response.headers['retry-after'],s=Number(h),at=h&&Number.isFinite(s)?Date.now()+Math.max(0,s)*1000:h?Date.parse(h):NaN;throw new SourceProviderError('RATE_LIMIT',Number.isFinite(at)?new Date(at).toISOString():undefined,{detail:'UPSTREAM_RATE_LIMIT',httpStatus:429});}
       if(response.status===401)throw new SourceProviderError('AUTH_REQUIRED',undefined,{detail:'UPSTREAM_AUTHENTICATION',httpStatus:401});
       if(response.status===404||response.status===410)throw new SourceProviderError('UNAVAILABLE',undefined,{detail:'HTTP_NOT_FOUND',httpStatus:response.status});
-      if(response.status!==200)throw new SourceProviderError(response.status>=500||response.status===0?'TRANSIENT':'CHALLENGE',undefined,{detail:response.status===403?'ACCESS_BLOCKED':response.status>=500||response.status===0?'UPSTREAM_TRANSPORT_FAILURE':'UPSTREAM_HTTP_ERROR',httpStatus:response.status});
+      if(response.status!==200)throw new SourceProviderError(response.status>=500||response.status===0?'TRANSIENT':'CHALLENGE',undefined,{detail:response.status===403?'ACCESS_BLOCKED':[301,302,303,307,308].includes(response.status)?'UPSTREAM_REDIRECT':response.status>=500||response.status===0?'UPSTREAM_TRANSPORT_FAILURE':'UPSTREAM_HTTP_ERROR',httpStatus:response.status});
       html=new TextDecoder().decode(response.bytes);requests=response.telemetry.requests;
     }else if(this.id==='website_playwright'){
       const result=record(await executeSource(this.execution,'playwright',{url}));
@@ -105,6 +105,12 @@ export class WebsiteSourceProvider implements SourceProvider {
     if(discovery){
       // Do not report a readable but unrecognized section layout as success.
       let modelSelected=false;
+      // Second, markup-independent parser before any paid or model fallback.
+      if(!discovery.articles.length&&!input.recheckItemKeys){
+        const patterned=html.length<=2_000_000?discoverByUrlPattern(html,url):[];
+        discovery.articles.push(...patterned);
+        modelSelected=patterned.length>0;
+      }
       if(!discovery.articles.length&&this.selectLinks&&!input.recheckItemKeys&&html.length<=2_000_000){
         const candidates=listingLinkCandidates(html,url);
         if(candidates.length){
@@ -138,8 +144,15 @@ export class WebsiteSourceProvider implements SourceProvider {
       return {items,raw:new TextEncoder().encode(html),complete:false,
         continuationToken:offset+input.limit<links.length?String(offset+input.limit):undefined,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
-    if(!links.length&&((landing&&result.pageKind!=='catalogue')||result.pageKind==='listing'))
-      throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_LISTING_LINKS'});
+    if(!links.length&&((landing&&result.pageKind!=='catalogue')||result.pageKind==='listing'||isWebsiteListingUrl(url))){
+      // The extractor saw a listing without links. Try the URL-pattern parser
+      // on the same HTML before reporting the layout as unreadable.
+      const patterned=!input.recheckItemKeys&&html.length<=2_000_000?discoverByUrlPattern(html,url):[];
+      if(!patterned.length)throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_LISTING_LINKS'});
+      return {items:patterned.slice(0,input.limit).map(({url:article,title})=>({sourceItemKey:`url:${article}`,upstreamId:article,url:article,publisherId:new URL(article).hostname,title:title??article,
+        representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),
+        raw:new TextEncoder().encode(html),complete:false,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
+    }
     if(!string(result.body)||result.body.length<(result.pageKind==='catalogue'||result.contentCompleteness==='PARTIAL'?80:200))throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
     const unreadable=unreadableArticleReason(result.body);
     if(unreadable)throw new SourceProviderError('MALFORMED',undefined,{detail:unreadable});

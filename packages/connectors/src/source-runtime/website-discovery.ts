@@ -153,3 +153,60 @@ export function discoverWebsiteArticles(html:string,approvedUrl:string):WebsiteD
  }
  return section||structuredListing&&articles.size||articles.size>=2?{articles:[...articles.values()],nextPage,...(paginationUnresolved?{paginationUnresolved:true as const}:{})}:undefined;
 }
+
+const DATED_PATH=/\/(?:19|20)\d{2}\/[01]?\d\/[0-3]?\d(?:\/|$)/;
+/** Publisher article URLs are far more stable than their card markup. */
+function articlePathShape(path:string):string|undefined{
+ const segments=path.split('/').filter(Boolean);
+ if(!segments.length||segments.length>8)return undefined;
+ const last=segments.at(-1)!,decoded=(()=>{try{return decodeURIComponent(last)}catch{return last}})();
+ const dated=DATED_PATH.test(path+'/');
+ const numeric=segments.some(segment=>/^\d{5,}$/.test(segment)||/[-_]\d{5,}(?:\.[a-z]{3,5})?$/i.test(segment)||/^\d{5,}[-_]/.test(segment));
+ const slug=decoded.split(/[-_]+/).filter(word=>word.length>1).length>=4||decoded.replace(/\.[a-z]{3,5}$/i,'').length>=40;
+ // Opaque story IDs such as /articles/c4g0e1xk2v3o mix letters and digits.
+ const opaque=/^(?=[a-z0-9]*\d)(?=[a-z0-9]*[a-z])[a-z0-9]{10,24}$/i.test(last);
+ if(!dated&&!numeric&&!slug&&!opaque)return undefined;
+ // One shape per URL family: a short slug must not split a dated cluster.
+ const kind=dated?'dated':numeric?'numeric':opaque?'opaque':'slug';
+ // Section depth varies for dated and ID URLs; bare slugs need it to stay precise.
+ return `${kind==='slug'?segments.length:''}|${kind}|${/\.([a-z]{3,5})$/i.exec(last)?.[1]?.toLowerCase()??''}`;
+}
+
+/**
+ * Second listing parser for pages whose cards the regular discovery cannot read
+ * (renamed classes, headline markup moved, script-rendered cards). It ignores
+ * card markup and keeps only same-origin links that share the dominant
+ * article-shaped URL pattern, from visible anchors and embedded page data.
+ * It never runs on a page regular discovery already understood.
+ */
+export function discoverByUrlPattern(html:string,pageUrl:string):{url:string;title?:string}[]{
+ const page=new URL(pageUrl),self=articleUrl(pageUrl),found=new Map<string,{url:string;title?:string}>();
+ const consider=(href:string,title?:string)=>{
+  let url:string|undefined;
+  try{url=articleUrl(new URL(href,page).href)}catch{return}
+  if(!url||url===self||found.has(url))return;
+  const target=new URL(url);
+  if(target.origin!==page.origin||target.search||target.pathname.length>300||isWebsiteListingUrl(url)||
+   /\.(?:pdf|zip|xml|json|jpg|jpeg|png|gif|svg|webp|css|js|mp[34])$/i.test(target.pathname)||
+   /^\/(?:about|contact|privacy|terms|search|account|login|logout|signup|subscribe|unsubscribe|help|api|admin|settings|static|assets|_next|wp-content|wp-json|cdn-cgi)(?:\/|$)/i.test(target.pathname))return;
+  found.set(url,{url,...(title?{title}:{})});
+ };
+ for(const candidate of listingLinkCandidates(html,pageUrl))consider(candidate.url,candidate.title);
+ // Script-rendered listings often carry their story links only in page data.
+ const root=parse(html) as unknown as Node;
+ for(const script of nodes(root).filter(n=>n.tagName==='script'&&/json/i.test(attr(n,'type')||(attr(n,'id')==='__NEXT_DATA__'?'json':'')))){
+  const body=nodes(script).map(child=>child.value??'').join('');
+  if(body.length>2_000_000)continue;
+  const host=page.host.replace(/[.]/g,'\\.');
+  const pattern=new RegExp(`"((?:https?:\\\\?/\\\\?/${host})?\\\\?/[^"\\s<>]{8,300})"`,'g');
+  let match:RegExpExecArray|null,seen=0;
+  while((match=pattern.exec(body))&&seen<400){seen++;consider(match[1].replace(/\\\//g,'/'));}
+ }
+ const clusters=new Map<string,{url:string;title?:string}[]>();
+ for(const entry of found.values()){
+  const shape=articlePathShape(new URL(entry.url).pathname);
+  if(shape)clusters.set(shape,[...(clusters.get(shape)??[]),entry]);
+ }
+ const best=[...clusters.values()].sort((a,b)=>b.length-a.length)[0]??[];
+ return best.length>=3?best.slice(0,30):[];
+}

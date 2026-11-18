@@ -89,6 +89,12 @@ destination addresses in the Cloudflare account.
 
 Set `SOURCE_ZYTE_LISTING_RETRY_ENABLED=true` to allow one Zyte follow-up per collection run for any homepage or recognized listing already eligible for paid Zyte collection. A recorded Zyte HTTP 500 or 520 uses the follow-up for a plain HTTP retry. If the initial request returned usable HTML but regular discovery found no article links, the follow-up can use Zyte Article List on that same HTML. Only links validated against the original page enter article acquisition, and coverage remains incomplete. Both modes use the existing budget and store separate receipts. Unknown provider outcomes, rate limits, and access refusals do not trigger a follow-up.
 
+### Website listing fallbacks and source regression fixtures
+
+When regular discovery reads a recognized listing or homepage but finds no article links, the collector tries a second parser before any paid or model fallback. It ignores card markup and keeps same-origin links that share the page's dominant article URL pattern (dated paths, numeric or opaque story IDs, long slugs), including links found only in embedded page data. It needs at least three matching links, and the coverage stays incomplete. Per-source scenarios live in `packages/connectors/test/publisher-scenarios.test.ts`. Save real listing pages with `node scripts/capture-publisher-fixtures.mjs <listing URL>` from a network that can reach the publisher; `publisher-captures.test.ts` then checks each saved page still yields its recorded minimum number of article links.
+
+Source health (`/api/me/sources/:sourceId/connector-health`) also warns with `SOURCE_NO_RECENT_SUCCESS` when a source has been checked without an accepted batch for 48 hours, and `SOURCE_NEVER_COLLECTED` when it has been checked three times without producing a single item.
+
 ### Optional model fallback for website listings
 
 Set `SOURCE_WEBSITE_LINK_FALLBACK_MODEL` to a model covered by your existing OpenRouter model spending configuration. Leave the variable unset to disable the fallback. It runs only when a recognized public listing yields no links through regular HTTP collection. The model selects from at most 48 visible same-origin links. The collector sends the selected links through normal article acquisition and records the listing coverage as incomplete.
