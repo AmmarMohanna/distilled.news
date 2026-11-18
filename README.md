@@ -85,6 +85,12 @@ Sending. For public user registration, Cloudflare must also allow sending to
 arbitrary recipients; Email Routing-only bindings can send only to verified
 destination addresses in the Cloudflare account.
 
+### Optional model fallback for website listings
+
+Set `SOURCE_WEBSITE_LINK_FALLBACK_MODEL` to a model covered by your existing OpenRouter model spending configuration. Leave the variable unset to disable the fallback. It runs only when a recognized public listing yields no links through regular HTTP collection. The model selects from at most 48 visible same-origin links. The collector sends the selected links through normal article acquisition and records the listing coverage as incomplete.
+
+The fallback uses the existing model ledger, with two admissions per source per hour and a $0.01 estimated cost limit per call. Identical requests reuse retained receipts. Unpaid recovery runs skip the fallback.
+
 ### Gmail for verification emails
 
 Enable the Gmail API in Google Cloud and authorize a dedicated sending mailbox

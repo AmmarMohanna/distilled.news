@@ -4,7 +4,7 @@ import { executeSource } from './platform-providers';
 import type { SecretResolver } from './social-providers';
 import { requireProviderSuccess, type ProviderHttpPort } from './provider-http';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type SourceFamily, type ProviderPage } from './provider-types';
-import {discoverWebsiteArticles} from './website-discovery';
+import {discoverWebsiteArticles,listingLinkCandidates,websiteCollectionUrl,type WebsiteLinkSelector} from './website-discovery';
 import {extractPublicHtml} from './public-html';
 import { record, articleUrl, string } from './provider-normalize';
 import {readArticleDateMetadata,unreadableArticleReason} from './article-integrity';
@@ -12,12 +12,15 @@ import {readArticleDateMetadata,unreadableArticleReason} from './article-integri
 export class WebsiteSourceProvider implements SourceProvider {
   readonly families:SourceFamily[]=['website'];
   constructor(readonly id:'website_http'|'website_playwright'|'website_zyte',private http:FeedHttpPort,
-    private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01){}
+    private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01,private selectLinks?:WebsiteLinkSelector){}
   async fetch(input:SourceFetchRequest,run:FetchRun):Promise<ProviderPage>{
     // Resume legacy inventory offsets as well as exact same-origin next pages.
     const continuation=input.continuation?.token,inventoryOffset=continuation!==undefined&&/^\d+$/.test(continuation);
     if(inventoryOffset&&!Number.isSafeInteger(Number(continuation)))throw new Error('INVALID_WEBSITE_CONTINUATION');
-    const approved=articleUrl(input.source.locator),url=articleUrl(continuation&&!inventoryOffset?continuation:input.source.locator);if(!approved||!url||new URL(url).origin!==new URL(approved).origin)throw new Error('INVALID_ARTICLE_URL');
+    const approved=articleUrl(input.source.locator);
+    if(!approved)throw new Error('INVALID_ARTICLE_URL');
+    const url=continuation&&!inventoryOffset?articleUrl(continuation):websiteCollectionUrl(approved);
+    if(!url||new URL(url).origin!==new URL(approved).origin)throw new Error('INVALID_ARTICLE_URL');
     const start=Date.now();let html:string,requests=1;
     if(this.id==='website_http'){
       const response=await this.http.get(url,{});
@@ -51,11 +54,22 @@ export class WebsiteSourceProvider implements SourceProvider {
     const inventory=discoverWebsiteArticles(html,url),discovery=catalogue?.pageKind==='catalogue'?undefined:inventory;
     if(discovery){
       // Do not report a readable but unrecognized section layout as success.
+      let modelSelected=false;
+      if(!discovery.articles.length&&this.selectLinks&&!input.recheckItemKeys&&html.length<=2_000_000){
+        const candidates=listingLinkCandidates(html,url);
+        if(candidates.length){
+          const ids=await this.selectLinks(url,candidates);
+          if(!Array.isArray(ids)||ids.length>30||new Set(ids).size!==ids.length||
+             ids.some(id=>!Number.isInteger(id)||id<0||id>=candidates.length))throw new SourceProviderError('MALFORMED');
+          discovery.articles.push(...ids.map(id=>candidates[id]));
+          modelSelected=ids.length>0;
+        }
+      }
       if(!discovery.articles.length)throw new SourceProviderError('MALFORMED');
       const selected=input.recheckItemKeys?discovery.articles.filter(a=>input.recheckItemKeys!.includes(`url:${a.url}`)):discovery.articles;
       return {items:selected.map(a=>({sourceItemKey:`url:${a.url}`,upstreamId:a.url,url:a.url,publisherId:new URL(a.url).hostname,title:a.title,...(a.publishedAt?{publishedAt:a.publishedAt}:{}),
         representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),
-        raw:new TextEncoder().encode(html),complete:!discovery.nextPage&&!discovery.paginationUnresolved,continuationToken:discovery.nextPage,
+        raw:new TextEncoder().encode(html),complete:!modelSelected&&!discovery.nextPage&&!discovery.paginationUnresolved,continuationToken:discovery.nextPage,
         requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
     const result=record(catalogue?.pageKind==='catalogue'?catalogue:await executeSource(this.execution,'extract',{url,html}));

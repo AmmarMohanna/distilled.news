@@ -3,6 +3,7 @@ import {recoverInterruptedApifyRead} from './connector-read-recovery';
 import {HandoffError,sha256,type CandidateIntakePort} from '@distilled/contracts';
 import {DEFAULT_SOURCE_ORDER,type SourceFetchRequest} from '@distilled/connectors';
 import {createSourceBackend} from './source-backend';
+import {websiteLinkSelector} from './website-link-fallback';
 import {acceptV1Handoff,v1SourceEnabled} from './v1-downstream-runtime';
 import {enrollV1Source} from './v1-intelligence/product';
 import type {IntakeScope} from './v1-intake/types';
@@ -28,7 +29,7 @@ export async function authorizeConnectorSource(env:Env,r:SourceFetchRequest):Pro
 export function createConnectorRuntime(env:Env,fetcher?:typeof fetch,unpaidOnly?:true) {
  const authorize=(r:SourceFetchRequest)=>authorizeConnectorSource(env,r);
  const intake:CandidateIntakePort={acceptBatch:request=>acceptV1Handoff(env,request,undefined,unpaidOnly)};
- return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:100,intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision,unpaidOnly)})});
+ return createSourceBackend(env,{authorize,intake,fetcher,providerPageLimit:100,selectWebsiteLinks:unpaidOnly?undefined:websiteLinkSelector(env,fetcher),intakeForRequest:r=>({acceptBatch:batch=>acceptV1Handoff(env,batch,r.configurationRevision,unpaidOnly)})});
 }
 /** Aggregate D1 reservations are separate from per-operation ceilings. No setting means no paid dispatch. */
 const budgetInitializations=new WeakMap<D1Database,{key:string;ready:Promise<void>}>();
