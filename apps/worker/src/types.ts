@@ -93,6 +93,8 @@ export interface Env extends Cloudflare.Env {
   SOURCE_POLL_TICK_BUDGET_MS?: string;
   STAGING_ASSETS_PREFIX?: string;
   STAGING_MISSION_FEED_ID?: string;
+  STAGING_MISSION_ATTEMPT_ID?: string;
+  STAGING_MISSION_SOURCE_BINDINGS_ENABLED?: string;
   /** Operator-only source choice, frozen in a fresh private staging mission. */
   STAGING_MISSION_RSS_URL?: string;
   STAGING_GROUPING_RUN_POLICY?: string;
