@@ -23,6 +23,10 @@ for(const [language,message] of [
  await expect(view.locator('.private-feed-lock circle')).toHaveCount(0);
  await expect(page.locator('.feed-header-actions,.feed-search,.news-item')).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);
+ expect(await page.locator('.app-pages > .screen-page-viewport').evaluate(view=>view.scrollHeight>view.clientHeight+1)).toBe(false);
+ const explore=view.locator('.private-feed-explore');await expect(explore).toBeVisible();await expect(explore).toHaveAttribute('href','/');
+ if(language==='en')await expect(explore).toHaveText('Explore public feeds');
+ await explore.click();await expect(page).toHaveURL(/\/$/);
 });
 
 test('the private page header retains the signed-in account profile control',async({page})=>{
