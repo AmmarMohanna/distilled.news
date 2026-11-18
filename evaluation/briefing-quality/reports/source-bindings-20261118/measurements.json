@@ -1,0 +1,1831 @@
+{
+  "scope": "Development qualification only. Exact request/response payloads retained privately; immutable hashes and provider receipts below. Hashes use SHA256(JSON.stringify(parsed JSON)); ledger hashes use SHA256(JSON.stringify(raw UTF8 text)). Failed inventories are NOT true-positive factual detections.",
+  "runs": [
+    {
+      "run": "source-bindings-final-q1",
+      "plan": {
+        "version": "source-bindings-q1",
+        "candidateCommit": "53cfb6eb",
+        "ceilingUsd": 2,
+        "authorization": "Explicit new $2 maximum from user, including unresolved reservations; no deployment.",
+        "model": "openai/gpt-4.1-mini",
+        "plannedCases": 10,
+        "normalCalls": 30,
+        "maxCalls": 60,
+        "estimatedUsd": "$0.10–$0.60; hard cumulative settled + outstanding ceiling $2",
+        "stopGo": "No known-fault approval; no false withholding on valid controls; no unusable final decisions. Any failure blocks rollout pending diagnosis. Small exposed/control sample cannot establish general accuracy.",
+        "labels": "Frozen from retained source text / constructed source facts before outputs; sibling claims in retained batches unlabelled. Related corrected controls are not independent events.",
+        "historicalHolds": "All historical holds remain unchanged and outside this new campaign; never replay their operation IDs.",
+        "casesHash": "bac61b27f256a3c822f3d5428ee4bbf0cbbdde9be6d9e8f7b9c5fa7694a317b5"
+      },
+      "totals": {
+        "settledUsd": 0.022312800000000008,
+        "outstandingReservedUsd": 0,
+        "calls": 30,
+        "unresolved": false,
+        "ceilingUsd": 2
+      },
+      "inputFileHash": "bac61b27f256a3c822f3d5428ee4bbf0cbbdde9be6d9e8f7b9c5fa7694a317b5",
+      "ledgerFileHash": "d67e4a73a0a3d0cf718392e30eb308e1dec127415d88e9978fe6d2ba11f6473f",
+      "cases": [
+        {
+          "id": "retained-name",
+          "kind": "retained-production",
+          "language": "ar",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Cited posts identify only سلام; the added full name نجيب سلام is unsupported.",
+          "itemsHash": "d4fc03d8549c0f759948bf4469600c71dc9ee7820e5cc7752d80f7d251fcf7ef",
+          "sourcesHash": "85f6230d3d2d608bbb30ddf0511221b8c622e9a60db562197682c6e1e7586e0b",
+          "priorHash": "516f974c58086e28a47d4dde34755d130530d4154cc42e7aa8087cc494b97aba"
+        },
+        {
+          "id": "retained-name-identity-only-control",
+          "kind": "source-derived-control",
+          "language": "ar",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Only the unsupported identity/role is removed. The selected source text must support all remaining claims.",
+          "itemsHash": "528c9618a032e8d4c56592a46c0e88447f99c640ca0d5b4d7c9ebbd712c2fd6b",
+          "sourcesHash": "82e5369ab2ed17cf0062da454da27ef047219aac87dd0346db8225491b77dd99",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "retained-role",
+          "kind": "retained-production",
+          "language": "ar",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Cited text explicitly identifies الرئيس جوزيف عون, not army commander.",
+          "itemsHash": "f06c48e7d7674b938a808e9f6da9ad7a5db3ae962611471c507d0c3855ce2fcb",
+          "sourcesHash": "d627522b59dceb28f3a14eb94153adafb23419622a1232333909d795dc6915c4",
+          "priorHash": "7e8ea26e2f2b4dd0974adcc6d780ab1473bf30667eceaea3b163a2483fce3ea2"
+        },
+        {
+          "id": "retained-role-identity-only-control",
+          "kind": "source-derived-control",
+          "language": "ar",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Only the unsupported identity/role is removed. The selected source text must support all remaining claims.",
+          "itemsHash": "c607ada0adfa8b6e16ec6880c7d852e96cf79e4bd9320ed95acbeb8df2ef01e7",
+          "sourcesHash": "e21c9be9fcecf3e24452662b2dd5505d7faf46c50592afea266e54eda8daba0f",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "ar-compound-valid",
+          "kind": "constructed-control",
+          "language": "ar",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Exact complete identity, action and duration; ordinary paraphrase.",
+          "itemsHash": "567e281a09f2a4269dfc7abbcd077486a70adc475c54e5a257a700d6199f7423",
+          "sourcesHash": "b015906929ae44c2f3921936d452c0064661525f5c0089af8cf2f029a64cd635",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "ar-compound-substitution",
+          "kind": "constructed-control",
+          "language": "ar",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "The final surname is changed while the two-token prefix matches.",
+          "itemsHash": "32482975778b4bb0b1ade7ba0e7a5c1d7ff9db43aed1ec397f5598c29ddfff8c",
+          "sourcesHash": "b015906929ae44c2f3921936d452c0064661525f5c0089af8cf2f029a64cd635",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "en-valid-qualification",
+          "kind": "constructed-control",
+          "language": "en",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Attribution, possibility, date and condition preserved.",
+          "itemsHash": "cf5f6b2d2b4dc2c66c3af9bd572305bd8334f05349e1c62c8144fcca1bb4877c",
+          "sourcesHash": "a3f5e0fc663b16d1f57f71f6afc2bfb10405d4975bb177e83ea64eb964b9a17d",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "en-quantity-substitution",
+          "kind": "constructed-control",
+          "language": "en",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Amount changes from 5 to 15 million.",
+          "itemsHash": "0e742562ea1aa2de86b8d846f132cad09ceeee1f9a4144302be5cbaf8a3efab0",
+          "sourcesHash": "3a43e31a2a9a0a6eb2b95053104e6f4232cab1746a656a66590e7c4d8be10560",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "fr-valid-translation",
+          "kind": "constructed-control",
+          "language": "fr",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Legitimate English-to-French translation with attribution and duration intact.",
+          "itemsHash": "a7fffc261cc56b50ff9dc46b578a71c5a8ab21a63a42a0fb2da2ffa6bfc1d965",
+          "sourcesHash": "76db2b942c13e2dec561d4eb239ba48f9159315fbed31d3f185148143a30255b",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "fr-valid-uncertainty",
+          "kind": "constructed-control",
+          "language": "fr",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Reported provisional figure remains provisional, not established as certainty.",
+          "itemsHash": "2bdd7b72aa8e935aa708402e92912c96ea562bc45d6565bcdac65ccf08cbd68d",
+          "sourcesHash": "e7cf1e1ad58be9e9cc0b69e8f478805b396899ad2052a1700ef10ea227929020",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "controlledCases": [
+        {
+          "id": "ar-compound-valid",
+          "kind": "constructed-control",
+          "language": "ar",
+          "items": [
+            {
+              "headline": "الرئيس عبد الفتاح السيسي يعلن تعليق الرسوم لثلاثة أشهر.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "أعلن الرئيس عبد الفتاح السيسي قراراً بتعليق الرسوم لمدة ثلاثة أشهر."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Exact complete identity, action and duration; ordinary paraphrase."
+        },
+        {
+          "id": "ar-compound-substitution",
+          "kind": "constructed-control",
+          "language": "ar",
+          "items": [
+            {
+              "headline": "الرئيس عبد الفتاح الوحش يعلن تعليق الرسوم لثلاثة أشهر.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "أعلن الرئيس عبد الفتاح السيسي قراراً بتعليق الرسوم لمدة ثلاثة أشهر."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "The final surname is changed while the two-token prefix matches."
+        },
+        {
+          "id": "en-valid-qualification",
+          "kind": "constructed-control",
+          "language": "en",
+          "items": [
+            {
+              "headline": "Council: bridge may reopen Friday if it passes a safety inspection.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "The council said the bridge may reopen on Friday, subject to a safety inspection."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Attribution, possibility, date and condition preserved."
+        },
+        {
+          "id": "en-quantity-substitution",
+          "kind": "constructed-control",
+          "language": "en",
+          "items": [
+            {
+              "headline": "Authority approves $15 million hospital grant.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "The authority approved a grant of $5 million for the hospital."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Amount changes from 5 to 15 million."
+        },
+        {
+          "id": "fr-valid-translation",
+          "kind": "constructed-control",
+          "language": "fr",
+          "items": [
+            {
+              "headline": "Selon le maire, la bibliothèque fermera deux jours pour des travaux.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "The mayor said the library will close for two days for repairs."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Legitimate English-to-French translation with attribution and duration intact."
+        },
+        {
+          "id": "fr-valid-uncertainty",
+          "kind": "constructed-control",
+          "language": "fr",
+          "items": [
+            {
+              "headline": "Selon la préfecture, trois personnes auraient été blessées ; bilan provisoire.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "La préfecture indique que trois personnes auraient été blessées. Ce bilan reste provisoire."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Reported provisional figure remains provisional, not established as certainty."
+        }
+      ],
+      "outcomes": [
+        {
+          "caseId": "retained-name",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "fix",
+              "issues": [
+                "رئاسة الحكومة: لا جلسة لمجلس الوزراء اللبناني هذا الأسبوع بسبب ظرف عائلي لرئيس الحكومة نجيب سلام -> رئاسة الحكومة: لا جلسة لمجلس الوزراء اللبناني هذا الأسبوع بسبب ظرف عائلي خاص طرأ على سلام واضطراره إلى مغادرة لبنان يوم الخميس"
+              ]
+            },
+            "1": {
+              "i": 1,
+              "verdict": "ok",
+              "issues": []
+            },
+            "2": {
+              "i": 2,
+              "verdict": "ok",
+              "issues": []
+            },
+            "3": {
+              "i": 3,
+              "verdict": "ok",
+              "issues": []
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 5706,
+            "outputTokens": 112,
+            "costUsd": 0.0024616
+          },
+          "latencyMs": 2266
+        },
+        {
+          "caseId": "retained-name",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            },
+            "1": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            },
+            "2": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            },
+            "3": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 1163,
+            "outputTokens": 1750,
+            "costUsd": 0.0032652000000000002
+          },
+          "latencyMs": 20676
+        },
+        {
+          "caseId": "retained-name-identity-only-control",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "ok",
+              "issues": []
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 2101,
+            "outputTokens": 18,
+            "costUsd": 0.0008692
+          },
+          "latencyMs": 1102
+        },
+        {
+          "caseId": "retained-name-identity-only-control",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 609,
+            "outputTokens": 376,
+            "costUsd": 0.0008451999999999999
+          },
+          "latencyMs": 4669
+        },
+        {
+          "caseId": "retained-role",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "ok",
+              "issues": []
+            },
+            "1": {
+              "i": 1,
+              "verdict": "ok",
+              "issues": []
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 5890,
+            "outputTokens": 30,
+            "costUsd": 0.002404
+          },
+          "latencyMs": 1222
+        },
+        {
+          "caseId": "retained-role",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            },
+            "1": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 1073,
+            "outputTokens": 1329,
+            "costUsd": 0.0025556
+          },
+          "latencyMs": 16757
+        },
+        {
+          "caseId": "retained-role-identity-only-control",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "ok",
+              "issues": []
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 4185,
+            "outputTokens": 18,
+            "costUsd": 0.0017028
+          },
+          "latencyMs": 1858
+        },
+        {
+          "caseId": "retained-role-identity-only-control",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 871,
+            "outputTokens": 922,
+            "costUsd": 0.0018235999999999999
+          },
+          "latencyMs": 10071
+        },
+        {
+          "caseId": "ar-compound-valid",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "ok",
+              "issues": []
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 953,
+            "outputTokens": 18,
+            "costUsd": 0.00041
+          },
+          "latencyMs": 1057
+        },
+        {
+          "caseId": "ar-compound-valid",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 600,
+            "outputTokens": 296,
+            "costUsd": 0.0007136
+          },
+          "latencyMs": 4411
+        },
+        {
+          "caseId": "ar-compound-substitution",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "fix",
+              "issues": [
+                "الرئيس عبد الفتاح الوحش -> الرئيس عبد الفتاح السيسي"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 953,
+            "outputTokens": 33,
+            "costUsd": 0.000434
+          },
+          "latencyMs": 1529
+        },
+        {
+          "caseId": "ar-compound-substitution",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (INVALID_FACET_KIND)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 600,
+            "outputTokens": 272,
+            "costUsd": 0.0006751999999999999
+          },
+          "latencyMs": 4344
+        },
+        {
+          "caseId": "en-valid-qualification",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "ok"
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 945,
+            "outputTokens": 15,
+            "costUsd": 0.000402
+          },
+          "latencyMs": 1209
+        },
+        {
+          "caseId": "en-valid-qualification",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 590,
+            "outputTokens": 247,
+            "costUsd": 0.0006312
+          },
+          "latencyMs": 4301
+        },
+        {
+          "caseId": "en-quantity-substitution",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "fix",
+              "issues": [
+                "$15 million hospital grant -> $5 million hospital grant"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 937,
+            "outputTokens": 30,
+            "costUsd": 0.0004228
+          },
+          "latencyMs": 1162
+        },
+        {
+          "caseId": "en-quantity-substitution",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 580,
+            "outputTokens": 221,
+            "costUsd": 0.0005856
+          },
+          "latencyMs": 3769
+        },
+        {
+          "caseId": "fr-valid-translation",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "ok",
+              "issues": []
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 943,
+            "outputTokens": 18,
+            "costUsd": 0.000406
+          },
+          "latencyMs": 1020
+        },
+        {
+          "caseId": "fr-valid-translation",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 592,
+            "outputTokens": 291,
+            "costUsd": 0.0007023999999999999
+          },
+          "latencyMs": 4877
+        },
+        {
+          "caseId": "fr-valid-uncertainty",
+          "system": "current",
+          "decisions": {
+            "0": {
+              "i": 0,
+              "verdict": "ok"
+            }
+          },
+          "usage": {
+            "calls": 1,
+            "inputTokens": 952,
+            "outputTokens": 15,
+            "costUsd": 0.0004048
+          },
+          "latencyMs": 1000
+        },
+        {
+          "caseId": "fr-valid-uncertainty",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 595,
+            "outputTokens": 225,
+            "costUsd": 0.000598
+          },
+          "latencyMs": 4148
+        }
+      ],
+      "operations": [
+        {
+          "id": "d0332bc3-a981-4f0b-9cb3-abd89903cebe",
+          "caseId": "retained-name",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.016755,
+          "hash": "121250f5c75f3be6349b76ede5ccbb8eb1208bddd48f8250df45a85fcd449669",
+          "at": "2026-11-18T14:53:04.894Z",
+          "receipt": {
+            "id": "d0332bc3-a981-4f0b-9cb3-abd89903cebe",
+            "state": "SETTLED",
+            "generationId": "gen-1795013585-KmCYEIPn1Ig7ulkrwOLN",
+            "costUsd": 0.0024616,
+            "reserveUsd": 0.016755,
+            "latencyMs": 2260,
+            "inputTokens": 5706,
+            "outputTokens": 112
+          },
+          "responseHash": "80f30efa43ce7103c8aa8cf713f213c764f9b5f85cafab4d110f74b60d4c41b2"
+        },
+        {
+          "id": "d8d90998-26cd-450f-a351-e069c4c36ce7",
+          "caseId": "retained-name",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012447,
+          "hash": "bdb2b99c40ea16e9d590c44aa333d03425828cecb7cd81d513473e432cc46b7a",
+          "at": "2026-11-18T14:53:07.161Z",
+          "receipt": {
+            "id": "d8d90998-26cd-450f-a351-e069c4c36ce7",
+            "state": "SETTLED",
+            "generationId": "gen-1795013587-vGcYclhJD64n3fl34XDr",
+            "costUsd": 0.0015432,
+            "reserveUsd": 0.012447,
+            "latencyMs": 8311,
+            "inputTokens": 570,
+            "outputTokens": 822
+          },
+          "responseHash": "50363a8ae4e8b4c361e932bb6eec7871682851d99808ef0d04db47a38e63ceb6"
+        },
+        {
+          "id": "f46a3f11-e8fb-4a45-87b5-db6889c34f48",
+          "caseId": "retained-name",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012492,
+          "hash": "6468d409421251a29b6bef5abd87de0e0e2f991f317897130c184aabb29086fe",
+          "at": "2026-11-18T14:53:15.476Z",
+          "receipt": {
+            "id": "f46a3f11-e8fb-4a45-87b5-db6889c34f48",
+            "state": "SETTLED",
+            "generationId": "gen-1795013596-Zun2RBJ8fSVlRrbpzZGG",
+            "costUsd": 0.001722,
+            "reserveUsd": 0.012492,
+            "latencyMs": 12357,
+            "inputTokens": 593,
+            "outputTokens": 928
+          },
+          "responseHash": "94031551c8c2ce523a2bcaa15701e9155f992cdeeb5914b1170aea04061c38de"
+        },
+        {
+          "id": "c5b97d1f-b6b2-47c4-9fc8-d94ed5df976f",
+          "caseId": "retained-name-identity-only-control",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.009958,
+          "hash": "35d8ba0cb35a4d9646fdb7bdd98e0e966dc2019b71be243d03365cf57ccf2554",
+          "at": "2026-11-18T14:53:27.837Z",
+          "receipt": {
+            "id": "c5b97d1f-b6b2-47c4-9fc8-d94ed5df976f",
+            "state": "SETTLED",
+            "generationId": "gen-1795013607-9ZmfASO2cdToKfmVePel",
+            "costUsd": 0.0008692,
+            "reserveUsd": 0.009958,
+            "latencyMs": 1100,
+            "inputTokens": 2101,
+            "outputTokens": 18
+          },
+          "responseHash": "907cf0110f5908de56092c941f3c54e5713f5517b45c2fdc40f28e54bdac2a03"
+        },
+        {
+          "id": "2b5a3957-bed3-4800-b7fd-0555c6d4f750",
+          "caseId": "retained-name-identity-only-control",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011834,
+          "hash": "bdead7f2df4e1da1ab83c55368dced3bbd6c072a06368af685aaf33c8496296c",
+          "at": "2026-11-18T14:53:28.941Z",
+          "receipt": {
+            "id": "2b5a3957-bed3-4800-b7fd-0555c6d4f750",
+            "state": "SETTLED",
+            "generationId": "gen-1795013608-HyCHlKHRFBpCsPgZ9XNK",
+            "costUsd": 0.0004572,
+            "reserveUsd": 0.011834,
+            "latencyMs": 2506,
+            "inputTokens": 291,
+            "outputTokens": 213
+          },
+          "responseHash": "f312771dcdab6153ac13384ed8270b5c210e627cf1d32787adad2ad47bc836d3"
+        },
+        {
+          "id": "a12e0391-33a4-46c0-9264-d810df32fbdc",
+          "caseId": "retained-name-identity-only-control",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011881,
+          "hash": "40b116c6e4b86df25813c320aad8c9b56a4238f1342167ee5ef4241993ab3cf3",
+          "at": "2026-11-18T14:53:31.450Z",
+          "receipt": {
+            "id": "a12e0391-33a4-46c0-9264-d810df32fbdc",
+            "state": "SETTLED",
+            "generationId": "gen-1795013611-67aeRoxA2FaXdLasrHER",
+            "costUsd": 0.000388,
+            "reserveUsd": 0.011881,
+            "latencyMs": 2158,
+            "inputTokens": 318,
+            "outputTokens": 163
+          },
+          "responseHash": "1060771f528030580e7b840aee75e46adf0455bce834050b17b34bf92203902e"
+        },
+        {
+          "id": "a783b8c3-8fd6-4848-b56f-d47274c4d90c",
+          "caseId": "retained-role",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.018638,
+          "hash": "12091b37fe12784601ad0d226428a4dc4642c1b74e408478e185ad349310c568",
+          "at": "2026-11-18T14:53:33.612Z",
+          "receipt": {
+            "id": "a783b8c3-8fd6-4848-b56f-d47274c4d90c",
+            "state": "SETTLED",
+            "generationId": "gen-1795013613-kdKifjJwMOrvw2Su0UWA",
+            "costUsd": 0.002404,
+            "reserveUsd": 0.018638,
+            "latencyMs": 1220,
+            "inputTokens": 5890,
+            "outputTokens": 30
+          },
+          "responseHash": "ce69e055d64c6c9ac323c369789e96718b3f73cb93866e21766d6a0bcb35c4e1"
+        },
+        {
+          "id": "93a30be6-2bc6-4542-bb75-0020cf273645",
+          "caseId": "retained-role",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012372,
+          "hash": "4d35ce7d490246d03fe5b9a2b4140ad5fd94ee34310f9ed8c109e13bd96f625d",
+          "at": "2026-11-18T14:53:34.835Z",
+          "receipt": {
+            "id": "93a30be6-2bc6-4542-bb75-0020cf273645",
+            "state": "SETTLED",
+            "generationId": "gen-1795013614-3hL4HcO85r0rGgctf0XZ",
+            "costUsd": 0.0012804,
+            "reserveUsd": 0.012372,
+            "latencyMs": 7157,
+            "inputTokens": 525,
+            "outputTokens": 669
+          },
+          "responseHash": "b88847293897f1866ee17d24e7c7625dab3768dc188ae7a328725d50c67f98a8"
+        },
+        {
+          "id": "4ec2c6b8-c016-4dda-9d0f-9e77c2557c03",
+          "caseId": "retained-role",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012416,
+          "hash": "bc6f0ce8d2714fb6b074b4176850f9565b6abc4bde7abab6ac0b987d041b5971",
+          "at": "2026-11-18T14:53:41.995Z",
+          "receipt": {
+            "id": "4ec2c6b8-c016-4dda-9d0f-9e77c2557c03",
+            "state": "SETTLED",
+            "generationId": "gen-1795013622-DTAjGZIEpBcWn9Qi8m1S",
+            "costUsd": 0.0012752,
+            "reserveUsd": 0.012416,
+            "latencyMs": 9593,
+            "inputTokens": 548,
+            "outputTokens": 660
+          },
+          "responseHash": "b6e99e5b0354e9e7a16f40ceb9b6f9b147a4d7ad18aaf5403aa5f6f69b8ab743"
+        },
+        {
+          "id": "66ccaf1b-aab0-4f32-9d0d-c78414329038",
+          "caseId": "retained-role-identity-only-control",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.01462,
+          "hash": "bed150a3d7bb3135aaed244b340561ede049ca6bd5c1e0727fcb94c1d90a272a",
+          "at": "2026-11-18T14:53:51.594Z",
+          "receipt": {
+            "id": "66ccaf1b-aab0-4f32-9d0d-c78414329038",
+            "state": "SETTLED",
+            "generationId": "gen-1795013631-6bHseGrBmQgZGwP8zoET",
+            "costUsd": 0.0017028,
+            "reserveUsd": 0.01462,
+            "latencyMs": 1857,
+            "inputTokens": 4185,
+            "outputTokens": 18
+          },
+          "responseHash": "ca5d07e914958dc1e479749b95b1130a1bc1e0bc002178a5d41e83fc54ea9492"
+        },
+        {
+          "id": "26238772-3040-407e-b011-b9749e3c310c",
+          "caseId": "retained-role-identity-only-control",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012151,
+          "hash": "ec3874a3b9341abf9546063edda68bfa8eb490bb8f04943f149cdd6ce4324fb6",
+          "at": "2026-11-18T14:53:53.452Z",
+          "receipt": {
+            "id": "26238772-3040-407e-b011-b9749e3c310c",
+            "state": "SETTLED",
+            "generationId": "gen-1795013633-eFzKsaVJN0W6mTqR1jP0",
+            "costUsd": 0.000904,
+            "reserveUsd": 0.012151,
+            "latencyMs": 5038,
+            "inputTokens": 424,
+            "outputTokens": 459
+          },
+          "responseHash": "655799a63cf16e4d1d879560c100707f9bd669ffd66d57f7f45a783b83b19f3f"
+        },
+        {
+          "id": "0d3c7577-6654-4841-90d7-64cac76c3191",
+          "caseId": "retained-role-identity-only-control",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012196,
+          "hash": "df53400b92f12da9d56b6a600c2a0f86a89cb91da41e28690e6fdf1717f99a16",
+          "at": "2026-11-18T14:53:58.494Z",
+          "receipt": {
+            "id": "0d3c7577-6654-4841-90d7-64cac76c3191",
+            "state": "SETTLED",
+            "generationId": "gen-1795013638-N8NU4EDGjap9VNdOL5ZD",
+            "costUsd": 0.0009196,
+            "reserveUsd": 0.012196,
+            "latencyMs": 5027,
+            "inputTokens": 447,
+            "outputTokens": 463
+          },
+          "responseHash": "dc51e5517f6a9eaf77d843586069017be6e14fc5c0b4613f90ce2eb484215794"
+        },
+        {
+          "id": "439581be-a8e9-4792-b552-910bd91de3d4",
+          "caseId": "ar-compound-valid",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.00835,
+          "hash": "ed3fa6d5beabfd4288c507317878a5f77b392307e58aa066c6e94d7df321774f",
+          "at": "2026-11-18T14:54:03.527Z",
+          "receipt": {
+            "id": "439581be-a8e9-4792-b552-910bd91de3d4",
+            "state": "SETTLED",
+            "generationId": "gen-1795013643-uxUAUbimKtPUop1bFLDp",
+            "costUsd": 0.00041,
+            "reserveUsd": 0.00835,
+            "latencyMs": 1052,
+            "inputTokens": 953,
+            "outputTokens": 18
+          },
+          "responseHash": "af0734daad6feb4e240e694224e1fa007b658af89703e89fcda596a5f229a3cd"
+        },
+        {
+          "id": "33a08a35-70e7-4f46-9bf2-76f18cbd71db",
+          "caseId": "ar-compound-valid",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011807,
+          "hash": "80338c8c7fca8978d65d2480279fc1546ca4f122198558db699e11240f5ba56e",
+          "at": "2026-11-18T14:54:04.593Z",
+          "receipt": {
+            "id": "33a08a35-70e7-4f46-9bf2-76f18cbd71db",
+            "state": "SETTLED",
+            "generationId": "gen-1795013644-ANa6SEV1iBYObpuFQxCF",
+            "costUsd": 0.0003564,
+            "reserveUsd": 0.011807,
+            "latencyMs": 2305,
+            "inputTokens": 287,
+            "outputTokens": 151
+          },
+          "responseHash": "6102a15ef651a04457f6c2ca0d75c0490e39b2fde8a28e98d494277415b557b6"
+        },
+        {
+          "id": "4cd5655c-561d-4d48-926b-85f243d73981",
+          "caseId": "ar-compound-valid",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011855,
+          "hash": "04a0783506176045fbcc382b6b6fffd6163c68c8c8904547e7308c84af9d81c7",
+          "at": "2026-11-18T14:54:06.896Z",
+          "receipt": {
+            "id": "4cd5655c-561d-4d48-926b-85f243d73981",
+            "state": "SETTLED",
+            "generationId": "gen-1795013646-kqaT7oI46TGaxtXgiGZG",
+            "costUsd": 0.0003572,
+            "reserveUsd": 0.011855,
+            "latencyMs": 2101,
+            "inputTokens": 313,
+            "outputTokens": 145
+          },
+          "responseHash": "3c0bd24d01fd8baa293db2ac6d8e86a1e8c95a3d086337d331473f31266bda94"
+        },
+        {
+          "id": "ab7dd790-477b-4571-b728-848d2d3625af",
+          "caseId": "ar-compound-substitution",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.008349,
+          "hash": "326193ccb9c72cec6ff2ed5a51279119ddb174a3e0b127505cce2c1523103480",
+          "at": "2026-11-18T14:54:09.003Z",
+          "receipt": {
+            "id": "ab7dd790-477b-4571-b728-848d2d3625af",
+            "state": "SETTLED",
+            "generationId": "gen-1795013649-iIIlv36gx5wWhSNGl1hR",
+            "costUsd": 0.000434,
+            "reserveUsd": 0.008349,
+            "latencyMs": 1526,
+            "inputTokens": 953,
+            "outputTokens": 33
+          },
+          "responseHash": "f6d250efc36427e7975f5ef43e5d5aba2a2598aeaf5bf50bfa2b4c1951afc232"
+        },
+        {
+          "id": "c3d9e29b-d825-4db6-963c-004c8d023421",
+          "caseId": "ar-compound-substitution",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011806,
+          "hash": "bdaae174a290b5fe891da49e2a8baa675a23fb5051a8239dedfead01fe61aef6",
+          "at": "2026-11-18T14:54:10.534Z",
+          "receipt": {
+            "id": "c3d9e29b-d825-4db6-963c-004c8d023421",
+            "state": "SETTLED",
+            "generationId": "gen-1795013650-W1yX0sLl6Pipjb6tbrzq",
+            "costUsd": 0.0003612,
+            "reserveUsd": 0.011806,
+            "latencyMs": 2155,
+            "inputTokens": 287,
+            "outputTokens": 154
+          },
+          "responseHash": "b4da82896193555707709e3381c7ffebcb6ddda98ab4e5e3a2e133dfa5132e07"
+        },
+        {
+          "id": "796b94ee-082e-46ce-9fe0-d1662e78c093",
+          "caseId": "ar-compound-substitution",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011854,
+          "hash": "1ed42041912e429bf3174bf48d20313c13801ea97f0be59894bf2618cd00c8ec",
+          "at": "2026-11-18T14:54:12.690Z",
+          "receipt": {
+            "id": "796b94ee-082e-46ce-9fe0-d1662e78c093",
+            "state": "SETTLED",
+            "generationId": "gen-1795013652-cdcrSs8BxAVXe9pAgNir",
+            "costUsd": 0.000314,
+            "reserveUsd": 0.011854,
+            "latencyMs": 2185,
+            "inputTokens": 313,
+            "outputTokens": 118
+          },
+          "responseHash": "d486044954bfa2df2ba0fd228742e56d36ffe6250b09187fb46e65855039f335"
+        },
+        {
+          "id": "d60061ad-5568-4adf-8718-e1f4d0cb634e",
+          "caseId": "en-valid-qualification",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.00832,
+          "hash": "226bf2ffb63f11970a5d9d48bd0ba11f1d42ca809d0881478569836656578117",
+          "at": "2026-11-18T14:54:14.878Z",
+          "receipt": {
+            "id": "d60061ad-5568-4adf-8718-e1f4d0cb634e",
+            "state": "SETTLED",
+            "generationId": "gen-1795013654-QyVbUKsNV6OSNjPigA4S",
+            "costUsd": 0.000402,
+            "reserveUsd": 0.00832,
+            "latencyMs": 1208,
+            "inputTokens": 945,
+            "outputTokens": 15
+          },
+          "responseHash": "4341ed1eb22d952fb441443864a3385dc95682123ddc89f7c8f3c5543df8087c"
+        },
+        {
+          "id": "2993c0c0-e5fe-4a7a-a7ab-9a644781a8fc",
+          "caseId": "en-valid-qualification",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011794,
+          "hash": "0c355dd493fcc7bbd99d7cc1ae6a1a18d87dfdfee8419e4b8551699335a36c0a",
+          "at": "2026-11-18T14:54:16.089Z",
+          "receipt": {
+            "id": "2993c0c0-e5fe-4a7a-a7ab-9a644781a8fc",
+            "state": "SETTLED",
+            "generationId": "gen-1795013656-pVDAFTOZXpnvA6t29rcT",
+            "costUsd": 0.0003096,
+            "reserveUsd": 0.011794,
+            "latencyMs": 2177,
+            "inputTokens": 282,
+            "outputTokens": 123
+          },
+          "responseHash": "f04e83a45f0f6f5947bb5090ddd4df0730fbafacb96ce74ce52574e11eb1a8cf"
+        },
+        {
+          "id": "a082afc0-b79b-4179-8743-925a4bb44291",
+          "caseId": "en-valid-qualification",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011841,
+          "hash": "afad69299471508ee7746b89731aadc928c9022dce2a8736eed96eefc0198f45",
+          "at": "2026-11-18T14:54:18.268Z",
+          "receipt": {
+            "id": "a082afc0-b79b-4179-8743-925a4bb44291",
+            "state": "SETTLED",
+            "generationId": "gen-1795013658-eh47gRvBYx0n5ioaEVBP",
+            "costUsd": 0.0003216,
+            "reserveUsd": 0.011841,
+            "latencyMs": 2120,
+            "inputTokens": 308,
+            "outputTokens": 124
+          },
+          "responseHash": "93f95a240f4b6a7f29f749909c6d65f580d6d3f6b9d4ca215a4f08639cfa1bc3"
+        },
+        {
+          "id": "d9ca19ac-c2f2-4257-a4e7-24a7873671ee",
+          "caseId": "en-quantity-substitution",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.008304,
+          "hash": "96fed985b512935962c1f249570cfaef0959d228942900860f5af592fa57c53c",
+          "at": "2026-11-18T14:54:20.391Z",
+          "receipt": {
+            "id": "d9ca19ac-c2f2-4257-a4e7-24a7873671ee",
+            "state": "SETTLED",
+            "generationId": "gen-1795013660-G7RQHzFzXQEajxold1DB",
+            "costUsd": 0.0004228,
+            "reserveUsd": 0.008304,
+            "latencyMs": 1160,
+            "inputTokens": 937,
+            "outputTokens": 30
+          },
+          "responseHash": "bafce7eb75375bf47180163f18ff03591aa92287e38b8982b4b1b51df66e391f"
+        },
+        {
+          "id": "b4c5ba29-e9c0-4adf-8f5c-694f7f354e3a",
+          "caseId": "en-quantity-substitution",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011785,
+          "hash": "a3fc42916799cf03672faa81f51a51caf13bb4fb5375fc2b819d95f12bffd186",
+          "at": "2026-11-18T14:54:21.555Z",
+          "receipt": {
+            "id": "b4c5ba29-e9c0-4adf-8f5c-694f7f354e3a",
+            "state": "SETTLED",
+            "generationId": "gen-1795013661-u2SjY16E2y9lWv0yvKT6",
+            "costUsd": 0.000306,
+            "reserveUsd": 0.011785,
+            "latencyMs": 1765,
+            "inputTokens": 277,
+            "outputTokens": 122
+          },
+          "responseHash": "8a39e594eabe334aa9c47c7167bb3a94bfcfcfebe36c5a8a6c8496b1e237ce29"
+        },
+        {
+          "id": "91b5c1e5-ee62-4990-8ce3-99954ec7eb0f",
+          "caseId": "en-quantity-substitution",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011833,
+          "hash": "1584929913745501105fae0fcb638d56aa2474e399c05dc4c2927fda09ad8d66",
+          "at": "2026-11-18T14:54:23.321Z",
+          "receipt": {
+            "id": "91b5c1e5-ee62-4990-8ce3-99954ec7eb0f",
+            "state": "SETTLED",
+            "generationId": "gen-1795013663-2jE8Fqb7rfny5yoVmocL",
+            "costUsd": 0.0002796,
+            "reserveUsd": 0.011833,
+            "latencyMs": 2000,
+            "inputTokens": 303,
+            "outputTokens": 99
+          },
+          "responseHash": "483149964ffcb25a2b07745d5adcf8fb8450b7b91f49ca72da36f1bbf2103eb0"
+        },
+        {
+          "id": "d8f56496-a24e-483b-95d6-a98bd6b2e8a5",
+          "caseId": "fr-valid-translation",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.008313,
+          "hash": "71e41f87366114b4ca49d6c24c97ed464f13e9a1b621f6f747397d5b9cb429ce",
+          "at": "2026-11-18T14:54:25.326Z",
+          "receipt": {
+            "id": "d8f56496-a24e-483b-95d6-a98bd6b2e8a5",
+            "state": "SETTLED",
+            "generationId": "gen-1795013665-yWe0IW0ZMdoCpG2RD7mf",
+            "costUsd": 0.000406,
+            "reserveUsd": 0.008313,
+            "latencyMs": 1015,
+            "inputTokens": 943,
+            "outputTokens": 18
+          },
+          "responseHash": "d8dc86b6fae28acfda005930480ae4ff4e0809f2bb9015ae86adcc584dd78e19"
+        },
+        {
+          "id": "838b2943-3584-44db-b074-f81391a1cea5",
+          "caseId": "fr-valid-translation",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011794,
+          "hash": "0fa8394e184a9149f33e3a670976840285f9d9a9d5c0349c87645c7832cdba0a",
+          "at": "2026-11-18T14:54:26.350Z",
+          "receipt": {
+            "id": "838b2943-3584-44db-b074-f81391a1cea5",
+            "state": "SETTLED",
+            "generationId": "gen-1795013666-HfI6wJoT3hwnBFdQrf9A",
+            "costUsd": 0.0003644,
+            "reserveUsd": 0.011794,
+            "latencyMs": 2762,
+            "inputTokens": 283,
+            "outputTokens": 157
+          },
+          "responseHash": "8416104fec6a16b77e207e206d4ddc48ce11c47434f2067fa01b3ad64038da4c"
+        },
+        {
+          "id": "aeafdd7a-7886-424d-8fa3-01660a58c256",
+          "caseId": "fr-valid-translation",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011842,
+          "hash": "425b176320518905686e78f86e33ba87766f02e3a64b714f159babb7997d9e2f",
+          "at": "2026-11-18T14:54:29.113Z",
+          "receipt": {
+            "id": "aeafdd7a-7886-424d-8fa3-01660a58c256",
+            "state": "SETTLED",
+            "generationId": "gen-1795013669-ciicd3LjeGuunfcVx4Ue",
+            "costUsd": 0.000338,
+            "reserveUsd": 0.011842,
+            "latencyMs": 2111,
+            "inputTokens": 309,
+            "outputTokens": 134
+          },
+          "responseHash": "b8f8e5ca0f4fc4cfd5c86381a43c391e2ae7a3d44247fb726f3448d1bedf312d"
+        },
+        {
+          "id": "e3e05f8d-6604-4fbd-b04b-1fdc115c1bac",
+          "caseId": "fr-valid-uncertainty",
+          "system": "current",
+          "state": "RESERVED",
+          "reserveUsd": 0.008331,
+          "hash": "79f0fb2875cddfef39be77a8bc0d4a5ee805bee8a2ecf03976aa04f75bc5f6a9",
+          "at": "2026-11-18T14:54:31.227Z",
+          "receipt": {
+            "id": "e3e05f8d-6604-4fbd-b04b-1fdc115c1bac",
+            "state": "SETTLED",
+            "generationId": "gen-1795013671-U3BkmQpaZUGo96y4EUGL",
+            "costUsd": 0.0004048,
+            "reserveUsd": 0.008331,
+            "latencyMs": 999,
+            "inputTokens": 952,
+            "outputTokens": 15
+          },
+          "responseHash": "8f6b9517a0ca46c034957d27f2543dfcc475c49fe35bce5ff1604aa9744dd063"
+        },
+        {
+          "id": "5c0fa026-0826-44a1-8b06-a8018bf43d86",
+          "caseId": "fr-valid-uncertainty",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.0118,
+          "hash": "2c0e8d9f748954367cbdf99a815e4444ef2187fdf2fc305771fc0955796366b7",
+          "at": "2026-11-18T14:54:32.227Z",
+          "receipt": {
+            "id": "5c0fa026-0826-44a1-8b06-a8018bf43d86",
+            "state": "SETTLED",
+            "generationId": "gen-1795013672-guFJ5G3iibpHNeTW8b0J",
+            "costUsd": 0.0002936,
+            "reserveUsd": 0.0118,
+            "latencyMs": 2094,
+            "inputTokens": 286,
+            "outputTokens": 112
+          },
+          "responseHash": "55bac51971fad200cc83af23fc70c78dd2f1c5a0951dbf5404d79dcd5e00d0cf"
+        },
+        {
+          "id": "c4ad060f-c9c0-4131-ad17-f866dc96ea4c",
+          "caseId": "fr-valid-uncertainty",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011844,
+          "hash": "aba57c923791dab488ba1c122afba4ef6761593e67a3faecf1bdabae756945bc",
+          "at": "2026-11-18T14:54:34.324Z",
+          "receipt": {
+            "id": "c4ad060f-c9c0-4131-ad17-f866dc96ea4c",
+            "state": "SETTLED",
+            "generationId": "gen-1795013674-h2SsQZw0kupRNSs4PdaS",
+            "costUsd": 0.0003044,
+            "reserveUsd": 0.011844,
+            "latencyMs": 2049,
+            "inputTokens": 309,
+            "outputTokens": 113
+          },
+          "responseHash": "39f08bc2fca64641b2d2b2cf13eed726ea839c27d2332e0e37e30e64f65dcdc0"
+        }
+      ]
+    },
+    {
+      "run": "source-bindings-final-q2",
+      "plan": {
+        "version": "source-bindings-q2-gap-diagnostics",
+        "candidateCommit": "53cfb6eb plus exact missing-span correction diagnostics",
+        "ceilingUsd": 2,
+        "authorization": "Explicit new $2 maximum from user, including unresolved reservations; no deployment.",
+        "model": "openai/gpt-4.1-mini",
+        "plannedCases": 10,
+        "normalCalls": 20,
+        "maxCalls": 40,
+        "estimatedUsd": "$0.10–$0.60; hard cumulative settled + outstanding ceiling $2",
+        "stopGo": "No known-fault approval; no false withholding on valid controls; no unusable final decisions. Any failure blocks rollout pending diagnosis. Small exposed/control sample cannot establish general accuracy.",
+        "labels": "Frozen from retained source text / constructed source facts before outputs; sibling claims in retained batches unlabelled. Related corrected controls are not independent events.",
+        "historicalHolds": "All historical holds remain unchanged and outside this new campaign; never replay their operation IDs.",
+        "casesHash": "bac61b27f256a3c822f3d5428ee4bbf0cbbdde9be6d9e8f7b9c5fa7694a317b5",
+        "systems": [
+          "candidate"
+        ],
+        "priorDir": "source-bindings-final-q1",
+        "priorLedgerHash": "d67e4a73a0a3d0cf718392e30eb308e1dec127415d88e9978fe6d2ba11f6473f",
+        "priorSettledUsd": 0.022312800000000008,
+        "change": "Same cases and labels. Only exact missing-span diagnostics added to the bounded parser correction; assertions and first request prompts unchanged. Original results remain negative."
+      },
+      "totals": {
+        "settledUsd": 0.02841920000000001,
+        "newSettledUsd": 0.006106400000000001,
+        "outstandingReservedUsd": 0.012416,
+        "calls": 6,
+        "unresolved": true,
+        "ceilingUsd": 2
+      },
+      "inputFileHash": "bac61b27f256a3c822f3d5428ee4bbf0cbbdde9be6d9e8f7b9c5fa7694a317b5",
+      "ledgerFileHash": "caa857f53ded13457178ffac8b9d0977110731bc29d5fd99f65523ddc94778f6",
+      "cases": [
+        {
+          "id": "retained-name",
+          "kind": "retained-production",
+          "language": "ar",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Cited posts identify only سلام; the added full name نجيب سلام is unsupported.",
+          "itemsHash": "d4fc03d8549c0f759948bf4469600c71dc9ee7820e5cc7752d80f7d251fcf7ef",
+          "sourcesHash": "85f6230d3d2d608bbb30ddf0511221b8c622e9a60db562197682c6e1e7586e0b",
+          "priorHash": "516f974c58086e28a47d4dde34755d130530d4154cc42e7aa8087cc494b97aba"
+        },
+        {
+          "id": "retained-name-identity-only-control",
+          "kind": "source-derived-control",
+          "language": "ar",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Only the unsupported identity/role is removed. The selected source text must support all remaining claims.",
+          "itemsHash": "528c9618a032e8d4c56592a46c0e88447f99c640ca0d5b4d7c9ebbd712c2fd6b",
+          "sourcesHash": "82e5369ab2ed17cf0062da454da27ef047219aac87dd0346db8225491b77dd99",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "retained-role",
+          "kind": "retained-production",
+          "language": "ar",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Cited text explicitly identifies الرئيس جوزيف عون, not army commander.",
+          "itemsHash": "f06c48e7d7674b938a808e9f6da9ad7a5db3ae962611471c507d0c3855ce2fcb",
+          "sourcesHash": "d627522b59dceb28f3a14eb94153adafb23419622a1232333909d795dc6915c4",
+          "priorHash": "7e8ea26e2f2b4dd0974adcc6d780ab1473bf30667eceaea3b163a2483fce3ea2"
+        },
+        {
+          "id": "retained-role-identity-only-control",
+          "kind": "source-derived-control",
+          "language": "ar",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Only the unsupported identity/role is removed. The selected source text must support all remaining claims.",
+          "itemsHash": "c607ada0adfa8b6e16ec6880c7d852e96cf79e4bd9320ed95acbeb8df2ef01e7",
+          "sourcesHash": "e21c9be9fcecf3e24452662b2dd5505d7faf46c50592afea266e54eda8daba0f",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "ar-compound-valid",
+          "kind": "constructed-control",
+          "language": "ar",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Exact complete identity, action and duration; ordinary paraphrase.",
+          "itemsHash": "567e281a09f2a4269dfc7abbcd077486a70adc475c54e5a257a700d6199f7423",
+          "sourcesHash": "b015906929ae44c2f3921936d452c0064661525f5c0089af8cf2f029a64cd635",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "ar-compound-substitution",
+          "kind": "constructed-control",
+          "language": "ar",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "The final surname is changed while the two-token prefix matches.",
+          "itemsHash": "32482975778b4bb0b1ade7ba0e7a5c1d7ff9db43aed1ec397f5598c29ddfff8c",
+          "sourcesHash": "b015906929ae44c2f3921936d452c0064661525f5c0089af8cf2f029a64cd635",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "en-valid-qualification",
+          "kind": "constructed-control",
+          "language": "en",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Attribution, possibility, date and condition preserved.",
+          "itemsHash": "cf5f6b2d2b4dc2c66c3af9bd572305bd8334f05349e1c62c8144fcca1bb4877c",
+          "sourcesHash": "a3f5e0fc663b16d1f57f71f6afc2bfb10405d4975bb177e83ea64eb964b9a17d",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "en-quantity-substitution",
+          "kind": "constructed-control",
+          "language": "en",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Amount changes from 5 to 15 million.",
+          "itemsHash": "0e742562ea1aa2de86b8d846f132cad09ceeee1f9a4144302be5cbaf8a3efab0",
+          "sourcesHash": "3a43e31a2a9a0a6eb2b95053104e6f4232cab1746a656a66590e7c4d8be10560",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "fr-valid-translation",
+          "kind": "constructed-control",
+          "language": "fr",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Legitimate English-to-French translation with attribution and duration intact.",
+          "itemsHash": "a7fffc261cc56b50ff9dc46b578a71c5a8ab21a63a42a0fb2da2ffa6bfc1d965",
+          "sourcesHash": "76db2b942c13e2dec561d4eb239ba48f9159315fbed31d3f185148143a30255b",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "id": "fr-valid-uncertainty",
+          "kind": "constructed-control",
+          "language": "fr",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Reported provisional figure remains provisional, not established as certainty.",
+          "itemsHash": "2bdd7b72aa8e935aa708402e92912c96ea562bc45d6565bcdac65ccf08cbd68d",
+          "sourcesHash": "e7cf1e1ad58be9e9cc0b69e8f478805b396899ad2052a1700ef10ea227929020",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        }
+      ],
+      "controlledCases": [
+        {
+          "id": "ar-compound-valid",
+          "kind": "constructed-control",
+          "language": "ar",
+          "items": [
+            {
+              "headline": "الرئيس عبد الفتاح السيسي يعلن تعليق الرسوم لثلاثة أشهر.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "أعلن الرئيس عبد الفتاح السيسي قراراً بتعليق الرسوم لمدة ثلاثة أشهر."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Exact complete identity, action and duration; ordinary paraphrase."
+        },
+        {
+          "id": "ar-compound-substitution",
+          "kind": "constructed-control",
+          "language": "ar",
+          "items": [
+            {
+              "headline": "الرئيس عبد الفتاح الوحش يعلن تعليق الرسوم لثلاثة أشهر.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "أعلن الرئيس عبد الفتاح السيسي قراراً بتعليق الرسوم لمدة ثلاثة أشهر."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "The final surname is changed while the two-token prefix matches."
+        },
+        {
+          "id": "en-valid-qualification",
+          "kind": "constructed-control",
+          "language": "en",
+          "items": [
+            {
+              "headline": "Council: bridge may reopen Friday if it passes a safety inspection.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "The council said the bridge may reopen on Friday, subject to a safety inspection."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Attribution, possibility, date and condition preserved."
+        },
+        {
+          "id": "en-quantity-substitution",
+          "kind": "constructed-control",
+          "language": "en",
+          "items": [
+            {
+              "headline": "Authority approves $15 million hospital grant.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "The authority approved a grant of $5 million for the hospital."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "reject"
+          },
+          "rationale": "Amount changes from 5 to 15 million."
+        },
+        {
+          "id": "fr-valid-translation",
+          "kind": "constructed-control",
+          "language": "fr",
+          "items": [
+            {
+              "headline": "Selon le maire, la bibliothèque fermera deux jours pour des travaux.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "The mayor said the library will close for two days for repairs."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Legitimate English-to-French translation with attribution and duration intact."
+        },
+        {
+          "id": "fr-valid-uncertainty",
+          "kind": "constructed-control",
+          "language": "fr",
+          "items": [
+            {
+              "headline": "Selon la préfecture, trois personnes auraient été blessées ; bilan provisoire.",
+              "body": "",
+              "refs": [
+                "S1"
+              ]
+            }
+          ],
+          "sources": [
+            {
+              "ref": "S1",
+              "text": "La préfecture indique que trois personnes auraient été blessées. Ce bilan reste provisoire."
+            }
+          ],
+          "prior": [],
+          "context": "BRIEFING REPORTING CUTOFF: 2026-11-18T12:00:00Z",
+          "expected": {
+            "0": "ok"
+          },
+          "rationale": "Reported provisional figure remains provisional, not established as certainty."
+        }
+      ],
+      "outcomes": [
+        {
+          "caseId": "retained-name",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNBOUND_READER_QUOTE)"
+              ]
+            },
+            "1": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNBOUND_READER_QUOTE)"
+              ]
+            },
+            "2": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNBOUND_READER_QUOTE)"
+              ]
+            },
+            "3": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNBOUND_READER_QUOTE)"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 1163,
+            "outputTokens": 2220,
+            "costUsd": 0.0040172
+          },
+          "latencyMs": 20676
+        },
+        {
+          "caseId": "retained-name-identity-only-control",
+          "system": "candidate",
+          "decisions": {
+            "0": {
+              "verdict": "fix",
+              "issues": [
+                "SOURCE_BINDING_ASSESSMENT_UNRESOLVED: model did not return usable JSON (UNINVENTORIED_READER_TEXT: extend adjacent exact facet quotes to cover these missing spans, including connectors and punctuation; keep atomic claims: [{\"unit\":\"I0.H\",\"quote\":\": \",\"context\":\"رئاسة الحكومة: لا جلسة لمجلس الوزرا\"},{\"unit\":\"I0.H\",\"quote\":\"ل\",\"context\":\"سبوع بسبب ظرف عائلي لرئيس الحكومة سلام\"}])"
+              ]
+            }
+          },
+          "usage": {
+            "calls": 2,
+            "inputTokens": 678,
+            "outputTokens": 346,
+            "costUsd": 0.0008248
+          },
+          "latencyMs": 4912
+        },
+        {
+          "caseId": "retained-role",
+          "system": "candidate",
+          "error": "BriefingModelError: provider unreachable: TypeError: terminated",
+          "usage": {
+            "calls": 1,
+            "inputTokens": 525,
+            "outputTokens": 659,
+            "costUsd": 0.0012644
+          },
+          "latencyMs": 1131371
+        }
+      ],
+      "operations": [
+        {
+          "id": "3acf19e4-0a7e-46ac-b49a-d68828e2dd90",
+          "caseId": "retained-name",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012447,
+          "hash": "bdb2b99c40ea16e9d590c44aa333d03425828cecb7cd81d513473e432cc46b7a",
+          "at": "2026-11-18T14:56:19.474Z",
+          "receipt": {
+            "id": "3acf19e4-0a7e-46ac-b49a-d68828e2dd90",
+            "state": "SETTLED",
+            "generationId": "gen-1795013779-y9x9rGth9e7AuW8KQkif",
+            "costUsd": 0.001604,
+            "reserveUsd": 0.012447,
+            "latencyMs": 8191,
+            "inputTokens": 570,
+            "outputTokens": 860
+          },
+          "responseHash": "227e197887b3f82b28b1943dd466c32415c60b0e635e57bb1198308396e5658a"
+        },
+        {
+          "id": "5aa47ea9-84d4-4fa0-9d91-384f5a2e3a30",
+          "caseId": "retained-name",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012492,
+          "hash": "6468d409421251a29b6bef5abd87de0e0e2f991f317897130c184aabb29086fe",
+          "at": "2026-11-18T14:56:27.669Z",
+          "receipt": {
+            "id": "5aa47ea9-84d4-4fa0-9d91-384f5a2e3a30",
+            "state": "SETTLED",
+            "generationId": "gen-1795013787-PMPp5nDaxiljaY4WhDYr",
+            "costUsd": 0.0024132,
+            "reserveUsd": 0.012492,
+            "latencyMs": 12474,
+            "inputTokens": 593,
+            "outputTokens": 1360
+          },
+          "responseHash": "dd94a92f0d686e53cc05f0bf11ebc878d7b9e1b1dc9b4c717093c82a68e56026"
+        },
+        {
+          "id": "7ab5e922-6ffc-4b63-ad1b-23359c5010e7",
+          "caseId": "retained-name-identity-only-control",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.011834,
+          "hash": "bdead7f2df4e1da1ab83c55368dced3bbd6c072a06368af685aaf33c8496296c",
+          "at": "2026-11-18T14:56:40.152Z",
+          "receipt": {
+            "id": "7ab5e922-6ffc-4b63-ad1b-23359c5010e7",
+            "state": "SETTLED",
+            "generationId": "gen-1795013800-q3eEuFzuZlvYV3dkbo1L",
+            "costUsd": 0.0003996,
+            "reserveUsd": 0.011834,
+            "latencyMs": 2518,
+            "inputTokens": 291,
+            "outputTokens": 177
+          },
+          "responseHash": "1af978b43ed902af9b91494ff97e488e93872f75f44acb328c568687d6cba345"
+        },
+        {
+          "id": "9ef80262-3b27-41a2-9940-ff13b6c6c56b",
+          "caseId": "retained-name-identity-only-control",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012028,
+          "hash": "5b355c43014810aeaed86180dd7e7be74b443a1f9b30eaa46221257d1f5f268c",
+          "at": "2026-11-18T14:56:42.674Z",
+          "receipt": {
+            "id": "9ef80262-3b27-41a2-9940-ff13b6c6c56b",
+            "state": "SETTLED",
+            "generationId": "gen-1795013802-zOBKOpQybNBbiHVDPxW1",
+            "costUsd": 0.0004252,
+            "reserveUsd": 0.012028,
+            "latencyMs": 2389,
+            "inputTokens": 387,
+            "outputTokens": 169
+          },
+          "responseHash": "6691c6ff2cc0ad4ea3ce4b43a6d02f42fc70d801902339c1b7a39a94c77ffc4e"
+        },
+        {
+          "id": "64f77bc7-169e-4c50-a556-e921f034c4f7",
+          "caseId": "retained-role",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012372,
+          "hash": "4d35ce7d490246d03fe5b9a2b4140ad5fd94ee34310f9ed8c109e13bd96f625d",
+          "at": "2026-11-18T14:56:45.065Z",
+          "receipt": {
+            "id": "64f77bc7-169e-4c50-a556-e921f034c4f7",
+            "state": "SETTLED",
+            "generationId": "gen-1795013805-8n8f35dWixfLqc2q89nu",
+            "costUsd": 0.0012644,
+            "reserveUsd": 0.012372,
+            "latencyMs": 6846,
+            "inputTokens": 525,
+            "outputTokens": 659
+          },
+          "responseHash": "3cc65058ac894be95617a65b6b3f3e0b11f97353fe8ec169163893ceee80f04e"
+        },
+        {
+          "id": "64fbf32c-6916-4496-bb43-75f39f8d74d9",
+          "caseId": "retained-role",
+          "system": "candidate",
+          "state": "RESERVED",
+          "reserveUsd": 0.012416,
+          "hash": "bc6f0ce8d2714fb6b074b4176850f9565b6abc4bde7abab6ac0b987d041b5971",
+          "at": "2026-11-18T14:56:51.914Z",
+          "responseHash": null
+        }
+      ]
+    }
+  ]
+}

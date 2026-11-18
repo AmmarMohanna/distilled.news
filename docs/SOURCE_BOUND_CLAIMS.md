@@ -1,6 +1,8 @@
 # Language-independent source-bound verification candidate
 
-This supersedes adding further Arabic name/role exceptions. Implemented on `fix/briefing-identity-and-evaluation`; not deployed or enabled. No new paid inference was initiated. This is a new verification contract, **not a demonstrated improvement in model accuracy**.
+This supersedes adding further Arabic name/role exceptions. Implemented on `fix/briefing-identity-and-evaluation`; not deployed or enabled. Initial implementation used no paid inference; the separately authorized qualification below has now run. This is a new verification contract, **not a demonstrated improvement in model accuracy**.
+
+**Real-model follow-up (2026-11-18): NO-GO.** The subsequently authorized $2 qualification completed ten paired cases: the candidate produced zero usable factual assessments because inventory validation exhausted its correction. All six valid controls were withheld. A targeted missing-span diagnostic follow-up also failed, then stopped on an uncertain provider response. Known cost $0.0284192 plus $0.012416 unresolved reservation. Keep the flag disabled. See [the full qualification](../evaluation/briefing-quality/reports/source-bindings-20261118/REPORT.md); earlier statements below describe the pre-qualification implementation, not current empirical results.
 
 ## Actual execution
 

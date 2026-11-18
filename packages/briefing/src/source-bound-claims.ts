@@ -15,7 +15,7 @@ export function readerUnits(items:ReaderItem[]):Unit[]{return items.flatMap((v,i
 /** Exact reader span coverage is mechanical only. It prevents skipping words;
  * it does not prove atomic decomposition or semantic extraction completeness. */
 export function parseReaderInventory(raw:unknown,items:ReaderItem[]):Facet[]{
- const units=readerUnits(items),seen=new Set<string>(),ids=new Set<string>(),out:Facet[]=[];
+ const units=readerUnits(items),seen=new Set<string>(),ids=new Set<string>(),out:Facet[]=[],gaps:Array<{unit:string;quote:string;context:string}>=[];
  for(const entry of array(object(raw).units)){
   const row=object(entry),id=string(row.id),unit=units.find(v=>v.id===id);if(!unit)throw Error('UNKNOWN_READER_UNIT');if(seen.has(id))throw Error('DUPLICATE_READER_UNIT');seen.add(id);
   const coverage=new Uint8Array(unit.text.length);
@@ -26,9 +26,14 @@ export function parseReaderInventory(raw:unknown,items:ReaderItem[]):Facet[]{
    while(pos>=0){coverage.fill(1,pos,pos+quote.length);pos=unit.text.indexOf(quote,pos+1)}
    out.push({id:facetId,unit:id,item:unit.item,quote,claim:string(f.claim),kind:f.kind as string});
   }
-  for(let i=0;i<unit.text.length;i++)if(!coverage[i]&&!/\s/u.test(unit.text[i]))throw Error('UNINVENTORIED_READER_TEXT');
+  for(let i=0;i<unit.text.length;i++)if(!coverage[i]&&!/\s/u.test(unit.text[i])){
+   const start=i;while(i+1<unit.text.length&&!coverage[i+1])i++;
+   if(gaps.length<30)gaps.push({unit:id,quote:unit.text.slice(start,i+1),context:unit.text.slice(Math.max(0,start-20),Math.min(unit.text.length,i+21))});
+  }
  }
- if(seen.size!==units.length)throw Error('MISSING_READER_UNIT');return out;
+ if(seen.size!==units.length)throw Error('MISSING_READER_UNIT');
+ if(gaps.length)throw Error('UNINVENTORIED_READER_TEXT: extend adjacent exact facet quotes to cover these missing spans, including connectors and punctuation; keep atomic claims: '+JSON.stringify(gaps));
+ return out;
 }
 export function parseBoundReview(raw:unknown,items:ReaderItem[],sources:Source[],inventory:Facet[],prior:unknown[]=[]):Map<number,Decision>{
  const out=new Map<number,Decision>();

@@ -13,6 +13,17 @@ it('requires every character of headline AND body to be inventoried, not just an
  const raw=inventory();raw.units[0].facets[0].quote='أعلن القرار.';
  expect(()=>parseReaderInventory(raw,items)).toThrow('UNINVENTORIED_READER_TEXT');
 });
+it('identifies exact missing connector and punctuation spans across units for the bounded correction without relaxing coverage',()=>{
+ const rows=[{headline:'A and B.',body:'C; D.',refs:['S1']}];
+ const raw={units:[{id:'I0.H',facets:[{id:'a',quote:'A',claim:'A',kind:'identity'},{id:'b',quote:'B',claim:'B',kind:'identity'}]},
+ {id:'I0.B',facets:[{id:'c',quote:'C',claim:'C',kind:'identity'},{id:'d',quote:'D',claim:'D',kind:'identity'}]}]};
+ try{parseReaderInventory(raw,rows);throw Error('Expected rejection')}catch(e){
+  expect(String(e)).toContain('UNINVENTORIED_READER_TEXT');expect(String(e)).toContain('and');expect(String(e)).toContain('I0.B');expect(String(e)).toContain(';');
+ }
+ raw.units[0].facets[0].quote='A and ';raw.units[0].facets[1].quote='B.';
+ raw.units[1].facets[0].quote='C; ';raw.units[1].facets[1].quote='D.';
+ expect(parseReaderInventory(raw,rows)).toHaveLength(4);
+});
 it('allows overlapping semantic facets for identities, quantities, dates and negation without a language-specific boundary parser',()=>{
  const rows=[{headline:'Former president Jean-Baptiste de La Tour did not approve €15 million on Monday.',body:'',refs:['S1']}];
  const raw={units:[{id:'I0.H',facets:[{id:'all',quote:rows[0].headline,claim:'The stated event was not approved, with the stated actor and amount.',kind:'action'},...[
