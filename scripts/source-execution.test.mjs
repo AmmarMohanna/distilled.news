@@ -7,10 +7,10 @@ import { createSourceExecution } from './source-execution.mjs';
 
 function fixture(body){const dir=mkdtempSync(join(tmpdir(),'distilled-execution-'));const script=join(dir,'child.mjs');writeFileSync(script,body);return {script,dispose:()=>rmSync(dir,{recursive:true,force:true})};}
 test('source execution sends structured stdin and does not forward unrelated environment secrets',async()=>{
-  const f=fixture('let s=""; for await(const c of process.stdin)s+=c;console.log(JSON.stringify({received:JSON.parse(s),leaked:!!process.env.UNRELATED_SECRET}));');
-  try{const execution=createSourceExecution({python:process.execPath,script:f.script,environment:{UNRELATED_SECRET:'never-forward'}});
+  const f=fixture('let s=""; for await(const c of process.stdin)s+=c;console.log(JSON.stringify({received:JSON.parse(s),leaked:!!process.env.UNRELATED_SECRET,ipv4First:process.env.SOURCE_HTTP_IPV4_FIRST}));');
+  try{const execution=createSourceExecution({python:process.execPath,script:f.script,environment:{UNRELATED_SECRET:'never-forward',SOURCE_HTTP_IPV4_FIRST:'true'}});
     const result=await execution.execute('extract',{url:'https://example.com',html:'article'});
-    assert.equal(result.received.kind,'extract');assert.equal(result.leaked,false);
+    assert.equal(result.received.kind,'extract');assert.equal(result.leaked,false);assert.equal(result.ipv4First,'true');
   }finally{f.dispose();}
 });
 test('source execution bounds child output',async()=>{

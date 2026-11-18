@@ -65,7 +65,7 @@ it('clears missing-details feedback once a new feed has a name and interests',as
   await enter(host.querySelector<HTMLTextAreaElement>('textarea')!,'Recent work of Samira Haddad');
   expect(host.querySelector('[role="alert"]')).toBeNull();
   await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
-  expect(searchSourceCandidates).toHaveBeenLastCalledWith('Samira Haddad',expect.any(AbortSignal),{title:'Professor Samira Haddad',description:'Recent work of Samira Haddad'});
+  expect(searchSourceCandidates).toHaveBeenLastCalledWith('Samira Haddad',expect.any(AbortSignal),{title:'Professor Samira Haddad',description:'Recent work of Samira Haddad'},expect.any(Function));
   expect(host.querySelector('[role="alert"]')).toBeNull();
  }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
@@ -105,7 +105,7 @@ it('gets query-only suggestions without a full search or description-derived tex
   expect(host.querySelector('#source-query-suggestions')?.textContent).not.toContain('theater productions');
   await act(async()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true})));
   await act(async()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})));
-  expect(searchSourceCandidates).toHaveBeenLastCalledWith('Georges Khabbaz interview',expect.any(AbortSignal),{title:'Georges Khabbaz',description:'Films and theater productions'});
+  expect(searchSourceCandidates).toHaveBeenLastCalledWith('Georges Khabbaz interview',expect.any(AbortSignal),{title:'Georges Khabbaz',description:'Films and theater productions'},expect.any(Function));
  }finally{await act(async()=>root.unmount());vi.useRealTimers();vi.unstubAllGlobals();}
 });
 it('explains an off-topic search without displaying unrelated sources',async()=>{
@@ -135,7 +135,7 @@ it('searches a publisher name and assesses the selected publisher before adding 
   expect(host.querySelector('.add-source-button')).toBeNull();
   await act(async()=>host.querySelector<HTMLButtonElement>('.source-search-submit')!.click());
   await act(async()=>vi.advanceTimersByTimeAsync(650));
-  expect(searchSourceCandidates).toHaveBeenLastCalledWith('aljadded',expect.any(AbortSignal),{title:'Lebanon',description:'Lebanon news'});
+  expect(searchSourceCandidates).toHaveBeenLastCalledWith('aljadded',expect.any(AbortSignal),{title:'Lebanon',description:'Lebanon news'},expect.any(Function));
   expect(host.querySelector('.source-web-results')?.textContent).toContain('Al Jadeed');
   await act(async()=>host.querySelector<HTMLButtonElement>('.source-web-results button')!.click());
   expect(assessSourceInput).toHaveBeenLastCalledWith('Lebanon','Lebanon news','https://www.aljadeed.tv/',expect.objectContaining({searchQuery:'aljadded'}));

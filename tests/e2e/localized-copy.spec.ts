@@ -35,8 +35,11 @@ for(const language of ['fr','ar'] as const)test(`natural ${language} copy across
  const details=page.locator('.news-briefing-dialog');
  await expect(details).toBeVisible();
  await expect(details.locator('.news-briefing-source-nav')).toHaveCount(0);
- await expect(details.locator('.news-briefing-additional-sources')).toContainText('supporting.example');
- await expect(details.locator('.news-briefing-additional-sources a').first()).toHaveAttribute('href','https://supporting.example/report');
+ await expect(details.locator('.news-briefing-additional-sources')).toHaveCount(0);
+ await expect(page.locator('.briefing-reference')).toHaveText(['[1]','[2]']);
+ await details.locator('.news-briefing-references button').nth(1).click();
+ await expect(details.locator('.news-briefing-publisher')).toHaveText('supporting.example');
+ await expect(details.locator('.news-briefing-read')).toHaveAttribute('href','https://supporting.example/report');
  await expect(details.getByRole('link',{name:'Supporting photograph',exact:true})).toHaveAttribute('href','https://supporting.example/photo');
  expect(await details.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
  await expect(details.locator('.news-briefing-read')).toHaveText(language==='fr'?'Lire l’article complet':'قراءة المقال كاملاً');

@@ -51,6 +51,13 @@ it('checks Google News through native RSS even when paid verification is enabled
  expect(result.status).toBe('accepted');expect(dispatch).toHaveBeenCalledTimes(2);
  expect(String(dispatch.mock.calls[0][0])).toContain('news.google.com/rss/search');
 });
+it.each([403,429,503])('assesses configured free private Google RSS after public HTTP %s',async status=>{
+ const service=vi.fn<typeof fetch>(async(_url,init)=>{expect(JSON.parse(init!.body as string).kind).toBe('google_feed');return Response.json({status:200,xml:rss});});
+ const dispatch=vi.fn<typeof fetch>(async url=>String(url).includes('openrouter.ai')?Response.json(decision()):new Response('Blocked',{status}));
+ const configured={...env,SOURCE_GOOGLE_RESOLUTION_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_EXECUTION_SERVICE:{fetch:service},SOURCE_EXECUTION_URL:'http://127.0.0.1:8791/v1/source-execution',SOURCE_EXECUTION_TOKEN:'test-only-token-'.repeat(3)} as unknown as Env;
+ expect(await assessSource(configured,context,'news: Lebanon',dispatch)).toMatchObject({status:'accepted'});
+ expect(service).toHaveBeenCalledOnce();expect(dispatch).toHaveBeenCalledTimes(2);
+});
 it.each([
  {historicalInterest:'YES',exactTopic:'YES',status:'accepted'},
  {historicalInterest:'NO',exactTopic:'YES',status:'unverified'},

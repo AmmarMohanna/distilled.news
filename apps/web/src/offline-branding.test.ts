@@ -18,5 +18,5 @@ it('renders the offline Wi-Fi illustration without requesting any external logo'
 it('uses transparent notification art and a monochrome transparent badge independently of installation icons',async()=>{
  const {events,showNotification}=worker();let completion:Promise<unknown>|undefined;
  events.push({data:{json:()=>({title:'A briefing'})},waitUntil:(value:Promise<unknown>)=>{completion=value;}});await completion;
- expect(showNotification).toHaveBeenCalledWith('A briefing',expect.objectContaining({icon:'/notification-icon.png?v=transparent-1',badge:'/notification-badge.png?v=transparent-1'}));
+ expect(showNotification).toHaveBeenCalledWith('A briefing',expect.objectContaining({icon:'/notification-icon.png?v=transparent-1',badge:'/notification-badge.png?v=transparent-1',renotify:true,tag:'briefing'}));
 });
