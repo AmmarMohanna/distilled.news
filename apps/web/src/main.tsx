@@ -6,6 +6,7 @@ import {SourceHealth} from './SourceHealth';
 import { useFeedViewer } from './useFeedViewer';
 import { usePageMagnification } from './usePageMagnification';
 import { NewsBriefing } from "./NewsBriefing";
+import {PrivateFeedPage} from './PrivateFeedPage';
 import {briefingReferences} from './briefing-references';
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
@@ -1504,6 +1505,7 @@ function FeedPage(props: { username: string; slug: string }) {
     publicationVersion.current=undefined;
   }
   const [feedResult, setFeedResult] = useState<{ key: string; value: FeedPayload } | null>(null);
+  const [inaccessibleFeed,setInaccessibleFeed]=useState<string|null>(null);
   const payload = feedResult?.key === feedKey ? feedResult.value : null;
   const [readState, setReadState] = useState<{ key: string; state: "loading" | "loaded" | "failed" }>({ key: feedKey, state: "loading" });
   const initialLoading = !payload && (readState.key !== feedKey || readState.state === "loading");
@@ -1541,6 +1543,7 @@ function FeedPage(props: { username: string; slug: string }) {
       });
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       loadedFeed.current = key;
+      setInaccessibleFeed(null);
       const searching=Boolean(latestQuery.current.trim()),complete=next.editionsComplete===true;
       const changed=searching&&!complete&&(next.publicationVersion===undefined||next.publicationVersion!==publicationVersion.current);
       publicationVersion.current=next.publicationVersion;
@@ -1565,6 +1568,12 @@ function FeedPage(props: { username: string; slug: string }) {
       setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
     } catch (cause) {
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
+      if(cause instanceof ApiError&&[403,404].includes(cause.uiMessage.details.status??0)){
+        setInaccessibleFeed(key);setFeedResult(null);setReadState({key,state:'failed'});
+        setEditions([]);setEditionDetails(new Map());setSelectedReport(null);
+        visibleEditionIds.current=new Set();loadedFeed.current=null;
+        return cause.uiMessage.details;
+      }
       if (!silent || loadedFeed.current !== key) {
         setReadState({ key, state: "failed" }); setError(toUiError(cause));
       }
@@ -1746,6 +1755,8 @@ function FeedPage(props: { username: string; slug: string }) {
       {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={20} aria-hidden /></button> : null}
     </div>
   );
+
+  if(inaccessibleFeed===feedKey)return <PrivateFeedPage language={language}/>;
 
   return (
     <Shell
