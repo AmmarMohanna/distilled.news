@@ -74,6 +74,7 @@ import {
   deleteAdminBriefing,
   deleteSource,
   forgotPassword,
+  resendVerification,
   getBriefings,
   getExploreFeeds,
   getFeed,
@@ -622,6 +623,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const [setupToken, setSetupToken] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
+  const [verificationRecoveryEmail,setVerificationRecoveryEmail]=useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<UiMessage>("");
   const copy = authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
@@ -660,13 +662,15 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           if (mode === "register") {
             await register({ email, username, password, turnstileToken });
             setPassword("");
-            setMessage("Verification email sent. Check your inbox and spam folder. The link expires in 24 hours.");
+            setMessage("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
+            setVerificationRecoveryEmail(email.trim().toLowerCase());
             resetTurnstile();
             return;
           }
           if (mode === "forgot") {
             await forgotPassword(email, turnstileToken);
-            setMessage("If the account exists, a reset email was sent.");
+            setMessage("If the account is eligible, an email was requested. Unverified accounts receive a verification link first; verified accounts receive a password-reset link. Check your inbox and spam folder.");
+            setVerificationRecoveryEmail(email.trim().toLowerCase());
             resetTurnstile();
             return;
           }
@@ -674,6 +678,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           await props.onAuthenticated();
         } catch (cause) {
           setError(toUiError(cause));
+          if(cause instanceof ApiError&&['AUTH_EMAIL_VERIFICATION_REQUIRED','AUTH_EMAIL_REGISTERED'].includes(cause.id))setVerificationRecoveryEmail(email.trim().toLowerCase());
           resetTurnstile();
         } finally {
           setSubmitting(false);
@@ -726,6 +731,15 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       <div className="auth-feedback" aria-live="polite">
         {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
+      {!props.setupRequired&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
+        setError("");setMessage("");setSubmitting(true);
+        try{
+          if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");return;}
+          await resendVerification(email,turnstileToken);
+          setMessage("If this account needs verification, an email was requested. Check your inbox and spam folder. If it still does not arrive, contact support.");
+        }catch(cause){setError(toUiError(cause));}
+        finally{resetTurnstile();setSubmitting(false);}
+      }}>{t("Resend verification email")}</button>:null}
       {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
       {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
 

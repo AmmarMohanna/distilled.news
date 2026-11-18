@@ -1,9 +1,10 @@
 import type { ModelPort, ModelRequest, ModelResponse } from "../src/model";
 import type { Article } from "../src/types";
 
-type Stage = "edit" | "consolidate" | "verify" | "repair" | "topic";
+type Stage = "edit" | "consolidate" | "verify" | "repair" | "topic" | "recovery_coverage";
 
 export function stageOf(request: ModelRequest): Stage {
+  if(request.system.startsWith('You audit editorial coverage'))return 'recovery_coverage';
   if(request.system.startsWith('Classify topical relevance'))return 'topic';
   if (request.system.startsWith("You are the editor")) return "edit";
   if (request.system.startsWith("You are the senior editor")) return "consolidate";

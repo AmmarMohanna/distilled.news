@@ -142,7 +142,7 @@ const tokenInputSchema = z.object({
 
 const passwordResetRequestSchema = z.object({
   language: z.enum(['en', 'fr', 'ar']).default('en'),
-  email: z.string().email(),
+  email: z.string().trim().email(),
   turnstileToken: z.string().optional()
 });
 
@@ -295,6 +295,7 @@ export function createApp(options: AppOptions = {}) {
     if (error instanceof z.ZodError) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
+    if(error instanceof Error&&error.message==='too many attempts'){c.header('Retry-After','3600');return c.json({error:'too many attempts'},429);}
     console.error(error);
     if(isDatabaseUnavailable(error)){
       c.header('Retry-After','5');c.header('Cache-Control','no-store');
@@ -681,6 +682,20 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ ok: true });
   });
 
+  app.post('/api/auth/verification/resend', async c => {
+    const repo=repoFor(c),input=passwordResetRequestSchema.parse(await c.req.json().catch(()=>({}))),email=normalizeEmail(input.email);
+    // Share the send allowance with forgot-password verification recovery.
+    await assertRateLimit(repo,`verification:${email}`,'verification_recovery',5,60*60*1000);
+    if(!await verifyTurnstileIfConfigured(c,input.turnstileToken))return c.json({ok:true});
+    const account=await repo.getAccountByEmail(email);
+    if(account&&!account.emailVerifiedAt&&!account.disabledAt){
+      try{await sendVerificationToken(repo,c.env,account,input.language)}
+      catch(error){logAuthEmailFailure('verification resend',account,c.env,error)}
+    }
+    // Do not disclose account state or claim recipient delivery was established.
+    return c.json({ok:true});
+  });
+
   app.post("/api/auth/password/forgot", async (c) => {
     const repo = repoFor(c);
     const input = passwordResetRequestSchema.parse(await c.req.json().catch(() => ({})));
@@ -688,11 +703,13 @@ export function createApp(options: AppOptions = {}) {
     await assertRateLimit(repo, `forgot:${email}`, "password_reset_request", 5, 60 * 60 * 1000);
     if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken))) return c.json({ ok: true });
     const account = await repo.getAccountByEmail(email);
-    if (account && account.emailVerifiedAt && !account.disabledAt) {
+    if (account && !account.disabledAt) {
+      if(!account.emailVerifiedAt)await assertRateLimit(repo,`verification:${email}`,'verification_recovery',5,60*60*1000);
       try {
-        await sendPasswordResetToken(repo, c.env, account, input.language);
+        if(account.emailVerifiedAt)await sendPasswordResetToken(repo, c.env, account, input.language);
+        else await sendVerificationToken(repo,c.env,account,input.language);
       } catch (error) {
-        logAuthEmailFailure("password reset", account, c.env, error);
+        logAuthEmailFailure(account.emailVerifiedAt?'password reset':'verification recovery', account, c.env, error);
       }
     }
     return c.json({ ok: true });
