@@ -1,5 +1,6 @@
 import {BriefingOutputError} from './types';
 import {arabicIdentityIssues} from './identity-fidelity';
+import {verifySourceBoundClaims} from './source-bound-claims';
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OCCURRENCE_RULE} from './novelty';
 import {completeStorySources} from './citation-coverage';
@@ -371,6 +372,13 @@ async function verify(
     batches.map(async (batch) => {
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
+      if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'){
+        const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
+          items:batch.map(index=>drafts[index]),sources,prior,
+          context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
+        for(const [local,decision]of verified)results.set(batch[local],decision);
+        return;
+      }
       const parsed = await callJson(
         port,
         meter,

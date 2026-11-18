@@ -27,16 +27,32 @@ import {recoverPendingProviderGenerations} from './provider-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
-it('freezes Arabic identity validation into a distinct input without rewriting source evidence',async()=>{
+it.each(['arabic-person-role-v1','source-bound-claims-v1'] as const)('freezes %s into a distinct input without rewriting source evidence',async policy=>{
  await article();
  const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
- const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,'arabic-person-role-v1');
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,policy);
  expect(old.input.feed).not.toHaveProperty('identityFidelityPolicy');
- expect(next.input.feed.identityFidelityPolicy).toBe('arabic-person-role-v1');
+ expect(next.input.feed.identityFidelityPolicy).toBe(policy);
  expect(next.fingerprint).not.toBe(old.fingerprint);
  const {identityFidelityPolicy:_,...unchanged}=next.input.feed;
  expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
 });
+it('opts new windows into general evidence bindings and durably reuses all three paid stages on redelivery',async()=>{
+ await article();const calls:any[]=[];
+ const provider=(async(_url:unknown,init?:RequestInit)=>{
+  const request=JSON.parse(String(init?.body));calls.push(request);const system=request.messages[0].content;let value:unknown;
+  if(system.startsWith('Independently inventory')){const packet=JSON.parse(request.messages[1].content);expect(packet).not.toHaveProperty('sources');value={units:packet.units.map((u:any)=>({id:u.id,facets:[{id:u.id+'-F1',quote:u.text,claim:u.text,kind:'action'}]}))}}
+  else if(system.startsWith('You are a meticulous source-grounded')){const packet=JSON.parse(request.messages[1].content);value={results:packet.items.map((item:any,i:number)=>({i,inventory:'complete',verdict:'ok',issues:[],facets:packet.inventory.filter((f:any)=>f.item===i).map((f:any)=>({id:f.id,support:'supported',evidence:[{source:item.refs[0],quote:packet.sources.find((s:any)=>s.ref===item.refs[0]).text}],explanation:'Source supports the supplied assertion.'}))}))}}
+  else value={items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['S1'],relation:'new',updates:null,importance:1}]};
+  return Response.json({id:'gen-general-'+calls.length,choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+ }) as typeof fetch;
+ const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true'},message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ const edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);expect(edition).toBeDefined();expect(calls).toHaveLength(3);
+ const id=await windowIdentity('feed-1',window),frozen=await store.read<any>('feed-1','v3_window_inputs',id);
+ expect(frozen.input.feed.identityFidelityPolicy).toBe('source-bound-claims-v1');
+ expect(await store.list('feed-1','semantic_results')).toHaveLength(3);
+ await processV1Briefing(candidate,message,()=>window.end,undefined,provider);expect(calls).toHaveLength(3);
+},30000);
 function responseArchive(){const objects=new Map<string,string>();return {objects,bucket:{put:async(key:string,value:string)=>{if(objects.has(key))return null;objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket}}
 it('versions wording fidelity without rewriting retained inputs or source evidence',async()=>{
  await article();
