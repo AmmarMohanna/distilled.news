@@ -389,8 +389,27 @@ export interface SourceSearchResult { source: string; title: string; publisher: 
 export function getSourceQuerySuggestions(query:string,language:string,signal?:AbortSignal):Promise<{suggestions:string[];unavailable:boolean}>{
  return requestJson(`/api/me/sources/suggestions?${new URLSearchParams({q:query,language})}`,{signal});
 }
-export function searchSourceCandidates(query:string,signal?:AbortSignal,context?:{title:string;description:string}):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}> {
-  return context?requestJson('/api/me/sources/search',{method:'POST',body:JSON.stringify({q:query,...context}),signal}):requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
+export interface SourceSearchResponse {results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}
+export async function searchSourceCandidates(query:string,signal?:AbortSignal,context?:{title:string;description:string},onProgress?:(result:SourceSearchResponse)=>void):Promise<SourceSearchResponse> {
+  if(!onProgress)return context?requestJson('/api/me/sources/search',{method:'POST',body:JSON.stringify({q:query,...context}),signal}):requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
+  const response=await fetch('/api/me/sources/search',{method:'POST',credentials:'include',headers:{'content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({q:query,...context}),signal});
+  if(!response.ok){const payload=await response.json().catch(()=>({}));throw apiError(errorDetail(payload),response);}
+  if(!response.headers.get('content-type')?.includes('application/x-ndjson'))return response.json();
+  const reader=response.body?.getReader();if(!reader)throw apiError(undefined,response);
+  const decoder=new TextDecoder();let pending='',complete:SourceSearchResponse|undefined;
+  const consume=(line:string)=>{
+    if(!line.trim())return;
+    const event=JSON.parse(line) as SourceSearchResponse&{type:string;error?:string};
+    if(event.type==='error')throw apiError(event.error);
+    if(!Array.isArray(event.results)||typeof event.unavailable!=='boolean')throw apiError(undefined,response);
+    const {type,...result}=event;
+    if(type==='complete')complete=result;
+    if(type==='progress'||type==='complete')onProgress(result);
+  };
+  try{
+    for(;;){signal?.throwIfAborted();const {value,done}=await reader.read();pending+=decoder.decode(value,{stream:!done});if(pending.length>256_000)throw apiError(undefined,response);let end;while((end=pending.indexOf('\n'))>=0){consume(pending.slice(0,end));pending=pending.slice(end+1);}if(done)break;}
+    consume(pending);if(!complete)throw apiError(undefined,response);return complete;
+  }finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
 }
 export async function recommendSourceCandidates(title: string, description: string, onProgress?: (result:SourceRecommendations)=>void): Promise<SourceRecommendations> {
   if(!onProgress)return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });

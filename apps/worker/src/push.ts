@@ -1,7 +1,7 @@
 import { buildPushPayload } from "@block65/webcrypto-web-push";
 import { recordPushAcceptance, settlePushOutbox, ELIGIBLE_PUSH_SQL } from "./push-outbox";
 import { z } from "zod";
-import {genericPushPreview,readBriefingPushPreview} from "./push-preview";
+import {genericPushPreview,readBriefingPushContent} from "./push-preview";
 import type { Env } from "./types";
 
 // Subscription endpoints are browser push services, never arbitrary user URLs.
@@ -46,12 +46,12 @@ export async function sendBriefingNotifications(env: Env) {
     let phase = "subscription";
     try {
       const subscription = subscriptionSchema.parse(JSON.parse(row.subscription_json));
-      let body = genericPushPreview(row.language);
+      let content = {body:genericPushPreview(row.language),url:'/'};
       // An optional preview must never prevent the existing generic push path.
-      try {body = await readBriefingPushPreview(env.DB,row);}
+      try {content = await readBriefingPushContent(env.DB,row);}
       catch {console.warn("Push preview unavailable; using generic notification");}
       phase = "payload";
-      const payload = await buildPushPayload({ data: JSON.stringify({ title: "Distilled.News", body, url: "/", tag: "new-briefings" }), options: { ttl: 3600 } }, subscription,
+      const payload = await buildPushPayload({ data: JSON.stringify({ title: "Distilled.News", ...content, tag: "new-briefings" }), options: { ttl: 3600 } }, subscription,
         { publicKey: env.VAPID_PUBLIC_KEY!, privateKey: env.VAPID_PRIVATE_KEY!, subject: env.VAPID_SUBJECT! });
       phase = "send";
       const response = await fetch(subscription.endpoint, { ...payload, redirect: "manual", signal: AbortSignal.timeout(10_000) });

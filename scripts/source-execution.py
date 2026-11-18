@@ -5,6 +5,7 @@ import datetime
 import ipaddress
 import json
 import html
+import http.client
 import os
 import re
 import socket
@@ -32,6 +33,52 @@ def public_url(url):
     if not addresses or any(not ipaddress.ip_address(answer[4][0]).is_global for answer in addresses):
         raise ValueError('NONPUBLIC_ADDRESS')
     # DNS validation is secondary; the required host egress firewall blocks DNS rebinding.
+
+
+def ipv4_first_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
+    """Keep every public DNS answer, but try working IPv4 before slow IPv6.
+
+    This is used only by opted-in anonymous HTTPS openers, not by Telegram,
+    browser sessions or the process-wide resolver. The egress firewall remains required.
+    """
+    addresses = socket.getaddrinfo(address[0], address[1], 0, socket.SOCK_STREAM)
+    if not addresses or any(not ipaddress.ip_address(answer[4][0]).is_global for answer in addresses):
+        raise ValueError('NONPUBLIC_ADDRESS')
+    last_error = None
+    for family, kind, protocol, _, target in sorted(addresses, key=lambda answer: answer[0] != socket.AF_INET):
+        connection = None
+        try:
+            connection = socket.socket(family, kind, protocol)
+            if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                connection.settimeout(timeout)
+            if source_address:
+                connection.bind(source_address)
+            connection.connect(target)
+            return connection
+        except OSError as error:
+            last_error = error
+            if connection:
+                connection.close()
+    if last_error:
+        raise last_error
+    raise OSError('SOURCE_CONNECTION_FAILED')
+
+
+class SourceHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = ipv4_first_connection
+
+
+class SourceHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, request):
+        return self.do_open(SourceHTTPSConnection, request, context=self._context)
+
+
+def source_opener(*handlers):
+    if os.environ.get('SOURCE_HTTP_IPV4_FIRST') == 'true':
+        return urllib.request.build_opener(*handlers, SourceHTTPSHandler())
+    return urllib.request.build_opener(*handlers)
 
 
 def parse_feed(data):
@@ -226,7 +273,7 @@ def fetch_public_article(data):
         def redirect_request(self, *args): return None
     try:
         request = urllib.request.Request(url, headers={'Accept': 'text/html,application/xhtml+xml'})
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=15) as response:
+        with source_opener(NoRedirect()).open(request, timeout=15) as response:
             if response.status != 200:
                 return {'status': response.status}
             content_type = response.headers.get('Content-Type', '').lower()
@@ -265,7 +312,7 @@ def fetch_public_feed(data):
 
     try:
         request = urllib.request.Request(url, headers={'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml'})
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=12) as response:
+        with source_opener(NoRedirect()).open(request, timeout=12) as response:
             body = response.read(2000001)
             if len(body) > 2000000:
                 return {'error': 'FEED_TOO_LARGE'}
@@ -289,7 +336,7 @@ def fetch_google_feed(data):
         def redirect_request(self, *args): return None
     public_url(data['url'])
     try:
-        with urllib.request.build_opener(NoRedirect()).open(urllib.request.Request(data['url'], headers={'Accept': 'application/rss+xml,application/xml'}), timeout=10) as response:
+        with source_opener(NoRedirect()).open(urllib.request.Request(data['url'], headers={'Accept': 'application/rss+xml,application/xml'}), timeout=10) as response:
             body = response.read(2000001)
             if len(body) > 2000000:
                 raise ValueError('GOOGLE_FEED_TOO_LARGE')
@@ -330,7 +377,7 @@ def resolve_google_article(data):
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args):
             return None
-    opener = urllib.request.build_opener(NoRedirect())
+    opener = source_opener(NoRedirect())
     def read(request):
         nonlocal requests
         remaining = budget - (time.monotonic() - started)

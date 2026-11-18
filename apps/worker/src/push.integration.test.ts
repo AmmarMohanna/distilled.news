@@ -50,6 +50,26 @@ for(const change of ['withdrawn','unverified','unprojected','private','disabled'
  if(change==='disabled')await ctx.db.prepare("UPDATE accounts SET disabled_at=?").bind(testPolicy.now()).run();
  const send=vi.fn();vi.stubGlobal('fetch',send);await sendBriefingNotifications(env);expect(send).not.toHaveBeenCalled();expect(await store.list('feed-1','browser_push_receipts')).toHaveLength(0);expect(await store.read('feed-1','delivery_jobs',editionId)).toMatchObject({state:'PENDING'});
 },30000);
+it('delivers explicitly opted-in private editions only to their owner without replay',async()=>{
+ await ctx.db.prepare("UPDATE briefings SET public_feed_enabled=0 WHERE id='feed-1'").run();
+ await ctx.db.prepare('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?)').bind('browser-push-private-owner:feed-1',JSON.stringify({enabled:true,ownerAccountId:'owner-1',enabledFrom:cutoff}),cutoff).run();
+ const send=vi.fn(async()=>new Response(null,{status:201}));vi.stubGlobal('fetch',send);
+ await sendBriefingNotifications(env);await sendBriefingNotifications(env);
+ expect(send).toHaveBeenCalledOnce();expect(await store.list('feed-1','browser_push_receipts')).toHaveLength(1);
+ expect(await store.read('feed-1','delivery_jobs',editionId)).toMatchObject({state:'DONE'});
+ const response=await createApp().request('/api/feed/owner/news',{},env);expect(response.status).toBe(404);
+},30000);
+for(const value of [
+ {enabled:false,ownerAccountId:'owner-1',enabledFrom:cutoff},
+ {enabled:true,ownerAccountId:'another-owner',enabledFrom:cutoff},
+ {enabled:true,ownerAccountId:'owner-1',enabledFrom:'2099-01-01T00:00:00Z'},
+ 'invalid JSON'
+])it('does not notify private editions without a valid current-owner time-scoped opt-in %#',async()=>{
+ await ctx.db.prepare("UPDATE briefings SET public_feed_enabled=0 WHERE id='feed-1'").run();
+ await ctx.db.prepare('INSERT INTO settings(key,value,updated_at) VALUES(?,?,?)').bind('browser-push-private-owner:feed-1',typeof value==='string'?value:JSON.stringify(value),cutoff).run();
+ const send=vi.fn();vi.stubGlobal('fetch',send);await sendBriefingNotifications(env);
+ expect(send).not.toHaveBeenCalled();expect(await store.list('feed-1','browser_push_receipts')).toHaveLength(0);
+},30000);
 it('cannot acknowledge a replaced subscription or an expired lease',async()=>{
  const now=new Date().toISOString(),future=new Date(Date.now()+60000).toISOString();
  await ctx.db.prepare('UPDATE push_subscriptions SET lease_until=?,lease_token=? WHERE endpoint=?').bind(future,'new-owner',endpoint).run();

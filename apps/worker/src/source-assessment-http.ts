@@ -1,8 +1,20 @@
-import {HttpSourceExecution} from '@distilled/connectors';
+import {HttpSourceExecution,normalizeRssSnapshot} from '@distilled/connectors';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {admittedSourceExecution} from './source-execution-admission';
 import type {Env} from './types';
 export interface AssessmentArticle {url:string;title?:string;body:string;publishedAt?:string}
+/** Assess the same public Google RSS URL through explicitly configured free egress. */
+export async function readAssessmentGoogleFeed(env:Env,url:string):Promise<string|undefined>{
+ if(env.SOURCE_GOOGLE_RESOLUTION_ENABLED!=='true'||env.SOURCE_NATIVE_EXECUTION_ENABLED!=='true'||!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_URL||!env.SOURCE_EXECUTION_TOKEN)return;
+ try{
+  new WorkerPublicSourceFetch(url);const target=new URL(url);
+  if(target.hostname!=='news.google.com'||target.protocol!=='https:'||target.pathname!=='/rss/search')return;
+  const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(target,init)=>env.DB?admittedSourceExecution(env.DB,()=>env.SOURCE_EXECUTION_SERVICE!.fetch(target,init)):env.SOURCE_EXECUTION_SERVICE!.fetch(target,init),true);
+  const raw=await execution.execute('google_feed',{url},{timeoutMs:15000});
+  if(!raw||typeof raw!=='object')return;const page=raw as Record<string,unknown>;
+  if(page.status===200&&page.authenticationRequired!==true&&page.accessRestricted!==true&&typeof page.xml==='string'&&new TextEncoder().encode(page.xml).length<=2_000_000&&normalizeRssSnapshot(page.xml,url).some(item=>item.identityValid))return page.xml;
+ }catch{/* The normal assessment reports unverified access; no paid retry. */}
+}
 /** Existing anonymous HTTP egress only: no browser, paid operation or login.
  * A listing supplies bounded same-origin candidates, never article evidence.
  */

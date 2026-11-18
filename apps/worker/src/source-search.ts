@@ -3,18 +3,20 @@ import {sourceCatalog} from './source-catalog';
 import {readTopicPublishers} from './source-topic-publishers';
 import {prepareProductSourceInput} from './product-feeds';
 import {recommendationFetch} from './source-recommendation-fetch';
-import {freelyReadableResults} from './source-search-free';
+import {freelyReadableResults,rememberVerifiedSearchFeed} from './source-search-free';
 import {cachedSourceSearch} from './source-search-cache';
 import {sourceSearchCacheQuery,type SearchTopic} from './source-search-topic';
 import {alignedSearchResults} from './source-search-relevance';
 import {readWebSearch} from './source-web-search';
 import {normalizeRssSnapshot} from '@distilled/connectors';
-import {WorkerPublicSourceFetch} from './public-source-fetch';
+import {searchArticleChecks} from './source-search-helper';
+import {readSearchFeed} from './source-search-feed';
+import {configuredSourceWebIndex} from './source-search-web-index';
 
 export interface SourceSearchResult { source: string; title: string; publisher: string; articleUrl?: string; excerpt?: string; blocked?:boolean; httpStatus?:number }
 const publishers = [
   {source:'https://www.aljadeed.tv/',title:'Al Jadeed · الجديد',aliases:['aljadeed','al jadeed','aljadded','al jadded','الجديد']},
-  ...sourceCatalog.map(([url,description])=>({source:`rss: ${url}`,title:description.split(':')[0],aliases:[description.split(':')[0],description,new URL(url).hostname]})),
+  ...sourceCatalog.map(([url,description])=>({source:`rss: ${url}`,title:description.split(':')[0],aliases:[description.split(':')[0],description,new URL(url).hostname,new URL(url).pathname]})),
 ];
 const normalize=(value:string)=>value.normalize('NFKC').toLocaleLowerCase().replace(/[\p{M}\p{P}\p{Z}\p{S}]/gu,'');
 const searchWords=(value:string):string[]=>value.normalize('NFKD').toLocaleLowerCase().replace(/\p{M}/gu,'').match(/[\p{L}\p{N}]+/gu)??[];
@@ -28,16 +30,29 @@ function matchesArticleQuery(query:string,title:string,excerpt?:string){
 /** Public discovery only. Selection still goes through the normal source assessment.
  * No scope is passed to readTopicPublishers: typing must never start paid collectors.
  */
-export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}> {
+export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof fetch=fetch,accessCache?:Pick<Cache,'match'|'put'>,discovery?:{owner:string;origin:string;cache?:Pick<Cache,'match'|'put'>},context?:SearchTopic,onProgress?:(result:{results:SourceSearchResult[];unavailable:boolean})=>Promise<void>):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}> {
  if(normalize(query).length<2)return {results:[],unavailable:false};
- const load=()=>discoverSourceCandidates(env,query,fetcher,context,discovery?.cache);
+ const load=()=>discoverSourceCandidates(env,query,fetcher,context,discovery?.cache,accessCache);
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
  const aligned=context?await alignedSearchResults(env,query,context,found.results,fetcher,discovery?.owner):{results:found.results,unavailable:false};
- const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache,env);
- return {...found,...accessible,unavailable:found.unavailable||aligned.unavailable,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete,...(context&&found.results.length>0&&!aligned.results.length&&!aligned.unavailable?{topicMismatch:true}:{})};
+ const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache,env,onProgress?results=>onProgress({results,unavailable:false}):undefined);
+ let supplementalUnavailable=false;
+ if(context&&env.SOURCE_SEARCH_WEB_DISCOVERY_ENABLED==='true'&&discovery?.owner&&accessible.results.length<12){
+  const index=await configuredSourceWebIndex(env,query,discovery.owner,fetcher);
+  if(index.available){
+   const additional=index.items.map(item=>({source:item.url,title:item.title,publisher:new URL(item.url).hostname,...(new URL(item.url).pathname!=='/'?{articleUrl:item.url}:{}),excerpt:item.excerpt}));
+   const judged=await alignedSearchResults(env,query,context,additional,fetcher,discovery.owner);
+   supplementalUnavailable=judged.unavailable;
+   const merge=(rows:SourceSearchResult[])=>[...new Map([...accessible.results,...rows].map(row=>[row.articleUrl??row.source,row])).values()].slice(0,30);
+   const checked=await freelyReadableResults(judged.results,fetcher,accessCache,env,onProgress?rows=>onProgress({results:merge(rows),unavailable:false}):undefined);
+   const results=merge(checked.results);
+   if(results.length)return {results,unavailable:false,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete||checked.accessIncomplete,verificationIncomplete:accessible.verificationIncomplete||checked.verificationIncomplete};
+  }
+ }
+ return {...found,...accessible,unavailable:found.unavailable||aligned.unavailable||supplementalUnavailable,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete,...(context&&found.results.length>0&&!aligned.results.length&&!aligned.unavailable&&!supplementalUnavailable?{topicMismatch:true}:{})};
 }
 
-async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetch,context?:SearchTopic,directoryCache?:Pick<Cache,'match'|'put'>):Promise<{results:SourceSearchResult[];unavailable:boolean;topicMismatch?:boolean;accessIncomplete?:boolean}> {
+async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetch,context?:SearchTopic,directoryCache?:Pick<Cache,'match'|'put'>,accessCache?:Pick<Cache,'match'|'put'>):Promise<{results:SourceSearchResult[];unavailable:boolean;topicMismatch?:boolean;accessIncomplete?:boolean}> {
   const term=normalize(query);
   if(term.length<2)return {results:[],unavailable:false};
   const matches=publishers.filter(row=>row.aliases.some(alias=>normalize(alias).includes(term))).slice(0,8);
@@ -55,7 +70,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   const readIndex=()=>readTopicPublishers(env,plan.sourceUrl!,recommendationFetch(fetcher,15_000),result=>{if(result.status===200)indexAvailable=true;},undefined,{preferRuntime:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true',raceRoutes:true,maxPublishers:40,perPublisher:3,acceptArticle:(title,excerpt,origin)=>context?true:queryMatches(title,excerpt,origin)}).catch(()=>[]);
   // Independent public lookups overlap; the model sees their combined results once.
   const indexTask=context?readIndex():undefined;
-  const webTask=context&&env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'?readWebSearch(scopedQuery,fetcher,directoryCache).catch(()=>({items:[],available:false,accessIncomplete:true})):undefined;
+  const webTask=context&&env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'?readWebSearch(scopedQuery,fetcher,directoryCache,env).catch(()=>({items:[],available:false,accessIncomplete:true})):undefined;
   const pools:SourceSearchResult[][]=[];
   let publisherAvailable=false;
   // A known publisher can be searched through its actual article feed even
@@ -67,15 +82,18 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
       if(!row.source.startsWith('rss: '))return false;
       const host=new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname;
       if(term.length<3&&!searchWords(row.title+' '+host).some(word=>normalize(word)===term))return false;
-      return normalize(row.title).includes(term)||normalize(host).includes(term);
+      // Catalog descriptions and topic paths discover candidates, never prove
+      // relevance. Actual RSS articles still pass the same model and access gates.
+      return row.aliases.some(alias=>normalize(alias).includes(term));
     }).sort((a,b)=>score(b.aliases.join(' '))-score(a.aliases.join(' '))).slice(0,4);
+    const feedDeadline=Date.now()+10_000,feedChecks=searchArticleChecks(env,feedDeadline);
     const sampled=await Promise.all(feeds.map(async row=>{
       try{
         const url=prepareProductSourceInput(row.source).sourceUrl!;
-        const page=await new WorkerPublicSourceFetch(url,recommendationFetch(fetcher,2500)).get(url);
+        const page=await readSearchFeed(url,fetcher,env,feedDeadline,feedChecks);
         if(page.status!==200||page.authenticationRequired)return [];
         const items=normalizeRssSnapshot(page.body,url).filter(item=>item.identityValid&&item.title&&item.url);
-        if(items.length)publisherAvailable=true;
+        if(items.length){publisherAvailable=true;await rememberVerifiedSearchFeed(row.source,page.body,accessCache);}
         return items.slice(0,60).map(item=>({source:row.source,title:item.title!,publisher:new URL(url).hostname,articleUrl:item.url!,excerpt:item.body}));
       }catch{return [];}
     }));
@@ -84,7 +102,7 @@ async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetc
   let available=publisherAvailable;
   let accessIncomplete=false;
   if(env.SOURCE_RECOMMENDATIONS_WEB_HTML==='true'){
-    const web=await (webTask??readWebSearch(scopedQuery,fetcher,directoryCache));
+    const web=await (webTask??readWebSearch(scopedQuery,fetcher,directoryCache,env));
     available=available||web.available;
     accessIncomplete=web.accessIncomplete;
     const webResults:SourceSearchResult[]=[];

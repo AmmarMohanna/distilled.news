@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  miniflare@4.20260611.0:
+    hash: 6157009bc0be1470d6bbad20f7a7419a5f6c9b23a041563cf5705bff1447ee6f
+    path: patches/miniflare@4.20260611.0.patch
+
 importers:
 
   .:
@@ -108,7 +113,7 @@ importers:
         version: 4.20260615.1
       miniflare:
         specifier: ^4.20260611.0
-        version: 4.20260611.0
+        version: 4.20260611.0(patch_hash=6157009bc0be1470d6bbad20f7a7419a5f6c9b23a041563cf5705bff1447ee6f)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -189,7 +194,7 @@ importers:
     devDependencies:
       miniflare:
         specifier: 4.20260611.0
-        version: 4.20260611.0
+        version: 4.20260611.0(patch_hash=6157009bc0be1470d6bbad20f7a7419a5f6c9b23a041563cf5705bff1447ee6f)
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
@@ -3572,7 +3577,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  miniflare@4.20260611.0:
+  miniflare@4.20260611.0(patch_hash=6157009bc0be1470d6bbad20f7a7419a5f6c9b23a041563cf5705bff1447ee6f):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.34.5
@@ -3953,7 +3958,7 @@ snapshots:
       '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260611.1)
       blake3-wasm: 2.1.5
       esbuild: 0.27.3
-      miniflare: 4.20260611.0
+      miniflare: 4.20260611.0(patch_hash=6157009bc0be1470d6bbad20f7a7419a5f6c9b23a041563cf5705bff1447ee6f)
       path-to-regexp: 6.3.0
       unenv: 2.0.0-rc.24
       workerd: 1.20260611.1

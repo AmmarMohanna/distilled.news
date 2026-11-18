@@ -1,12 +1,21 @@
 import { sha256 } from '@distilled/contracts';
+const ownerPrivatePushSql=(publishedAt:string)=>`(b.public_feed_enabled=1 OR EXISTS(
+ SELECT 1 FROM settings private_push WHERE private_push.key='browser-push-private-owner:'||b.id
+ AND json_extract(CASE WHEN json_valid(private_push.value) THEN private_push.value ELSE '{}' END,'$.enabled')=1
+ AND json_extract(CASE WHEN json_valid(private_push.value) THEN private_push.value ELSE '{}' END,'$.ownerAccountId')=b.owner_account_id
+ AND julianday(${publishedAt})>=julianday(json_extract(CASE WHEN json_valid(private_push.value) THEN private_push.value ELSE '{}' END,'$.enabledFrom'))
+))`;
 const verifiedPushEdition = `
  JOIN v1_feed_documents v ON v.feed_id=e.feed_id AND v.kind='fidelity_results'
    AND v.id=COALESCE(json_extract(e.json,'$.generation.verificationId'),json_extract(e.json,'$.selectionId'))
  JOIN v1_feed_documents l ON l.feed_id=e.feed_id AND l.kind='ledger_projections'
    AND l.id=json_array(e.id,'grounded-communication-ledger-v1')
  AND json_extract(p.json,'$.status')='PUBLISHED' AND json_extract(v.json,'$.passed')=1
- AND b.public_feed_enabled=1 AND a.disabled_at IS NULL`;
+ AND a.disabled_at IS NULL
+ AND ${ownerPrivatePushSql("json_extract(p.json,'$.publishedAt')")}`;
 /** Join publication's existing outbox; a saved draft/withdrawn edition is never eligible.
+ * Private feeds require an explicit current-owner opt-in and publication cutoff.
+ * Every caller additionally binds the subscription account to the feed owner.
  * Browser pushes coalesce eligible editions per subscription, preserving the UI sender's behavior. */
 export const ELIGIBLE_PUSH_SQL = `
  JOIN v1_feed_documents e ON e.feed_id=b.id AND e.kind='editions'
@@ -68,12 +77,12 @@ export async function settlePushOutbox(db:D1Database,now:string):Promise<void> {
   await db.prepare(`UPDATE v1_feed_documents SET json=json_set(json,'$.state','DONE','$.attempts',MAX(COALESCE(json_extract(json,'$.attempts'),0),1),'$.completedAt',?,'$.deliveryChannel','BROWSER_PUSH','$.acceptance','PUSH_SERVICE')
    WHERE kind='delivery_jobs' AND id=? AND feed_id=? AND json_extract(json,'$.state') IN ('PENDING','RUNNING')
    AND EXISTS(SELECT 1 FROM v1_feed_documents WHERE kind='publication_status' AND id=? AND feed_id=? AND json_extract(json,'$.status')='PUBLISHED')
-   AND EXISTS(SELECT 1 FROM briefings b JOIN accounts a ON a.id=b.owner_account_id WHERE b.id=? AND b.owner_account_id=? AND b.public_feed_enabled=1 AND a.disabled_at IS NULL)
+   AND EXISTS(SELECT 1 FROM briefings b JOIN accounts a ON a.id=b.owner_account_id WHERE b.id=? AND b.owner_account_id=? AND ${ownerPrivatePushSql('?')} AND a.disabled_at IS NULL)
    AND EXISTS(SELECT 1 FROM push_subscriptions WHERE account_id=? AND last_notified_at<?)
    AND NOT EXISTS(SELECT 1 FROM push_subscriptions s WHERE s.account_id=? AND s.last_notified_at<? AND NOT EXISTS(
     SELECT 1 FROM v1_feed_documents r WHERE r.kind='browser_push_receipts' AND r.feed_id=?
      AND json_extract(r.json,'$.editionId')=? AND json_extract(r.json,'$.subscriptionVersion')=s.notification_version
      AND json_extract(r.json,'$.state')='ACCEPTED_BY_PUSH_SERVICE'))`)
-   .bind(now,job.id,job.feed_id,job.id,job.feed_id,job.feed_id,job.owner_account_id,job.owner_account_id,job.published_at,job.owner_account_id,job.published_at,job.feed_id,job.id).run();
+   .bind(now,job.id,job.feed_id,job.id,job.feed_id,job.feed_id,job.owner_account_id,job.published_at,job.owner_account_id,job.published_at,job.owner_account_id,job.published_at,job.feed_id,job.id).run();
  }
 }

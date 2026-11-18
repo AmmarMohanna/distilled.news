@@ -11,7 +11,7 @@ import { PublicSourceFetchFailure, PublicSourcePolicyError } from '@distilled/ag
 import {collectVerificationEvidence,type SourceVerificationScope} from './source-verification-collector';
 import {telegramVerificationEvidence} from './telegram-verification';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
-import {readAssessmentArticles,type AssessmentArticle} from './source-assessment-http';
+import {readAssessmentArticles,readAssessmentGoogleFeed,type AssessmentArticle} from './source-assessment-http';
 
 export interface SourceAssessment {
   input: string;
@@ -88,12 +88,16 @@ export async function assessSource(env: Env, context: { title: string; descripti
     if(collected&&!collected.length)return result('unverified','The collector returned no substantive posts or articles to verify.',{kind});
     const googleFallback=family==='google_news'&&env.SOURCE_PAID_VERIFICATION_ENABLED==='true'&&verification&&availability.providers.includes('google_apify');
     const nativeRead=()=>port.get(url).catch(error=>{
-      if(!googleFallback||!(error instanceof PublicSourceFetchFailure))throw error;
+      if((!googleFallback&&!(family==='google_news'&&env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'))||!(error instanceof PublicSourceFetchFailure))throw error;
       // No HTTP response was received. A configured paid collector can still
       // read the exact same query; retain its normal budget and retry fences.
       return {status:0,body:'',contentType:'',authenticationRequired:false};
     });
     let page = collected?{status:200,body:'',contentType:'application/json',authenticationRequired:false}:await nativeRead();
+    if(family==='google_news'&&!page.authenticationRequired&&[0,403,429,502,503,504].includes(page.status)){
+      const xml=await readAssessmentGoogleFeed(env,url);
+      if(xml)page={status:200,body:xml,contentType:'application/rss+xml',authenticationRequired:false};
+    }
     let anonymousArticles:AssessmentArticle[]=[];
     if(family==='website'&&[403,406].includes(page.status)&&!page.authenticationRequired){
       anonymousArticles=await readAssessmentArticles(env,url);
