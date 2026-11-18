@@ -1,0 +1,49 @@
+diff --git a/dist/src/index.js b/dist/src/index.js
+index 5e4e9ca33ca30b38eeca37286eb4e3f28054a48d..98d92e446fd40d8f076c5e78f75b01443408359e 100644
+--- a/dist/src/index.js
++++ b/dist/src/index.js
+@@ -79963,7 +79963,7 @@ port.addEventListener("message", async (event) => {
+       port.postMessage({ id, error: new Error(String(error)) });
+     }
+   } finally {
+-    Atomics.store(notifyHandle, /* index */ 0, /* value */ 1);
++    Atomics.store(notifyHandle, /* index */ 0, /* generation */ (id + 1) | 0);
+     Atomics.notify(notifyHandle, /* index */ 0);
+   }
+ });
+@@ -79994,13 +79994,6 @@ var SynchronousFetcher = class {
+   }
+   fetch(url39, init2) {
+     this.#ensureWorker();
+-    Atomics.store(
+-      this.#notifyHandle,
+-      /* index */
+-      0,
+-      /* value */
+-      0
+-    );
+     const id = this.#nextId++;
+     this.#channel.port1.postMessage({
+       id,
+@@ -80009,13 +80002,14 @@ var SynchronousFetcher = class {
+       headers: init2.headers,
+       body: init2.body
+     });
+-    Atomics.wait(
+-      this.#notifyHandle,
+-      /* index */
+-      0,
+-      /* value */
+-      0
+-    );
++    // An earlier request can notify late. Only this response generation
++    // proves that the matching message has been queued.
++    const generation = (id + 1) | 0;
++    for (let seen = Atomics.load(this.#notifyHandle, 0);
++      seen !== generation;
++      seen = Atomics.load(this.#notifyHandle, 0)) {
++      Atomics.wait(this.#notifyHandle, 0, seen);
++    }
+     const message = (0, import_node_worker_threads.receiveMessageOnPort)(
+       this.#channel.port1
+     )?.message;
