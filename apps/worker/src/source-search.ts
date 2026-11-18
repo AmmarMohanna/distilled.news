@@ -36,18 +36,20 @@ export async function searchSourceCandidates(env:Env,query:string,fetcher:typeof
  const found=discovery?await cachedSourceSearch(discovery.owner,sourceSearchCacheQuery(query,context),discovery.origin,load,discovery.cache,undefined,'discovery'):await load();
  const aligned=context?await alignedSearchResults(env,query,context,found.results,fetcher,discovery?.owner):{results:found.results,unavailable:false};
  const accessible=await freelyReadableResults(aligned.results,fetcher,accessCache,env,onProgress?results=>onProgress({results,unavailable:false}):undefined);
+ let supplementalUnavailable=false;
  if(context&&env.SOURCE_SEARCH_WEB_DISCOVERY_ENABLED==='true'&&discovery?.owner&&accessible.results.length<12){
   const index=await configuredSourceWebIndex(env,query,discovery.owner,fetcher);
   if(index.available){
    const additional=index.items.map(item=>({source:item.url,title:item.title,publisher:new URL(item.url).hostname,...(new URL(item.url).pathname!=='/'?{articleUrl:item.url}:{}),excerpt:item.excerpt}));
    const judged=await alignedSearchResults(env,query,context,additional,fetcher,discovery.owner);
+   supplementalUnavailable=judged.unavailable;
    const merge=(rows:SourceSearchResult[])=>[...new Map([...accessible.results,...rows].map(row=>[row.articleUrl??row.source,row])).values()].slice(0,30);
    const checked=await freelyReadableResults(judged.results,fetcher,accessCache,env,onProgress?rows=>onProgress({results:merge(rows),unavailable:false}):undefined);
    const results=merge(checked.results);
-   if(results.length)return {results,unavailable:false,accessIncomplete:accessible.accessIncomplete||checked.accessIncomplete,verificationIncomplete:accessible.verificationIncomplete||checked.verificationIncomplete};
+   if(results.length)return {results,unavailable:false,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete||checked.accessIncomplete,verificationIncomplete:accessible.verificationIncomplete||checked.verificationIncomplete};
   }
  }
- return {...found,...accessible,unavailable:found.unavailable||aligned.unavailable,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete,...(context&&found.results.length>0&&!aligned.results.length&&!aligned.unavailable?{topicMismatch:true}:{})};
+ return {...found,...accessible,unavailable:found.unavailable||aligned.unavailable||supplementalUnavailable,accessIncomplete:found.accessIncomplete===true||accessible.accessIncomplete,...(context&&found.results.length>0&&!aligned.results.length&&!aligned.unavailable&&!supplementalUnavailable?{topicMismatch:true}:{})};
 }
 
 async function discoverSourceCandidates(env:Env,query:string,fetcher:typeof fetch,context?:SearchTopic,directoryCache?:Pick<Cache,'match'|'put'>,accessCache?:Pick<Cache,'match'|'put'>):Promise<{results:SourceSearchResult[];unavailable:boolean;topicMismatch?:boolean;accessIncomplete?:boolean}> {
