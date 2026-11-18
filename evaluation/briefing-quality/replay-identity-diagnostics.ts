@@ -6,7 +6,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {inventory,metrics,type Case} from './worker/src/protocol';
 import {parseGrounding,groundedInventory,groundedReview} from './worker/src/grounding';
-import {auditClaimInventory} from './worker/src/claim-inventory';
+import {auditLegacyArabicClaimInventory as auditClaimInventory} from './worker/src/claim-inventory';
 import {arabicIdentityIssues} from '../../packages/briefing/src/identity-fidelity';
 const dir=process.argv[2];if(!dir)throw Error('Expected retained artifact directory');
 const hashes:Record<string,string>={};

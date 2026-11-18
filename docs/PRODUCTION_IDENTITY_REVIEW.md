@@ -6,6 +6,8 @@ Implementation commits: `56d67078` (publication identity guard) and `4575920e` (
 
 This was a read-only production investigation plus local implementation and offline verification. No production news, annotations, financial rows, deployments or dashboards were changed. No paid inference was initiated.
 
+**Subsequent design:** the general replacement for the targeted Arabic guard is now implemented as a disabled candidate. See [SOURCE_BOUND_CLAIMS.md](SOURCE_BOUND_CLAIMS.md) for its language-independent inventory/evidence contract, rollout boundary, additional call cost and unperformed real-model qualification. The Arabic diagnostics described here are historical and do not constitute the candidate's verification algorithm.
+
 ## First introduction of the two errors
 
 The active editions have `engine: v3` and use the V4 editor followed by occurrence-novelty review and factual verification. The older extracted-proposition/editorial-plan publication path did **not** generate these errors. The original frozen inputs, paid response records and published text establish the following trace:

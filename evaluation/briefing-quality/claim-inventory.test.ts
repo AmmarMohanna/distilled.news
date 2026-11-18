@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {assessClaimInventory,auditClaimInventory,claimInventoryRequest,parseClaimInventoryAudit} from './worker/src/claim-inventory';
+import {assessClaimInventory,auditLegacyArabicClaimInventory as auditClaimInventory,claimInventoryRequest,parseClaimInventoryAudit} from './worker/src/claim-inventory';
 import type {Case,Review} from './worker/src/protocol';
 import {groundedReviewSchema} from './worker/src/schema';
 const c={items:[{headline:'رئيس الحكومة نجيب سلام يعلن تأجيل الجلسة',body:'',sourceIds:['s']}],articles:[{id:'s',text:'رئاسة الحكومة: لا جلسة بسبب ظرف عائلي طرأ على سلام.'}]} as Case;

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {expect,it} from 'vitest';
 import {groundedReview} from './worker/src/grounding';
 import {metrics} from './worker/src/protocol';
-import {auditClaimInventory} from './worker/src/claim-inventory';
+import {auditLegacyArabicClaimInventory as auditClaimInventory} from './worker/src/claim-inventory';
 const dir='evaluation/briefing-quality/fixtures/production-identity';
 for(const file of fs.readdirSync(dir)){
  const f=JSON.parse(fs.readFileSync(`${dir}/${file}`,'utf8'));

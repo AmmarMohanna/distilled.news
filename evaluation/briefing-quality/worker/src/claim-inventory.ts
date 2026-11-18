@@ -1,10 +1,10 @@
 import {arabicIdentityIssues,arabicPersonMentions,normalizeArabicIdentityText} from '../../../../packages/briefing/src/identity-fidelity';
 import {check,type Case,type Review,type Request} from './protocol';
-export const CLAIM_AUDIT_POLICY='reader-claim-inventory-v1';
+export const CLAIM_AUDIT_POLICY='reader-claim-inventory-v2';
 export interface ClaimAudit {items:Array<{item:number;status:'complete'|'incomplete'|'uncertain';missing:Array<{quote:string;explanation:string}>;explanation:string}>;limitations:string[]}
 /** A separate deterministic lower bound on omissions, not a complete semantic
  * claim inventory. Original judgments and their denominators remain unchanged. */
-export function auditClaimInventory(c:Case,r:Review){
+export function auditLegacyArabicClaimInventory(c:Case,r:Review){
  const unassessedItems:number[]=[],unassessedIdentities:Array<{item:number;name:string;role:string;quote:string}>=[],identityBindings=[];
  for(const [item,value]of c.items.entries()){
   const reader=value.headline+'\n'+value.body,claims=r.claims.filter(v=>v.item===item);
@@ -18,7 +18,14 @@ export function auditClaimInventory(c:Case,r:Review){
   }
   identityBindings.push(...issues.map(v=>({item,...v})));
  }
- return {policy:CLAIM_AUDIT_POLICY,status:unassessedItems.length||unassessedIdentities.length?'incomplete' as const:'not_independently_established' as const,unassessedItems,unassessedIdentities,identityBindings};
+ return {policy:'legacy-arabic-person-role-diagnostic-v1',status:unassessedItems.length||unassessedIdentities.length?'incomplete' as const:'not_independently_established' as const,unassessedItems,unassessedIdentities,identityBindings};
+}
+/** The current evaluator does not infer identity/fact completeness from a
+ * language-specific regex. Retained legacy diagnostics are explicitly opt-in
+ * above for historical replay. Independent whole-text assessment is below. */
+export function auditClaimInventory(c:Case,r:Review){
+ const unassessedItems=c.items.flatMap((v,item)=>(v.headline+'\n'+v.body).trim()&&!r.claims.some(claim=>claim.item===item)?[item]:[]);
+ return {policy:CLAIM_AUDIT_POLICY,status:unassessedItems.length?'incomplete' as const:'not_independently_established' as const,unassessedItems,unassessedIdentities:[],identityBindings:[],limitations:['Item presence is mechanical only. All languages require independent semantic completeness and evidence verification; no role/name dictionary is used.']};
 }
 /** Separate assessor, blind to support verdicts, source inventories and scores.
  * Its completion judgment remains a fallible model assessment, not ground truth. */
