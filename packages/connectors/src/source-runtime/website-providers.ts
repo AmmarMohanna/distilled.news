@@ -12,7 +12,7 @@ import {readArticleDateMetadata,unreadableArticleReason} from './article-integri
 export class WebsiteSourceProvider implements SourceProvider {
   readonly families:SourceFamily[]=['website'];
   constructor(readonly id:'website_http'|'website_playwright'|'website_zyte',private http:FeedHttpPort,
-    private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01,private selectLinks?:WebsiteLinkSelector,private zyteListingRetryHosts?:ReadonlySet<string>){}
+    private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01,private selectLinks?:WebsiteLinkSelector,private zyteListingRetryEnabled?:boolean){}
   async fetch(input:SourceFetchRequest,run:FetchRun):Promise<ProviderPage>{
     // Resume legacy inventory offsets as well as exact same-origin next pages.
     const continuation=input.continuation?.token,inventoryOffset=continuation!==undefined&&/^\d+$/.test(continuation);
@@ -51,7 +51,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       body:JSON.stringify({url,httpResponseBody:true,httpResponseHeaders:true}),
     });
     const target=new URL(url);
-    const canRetry=!input.recheckItemKeys&&this.zyteListingRetryHosts?.has(target.hostname)&&
+    const canRetry=!input.recheckItemKeys&&this.zyteListingRetryEnabled&&
       (target.pathname==='/'||isWebsiteListingUrl(url));
     let result=await request(run.id),requests=1;
     if(canRetry&&[500,520].includes(result.status)){

@@ -87,7 +87,7 @@ destination addresses in the Cloudflare account.
 
 ### Optional Zyte retry for website listings
 
-Set `SOURCE_ZYTE_LISTING_RETRY_HOSTS` to a comma-separated list of exact hostnames, such as `nowlebanon.com`. On these hosts, a homepage or recognized listing can get one additional plain HTTP Zyte request per collection run after a recorded Zyte HTTP 500 or 520. The second request uses the same budget and its own receipt. Missing provider responses, rate limits, access refusals, and parsing errors do not trigger the follow-up.
+Set `SOURCE_ZYTE_LISTING_RETRY_ENABLED=true` on a deployment to allow one additional plain HTTP Zyte request per collection run for any homepage or recognized listing already eligible for paid Zyte collection. It retries only after a recorded Zyte HTTP 500 or 520. The second request uses the same budget and its own receipt. Missing provider responses, rate limits, access refusals, and parsing errors do not trigger the follow-up.
 
 ### Optional model fallback for website listings
 

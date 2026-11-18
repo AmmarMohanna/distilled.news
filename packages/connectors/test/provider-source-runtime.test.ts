@@ -749,21 +749,21 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     execute.mockResolvedValueOnce({body:'Homepage '.repeat(50),pageKind:'article',publishedAt:time,articleLinks:[]});
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');
   });
-  it.each([500,520])('retries a recorded Zyte HTTP %s using the same plain HTTP request and replays both receipts',async status=>{
-    const sourceUrl='https://publisher.example/';
+  it.each([[500,'https://other-publisher.example/latest-news'],[520,'https://publisher.example/']] as const)(
+    'retries a recorded Zyte HTTP %s for a configured deployment and replays both receipts',async(status,sourceUrl)=>{
     const html='<h2><a href="/news/one">First story</a></h2><h2><a href="/news/two">Second story</a></h2>';
     const dispatch=vi.fn(async(_url:RequestInfo|URL,_init?:RequestInit)=>Response.json({statusCode:200,httpResponseBody:btoa(html)}));
     dispatch.mockResolvedValueOnce(Response.json({}, {status}));
     const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
     await http.configureLimit('zyte',.02);
     const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:vi.fn()},http,async()=> 'test-key',.01,
-      undefined,new Set(['publisher.example']));
+      undefined,true);
     const input={...request,source:{family:'website' as const,locator:sourceUrl}};
     for(let i=0;i<2;i++){
       const page=await p.fetch(input,run);
       expect(page.requests).toBe(2);
       expect(page.items.map(item=>[item.url,item.representation])).toEqual([
-        [sourceUrl+'news/one','LISTING_RESULT'],[sourceUrl+'news/two','LISTING_RESULT'],
+        [new URL('/news/one',sourceUrl).href,'LISTING_RESULT'],[new URL('/news/two',sourceUrl).href,'LISTING_RESULT'],
       ]);
     }
     const plainRequest={url:sourceUrl,httpResponseBody:true,httpResponseHeaders:true};
@@ -786,7 +786,7 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
     await http.configureLimit('zyte',limit);
     const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:async()=>({pageKind:'listing',articleLinks:[]})},
-      http,async()=> 'test-key',.01,undefined,enabled?new Set(['publisher.example']):undefined);
+      http,async()=> 'test-key',.01,undefined,enabled);
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run))
       .rejects.toMatchObject({code});
     expect(dispatch).toHaveBeenCalledOnce();
