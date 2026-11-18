@@ -8,7 +8,7 @@ import {resolveSearchGoogleArticles} from './source-search-google';
 import {searchArticleChecks} from './source-search-helper';
 async function accessKey(source:string,article=false){
  const url=prepareProductSourceInput(source).sourceUrl!;
- const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(article?'article-access-v4-free-helper:'+url:url));
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(article?'article-access-v5-publisher-bound:'+url:url));
  return new Request('https://source-search-access.invalid/'+Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join(''));
 }
 export async function rememberUnavailableSearchSource(source:string,cache?:Pick<Cache,'put'>){
@@ -57,11 +57,15 @@ export async function freelyReadableResults(results:SourceSearchResult[],fetcher
    const signal=AbortSignal.timeout(Math.min(3000,Math.max(1,deadline-Date.now())));
    const read:typeof fetch=(input,init)=>bounded(input,{...init,signal:AbortSignal.any([signal,...(init?.signal?[init.signal]:[])])});
    let finalUrl=url;
+   const publisherHost=new URL(url).hostname.replace(/^www\./,'');
+   const allowedHosts=new Set([publisherHost,...(publisherHost==='news.google.com'?original.filter(row=>row.articleUrl===url).map(row=>new URL(prepareProductSourceInput(row.source).sourceUrl!).hostname.replace(/^www\./,'')):[])]);
    const articleFetch:typeof fetch=async(input,init)=>{
     let current=String(input);
     const seen=new Set<string>();
     for(let hop=0;hop<4;hop++){
      new WorkerPublicSourceFetch(current);
+     const currentHost=new URL(current).hostname.replace(/^www\./,'');
+     if(current!==url&&!allowedHosts.has(currentHost))throw Error('ARTICLE_PUBLISHER_CHANGED');
      if(seen.has(current)||/\/(?:login|signin|sign-in|authorize|oauth)(?:\/|$)/i.test(new URL(current).pathname))throw Error('ARTICLE_REDIRECT_DENIED');
      seen.add(current);
      const response=await read(current,{...init,redirect:'manual'});

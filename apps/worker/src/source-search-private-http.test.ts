@@ -11,6 +11,15 @@ it('accepts a verified same-publisher article when its homepage is blocked',asyn
  expect((await freelyReadableResults([result],fetcher)).results).toEqual([result]);
  expect((await freelyReadableResults([{...result,source:'https://other.example/'}],fetcher)).results).toEqual([]);
 });
+it.each([200,403])('rejects an article redirected to an unrelated publisher when its homepage returns %s',async status=>{
+ const fetcher=vi.fn<typeof fetch>(async input=>String(input)===result.source?new Response('Publisher homepage. '.repeat(8),{status}):String(input)===url?new Response(null,{status:302,headers:{location:'https://unrelated.example/article'}}):articlePage());
+ expect((await freelyReadableResults([result],fetcher)).results).toEqual([]);
+ expect(fetcher.mock.calls.some(([target])=>String(target).startsWith('https://unrelated.example/'))).toBe(false);
+});
+it('retains safe redirects to the same publisher www hostname',async()=>{
+ const fetcher:typeof fetch=async input=>String(input)===url?new Response(null,{status:301,headers:{location:'https://www.publisher.example/report'}}):String(input)==='https://www.publisher.example/report'?articlePage():new Response('',{status:403});
+ expect((await freelyReadableResults([result],fetcher)).results).toEqual([result]);
+});
 it('uses only the free anonymous article helper when Worker article access is blocked',async()=>{
  const helper=vi.fn<typeof fetch>(async(_target,init)=>{expect(JSON.parse(init!.body as string)).toEqual({kind:'public_article',input:{url}});return Response.json(article);});
  const denied:typeof fetch=async()=>new Response('',{status:403});

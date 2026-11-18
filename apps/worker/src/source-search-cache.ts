@@ -4,18 +4,19 @@ type Result=Awaited<ReturnType<typeof searchSourceCandidates>>;
  * private feed reads, persistent database rows or module-level request state.
  */
 async function cacheKey(owner:string,query:string,origin:string,kind='results'){
- const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(['search-v17-configured-index',kind,owner,query.trim().toLocaleLowerCase().replace(/\s+/g,' ')])));
+ const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(['search-v18-distinct-progress',kind,owner,query.trim().toLocaleLowerCase().replace(/\s+/g,' ')])));
  const digest=Array.from(new Uint8Array(bytes),byte=>byte.toString(16).padStart(2,'0')).join('');
  return new Request(new URL('/__source-search-cache/'+digest,origin));
 }
 export async function readSourceSearchCache(owner:string,query:string,origin:string,cache?:Pick<Cache,'match'>):Promise<Result|undefined>{
- try{const saved=await cache?.match(await cacheKey(owner,query,origin));return saved?await saved.json() as Result:undefined;}catch{return;}
+ for(const kind of ['results','progress'])try{const saved=await cache?.match(await cacheKey(owner,query,origin,kind));if(saved)return await saved.json() as Result;}catch{/* The other selection receipt may still be available. */}
+ return;
 }
 /** Verified streamed matches must be available to selection's normal assessment
- * reuse before the response finishes. A final response replaces this short entry. */
+ * reuse before the response finishes. Progress is never a completed search. */
 export async function cacheSourceSearchProgress(owner:string,query:string,origin:string,result:Result,cache?:Pick<Cache,'put'>){
  if(!result.results.length||result.unavailable)return;
- try{await cache?.put(await cacheKey(owner,query,origin),Response.json(result,{headers:{'cache-control':'public, max-age=15'}}));}catch{}
+ try{await cache?.put(await cacheKey(owner,query,origin,'progress'),Response.json(result,{headers:{'cache-control':'public, max-age=15'}}));}catch{}
 }
 export async function cachedSourceSearch(owner:string,query:string,origin:string,load:()=>Promise<Result>,cache?:Pick<Cache,'match'|'put'>,checkCached?:(result:Result)=>Promise<Result>,kind='results'):Promise<Result>{
  const key=await cacheKey(owner,query,origin,kind);
