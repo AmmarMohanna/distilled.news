@@ -4,6 +4,48 @@ import {generateBriefing} from '../src/engine';
 import {article,FEED,MODELS,scripted,WINDOW} from './helpers';
 
 const source='الرئيس جوزيف عون، في مقابلة مطولة، قال إن الدولة اتخذت قرارها بحصرية السلاح.';
+it.each([
+ ['أعلن الرئيس عبد الفتاح الوحش قراراً.','أعلن الرئيس عبد الفتاح السيسي قراراً.'],
+ ['قال رئيس الحكومة عبد الله بن قنديل إن القرار اتخذ.','قال رئيس الحكومة عبد الله بن سالم إن القرار اتخذ.'],
+ ['أعلن الرئيس «عبد الفتاح الوحش» القرار.','أعلن الرئيس «عبد الفتاح السيسي» القرار.'],
+])('checks the final surname of the whole multi-token name: %s',(reader,evidence)=>{
+ expect(arabicIdentityIssues(reader,[evidence])).toEqual([expect.objectContaining({code:'ARABIC_NAME_UNBOUND'})]);
+});
+it('does not silently skip an invented name whose surname is completely absent',()=>{
+ expect(arabicIdentityIssues('أعلن رئيس الحكومة نجيب قنديل تأجيل الجلسة.',['أعلنت رئاسة الحكومة تأجيل الجلسة بسبب ظرف عائلي طرأ على سلام.'])).toEqual([expect.objectContaining({code:'ARABIC_NAME_UNBOUND',name:'نجيب قنديل'})]);
+});
+it('reports cross-language transliteration as unresolved rather than an Arabic-source mismatch or a pass',()=>{
+ expect(arabicIdentityIssues('قال الرئيس عبد الفتاح السيسي إن القرار اتخذ.',['President Abdel Fattah el-Sisi announced the decision.'])).toEqual([expect.objectContaining({code:'ARABIC_TRANSLITERATION_UNRESOLVED'})]);
+});
+it('does not certify a truncated shared prefix as the full identity',()=>{
+ expect(arabicIdentityIssues('قال الرئيس عبد الفتاح إن القرار اتخذ.',['قال الرئيس عبد الفتاح السيسي إن القرار اتخذ.'])).not.toEqual([]);
+});
+it('abstains when unfamiliar trailing Arabic prose leaves the name boundary ambiguous',()=>{
+ const reader='الرئيس أحمد محمد علي تتوالى تفاصيل محلية';
+ const issues=arabicIdentityIssues(reader,['الرئيس أحمد محمد علي، في بيان اليوم.']);
+ expect(issues).toEqual([expect.objectContaining({code:'ARABIC_NAME_BOUNDARY_UNCERTAIN'})]);
+});
+it('does not certify a truncated prefix before an unexpected name separator',()=>{
+ expect(arabicIdentityIssues('أعلن الرئيس عبد-الفتاح الوحش القرار.',['أعلن الرئيس عبد-الفتاح السيسي القرار.'])).toEqual([expect.objectContaining({code:'ARABIC_NAME_BOUNDARY_UNCERTAIN'})]);
+});
+it.each([
+ ['أعلن الرئيس عبد الفتاح السيسي قراراً.','أعلن الرئيس عبد الفتاح السيسي قراراً.'],
+ ['قال رئيس الحكومة عبد الله بن سالم إن القرار اتخذ.','قال رئيس الوزراء عبد الله بن سالم إن القرار اتخذ.'],
+ ['الرئيس عبد الفتاح السيسي','الرئيس عبد الفتاح السيسي، قال إن القرار اتخذ.'],
+ ['قال الرئيس السيسي إن القرار اتخذ.','الرئيس عبد الفتاح السيسي، قال إن القرار اتخذ.'],
+])('preserves source-bound multi-token names and supported surname abbreviations: %s',(reader,evidence)=>{
+ expect(arabicIdentityIssues(reader,[evidence])).toEqual([]);
+});
+it.each([
+ ['أعلن رئيس الحكومة نجيب قنديل تأجيل الجلسة','أعلنت رئاسة الحكومة تأجيل الجلسة لظرف عائلي طرأ على سلام.'],
+ ['أعلن الرئيس عبد الفتاح الوحش قراراً','أعلن الرئيس عبد الفتاح السيسي قراراً.'],
+])('withholds an unbound complete name despite an approving verifier and preserves its sibling: %s',async(headline,evidence)=>{
+ const draft=(headline:string,sources:string[])=>({headline,body:'',sources,relation:'new',updates:null,importance:1});
+ const x=scripted({edit:[{items:[draft(headline,['S1']),draft('أعلنت البلدية افتتاح الحديقة',['S2'])]}],verify:[{results:[{i:0,verdict:'ok',issues:[]},{i:1,verdict:'ok',issues:[]}]}]});
+ const result=await generateBriefing({feed:{...FEED,language:'ar',identityFidelityPolicy:'arabic-person-role-v1'},...WINDOW,articles:[article('a',evidence),article('b','أعلنت البلدية افتتاح الحديقة.')]},x.port,MODELS,{maxRepairs:0,prepare:{minChars:1}});
+ expect(result.items.map(i=>i.headline)).toEqual(['أعلنت البلدية افتتاح الحديقة']);
+ expect(result.dropped[0]).toMatchObject({carry:true,sourceIds:['a']});
+});
 it('detects the retained Arabic role substitution without outside biographical knowledge',()=>{
  expect(arabicIdentityIssues('قال قائد الجيش جوزيف عون إن الدولة اتخذت قرارها.',[source])).toEqual([expect.objectContaining({code:'ARABIC_ROLE_UNBOUND',name:'جوزيف عون'})]);
 });

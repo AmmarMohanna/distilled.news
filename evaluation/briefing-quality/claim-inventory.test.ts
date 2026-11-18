@@ -4,6 +4,26 @@ import type {Case,Review} from './worker/src/protocol';
 import {groundedReviewSchema} from './worker/src/schema';
 const c={items:[{headline:'رئيس الحكومة نجيب سلام يعلن تأجيل الجلسة',body:'',sourceIds:['s']}],articles:[{id:'s',text:'رئاسة الحكومة: لا جلسة بسبب ظرف عائلي طرأ على سلام.'}]} as Case;
 const review={claims:[{id:'C1',item:0,text:'تأجيل الجلسة بسبب ظرف عائلي',support:'supported',citationSupport:'supported',evidence:[],explanation:'Source says so.'}],items:[],coverage:[],findings:[],limitations:[]} as Review;
+it.each([
+ ['أعلن الرئيس عبد الفتاح الوحش قراراً.','أعلن الرئيس عبد الفتاح السيسي قراراً.'],
+ ['قال رئيس الحكومة نجيب قنديل إن الجلسة مؤجلة.','أعلنت رئاسة الحكومة تأجيل الجلسة بسبب ظرف عائلي طرأ على سلام.'],
+])('flags falsely supported complete names in the evaluator too: %s',(headline,evidence)=>{
+ const input={...c,items:[{...c.items[0],headline}],articles:[{...c.articles[0],text:evidence}]};
+ const r={...review,claims:[{...review.claims[0],text:headline}]};
+ expect(auditClaimInventory(input,r)).toMatchObject({unassessedIdentities:[],identityBindings:[expect.objectContaining({code:'ARABIC_NAME_UNBOUND'})]});
+ expect(r.claims[0].support).toBe('supported');
+});
+it('does not count a shared given-name prefix as assessing the complete reader identity',()=>{
+ const input={...c,items:[{...c.items[0],headline:'قال الرئيس عبد الفتاح السيسي إن القرار اتخذ.'}]};
+ const r={...review,claims:[{...review.claims[0],text:'قال الرئيس عبد الفتاح إن القرار اتخذ.'}]};
+ expect(auditClaimInventory(input,r).unassessedIdentities).toContainEqual(expect.objectContaining({name:'عبد الفتاح السيسي'}));
+});
+it('keeps boundary uncertainty separate from a confirmed claim-inventory omission',()=>{
+ const input={...c,items:[{...c.items[0],headline:'الرئيس أحمد محمد علي تتوالى تفاصيل محلية'}],articles:[{...c.articles[0],text:'الرئيس أحمد محمد علي، في بيان اليوم.'}]};
+ const a=auditClaimInventory(input,review);
+ expect(a.status).toBe('not_independently_established');expect(a.unassessedIdentities).toEqual([]);
+ expect(a.identityBindings).toEqual([expect.objectContaining({code:'ARABIC_NAME_BOUNDARY_UNCERTAIN'})]);
+});
 it('requires every item judgment in the provider schema as well as the runtime validator',()=>{
  const schema=groundedReviewSchema(JSON.stringify({case:{items:[{},{},{}],articles:[],prior:[]},independentInventory:{developments:[]}})) as any;
  expect(schema.properties.items).toMatchObject({minItems:3,maxItems:3,items:{properties:{item:{type:'integer',enum:[0,1,2]}}}});

@@ -9,9 +9,14 @@ export function auditClaimInventory(c:Case,r:Review){
  for(const [item,value]of c.items.entries()){
   const reader=value.headline+'\n'+value.body,claims=r.claims.filter(v=>v.item===item);
   if(reader.trim()&&!claims.length)unassessedItems.push(item);
-  for(const identity of arabicPersonMentions(reader))if(!claims.some(v=>normalizeArabicIdentityText(v.text).includes(identity.name)))unassessedIdentities.push({item,...identity});
   const sources=c.articles.filter(a=>value.sourceIds.includes(a.id)).map(a=>`${a.title??''}\n${a.text??''}`);
-  identityBindings.push(...arabicIdentityIssues(reader,sources).map(v=>({item,...v})));
+  const issues=arabicIdentityIssues(reader,sources);
+  for(const identity of arabicPersonMentions(reader)){
+   const unresolved=issues.some(v=>v.name===identity.name&&(v.code==='ARABIC_NAME_BOUNDARY_UNCERTAIN'||v.code==='ARABIC_TRANSLITERATION_UNRESOLVED'));
+   // An uncertain span is not proof that a factual identity was omitted.
+   if(!unresolved&&!claims.some(v=>normalizeArabicIdentityText(v.text).includes(identity.name)))unassessedIdentities.push({item,...identity});
+  }
+  identityBindings.push(...issues.map(v=>({item,...v})));
  }
  return {policy:CLAIM_AUDIT_POLICY,status:unassessedItems.length||unassessedIdentities.length?'incomplete' as const:'not_independently_established' as const,unassessedItems,unassessedIdentities,identityBindings};
 }
