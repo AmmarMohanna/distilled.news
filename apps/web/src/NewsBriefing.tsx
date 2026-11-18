@@ -4,7 +4,7 @@ import type {BriefingEdition,BriefingEvidence} from '@distilled/core';
 import {Dialog} from './Dialog';
 import {SourceLogo} from './SourceLogo';
 import {sourceEvidenceLabels} from './source-evidence-labels';
-import {briefingReferences} from './briefing-references';
+import {briefingReferences,readerArticleIdentity,readerEvidenceUrl} from './briefing-references';
 
 type Language='en'|'ar'|'fr';
 const copy={
@@ -25,7 +25,7 @@ function publicUrl(value:string|undefined){
 function evidenceDetails(entry:BriefingEvidence){
  const labels=sourceEvidenceLabels(entry);
  const publisher=display(entry.sourceTitle.trim()&&entry.sourceTitle.trim()!==labels.headline?entry.sourceTitle:labels.publisher);
- const links=[...new Set((entry.links.length?entry.links:[entry.sourceUrl]).flatMap(value=>{const url=publicUrl(value);return url?[url]:[];}))];
+ const links=[...new Set([readerEvidenceUrl(entry),...(entry.links.length?entry.links:[entry.sourceUrl])].flatMap(value=>{const url=publicUrl(value);return url?[url]:[];}))];
  const date=Number.isFinite(Date.parse(entry.postedAt))?new Date(entry.postedAt):undefined;
  return {publisher,links,date};
 }
@@ -39,10 +39,17 @@ export function NewsBriefing(props:{edition:BriefingEdition;selectedIndex:number
  const referenceIndex=Math.min(selectedStory,lastIndex),reference=references[referenceIndex];
  const storyIndex=reference?.sectionIndex??0,section=edition.sections[storyIndex];
  const entry=section?.evidence[reference?.evidenceIndex??0];
+ const entries=reference?.evidenceIndexes.map(index=>section.evidence[index]).filter(Boolean)??[];
  const text=(section?.summary??edition.summary).replace(/\r\n/g,'\n'),boundary=text.indexOf('\n');
  const heading=section?.title.trim()||(boundary>0?text.slice(0,boundary).trim():'')||edition.title;
  const body=!section?.title.trim()&&boundary>0?text.slice(boundary+1).trim():text.startsWith(heading)?text.slice(heading.length).trimStart():text;
- const {publisher,links,date}=entry?evidenceDetails(entry):{publisher:'',links:[],date:undefined};
+ const {publisher,date}=entry?evidenceDetails(entry):{publisher:'',date:undefined};
+ const seenLinks=new Set<string>();
+ const links=entries.flatMap(item=>evidenceDetails(item).links).filter(link=>{
+  const key=(readerArticleIdentity(link)??link)+new URL(link).hash;if(seenLinks.has(key))return false;seenLinks.add(key);return true;
+ });
+ const seenMedia=new Set<string>();
+ const media=entries.flatMap(item=>item.media).filter(item=>{const key=JSON.stringify(item);if(seenMedia.has(key))return false;seenMedia.add(key);return true;});
  const articleUrl=links[0];
  return <Dialog label={labels.title} className="news-briefing-dialog" onClose={props.onClose}>
   <section className="news-briefing-card" lang={language} dir={rtl?'rtl':'ltr'}>
@@ -55,9 +62,9 @@ export function NewsBriefing(props:{edition:BriefingEdition;selectedIndex:number
    </div>
    <div className="news-briefing-description"><p dir="auto">{display(body)}</p></div>
    {!entry?<p className="news-briefing-empty">{labels.noSources}</p>:null}
-   {(links.length>1||Boolean(entry?.media.length))?<div className="news-briefing-related">
+   {(links.length>1||media.length>0)?<div className="news-briefing-related">
     {links.slice(1).map(link=><a key={link} href={link} target="_blank" rel="noopener noreferrer"><Link2 size={15} aria-hidden="true"/>{new URL(link).hostname.replace(/^www\./,'')}</a>)}
-    {entry?.media.map((media,index)=>{const url=publicUrl(media.url);return url?<a key={index} href={url} target="_blank" rel="noopener noreferrer">{props.mediaLabel(media)}</a>:<span key={index}>{props.mediaLabel(media)}</span>;})}
+    {media.map((media,index)=>{const url=publicUrl(media.url);return url?<a key={index} href={url} target="_blank" rel="noopener noreferrer">{props.mediaLabel(media)}</a>:<span key={index}>{props.mediaLabel(media)}</span>;})}
    </div>:null}
    <footer className="news-briefing-footer">
     <div className="news-briefing-actions">

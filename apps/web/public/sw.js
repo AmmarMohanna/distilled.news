@@ -41,8 +41,19 @@ self.addEventListener("notificationclick", event => {
   if (url.origin!==self.location.origin) return;
   event.waitUntil((async()=>{
     const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-    const existing=windows.find(client=>client.url===url.href) || windows.find(client=>new URL(client.url).origin===self.location.origin);
-    if(existing){if(existing.url!==url.href)await existing.navigate(url.href);await existing.focus();return;}
-    await self.clients.openWindow(url.href);
+    const sameOrigin=windows.filter(client=>{try{return new URL(client.url).origin===self.location.origin;}catch{return false;}});
+    const existing=sameOrigin.find(client=>client.url===url.href) || sameOrigin.find(client=>client.focused) || sameOrigin[0];
+    if(existing){
+      try{
+        // Use the notification activation immediately, before a network-backed
+        // navigation. Navigation can replace the WindowClient we must focus.
+        await existing.focus();
+        if(existing.url===url.href)return;
+        const navigated=await existing.navigate(url.href);
+        if(navigated){await navigated.focus();return;}
+      }catch{ /* A closed or replaced client must not swallow the click. */ }
+    }
+    const opened=await self.clients.openWindow(url.href);
+    if(opened)await opened.focus();
   })());
 });
