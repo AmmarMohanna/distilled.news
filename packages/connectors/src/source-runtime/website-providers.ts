@@ -12,7 +12,7 @@ import {readArticleDateMetadata,unreadableArticleReason} from './article-integri
 export class WebsiteSourceProvider implements SourceProvider {
   readonly families:SourceFamily[]=['website'];
   constructor(readonly id:'website_http'|'website_playwright'|'website_zyte',private http:FeedHttpPort,
-    private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01,private selectLinks?:WebsiteLinkSelector,private renderedListingHosts?:ReadonlySet<string>){}
+    private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01,private selectLinks?:WebsiteLinkSelector,private zyteListingRetryHosts?:ReadonlySet<string>){}
   async fetch(input:SourceFetchRequest,run:FetchRun):Promise<ProviderPage>{
     // Resume legacy inventory offsets as well as exact same-origin next pages.
     const continuation=input.continuation?.token,inventoryOffset=continuation!==undefined&&/^\d+$/.test(continuation);
@@ -46,40 +46,28 @@ export class WebsiteSourceProvider implements SourceProvider {
   private async fetchZyte(input:SourceFetchRequest,run:FetchRun,url:string,start:number):Promise<ProviderPage>{
     const key=await this.secrets?.('zyte'),paid=this.paid;
     if(!key||!paid)throw new SourceProviderError('UNAVAILABLE');
-    const request=(rendered:boolean)=>paid.request(input.scope,rendered?'website-rendered-listing-v1:'+run.id:run.id,
-      'zyte',this.ceilingUsd,'https://api.zyte.com/v1/extract',{
-        method:'POST',headers:{authorization:`Basic ${btoa(key+':')}`,'content-type':'application/json'},
-        body:JSON.stringify(rendered?{url,browserHtml:true}:{url,httpResponseBody:true,httpResponseHeaders:true}),
-      });
-    const first=await request(false);
+    const request=(operationId:string)=>paid.request(input.scope,operationId,'zyte',this.ceilingUsd,'https://api.zyte.com/v1/extract',{
+      method:'POST',headers:{authorization:`Basic ${btoa(key+':')}`,'content-type':'application/json'},
+      body:JSON.stringify({url,httpResponseBody:true,httpResponseHeaders:true}),
+    });
     const target=new URL(url);
-    const listing=!input.recheckItemKeys&&this.renderedListingHosts?.has(target.hostname)&&
+    const canRetry=!input.recheckItemKeys&&this.zyteListingRetryHosts?.has(target.hostname)&&
       (target.pathname==='/'||isWebsiteListingUrl(url));
-    if(first.status!==520||!listing){
-      requireProviderSuccess(first);
-      const data=record(first.json);
-      if(data.statusCode===451)throw new SourceProviderError('POLICY_REFUSAL');
-      if(data.statusCode!==200||typeof data.httpResponseBody!=='string')throw new SourceProviderError('CHALLENGE');
-      let html:string;
-      try{html=new TextDecoder().decode(Uint8Array.from(atob(data.httpResponseBody),c=>c.charCodeAt(0)));}
-      catch{throw new SourceProviderError('MALFORMED');}
-      try{return await this.parsePage(input,url,html,1,start);}
-      catch(error){
-        if(!listing||!(error instanceof SourceProviderError)||error.code!=='MALFORMED')throw error;
-      }
+    let result=await request(run.id),requests=1;
+    if(canRetry&&[500,520].includes(result.status)){
+      // The first response was recorded. A different durable operation ID
+      // lets this one retry consume its own budget and replay its own receipt.
+      result=await request('website-zyte-listing-retry-v1:'+run.id);
+      requests++;
     }
-    // A recorded failure can try a different representation once. Its own
-    // durable key preserves budget admission and prevents duplicate dispatch.
-    const rendered=await request(true);
-    requireProviderSuccess(rendered);
-    const data=record(rendered.json),finalUrl=articleUrl(data.url);
+    requireProviderSuccess(result);
+    const data=record(result.json);
     if(data.statusCode===451)throw new SourceProviderError('POLICY_REFUSAL');
-    if(data.statusCode===401||data.statusCode===402)throw new SourceProviderError('AUTH_REQUIRED');
-    if(data.statusCode!==200||typeof data.browserHtml!=='string'||!finalUrl||
-       finalUrl!==url)throw new SourceProviderError('MALFORMED');
-    // Keep discovery associated with the configured listing and prevent a
-    // browser redirect from turning it into an unrelated story.
-    return this.parsePage(input,url,data.browserHtml,2,start);
+    if(data.statusCode!==200||typeof data.httpResponseBody!=='string')throw new SourceProviderError('CHALLENGE');
+    let html:string;
+    try{html=new TextDecoder().decode(Uint8Array.from(atob(data.httpResponseBody),c=>c.charCodeAt(0)));}
+    catch{throw new SourceProviderError('MALFORMED');}
+    return this.parsePage(input,url,html,requests,start);
   }
 
   private async parsePage(input:SourceFetchRequest,url:string,html:string,requests:number,start:number):Promise<ProviderPage>{

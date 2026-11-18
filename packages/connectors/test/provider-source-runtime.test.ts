@@ -749,15 +749,15 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     execute.mockResolvedValueOnce({body:'Homepage '.repeat(50),pageKind:'article',publishedAt:time,articleLinks:[]});
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run)).rejects.toThrow('MALFORMED');
   });
-  it.each([200,520])('tries rendered Zyte once after a confirmed listing failure (%s) and replays both receipts',async status=>{
+  it.each([500,520])('retries a recorded Zyte HTTP %s using the same plain HTTP request and replays both receipts',async status=>{
     const sourceUrl='https://publisher.example/';
-    const raw=()=>Response.json(status===200?{statusCode:200,httpResponseBody:btoa('<html>Empty shell</html>')}:{type:'/download/temporary-error'},{status});
-    const rendered=()=>Response.json({statusCode:200,url:sourceUrl,browserHtml:'<h2><a href="/news/one">First story</a></h2><h2><a href="/news/two">Second story</a></h2>'});
-    const dispatch=vi.fn(async(_url:RequestInfo|URL,init?:RequestInit)=>JSON.parse(String(init?.body)).browserHtml?rendered():raw());
+    const html='<h2><a href="/news/one">First story</a></h2><h2><a href="/news/two">Second story</a></h2>';
+    const dispatch=vi.fn(async(_url:RequestInfo|URL,_init?:RequestInit)=>Response.json({statusCode:200,httpResponseBody:btoa(html)}));
+    dispatch.mockResolvedValueOnce(Response.json({}, {status}));
     const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
     await http.configureLimit('zyte',.02);
-    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:async()=>({pageKind:'listing',articleLinks:[]})},
-      http,async()=> 'test-key',.01,undefined,new Set(['publisher.example']));
+    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:vi.fn()},http,async()=> 'test-key',.01,
+      undefined,new Set(['publisher.example']));
     const input={...request,source:{family:'website' as const,locator:sourceUrl}};
     for(let i=0;i<2;i++){
       const page=await p.fetch(input,run);
@@ -766,9 +766,8 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
         [sourceUrl+'news/one','LISTING_RESULT'],[sourceUrl+'news/two','LISTING_RESULT'],
       ]);
     }
-    expect(dispatch.mock.calls.map(([,init])=>JSON.parse(String(init?.body)))).toEqual([
-      {url:sourceUrl,httpResponseBody:true,httpResponseHeaders:true},{url:sourceUrl,browserHtml:true},
-    ]);
+    const plainRequest={url:sourceUrl,httpResponseBody:true,httpResponseHeaders:true};
+    expect(dispatch.mock.calls.map(([,init])=>JSON.parse(String(init?.body)))).toEqual([plainRequest,plainRequest]);
     expect(s.db.db.prepare('SELECT reserved_usd FROM connector_provider_budgets').get()).toEqual({reserved_usd:.02});
   });
   it.each([
@@ -778,15 +777,16 @@ describe('provider adapters (synthetic responses, no live calls)',()=>{
     {status:451,enabled:true,limit:.02,code:'POLICY_REFUSAL'},
     {status:429,enabled:true,limit:.02,code:'RATE_LIMIT'},
     {status:0,enabled:true,limit:.02,code:'UNCERTAIN_PAID_SUBMISSION'},
-  ])('does not send a rendered Zyte request for $code',async ({status,enabled,limit,code})=>{
+    {status:200,enabled:true,limit:.02,code:'MALFORMED'},
+  ])('does not send a second Zyte request for $code',async ({status,enabled,limit,code})=>{
     const dispatch=vi.fn(async()=>{
       if(status===0)throw new TypeError('lost response');
-      return Response.json({}, {status});
+      return Response.json({statusCode:200,httpResponseBody:btoa('<html>Empty shell</html>')}, {status});
     });
     const s=setup([]),http=new DurableProviderHttp(s.db,s.payloads,dispatch);
     await http.configureLimit('zyte',limit);
-    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:vi.fn()},http,async()=> 'test-key',.01,
-      undefined,enabled?new Set(['publisher.example']):undefined);
+    const p=new WebsiteSourceProvider('website_zyte',feed(''),{execute:async()=>({pageKind:'listing',articleLinks:[]})},
+      http,async()=> 'test-key',.01,undefined,enabled?new Set(['publisher.example']):undefined);
     await expect(p.fetch({...request,source:{family:'website',locator:'https://publisher.example/'}},run))
       .rejects.toMatchObject({code});
     expect(dispatch).toHaveBeenCalledOnce();

@@ -85,9 +85,9 @@ Sending. For public user registration, Cloudflare must also allow sending to
 arbitrary recipients; Email Routing-only bindings can send only to verified
 destination addresses in the Cloudflare account.
 
-### Optional Zyte browser rendering for website listings
+### Optional Zyte retry for website listings
 
-Set `SOURCE_ZYTE_RENDERED_LISTING_HOSTS` to a comma-separated list of exact hostnames, such as `nowlebanon.com`. For those hosts, a homepage or recognized listing can get one browser-rendered Zyte request after raw Zyte HTML yields no usable listing or Zyte returns a confirmed HTTP 520. The second request uses the same Zyte budget and its own receipt. Unknown outcomes, access refusals, and rate limits do not trigger rendering. Leave the setting empty to disable it.
+Set `SOURCE_ZYTE_LISTING_RETRY_HOSTS` to a comma-separated list of exact hostnames, such as `nowlebanon.com`. On these hosts, a homepage or recognized listing can get one additional plain HTTP Zyte request per collection run after a recorded Zyte HTTP 500 or 520. The second request uses the same budget and its own receipt. Missing provider responses, rate limits, access refusals, and parsing errors do not trigger the follow-up.
 
 ### Optional model fallback for website listings
 

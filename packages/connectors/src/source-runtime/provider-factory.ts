@@ -14,7 +14,7 @@ export function createSourceCollector(bindings:{
   repository:D1ProviderSourceRepository;payloads:ImmutablePayloadStore;intake:CandidateIntakePort;
   http:FeedHttpPort;paidHttp:ProviderHttpPort;execution:SourceExecutionPort;secrets:SecretResolver;
   selectWebsiteLinks?:WebsiteLinkSelector;
-  renderedListingHosts?:ReadonlySet<string>;
+  zyteListingRetryHosts?:ReadonlySet<string>;
   enrichRssArticles?:boolean;
   resolveGoogleArticles?:boolean;
   ceilings:{twitterApiIo:number;apify:number;zyte:number};
@@ -29,6 +29,6 @@ export function createSourceCollector(bindings:{
     new ApifySourceProvider('linkedin_apify',['linkedin_company','linkedin_profile'],paidHttp,secrets,ceilings.apify),
     new ApifySourceProvider('apify_actor',['apify'],paidHttp,secrets,ceilings.apify),
     new WebsiteSourceProvider('website_http',http,execution,undefined,undefined,undefined,bindings.selectWebsiteLinks),new WebsiteSourceProvider('website_playwright',http,execution),
-    new WebsiteSourceProvider('website_zyte',http,execution,paidHttp,secrets,ceilings.zyte,undefined,bindings.renderedListingHosts),
+    new WebsiteSourceProvider('website_zyte',http,execution,paidHttp,secrets,ceilings.zyte,undefined,bindings.zyteListingRetryHosts),
   ],undefined,{rss:48,google_news:24,telegram:48,x_profile:24,x_search:24,linkedin_company:168,linkedin_profile:168,website:24});
 }
