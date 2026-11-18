@@ -10,7 +10,7 @@ const explore={en:'Explore public feeds',fr:'Découvrir les fils publics',ar:'ا
 /** Missing and inaccessible feeds share this view. It reveals no feed metadata
  * and does not distinguish a private URL from a nonexistent one. */
 export function PrivateFeedPage({language,header}:{language:'en'|'fr'|'ar';header:React.ReactNode}){
- return <main className="private-feed-page" lang={language} dir={language==='ar'?'rtl':'ltr'}>
+ return <main className="experience product-refresh guest-browse guest-landing landing-no-menu private-feed-page" lang={language} dir={language==='ar'?'rtl':'ltr'}>
   {header}
   <section className="private-feed-content">
   <div className="private-feed-message">

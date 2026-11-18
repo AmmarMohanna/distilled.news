@@ -26,7 +26,14 @@ for(const [language,message] of [
  expect(await page.locator('.app-pages > .screen-page-viewport').evaluate(view=>view.scrollHeight>view.clientHeight+1)).toBe(false);
  const explore=view.locator('.private-feed-explore');await expect(explore).toBeVisible();await expect(explore).toHaveAttribute('href','/');
  if(language==='en')await expect(explore).toHaveText('Explore public feeds');
- await explore.click();await expect(page).toHaveURL(/\/$/);
+ const selectors=['.experience-header','.experience-header .distilled-logo','.experience-header-actions'];
+ const before=await Promise.all(selectors.map(selector=>view.locator(selector).boundingBox()));
+ await explore.click();await expect(page).toHaveURL(/\/$/);await expect(page.locator('.private-feed-page')).toHaveCount(0);
+ await expect(page.locator('.guest-landing > .experience-header')).toBeVisible();
+ const after=await Promise.all(selectors.map(selector=>page.locator(selector).boundingBox()));
+ for(let n=0;n<selectors.length;n++)for(const key of ['x','y','width','height'] as const){
+  expect(before[n]).not.toBeNull();expect(after[n]).not.toBeNull();expect(Math.abs(before[n]![key]-after[n]![key]),selectors[n]+' '+key).toBeLessThan(1.5);
+ }
 });
 
 test('the private page header retains the signed-in account profile control',async({page})=>{
