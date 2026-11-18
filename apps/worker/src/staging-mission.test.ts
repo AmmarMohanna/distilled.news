@@ -1,5 +1,11 @@
 import {expect,it} from 'vitest';
-import {stagingMission} from './staging-mission';
+import {stagingMission,stagingMissionRssUrl} from './staging-mission';
+it('lets an authorized fresh mission select a public HTTPS RSS source instead of requiring a blocked publisher',()=>{
+ expect(stagingMissionRssUrl({})).toBe('https://techcrunch.com/category/artificial-intelligence/feed');
+ expect(stagingMissionRssUrl({STAGING_MISSION_RSS_URL:'https://feeds.bbci.co.uk/news/technology/rss.xml'})).toBe('https://feeds.bbci.co.uk/news/technology/rss.xml');
+ expect(()=>stagingMissionRssUrl({STAGING_MISSION_RSS_URL:'http://feeds.example/feed'})).toThrow('INVALID_STAGING_RSS_URL');
+ expect(()=>stagingMissionRssUrl({STAGING_MISSION_RSS_URL:'https://user:pass@feeds.example/feed'})).toThrow('INVALID_STAGING_RSS_URL');
+});
 import {STAGING_GROUPING_RUN_POLICY,STAGING_DISPOSITION_ATTEMPT_ID,STAGING_GROUPING_CALL_LIMITS} from './staging-grouping-run-policy';
 it('keeps the staging mission default-off and rejects unauthorized access before any database use',async()=>{
  const deniedDb=new Proxy({},{get(){throw Error('UNAUTHORIZED_DB_ACCESS')}});

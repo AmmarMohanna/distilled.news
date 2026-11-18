@@ -12,6 +12,11 @@ import {V1FeedStore,feedTransact} from './v1-intelligence/store';
 import {windowIntakeCoverage} from './v1-intelligence/window-coverage';
 import {withFeedWriteTurn} from './connector-intelligence-turn';
 import {withLatency,measureLatency} from './v1-intelligence/latency';
+export function stagingMissionRssUrl(env:Pick<Env,'STAGING_MISSION_RSS_URL'>):string{
+ const url=new URL(env.STAGING_MISSION_RSS_URL??'https://techcrunch.com/category/artificial-intelligence/feed');
+ if(url.protocol!=='https:'||url.username||url.password||url.hash)throw Error('INVALID_STAGING_RSS_URL');
+ return url.href;
+}
 
 /** Operator-only, default-off staging entrypoint. Not imported by production.
  * Fresh private product feed; no subscriptions, queue sends or delivery handler.
@@ -40,9 +45,9 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
   if(action==='prepare'){
    if(await db.prepare('SELECT id FROM briefings WHERE id=?').bind(feedId).first())return reply({error:'FRESH_FEED_ALREADY_EXISTS_NO_RESET'},409);
    const owner=await db.prepare('SELECT owner_account_id FROM briefings WHERE id=?').bind('briefing_4d69fb82-7190-4e19-bcc3-cb0a7decc8d7').first<{owner_account_id:string}>();if(!owner)throw Error('STAGING_OWNER_REQUIRED');
-   const at=now(),url='https://techcrunch.com/category/artificial-intelligence/feed';
+   const at=now(),url=stagingMissionRssUrl(env);
    await db.prepare("INSERT INTO briefings(id,owner_account_id,slug,title,interest_profile,public_feed_enabled,language,created_at,updated_at) VALUES(?,?,?,'Fresh staging AI briefing','Important AI product and industry developments',0,'en',?,?)").bind(feedId,owner.owner_account_id,feedId,at,at).run();
-   await db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES(?,?,'TechCrunch AI','channel','rss','rss_feed',?,1,'legacy',?,?,?)").bind(sourceId,feedId,url,at,at,at).run();
+   await db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES(?,?,?,'channel','rss','rss_feed',?,1,'legacy',?,?,?)").bind(sourceId,feedId,env.STAGING_MISSION_RSS_URL?'Staging RSS pilot source':'TechCrunch AI',url,at,at,at).run();
    const source=await enrollV1Source(db,sourceId,owner.owner_account_id,at);await save('prepare-start',{at,ceilingUsd:10,maxDevelopments:3,sourceUrl:url,feedRevision:source.feed.revision});
   }
   if(action==='prepare'||action==='collect'){
