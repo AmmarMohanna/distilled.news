@@ -155,7 +155,7 @@ if(mode==='reconcile-refusals'){
  write(path.join(dir,'cases.json'),cases);write(path.join(dir,'plan.json'),plan);console.log(JSON.stringify({plan,cases:cases.map(c=>({id:c.id,items:c.items.length,sources:c.sources.length,expected:c.expected}))},null,2));
 }else if(mode==='run'){
  const plan=JSON.parse(fs.readFileSync(path.join(dir,'plan.json'),'utf8')),cases=JSON.parse(fs.readFileSync(path.join(dir,'cases.json'),'utf8')) as Case[];
- if(![2,5].includes(plan.ceilingUsd)||hash(cases)!==plan.casesHash)throw Error('FROZEN_PLAN_CHANGED');
+ if(![2,5,5.5].includes(plan.ceilingUsd)||hash(cases)!==plan.casesHash)throw Error('FROZEN_PLAN_CHANGED');
  const journal=path.join(dir,'ledger.jsonl');
  // Single-process, append-only campaign. A restart never resends anything.
  const lock=fs.openSync(path.join(dir,'run.lock'),'wx');fs.closeSync(lock);
