@@ -17,7 +17,8 @@ export function BriefingReadMore({ body, sectionIndex, language, loadDetail, ren
   const detail = sectionIndex === undefined && (loaded?.sections.length ?? 0) > 1
     ? loaded!.sections.map(section => section.summary).join('\n\n')
     : text && !section?.title.trim() && boundary > 0 ? text.slice(boundary + 1).trim() : text ?? body;
-  if (!body.trim()) return null;
+  const sourceLabel = language === 'ar' ? 'تفاصيل المصادر' : language === 'fr' ? 'Détails des sources' : 'Source details';
+  if (!body.trim()) return onOpenSources ? <button type="button" className="briefing-extra-sources" onClick={onOpenSources}>{sourceLabel}</button> : null;
   const labels = language === 'ar' ? ['اقرأ المزيد', 'عرض أقل'] : language === 'fr' ? ['Lire la suite', 'Réduire'] : ['Read more', 'Read less'];
   const entries = sectionIndex === undefined ? loaded?.sections.flatMap(section => section.evidence) ?? [] : section?.evidence ?? [];
   const extraSources = entries.length > 1 || entries.some(entry => entry.media.length || entry.links.length > 1);
@@ -27,7 +28,7 @@ export function BriefingReadMore({ body, sectionIndex, language, loadDetail, ren
   }}>
     <summary>{labels[open ? 1 : 0]}<span aria-hidden="true">{open ? ' −' : ' …'}</span></summary>
     <div className="briefing-expanded-text">{renderBody(detail)}
-      {extraSources && onOpenSources && <button type="button" className="briefing-extra-sources" onClick={onOpenSources}>{language === 'ar' ? 'تفاصيل المصادر' : language === 'fr' ? 'Détails des sources' : 'Source details'}</button>}
+      {extraSources && onOpenSources && <button type="button" className="briefing-extra-sources" onClick={onOpenSources}>{sourceLabel}</button>}
     </div>
   </details>;
 }

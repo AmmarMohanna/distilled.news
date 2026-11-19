@@ -63,3 +63,12 @@ it.each([['en', 'Read more'], ['fr', 'Lire la suite'], ['ar', 'اقرأ المز
     expect(details.open).toBe(false);
   });
 });
+it('keeps source details reachable when a story has no expandable body', async () => {
+  const onOpenSources = vi.fn();
+  await render(<BriefingReadMore body="" language="en" loadDetail={async () => edition} renderBody={text => <p>{text}</p>} onOpenSources={onOpenSources}/>, async host => {
+    expect(host.querySelector('details')).toBeNull();
+    expect(host.querySelector('button')?.textContent).toBe('Source details');
+    await act(async () => host.querySelector('button')!.click());
+    expect(onOpenSources).toHaveBeenCalledOnce();
+  });
+});
