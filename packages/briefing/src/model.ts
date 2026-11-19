@@ -222,7 +222,9 @@ export async function callJson<T>(
 ): Promise<T> {
   let problem = "";
   let lastReply = "";
+  let validationFailure:string|undefined;
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    validationFailure=undefined;
     const user =
       attempt === 0
         ? request.user
@@ -234,11 +236,14 @@ export async function callJson<T>(
       problem = "it was cut off before the JSON finished; be more concise";
       continue;
     }
+    let raw:unknown;
+    try{raw=extractJson(response.text)}catch(error){problem=error instanceof Error?error.message:String(error);continue;}
     try {
-      return parse(extractJson(response.text));
+      return parse(raw);
     } catch (error) {
       problem = error instanceof Error ? error.message : String(error);
+      validationFailure=problem;
     }
   }
-  throw new BriefingOutputError(`model did not return usable JSON (${problem}); last reply began: ${lastReply.slice(0, 120)}`);
+  throw new BriefingOutputError(`model did not return usable JSON (${problem}); last reply began: ${lastReply.slice(0, 120)}`,validationFailure);
 }

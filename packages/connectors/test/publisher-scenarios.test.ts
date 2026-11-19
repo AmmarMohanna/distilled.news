@@ -107,6 +107,19 @@ describe.each(publishers)('$name collection scenarios',p=>{
   });
 });
 
+it('filters known L’Orient navigation even when the extraction helper returns it as article links',async()=>{
+ const provider=new WebsiteSourceProvider('website_http',http(200,'<html><main>Publisher index shell</main></html>'),{
+  execute:vi.fn(async()=>({pageKind:'listing',articleLinks:[
+   'https://www.lorientlejour.com/rubrique/1-liban',
+   'https://www.lorientlejour.com/boutique/?action=donate',
+   'https://www.lorientlejour.com/article/1499000/report.html',
+  ]})),
+ });
+ const page=await provider.fetch({scope,runId:'run',source:{family:'website',locator:'https://www.lorientlejour.com/latest'},requestedBounds:{},limit:30},run);
+ expect(page.items.map(item=>item.url)).toEqual(['https://www.lorientlejour.com/article/1499000/report.html']);
+ expect(page.complete).toBe(false);
+});
+
 describe('URL-pattern listing parser',()=>{
  const base='https://news.example/latest';
  const link=(href:string,title='A sufficiently long headline')=>`<div><a href="${href}"><span>${title}</span></a></div>`;

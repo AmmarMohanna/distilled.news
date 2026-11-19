@@ -1,0 +1,709 @@
+{
+  "authorizationUsd": 5,
+  "settledUsd": 2.130978,
+  "unresolvedHoldUsd": 0.658358,
+  "maximumExposureUsd": 2.789336,
+  "unspentAuthorizationUsd": 2.210664,
+  "newDispatches": 35,
+  "settledOperations": 34,
+  "unknownOperations": 1,
+  "inputTokens": 998753,
+  "outputTokens": 33196,
+  "historicalHoldUnchangedUsd": 0.012416,
+  "noDeployment": true,
+  "results": [
+    {
+      "id": "lebanon-current",
+      "inputHash": "8424ef8a8556c1f11ac4cee12cfd510af63c46dcd4462ace96c346ab4336789a",
+      "original": {
+        "items": 3,
+        "words": 127
+      },
+      "candidate": {
+        "items": 3,
+        "words": 72,
+        "updates": 0,
+        "unaccounted": 53,
+        "outcomeHash": "2c065995cb26d4120b92c091e83c0789572bedb733be105dbcd91c70982271d8"
+      },
+      "diagnostic": {
+        "run": "live-fixes-final-20261119",
+        "metrics": {
+          "claimSupport": {
+            "numerator": 3,
+            "denominator": 3,
+            "value": 1
+          },
+          "citationCorrectness": {
+            "numerator": 3,
+            "denominator": 3,
+            "value": 1
+          },
+          "importantDevelopmentRecall": {
+            "numerator": 2,
+            "denominator": 8,
+            "value": 0.25
+          },
+          "importantDevelopmentRecallScope": "partial_retained_input_only",
+          "repetition": {
+            "numerator": 0,
+            "denominator": 3,
+            "value": 0
+          },
+          "relevance": {
+            "numerator": 3,
+            "denominator": 3,
+            "value": 1
+          },
+          "temporalCorrectness": {
+            "numerator": 3,
+            "denominator": 3,
+            "value": 1
+          },
+          "languageCorrectness": {
+            "numerator": 3,
+            "denominator": 3,
+            "value": 1
+          },
+          "uncertainClaims": 0,
+          "uncertainDevelopments": 3,
+          "judgeClaimCount": 3,
+          "claimSupportScope": "extracted_non_uncertain_claims_only",
+          "claimExtractionCompleteness": "not_independently_established",
+          "inventoryGroundingPolicy": "current-evidence-entailment-v1",
+          "completionConditionedDevelopmentRecall": {
+            "numerator": 2,
+            "denominator": 5,
+            "value": 0.4
+          },
+          "importantDevelopmentRecallBounds": {
+            "lower": 0.25,
+            "upper": 0.625
+          },
+          "recallAggregationPolicy": "uncertainty-in-denominator-v1"
+        },
+        "claimInventoryCompleteness": "incomplete"
+      },
+      "qualificationLimitations": [
+        "53 unaccounted sources explicitly deferred.",
+        "Independent completeness audit flagged the extracted year absent from reader text; possible audit false positive, not a verified factual defect.",
+        "Repeated statements versus materially new occurrence remain model judgments."
+      ]
+    },
+    {
+      "id": "ai-current",
+      "inputHash": "57bf9a2a326a6c008e9a1d88e6e7782807893bec0e370163a1c1ef2400ac3a22",
+      "original": {
+        "items": 1,
+        "words": 147
+      },
+      "candidate": {
+        "items": 6,
+        "words": 584,
+        "updates": 2,
+        "unaccounted": 0,
+        "outcomeHash": "e151d7b8952a6bc251c6740a331aeaecfd08d11c14a70c0e5f8738f8ea54b3b9"
+      },
+      "diagnostic": {
+        "run": "live-fixes-followup-20261119",
+        "metrics": {
+          "claimSupport": {
+            "numerator": 6,
+            "denominator": 6,
+            "value": 1
+          },
+          "citationCorrectness": {
+            "numerator": 6,
+            "denominator": 6,
+            "value": 1
+          },
+          "importantDevelopmentRecall": {
+            "numerator": 5,
+            "denominator": 7,
+            "value": 0.7142857142857143
+          },
+          "importantDevelopmentRecallScope": "partial_retained_input_only",
+          "repetition": {
+            "numerator": 0,
+            "denominator": 6,
+            "value": 0
+          },
+          "relevance": {
+            "numerator": 6,
+            "denominator": 6,
+            "value": 1
+          },
+          "temporalCorrectness": {
+            "numerator": 6,
+            "denominator": 6,
+            "value": 1
+          },
+          "languageCorrectness": {
+            "numerator": 6,
+            "denominator": 6,
+            "value": 1
+          },
+          "uncertainClaims": 0,
+          "uncertainDevelopments": 0,
+          "judgeClaimCount": 6,
+          "claimSupportScope": "extracted_non_uncertain_claims_only",
+          "claimExtractionCompleteness": "not_independently_established",
+          "inventoryGroundingPolicy": "current-evidence-entailment-v1",
+          "completionConditionedDevelopmentRecall": {
+            "numerator": 5,
+            "denominator": 7,
+            "value": 0.7142857142857143
+          },
+          "importantDevelopmentRecallBounds": {
+            "lower": 0.7142857142857143,
+            "upper": 0.7142857142857143
+          },
+          "recallAggregationPolicy": "uncertainty-in-denominator-v1"
+        },
+        "claimInventoryCompleteness": "not_independently_established"
+      },
+      "qualificationLimitations": [
+        "Latest mapped assessment interrupted; earlier completed diagnostic assessed only six extracted claims.",
+        "Own source-only partial inventory; no gold accuracy or independent held-out test."
+      ]
+    }
+  ],
+  "manifests": [
+    {
+      "run": "live-fixes-20261119",
+      "planHash": "667666a21a92e772f2388128d322a7ea5b65d332541a80e901ff7607bde93168",
+      "casesHash": "9285288d13e49191701ac684609bf12145c53e25075699fdf9f09d072a176221",
+      "ledgerHash": "c7643c52aec979c5cd26f3a1a9626b0479e4f3d027e906d0c96fe45c32291217",
+      "outcomesHash": "08a49532b3aecc32f8a7e62431f55a7d6e9a6cdf5be69a302e196d10f2394b54",
+      "totals": {
+        "settledUsd": 0.959084,
+        "newSettledUsd": 0.959084,
+        "outstandingReservedUsd": 1.1102230246251565e-16,
+        "historicalHeldUsd": 0,
+        "calls": 21,
+        "unresolved": false,
+        "ceilingUsd": 5
+      }
+    },
+    {
+      "run": "live-fixes-followup-20261119",
+      "planHash": "32b239684082fcedbb7a79d7a735bba1643a7d4b9bebc7215c047825b593dedb",
+      "casesHash": "c80ccf0255cccf93584e334686d466ed4cfff3d9a5107689f02b8b135fe08b2d",
+      "ledgerHash": "cf299e3e115926fd2ba962d73c1e05901f0db8f837e66150e36d2398e7bb0367",
+      "outcomesHash": "c44927b2f84f28d22fe84b6267e1480235697c9d77b9f7abbd5a228ab981b51d",
+      "totals": {
+        "settledUsd": 1.790276,
+        "newSettledUsd": 0.8311919999999999,
+        "outstandingReservedUsd": 1.1102230246251565e-16,
+        "historicalHeldUsd": 1.1102230246251565e-16,
+        "calls": 10,
+        "unresolved": false,
+        "ceilingUsd": 5
+      }
+    },
+    {
+      "run": "live-fixes-final-20261119",
+      "planHash": "e73af63ef3ad6272dcb69f43775772fb597ec289cb2f6c25051ef7df21144792",
+      "casesHash": "e5d62ac612dc1d84320ae9ce3def2474d7e748bb8e3fb74ae6999d372543f79e",
+      "ledgerHash": "1389c7c48e5f4e4aad4047f5c11739700dd2a0173395eeb6324d67eba256fac7",
+      "outcomesHash": "84ae16d1680d0459d2f9569681f4618b0f676f2dc90dc2b435d701b59f1d308d",
+      "totals": {
+        "settledUsd": 2.130978,
+        "newSettledUsd": 0.34070199999999984,
+        "outstandingReservedUsd": 0.6583580000000001,
+        "historicalHeldUsd": 1.1102230246251565e-16,
+        "calls": 4,
+        "unresolved": true,
+        "ceilingUsd": 5
+      }
+    }
+  ],
+  "operations": [
+    {
+      "id": "9fe916e3-9544-4f8d-aecb-309de5c0b93f",
+      "run": "live-fixes-20261119",
+      "case": "correction-99bceb97",
+      "system": "consistency",
+      "state": "SETTLED",
+      "requestHash": "606c09f685b6040ec3b01c7d5211b3382c92b199c1c2819a8f30ef4c1eceeb7c",
+      "generationId": "gen-1795092874-jbhFRd5aKks0ifSwAkZn",
+      "costUsd": 0.083108,
+      "inputTokens": 36662,
+      "outputTokens": 1223,
+      "latencyMs": 9087,
+      "responseHash": "7988bceeb59f6e5c7a4cf43750bf7492728bfaaf43d66a90dc41a270611de635"
+    },
+    {
+      "id": "fa5270bd-317c-4cdb-9417-9fe43bc0d8b2",
+      "run": "live-fixes-20261119",
+      "case": "correction-fcde823c",
+      "system": "consistency",
+      "state": "SETTLED",
+      "requestHash": "6f03197d910e21a800ff66d4ad5096b0ebace973ca48bba176b91ac75d5801c2",
+      "generationId": "gen-1795092883-JydP0q900sXWyYVv2EXI",
+      "costUsd": 0.17455,
+      "inputTokens": 85255,
+      "outputTokens": 505,
+      "latencyMs": 7516,
+      "responseHash": "a7f7ffb244ae08f5c38d6a34073486dd413535d4a72908b7480dd53461de2e6e"
+    },
+    {
+      "id": "425d35ed-805c-4f93-b9a5-b4c6065bed3d",
+      "run": "live-fixes-20261119",
+      "case": "history-lebanon-current",
+      "system": "history",
+      "state": "SETTLED",
+      "requestHash": "32118d1f72230b23215c109f093643ceb492e63f7459a9677a40c37be8d24a47",
+      "generationId": "gen-1795092890-mWru4arRAQ9KyWNkD7Kh",
+      "costUsd": 0.035368,
+      "inputTokens": 14908,
+      "outputTokens": 694,
+      "latencyMs": 11246,
+      "responseHash": "b342a5bfe4c84f1ea2610ec74cb49621ce72de92bb74b98292d7d702b66e5235"
+    },
+    {
+      "id": "b0ad41d6-186d-485d-b950-54d76854aa45",
+      "run": "live-fixes-20261119",
+      "case": "history-ai-current",
+      "system": "history",
+      "state": "SETTLED",
+      "requestHash": "84080933c762f9477014b929b82462ae370341221314a22fdb42d670d6d4328e",
+      "generationId": "gen-1795092902-y2px3KG8kLwKl7oE7NFj",
+      "costUsd": 0.024978,
+      "inputTokens": 9861,
+      "outputTokens": 657,
+      "latencyMs": 5264,
+      "responseHash": "6e55e340f3076ca9a866685ddc2f635040261756bf7d28a957dfe6ba3d19b8c8"
+    },
+    {
+      "id": "7bf695dd-84ab-4449-8ec5-c33fa47c9b4e",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "f28a933a66ef73608682c48ba1186edbc08a9b7dadf45b759dc4cdab17342dff",
+      "generationId": "gen-1795092907-obpfE8RLrMD9fFJPkNuN",
+      "costUsd": 0.069982,
+      "inputTokens": 33175,
+      "outputTokens": 454,
+      "latencyMs": 5518,
+      "responseHash": "48a3662023235af872b1e586aea6794df13753266034de060b44e98ab80e04be"
+    },
+    {
+      "id": "b598a34c-209a-4a60-aa30-aa416cae4f40",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "78b2aa526aa7c6f3ec34a1ec411844a4d0a62b8e2820e23bdd66ef5a35aa70fc",
+      "generationId": "gen-1795092912-InsVqxwKGg3LfM8idZF9",
+      "costUsd": 0.047948,
+      "inputTokens": 23218,
+      "outputTokens": 933,
+      "latencyMs": 10774,
+      "responseHash": "4612e3041a50a828dc7c8208bda12b8adcac526b37a27aed8077e33ab449d759"
+    },
+    {
+      "id": "5b07dcc1-71df-435a-97eb-0834e9b6cfb0",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "c210696843146ad30bbdc7e163f9512ec4d59c72df948d4e506cc854048f0426",
+      "generationId": "gen-1795092916-Kel5ZHu7n8A5z7wPG36F",
+      "costUsd": 0.022504,
+      "inputTokens": 33436,
+      "outputTokens": 646,
+      "latencyMs": 8212,
+      "responseHash": "d4959b426c5928b7064bc54f056b48f76d9f893a1475b58265e5845a19678899"
+    },
+    {
+      "id": "dcd96293-01b3-4ae4-97d0-950be5dee139",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "fc0d8b9f4f0867a3ce8a455527edfc530e6c65e64fe614c8138d36a9b21f4a3f",
+      "generationId": "gen-1795092921-yhgzriCYAi38C7o3HMTr",
+      "costUsd": 0.01538,
+      "inputTokens": 23254,
+      "outputTokens": 429,
+      "latencyMs": 7153,
+      "responseHash": "df809ed92a8adef34a50d0c19235ee3c490973c8b35554604b1a180e337d7af7"
+    },
+    {
+      "id": "bdee093a-bac1-40e6-ac82-a1ecfb513955",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "dcfcbf555c6b6914e85ff4a8d0a3a1148f4ac67ec7983611de0662691a1ed4b9",
+      "generationId": "gen-1795092925-VTNTfHDn3gh99I9MyleP",
+      "costUsd": 0.009584,
+      "inputTokens": 4184,
+      "outputTokens": 152,
+      "latencyMs": 2043,
+      "responseHash": "812d592774fc69db934ad85f39019775670726dbae24a664dbcb755a4fc8846c"
+    },
+    {
+      "id": "a053f94c-2c46-46eb-81f6-ad9383c484ba",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "2747726f2c2d240c5016b6e967379006abf4310486323a0fcb98f6ff5ba3cc1a",
+      "generationId": "gen-1795092930-geKH4IhBjlhewmKrkpjF",
+      "costUsd": 0.01873,
+      "inputTokens": 7841,
+      "outputTokens": 381,
+      "latencyMs": 7386,
+      "responseHash": "06cd52aa09ea7c129a7e20b9e22d1349fc121d7e0df146cbef1b223c1aef4cc7"
+    },
+    {
+      "id": "d045be38-7203-4997-b059-84f8ff877119",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "733513f70454142fefd2efbe15155cfa97a879b7e6b1e5601d257c241c247ea0",
+      "generationId": "gen-1795092935-hStXl3pF11jmtd3UMGQv",
+      "costUsd": 0.006624,
+      "inputTokens": 1672,
+      "outputTokens": 410,
+      "latencyMs": 3121,
+      "responseHash": "462648a4aace45f77e9dcdd9fcfb37a1a0290764d886b52b963ccd18629c509e"
+    },
+    {
+      "id": "7bfe23cd-7840-4b3a-a83e-998d4b865245",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "2e53b38106ee33bd5876ac9b3ecc1ff7710f2fccde23ee6f76e0e85acf029e01",
+      "generationId": "gen-1795092939-uWqUnb24lRa7dfuxoz48",
+      "costUsd": 0.016884,
+      "inputTokens": 8138,
+      "outputTokens": 76,
+      "latencyMs": 2999,
+      "responseHash": "2258a57d09fb3a9106d97f66d96d02eb77d434869bdd252797ad128d28570c32"
+    },
+    {
+      "id": "518cd55f-1c10-41ba-9e3e-e2ab93e9f055",
+      "run": "live-fixes-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "93a38485ce1fdeeb2814a71f311de3942024bb0eda8f985946be43daaac44517",
+      "generationId": "gen-1795092944-kAY3McPCOx5taz7wYX3j",
+      "costUsd": 0.035826,
+      "inputTokens": 11941,
+      "outputTokens": 1493,
+      "latencyMs": 14911,
+      "responseHash": "91445775048938ce9a5736f497997d60d3b13e59719470d6842f04ca7be236a3"
+    },
+    {
+      "id": "e7427eda-f3c4-4451-8fce-5c22dd5871d1",
+      "run": "live-fixes-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "164579e0f89c63aa772a87277f14b4de30f6872b604692a0090c5e85e2d92eaf",
+      "generationId": "gen-1795092956-w6BslUri37BsCGTnCVOw",
+      "costUsd": 0.056992,
+      "inputTokens": 25336,
+      "outputTokens": 790,
+      "latencyMs": 6400,
+      "responseHash": "48d3d5f37c518e944aeccc3fe358f065b57fa0c05740ccb370c610e458657e37"
+    },
+    {
+      "id": "f71ad67c-10f2-4a5f-9314-8e38937633d2",
+      "run": "live-fixes-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "3b2108232ca77cde4e4f88f5185d14d81b0948c65e09d8fd79a8748fe106c99d",
+      "generationId": "gen-1795092961-s6w4FVBZkh5R7bdo2nxV",
+      "costUsd": 0.054536,
+      "inputTokens": 23900,
+      "outputTokens": 842,
+      "latencyMs": 12713,
+      "responseHash": "1ce8a0abf358f8f8c1a51be6f93db6919c0b4973d8b9dce5d40b3123120d64d5"
+    },
+    {
+      "id": "2d5dd007-f798-409a-8402-0d907a3a2054",
+      "run": "live-fixes-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "c57f71e0fe72923239990742cff45b97ec46160b616b6f085d5e4cb5a4367a12",
+      "generationId": "gen-1795092965-M0I3hlFRaQwlDALwUmcB",
+      "costUsd": 0.01666,
+      "inputTokens": 10222,
+      "outputTokens": 271,
+      "latencyMs": 11654,
+      "responseHash": "9da48475009ad9d7a4ddc327505f944f9b10c8dba5c75ce03df7d008bd5172bf"
+    },
+    {
+      "id": "5b8d9a1f-18c5-49f9-b666-f785f9d03048",
+      "run": "live-fixes-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "622114be4c413872e15b8e0fab7ef9d57d8cbab2e2d495145ae3c7eccc25d686",
+      "generationId": "gen-1795092969-9mZvUyIayLgox9bxw537",
+      "costUsd": 0.017728,
+      "inputTokens": 4812,
+      "outputTokens": 1013,
+      "latencyMs": 5932,
+      "responseHash": "000c34bc2bccd416e0a17b6e06561cc3d2655332a8c9c84398091ff644302b4a"
+    },
+    {
+      "id": "ce9a9674-61ee-47ba-96e6-8cc630525054",
+      "run": "live-fixes-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "6403e3aaf5a21c8b572423784c6bbda296d622bb06b284d1e2330c0829922a81",
+      "generationId": "gen-1795092975-L8sHLDD2yiGQFmuc7Gz8",
+      "costUsd": 0.036294,
+      "inputTokens": 18011,
+      "outputTokens": 34,
+      "latencyMs": 1775,
+      "responseHash": "77db18e56032a496a675044f4617cf58545e2915058ebbb9749aac625bc3b4b4"
+    },
+    {
+      "id": "7a9db512-e6ee-4d7e-ae1a-5283a75a8c32",
+      "run": "live-fixes-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "ef21d1c583b2582ffde62f02693035dec16e44b55295c0245f2e07395b812e71",
+      "generationId": "gen-1795092979-f3f2y5wSWTocSx77Ce00",
+      "costUsd": 0.010284,
+      "inputTokens": 18038,
+      "outputTokens": 112,
+      "latencyMs": 4108,
+      "responseHash": "8f070914e4f3a3c8732d4c9b419146d9ada9e5a86748a145ad9b0a3dd16baf26"
+    },
+    {
+      "id": "0682f9e5-635b-4865-951e-82bdb31bdf55",
+      "run": "live-fixes-20261119",
+      "case": "review-lebanon-current",
+      "system": "review-engine",
+      "state": "SETTLED",
+      "requestHash": "47e77ff7c78edeee2a4650ce64537a402448f76cbb1d71039a8675f338462e75",
+      "generationId": "gen-1795092984-MbY6A2csmRCyBWrAuWa3",
+      "costUsd": 0.167496,
+      "inputTokens": 76076,
+      "outputTokens": 1918,
+      "latencyMs": 17830,
+      "responseHash": "dc25595af622bc29b93dfd4834212ebc48160601ca0d6d765a5a3545d043cf10"
+    },
+    {
+      "id": "bbdfeb46-df2a-433f-9da5-a89e9129f266",
+      "run": "live-fixes-20261119",
+      "case": "review-lebanon-current",
+      "system": "review-engine",
+      "state": "SETTLED",
+      "requestHash": "6b8b2870b8518a474ba3d04116ff19c8db09e741493b43485881b456e8d5b7d2",
+      "generationId": "gen-1795092998-QTF9OiSPz1Xrv0rvktPy",
+      "costUsd": 0.037628,
+      "inputTokens": 15638,
+      "outputTokens": 794,
+      "latencyMs": 5638,
+      "responseHash": "bed6e07f87389901dfedb53fc73751d6834447a693ee0d3dcc2dd622986ea879"
+    },
+    {
+      "id": "4c1b632f-800a-40bf-86b5-2ecffad2a1d7",
+      "run": "live-fixes-followup-20261119",
+      "case": "correction-99bceb97",
+      "system": "consistency",
+      "state": "SETTLED",
+      "requestHash": "f41486df7e97a18bcf2e9a18ed8d98cde230cd4510a1bfc532c95ae6f18b8ad0",
+      "generationId": "gen-1795093250-T6Hbcq4a6QKAyIQiU9G3",
+      "costUsd": 0.08261,
+      "inputTokens": 36829,
+      "outputTokens": 1119,
+      "latencyMs": 8385,
+      "responseHash": "1001cd68ed4dd054468e561cb08319c894a4d83f818aeb9d491c433b6afa37bf"
+    },
+    {
+      "id": "42fa0a1d-d403-4e82-be92-f8fa6df0f6ab",
+      "run": "live-fixes-followup-20261119",
+      "case": "correction-fcde823c",
+      "system": "consistency",
+      "state": "SETTLED",
+      "requestHash": "bd8104d81658820a82bee47ae3f82539f4abb6abf9ea224084725abcbd15fb12",
+      "generationId": "gen-1795093258-D8YycnCUrOoUThw5s2xc",
+      "costUsd": 0.173874,
+      "inputTokens": 85353,
+      "outputTokens": 396,
+      "latencyMs": 6144,
+      "responseHash": "80348a163e1267370148fa7029e1ed41a51f963b1381addec2e74f1a57d08789"
+    },
+    {
+      "id": "d350405e-c2a1-4b2c-a6ab-089b46ecfabf",
+      "run": "live-fixes-followup-20261119",
+      "case": "lebanon-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "5fc608378cc9feceaadbc8435c85ecade2b3e01eab33cc93278951d0a655371a",
+      "generationId": "gen-1795093265-XGxayijDmjdD0EQ5JIu7",
+      "costUsd": 0.020946,
+      "inputTokens": 8997,
+      "outputTokens": 369,
+      "latencyMs": 4498,
+      "responseHash": "cd27745d0063ba9e047e7ac17bea69768e21cb12b56dc0c3f451cf5c55b3cf41"
+    },
+    {
+      "id": "2e598d9e-fb82-41b6-8ad3-2879978f3627",
+      "run": "live-fixes-followup-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "44e622316e561b910eb21a4023d745b89867f0a20283beb5c11fc1146a5f7193",
+      "generationId": "gen-1795093270-fprUFPuoIcDuRDigZkND",
+      "costUsd": 0.044074,
+      "inputTokens": 18869,
+      "outputTokens": 792,
+      "latencyMs": 9697,
+      "responseHash": "7472eb6f93065bce790caf517d4c5f966f811505046b48901d4ad7cd57bf0ad9"
+    },
+    {
+      "id": "24358b97-99b5-4d56-a6d2-d8c316f0f951",
+      "run": "live-fixes-followup-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "f4c8be4173ead9c63cdf73155e28c7eef2675fbadb64eeba8861d84ee1a9fe2b",
+      "generationId": "gen-1795093280-7PU35YrnxmuYqaXJ4r5T",
+      "costUsd": 0.033026,
+      "inputTokens": 6401,
+      "outputTokens": 2528,
+      "latencyMs": 13511,
+      "responseHash": "c40d6968c1687e18ae9677ad6a7c70ee3d49c65cdc74899acb9913f782300895"
+    },
+    {
+      "id": "f8136749-362f-458a-9505-2ea017b9671d",
+      "run": "live-fixes-followup-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "be2e2f227beb1b33660b0c6d2be29aefbbfe107696b4314b3bcb2d7dda0eee3a",
+      "generationId": "gen-1795093293-XDfyFjOVltVgdTkGgQqZ",
+      "costUsd": 0.022062,
+      "inputTokens": 6443,
+      "outputTokens": 2323,
+      "latencyMs": 11902,
+      "responseHash": "1c75577c93c3b5211d48fe94546db31f06278e00d0fddf5ae7c7ee8b1eb573b3"
+    },
+    {
+      "id": "e898d2c8-4be0-4813-aa45-250247c24e14",
+      "run": "live-fixes-followup-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "89c0dbce95fc3d76709b89589b29e68de587f92a047e18fce3fd97bf0123523f",
+      "generationId": "gen-1795093305-KHAYCrwHuFPidV0KRMDF",
+      "costUsd": 0.108848,
+      "inputTokens": 52656,
+      "outputTokens": 442,
+      "latencyMs": 4753,
+      "responseHash": "99cd024288777f72bbbed7067da8e2950de47fbce5dd0843557c373012f91790"
+    },
+    {
+      "id": "61148b72-6ebe-4eab-b1f9-92adbe35ac75",
+      "run": "live-fixes-followup-20261119",
+      "case": "ai-current",
+      "system": "engine",
+      "state": "SETTLED",
+      "requestHash": "1065bb634a56097abbbf54c72ae29a9a0e05f338ab2e703b591299a950dac06c",
+      "generationId": "gen-1795093310-Qq578cQJ9JdAVogtWkRb",
+      "costUsd": 0.191504,
+      "inputTokens": 65076,
+      "outputTokens": 7669,
+      "latencyMs": 52538,
+      "responseHash": "07da8fd73a481fce6df065c27aafdcb00b94d4a651e9ae97c4f86dbb29de5fea"
+    },
+    {
+      "id": "ad829a37-e48a-4003-ac15-28c2a29958bf",
+      "run": "live-fixes-followup-20261119",
+      "case": "review-ai-current",
+      "system": "review-engine",
+      "state": "SETTLED",
+      "requestHash": "c8c8051f04e8a39de14ac7a63172b0ffd9bcc696f23b1f432c46cf5a681ceae2",
+      "generationId": "gen-1795093363-O9oyaCuwnMf2RnvCCOqO",
+      "costUsd": 0.14082,
+      "inputTokens": 63798,
+      "outputTokens": 1653,
+      "latencyMs": 84063,
+      "responseHash": "aa1add4d72d7d0a08c017a6c87d31279e9984c845efefbf14086068d26edab4c"
+    },
+    {
+      "id": "0e6ec669-d2f7-4293-8b6a-6795c699ef84",
+      "run": "live-fixes-followup-20261119",
+      "case": "review-ai-current",
+      "system": "review-engine",
+      "state": "SETTLED",
+      "requestHash": "9e0071b2a85e35545b2a31009ca95f6ece3a5c36cb8b25cc5dcf46185da82fed",
+      "generationId": "gen-1795093447-YdLIDwp9NCZfiNgTIipR",
+      "costUsd": 0.013428,
+      "inputTokens": 5882,
+      "outputTokens": 208,
+      "latencyMs": 3862,
+      "responseHash": "ced501edb30b8e0359fc8cd3eb9c6f7540ecc608ce4b0662b9e385fc3e1c476c"
+    },
+    {
+      "id": "3a0bd36d-80d8-45ff-9228-9b712fb1b9ef",
+      "run": "live-fixes-final-20261119",
+      "case": "correction-fcde823c",
+      "system": "consistency",
+      "state": "SETTLED",
+      "requestHash": "e7c8d12c603616893a5ee98f5bc73ba0f54f9b140f66d272d4e19c68762d24eb",
+      "generationId": "gen-1795093670-8DNQp3J9gyI8KKUvCtKC",
+      "costUsd": 0.174942,
+      "inputTokens": 85851,
+      "outputTokens": 405,
+      "latencyMs": 6528,
+      "responseHash": "ad6ba1cfcbf29d499d3bdaf0165bc71deb4fe73549d8f10f7d7c9963f95f3512"
+    },
+    {
+      "id": "4ad9e80f-864f-4708-92ec-2043bf2b2aa9",
+      "run": "live-fixes-final-20261119",
+      "case": "review-lebanon-current",
+      "system": "review-engine",
+      "state": "SETTLED",
+      "requestHash": "51271418a65be4889dd95f913640df83da9eb7a1e39e94920567044fd3fe9f0e",
+      "generationId": "gen-1795093677-9W3IqO9DEXSNfkT3ZTzN",
+      "costUsd": 0.162516,
+      "inputTokens": 76326,
+      "outputTokens": 1233,
+      "latencyMs": 23848,
+      "responseHash": "996a91f8ac896653d44001b9b6d17f550d53ea2bed5b13b27e030c029cec0ecd"
+    },
+    {
+      "id": "1dd9c2b2-c227-4122-8035-63854c3fdaed",
+      "run": "live-fixes-final-20261119",
+      "case": "review-lebanon-current",
+      "system": "review-engine",
+      "state": "SETTLED",
+      "requestHash": "687b111b515fbb80283b9b8f49fa69b4b3af47f5cd7773f25a5628662484c735",
+      "generationId": "gen-1795093700-faG8YjHf2z3hCnHHY5SI",
+      "costUsd": 0.003244,
+      "inputTokens": 694,
+      "outputTokens": 232,
+      "latencyMs": 3444,
+      "responseHash": "22174020a5d8ba364a6d2f3a798b316b79c8a737e9fa842d711ad4e6a2454d7d"
+    },
+    {
+      "id": "9465782a-70c8-4017-ba23-bde98988b678",
+      "run": "live-fixes-final-20261119",
+      "case": "review-ai-current",
+      "system": "review-engine",
+      "state": "UNKNOWN",
+      "requestHash": "f162b3d08c9e43fff6badd212607aeb86c9f3ede60f69fc84d875acae54f725e",
+      "heldUsd": 0.658358,
+      "error": "BriefingModelError: provider unreachable: TypeError: terminated"
+    }
+  ]
+}

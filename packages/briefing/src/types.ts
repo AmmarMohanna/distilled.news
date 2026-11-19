@@ -11,6 +11,10 @@ export interface Article {
 }
 
 export interface FeedSpec {
+  /** Opt-in wire deduplication; frozen inputs without this retain original requests. */
+  verificationInputPolicy?:'reader-unit-context-v1';
+  /** Versioned proof-size batching; never removes reader items or evidence. */
+  verificationOutputPolicy?:'reader-load-batches-v1';
   /** New inputs use general evidence bindings. The Arabic marker is legacy replay only. */
   identityFidelityPolicy?: 'arabic-person-role-v1' | 'source-bound-claims-v1' | 'source-bound-claims-v2' | 'source-bound-claims-v3';
   /** What the reader follows, in the reader's own words. */
@@ -147,5 +151,5 @@ export class BriefingBudgetError extends Error {
 
 /** Received replies exhausted JSON/schema correction, including truncation; no unknown provider outcome. */
 export class BriefingOutputError extends BriefingModelError {
- constructor(message:string){super(message,true);}
+ constructor(message:string,readonly validationFailure?:string){super(message,true);}
 }

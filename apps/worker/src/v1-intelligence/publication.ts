@@ -67,7 +67,7 @@ export interface BriefingEditionRecord {
  id:string;feedId:string;feedRevision:number;windowStart:string;windowEnd:string;language:string;selectionId:string;
  provisionalSemanticStates?:{eventVersionId:string;provenance:EventSemanticState['provenance'];rematchRequestIds:string[]}[];
  selectedCandidateIds:string[];eventVersionIds:string[];storylineVersionIds:string[];evidenceRevisionIds:string[];
- stories:{candidateId:string;claims:GroundedClaim[]}[];
+ stories:{candidateId:string;claims:GroundedClaim[];relation?:'new'|'update'|'correction';updatesId?:string}[];
  generation:{model:string;provider:string;promptVersion:string;routerVersion:string;tokensIn:number;tokensOut:number;cost:number;latencyMs:number;usageConfirmed:boolean;repairCount?:number;draftId?:string;verificationId?:string};
  selectionPolicyVersion:string;groundingPolicyVersion:string;createdAt:string;
 }

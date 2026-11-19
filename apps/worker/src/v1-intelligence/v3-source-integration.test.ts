@@ -96,7 +96,9 @@ it.each(['complete','continuing','budget-wait','capacity','acquisition-capacity'
  const fetcher=(async(_url,init)=>{
   const request=JSON.parse(init!.body as string),prompt=JSON.stringify(request.messages);calls.push({model:request.model,prompt});
   const verify=request.messages[0].content.includes('meticulous fact-checker');
-  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
+  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',updates:null,importance:1}]};
+  const required=request.response_format?.json_schema?.schema?.properties?.source_decisions?.required;
+  if(!verify&&required){expect(required).toEqual(['S1']);Object.assign(content,{source_decisions:{S1:{decision:'selected',why:'The acquired article supports this fixture development.'}}});}
   return Response.json({id:`gen-integration-${calls.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
  const delivery='scheduledFor' in reporting?reporting.scheduledFor!:'2026-10-03T12:35:00Z';

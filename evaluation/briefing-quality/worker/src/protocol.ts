@@ -1,5 +1,10 @@
 export const LEGACY_PROTOCOL='atomic-development-review-v2';
-export const PROTOCOL='atomic-development-review-v3';
+export const PREVIOUS_PROTOCOL='atomic-development-review-v3';
+export const PROTOCOL='atomic-development-review-v4';
+export function retainedReviewProtocol(recorded:string,hasPaid:boolean):string {
+ if(!hasPaid||recorded===PROTOCOL)return PROTOCOL;
+ check(recorded===PREVIOUS_PROTOCOL||recorded===LEGACY_PROTOCOL,'UNKNOWN_PAID_REVIEW_PROTOCOL');return recorded;
+}
 // Stable enrollment identity: a new review format must not duplicate every job.
 export const JOB_IDENTITY_PROTOCOL='atomic-development-review-v1';
 export interface Article {id:string;feedId:string;text:string|null;title?:string;publishedAt?:string;completeness:'complete'|'partial'|'missing'|'unknown'}
@@ -14,7 +19,7 @@ export interface Coverage {priorIds?:string[];developmentId:string;status:'cover
 export interface ItemReview {item:number;relevance:'relevant'|'irrelevant'|'uncertain';repetition:'novel'|'necessary_update'|'repeated'|'uncertain';temporal:'correct'|'incorrect'|'uncertain';language:'correct'|'incorrect'|'uncertain';explanation:string}
 export interface Finding {category:'factual'|'citation'|'coverage'|'relevance'|'repetition'|'temporal'|'language';severity:'warning'|'error';item:number|null;explanation:string;evidence:Evidence[]}
 export interface Review {claims:Claim[];coverage:Coverage[];items:ItemReview[];findings:Finding[];limitations:string[]}
-export interface Request {system:string;user:string;schemaPolicy?:'source-inventory-v3'|'inventory-grounding-v1'|'grounded-review-v3'|'claim-inventory-audit-v1'}
+export interface Request {system:string;user:string;schemaPolicy?:'review-consistency-v2'|'source-inventory-v3'|'inventory-grounding-v1'|'grounded-review-v3'|'claim-inventory-audit-v1'|'omission-history-v1'}
 export function check(condition:unknown,message:string):asserts condition {if(!condition)throw Error(message)}
 const record=(x:unknown):Record<string,unknown>=>{check(x!==null&&typeof x==='object'&&!Array.isArray(x),'OBJECT_REQUIRED');return x as Record<string,unknown>};
 const array=(x:unknown):unknown[]=>{check(Array.isArray(x),'ARRAY_REQUIRED');return x};

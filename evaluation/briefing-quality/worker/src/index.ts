@@ -1,8 +1,10 @@
 import {REVIEW_VALIDATION_POLICY,groundedInventoryRequest,groundingRequest,parseGrounding,groundedInventory,groundedReviewRequest,groundedReview,groundedMetrics,type Grounding} from './grounding';
 import {completeReview} from './complete-review';
+import {consistentReview,mappedReviewRequest} from './review-consistency';
+import {auditOmissionHistory} from './omission-history';
 import {assessClaimInventory} from './claim-inventory';
 import {errorCode,failureDetails,sourceRead} from './failures';
-import {PROTOCOL,LEGACY_PROTOCOL,JOB_IDENTITY_PROTOCOL,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,reviewRequest,timestamp} from './protocol';
+import {PROTOCOL,LEGACY_PROTOCOL,JOB_IDENTITY_PROTOCOL,retainedReviewProtocol,type Case,check,flagged,hash,inventory,inventoryRequest,metrics,operational,reviewRequest,timestamp,ratio} from './protocol';
 import {activeFenceFor,recoverReviews} from './recovery';
 import {boundedJson,budget,judge} from './budget';
 import {discover,isEvaluable,snapshot,type Published} from './source';
@@ -72,7 +74,7 @@ export async function processJob(env:Env,id:string){
  }
  if(env.EVALUATION_ENABLED!=='true'||!['ready','budget_deferred'].includes(value.status))return;
  const paid=value.review_version===PROTOCOL?null:await env.EVAL_DB.prepare('SELECT 1 FROM eval_calls WHERE job_id=? LIMIT 1').bind(id).first();
- const protocol=value.review_version===PROTOCOL||!paid?PROTOCOL:LEGACY_PROTOCOL,grounded=protocol===PROTOCOL;
+ const protocol=retainedReviewProtocol(value.review_version,Boolean(paid)),grounded=protocol!==LEGACY_PROTOCOL,improved=protocol===PROTOCOL;
  const attempt=crypto.randomUUID();
  const claim=await env.EVAL_DB.prepare("UPDATE eval_jobs SET status='reviewing',attempt_id=?,updated_at=?,review_version=? WHERE id=? AND status IN ('ready','budget_deferred')").bind(attempt,time(),protocol,id).run();
  if(!claim.meta.changes)return;
@@ -86,11 +88,22 @@ export async function processJob(env:Env,id:string){
   if(grounded&&proposed.developments.length){phase='inventory_grounding';grounding=parseGrounding(await judge(env,id,'inventory_grounding_v1',groundingRequest(c,proposed)),proposed)}
   const d=grounding?groundedInventory(proposed,grounding):proposed;
   phase='inventory_store';const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol,inventoryHash,inventory:d,...(grounding?{proposedInventory:proposed,grounding}:{})}));
-  phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',(grounded?groundedReviewRequest(c,d):reviewRequest(c,d)));
-  phase='review_validation';const r=await completeReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_completeness_v1',request),grounded?{request:groundedReviewRequest(c,d),validate:raw=>groundedReview(raw,c,d)}:undefined),m=grounded?groundedMetrics(r,d,c):metrics(r,d,c);
+  phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',(improved?mappedReviewRequest(c,d):grounded?groundedReviewRequest(c,d):reviewRequest(c,d)));
+  phase='review_validation';
+  const consistency=improved?await consistentReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_consistency_v1',request)):undefined;
+  const originalReview=consistency?.review??await completeReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_completeness_v1',request),grounded?{request:groundedReviewRequest(c,d),validate:raw=>groundedReview(raw,c,d)}:undefined);
+  phase='reader_history_audit';const history=improved?await auditOmissionHistory(c,d,originalReview,request=>judge(env,id,'omission_reader_history_v1',request)):undefined;
+  const r=history?.review??originalReview,m=grounded?groundedMetrics(r,d,c):metrics(r,d,c);
+  if(history){
+   const eligible=r.coverage.filter(v=>v.status!=='already_reported'&&d.developments.some(x=>x.id===v.developmentId&&x.importance>=2)),covered=eligible.filter(v=>v.status==='covered').length,uncertain=eligible.filter(v=>v.status==='uncertain').length;
+   const lower=ratio(covered,eligible.length),upper=ratio(covered+uncertain,eligible.length);
+   // Existing dashboards use this scalar. Disagreement must never improve it
+   // merely by dropping uncertain developments from the denominator.
+   Object.assign(m,{completionConditionedDevelopmentRecall:m.importantDevelopmentRecall,importantDevelopmentRecall:lower,recallAggregationPolicy:'uncertainty-in-denominator-v1',readerHistoryAudit:history.audit.status,readerHistoryDisagreements:history.audit.disagreements.length,importantDevelopmentRecallBounds:{lower,upper}});
+  }
   phase='claim_inventory_audit';const claimInventoryAudit=await assessClaimInventory(c,r,env.CLAIM_INVENTORY_AUDIT_ENABLED==='true'?request=>judge(env,id,'reader_claim_inventory_v1',request):undefined),hasFindings=flagged(r,d,c)||claimInventoryAudit.requiresAttention;
   const report={protocol,...(grounded?{reviewValidationPolicy:REVIEW_VALIDATION_POLICY}:{}),jobId:id,source:env.SOURCE_LABEL,model:env.JUDGE_MODEL,evidenceHash:await hash(c),inventoryHash,labelOrigin:'machine_judge_not_human',calibration:'not_measured',claimExtractionCompleteness:'not_independently_established',reviewedAt:time(),operational:deterministic,inventory:d,...(grounding?{proposedInventory:proposed,inventoryGrounding:grounding}:{}),review:r,metrics:{...m,...(grounded?{inventoryGroundingPolicy:'current-evidence-entailment-v1'}:{})},status:hasFindings?'flagged':'reviewed_no_findings'};
-  Object.assign(report,{claimInventoryAudit,claimExtractionCompleteness:claimInventoryAudit.completeness});
+  Object.assign(report,{claimInventoryAudit,claimExtractionCompleteness:claimInventoryAudit.completeness,...(consistency?{originalRawReview:consistency.originalRawReview,consistencyCorrection:consistency.correction,preHistoryReview:originalReview,omissionHistoryAudit:history!.audit}:{})});
   Object.assign(report.metrics,{claimExtractionCompleteness:claimInventoryAudit.completeness});
   Object.assign(m,{claimExtractionCompleteness:claimInventoryAudit.completeness});
   phase='report_store';const key=`reports/${id}.json`;await env.EVIDENCE.put(key,JSON.stringify(report));

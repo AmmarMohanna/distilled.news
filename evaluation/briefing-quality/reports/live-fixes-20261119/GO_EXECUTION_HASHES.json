@@ -1,0 +1,26 @@
+[
+  {
+    "file": ".local-reports/integration/qualify-go-accounting.mjs",
+    "sha256": "e49221d4fa05d26c203332c74bbfe5707663f3162d2424338cc820dee16ff572"
+  },
+  {
+    "file": ".local-reports/integration/qualify-go-final.mjs",
+    "sha256": "fbd4a469bc459fb3d0b309c8c3d645cf1d7a02aa0ce7fa44057e853f270e0c6d"
+  },
+  {
+    "file": ".local-reports/integration/qualify-go-ai.mjs",
+    "sha256": "b890317a4d9440524aae78297cb96d67dc88b16c3f9ba018324996aaf133be30"
+  },
+  {
+    "file": ".local-reports/integration/qualify-go-proof.mjs",
+    "sha256": "f659dc4e65329707c85fe911e20bc5dcc120fac809071dc0d4d78ce8c467a991"
+  },
+  {
+    "file": ".local-reports/integration/qualify-go-proof-final.mjs",
+    "sha256": "38c04536e8f15a175fda3c64f7e59646ea6693a87cddefda5b887f8796627381"
+  },
+  {
+    "file": ".local-reports/integration/qualify-go-approved.mjs",
+    "sha256": "82c99df3cadee86cd79a58356712cfa6291e68043bfaca1f4e2ca00fe69748de"
+  }
+]

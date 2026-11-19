@@ -1,6 +1,8 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'Source diagnostics unavailable': ['Diagnostic des sources indisponible', 'تعذّر تحميل تشخيص المصادر'],
+  'Source health could not be loaded. Published briefings remain available.': ['Impossible de charger l’état des sources. Les bulletins publiés restent disponibles.', 'تعذّر تحميل حالة المصادر. تبقى النشرات المنشورة متاحة.'],
   'Some source checks timed out or could not finish. Try searching again.': ['Certaines vérifications ont expiré ou n’ont pas pu aboutir. Relancez la recherche.', 'انتهت مهلة التحقق من بعض المصادر أو تعذّر إكماله. أعد البحث.'],
   '{count} users': ['Utilisateurs : {count}', 'المستخدمون: {count}'],
   '{count} feeds': ['Fils : {count}', 'الخلاصات: {count}'],
@@ -156,7 +158,8 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'No successful collection in the last 48 hours.': ["Aucune récupération réussie depuis 48 heures.","لم ينجح جلب المحتوى خلال آخر 48 ساعة."],
   'Checked several times without collecting any articles.': ["Vérifiée plusieurs fois sans récupérer d’article.","تم فحصه عدة مرات دون جلب أي مقال."],
   'The latest collection attempt failed.': ["La dernière tentative de récupération a échoué.","لم تنجح آخر محاولة لجلب المحتوى."],
-  'A previous paid request needs reconciliation before collection can continue.': ["Le résultat d’une requête payante précédente doit être confirmé avant de reprendre la collecte.","يجب التحقق من نتيجة طلب مدفوع سابق قبل استئناف الجلب."],
+  'A previous paid request needs reconciliation before paid collection can resume.': ["Le résultat d’une requête payante précédente doit être confirmé avant de reprendre la collecte payante.","يجب التحقق من نتيجة طلب مدفوع سابق قبل استئناف الجلب المدفوع."],
+  'The collection provider has reached its monthly usage limit.': ["Le fournisseur de collecte a atteint sa limite mensuelle d’utilisation.","بلغ مزوّد جمع المصادر حدّ الاستخدام الشهري."],
   'username saved': ['Nom d’utilisateur enregistré', 'تم حفظ اسم المستخدم'],
   'password changed': ['Mot de passe modifié', 'تم تغيير كلمة المرور'],
   'feed resumed': ['Fil réactivé', 'تم استئناف الخلاصة'],

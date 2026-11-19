@@ -75,20 +75,27 @@ export async function feedSourceAvailability(env:Env,feedId:string){
   if(financial&&latest?.last_error==='UNCERTAIN_PAID_SUBMISSION'&&paidUncertain===undefined)
    paidUncertain=await hasUncertainSourcePayment(env.DB,feedId,row.id,source?.source.family==='google_news'?['google_apify','zyte']:['zyte'],true);
   const historicalPaidBlock=latest?.last_error==='UNCERTAIN_PAID_SUBMISSION'&&paidUncertain===false;
-  if(latest?.state==='BLOCKED'&&!historicalPaidBlock&&availability.state==='AVAILABLE'&&(enforceBudgets||latest.last_error!=='BUDGET_EXCEEDED')){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
+  const failure=collectionFailureReason(latest);
+  if(latest?.state==='BLOCKED'&&!historicalPaidBlock&&availability.state==='AVAILABLE'&&(enforceBudgets||latest.last_error!=='BUDGET_EXCEEDED'||failure==='PROVIDER_MONTHLY_USAGE_LIMIT')){availability.state='UNAVAILABLE';availability.reason=latest.last_error==='UNCERTAIN_PAID_SUBMISSION'?'PAID_OPERATION_UNCERTAIN':'COLLECTION_BLOCKED';}
   const jobs=acquired.results.filter(j=>j.feed_source_id===row.id),failed=jobs.filter(j=>j.state==='FAILED');
   const acquisition={completed:0,pending:0,failed:0,deferred:0,issues:acquisitionFailureIssues(failed)};
   for(const job of jobs){if(job.state==='DONE')acquisition.completed+=job.count;else if(job.state==='FAILED')acquisition.failed+=job.count;else if(job.state==='DEFERRED')acquisition.deferred+=job.count;else if(['PENDING','RUNNING'].includes(job.state))acquisition.pending+=job.count;}
   const warning=acquisition.failed?failed.every(j=>j.failure==='AUTH_REQUIRED')?'ARTICLE_AUTH_REQUIRED':failed.every(j=>j.failure==='CHALLENGE_REQUIRED')?'ARTICLE_CHALLENGE_REQUIRED':'ARTICLE_ACQUISITION_FAILED':undefined;
   // Only typed errors are public. Never expose URLs, provider response text or
   // claim tokens retained in diagnostic storage.
-  const collectionError=capacitySources.has(row.id)?'BACKPRESSURE':historicalPaidBlock?undefined:collectionFailureReason(latest);
+  const collectionError=failure==='PROVIDER_MONTHLY_USAGE_LIMIT'?failure:capacitySources.has(row.id)?'BACKPRESSURE':historicalPaidBlock?undefined:failure;
   return {sourceId:row.id,title:row.title,...availability,acquisition,...(warning?{warning}:{}),...(collectionError?{collectionError}:{})};
  }));
 }
 /** Typed cause only. Never expose arbitrary provider errors or payload text. */
 export function collectionFailureReason(latest:{last_error:string|null;result:string|null}|null){
  let failure=latest?.last_error?.split(':').at(-1);
+ if(failure==='BUDGET_EXCEEDED'&&latest?.result){
+  try{
+   const attempt=JSON.parse(latest.result)?.attempts?.at(-1);
+   if(attempt?.failure==='BUDGET_EXCEEDED'&&attempt.diagnostic?.detail==='PROVIDER_MONTHLY_USAGE_LIMIT')return 'PROVIDER_MONTHLY_USAGE_LIMIT';
+  }catch{/* Ignore malformed saved outcomes. */}
+ }
  if(latest?.result){try{const result=JSON.parse(latest.result);const saved=result?.coverage?.failureReason!=='NONE'?result?.coverage?.failureReason:undefined;const provider=result?.state==='FETCH_FAILED'?result.attempts?.at(-1)?.failure:undefined;if(!failure||['RETRY_LIMIT','BOUNDED_LIMIT','PROVIDER_REPAIR_REQUIRED'].includes(failure))failure=provider??saved??failure}catch{/* Diagnostics are not user instructions or public prose. */}}
  if(failure==='TRANSIENT_PROVIDER_FAILURE')failure='TRANSIENT';
  return failure&&['TRANSIENT','RATE_LIMIT','AUTH_REQUIRED','CHALLENGE','MALFORMED','UNCERTAIN_PAID_SUBMISSION','INTAKE_BUSY','BACKPRESSURE','RETRY_LIMIT','PAGE_LIMIT','UNBOUNDED_SCOPE_RETIRED','TEMPORARY_UNAVAILABLE','INTERNAL_FAILURE','FETCH_OUTCOME_UNKNOWN'].includes(failure)?failure:undefined;

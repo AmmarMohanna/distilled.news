@@ -1,8 +1,9 @@
+import {groundedInventoryRequest} from './worker/src/grounding';
 import {afterAll,beforeAll,describe,it,expect,vi} from 'vitest';
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
-import {PROTOCOL,LEGACY_PROTOCOL,hash,type Case,type Inventory,flagged,inventory,inventoryRequest,metrics,review,reviewRequest,validateCase,passages,operational} from './worker/src/protocol';
+import {PROTOCOL,PREVIOUS_PROTOCOL,LEGACY_PROTOCOL,hash,type Case,type Inventory,flagged,inventory,inventoryRequest,metrics,review,reviewRequest,validateCase,passages,operational} from './worker/src/protocol';
 import {recoverReviews,recoverGenerationAccounting} from './worker/src/recovery';
 import {reviewSchema} from './worker/src/schema';
 import {admission,judge,reserve,budget as configuredBudget,type Budget} from './worker/src/budget';
@@ -159,10 +160,22 @@ describe('D1/R2 spending and recovery',()=>{
    await processJob(e,id);expect(sends).toBe(4);
   }finally{vi.unstubAllGlobals()}
  });
- it('retains paid contradictory assessments as review failures without scores, correction calls or automatic replay',async()=>{
+ it('accounts for one conditional history audit, preserves the first omission and exposes disagreement bounds',async()=>{
+  await clear();const c=fixture(),id='history-audit';c.prior=[{id:'earlier-airport',at:c.windowStart,headline:'Airport closes',body:'The airport closed on Tuesday.'}];
+  const key='snapshots/'+id+'.json';await env.EVIDENCE.put(key,JSON.stringify(c));
+  await env.EVAL_DB.prepare("INSERT INTO eval_jobs(id,edition_id,feed_id,language,window_end,published_at,status,snapshot_key,snapshot_hash,updated_at,review_version) VALUES(?,?,?,?,?,?,'ready',?,?,?,?)").bind(id,c.id,c.feedId,c.language,c.windowEnd,c.publishedAt,key,await hash(c),c.frozenAt,PROTOCOL).run();
+  const source={prepare:()=>({bind:()=>({first:async()=>({json:JSON.stringify({status:'PUBLISHED'})})})})} as unknown as D1Database;let sends=0;
+  vi.stubGlobal('fetch',async(_u:unknown,init:RequestInit)=>{
+   sends++;const request=JSON.parse(String(init.body));let content:unknown;
+   if(sends===1)content=development();else if(sends===2)content={results:development().developments.map(v=>({developmentId:v.id,support:'supported',explanation:'Current evidence supports the development.'})),limitations:[]};else if(sends===3)content={...assessment(),coverage:assessment().coverage.map(v=>({...v,priorIds:[]}))};else{expect(request.messages[1].content).not.toContain('"items"');content={results:[{developmentId:'D2',status:'already_reported',priorEvidence:[{priorId:'H1',passageId:'P1'}],explanation:'The actual prior report already described this same closure.'}]};}
+   return Response.json({id:'history-'+sends,choices:[{finish_reason:'stop',message:{content:JSON.stringify(content)}}],usage:{prompt_tokens:10,completion_tokens:10,cost:.001}});
+  });
+  try{const e={...env,SOURCE_DB:source};await processJob(e,id);const job=await env.EVAL_DB.prepare('SELECT status,report_key FROM eval_jobs WHERE id=?').bind(id).first<{status:string;report_key:string}>();expect(job?.status).toBe('flagged');const report=await(await env.EVIDENCE.get(job!.report_key))!.json<any>();expect(report.preHistoryReview.coverage[1].status).toBe('omitted');expect(report.review.coverage[1].status).toBe('uncertain');expect(report.omissionHistoryAudit.disagreements).toEqual(['D2']);expect(report.metrics.importantDevelopmentRecall.value).toBe(.5);expect(report.metrics.completionConditionedDevelopmentRecall.value).toBe(1);expect(report.metrics.importantDevelopmentRecallBounds.lower.value).toBe(.5);expect(report.metrics.importantDevelopmentRecallBounds.upper.value).toBe(1);expect(sends).toBe(4);await processJob(e,id);expect(sends).toBe(4);expect((await env.EVAL_DB.prepare('SELECT stage FROM eval_calls WHERE job_id=?').bind(id).all()).results).toHaveLength(4);}finally{vi.unstubAllGlobals();}
+ });
+ it.each([PREVIOUS_PROTOCOL,PROTOCOL])('preserves paid protocol and exhausted contradictory assessments without scores or replay (%s)',async protocol=>{
   await clear();const c=fixture(),id='citation-inconsistency',snapshotKey='snapshots/'+id+'.json';
   await env.EVIDENCE.put(snapshotKey,JSON.stringify(c));
-  await env.EVAL_DB.prepare("INSERT INTO eval_jobs(id,edition_id,feed_id,language,window_end,published_at,status,snapshot_key,snapshot_hash,updated_at,review_version) VALUES(?,?,?,?,?,?,'ready',?,?,?,?)").bind(id,c.id,c.feedId,c.language,c.windowEnd,c.publishedAt,snapshotKey,await hash(c),c.frozenAt,PROTOCOL).run();
+  await env.EVAL_DB.prepare("INSERT INTO eval_jobs(id,edition_id,feed_id,language,window_end,published_at,status,snapshot_key,snapshot_hash,updated_at,review_version) VALUES(?,?,?,?,?,?,'ready',?,?,?,?)").bind(id,c.id,c.feedId,c.language,c.windowEnd,c.publishedAt,snapshotKey,await hash(c),c.frozenAt,protocol).run();
   const bad={...assessment(),claims:assessment().claims.map(v=>({...v,citationSupport:'missing'})),coverage:assessment().coverage.map(v=>({...v,priorIds:[]}))};
   const source={prepare:()=>({bind:()=>({first:async()=>({json:JSON.stringify({status:'PUBLISHED'})})})})} as unknown as D1Database;
   let sends=0;vi.stubGlobal('fetch',async()=>{
@@ -170,13 +183,13 @@ describe('D1/R2 spending and recovery',()=>{
    return Response.json({id:'inconsistent-'+sends,choices:[{finish_reason:'stop',message:{content:JSON.stringify(content)}}],usage:{prompt_tokens:10,completion_tokens:10,cost:.001}});
   });
   try{
-   const e={...env,SOURCE_DB:source};await processJob(e,id);
+   const e={...env,SOURCE_DB:source};await judge(e,id,'independent_developments',groundedInventoryRequest(c));await processJob(e,id);
    expect(await env.EVAL_DB.prepare('SELECT status,error,report_key,metrics_json FROM eval_jobs WHERE id=?').bind(id).first()).toEqual({status:'review_failed',error:'CITED_SUPPORT_LABEL_CONTRADICTION',report_key:null,metrics_json:null});
    const calls=(await env.EVAL_DB.prepare('SELECT stage,state,response_key,cost_micro FROM eval_calls WHERE job_id=? ORDER BY stage').bind(id).all<{stage:string;state:string;response_key:string;cost_micro:number}>()).results;
-   expect(calls).toHaveLength(3);expect(calls.every(v=>v.state==='SETTLED'&&v.cost_micro===1000)).toBe(true);
+   expect(calls).toHaveLength(protocol===PREVIOUS_PROTOCOL?3:4);expect(calls.every(v=>v.state==='SETTLED'&&v.cost_micro===1000)).toBe(true);
    const saved=await env.EVIDENCE.get(calls.find(v=>v.stage==='atomic_claims_and_coverage')!.response_key);
    const paid=await saved!.json<{choices:Array<{message:{content:string}}>}>();expect(JSON.parse(paid.choices[0].message.content)).toEqual(bad);
-   await recoverReviews({...e,UNCERTAIN_REVIEW_RECOVERY:'isolate-after-20m-v1'});await processJob(e,id);expect(sends).toBe(3);
+   await recoverReviews({...e,UNCERTAIN_REVIEW_RECOVERY:'isolate-after-20m-v1'});await processJob(e,id);expect(sends).toBe(protocol===PREVIOUS_PROTOCOL?3:4);
    expect(await env.EVAL_DB.prepare('SELECT status FROM eval_jobs WHERE id=?').bind(id).first('status')).toBe('review_failed');
   }finally{vi.unstubAllGlobals()}
  });

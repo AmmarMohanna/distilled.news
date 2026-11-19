@@ -1,0 +1,324 @@
+{
+  "baseCommit": "eb9275fd45843547324294305fa5f5955d30fb37",
+  "newPaidCalls": 0,
+  "newCostUsd": 0,
+  "activated": false,
+  "cases": [
+    {
+      "caseId": "lebanon-current",
+      "ledgerHash": "c1cf13035458e4922ec45aa8663b5f538862e31861b0555326d36c39f3e83cbe",
+      "outcomeHash": "71f9494e69b03412dcffe0accb0a583158e0f07c00a9ec94f9a7a7bae8406f75",
+      "successfulExecutionOnly": true,
+      "stages": {
+        "editor": {
+          "calls": 2,
+          "costUsd": 0.15843400000000002
+        },
+        "consolidation": {
+          "calls": 1,
+          "costUsd": 0.011692
+        },
+        "novelty": {
+          "calls": 1,
+          "costUsd": 0.032008
+        },
+        "reader_inventory": {
+          "calls": 1,
+          "costUsd": 0.018634
+        },
+        "source_identity": {
+          "calls": 1,
+          "costUsd": 0.02937
+        },
+        "verification": {
+          "calls": 1,
+          "costUsd": 0.08485
+        }
+      },
+      "operations": [
+        {
+          "stage": "editor",
+          "requestHash": "3d2e66a9ebb3fd2b9bfd3c4f863050ac73c6740dc0ebbfd9baf8fa8ea71abe8f",
+          "costUsd": 0.088842,
+          "reused": true,
+          "originalInputCharacters": 123468,
+          "compactInputCharacters": 123468,
+          "originalInputBytes": 176527,
+          "compactInputBytes": 176527
+        },
+        {
+          "stage": "editor",
+          "requestHash": "b7d2d47b85c3cb41953fb7a040032b86f351d15fec0dd6ac1aad1b3045a7b937",
+          "costUsd": 0.069592,
+          "reused": true,
+          "originalInputCharacters": 87684,
+          "compactInputCharacters": 87684,
+          "originalInputBytes": 121204,
+          "compactInputBytes": 121204
+        },
+        {
+          "stage": "consolidation",
+          "requestHash": "ff75fa3559dab9230c0a182eac7c057731a2d174d7d745d18a34e1c20511080c",
+          "costUsd": 0.011692,
+          "reused": true,
+          "originalInputCharacters": 14782,
+          "compactInputCharacters": 14782,
+          "originalInputBytes": 19493,
+          "compactInputBytes": 19493
+        },
+        {
+          "stage": "novelty",
+          "requestHash": "a4f8788665921276cbfc983e4018cc96b8329ebaddfe62cf62f394f15f0bf819",
+          "costUsd": 0.032008,
+          "reused": false,
+          "originalInputCharacters": 37388,
+          "compactInputCharacters": 37388,
+          "originalInputBytes": 53910,
+          "compactInputBytes": 53910
+        },
+        {
+          "stage": "reader_inventory",
+          "requestHash": "a85f8e7bbf76eb4a245fddebc582a4a1ac4cb43f042e1fb08662c2be46865ae3",
+          "costUsd": 0.018634,
+          "reused": false,
+          "originalInputCharacters": 18102,
+          "compactInputCharacters": 18102,
+          "originalInputBytes": 21066,
+          "compactInputBytes": 21066
+        },
+        {
+          "stage": "source_identity",
+          "requestHash": "dc8519db3ade03ecab6de54d30698e327293b30ee1096af9c5f943feaacd90cd",
+          "costUsd": 0.02937,
+          "reused": false,
+          "originalInputCharacters": 29786,
+          "compactInputCharacters": 29786,
+          "originalInputBytes": 40312,
+          "compactInputBytes": 40312
+        },
+        {
+          "stage": "verification",
+          "requestHash": "e1e6d619216fb135682d5e0f8d973671c5fc7bed8f0461a70a5caaeb6e7acafd",
+          "costUsd": 0.08485,
+          "reused": false,
+          "originalInputCharacters": 103573,
+          "compactInputCharacters": 89348,
+          "originalInputBytes": 137058,
+          "compactInputBytes": 110141,
+          "facets": 73,
+          "originalUserCharacters": 53461,
+          "compactUserCharacters": 38699,
+          "evidenceUnchanged": true
+        }
+      ],
+      "originalExecutionReceiptCostUsd": 0.334988,
+      "originalInputCharacters": 414783,
+      "compactInputCharacters": 400558,
+      "excludes": [
+        "collection",
+        "separate evaluator",
+        "infrastructure",
+        "discarded earlier attempts",
+        "unknown operations outside this successful execution"
+      ],
+      "interpretation": "Historical stage receipts, not fresh production cost. Compact size is measured offline; token billing, model behavior and cold latency savings are not measured. No paid calls were made."
+    },
+    {
+      "caseId": "ai-current",
+      "ledgerHash": "cd4735d596d66a1c2ff514f2a46800e139abca708d3d17285e7c9c27ff2358f8",
+      "outcomeHash": "8883d5fc4f9a945af2865c3040371478dec2d5c0b4d92bdb2937e86f32fc2e30",
+      "successfulExecutionOnly": true,
+      "stages": {
+        "editor": {
+          "calls": 3,
+          "costUsd": 0.14150800000000002
+        },
+        "consolidation": {
+          "calls": 1,
+          "costUsd": 0.017412
+        },
+        "novelty": {
+          "calls": 1,
+          "costUsd": 0.064212
+        },
+        "reader_inventory": {
+          "calls": 3,
+          "costUsd": 0.053042
+        },
+        "source_identity": {
+          "calls": 3,
+          "costUsd": 0.14720999999999998
+        },
+        "verification": {
+          "calls": 3,
+          "costUsd": 0.31250200000000006
+        }
+      },
+      "operations": [
+        {
+          "stage": "editor",
+          "requestHash": "b750b8ebb9ac658534f3049c0f162d5bb82b49a03a35487ec56e2fb94f222dbb",
+          "costUsd": 0.059234,
+          "reused": true,
+          "originalInputCharacters": 110524,
+          "compactInputCharacters": 110524,
+          "originalInputBytes": 110757,
+          "compactInputBytes": 110757
+        },
+        {
+          "stage": "editor",
+          "requestHash": "a3d77b9d7f665aa5c92855a01fcb48d1639f2a924b3c2f4559fa013f2e077bb7",
+          "costUsd": 0.05706,
+          "reused": true,
+          "originalInputCharacters": 112930,
+          "compactInputCharacters": 112930,
+          "originalInputBytes": 113205,
+          "compactInputBytes": 113205
+        },
+        {
+          "stage": "editor",
+          "requestHash": "f16de3374f2dff74c4febbedace4ce6357afd24a1b31be354427f6f07c8d3014",
+          "costUsd": 0.025214,
+          "reused": true,
+          "originalInputCharacters": 46932,
+          "compactInputCharacters": 46932,
+          "originalInputBytes": 47185,
+          "compactInputBytes": 47185
+        },
+        {
+          "stage": "consolidation",
+          "requestHash": "539490280f37ff162568869435adf35e0c2b095745772eb4a1c636d850c159b3",
+          "costUsd": 0.017412,
+          "reused": true,
+          "originalInputCharacters": 21786,
+          "compactInputCharacters": 21786,
+          "originalInputBytes": 21797,
+          "compactInputBytes": 21797
+        },
+        {
+          "stage": "novelty",
+          "requestHash": "51bacea1e1046138d647faf3fcf310e19c81b655e8f716ce78341af3c61809f2",
+          "costUsd": 0.064212,
+          "reused": true,
+          "originalInputCharacters": 108258,
+          "compactInputCharacters": 108258,
+          "originalInputBytes": 108463,
+          "compactInputBytes": 108463
+        },
+        {
+          "stage": "reader_inventory",
+          "requestHash": "b3af0ae5465885808920108cc3949affa11cde83c451a7f2f76110b8ff8a147a",
+          "costUsd": 0.020836,
+          "reused": true,
+          "originalInputCharacters": 15523,
+          "compactInputCharacters": 15523,
+          "originalInputBytes": 15527,
+          "compactInputBytes": 15527
+        },
+        {
+          "stage": "reader_inventory",
+          "requestHash": "4099f0a626ad4b17266ad881da0c2e27a588d88a9b3a5336c90d72657e7e17b2",
+          "costUsd": 0.026634,
+          "reused": true,
+          "originalInputCharacters": 19893,
+          "compactInputCharacters": 19893,
+          "originalInputBytes": 19893,
+          "compactInputBytes": 19893
+        },
+        {
+          "stage": "reader_inventory",
+          "requestHash": "151de1da85b547b3e0fdfe5ba6f4700be5113c1425ede2f1246b7149ffff7b21",
+          "costUsd": 0.005572,
+          "reused": true,
+          "originalInputCharacters": 5803,
+          "compactInputCharacters": 5803,
+          "originalInputBytes": 5803,
+          "compactInputBytes": 5803
+        },
+        {
+          "stage": "source_identity",
+          "requestHash": "e2830a18e6107c16ec98201e083a7a1b6a93d2f8661b20402ec49471fc87c9b3",
+          "costUsd": 0.067478,
+          "reused": true,
+          "originalInputCharacters": 73675,
+          "compactInputCharacters": 73675,
+          "originalInputBytes": 73765,
+          "compactInputBytes": 73765
+        },
+        {
+          "stage": "source_identity",
+          "requestHash": "91a35feaeb5d08ca232576e3f3ebe37f68e2443b77a655112e0c8ead6d94ec7e",
+          "costUsd": 0.06528,
+          "reused": true,
+          "originalInputCharacters": 72645,
+          "compactInputCharacters": 72645,
+          "originalInputBytes": 72729,
+          "compactInputBytes": 72729
+        },
+        {
+          "stage": "source_identity",
+          "requestHash": "567e49b628cbbff25ef8800162703bfd3c468b00abd54cd9a8447c8dbba32837",
+          "costUsd": 0.014452,
+          "reused": true,
+          "originalInputCharacters": 14947,
+          "compactInputCharacters": 14947,
+          "originalInputBytes": 14959,
+          "compactInputBytes": 14959
+        },
+        {
+          "stage": "verification",
+          "requestHash": "668a127605588a71421e12782cd2b9d8f1e1255b66b99e96889335a798d1229b",
+          "costUsd": 0.139622,
+          "reused": false,
+          "originalInputCharacters": 196953,
+          "compactInputCharacters": 146742,
+          "originalInputBytes": 197091,
+          "compactInputBytes": 146857,
+          "facets": 92,
+          "originalUserCharacters": 126032,
+          "compactUserCharacters": 75284,
+          "evidenceUnchanged": true
+        },
+        {
+          "stage": "verification",
+          "requestHash": "5b8901e8c246c39fc07f2356dedb5441d69b2aa087a8b9065ad48602480b6fd5",
+          "costUsd": 0.141776,
+          "reused": false,
+          "originalInputCharacters": 199044,
+          "compactInputCharacters": 159432,
+          "originalInputBytes": 199146,
+          "compactInputBytes": 159534,
+          "facets": 131,
+          "originalUserCharacters": 114538,
+          "compactUserCharacters": 74389,
+          "evidenceUnchanged": true
+        },
+        {
+          "stage": "verification",
+          "requestHash": "6a7e1a861331c19f87f21c143f5eac9995f59a5821990e52d02c3dd25e612814",
+          "costUsd": 0.031104,
+          "reused": true,
+          "originalInputCharacters": 47452,
+          "compactInputCharacters": 43738,
+          "originalInputBytes": 47482,
+          "compactInputBytes": 43768,
+          "facets": 16,
+          "originalUserCharacters": 30325,
+          "compactUserCharacters": 26074,
+          "evidenceUnchanged": true
+        }
+      ],
+      "originalExecutionReceiptCostUsd": 0.7358860000000002,
+      "originalInputCharacters": 1046365,
+      "compactInputCharacters": 952828,
+      "excludes": [
+        "collection",
+        "separate evaluator",
+        "infrastructure",
+        "discarded earlier attempts",
+        "unknown operations outside this successful execution"
+      ],
+      "interpretation": "Historical stage receipts, not fresh production cost. Compact size is measured offline; token billing, model behavior and cold latency savings are not measured. No paid calls were made."
+    }
+  ]
+}

@@ -86,3 +86,8 @@ it('reports distinct safe article failure categories without exposing diagnostic
 it('reports the provider parsing cause behind a collection repair blocker',()=>{
  expect(collectionFailureReason({last_error:'PROVIDER_REPAIR_REQUIRED',result:JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'MALFORMED',private:'not-public'}]})})).toBe('MALFORMED');
 });
+it('distinguishes a confirmed monthly provider cap from local budget errors',()=>{
+ const last_error='BUDGET_EXCEEDED',failure='BUDGET_EXCEEDED';
+ expect(collectionFailureReason({last_error,result:JSON.stringify({attempts:[{failure,diagnostic:{detail:'PROVIDER_MONTHLY_USAGE_LIMIT'}}]})})).toBe('PROVIDER_MONTHLY_USAGE_LIMIT');
+ expect(collectionFailureReason({last_error,result:JSON.stringify({attempts:[{failure}]})})).toBeUndefined();
+});

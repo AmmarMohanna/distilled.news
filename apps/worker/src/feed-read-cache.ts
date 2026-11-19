@@ -79,10 +79,10 @@ export function cachedFeedEditions<T>(feedId:string,version:number,build:()=>Pro
 
 /** Collection status and progress change with background work, not with
  * publication, so they get a short time-to-live instead of a version alone. */
-export function cachedFeedStatus<T>(env:Env,feedId:string,version:number,build:()=>Promise<T>) {
+export function cachedFeedStatus<T>(env:Env,feedId:string,version:number,build:()=>Promise<T>,scope:'status'|'source-diagnostics'='status') {
  const seconds=Number(env.FEED_STATUS_CACHE_SECONDS??DEFAULT_STATUS_SECONDS);
  const ttl=Number.isFinite(seconds)&&seconds>=0&&seconds<=120?seconds*1000:DEFAULT_STATUS_SECONDS*1000;
- return cache.get(`status:${feedId}:${version}`,ttl,build);
+ return cache.get(`${scope}:${feedId}:${version}`,ttl,build);
 }
 
 /** Small, stable, non-cryptographic hash for ETags of non-secret public data. */
