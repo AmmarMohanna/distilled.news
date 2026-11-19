@@ -17,6 +17,23 @@ it('refuses continuation without an explicit new attempt before database access'
  const r=await stagingMission(new Request('https://staging.invalid/__staging/mission/continue',{method:'POST',headers:{authorization:'Bearer secret'}}),env);
  expect(r.status).toBe(409);expect(await r.json()).toEqual({error:'FRESH_ATTEMPT_REQUIRED'});
 });
+it.each([['paid','PAID_PUBLICATION_RESUME_FORBIDDEN'],['repeated','UNPAID_RESUME_ALREADY_STARTED_OR_ORIGINAL_MISSING'],['missing','UNPAID_RESUME_ALREADY_STARTED_OR_ORIGINAL_MISSING'],['closed','FROZEN_UNPAID_REQUEST_REQUIRED']] as const)('refuses a %s publication resume without changing records or sending a provider request',async(state,error)=>{
+ const sqls:string[]=[],feed='staging-fresh-fixture',window={start:'2026-11-18T12:00:00Z',end:'2026-11-18T12:01:00Z',kind:'HOURLY'};
+ const db={prepare:(sql:string)=>{sqls.push(sql);return {bind:(...p:unknown[])=>({all:async()=>{
+  let results:unknown[]=[];
+  if(sql.includes('SELECT public_feed_enabled'))results=[{public_feed_enabled:0}];
+  else if(sql.includes('COUNT(*)'))results=[{n:state==='paid'?1:0}];
+  else if(sql.startsWith('SELECT feed_id,json'))results=[{feed_id:feed,json:JSON.stringify(p[0]==='briefing_requests'?{state:'DONE',engine:'v3'}:{})}];
+  else if(String(p[1]).endsWith(':prepared'))results=[{json:JSON.stringify({start:window.start})}];
+  else if(String(p[1]).endsWith(':reviewed'))results=[{json:JSON.stringify({at:window.end})}];
+  else if(String(p[1]).endsWith(':publication-start')&&state!=='missing')results=[{json:JSON.stringify({window})}];
+  else if(String(p[1]).endsWith(':publication-resume-unpaid-start')&&state==='repeated')results=[{json:'{}'}];
+  return {results,meta:{}};
+ }})}}};
+ const env={DB:db,PROCESSING_QUEUE:{},STAGING_MISSION_FEED_ID:feed,STAGING_MISSION_ATTEMPT_ID:'reader-v3',STAGING_MISSION_TOKEN:'secret'} as any;
+ const r=await stagingMission(new Request('https://staging.invalid/__staging/mission/publish-resume-unpaid',{method:'POST',headers:{authorization:'Bearer secret'}}),env);
+ expect(r.status).toBe(409);expect(await r.json()).toMatchObject({error});expect(sqls.every(sql=>!/^INSERT|^UPDATE|^DELETE/.test(sql))).toBe(true);
+});
 it.each([['started',0,'ATTEMPT_ALREADY_STARTED_NO_RESET'],['unpaid',1,'PAID_MISSION_CONTINUATION_FORBIDDEN']] as const)('does not mutate a %s predecessor or replay its paid work',async(state,paid,error)=>{
  const sqls:string[]=[];const db={prepare:(sql:string)=>{sqls.push(sql);return {bind:(...params:unknown[])=>({all:async()=>({results:sql.includes('SELECT public_feed_enabled')?[{public_feed_enabled:0}]:sql.includes('COUNT(*)')?[{n:paid}]:sql.startsWith('SELECT id')?[{id:'original'}]:state==='started'?[{json:'{}'}]:[],meta:{}})})}}};
  const env={DB:db,PROCESSING_QUEUE:{},STAGING_MISSION_FEED_ID:'staging-fresh-fixture',STAGING_MISSION_ATTEMPT_ID:'reader-v3',STAGING_MISSION_TOKEN:'secret'} as any;

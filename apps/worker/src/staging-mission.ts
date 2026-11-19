@@ -7,7 +7,7 @@ import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {enrollV1Source} from './v1-intelligence/product';
 import {prepareRssHandoff,rssLanguageHint} from './v1-intake/rss-handoff';
 import {acceptV1Handoff,processV1Acquisition} from './v1-downstream-runtime';
-import {processV1Reassessment,processV1Rematch,processV1Briefing} from './v1-intelligence/runtime';
+import {processV1Reassessment,processV1Rematch,processV1Briefing,windowIdentity} from './v1-intelligence/runtime';
 import {V1FeedStore,feedTransact} from './v1-intelligence/store';
 import {windowIntakeCoverage} from './v1-intelligence/window-coverage';
 import {withFeedWriteTurn} from './connector-intelligence-turn';
@@ -36,7 +36,7 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
  const hashes=await Promise.all([supplied,'Bearer '+secret].map(s=>crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))));
  if(new Uint8Array(hashes[0]).reduce((a,b,i)=>a|(b^new Uint8Array(hashes[1])[i]),0)!==0)return reply({error:'NOT_FOUND'},404);
  const action=new URL(request.url).pathname.split('/').at(-1)!;
- if(!['prepare','continue','collect','diagnose','review','review-resume','review-contract-v2','review-disposition-v1','publish-disposition-v1','publish','status'].includes(action)||request.method!==(action==='status'?'GET':'POST'))return reply({error:'INVALID_ACTION'},400);
+ if(!['prepare','continue','collect','diagnose','review','review-resume','review-contract-v2','review-disposition-v1','publish-disposition-v1','publish','publish-resume-unpaid','status'].includes(action)||request.method!==(action==='status'?'GET':'POST'))return reply({error:'INVALID_ACTION'},400);
  const attempt=env.STAGING_MISSION_ATTEMPT_ID;
  if(action==='continue'&&!attempt||action==='prepare'&&attempt)return reply({error:'FRESH_ATTEMPT_REQUIRED'},409);
  let missionScope:ReturnType<typeof stagingMissionScope>;try{missionScope=stagingMissionScope(feedId,attempt)}catch{return reply({error:'INVALID_STAGING_ATTEMPT'},400)}
@@ -130,11 +130,20 @@ export async function stagingMission(request:Request,env:Env):Promise<Response>{
    await save(disposition?scope+'-reviewed':'reviewed',{at:now(),attemptId:scope,review:'CONTRACT_REMATCH_SUCCEEDED',coverage,policy:STAGING_GROUPING_RUN_POLICY,wallMs:performance.now()-started});
    }
   }
-  if(action==='publish'||action==='publish-disposition-v1'){
+  if(action==='publish'||action==='publish-disposition-v1'||action==='publish-resume-unpaid'){
    const disposition=action==='publish-disposition-v1',scope=disposition?STAGING_DISPOSITION_ATTEMPT_ID:'publication';
-   const startId=disposition?scope+'-publication-start':'publication-start',outcomeId=disposition?scope+'-publication-outcome':'publication-outcome';
-   const prepared=await read('prepared'),reviewed=await read(disposition?scope+'-reviewed':'reviewed');if(!prepared||!reviewed)throw Error('REVIEW_REQUIRED');if(await read(startId))return reply({error:'PUBLICATION_ALREADY_STARTED_NO_AUTOMATIC_RETRY'},409);
-   const window={start:prepared.start,end:reviewed.at,kind:'HOURLY' as const};await save(startId,{at:now(),attemptId:scope,window,ceilingUsd:groupingRun?STAGING_GROUPING_CEILING_USD:10});
+   const resuming=action==='publish-resume-unpaid';
+   const startId=disposition?scope+'-publication-start':'publication-start',outcomeId=resuming?'publication-resume-unpaid-outcome':disposition?scope+'-publication-outcome':'publication-outcome';
+   const prepared=await read('prepared'),reviewed=await read(disposition?scope+'-reviewed':'reviewed');if(!prepared||!reviewed)throw Error('REVIEW_REQUIRED');const original=await read(startId);
+   if(!resuming&&original)return reply({error:'PUBLICATION_ALREADY_STARTED_NO_AUTOMATIC_RETRY'},409);
+   let window={start:prepared.start,end:reviewed.at,kind:'HOURLY' as const};
+   if(resuming){
+    if(!original?.window||await read('publication-resume-unpaid-start'))throw Error('UNPAID_RESUME_ALREADY_STARTED_OR_ORIGINAL_MISSING');
+    const paid=await db.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations WHERE feed_id=?').bind(feedId).first<number>('n');if(paid)throw Error('PAID_PUBLICATION_RESUME_FORBIDDEN');
+    window=original.window;const id=await windowIdentity(feedId,window),store=new V1FeedStore(db),current=await store.read<{state:string;engine?:string}>(feedId,'briefing_requests',id),frozen=await store.read(feedId,'v3_window_inputs',id);
+    if(current?.state!=='PENDING'||current.engine!=='v3'||!frozen)throw Error('FROZEN_UNPAID_REQUEST_REQUIRED');
+    await save('publication-resume-unpaid-start',{at:now(),window,originalWindowId:id,reason:'OPERATOR_ADAPTER_FAILED_BEFORE_ANY_PAID_RESERVATION'});
+   }else await save(startId,{at:now(),attemptId:scope,window,ceilingUsd:groupingRun?STAGING_GROUPING_CEILING_USD:10});
    const edition=await withLatency({feedId,phase:'PUBLICATION_TURN'},()=>measureLatency('PUBLICATION_EXCLUSIVE_TURN',()=>withFeedWriteTurn({...scoped,SOURCE_QUEUE_SCHEDULING_ENABLED:'true'},feedId,()=>processV1Briefing(scoped,{type:'v1_briefing',feedId,window},now,undefined,fetch,{requireModel:true,maxSelectedDevelopments:3}),'fresh-staging-publication')));
    await save(outcomeId,{at:now(),editionId:edition?.id??null,wallMs:performance.now()-started,status:edition?'PUBLISHED':'DEFERRED'});
   }
