@@ -9,6 +9,8 @@ import {PrivateFeedPage} from './PrivateFeedPage';
 import {briefingReferences} from './briefing-references';
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
+import { CitationReference } from "./CitationReference";
+import { BriefingReadMore } from "./BriefingReadMore";
 import React, { useEffect, useRef, useState } from "react";
 import { FeedNotice } from "./FeedNotice";
 import { FeedReaderStatus } from "./FeedReaderStatus";
@@ -1909,6 +1911,7 @@ function FeedPage(props: { username: string; slug: string }) {
                   isRead={readIds.has(edition.id)}
                   readProgressUnavailable={readerId===undefined}
                   onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
+                  onLoadDetail={() => loadEditionDetail(edition)}
                   onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
                 />
               ))}
@@ -2006,6 +2009,7 @@ function FeedEditionRow(props: {
   onToggleRead: () => void;
   readProgressUnavailable?: boolean;
   onOpenReport: (sectionIndex: number) => void;
+  onLoadDetail: () => Promise<BriefingEdition | null>;
 }) {
   const { edition, language } = props;
   const textDir = textDirection(props.contentLanguage);
@@ -2015,7 +2019,7 @@ function FeedEditionRow(props: {
   const narrative = normalizeSummary(edition.summary);
   const summary = headline && narrative.startsWith(headline) ? narrative.slice(headline.length).trimStart() : narrative;
   const references = briefingReferences(props.detailEdition ?? edition);
-  const referenceCount = Math.max(references.length, highestReferenceNumber(edition.summary));
+  const referenceCount = Math.max(edition.sections.length ? references.length : 0, highestReferenceNumber(edition.summary));
   const referenceNumbers = Array.from({length: referenceCount}, (_, index) => index + 1);
   const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
   return (
@@ -2031,14 +2035,16 @@ function FeedEditionRow(props: {
         fallbackSummary={summary}
         sections={edition.sections}
         direction={textDir}
-        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <button
-          key={number}
-          type="button"
-          className="briefing-reference"
-          aria-label={referenceButtonLabel(number, language)}
-          aria-busy={props.isLoading}
-          onClick={() => props.onOpenReport(number - 1)}
-        ><bdi dir="ltr">[{number}]</bdi></button>)}
+        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <CitationReference
+          key={number} number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}
+        />)}
+        renderDetails={(body, sectionIndex) => <BriefingReadMore body={body} sectionIndex={sectionIndex} language={language} loadDetail={props.onLoadDetail}
+          onOpenSources={() => {
+            const reference = references.find(item => item.sectionIndex === (sectionIndex ?? 0));
+            props.onOpenReport(edition.sections.length && reference ? reference.number - 1 : sectionIndex ?? 0);
+          }}
+          renderBody={text => <ReferenceParagraph className="news-summary" text={text} language={language} direction={textDir} referenceCount={referenceCount} onOpenReference={props.onOpenReport}
+            renderReference={number => <CitationReference number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}/>}/>}/>}
         renderBody={text=><ReferenceParagraph
           className="news-summary"
           text={text}
@@ -2074,6 +2080,7 @@ function ReferenceParagraph(props: {
   referenceCount: number;
   className: string;
   onOpenReference: (sectionIndex: number) => void;
+  renderReference?: (number: number) => React.ReactNode;
 }) {
   const textDir = props.direction;
   const parts = referenceTextParts(props.text);
@@ -2096,7 +2103,7 @@ function ReferenceParagraph(props: {
         const canOpen = part.value >= 1 && part.value <= props.referenceCount;
         const following = parts[index + 1];
         const punctuation = following?.kind === "text" ? following.value.match(trailingPunctuation)?.[0] ?? "" : "";
-        const marker = (
+        const marker = props.renderReference && canOpen ? <React.Fragment key={`reference-${part.value}-${index}`}>{props.renderReference(part.value)}</React.Fragment> : (
           <button
             key={`reference-${part.value}-${index}`}
             type="button"

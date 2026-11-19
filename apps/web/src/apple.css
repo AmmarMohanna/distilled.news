@@ -3144,3 +3144,21 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-nav-back { gap: 4px; }
 :root.apple-ui.apple-ui .feed-nav-back > span { display: inline-block; line-height: 1; }
 :root.apple-ui.apple-ui .feed-nav-back:lang(ar) > span { transform: translateY(-.12em); }
+
+/* Compact publisher previews on article citations. */
+:root.apple-ui.apple-ui .citation-reference { position: relative; display: inline-flex; vertical-align: baseline; font-weight: 500; }
+:root.apple-ui.apple-ui .citation-reference > .briefing-reference { text-decoration: none; cursor: pointer; background: var(--surface-quiet); }
+:root.apple-ui.apple-ui .citation-publisher { position: absolute; z-index: 30; inset-block-start: calc(100% + 6px); inset-inline-end: 0; display: flex; align-items: center; gap: 8px; width: max-content; max-width: min(260px,70vw); padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); box-shadow: 0 6px 24px rgb(0 0 0 / 12%); font-size: 14px; line-height: 1.4; visibility: hidden; opacity: 0; pointer-events: none; }
+:root.apple-ui.apple-ui .citation-publisher strong { overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .citation-publisher :is(img,svg) { width: 20px; height: 20px; flex: none; object-fit: contain; }
+:root.apple-ui.apple-ui .citation-reference:is(:hover,:focus-within) .citation-publisher { visibility: visible; opacity: 1; }
+:root.apple-ui.apple-ui .news-story > .news-headline:has(+ .briefing-read-more), :root.apple-ui.apple-ui .news-item > .news-headline:has(+ .briefing-read-more) { display: inline; }
+:root.apple-ui.apple-ui .briefing-read-more { display: inline; margin-inline-start: 8px; }
+:root.apple-ui.apple-ui .briefing-read-more > summary { display: inline; padding: 4px 0; list-style: none; cursor: pointer; color: var(--accent-ink); font-size: 14px; font-weight: 500; white-space: nowrap; }
+:root.apple-ui.apple-ui .briefing-read-more > summary::-webkit-details-marker { display: none; }
+:root.apple-ui.apple-ui .briefing-read-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+:root.apple-ui.apple-ui .briefing-expanded-text { margin-block-start: 12px; color: var(--muted); font-size: 16px; font-weight: 400; line-height: 1.6; }
+:root.apple-ui.apple-ui .briefing-expanded-text .news-summary { color: inherit; }
+:root.apple-ui.apple-ui .citation-publisher { pointer-events: auto; }
+:root.apple-ui.apple-ui .citation-publisher::before { content: ""; position: absolute; inset-inline: 0; inset-block-end: 100%; height: 8px; }
+:root.apple-ui.apple-ui .briefing-extra-sources { padding: 6px 0; border: 0; background: transparent; color: var(--accent-ink); font-size: 14px; }
