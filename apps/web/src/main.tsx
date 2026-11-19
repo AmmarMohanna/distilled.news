@@ -10,7 +10,7 @@ import {briefingReferences} from './briefing-references';
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
 import React, { useEffect, useRef, useState } from "react";
-import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
+import { FeedNotice } from "./FeedNotice";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { FeedArt } from "./FeedArt";
 import { UnreadSummary } from './UnreadSummary';
@@ -1884,7 +1884,6 @@ function FeedPage(props: { username: string; slug: string }) {
       ) : null}
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
       {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
-      <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
