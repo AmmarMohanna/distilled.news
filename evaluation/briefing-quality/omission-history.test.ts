@@ -1,5 +1,7 @@
 import {expect,it,vi} from 'vitest';
 import {auditOmissionHistory} from './worker/src/omission-history';
+import {admission} from './worker/src/budget';
+import {omissionHistorySchema} from './worker/src/omission-history';
 import type {Case,Inventory,Review} from './worker/src/protocol';
 const c:Case={id:'q',feedId:'f',language:'en',interest:'Local news',windowStart:'2026-11-19T09:00:00Z',windowEnd:'2026-11-19T10:00:00Z',publishedAt:'2026-11-19T10:00:00Z',frozenAt:'2026-11-19T11:00:00Z',evidenceScope:'all_eligible_frozen_input',evidenceComplete:true,articles:[{id:'a',feedId:'f',text:'New sanctions target the charity.',completeness:'complete'}],prior:[{id:'old',at:'2026-11-18T18:00:00Z',headline:'Sanctions target the charity',body:'The Treasury announced sanctions.'}],items:[{headline:'UNIQUE_CANDIDATE_SENTINEL',body:'',sourceIds:['a']}],pipelineStatus:'published',sourceLabel:'test',limitations:[]};
 const d:Inventory={developments:[{id:'D1',text:'New sanctions target the charity.',importance:3,relation:'new',evidence:[{sourceId:'a',quote:c.articles[0].text!}]}],limitations:[]};
@@ -17,4 +19,10 @@ it('rejects foreign history proofs and incomplete audits rather than silently su
 });
 it('does not add a model call for absent reader history or no important omissions',async()=>{
  const send=vi.fn();expect((await auditOmissionHistory({...c,prior:[]},d,review,send)).audit.status).toBe('not_needed');await auditOmissionHistory(c,{...d,developments:[]},review,send);expect(send).not.toHaveBeenCalled();
+});
+it('reserves the actual history schema including all prior passage references',async()=>{
+ let request:any;await auditOmissionHistory(c,d,review,async q=>{request=q;return {results:[{developmentId:'D1',status:'uncertain',priorEvidence:[],explanation:'Insufficient detail.'}]}});
+ const bytes=Buffer.byteLength(JSON.stringify(request)),schemaBytes=Buffer.byteLength(JSON.stringify(omissionHistorySchema(request.user)));
+ const b={dailyMicro:5000000,maxCalls:10,maxBytes:1000000,maxTokens:1000,inputPrice:2,outputPrice:8,model:'openai/gpt-4.1'};
+ expect(admission(request,b)).toBe(Math.ceil(((bytes+schemaBytes+4096)*2+1000*8)));
 });

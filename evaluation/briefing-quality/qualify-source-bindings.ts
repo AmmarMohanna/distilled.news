@@ -2,7 +2,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
-import {openAiCompatibleModel,UsageMeter,callJson,type ModelRequest} from '../../packages/briefing/src/model';
+import {openAiCompatibleModel,UsageMeter,callJson,extractJson,type ModelRequest} from '../../packages/briefing/src/model';
+import {consistentReview,mappedReviewRequest} from './worker/src/review-consistency';
+import {auditOmissionHistory,omissionHistorySchema} from './worker/src/omission-history';
+import {groundedReviewRequest,groundedReview,groundedMetrics} from './worker/src/grounding';
+import {groundedReviewSchema,claimInventoryAuditSchema} from './worker/src/schema';
+import {assessClaimInventory} from './worker/src/claim-inventory';
 import {verifySourceBoundClaims} from '../../packages/briefing/src/source-bound-claims';
 import {VERIFY_SYSTEM} from '../../packages/briefing/src/prompts';
 import {generateBriefing} from '../../packages/briefing/src/engine';
@@ -185,7 +190,7 @@ if(mode==='reconcile-refusals'){
   if(Date.now()<dispatchAt)await new Promise(resolve=>setTimeout(resolve,dispatchAt-Date.now()));
   append({id,state:'DISPATCHED',at:new Date().toISOString()});
   let received:any,status:number|undefined;const inner=openAiCompatibleModel({url:'https://openrouter.ai/api/v1/chat/completions',apiKey:key!,reportCost:true,retries:0,timeoutMs:90000,
-   onResponseHeaders:async r=>{status=r.status;append({id,state:'HEADERS',status:r.status});if(!r.ok)write(path.join(dir,id+'.refusal-response.json'),{status:r.status,body:await r.clone().text()})},
+   onResponseHeaders:async r=>{status=r.status;append({id,state:'HEADERS',status:r.status,...(r.headers.get('x-generation-id')?{generationId:r.headers.get('x-generation-id')}:{})});if(!r.ok)write(path.join(dir,id+'.refusal-response.json'),{status:r.status,body:await r.clone().text()})},
    onResponseBody:async raw=>{received=raw;write(path.join(dir,id+'.response.json'),raw);const cost=received?.usage?.cost;
     if(!received.id||!Number.isFinite(cost)||cost<0){unresolved=true;append({id,state:'UNKNOWN',reason:'missing receipt or cost'});throw Error('MISSING_RECEIPT_OR_COST')}
     held-=reserve;settled+=cost;append({id,state:'SETTLED',generationId:received.id,costUsd:cost,reserveUsd:reserve,latencyMs:Date.now()-started,inputTokens:received.usage.prompt_tokens,outputTokens:received.usage.completion_tokens});if(cost>reserve){unresolved=true;throw Error('RESERVATION_OVERAGE')}
@@ -194,22 +199,35 @@ if(mode==='reconcile-refusals'){
    if(!received&&status!==undefined&&(status<500||status===503)&&(error as any)?.uncertain===false){held-=reserve;append({id,state:'REFUSED',status,costUsd:0,reserveUsd:reserve,error:String(error)});if(status===429)nextDispatch=Date.now()+45000}
    else if(!received){unresolved=true;append({id,state:'UNKNOWN',reserveUsd:reserve,error:String(error)})}throw error}
  }});
- campaign:for(const c of cases)for(const system of plan.systems??['current','candidate']){
+ campaign:for(const c of cases)for(const system of (c as any).systems??plan.systems??['current','candidate']){
   const meter=new UsageMeter(),start=Date.now();let decisions:unknown,error:string|undefined,engineResult:any;
   try{const port=portFor(c.id,system);
-   if(system==='coverage'){
+   if(system==='consistency'||system==='history'||system==='review-engine'){
+    const spec=c as any,assessment=structuredClone(spec.assessmentCase),inventory=spec.inventory;
+    if(system==='review-engine'){
+     const generated=(outcomes.find((r:any)=>r.caseId===spec.engineCaseId&&r.system==='engine')??spec.retainedEngineOutcome) as any;
+     if(!generated?.engineResult||generated.error)throw Error('ENGINE_RESULT_UNAVAILABLE');
+     assessment.items=generated.engineResult.items.map((i:any)=>({headline:i.headline,body:i.body,sourceIds:i.sourceIds}));assessment.pipelineStatus=generated.engineResult.status;
+    }
+    const send=async(q:any)=>{const response=await port.complete({model:plan.model,system:q.system,user:q.user,maxTokens:10000,responseSchema:q.schemaPolicy==='claim-inventory-audit-v1'?claimInventoryAuditSchema(q.user):q.schemaPolicy==='omission-history-v1'?omissionHistorySchema(q.user):groundedReviewSchema(q.user)});meter.add(response);if(response.finishReason==='length')throw Error('TRUNCATED_ASSESSMENT');return extractJson(response.text)};
+    if(system==='consistency')decisions=await consistentReview(assessment,inventory,spec.rawReview,send);
+    else if(system==='history')decisions=await auditOmissionHistory(assessment,inventory,spec.rawReview,send);
+    else {const response=await send(mappedReviewRequest(assessment,inventory)),review=await consistentReview(assessment,inventory,response,send),history=await auditOmissionHistory(assessment,inventory,review.review,send);const metrics=groundedMetrics(history.review,inventory,assessment),eligible=new Set(inventory.developments.filter((d:any)=>d.importance>=2&&d.relation!=='already_reported'&&!history.review.coverage.some((v:any)=>v.developmentId===d.id&&v.status==='already_reported')).map((d:any)=>d.id)),rows=history.review.coverage.filter((v:any)=>eligible.has(v.developmentId)),covered=rows.filter((v:any)=>v.status==='covered').length,uncertain=rows.filter((v:any)=>v.status==='uncertain').length;decisions={...review,preHistoryReview:review.review,...history,metrics:{...metrics,completionConditionedDevelopmentRecall:metrics.importantDevelopmentRecall,importantDevelopmentRecall:{numerator:covered,denominator:rows.length,value:rows.length?covered/rows.length:null},importantDevelopmentRecallBounds:{lower:rows.length?covered/rows.length:null,upper:rows.length?(covered+uncertain)/rows.length:null},recallAggregationPolicy:'uncertainty-in-denominator-v1'}};}
+    if(system==='review-engine'&&plan.claimInventoryAudit)(decisions as any).claimInventoryAudit=await assessClaimInventory(assessment,(decisions as any).review,send);
+   }else if(system==='coverage'){
     const input:any={feed:{interest:'Lebanese security developments',language:'en',windowMinutes:120,identityFidelityPolicy:'source-bound-claims-v2'},windowStart:'2026-11-18T00:00:00Z',windowEnd:'2026-11-18T02:00:00Z',articles:[],prior:[]};
     const blocked=await auditRepairCoverage(port,meter,plan.model,input,c.items.map((item,index)=>({...item,index,history:[{headline:'Army arrests wanted suspect and detains several other groups',body:'Previous reader draft is not current reader evidence.',issues:['Keep independently supported groups and grounds.']}]})),c.sources.map((s,i)=>({...s,id:s.ref,alsoIds:[],similarRefs:[],source:'Army statement',publishedAt:input.windowStart})));
     decisions=Object.fromEntries(c.items.map((_,i)=>[i,{verdict:blocked.has(i)?'fix':'ok',issues:blocked.has(i)?[blocked.get(i)]:[]} ]));
    }else if(system==='engine'){
     const frozen=c.engineSnapshot;if(!frozen)throw Error('ENGINE_SNAPSHOT_REQUIRED');
-    engineResult=await generateBriefing({...frozen.input,feed:{...frozen.input.feed,identityFidelityPolicy:plan.atomicReaderAssertions?'source-bound-claims-v3':'source-bound-claims-v2'}},port,{...frozen.models,verifier:plan.model},{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(frozen.input.windowEnd),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}});
+    engineResult=await generateBriefing({...frozen.input,feed:{...frozen.input.feed,identityFidelityPolicy:plan.preserveFrozenInput?frozen.input.feed.identityFidelityPolicy:plan.atomicReaderAssertions?'source-bound-claims-v3':'source-bound-claims-v2'}},port,{...frozen.models,verifier:plan.model},{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,...(plan.engineOptions??{}),citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(frozen.input.windowEnd),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}});
    }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(port,meter,{model:plan.model,independentSourceBindings:true,atomicReaderAssertions:plan.atomicReaderAssertions===true,language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
    else{const req=c.original??{model:plan.model,system:VERIFY_SYSTEM,user:JSON.stringify({language:c.language,items:c.items.map((i,index)=>({...i,i:index})),sources:c.sources,prior:c.prior,context:c.context}),maxTokens:3000};
     decisions=await callJson(port,meter,req,raw=>{const rows=(raw as any)?.results;if(!Array.isArray(rows)||rows.length!==c.items.length)throw Error('MISSING_ITEM');const out:Record<number,unknown>={};for(const r of rows){if(!Number.isInteger(r.i)||r.i<0||r.i>=c.items.length||out[r.i]||!['ok','fix','drop','redundant'].includes(r.verdict)||r.issues!==undefined&&(!Array.isArray(r.issues)||r.issues.some((x:unknown)=>typeof x!=='string')))throw Error('INVALID_DECISION');out[r.i]=r}return out});
    }
   }catch(e){error=String(e)}
-  const row={caseId:c.id,system,decisions,error,engineResult,usage:engineResult?.usage??meter.usage,latencyMs:Date.now()-start};outcomes.push(row);write(path.join(dir,c.id+'.'+system+'.outcome.json'),row);console.log(JSON.stringify({caseId:c.id,system,error,usage:row.usage,status:engineResult?.status,items:engineResult?.items?.length,latencyMs:row.latencyMs}));
+  const journalRows=fs.existsSync(journal)?fs.readFileSync(journal,'utf8').trim().split('\n').map(line=>JSON.parse(line)):[],ids=new Set(journalRows.filter(r=>r.state==='RESERVED'&&r.caseId===c.id&&r.system===system).map(r=>r.id)),receipts=journalRows.filter(r=>r.state==='SETTLED'&&ids.has(r.id)),paidUsage={calls:receipts.length,inputTokens:receipts.reduce((n,r)=>n+r.inputTokens,0),outputTokens:receipts.reduce((n,r)=>n+r.outputTokens,0),costUsd:receipts.reduce((n,r)=>n+r.costUsd,0)};
+  const row={caseId:c.id,system,decisions,error,engineResult,usage:engineResult?.usage??meter.usage,paidUsage,latencyMs:Date.now()-start};outcomes.push(row);write(path.join(dir,c.id+'.'+system+'.outcome.json'),row);console.log(JSON.stringify({caseId:c.id,system,error,usage:row.usage,paidUsage,status:engineResult?.status,items:engineResult?.items?.length,latencyMs:row.latencyMs}));
   if(unresolved)break campaign;
  }
  write(path.join(dir,'outcomes.json'),outcomes);write(path.join(dir,'totals.json'),{settledUsd:settled,newSettledUsd:settled-(plan.priorSettledUsd??0),outstandingReservedUsd:held,historicalHeldUsd:plan.priorHeldUsd??0,calls,unresolved,ceilingUsd:plan.ceilingUsd});

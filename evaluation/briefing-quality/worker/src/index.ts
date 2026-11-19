@@ -1,6 +1,6 @@
 import {REVIEW_VALIDATION_POLICY,groundedInventoryRequest,groundingRequest,parseGrounding,groundedInventory,groundedReviewRequest,groundedReview,groundedMetrics,type Grounding} from './grounding';
 import {completeReview} from './complete-review';
-import {consistentReview} from './review-consistency';
+import {consistentReview,mappedReviewRequest} from './review-consistency';
 import {auditOmissionHistory} from './omission-history';
 import {assessClaimInventory} from './claim-inventory';
 import {errorCode,failureDetails,sourceRead} from './failures';
@@ -88,7 +88,7 @@ export async function processJob(env:Env,id:string){
   if(grounded&&proposed.developments.length){phase='inventory_grounding';grounding=parseGrounding(await judge(env,id,'inventory_grounding_v1',groundingRequest(c,proposed)),proposed)}
   const d=grounding?groundedInventory(proposed,grounding):proposed;
   phase='inventory_store';const inventoryHash=await hash(d);await env.EVIDENCE.put(`inventories/${id}.json`,JSON.stringify({protocol,inventoryHash,inventory:d,...(grounding?{proposedInventory:proposed,grounding}:{})}));
-  phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',(grounded?groundedReviewRequest(c,d):reviewRequest(c,d)));
+  phase='review_judge';const reviewRaw=await judge(env,id,'atomic_claims_and_coverage',(improved?mappedReviewRequest(c,d):grounded?groundedReviewRequest(c,d):reviewRequest(c,d)));
   phase='review_validation';
   const consistency=improved?await consistentReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_consistency_v1',request)):undefined;
   const originalReview=consistency?.review??await completeReview(c,d,reviewRaw,request=>judge(env,id,'atomic_claims_and_coverage_completeness_v1',request),grounded?{request:groundedReviewRequest(c,d),validate:raw=>groundedReview(raw,c,d)}:undefined);

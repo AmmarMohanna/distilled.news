@@ -18,3 +18,9 @@ it('requires explicit prior identity for an update and does not infer updates fr
  const port={complete:async()=>({text:JSON.stringify({results:[{i:0,redundant:false,delta:'A different incident.',priorIds:[],sameOccurrence:'',relation:'update'}]}),inputTokens:1,outputTokens:1})};
  await expect((occurrenceNovelty as any)(port,new UsageMeter(),MODELS.editor,[{headline:'Another incident',body:'',sources:[]}],prior,WINDOW.windowEnd,true)).rejects.toThrow('UNLINKED_OCCURRENCE_UPDATE');
 });
+it('requires a complete explicit-link response for every supplied draft at the provider boundary',async()=>{
+ let request:any;const port={complete:async(q:any)=>{request=q;return {text:JSON.stringify({results:[0,1].map(i=>({i,redundant:false,delta:'A separate supported occurrence.',priorIds:[],sameOccurrence:'',relation:'new'}))}),inputTokens:1,outputTokens:1}}};
+ await occurrenceNovelty(port,new UsageMeter(),MODELS.editor,[{headline:'First event',body:'',sources:[]},{headline:'Second event',body:'',sources:[]}],prior,WINDOW.windowEnd,true);
+ expect(request.responseSchema.properties.results).toMatchObject({minItems:2,maxItems:2});
+ expect(request.system).toContain('EXPLICIT UPDATE LINKS');expect(JSON.parse(request.user).requiredDraftIndices).toEqual([0,1]);
+});
