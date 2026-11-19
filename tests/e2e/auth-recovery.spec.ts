@@ -1,7 +1,7 @@
 import {expect,test} from '@playwright/test';
 
 for(const mode of ['login','register'] as const){
- test(`offers verification recovery after ${mode} without registering again`,async({page})=>{
+ test(`verification recovery stays scoped to registration after ${mode}`,async({page})=>{
   const calls:Array<{path:string;body:Record<string,unknown>}>=[];let attempts=0;
   await page.route('**/api/**',async route=>{
    const path=new URL(route.request().url()).pathname;
@@ -20,7 +20,14 @@ for(const mode of ['login','register'] as const){
   if(mode==='register')await dialog.getByPlaceholder('Username').fill('pending');
   await dialog.getByPlaceholder('Password',{exact:true}).fill('original-password');
   await dialog.locator('button[type=submit]').click();
-  await expect(dialog.getByRole('alert')).toBeVisible();const resend=dialog.getByRole('button',{name:'Resend verification email',exact:true});await expect(resend).toBeVisible();
+  await expect(dialog.getByRole('alert')).toBeVisible();const resend=dialog.getByRole('button',{name:'Resend verification email',exact:true});
+  if(mode==='login'){
+   await expect(resend).toHaveCount(0);
+   await expect(dialog.getByRole('button',{name:'Enter verification code',exact:true})).toHaveCount(0);
+   expect(calls.filter(v=>v.path==='/api/auth/register'||v.path==='/api/auth/verification/resend')).toHaveLength(0);
+   return;
+  }
+  await expect(resend).toBeVisible();
   await resend.click();await expect(dialog.getByRole('alert')).toBeVisible();await expect(resend).toBeEnabled();await resend.click();
   await expect(dialog.locator('.auth-message')).toContainText('If this account needs verification');
   expect(calls.filter(v=>v.path==='/api/auth/verification/resend')).toHaveLength(2);
@@ -42,9 +49,22 @@ test('successful signup opens code entry and keeps resend available',async({page
  await page.goto('/');await page.getByRole('button',{name:'Create feed',exact:true}).click();await page.locator('.auth-choice button').click();
  const dialog=page.locator('.auth-dialog');await dialog.getByPlaceholder('Email address').fill('pending@example.invalid');await dialog.getByPlaceholder('Username').fill('pending');await dialog.getByPlaceholder('Password',{exact:true}).fill('original-password');await dialog.locator('button[type=submit]').click();
  await expect(dialog.getByRole('heading',{name:'Verify your email',exact:true})).toBeVisible();
- await expect(dialog.getByPlaceholder('Verification code',{exact:true})).toBeVisible();
+ const code=dialog.getByRole('group',{name:'Verification code',exact:true});
+ await expect(code.locator('input')).toHaveCount(16);
+ await expect(code.locator('input').first()).toBeFocused();
+ await expect(dialog.locator('.auth-email-address')).toHaveText('pending@example.invalid');
+ await expect(dialog.getByPlaceholder('Email address')).toHaveCount(0);
  await expect(dialog.getByPlaceholder('Password',{exact:true})).toHaveCount(0);
  await dialog.getByRole('button',{name:'Resend verification email',exact:true}).click();
  await expect(dialog.locator('.auth-message')).toContainText('If this account needs verification');
  expect(requests).toEqual(['/api/auth/register','/api/auth/verification/resend']);
+ await code.locator('input').first().fill('ABCD-EFGH-JKLM-NPQR');
+ await expect(code.locator('input').last()).toHaveValue('R');
+ await dialog.locator('button[type=submit]').click();
+ await expect(dialog.getByRole('heading',{name:'Welcome back',exact:true})).toBeVisible();
+ await expect(dialog.getByPlaceholder('Email address')).toHaveValue('pending@example.invalid');
+ await expect(dialog.getByPlaceholder('Password',{exact:true})).toHaveValue('');
+ await expect(dialog.getByRole('button',{name:'Resend verification email',exact:true})).toHaveCount(0);
+ expect(requests).not.toContain('/api/auth/login');
 });
+

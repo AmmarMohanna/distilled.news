@@ -185,6 +185,8 @@ test("public signup asks for email, username, and password", async ({ page }) =>
 
 test("email verification waits for an explicit user action", async ({ page }) => {
   let verifyCalls = 0;
+  await page.route('**/api/auth/session', route => route.fulfill({json:{authenticated:false,setupRequired:false}}));
+  await page.route('**/api/explore/feeds', route => route.fulfill({json:{feeds:[]}}));
   await page.route("**/api/auth/verify-email", async (route) => {
     verifyCalls += 1;
     await route.fulfill({
@@ -207,7 +209,8 @@ test("email verification waits for an explicit user action", async ({ page }) =>
   expect(verifyCalls).toBe(0);
 
   await page.getByRole("button", { name: "verify email" }).click();
-  await expect(page.getByText("email verified")).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.locator('.auth-dialog')).toBeVisible();
   expect(verifyCalls).toBe(1);
 });
 
