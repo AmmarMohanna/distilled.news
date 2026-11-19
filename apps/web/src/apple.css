@@ -3124,3 +3124,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   -webkit-text-fill-color:var(--text) !important;
   caret-color:var(--text);
 }
+
+/* Keep verification recovery actions together with outlined pill controls. */
+:root.apple-ui.apple-ui .auth-verification-actions { display: flex; align-items: stretch; justify-content: center; gap: 12px; min-width: 0; }
+:root.apple-ui.apple-ui .auth-verification-actions:empty { display: none; }
+:root.apple-ui.apple-ui .auth-verification-actions > button.button-link { flex: 1 1 0; min-width: 0; width: auto; min-height: 44px; padding: 10px 16px; border: 1.5px solid var(--accent); border-radius: 999px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.35; text-align: center; white-space: normal; }
+:root.apple-ui.apple-ui .auth-verification-actions > button.button-link:hover:not(:disabled) { background: color-mix(in srgb,var(--accent) 7%,var(--surface)); border-color: var(--accent); color: var(--accent); }
+:root.apple-ui.apple-ui .auth-verification-actions > button.button-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+:root.apple-ui.apple-ui .auth-verification-actions > button.button-link:disabled { opacity: .5; cursor: default; }

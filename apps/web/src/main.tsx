@@ -743,6 +743,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       <div className="auth-feedback" aria-live="polite">
         {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
+      <div className="auth-verification-actions">
       {!props.setupRequired && authStep!=="code" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
         <button type="button" className="button-link" onClick={()=>{setAuthStep("code");setError("");setMessage("");}}>{t("Enter verification code")}</button>}
       {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
@@ -755,6 +756,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         }catch(cause){setError(toUiError(cause));}
         finally{resetTurnstile();setSubmitting(false);}
       }}>{t("Resend verification email")}</button>:null}
+      </div>
       {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
       {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
 
