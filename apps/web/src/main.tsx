@@ -720,10 +720,12 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           <span className="field-help" id="admin-setup-token-help">{t("Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.")}</span>
         </label>
       ) : null}
-      <label className="auth-input">
+      {authStep === "code" ? <div className="auth-input auth-verified-email" role="group" aria-label={t("email")}>
+        <Mail size={21} aria-hidden/><span className="auth-email-address" dir="auto">{email}</span>
+      </div> : <label className="auth-input">
         <span className="sr-only">{t("email")}</span><Mail size={21} aria-hidden/>
-        <input type="email" required placeholder={t("Email address")} autoComplete="email" readOnly={authStep==="code"} value={email} onChange={(event) => { setEmail(event.target.value); clearVerificationRecovery(); }} />
-      </label>
+        <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); clearVerificationRecovery(); }} />
+      </label>}
       {authStep === "details" && (mode === "register" || props.setupRequired) ? (
         <label>
           <span className="auth-input"><span className="sr-only">{t("username")}</span><User size={21} aria-hidden/>

@@ -59,9 +59,16 @@ it('never shows registration recovery on sign in and clears it when leaving regi
 it('returns successful email verification to password sign in without authenticating', async () => {
   const ui = await mount(true);
   try {
+    const email = ui.host.querySelector<HTMLInputElement>('input[type="email"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(email, 'reader@example.invalid');
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     vi.mocked(register).mockResolvedValueOnce(undefined);
     await ui.submit();
     expect(ui.host.querySelector('.auth-code-step')).not.toBeNull();
+    expect(ui.host.querySelector('input[type="email"]')).toBeNull();
+    expect(ui.host.querySelector('.auth-email-address')?.textContent).toBe('reader@example.invalid');
     vi.mocked(verifyEmail).mockResolvedValueOnce({ username: 'reader' } as Awaited<ReturnType<typeof verifyEmail>>);
     await ui.submit();
     expect(ui.onAuthenticated).not.toHaveBeenCalled();
@@ -69,6 +76,7 @@ it('returns successful email verification to password sign in without authentica
     expect(ui.host.textContent).toContain('Welcome back');
     expect(ui.host.textContent).toContain('Email verified. Sign in to continue.');
     expect(ui.host.querySelector<HTMLInputElement>('input[type="password"]')?.value).toBe('');
+    expect(ui.host.querySelector<HTMLInputElement>('input[type="email"]')?.readOnly).toBe(false);
     expect(ui.actions()).toEqual([]);
   } finally { await ui.close(); }
 });
