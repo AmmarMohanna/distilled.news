@@ -1,0 +1,11 @@
+{
+  "algorithm": "SHA-256 raw file bytes",
+  "files": {
+    "packages/briefing/src/source-bound-claims.ts": "252c2fb71254308595230bf22625ce2ed1116f86fe819826db2f2e5af7d032dc",
+    "packages/briefing/src/model.ts": "bef0cd3629d34a4f2d0d60eb0cb33d82a7a47605d7ab243d6b8a8de3c5b90ef0",
+    "packages/briefing/src/engine.ts": "debc1cbd88028718bf18de0beb5e8ca381c1585a0102a5898990168743900baf",
+    "packages/briefing/src/verification-recovery.ts": "51f165362e19bf9542791576c46f883ab0cdf714bdd6ed588f515a6624ab6f31",
+    "apps/worker/src/v1-intelligence/v3-window.ts": "eb36c6327e75d0c098531614344724b464f9ec407642e7c46205cc0466f7e84b",
+    "evaluation/briefing-quality/qualify-source-bindings.ts": "7ece5c301ab7cbf94ba3a30e33c3e77226d5b8d4c920649f3450b55aa251228a"
+  }
+}

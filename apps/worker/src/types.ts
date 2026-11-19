@@ -94,6 +94,10 @@ export interface Env extends Cloudflare.Env {
   SOURCE_POLL_TICK_BUDGET_MS?: string;
   STAGING_ASSETS_PREFIX?: string;
   STAGING_MISSION_FEED_ID?: string;
+  STAGING_MISSION_ATTEMPT_ID?: string;
+  STAGING_MISSION_SOURCE_BINDINGS_ENABLED?: string;
+  /** Operator-only source choice, frozen in a fresh private staging mission. */
+  STAGING_MISSION_RSS_URL?: string;
   STAGING_GROUPING_RUN_POLICY?: string;
   STAGING_MISSION_TOKEN?: string;
   SOURCE_LEGACY_POLLING_ENABLED?: string;
@@ -212,6 +216,10 @@ export interface Env extends Cloudflare.Env {
   /** Version 5 is opt-in pending real novelty/false-rejection qualification. */
   BRIEFING_PROMPT_VERSION?: "4" | "5" | "6";
   BRIEFING_WORDING_FIDELITY_ENABLED?: string;
+  /** Candidate evidence-binding verifier; enable only after real-model qualification. */
+  BRIEFING_SOURCE_BINDINGS_ENABLED?: string;
+  /** Opt-in source-binding verifier; frozen per window. Default GPT-4.1. */
+  BRIEFING_SOURCE_BINDINGS_MODEL?: string;
   BRIEFING_TOPIC_SELECTION_ENABLED?: string;
   BRIEFING_EDITOR_MODEL?: string;
   BRIEFING_VERIFIER_MODEL?: string;

@@ -1,0 +1,187 @@
+{
+  "policy": "production-identity-offline-diagnostic-v1",
+  "baseCommit": "a712773e",
+  "scope": "Four original evaluator snapshots, twelve settled original responses, two generation windows and six settled original generation responses. Offline diagnostic; no new model qualification.",
+  "newInferenceCostUsd": 0,
+  "originalEvalCostUsd": 1.419662,
+  "replays": [
+    {
+      "job": "7767deaac5c9dc9ce9a1831270ba7951bcc106f0fa73b945b68074f43b220b01",
+      "original": "MISSING_ITEM_JUDGMENT",
+      "replayed": "MISSING_ITEM_JUDGMENT"
+    },
+    {
+      "job": "b9913baee12ec7b2665479b6c490503ebe27229c986a8740efb3c40384043306",
+      "original": "accepted",
+      "replayed": "accepted",
+      "audit": {
+        "policy": "reader-claim-inventory-v1",
+        "status": "not_independently_established",
+        "unassessedItems": [],
+        "unassessedIdentities": [],
+        "identityBindings": [
+          {
+            "item": 0,
+            "role": "رئيس الحكومة",
+            "name": "نجيب سلام",
+            "quote": "رئيس الحكومة نجيب سلام",
+            "code": "ARABIC_NAME_UNBOUND"
+          }
+        ]
+      },
+      "replayedMetrics": {
+        "claimSupport": {
+          "numerator": 4,
+          "denominator": 4,
+          "value": 1
+        },
+        "citationCorrectness": {
+          "numerator": 4,
+          "denominator": 4,
+          "value": 1
+        },
+        "importantDevelopmentRecall": {
+          "numerator": 4,
+          "denominator": 8,
+          "value": 0.5
+        },
+        "importantDevelopmentRecallScope": "partial_retained_input_only",
+        "repetition": {
+          "numerator": 0,
+          "denominator": 4,
+          "value": 0
+        },
+        "relevance": {
+          "numerator": 4,
+          "denominator": 4,
+          "value": 1
+        },
+        "temporalCorrectness": {
+          "numerator": 4,
+          "denominator": 4,
+          "value": 1
+        },
+        "languageCorrectness": {
+          "numerator": 4,
+          "denominator": 4,
+          "value": 1
+        },
+        "uncertainClaims": 0,
+        "uncertainDevelopments": 0,
+        "judgeClaimCount": 4,
+        "claimSupportScope": "extracted_non_uncertain_claims_only",
+        "claimExtractionCompleteness": "not_independently_established"
+      }
+    },
+    {
+      "job": "dca430f82a26877489db1cd6b863f2f9d5a5519ff14761078f524bd6f15f6459",
+      "original": "NO_CITED_SUPPORT",
+      "replayed": "NO_CITED_SUPPORT"
+    },
+    {
+      "job": "e6d39b3ccd6f2232b12c7c634c2c9d5e946ae8e42939d73281f7e221c51a2097",
+      "original": "UNBOUND_REVIEW_FINDING",
+      "replayed": "UNBOUND_REVIEW_FINDING"
+    }
+  ],
+  "generationWindows": [
+    {
+      "id": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+      "windowEnd": "2026-11-18T05:55:00.000Z",
+      "issues": [
+        {
+          "item": 0,
+          "role": "رئيس الحكومة",
+          "name": "نجيب سلام",
+          "quote": "رئيس الحكومة نجيب سلام",
+          "code": "ARABIC_NAME_UNBOUND"
+        }
+      ],
+      "originalSettledGenerationCostUsd": 0.0590808,
+      "stages": [
+        {
+          "operationId": "27e1ed8efbc14ca9fd7015825045ac3688fe925b50e64516544f0676958082f5",
+          "createdAt": "2026-11-18T05:56:06.299Z",
+          "systemPrefix": "You assess whether a news item gives this reader a consequential ",
+          "costUsd": 0.024074
+        },
+        {
+          "operationId": "4d4a49da8af75629aa14c9c4938dd702ee0bc857d695870a9674c0c0325806e1",
+          "createdAt": "2026-11-18T05:58:18.317Z",
+          "systemPrefix": "You are a meticulous fact-checker for a news briefing. For each I",
+          "costUsd": 0.0023688
+        },
+        {
+          "operationId": "60da41f072bf7b2948e05e4f2e8be008c52a62f852d67d30a9c0f1ce99192a08",
+          "createdAt": "2026-11-18T05:55:39.604Z",
+          "systemPrefix": "You are the editor of a personal news briefing. A reader follows ",
+          "costUsd": 0.032638
+        }
+      ]
+    },
+    {
+      "id": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+      "windowEnd": "2026-11-18T07:55:00.000Z",
+      "issues": [
+        {
+          "item": 0,
+          "role": "قائد الجيش",
+          "name": "جوزيف عون",
+          "quote": "قائد الجيش جوزيف عون",
+          "code": "ARABIC_ROLE_UNBOUND"
+        }
+      ],
+      "originalSettledGenerationCostUsd": 0.07137600000000001,
+      "stages": [
+        {
+          "operationId": "44d342989ad6da7783a9fc503280a68835213d8d8e92bd8bb8eba94737efae4b",
+          "createdAt": "2026-11-18T07:56:20.014Z",
+          "systemPrefix": "You are a meticulous fact-checker for a news briefing. For each I",
+          "costUsd": 0.002404
+        },
+        {
+          "operationId": "5122fc6f0d4c13a8f2d90429f9632821ea360da9d1c2ce9d91f5ab47b9c56b1d",
+          "createdAt": "2026-11-18T07:55:53.910Z",
+          "systemPrefix": "You are the editor of a personal news briefing. A reader follows ",
+          "costUsd": 0.056672
+        },
+        {
+          "operationId": "bdf0483dc3ef0716e8f8c1f4ecf6ec18478b036ad5f8081501240135014eebc6",
+          "createdAt": "2026-11-18T07:56:09.225Z",
+          "systemPrefix": "You assess whether a news item gives this reader a consequential ",
+          "costUsd": 0.0123
+        }
+      ]
+    }
+  ],
+  "artifactHashes": {
+    "eval-artifacts.json": "f2c6c121ba3b4c515d15340f75af84ac2cd1c62fc46569d7ef58b443fe022d7d",
+    "snapshot-7767deaac5c9dc9ce9a1831270ba7951bcc106f0fa73b945b68074f43b220b01.json": "9a569efbb21003ceca584a4518bc655f0e88ad4237736944cd42b06f3a00bceb",
+    "response-e8394df2d4431ebd4b9c382ff0b7b2f9017a8271fad93222e8a8cfd1e7ea2125.json": "3722d421ee13172248c517311118c269e7094c16f0a8ddf7e212781e4b207537",
+    "response-ab52a5dfce00daedb22271adc1092c633623f7665138d99305dc5d855bf55542.json": "b9e3510484e1d005a5348c100911ca75e1df1a80943fd8e271eec9fc62357c1b",
+    "response-e3bb617ee3ce2d35d1a0a098daffe3ae0b06b3ccf0fc3fc874ef8d3fa47ec584.json": "4a7e92bf83754d9a1618491b8a0bb68eb90bb71c8369a9cc40a1ade21d8d8873",
+    "snapshot-b9913baee12ec7b2665479b6c490503ebe27229c986a8740efb3c40384043306.json": "c36ba0f38b038c9297e79b05482fcb5066e25c2fc8660dd80e03ee25906067e4",
+    "response-00a6c2ed9c4fc1bae10a6baace750ea4368c0115d73c186c7bd66dc59d275cc9.json": "618cb62bf89ba81c1d3d15ca1de84d3a3e26b1fd7ced2f3934eff080f2e5173e",
+    "response-535afec5e503dbf9e1a5240e96b25b99ee4cba20ba53c4324469d65aac3d18bd.json": "43e0fd095130b9a33d215ef5744482a8bfc16236181a19601148b6de8a46db0e",
+    "response-6cdd3ee3de2f80d4b28f3205bcd08e1277ef14f90aa52a5857f5bf226bbc58f6.json": "e2991e66880c54bf681cd6a4f0121ff5ac21cf684536b24980871993cf4cdb3b",
+    "snapshot-dca430f82a26877489db1cd6b863f2f9d5a5519ff14761078f524bd6f15f6459.json": "2d50b3e0ed8db0f0da021171ea91d8a03829680757b9b4d46f7efe7eca8b7856",
+    "response-3ca5e5de580055043be12042564a73ae091961c7881cf5b64126b07b9cca43c1.json": "1ef7f95de9380ee3a73b43dd862da87a0ef1cc83740b938067c91c9a71b58285",
+    "response-681886048b9cb87c0e4ec1918faf7f1146792904ec26f2d25865ee97f3ddc8a9.json": "54bba2c366f1bc91e950d4c333a0b46830ab4fde1a8dd3f9f80300d345aac662",
+    "response-0dfcd48c81595a6f45d0fe76095c82534b6d8c2401a6b50aab3baa74a0521eef.json": "435f1690026d281cc5d656a632af92582b457b1d6ff2a5020a0796f53e229028",
+    "snapshot-e6d39b3ccd6f2232b12c7c634c2c9d5e946ae8e42939d73281f7e221c51a2097.json": "ea30710a40f9dd71190cbf2cc75937f3884285d01d24bc6ddd33bf4bf12c4140",
+    "response-5413bbbd5000b886710e7d011d14bb5fa8391b9ec41cbe397f73fbf7fc542af0.json": "709651cc7fb66eb7a5d2f7c6fd1595f2c778599c3fa211347cfd08fbb5ebc3dd",
+    "response-9b0f7e15174129a2d921a652ee78642a29b767349529de170bb37c1003f56236.json": "dbda3a8d4b57e0c2e06dd38c2b4051a67d7616e9fe176d278ad8a84c044b6ffe",
+    "response-8093542d5c0eb438c41fd520be83451af47c9eb0f2c0a8ab43b0c8e1f9188ef7.json": "73ea7de9777301f8b49e6438bdfc979f3595f3527e08342aeed6c32baccb9026",
+    "v3_window_inputs-827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d.json": "a34c09e05c820c0939aee0dd2fce9063f9592da7908525b8842dd4165784e867",
+    "v3_window_results-827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d.json": "a63266d24847121991ff09060234f938d491be0b4e17ab1223e01c4c8c772aed",
+    "semantic_results-27e1ed8efbc14ca9fd7015825045ac3688fe925b50e64516544f0676958082f5.json": "c3904e1e2cf539755996be52df700b25c5803bae09315f12e930247a9fd8a24b",
+    "semantic_results-4d4a49da8af75629aa14c9c4938dd702ee0bc857d695870a9674c0c0325806e1.json": "35f1b7554aa2c6b69a0de7e2b23ba58a37039f98f28591de6d4f2dd40a4e2e2c",
+    "semantic_results-60da41f072bf7b2948e05e4f2e8be008c52a62f852d67d30a9c0f1ce99192a08.json": "4302c8309a34de9efc0e5f081ac3cc735e7ae95541ab7d158acc936b2c6398ed",
+    "v3_window_inputs-72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e.json": "b187e6279ee5f7d49002c0be8a79b7d4601ccb7e4d19168a627845ab2c522cb6",
+    "v3_window_results-72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e.json": "23055968a56fc4e33f52ced0c5c1dc2c214c1a973a43076f94a5a84908e4f7f8",
+    "semantic_results-44d342989ad6da7783a9fc503280a68835213d8d8e92bd8bb8eba94737efae4b.json": "fc1fc309e2ee50567f36d6a19c9ef514240f2589e84636da7d4c4afcfb1b39e5",
+    "semantic_results-5122fc6f0d4c13a8f2d90429f9632821ea360da9d1c2ce9d91f5ab47b9c56b1d.json": "67aafde6d257aff046d94561c120e0773638adeb9f1032acc9c8dd75dc7ec3f4",
+    "semantic_results-bdf0483dc3ef0716e8f8c1f4ecf6ec18478b036ad5f8081501240135014eebc6.json": "2ae901c3e69525e67859320daed0431261acc02bdd44d1bc0764d62f855b832d",
+    "qualification.json": "eb77d30007435998c24c78d74a435d075df1f00f87f25f3836f593d9bb3c3424"
+  }
+}

@@ -13,6 +13,14 @@ describe("extractJson", () => {
 });
 
 describe("openAiCompatibleModel", () => {
+  it('forwards an opt-in strict schema while ordinary callers keep their JSON-object contract',async()=>{
+    const seen:any[]=[];const port=openAiCompatibleModel({url:'https://x',apiKey:'k',fetcher:async(_url,init)=>{seen.push(JSON.parse(String(init?.body)));return json({choices:[{message:{content:'{}'}}],usage:{prompt_tokens:1,completion_tokens:1,cost:0}})}});
+    const schema={type:'object',properties:{},required:[],additionalProperties:false};
+    await port.complete({model:'m',system:'s',user:'u',maxTokens:10,responseSchema:schema});
+    await port.complete({model:'m',system:'s',user:'u',maxTokens:10});
+    expect(seen[0].response_format).toEqual({type:'json_schema',json_schema:{name:'source_bindings',strict:true,schema}});
+    expect(seen[1].response_format).toEqual({type:'json_object'});
+  });
   it("retries 429 and 5xx, then returns text, tokens and the provider-reported cost", async () => {
     const replies = [json({}, 429), json({}, 503), json({ choices: [{ message: { content: "{}" }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 4, cost: 0.0123 } })];
     let calls = 0;

@@ -2,6 +2,47 @@ import {expect,it} from 'vitest';
 import {generateBriefing} from '../src/engine';
 import {BriefingModelError,BriefingBudgetError} from '../src/types';
 import {article,FEED,MODELS,scripted,WINDOW} from './helpers';
+import {auditRepairCoverage} from '../src/verification-recovery';
+import {UsageMeter} from '../src/model';
+it('scopes V2 material retention to the original selected story without treating its draft as evidence',async()=>{
+ let calls=0;
+ const port={complete:async(request:any)=>{calls++;const p=JSON.parse(request.user);
+  expect(p.items[0].originalSelectedStory).toEqual({headline:'A bridge reopened.',body:'The northern crossing reopened after inspection.'});
+  expect(request.system).toContain('not whether the original editor covered every development');
+  expect(request.system).toContain('each material subgroup');
+  expect(request.system).toContain('Do not restore unsupported original assertions');
+  return {text:JSON.stringify({results:{'0':{status:'preserved',reason:'Original material facts retained; unrelated airport news is outside this selected story.',developments:[{sourceRef:'S1',sourceQuote:p.sourcePassages[0].id,readerQuote:'R0.B'}]}}}),inputTokens:1,outputTokens:1};
+ }};
+ const blocked=await auditRepairCoverage(port,new UsageMeter(),'m',{feed:{...FEED,identityFidelityPolicy:'source-bound-claims-v2'},...WINDOW,articles:[]},[{index:0,headline:'Northern bridge reopens.',body:'The northern crossing reopened after inspection.',refs:['S1'],history:[{headline:'A bridge reopened.',body:'The northern crossing reopened after inspection.',issues:['Style is not evidence.']}]}],[{ref:'S1',id:'a',source:'Local report',publishedAt:WINDOW.windowStart,text:'The northern crossing reopened after inspection. Separately, airport workers voted to strike.',alsoIds:[],similarRefs:[]}]);
+ expect(calls).toBe(1);expect(blocked.size).toBe(0);
+});
+it('proves no material text was removed by an exact independently source-bound role-only repair',async()=>{
+ let calls=0;const port={complete:async()=>{calls++;throw Error('Unnecessary fallible coverage call')}};
+ const body='President Jane Doe approved the bridge reopening, subject to inspection. Three crossings remain closed.';
+ const blocked=await auditRepairCoverage(port,new UsageMeter(),'m',{feed:{...FEED,identityFidelityPolicy:'source-bound-claims-v2'},...WINDOW,articles:[]},[{index:0,headline:'Bridge reopening approved',body,refs:['S1'],history:[{headline:'Bridge reopening approved',body:body.replace('President','Commander'),issues:['INDEPENDENT_ROLE_MISMATCH: Jane Doe / Commander -> President. Preserve the independently extracted current source role.']}]}],[{ref:'S1',id:'a',source:'Report',publishedAt:WINDOW.windowStart,text:body,alsoIds:[],similarRefs:[]}]);
+ expect(calls).toBe(0);expect(blocked.size).toBe(0);
+});
+it('proves exact source-bound given-name removal without dropping any role, condition or material text',async()=>{
+ let calls=0;const port={complete:async()=>{calls++;throw Error('Unnecessary coverage inference')}};
+ const headline='Prime minister Salam cancelled the session because of a family circumstance.';
+ const blocked=await auditRepairCoverage(port,new UsageMeter(),'m',{feed:{...FEED,identityFidelityPolicy:'source-bound-claims-v2'},...WINDOW,articles:[]},[{index:0,headline,body:'',refs:['S1'],history:[{headline:headline.replace('Salam','Najib Salam'),body:'',issues:['PERSON_NAME_NOT_SOURCE_BOUND: Najib Salam -> Salam | Putin. Use only the identity established by cited evidence.']}]}],[{ref:'S1',id:'a',source:'Report',publishedAt:WINDOW.windowStart,text:'The prime minister office said Salam cancelled the session because of a family circumstance.',alsoIds:[],similarRefs:[]}]);
+ expect(calls).toBe(0);expect(blocked.size).toBe(0);
+});
+it('permits a source-established surname reference during an otherwise exact role-only repair',async()=>{
+ let calls=0;const port={complete:async()=>{calls++;throw Error('Unnecessary coverage inference')}};
+ const original='Commander Jane Doe approved. Three crossings remain closed.';
+ const blocked=await auditRepairCoverage(port,new UsageMeter(),'m',{feed:{...FEED,identityFidelityPolicy:'source-bound-claims-v2'},...WINDOW,articles:[]},[{index:0,headline:'Crossing update',body:'President Doe approved. Three crossings remain closed.',refs:['S1'],history:[{headline:'Crossing update',body:original,issues:['INDEPENDENT_ROLE_MISMATCH: Jane Doe / Commander -> President. Preserve the independently extracted current source role.']}]}],[{ref:'S1',id:'a',source:'Report',publishedAt:WINDOW.windowStart,text:'President Jane Doe approved. Three crossings remain closed.',alsoIds:[],similarRefs:[]}]);
+ expect(calls).toBe(0);expect(blocked.size).toBe(0);
+});
+it.each(['omitted-group','changed-count','unbound-title','unrelated-actor'])('does not bypass material coverage for %s',async fault=>{
+ const original='Commander Jane Doe announced 123 detainees. Three crossings remain closed.';
+ const corrected=original.replace('Commander','President');let calls=0;
+ const body=fault==='omitted-group'?corrected.split('. ')[0]+'.':fault==='changed-count'?corrected.replace('123','23'):corrected;
+ const source=fault==='unbound-title'?'Jane Doe announced 123 detainees.':fault==='unrelated-actor'?'President Alex Roe announced 123 detainees.':corrected;
+ const port={complete:async(request:any)=>{calls++;const p=JSON.parse(request.user);return {text:JSON.stringify({results:{'0':{status:'incomplete',reason:'Material retention requires review.',developments:[{sourceRef:'S1',sourceQuote:p.sourcePassages[0].id,readerQuote:null}]}}}),inputTokens:1,outputTokens:1}}};
+ const blocked=await auditRepairCoverage(port,new UsageMeter(),'m',{feed:{...FEED,identityFidelityPolicy:'source-bound-claims-v2'},...WINDOW,articles:[]},[{index:0,headline:'Report',body,refs:['S1'],history:[{headline:'Report',body:original,issues:['INDEPENDENT_ROLE_MISMATCH: Jane Doe / Commander -> President. Preserve the independently extracted current source role.']}]}],[{ref:'S1',id:'a',source:'Report',publishedAt:WINDOW.windowStart,text:source,alsoIds:[],similarRefs:[]}]);
+ expect(calls).toBe(1);expect(blocked.has(0)).toBe(true);
+});
 
 // Source-derived development case, not an untouched test or paid-model result.
 // The 17 Nov retained army statement distinguishes a wanted suspect, three

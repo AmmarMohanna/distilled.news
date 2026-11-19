@@ -1,0 +1,3197 @@
+{
+  "scope": "Development qualification only. Exact request/response payloads retained privately; immutable hashes and provider receipts below. Hashes use SHA256(JSON.stringify(parsed JSON)); ledger hashes use SHA256(JSON.stringify(raw UTF8 text)). Failed inventories are NOT true-positive factual detections.",
+  "runs": [
+    {
+      "run": "beta-atomic-code-proof",
+      "plan": {
+        "version": "beta-atomic-v3-exact-identity-repair",
+        "ceilingUsd": 5,
+        "model": "openai/gpt-4.1",
+        "systems": [
+          "engine"
+        ],
+        "casesHash": "570c8c4acaf0d85c07f6f65affe27094f73201f1d28e4bd6acf999c01828f32a",
+        "maxCalls": 0,
+        "priorSettledUsd": 4.008516000000001,
+        "priorHeldUsd": 0.012415999999999983,
+        "forbiddenRequestHashes": [
+          "bc6f0ce8d2714fb6b074b4176850f9565b6abc4bde7abab6ac0b987d041b5971"
+        ],
+        "scope": "Both full V4 retained inputs after narrowly proven identity edits preserve all other original prose; re-verification still required. Exact prior settled response reuse only. Earlier 3/4 omission remains recorded.",
+        "authorization": "Existing $5 beta implementation/verification approval; no additional campaign.",
+        "stopGo": "Reject unsupported universality without withholding the corrected control; failures remain visible. Not independent population accuracy or a production pilot.",
+        "atomicReaderAssertions": true,
+        "candidateCode": "source-bound-claims-v3; current isolated worktree",
+        "historicalWritersHash": "5cdf4c6021ad124311e814fb85322b6da088a7f16c1667dbd67c70779e5b0aac"
+      },
+      "totals": {
+        "settledUsd": 4.008516000000001,
+        "newSettledUsd": 0,
+        "outstandingReservedUsd": 0.012415999999999983,
+        "historicalHeldUsd": 0.012415999999999983,
+        "calls": 0,
+        "unresolved": false,
+        "ceilingUsd": 5
+      },
+      "originalTotals": {
+        "settledUsd": 4.008516000000001,
+        "newSettledUsd": 0,
+        "outstandingReservedUsd": 0.012415999999999983,
+        "historicalHeldUsd": 0.012415999999999983,
+        "calls": 0,
+        "unresolved": false,
+        "ceilingUsd": 5
+      },
+      "inputFileHash": "570c8c4acaf0d85c07f6f65affe27094f73201f1d28e4bd6acf999c01828f32a",
+      "ledgerFileHash": "55c472155ca982ac7f58b14d1636ba1b6b0c03a34c54e104140ac1f2f7121659",
+      "cases": [
+        {
+          "id": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "kind": "retained-full-engine-replay",
+          "language": "ar",
+          "expected": {},
+          "rationale": "Actual generateBriefing, original V4 writer prompt/options. Reuse completed writer response only on exact request equality; real verifier/repair calls. No public publication.",
+          "itemsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "sourcesHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "engineSnapshotHash": "77562609156bc09d13067bdb48ea2603149f6963cc56f089dc568d1f35dde229"
+        },
+        {
+          "id": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "kind": "retained-full-engine-replay",
+          "language": "ar",
+          "expected": {},
+          "rationale": "Actual generateBriefing, original V4 writer prompt/options. Reuse completed writer response only on exact request equality; real verifier/repair calls. No public publication.",
+          "itemsHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "sourcesHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "priorHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "engineSnapshotHash": "29dbfb0f0797f6adeb00ab8ccc1de60f5613503e752fd06ab0a560ce047fb8fd"
+        }
+      ],
+      "controlledCases": [],
+      "outcomes": [
+        {
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "engineResult": {
+            "status": "published",
+            "items": [
+              {
+                "headline": "رئاسة الحكومة: لا جلسة لمجلس الوزراء اللبناني هذا الأسبوع بسبب ظرف عائلي لرئيس الحكومة سلام",
+                "body": "",
+                "relation": "new",
+                "importance": 1,
+                "sourceIds": [
+                  "c6a961b5-b16a-452f-9af8-f3aeca411727",
+                  "4e2c0d75-5730-4aa2-8667-50576ef03838",
+                  "8c1fddca-bb16-4208-8be5-b9bb5517d4d9"
+                ]
+              },
+              {
+                "headline": "جمعية مصارف لبنان تعلن إضراباً أسبوعياً كل أربعاء احتجاجاً على ضرائب وزارة المالية",
+                "body": "الإضراب يبدأ اليوم 18 تشرين الثاني، ويأتي اعتراضاً على مطالبة الوزارة بدفع ضرائب أعوام 2020-2024، ما تعتبره المصارف تهديداً لاحتياطاتها النقدية واستمرار إغلاق ودائع المودعين.",
+                "relation": "new",
+                "importance": 2,
+                "sourceIds": [
+                  "854d6ac9-7c93-41b0-9bbe-046a1b7dc8b2"
+                ]
+              },
+              {
+                "headline": "استمرار القصف والتحركات العسكرية الإسرائيلية جنوب لبنان وتحذيرات من تصعيد جديد",
+                "body": "تقارير إسرائيلية تشير إلى استعدادات لهجوم جديد، مع استمرار القصف على مناطق مثل برعشيت وزوطر الشرقية وتحليق طائرات مسيرة فوق صيدا، وسط تعزيزات إسرائيلية على الحدود.",
+                "relation": "new",
+                "importance": 3,
+                "sourceIds": [
+                  "854d6ac9-7c93-41b0-9bbe-046a1b7dc8b2",
+                  "86319379-7dfd-4bfb-a524-47723ae4808c"
+                ]
+              },
+              {
+                "headline": "تضاعف الاتصالات على الخط الوطني للدعم النفسي في لبنان منذ اندلاع الحرب",
+                "body": "حملة وطنية أطلقت الثلاثاء للتوعية بخط 1564 المجاني، مع تسجيل أكثر من 60 اتصالاً يومياً، أي ضعف المعدل قبل الحرب، بحسب جمعية Embrace.",
+                "relation": "new",
+                "importance": 3,
+                "sourceIds": [
+                  "854d6ac9-7c93-41b0-9bbe-046a1b7dc8b2"
+                ]
+              }
+            ],
+            "skipped": [
+              {
+                "id": "397180d9-b24a-4143-9202-a994d3a8ebe6",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "00002fb5-5bd0-4243-b0a1-4ca00b7435ec",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "442bcb86-3933-4269-a3bf-ee91b2c0b1f5",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "33b8f651-0244-40b6-a64f-23df6001a0d5",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "b9632ce9-fed6-49c4-bb9e-952996ef376e",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "5982d9c0-cb6d-4ab7-9ce6-36284bca2865",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "adfba5f5-de48-4628-918d-3fab1aae9de2",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "afd69cc5-e52f-4102-a8b0-ed74a7667eb4",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "17b7c1f6-d756-440b-900d-ad41415386bb",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "abfd7316-542d-468f-b5a4-61a10a75002c",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "198f60d3-7e4c-4149-9b6c-da14ee68149c",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "0e4bb44e-370c-453b-8710-ce3f598e9c19",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "fee674da-0a0e-4845-84dd-d79b6caf6c8a",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "d4b2b2ac-337c-43c9-a269-e2861e915bda",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "7954500b-9a16-4567-9db6-4867bd6b986a",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "7716641d-1ae4-4459-b02d-886d7c80c219",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "63d7afd5-19f5-4cf4-b15e-2a2f021949d8",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "37fc460b-87ce-4ce2-8153-884600cd33fd",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "b6c9b30f-04f4-47c7-b189-da17e34a5ab5",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "c444d10a-8420-491c-bf6b-634fef48902c",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "cd754966-a1c3-4e63-9e9f-37f218c3ef6f",
+                "reason": "duplicate_of_other_article"
+              }
+            ],
+            "dropped": [],
+            "omitted": [
+              {
+                "stage": "editor",
+                "reason": "روتيني: تركيب عدادات كهرباء من أصحاب المولدات في بيروت",
+                "sourceIds": [
+                  "c2ae42d1-8dcd-40da-84d0-c5dd9e6ea226",
+                  "2a350a1c-220d-4b1d-b25c-4439be6519c4"
+                ]
+              },
+              {
+                "stage": "editor",
+                "reason": "خارج الموضوع: قمة دولية أو اتفاقات خارجية لا تخص لبنان مباشرة",
+                "sourceIds": [
+                  "f79ecdb9-16b7-4d5e-b304-e935f4ba4dff",
+                  "f36a6994-1de1-458c-8471-dc5c90f4ff42",
+                  "bfde1686-ac6d-4a71-9868-a7a35b64efa4",
+                  "2965d175-7ad6-4ec9-a595-e37909879b16"
+                ]
+              },
+              {
+                "stage": "editor",
+                "reason": "خارج الموضوع",
+                "sourceIds": [
+                  "8a40ccd2-27de-4fdc-a87a-7ba10788ea9e",
+                  "fdd89a38-1295-4440-84f1-d906c741350f",
+                  "f0e2a452-9e70-4bb5-bf44-4fda9df4b2ff",
+                  "0bd857c4-b2a9-4947-8746-a55329ba6f77",
+                  "84481d24-1a40-4c2c-8635-c819ca431639",
+                  "4ca860ca-b32d-45c9-94e3-c64013221f43",
+                  "24037830-51bd-4cec-b586-c841020ba05b",
+                  "f6618952-6110-485a-b853-e628ddfdd42a",
+                  "c6e61e32-cebb-4610-9dea-8cd230b9aab6",
+                  "6d9e2d3c-618d-4c3a-a97c-f7f82a87b47d",
+                  "30fff5a0-d102-4524-a23e-48fb8491f417",
+                  "dcca922d-3eff-412e-ba2f-6fc502cf01da",
+                  "683cebcf-a3f9-4386-9953-650bb383fc19",
+                  "ccb3ebd0-28f9-4de8-9629-814ea7491dcf",
+                  "0de55ce0-c244-459c-8834-112d36766c11",
+                  "24960c0e-36e0-4f7b-b2ac-b28c53bfa6d5",
+                  "fd487838-a441-4d5a-939d-881cec500c94",
+                  "30852979-3156-469b-9c5d-fc635f7eebbf",
+                  "7dda66fb-df34-4046-ad1c-48cd0b90d7bc"
+                ]
+              },
+              {
+                "stage": "editor",
+                "reason": "فارغ أو غير خبري",
+                "sourceIds": [
+                  "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                  "397180d9-b24a-4143-9202-a994d3a8ebe6",
+                  "00002fb5-5bd0-4243-b0a1-4ca00b7435ec",
+                  "442bcb86-3933-4269-a3bf-ee91b2c0b1f5",
+                  "33b8f651-0244-40b6-a64f-23df6001a0d5",
+                  "b9632ce9-fed6-49c4-bb9e-952996ef376e",
+                  "5982d9c0-cb6d-4ab7-9ce6-36284bca2865",
+                  "adfba5f5-de48-4628-918d-3fab1aae9de2",
+                  "afd69cc5-e52f-4102-a8b0-ed74a7667eb4",
+                  "17b7c1f6-d756-440b-900d-ad41415386bb",
+                  "abfd7316-542d-468f-b5a4-61a10a75002c",
+                  "198f60d3-7e4c-4149-9b6c-da14ee68149c",
+                  "0e4bb44e-370c-453b-8710-ce3f598e9c19",
+                  "fee674da-0a0e-4845-84dd-d79b6caf6c8a",
+                  "d4b2b2ac-337c-43c9-a269-e2861e915bda",
+                  "7954500b-9a16-4567-9db6-4867bd6b986a",
+                  "7716641d-1ae4-4459-b02d-886d7c80c219",
+                  "63d7afd5-19f5-4cf4-b15e-2a2f021949d8",
+                  "37fc460b-87ce-4ce2-8153-884600cd33fd",
+                  "b6c9b30f-04f4-47c7-b189-da17e34a5ab5",
+                  "c444d10a-8420-491c-bf6b-634fef48902c",
+                  "cd754966-a1c3-4e63-9e9f-37f218c3ef6f"
+                ]
+              },
+              {
+                "stage": "editor",
+                "reason": "روتيني: إحصاء حوادث السير",
+                "sourceIds": [
+                  "b39401d6-c5c6-4f29-8f6f-bb6c3285e773"
+                ]
+              },
+              {
+                "stage": "editor",
+                "reason": "تطور بلدي محلي محدود",
+                "sourceIds": [
+                  "7bcddeab-b202-4a2b-9bea-d699efe1c5ae"
+                ]
+              },
+              {
+                "stage": "editor",
+                "reason": "تعليق أو رأي حول الجامعة اللبنانية دون قرار جديد",
+                "sourceIds": [
+                  "ef89f65f-752c-46f5-bdea-f5ee19ae8a59"
+                ]
+              },
+              {
+                "stage": "editor",
+                "reason": "تكرار النقاش حول بدائل اليونيفيل دون جديد جوهري",
+                "sourceIds": [
+                  "cb131241-c13e-4c59-8a5a-14ce7e7b8e3b"
+                ]
+              }
+            ],
+            "unaccounted": [],
+            "sourceDecisions": [
+              {
+                "sourceId": "00002fb5-5bd0-4243-b0a1-4ca00b7435ec",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "0bd857c4-b2a9-4947-8746-a55329ba6f77",
+                "preparedRef": "S8",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "0de55ce0-c244-459c-8834-112d36766c11",
+                "preparedRef": "S26",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "0e4bb44e-370c-453b-8710-ce3f598e9c19",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "17b7c1f6-d756-440b-900d-ad41415386bb",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "198f60d3-7e4c-4149-9b6c-da14ee68149c",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "24037830-51bd-4cec-b586-c841020ba05b",
+                "preparedRef": "S14",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "24960c0e-36e0-4f7b-b2ac-b28c53bfa6d5",
+                "preparedRef": "S27",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "2965d175-7ad6-4ec9-a595-e37909879b16",
+                "preparedRef": "S29",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع: قمة دولية أو اتفاقات خارجية لا تخص لبنان مباشرة"
+                  }
+                ]
+              },
+              {
+                "sourceId": "2a350a1c-220d-4b1d-b25c-4439be6519c4",
+                "preparedRef": "S32",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "روتيني: تركيب عدادات كهرباء من أصحاب المولدات في بيروت"
+                  }
+                ]
+              },
+              {
+                "sourceId": "30852979-3156-469b-9c5d-fc635f7eebbf",
+                "preparedRef": "S33",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "30fff5a0-d102-4524-a23e-48fb8491f417",
+                "preparedRef": "S20",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "33b8f651-0244-40b6-a64f-23df6001a0d5",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "37fc460b-87ce-4ce2-8153-884600cd33fd",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "397180d9-b24a-4143-9202-a994d3a8ebe6",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "442bcb86-3933-4269-a3bf-ee91b2c0b1f5",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "4ca860ca-b32d-45c9-94e3-c64013221f43",
+                "preparedRef": "S13",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "4e2c0d75-5730-4aa2-8667-50576ef03838",
+                "preparedRef": "S16",
+                "outcomes": [
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "رئاسة الحكومة: لا جلسة لمجلس الوزراء اللبناني هذا الأسبوع بسبب ظرف عائلي لرئيس الحكومة سلام"
+                  }
+                ]
+              },
+              {
+                "sourceId": "5982d9c0-cb6d-4ab7-9ce6-36284bca2865",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "63d7afd5-19f5-4cf4-b15e-2a2f021949d8",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "683cebcf-a3f9-4386-9953-650bb383fc19",
+                "preparedRef": "S22",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "6d9e2d3c-618d-4c3a-a97c-f7f82a87b47d",
+                "preparedRef": "S19",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "7716641d-1ae4-4459-b02d-886d7c80c219",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "7954500b-9a16-4567-9db6-4867bd6b986a",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "7bcddeab-b202-4a2b-9bea-d699efe1c5ae",
+                "preparedRef": "S25",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "تطور بلدي محلي محدود"
+                  }
+                ]
+              },
+              {
+                "sourceId": "7dda66fb-df34-4046-ad1c-48cd0b90d7bc",
+                "preparedRef": "S35",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "84481d24-1a40-4c2c-8635-c819ca431639",
+                "preparedRef": "S12",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "854d6ac9-7c93-41b0-9bbe-046a1b7dc8b2",
+                "preparedRef": "S24",
+                "outcomes": [
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "جمعية مصارف لبنان تعلن إضراباً أسبوعياً كل أربعاء احتجاجاً على ضرائب وزارة المالية"
+                  },
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "استمرار القصف والتحركات العسكرية الإسرائيلية جنوب لبنان وتحذيرات من تصعيد جديد"
+                  },
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "تضاعف الاتصالات على الخط الوطني للدعم النفسي في لبنان منذ اندلاع الحرب"
+                  }
+                ]
+              },
+              {
+                "sourceId": "86319379-7dfd-4bfb-a524-47723ae4808c",
+                "preparedRef": "S34",
+                "outcomes": [
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "استمرار القصف والتحركات العسكرية الإسرائيلية جنوب لبنان وتحذيرات من تصعيد جديد"
+                  }
+                ]
+              },
+              {
+                "sourceId": "8a40ccd2-27de-4fdc-a87a-7ba10788ea9e",
+                "preparedRef": "S4",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "8c1fddca-bb16-4208-8be5-b9bb5517d4d9",
+                "preparedRef": "S17",
+                "outcomes": [
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "رئاسة الحكومة: لا جلسة لمجلس الوزراء اللبناني هذا الأسبوع بسبب ظرف عائلي لرئيس الحكومة سلام"
+                  }
+                ]
+              },
+              {
+                "sourceId": "abfd7316-542d-468f-b5a4-61a10a75002c",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "preparedRef": "S6",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "adfba5f5-de48-4628-918d-3fab1aae9de2",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "afd69cc5-e52f-4102-a8b0-ed74a7667eb4",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b39401d6-c5c6-4f29-8f6f-bb6c3285e773",
+                "preparedRef": "S11",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "روتيني: إحصاء حوادث السير"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b6c9b30f-04f4-47c7-b189-da17e34a5ab5",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b9632ce9-fed6-49c4-bb9e-952996ef376e",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "bfde1686-ac6d-4a71-9868-a7a35b64efa4",
+                "preparedRef": "S9",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع: قمة دولية أو اتفاقات خارجية لا تخص لبنان مباشرة"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c2ae42d1-8dcd-40da-84d0-c5dd9e6ea226",
+                "preparedRef": "S1",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "روتيني: تركيب عدادات كهرباء من أصحاب المولدات في بيروت"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c444d10a-8420-491c-bf6b-634fef48902c",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c6a961b5-b16a-452f-9af8-f3aeca411727",
+                "preparedRef": "S10",
+                "outcomes": [
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "رئاسة الحكومة: لا جلسة لمجلس الوزراء اللبناني هذا الأسبوع بسبب ظرف عائلي لرئيس الحكومة سلام"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c6e61e32-cebb-4610-9dea-8cd230b9aab6",
+                "preparedRef": "S18",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "cb131241-c13e-4c59-8a5a-14ce7e7b8e3b",
+                "preparedRef": "S31",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "تكرار النقاش حول بدائل اليونيفيل دون جديد جوهري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "ccb3ebd0-28f9-4de8-9629-814ea7491dcf",
+                "preparedRef": "S23",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "cd754966-a1c3-4e63-9e9f-37f218c3ef6f",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "d4b2b2ac-337c-43c9-a269-e2861e915bda",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              },
+              {
+                "sourceId": "dcca922d-3eff-412e-ba2f-6fc502cf01da",
+                "preparedRef": "S21",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "ef89f65f-752c-46f5-bdea-f5ee19ae8a59",
+                "preparedRef": "S28",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "تعليق أو رأي حول الجامعة اللبنانية دون قرار جديد"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f0e2a452-9e70-4bb5-bf44-4fda9df4b2ff",
+                "preparedRef": "S7",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f36a6994-1de1-458c-8471-dc5c90f4ff42",
+                "preparedRef": "S3",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع: قمة دولية أو اتفاقات خارجية لا تخص لبنان مباشرة"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f6618952-6110-485a-b853-e628ddfdd42a",
+                "preparedRef": "S15",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f79ecdb9-16b7-4d5e-b304-e935f4ba4dff",
+                "preparedRef": "S2",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع: قمة دولية أو اتفاقات خارجية لا تخص لبنان مباشرة"
+                  }
+                ]
+              },
+              {
+                "sourceId": "fd487838-a441-4d5a-939d-881cec500c94",
+                "preparedRef": "S30",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "fdd89a38-1295-4440-84f1-d906c741350f",
+                "preparedRef": "S5",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الموضوع"
+                  }
+                ]
+              },
+              {
+                "sourceId": "fee674da-0a0e-4845-84dd-d79b6caf6c8a",
+                "preparedRef": "S6",
+                "duplicateOf": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "acec81bb-7e94-49a3-9cbc-ad95e9899fe9"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "فارغ أو غير خبري"
+                  }
+                ]
+              }
+            ],
+            "usage": {
+              "calls": 8,
+              "inputTokens": 63761,
+              "outputTokens": 6843,
+              "costUsd": 0
+            },
+            "timings": {
+              "totalMs": 291,
+              "stages": {
+                "edit": 12,
+                "novelty": 4,
+                "verify": 129,
+                "repair": 8,
+                "recovery_coverage": 1
+              }
+            }
+          },
+          "usage": {
+            "calls": 8,
+            "inputTokens": 63761,
+            "outputTokens": 6843,
+            "costUsd": 0
+          },
+          "latencyMs": 293
+        },
+        {
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "engineResult": {
+            "status": "published",
+            "items": [
+              {
+                "headline": "عون يؤكد أن حصرية السلاح بيد الدولة شرط لإعادة بناء الثقة ويشدد على الدبلوماسية لحل قضية الجنوب",
+                "body": "قال الرئيس جوزيف عون في مقابلة إن الدولة اتخذت قرارها بحصرية السلاح، وإن الجيش منتشر على كامل الأراضي اللبنانية، مشدداً على أن الخيار الوحيد المتاح هو المفاوضات والدبلوماسية لانسحاب إسرائيل من الجنوب. وأكد أن إعادة بناء الثقة مرتبطة بالإصلاحات واستقلالية القضاء وحماية أموال المودعين. كما شدد على ضرورة أن تكون العلاقات مع إيران وسوريا والعراق من دولة إلى دولة، وكشف عن بحث تفعيل أنبوب نفط عراقي إلى الشمال.",
+                "relation": "new",
+                "importance": 1,
+                "sourceIds": [
+                  "9fea21de-dfb4-47a9-ab42-cdb55cf7aed9"
+                ]
+              },
+              {
+                "headline": "السعودية تشترط نزع سلاح حزب الله لدعم لبنان",
+                "body": "أكد الأمير يزيد بن فرحان خلال لقاءات مع نواب شمال لبنان أن السعودية ستدعم لبنان فقط إذا نزعت الدولة سلاح حزب الله، مشدداً على أن الرياض لن تقبل بأنصاف الحلول، وأن الدعم مرتبط بإثبات الدولة جديتها في هذا الملف.",
+                "relation": "new",
+                "importance": 2,
+                "sourceIds": [
+                  "17e29a75-c43d-4216-95d4-847552fcdd57"
+                ]
+              }
+            ],
+            "skipped": [
+              {
+                "id": "75d7beab-0b92-4641-b96d-95ea5cca78a5",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "05bd71f0-410f-4e29-94ef-ba749611da36",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "97a39dd1-c4b6-44d8-be4b-c6bb2e0736ae",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "bce149cf-87c9-4d89-b5bf-4c501a162894",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "7b1620c5-8df7-4de0-86f9-5a64e37d2a11",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "9375a3bf-cb64-42fa-aeec-82345ec1fd6b",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "0d346f89-04ae-4cb5-9e1d-b43c4d8dd1c9",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "e023bb22-1e37-44ef-b4f3-8c8c73b125b7",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "42b14f22-73b8-44f2-a769-d0420a20f978",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "03c223d0-0004-457b-a5df-c9b21c3761df",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "19f4b2df-9e3b-4ed6-b322-59dabe58dd68",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "d8e6af93-4d2e-4f5a-a965-7d7b5e69fa10",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "1edea67f-675e-450b-a806-f3913590d7c5",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "835c34af-b17c-4ccd-ace0-e62cdd590b97",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "c859fbe5-91a6-4639-86b3-23d7f579efef",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "4af52deb-7790-4599-bfeb-9d845a5a5bc5",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "d837760c-ea8b-4bbb-b992-a72d15eff274",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "4b79afcb-508a-4825-b7ea-c37dd0ab67fa",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "f36d6ec2-e364-46d3-80b1-5279e4f9be8e",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "3d102cd7-98f9-422c-a80e-007801d1eb99",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "8c2860a5-afe3-4d2b-9501-01f125d182d3",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "3d57755f-281d-4198-beae-4f4778bea427",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "321c48f3-0ba5-4e24-a695-7e14939c02c8",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "4958c25a-1adc-4719-b4ef-270b561ce02b",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "d2f0fc9c-3e43-4d3a-a12c-d69defc19137",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "31a71d26-5f74-44d9-9318-8e8e0169eeb6",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "6a2f8ce4-4931-4486-8920-df856a321658",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "e7c5ea4d-c18c-43b8-88ba-8fe4c57950a3",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "3678cdae-a54a-4f0b-9d66-13ef2b3db1fc",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "59e03ac3-0503-409a-b0a0-4c10e320fb03",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "58b103a2-9d39-4290-accc-e15721ed43ee",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "b0036293-c489-4481-a014-bddfa1ac2b9e",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "f15c7b92-7712-455e-911c-f9ee29959744",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "f101206c-0655-4b8f-a3d0-1741ce9425ba",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "cd07c507-f0c8-4445-80cd-c4e3474d7e0e",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "76e8360f-8627-4176-92b5-4104477c667d",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "48ea27d8-f48c-4fa0-bf5f-d5e1fce7070c",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "a544977b-f7f2-48f5-ac2d-c21d8731a53e",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "c2ae6b6f-edad-46f9-8d5d-d220a022300e",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "2f4401e5-e4b9-45e1-bb45-3f6d0198d92b",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "23f18a63-e391-42aa-ae9d-731518fd965e",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "0fa89436-c53a-48ff-9eb2-6c26cc1cdc1c",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "044d29f9-599c-4b1f-b36b-5f991961d99f",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "30654215-843b-47a3-b53d-9dc856459fd2",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "0d0a0392-f70d-4ab8-98e9-dd621980d2e8",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "f03b6051-5db6-4c9d-8422-0315250b4e9e",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "eba4b8b7-8c0b-4f8b-9358-642b01b6e5ee",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "1dc76638-c5ed-4604-a417-82d30aad6e5c",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "ba72ffb5-7d27-4042-9d12-5366ef8e8552",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "84cbb76e-f346-44c4-9f0a-d11dcfe15e9f",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "47bbfcdd-7495-4176-a954-61bb966aaec1",
+                "reason": "duplicate_of_other_article"
+              },
+              {
+                "id": "95dc1759-ed56-4d10-96c8-ecc5f022be48",
+                "reason": "duplicate_of_other_article"
+              }
+            ],
+            "dropped": [],
+            "omitted": [
+              {
+                "stage": "editor",
+                "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان",
+                "sourceIds": [
+                  "82796cdd-6c1d-4173-aeaf-e510db357d92",
+                  "fc895d5b-9296-4f93-a300-1ee748cd3ae1",
+                  "2155dff9-7466-445e-a574-4c1c7effb407",
+                  "890f6ca1-753b-46ed-a598-8b459d60df63",
+                  "ac78096c-d242-4fa2-adcf-b190eeef224b",
+                  "64ef34ec-d72a-427d-a70f-369661a27561",
+                  "f0dd329c-8dd7-4d1d-91c7-eed9ab573245",
+                  "c45e6f58-18d5-4b3d-b865-fa2dea7692cf",
+                  "b47fece9-0b76-4037-a8c8-710312c764e8",
+                  "20a99fe3-e2f6-4f67-9adb-4491e0e8c96d",
+                  "b6dae995-9e78-4198-beef-237d5a990ac6",
+                  "a3bd8f6b-43ec-487f-b839-a79438fdb672",
+                  "edbed009-7c95-43c6-8e1e-61442d4c71fe",
+                  "bd340f22-bbd4-4a8b-90be-4880c509cb34",
+                  "bb615638-1b07-4b7a-9c57-4d0894044e1e",
+                  "9fbacc12-1786-4351-a1f7-bdae0b47b7b4",
+                  "240f9bcb-fe8b-4d4e-9d5b-4403cefc9cef",
+                  "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                  "75d7beab-0b92-4641-b96d-95ea5cca78a5",
+                  "05bd71f0-410f-4e29-94ef-ba749611da36",
+                  "97a39dd1-c4b6-44d8-be4b-c6bb2e0736ae",
+                  "bce149cf-87c9-4d89-b5bf-4c501a162894",
+                  "7b1620c5-8df7-4de0-86f9-5a64e37d2a11",
+                  "9375a3bf-cb64-42fa-aeec-82345ec1fd6b",
+                  "0d346f89-04ae-4cb5-9e1d-b43c4d8dd1c9",
+                  "e023bb22-1e37-44ef-b4f3-8c8c73b125b7",
+                  "42b14f22-73b8-44f2-a769-d0420a20f978",
+                  "03c223d0-0004-457b-a5df-c9b21c3761df",
+                  "19f4b2df-9e3b-4ed6-b322-59dabe58dd68",
+                  "d8e6af93-4d2e-4f5a-a965-7d7b5e69fa10",
+                  "1edea67f-675e-450b-a806-f3913590d7c5",
+                  "835c34af-b17c-4ccd-ace0-e62cdd590b97",
+                  "c859fbe5-91a6-4639-86b3-23d7f579efef",
+                  "4af52deb-7790-4599-bfeb-9d845a5a5bc5",
+                  "d837760c-ea8b-4bbb-b992-a72d15eff274",
+                  "4b79afcb-508a-4825-b7ea-c37dd0ab67fa",
+                  "f36d6ec2-e364-46d3-80b1-5279e4f9be8e",
+                  "3d102cd7-98f9-422c-a80e-007801d1eb99",
+                  "8c2860a5-afe3-4d2b-9501-01f125d182d3",
+                  "3d57755f-281d-4198-beae-4f4778bea427",
+                  "321c48f3-0ba5-4e24-a695-7e14939c02c8",
+                  "4958c25a-1adc-4719-b4ef-270b561ce02b",
+                  "d2f0fc9c-3e43-4d3a-a12c-d69defc19137",
+                  "31a71d26-5f74-44d9-9318-8e8e0169eeb6",
+                  "6a2f8ce4-4931-4486-8920-df856a321658",
+                  "e7c5ea4d-c18c-43b8-88ba-8fe4c57950a3",
+                  "3678cdae-a54a-4f0b-9d66-13ef2b3db1fc",
+                  "59e03ac3-0503-409a-b0a0-4c10e320fb03",
+                  "58b103a2-9d39-4290-accc-e15721ed43ee",
+                  "b0036293-c489-4481-a014-bddfa1ac2b9e",
+                  "f15c7b92-7712-455e-911c-f9ee29959744",
+                  "f101206c-0655-4b8f-a3d0-1741ce9425ba",
+                  "cd07c507-f0c8-4445-80cd-c4e3474d7e0e",
+                  "76e8360f-8627-4176-92b5-4104477c667d",
+                  "48ea27d8-f48c-4fa0-bf5f-d5e1fce7070c",
+                  "a544977b-f7f2-48f5-ac2d-c21d8731a53e",
+                  "c2ae6b6f-edad-46f9-8d5d-d220a022300e",
+                  "2f4401e5-e4b9-45e1-bb45-3f6d0198d92b",
+                  "23f18a63-e391-42aa-ae9d-731518fd965e",
+                  "0fa89436-c53a-48ff-9eb2-6c26cc1cdc1c",
+                  "044d29f9-599c-4b1f-b36b-5f991961d99f",
+                  "30654215-843b-47a3-b53d-9dc856459fd2",
+                  "0d0a0392-f70d-4ab8-98e9-dd621980d2e8",
+                  "f03b6051-5db6-4c9d-8422-0315250b4e9e",
+                  "eba4b8b7-8c0b-4f8b-9358-642b01b6e5ee",
+                  "1dc76638-c5ed-4604-a417-82d30aad6e5c",
+                  "ba72ffb5-7d27-4042-9d12-5366ef8e8552",
+                  "84cbb76e-f346-44c4-9f0a-d11dcfe15e9f",
+                  "47bbfcdd-7495-4176-a954-61bb966aaec1",
+                  "95dc1759-ed56-4d10-96c8-ecc5f022be48",
+                  "b48d086a-7804-4089-8bd4-bee50be61513",
+                  "4e372047-2c57-4788-98fc-2f7e87f8fc1b",
+                  "8755df00-0d67-47d0-805f-13547bfce2b2",
+                  "b7d19136-1dec-478d-b725-368d6fe16d78",
+                  "0a66f984-b5b5-4a81-bd88-f08257306f28",
+                  "5c24d3c8-0a99-4d20-ba28-861e7166db1c",
+                  "ad397161-d0f1-40a3-9edb-08b6ac516277",
+                  "7bb60b60-54dd-437d-8aaf-97416ba93fff",
+                  "8cbf2680-33d7-4b56-8041-2f27abe87f41",
+                  "fada2e03-039f-4a62-b5c8-7ded54098f75",
+                  "c4c9ad46-95bc-4b04-9ec3-f7b183ba9b03",
+                  "c21260d2-3f5e-48d1-934e-da4ec192b1bc",
+                  "4b12fc5d-b4ce-4a97-82b8-f1507df339a9",
+                  "9a318415-baf5-467b-9104-6982a7efb10a",
+                  "0e2c2208-3d3e-4e6e-9a18-cede71e1cd9b",
+                  "570774f9-3109-4653-81f9-a01ff4347ff9",
+                  "6e72d9e5-0801-49af-b2ee-84e4861222f4",
+                  "314f60c4-a72d-488c-84a0-9c9ee3094a2c",
+                  "e774bbc8-50b4-40af-a307-87160520cddb",
+                  "3080baa7-4c36-49d9-994c-ce38936c520e",
+                  "8b02b676-5217-4385-ae52-2aa9e9668539",
+                  "f0085e73-3c9a-42d4-8253-45599760a36b",
+                  "d8f6357a-a18d-4c39-bba4-834a57b3c52d",
+                  "1c651b68-e43f-46d8-8cf4-cc503b1a89f3",
+                  "c7ed9852-7990-4410-8ae8-f9254782f5ba",
+                  "551e4668-1a27-4120-96a7-103203380a8b",
+                  "b08c5fa4-acf8-4437-a212-f6b576eee610",
+                  "fd35bb19-c171-4be9-bc30-f14406472122",
+                  "228968df-b48d-4f6f-99c2-f78ce6d05663",
+                  "1c973a9f-3dda-4fb4-be5e-d08055f8d945",
+                  "6a59043e-8883-4ec8-a6b1-c7fe9dc60532",
+                  "076d4c7b-f9fc-46f4-a78d-7d9bdda58704",
+                  "518bc87c-44d2-4d19-8a2b-211da7504830",
+                  "e4f3dc0c-5fb4-4b6a-a67e-eb18684c86ff",
+                  "cfdabe53-0467-41a2-9700-cee3af8e670a",
+                  "68e9044e-b3d7-448b-b251-81e724ce4eda"
+                ]
+              }
+            ],
+            "unaccounted": [],
+            "sourceDecisions": [
+              {
+                "sourceId": "03c223d0-0004-457b-a5df-c9b21c3761df",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "044d29f9-599c-4b1f-b36b-5f991961d99f",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "05bd71f0-410f-4e29-94ef-ba749611da36",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "076d4c7b-f9fc-46f4-a78d-7d9bdda58704",
+                "preparedRef": "S52",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "0a66f984-b5b5-4a81-bd88-f08257306f28",
+                "preparedRef": "S23",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "0d0a0392-f70d-4ab8-98e9-dd621980d2e8",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "0d346f89-04ae-4cb5-9e1d-b43c4d8dd1c9",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "0e2c2208-3d3e-4e6e-9a18-cede71e1cd9b",
+                "preparedRef": "S35",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "0fa89436-c53a-48ff-9eb2-6c26cc1cdc1c",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "17e29a75-c43d-4216-95d4-847552fcdd57",
+                "preparedRef": "S30",
+                "outcomes": [
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "السعودية تشترط نزع سلاح حزب الله لدعم لبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "19f4b2df-9e3b-4ed6-b322-59dabe58dd68",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "1c651b68-e43f-46d8-8cf4-cc503b1a89f3",
+                "preparedRef": "S44",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "1c973a9f-3dda-4fb4-be5e-d08055f8d945",
+                "preparedRef": "S50",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "1dc76638-c5ed-4604-a417-82d30aad6e5c",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "1edea67f-675e-450b-a806-f3913590d7c5",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "20a99fe3-e2f6-4f67-9adb-4491e0e8c96d",
+                "preparedRef": "S10",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "2155dff9-7466-445e-a574-4c1c7effb407",
+                "preparedRef": "S3",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "228968df-b48d-4f6f-99c2-f78ce6d05663",
+                "preparedRef": "S49",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "23f18a63-e391-42aa-ae9d-731518fd965e",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "240f9bcb-fe8b-4d4e-9d5b-4403cefc9cef",
+                "preparedRef": "S17",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "2f4401e5-e4b9-45e1-bb45-3f6d0198d92b",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "30654215-843b-47a3-b53d-9dc856459fd2",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "3080baa7-4c36-49d9-994c-ce38936c520e",
+                "preparedRef": "S40",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "314f60c4-a72d-488c-84a0-9c9ee3094a2c",
+                "preparedRef": "S38",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "31a71d26-5f74-44d9-9318-8e8e0169eeb6",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "321c48f3-0ba5-4e24-a695-7e14939c02c8",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "3678cdae-a54a-4f0b-9d66-13ef2b3db1fc",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "3d102cd7-98f9-422c-a80e-007801d1eb99",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "3d57755f-281d-4198-beae-4f4778bea427",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "42b14f22-73b8-44f2-a769-d0420a20f978",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "47bbfcdd-7495-4176-a954-61bb966aaec1",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "48ea27d8-f48c-4fa0-bf5f-d5e1fce7070c",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "4958c25a-1adc-4719-b4ef-270b561ce02b",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "4af52deb-7790-4599-bfeb-9d845a5a5bc5",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "4b12fc5d-b4ce-4a97-82b8-f1507df339a9",
+                "preparedRef": "S33",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "4b79afcb-508a-4825-b7ea-c37dd0ab67fa",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "4e372047-2c57-4788-98fc-2f7e87f8fc1b",
+                "preparedRef": "S20",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "518bc87c-44d2-4d19-8a2b-211da7504830",
+                "preparedRef": "S53",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "551e4668-1a27-4120-96a7-103203380a8b",
+                "preparedRef": "S46",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "570774f9-3109-4653-81f9-a01ff4347ff9",
+                "preparedRef": "S36",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "58b103a2-9d39-4290-accc-e15721ed43ee",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "59e03ac3-0503-409a-b0a0-4c10e320fb03",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "preparedRef": "S18",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "5c24d3c8-0a99-4d20-ba28-861e7166db1c",
+                "preparedRef": "S24",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "64ef34ec-d72a-427d-a70f-369661a27561",
+                "preparedRef": "S6",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "68e9044e-b3d7-448b-b251-81e724ce4eda",
+                "preparedRef": "S56",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "6a2f8ce4-4931-4486-8920-df856a321658",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "6a59043e-8883-4ec8-a6b1-c7fe9dc60532",
+                "preparedRef": "S51",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "6e72d9e5-0801-49af-b2ee-84e4861222f4",
+                "preparedRef": "S37",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "75d7beab-0b92-4641-b96d-95ea5cca78a5",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "76e8360f-8627-4176-92b5-4104477c667d",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "7b1620c5-8df7-4de0-86f9-5a64e37d2a11",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "7bb60b60-54dd-437d-8aaf-97416ba93fff",
+                "preparedRef": "S26",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "82796cdd-6c1d-4173-aeaf-e510db357d92",
+                "preparedRef": "S1",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "835c34af-b17c-4ccd-ace0-e62cdd590b97",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "84cbb76e-f346-44c4-9f0a-d11dcfe15e9f",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "8755df00-0d67-47d0-805f-13547bfce2b2",
+                "preparedRef": "S21",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "890f6ca1-753b-46ed-a598-8b459d60df63",
+                "preparedRef": "S4",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "8b02b676-5217-4385-ae52-2aa9e9668539",
+                "preparedRef": "S41",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "8c2860a5-afe3-4d2b-9501-01f125d182d3",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "8cbf2680-33d7-4b56-8041-2f27abe87f41",
+                "preparedRef": "S27",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "9375a3bf-cb64-42fa-aeec-82345ec1fd6b",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "95dc1759-ed56-4d10-96c8-ecc5f022be48",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "97a39dd1-c4b6-44d8-be4b-c6bb2e0736ae",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "9a318415-baf5-467b-9104-6982a7efb10a",
+                "preparedRef": "S34",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "9fbacc12-1786-4351-a1f7-bdae0b47b7b4",
+                "preparedRef": "S16",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "9fea21de-dfb4-47a9-ab42-cdb55cf7aed9",
+                "preparedRef": "S29",
+                "outcomes": [
+                  {
+                    "stage": "final",
+                    "decision": "selected",
+                    "reason": "independently verified for this edition",
+                    "headline": "عون يؤكد أن حصرية السلاح بيد الدولة شرط لإعادة بناء الثقة ويشدد على الدبلوماسية لحل قضية الجنوب"
+                  }
+                ]
+              },
+              {
+                "sourceId": "a3bd8f6b-43ec-487f-b839-a79438fdb672",
+                "preparedRef": "S12",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "a544977b-f7f2-48f5-ac2d-c21d8731a53e",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "ac78096c-d242-4fa2-adcf-b190eeef224b",
+                "preparedRef": "S5",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "ad397161-d0f1-40a3-9edb-08b6ac516277",
+                "preparedRef": "S25",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b0036293-c489-4481-a014-bddfa1ac2b9e",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b08c5fa4-acf8-4437-a212-f6b576eee610",
+                "preparedRef": "S47",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b47fece9-0b76-4037-a8c8-710312c764e8",
+                "preparedRef": "S9",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b48d086a-7804-4089-8bd4-bee50be61513",
+                "preparedRef": "S19",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b6dae995-9e78-4198-beef-237d5a990ac6",
+                "preparedRef": "S11",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "b7d19136-1dec-478d-b725-368d6fe16d78",
+                "preparedRef": "S22",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "ba72ffb5-7d27-4042-9d12-5366ef8e8552",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "bb615638-1b07-4b7a-9c57-4d0894044e1e",
+                "preparedRef": "S15",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "bce149cf-87c9-4d89-b5bf-4c501a162894",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "bd340f22-bbd4-4a8b-90be-4880c509cb34",
+                "preparedRef": "S14",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c21260d2-3f5e-48d1-934e-da4ec192b1bc",
+                "preparedRef": "S32",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c2ae6b6f-edad-46f9-8d5d-d220a022300e",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c45e6f58-18d5-4b3d-b865-fa2dea7692cf",
+                "preparedRef": "S8",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c4c9ad46-95bc-4b04-9ec3-f7b183ba9b03",
+                "preparedRef": "S31",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c7ed9852-7990-4410-8ae8-f9254782f5ba",
+                "preparedRef": "S45",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "c859fbe5-91a6-4639-86b3-23d7f579efef",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "cd07c507-f0c8-4445-80cd-c4e3474d7e0e",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "cfdabe53-0467-41a2-9700-cee3af8e670a",
+                "preparedRef": "S55",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "d2f0fc9c-3e43-4d3a-a12c-d69defc19137",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "d837760c-ea8b-4bbb-b992-a72d15eff274",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "d8e6af93-4d2e-4f5a-a965-7d7b5e69fa10",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "d8f6357a-a18d-4c39-bba4-834a57b3c52d",
+                "preparedRef": "S43",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "e023bb22-1e37-44ef-b4f3-8c8c73b125b7",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "e4f3dc0c-5fb4-4b6a-a67e-eb18684c86ff",
+                "preparedRef": "S54",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "e774bbc8-50b4-40af-a307-87160520cddb",
+                "preparedRef": "S39",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "e7c5ea4d-c18c-43b8-88ba-8fe4c57950a3",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "eba4b8b7-8c0b-4f8b-9358-642b01b6e5ee",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "edbed009-7c95-43c6-8e1e-61442d4c71fe",
+                "preparedRef": "S13",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f0085e73-3c9a-42d4-8253-45599760a36b",
+                "preparedRef": "S42",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f03b6051-5db6-4c9d-8422-0315250b4e9e",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f0dd329c-8dd7-4d1d-91c7-eed9ab573245",
+                "preparedRef": "S7",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f101206c-0655-4b8f-a3d0-1741ce9425ba",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f15c7b92-7712-455e-911c-f9ee29959744",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "f36d6ec2-e364-46d3-80b1-5279e4f9be8e",
+                "preparedRef": "S18",
+                "duplicateOf": "5ab2669b-fdf8-40d0-afde-3dbe56234e30",
+                "outcomes": [
+                  {
+                    "stage": "preparation",
+                    "decision": "duplicate",
+                    "reason": "folded into retained source",
+                    "headline": "5ab2669b-fdf8-40d0-afde-3dbe56234e30"
+                  },
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "fada2e03-039f-4a62-b5c8-7ded54098f75",
+                "preparedRef": "S28",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "fc895d5b-9296-4f93-a300-1ee748cd3ae1",
+                "preparedRef": "S2",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              },
+              {
+                "sourceId": "fd35bb19-c171-4be9-bc30-f14406472122",
+                "preparedRef": "S48",
+                "outcomes": [
+                  {
+                    "stage": "editor",
+                    "decision": "omitted",
+                    "reason": "خارج الاهتمام المباشر أو مكرر أو روتيني أو لا يحمل تطوراً مؤثراً جديداً للبنان"
+                  }
+                ]
+              }
+            ],
+            "usage": {
+              "calls": 8,
+              "inputTokens": 81325,
+              "outputTokens": 6316,
+              "costUsd": 0
+            },
+            "timings": {
+              "totalMs": 853,
+              "stages": {
+                "edit": 116,
+                "novelty": 70,
+                "verify": 499,
+                "repair": 6,
+                "recovery_coverage": 0
+              }
+            }
+          },
+          "usage": {
+            "calls": 8,
+            "inputTokens": 81325,
+            "outputTokens": 6316,
+            "costUsd": 0
+          },
+          "latencyMs": 853
+        }
+      ],
+      "operations": [],
+      "reuses": [
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "requestHash": "3bd6b2f4e5fe2c35f1c02a89c74607928841d1be369f9b227aab3d37c325888f",
+          "originalId": "60da41f072bf7b2948e05e4f2e8be008c52a62f852d67d30a9c0f1ce99192a08",
+          "originalRequestHash": "3bd6b2f4e5fe2c35f1c02a89c74607928841d1be369f9b227aab3d37c325888f",
+          "originalReportedCostUsd": 0.032638
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "requestHash": "84a7b94b0cd2c5bfa645b41788865a99277f60b6417b908d1dfb14889eb9f75a",
+          "originalId": "556c8df3-39d1-4be8-a9b6-4da90eaf5ce5",
+          "originalRequestHash": "84a7b94b0cd2c5bfa645b41788865a99277f60b6417b908d1dfb14889eb9f75a",
+          "originalReportedCostUsd": 0.024146
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "requestHash": "69d250267615d4f62914aec56468c4c06327a303d6e5fd5bea0ae94ff67c6147",
+          "originalId": "ae88c12c-5432-41bd-be02-5f6e4049cb4b",
+          "originalRequestHash": "69d250267615d4f62914aec56468c4c06327a303d6e5fd5bea0ae94ff67c6147",
+          "originalReportedCostUsd": 0.012176
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "requestHash": "fa5893d09d60ebf4ad0677e532ad9f08396c9daeb88dd424c627868ef1466ad9",
+          "originalId": "a13354b5-42fb-4e8c-a648-a0d754891e16",
+          "originalRequestHash": "fa5893d09d60ebf4ad0677e532ad9f08396c9daeb88dd424c627868ef1466ad9",
+          "originalReportedCostUsd": 0.014056
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "requestHash": "8cf0557cd125b4c817a4cb12df9eb028bf62e39c5dc80517168bc60582be000f",
+          "originalId": "db4f61af-28f0-46bb-8f51-7bc0dec85569",
+          "originalRequestHash": "8cf0557cd125b4c817a4cb12df9eb028bf62e39c5dc80517168bc60582be000f",
+          "originalReportedCostUsd": 0.061582
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "requestHash": "b0f250bd13f925fd00d7e23ec8b34277a02d9a745fe0409dc981618c52b34340",
+          "originalId": "a24ca41c-1073-438b-886b-5398ccbe6c1a",
+          "originalRequestHash": "b0f250bd13f925fd00d7e23ec8b34277a02d9a745fe0409dc981618c52b34340",
+          "originalReportedCostUsd": 0.00225
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "requestHash": "a9ab2491fec0843adbceb004522939f755fd86caa0ee055d4a4e3e52ee385c46",
+          "originalId": "a4715e08-c88f-43fe-822f-fb3100d1f065",
+          "originalRequestHash": "a9ab2491fec0843adbceb004522939f755fd86caa0ee055d4a4e3e52ee385c46",
+          "originalReportedCostUsd": 0.003202
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+          "system": "engine",
+          "requestHash": "79629696189d72d20ddd73824e1cc2aad4854b7b4e9cbabfdfb92960c164ea51",
+          "originalId": "e1da87c1-ab18-46ff-8a78-3b2197838282",
+          "originalRequestHash": "79629696189d72d20ddd73824e1cc2aad4854b7b4e9cbabfdfb92960c164ea51",
+          "originalReportedCostUsd": 0.011864
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "requestHash": "a66d41c7840e6fa973c1793c982a4c096bdb1953e88fd19ba0f4249d9276abea",
+          "originalId": "5122fc6f0d4c13a8f2d90429f9632821ea360da9d1c2ce9d91f5ab47b9c56b1d",
+          "originalRequestHash": "a66d41c7840e6fa973c1793c982a4c096bdb1953e88fd19ba0f4249d9276abea",
+          "originalReportedCostUsd": 0.056672
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "requestHash": "8bb43bfbc0865eb672370f9a90d67c0a232f6220994ae2807465fd7db3b98866",
+          "originalId": "12ceee8c-9695-4e0e-ac71-1235ee6cfb72",
+          "originalRequestHash": "8bb43bfbc0865eb672370f9a90d67c0a232f6220994ae2807465fd7db3b98866",
+          "originalReportedCostUsd": 0.012332
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "requestHash": "08ac949bbad7f132828af610f2e10f8d0940277e5732f9df4bfb77eb3c794134",
+          "originalId": "ee24ef00-6e44-4578-b0cf-811c87872293",
+          "originalRequestHash": "08ac949bbad7f132828af610f2e10f8d0940277e5732f9df4bfb77eb3c794134",
+          "originalReportedCostUsd": 0.010534
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "requestHash": "09ef8350134c5a5ac662d24bce5d8642794addfb465bb3eacd5a4ddb94abba02",
+          "originalId": "0ba48d3c-a7cb-454b-9c2b-56d8e8f85e9a",
+          "originalRequestHash": "09ef8350134c5a5ac662d24bce5d8642794addfb465bb3eacd5a4ddb94abba02",
+          "originalReportedCostUsd": 0.0083
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "requestHash": "f72296295f546db0ac8aadbafdc2ead15b8a0492709254701b16c777044bbf2a",
+          "originalId": "21f5ab06-344e-4c63-a99e-af35e882647e",
+          "originalRequestHash": "f72296295f546db0ac8aadbafdc2ead15b8a0492709254701b16c777044bbf2a",
+          "originalReportedCostUsd": 0.052662
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "requestHash": "6b1682c8960f68036eb1cd19f7b510b767f7eae721094528aa537a9c8ff87d45",
+          "originalId": "4a04a5ae-d666-4549-8bd9-2dbc1d3cf1a3",
+          "originalRequestHash": "6b1682c8960f68036eb1cd19f7b510b767f7eae721094528aa537a9c8ff87d45",
+          "originalReportedCostUsd": 0.006792
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "requestHash": "e8dc0232cb0ad214c3ff779c9e4ff1953bb82c80a53a7145ace75b8cb41dfaed",
+          "originalId": "90c50359-d9eb-4898-a5b2-ae8484805c4c",
+          "originalRequestHash": "e8dc0232cb0ad214c3ff779c9e4ff1953bb82c80a53a7145ace75b8cb41dfaed",
+          "originalReportedCostUsd": 0.004594
+        },
+        {
+          "state": "HISTORICAL_REUSE",
+          "caseId": "72bf6cacbbf523fa73528cf2d6f62aa71f6d7ac2641abe2eec634b2f0526236e",
+          "system": "engine",
+          "requestHash": "9f6595ac0123a0c83290f28ad2b86009407fcb161c5cae3c6dfdfad502dbef2e",
+          "originalId": "b9388016-d45a-4aa8-81b8-47183427d831",
+          "originalRequestHash": "9f6595ac0123a0c83290f28ad2b86009407fcb161c5cae3c6dfdfad502dbef2e",
+          "originalReportedCostUsd": 0.036908
+        }
+      ]
+    }
+  ]
+}

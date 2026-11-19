@@ -1,4 +1,6 @@
 import {BriefingOutputError} from './types';
+import {arabicIdentityIssues} from './identity-fidelity';
+import {verifySourceBoundClaims,independentBindingPolicy} from './source-bound-claims';
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OCCURRENCE_RULE} from './novelty';
 import {completeStorySources} from './citation-coverage';
@@ -30,7 +32,7 @@ import {
 import { significantNumbers } from "./text";
 import {selectTopicSources} from './topic-selection';
 import {wordingFidelity,wordingBase} from './wording-fidelity';
-import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,SUPPORTED_CORE_VERIFY_V2,SUPPORTED_CORE_REPAIR_V2,MATERIAL_RECOVERY,auditRepairCoverage,recoveryHistory} from './verification-recovery';
+import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,SUPPORTED_CORE_VERIFY_V2,SUPPORTED_CORE_REPAIR_V2,MATERIAL_RECOVERY,auditRepairCoverage,recoveryHistory,sourceBoundIdentityRepair} from './verification-recovery';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 export interface EngineOptions {
@@ -370,6 +372,13 @@ async function verify(
     batches.map(async (batch) => {
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
+      if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||independentBindingPolicy(input.feed.identityFidelityPolicy)){
+        const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
+          items:batch.map(index=>drafts[index]),sources,prior,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
+          context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
+        for(const [local,decision]of verified)results.set(batch[local],decision);
+        return;
+      }
       const parsed = await callJson(
         port,
         meter,
@@ -444,10 +453,16 @@ async function repair(
   finalRepair=false
 ): Promise<Map<number, { headline: string; body: string } | null>> {
   // Model-facing numbers are local to this subset; translate back mechanically.
-  const indices = [...flagged.keys()];
+  const exact=new Map<number,{headline:string;body:string}|null>();
+  if(input.feed.identityFidelityPolicy==='source-bound-claims-v3')for(const [index,issues]of flagged){
+    const fixed=sourceBoundIdentityRepair({...drafts[index],issues},[...byRef.values()]);
+    if(fixed)exact.set(index,fixed);
+  }
+  const indices = [...flagged.keys()].filter(index=>!exact.has(index));
+  if(!indices.length)return exact;
   const refs = [...new Set(indices.flatMap((i) => drafts[i].refs))];
   const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
-  return callJson(
+  const generated=await callJson(
     port,
     meter,
     {
@@ -464,7 +479,7 @@ async function repair(
           sources: drafts[index].refs,
           issues: flagged.get(index)!
         }))
-      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy?recoveryHistory(history,indices,input.feed.verificationRecoveryPolicy==='supported-core-v2'?false:finalRepair)+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?'\n\n'+(finalRepair?'FINAL SUPPORTED-CORE REPAIR: ':'')+MATERIAL_RECOVERY:''):''),
+      })+(noveltyPolicy?OCCURRENCE_PROSE:'')+(input.feed.verificationRecoveryPolicy?recoveryHistory(history,indices,input.feed.verificationRecoveryPolicy==='supported-core-v2'?false:finalRepair)+(input.feed.verificationRecoveryPolicy==='supported-core-v2'?'\n\n'+(finalRepair?'FINAL SUPPORTED-CORE REPAIR: ':'')+MATERIAL_RECOVERY:'')+(independentBindingPolicy(input.feed.identityFidelityPolicy)?'\n\nIDENTITY REPAIR SCOPE: Restore the complete original story from the FIRST repair-history draft, correcting only each demonstrated unsupported name/role or other factual defect against the original evidence. Retain its independently supported actions, quantities, material conditions and developments. Do not repeatedly summarize the last shortened repair. Keep the original body when it contains supported developments beyond the headline. A name/title correction must not erase the body. When an unsupported added given name is the ONLY defect, remove ONLY that given-name expansion and preserve every other supported word, including an independently supported role/title; do not rewrite the whole headline or delete the role merely to shorten it. When a role is explicitly contradicted, replace ONLY that role with the independently source-bound role, keeping the rest of the story unchanged. Earlier reviewer prose is not evidence; preserve only source-supported material. If the role/name is unsupported, use the source-established identity rather than deleting the story context. This instruction takes priority over optional headline-only compression.':''):''),
       maxTokens: 3000
     },
     (raw) => {
@@ -496,6 +511,7 @@ async function repair(
       return out;
     }
   );
+  return new Map([...exact,...generated]);
 }
 
 /**
@@ -650,13 +666,16 @@ export async function generateBriefing(
     const unchecked: number[] = [];
     for (const index of todo) {
       const verdict = verdicts.get(index);
-      const guardIssue = options.safetyGuard === 'relative-date-v1'
+      const dateIssue = options.safetyGuard === 'relative-date-v1'
         ? relativeDateGuard(drafts[index], byRef, input.windowEnd)
         : undefined;
+      const identityIssues=input.feed.identityFidelityPolicy==='arabic-person-role-v1'
+        ?arabicIdentityIssues(`${drafts[index].headline}\n${drafts[index].body}`,drafts[index].refs.flatMap(ref=>{const a=byRef.get(ref);return a?[`${a.title??''}\n${a.text}`]:[]})):[];
+      const guardIssue=dateIssue??(identityIssues.length?identityIssues.map(x=>x.code==='ARABIC_ROLE_TEMPORAL_UNRESOLVED'?`${x.code}: only explicitly historical cited bindings establish "${x.quote}". Preserve the historical qualification or omit the role; do not infer a current office.`:`${x.code}: reader identity "${x.quote}" is not bound to that name/role in the cited sources. Preserve the supported identity, use the supported surname only, or withhold; do not import prior text or outside knowledge.`).join(' '):undefined);
       if (!verdict) unchecked.push(index);
-      // Unlike the older numeric/script hints, this guard is a narrowly
-      // decidable temporal contradiction. An "ok" from a fallible verifier
-      // cannot publish it; use the existing repair/recheck path instead.
+      // Admission checks, not a general truth oracle: an explicit date
+      // contradiction or unbound person/role requires repair or withholding.
+      // A fallible model's "ok" cannot override that source-binding requirement.
       else if (guardIssue && round < options.maxRepairs) flagged.set(index, [guardIssue]);
       else if (guardIssue) dropped.push({ headline: drafts[index].headline, reason: `still flagged after repair: ${guardIssue}`, carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
       else if (verdict.verdict === "ok") accepted.add(index);
