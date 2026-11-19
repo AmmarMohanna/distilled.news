@@ -738,16 +738,16 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
       {(authStep === "details" || authStep === "code") && requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
-      {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
+      {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setVerificationRecoveryEmail(""); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
         {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
       <div className="auth-verification-actions">
-      {!props.setupRequired && authStep!=="code" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
+      {!props.setupRequired && authStep==="details" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
         <button type="button" className="button-link" onClick={()=>{setAuthStep("code");setError("");setMessage("");}}>{t("Enter verification code")}</button>}
-      {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
-      {!props.setupRequired&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
+      {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setMode("login");setVerificationRecoveryEmail("");setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
+      {!props.setupRequired&&authStep!=="email"&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
         setError("");setMessage("");setSubmitting(true);
         try{
           if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");return;}
@@ -757,8 +757,8 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         finally{resetTurnstile();setSubmitting(false);}
       }}>{t("Resend verification email")}</button>:null}
       </div>
-      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
-      {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
+      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setVerificationRecoveryEmail(""); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
+      {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setVerificationRecoveryEmail(""); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
 
     </form>
   );
