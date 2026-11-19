@@ -14,15 +14,11 @@ export function FeedNotice(props:{message:string;language:Language;heading?:stri
  </section>;
 }
 export function FeedPublicationNotice(props:{publicationState?:string;hasPublishedEditions:boolean;language:Language}){
+ // Operational publication and source failures belong in diagnostics, not the reader.
+ if(props.publicationState!=='correction_pending')return null;
  const labels=text[props.language];
- if(props.publicationState==='partial')return <p className="feed-publication-status" role="status">{labels.partial}</p>;
- if(props.publicationState!=='correction_pending'&&props.publicationState!=='failed')return null;
- if(props.publicationState==='failed')return <p className="feed-publication-status" role="status"><TriangleAlert size={16} aria-hidden="true"/><span>{labels.delayed}{props.hasPublishedEditions?`. ${labels.available}`:''}</span></p>;
- const correction=props.publicationState==='correction_pending';
- // Pending correction is not proof of withdrawal. Availability refers only to
- // editions actually returned by the publication read API.
- const message=(correction?labels.pending:labels.failed)+(props.hasPublishedEditions?' '+labels.available:'');
- return <FeedNotice heading={correction?labels.correction:labels.delayed} message={message} language={props.language} severity="warning"/>;
+ const message=labels.pending+(props.hasPublishedEditions?' '+labels.available:'');
+ return <FeedNotice heading={labels.correction} message={message} language={props.language} severity="warning"/>;
 }
 
 const progressText={

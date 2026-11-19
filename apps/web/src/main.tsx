@@ -2,7 +2,6 @@ import {cadenceMetaLabel,formatCountdown,nextBriefingText} from './briefing-labe
 import {useReadProgress} from './useReadProgress';
 import {ApiError, toUiError, type UiMessage} from './api-errors';
 import {FEED_REFRESH_INTERVAL_MS, afterFeedRefresh, initialFeedRefreshState, mayRefreshFeed} from './feed-refresh-policy';
-import {SourceHealth} from './SourceHealth';
 import { useFeedViewer } from './useFeedViewer';
 import { usePageMagnification } from './usePageMagnification';
 import { NewsBriefing } from "./NewsBriefing";
@@ -1886,9 +1885,7 @@ function FeedPage(props: { username: string; slug: string }) {
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
       {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
       <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
-      <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
       {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
-      {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>
