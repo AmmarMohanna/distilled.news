@@ -72,7 +72,7 @@ export function NewsBriefing(props:{edition:BriefingEdition;selectedIndex:number
       <button type="button" className="news-briefing-copy" onClick={async()=>{
        try{await navigator.clipboard.writeText(articleUrl);setCopied({url:articleUrl,status:'copied'});}
        catch{setCopied({url:articleUrl,status:'failed'});}
-      }}><Link2 size={18} aria-hidden="true"/><span aria-live="polite">{copied?.url===articleUrl?(copied.status==='copied'?labels.copied:labels.failed):labels.copy}</span></button>
+      }}><Link2 size={18} aria-hidden="true"/><span className={copied?.url===articleUrl && copied.status==="failed" ? "error" : undefined} aria-live="polite">{copied?.url===articleUrl?(copied.status==='copied'?labels.copied:labels.failed):labels.copy}</span></button>
       <a className="news-briefing-read" href={articleUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={18} aria-hidden="true"/>{labels.read}</a>
      </>:null}
     </div>

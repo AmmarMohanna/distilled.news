@@ -34,7 +34,7 @@
   --accent-soft: #5e5ce6;
   --accent-warm: #5e5ce6;
   --accent-gold: #5e5ce6;
-  --danger: #1d1d1f;
+  --danger: #c62828;
   --secondary-size: 0.875rem;
   --chrome: rgb(255 255 255 / 88%);
   --sidebar: rgb(245 245 247 / 90%);
@@ -62,7 +62,7 @@
   --muted: #aeb5c2;
   --line: #3b404b;
   --line-strong: #697383;
-  --danger: #ff9299;
+  --danger: #ff8585;
   --chrome: rgb(30 32 37 / 94%);
   --sidebar: rgb(30 32 37 / 96%);
   --shadow: 0 12px 36px rgb(0 0 0 / 24%);
@@ -3132,3 +3132,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-verification-actions > button.button-link:hover:not(:disabled) { background: color-mix(in srgb,var(--accent) 7%,var(--surface)); border-color: var(--accent); color: var(--accent); }
 :root.apple-ui.apple-ui .auth-verification-actions > button.button-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 :root.apple-ui.apple-ui .auth-verification-actions > button.button-link:disabled { opacity: .5; cursor: default; }
+
+/* Error messages share the same accessible red in every UI surface. */
+:root.apple-ui.apple-ui :is(.auth-error, .error, .source-error, [role="alert"], [data-severity="error"]) { color: var(--danger) !important; }
+:root.apple-ui.apple-ui :is([role="alert"], [data-severity="error"]) :is(p, h2, h3, li, .feed-notice-icon) { color: var(--danger) !important; }
+:root.apple-ui.apple-ui .notice[data-severity="error"] { border-color: color-mix(in srgb,var(--danger) 35%,var(--line)); background: color-mix(in srgb,var(--danger) 4%,var(--surface)); }
+:root.apple-ui.apple-ui .notice[data-severity="error"] .feed-notice-icon { background: color-mix(in srgb,var(--danger) 10%,var(--surface)); }
+:root.apple-ui.apple-ui .auth-unavailable-icon { background: var(--danger); }
+:root.apple-ui.apple-ui[data-theme="dark"] .auth-unavailable-icon { background: var(--danger); }
