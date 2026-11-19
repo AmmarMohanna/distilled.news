@@ -43,7 +43,9 @@ function v3Fixture(summary:string){
  Object.assign(env,{BRIEFING_ENGINE:'v3',BRIEFING_EDITOR_MODEL:'openai/gpt-4.1',BRIEFING_VERIFIER_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test-only-key'});
  return vi.fn(async(_url:unknown,init?:RequestInit)=>{
   const body=JSON.parse(String(init?.body)),verify=body.messages[0].content.includes('meticulous fact-checker');
-  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:summary,body:summary,sources:['S1'],relation:'new',importance:1}]};
+  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:summary,body:summary,sources:['S1'],relation:'new',updates:null,importance:1}]};
+  const required=body.response_format?.json_schema?.schema?.properties?.source_decisions?.required;
+  if(!verify&&required){expect(required).toEqual(['S1']);Object.assign(content,{source_decisions:{S1:{decision:'selected',why:'The collected source supports this fixture development.'}}});}
   return Response.json({id:crypto.randomUUID(),choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
 }

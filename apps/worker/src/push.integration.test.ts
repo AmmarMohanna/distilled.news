@@ -27,7 +27,10 @@ beforeEach(async()=>{
  await ctx.db.prepare('INSERT INTO push_subscriptions(endpoint,account_id,subscription_json,language,last_notified_at,created_at,notification_version) VALUES(?,?,?,?,?,?,?)').bind(endpoint,'owner-1',subscription,'en',cutoff,cutoff,'subscription-v1').run();
  const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window:{start:cutoff,end:'2026-10-03T13:00:00Z',kind:'HOURLY'}},()=> '2026-10-03T13:00:00Z',undefined,async(_url,init)=>{
   const request=JSON.parse(String(init?.body));
-  const value=request.messages[0].content.includes('meticulous fact-checker')?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Lebanon Parliament approved banking reform legislation.',sources:['S1'],relation:'new',importance:1}]};
+  const verify=request.messages[0].content.includes('meticulous fact-checker');
+  const value=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Lebanon Parliament approved banking reform legislation.',sources:['S1'],relation:'new',updates:null,importance:1}]};
+  const required=request.response_format?.json_schema?.schema?.properties?.source_decisions?.required;
+  if(!verify&&required){expect(required).toEqual(['S1']);Object.assign(value,{source_decisions:{S1:{decision:'selected',why:'The acquired source supports this fixture development.'}}});}
   return Response.json({id:'push-integration-model',choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:30,cost:.001}});
  });expect(edition?.engine).toBe('v3');editionId=edition!.id;
 },60000);
