@@ -66,6 +66,7 @@
     "SOURCE_OPERATION_CEILINGS_JSON": "{\"twitterApiIo\":0.01,\"apify\":0.25,\"zyte\":0.05}",
     "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":15,\"x_apify\":15,\"google_apify\":0,\"linkedin_apify\":15,\"zyte\":15}",
     "SOURCE_FULL_ARTICLES_ENABLED": "true",
+    "SOURCE_ZYTE_LISTING_RETRY_ENABLED": "true",
     "SOURCE_QUEUE_SCHEDULING_ENABLED": "true",
     "SOURCE_SHARED_PUBLIC_FETCH_ENABLED": "true",
     "SOURCE_COLLECTION_INTERVAL_MS": "300000",
