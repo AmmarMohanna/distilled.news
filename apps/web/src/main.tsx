@@ -661,7 +661,14 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
         try {
           if(authStep==="code"){
             await verifyEmail({email,code:emailCode});
-            await props.onAuthenticated();
+            if (submittedFlow !== verificationFlow.current) return;
+            setMode("login");
+            setAuthStep("details");
+            setPassword("");
+            setEmailCode("");
+            clearVerificationRecovery();
+            setMessage("Email verified. Sign in to continue.");
+            resetTurnstile();
             return;
           }
           if (requiresTurnstile && !turnstileToken) {
@@ -949,6 +956,7 @@ function VerifyEmailPage(props: { token: string }) {
               try {
                 await verifyEmail(props.token);
                 setVerified(true);
+                window.location.replace("/login");
               } catch (cause) {
                 setError(toUiError(cause));
               } finally {
