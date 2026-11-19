@@ -11,6 +11,8 @@ export interface Article {
 }
 
 export interface FeedSpec {
+  /** Opt-in wire deduplication; frozen inputs without this retain original requests. */
+  verificationInputPolicy?:'reader-unit-context-v1';
   /** Versioned proof-size batching; never removes reader items or evidence. */
   verificationOutputPolicy?:'reader-load-batches-v1';
   /** New inputs use general evidence bindings. The Arabic marker is legacy replay only. */

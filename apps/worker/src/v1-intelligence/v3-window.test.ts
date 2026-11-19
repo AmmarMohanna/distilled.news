@@ -13,7 +13,7 @@ import {feedFixture,acceptEvidence} from './test-utils';
 import {V1FeedStore,feedTransact,FeedTransaction} from './store';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,windowIdentity} from './runtime';
 import {publicV1Edition} from './public-read';
-import {prepareV3Window,publishProductV3Window,productV3PromptVersion} from './v3-window';
+import {prepareV3Window,publishProductV3Window,productV3PromptVersion,productV3VerificationInputPolicy} from './v3-window';
 import {supersedeUnstartedV3Windows} from './window-catchup';
 import {isAutomaticReportingWindow} from './runtime';
 import {livePublicationWindow} from './schedule';
@@ -54,7 +54,7 @@ it.each(['arabic-person-role-v1','source-bound-claims-v1','source-bound-claims-v
  const {identityFidelityPolicy:_,...unchanged}=next.input.feed;
  expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
 });
-it('opts new windows into general evidence bindings and durably reuses all four paid stages on redelivery',async()=>{
+it.each([false,true])('opts new windows into general evidence bindings and durably reuses all four paid stages on redelivery (compact=%s)',async compact=>{
  await article();const calls:any[]=[];
  const provider=(async(_url:unknown,init?:RequestInit)=>{
   const request=JSON.parse(String(init?.body));calls.push(request);const system=request.messages[0].content;let value:unknown;
@@ -64,13 +64,26 @@ it('opts new windows into general evidence bindings and durably reuses all four 
   else value={items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['S1'],relation:'new',updates:null,importance:1}]};
   return Response.json({id:'gen-general-'+calls.length,choices:[{message:{content:JSON.stringify(editorFixture(request,value))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
- const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true'},message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact)},message={type:'v1_briefing' as const,feedId:'feed-1',window};
  const edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);expect(edition).toBeDefined();expect(calls).toHaveLength(4);
  const id=await windowIdentity('feed-1',window),frozen=await store.read<any>('feed-1','v3_window_inputs',id);
  expect(frozen.input.feed.identityFidelityPolicy).toBe('source-bound-claims-v3');
+ expect(frozen.input.feed.verificationInputPolicy).toBe(compact?'reader-unit-context-v1':undefined);
+ const proof=JSON.parse(calls.find(r=>r.messages[0].content.startsWith('You are a meticulous source-grounded')).messages[1].content);
+ expect(proof.inventory.every((f:any)=>compact?f.claimUnit===f.unit&&!('claim' in f):typeof f.claim==='string'&&!('claimUnit' in f))).toBe(true);
  expect(await store.list('feed-1','semantic_results')).toHaveLength(4);
- await processV1Briefing(candidate,message,()=>window.end,undefined,provider);expect(calls).toHaveLength(4);
+ await processV1Briefing({...candidate,BRIEFING_COMPACT_VERIFICATION_ENABLED:String(!compact)},message,()=>window.end,undefined,provider);expect(calls).toHaveLength(4);
 },30000);
+it('keeps compact verification opt-in and freezes a distinct payload policy without changing evidence',async()=>{
+ expect(productV3VerificationInputPolicy({})).toBeUndefined();
+ expect(productV3VerificationInputPolicy({BRIEFING_COMPACT_VERIFICATION_ENABLED:'true'})).toBeUndefined();
+ expect(productV3VerificationInputPolicy({BRIEFING_COMPACT_VERIFICATION_ENABLED:'true',BRIEFING_SOURCE_BINDINGS_ENABLED:'true'})).toBe('reader-unit-context-v1');
+ await article();
+ const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,'source-bound-claims-v3',undefined,'reader-unit-context-v1');
+ expect(old.input.feed).not.toHaveProperty('verificationInputPolicy');expect(next.input.feed.verificationInputPolicy).toBe('reader-unit-context-v1');
+ expect(next.fingerprint).not.toBe(old.fingerprint);expect(next.input.articles).toEqual(old.input.articles);
+});
 function responseArchive(){const objects=new Map<string,string>();return {objects,bucket:{put:async(key:string,value:string)=>{if(objects.has(key))return null;objects.set(key,value);return {key}},get:async(key:string)=>objects.has(key)?{text:async()=>objects.get(key)!}:null} as unknown as R2Bucket}}
 it('versions wording fidelity without rewriting retained inputs or source evidence',async()=>{
  await article();
@@ -304,14 +317,18 @@ it.each(['v2','v3'] as const)('retains review-before-rematch transport ordering 
  expect(accepted).toEqual([{type:'v1_reassess',jobId:'legacy-review'}]);
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',engine:'v2'});
 });
-it('refreshes an unstarted stale snapshot while preserving its predecessor and reporting window',async()=>{
- await article();const id=await windowIdentity('feed-1',window),prepared={...await prepareV3Window(store,'feed-1',window,window.end),id};
+it.each([undefined,'reader-unit-context-v1'] as const)('refreshes an unstarted stale snapshot while preserving its predecessor and reporting window (compact=%s)',async compactPolicy=>{
+ await article();const id=await windowIdentity('feed-1',window),prepared={...await prepareV3Window(store,'feed-1',window,window.end,undefined,4,undefined,false,undefined,undefined,undefined,undefined,undefined,compactPolicy),id};
  await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
  const next=await supersedeFrozenRevision(prepared.evidenceRevisionIds[0]),seen:string[]=[];
- const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:34:00Z',undefined,fetcher(seen) as typeof fetch);
+ const flipped={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compactPolicy===undefined)};
+ const edition=await processV1Briefing(flipped,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:34:00Z',undefined,fetcher(seen) as typeof fetch);
  expect(edition).toMatchObject({id,windowStart:window.start,windowEnd:window.end,evidenceRevisionIds:[next]});expect(edition?.v3InputId).not.toBe(id);
  expect(await store.read('feed-1','v3_window_inputs',id)).toEqual(prepared);
  expect(await store.read('feed-1','v3_window_inputs',edition!.v3InputId!)).toMatchObject({recovery:{priorInputId:id,reason:'SUPERSEDED_UNSTARTED_EVIDENCE'}});
+ const recovered=await store.read<any>('feed-1','v3_window_inputs',edition!.v3InputId!);
+ expect(recovered.input.feed.verificationInputPolicy).toBe(compactPolicy);
+ if(!compactPolicy)expect(recovered.input.feed).not.toHaveProperty('verificationInputPolicy');
  expect(seen).toHaveLength(2);expect(await publicV1Edition(ctx.db,id)).toBeDefined();
  await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=> '2026-10-03T12:35:00Z',undefined,fetcher(seen) as typeof fetch);expect(seen).toHaveLength(2);
 },30000);
