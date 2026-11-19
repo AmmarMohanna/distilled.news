@@ -1,3 +1,4 @@
+import {editorAccountingSchema,normalizeEditorAccounting,STRUCTURED_ACCOUNTING_CONTRACT} from './structured-accounting';
 import {BriefingOutputError} from './types';
 import {arabicIdentityIssues} from './identity-fidelity';
 import {verifySourceBoundClaims,independentBindingPolicy} from './source-bound-claims';
@@ -37,10 +38,11 @@ import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, Dropp
 
 const READER_PRIORITIES='\n\nREADER PRIORITIES: The supplied feed interests are the selection authority. Do not silently narrow them to technical breakthroughs, benchmark records, enacted laws, or independently benchmarked products only. A relevant product release, coding tool, infrastructure finding or concrete policy proposal can be news without meeting those narrower gates; describe its actual significance and limitations. Prefer independent evidence where available without inventing a requirement for it. Exclude genuinely marginal items with an evidence-specific reason. For an already communicated occurrence, retain only material new facts, use update/correction with the exact prior ID, and lead the headline with what changed instead of announcing the original launch again.';
 export interface EngineOptions {
+  noveltyWirePolicy?:'consistent-links-v2';
   /** Consolidation combines editor-selected developments; it does not silently reselect. */
   editorSelectionPolicy?:'preserve-selected-developments-v1';
   /** Frozen only in new product snapshots; legacy paid requests retain their bytes. */
-  editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2';
+  editorAccountingPolicy?:'complete-source-decisions-v1'|'complete-source-decisions-v2'|'complete-source-decisions-v3';
   /** Select complete citations while editing; no separate full-input coverage call. */
   editorSourcePolicy?:'all-supporting-sources-v1';
   /** Frozen in new product inputs; unusable chunks carry forward while verified siblings publish. */
@@ -232,23 +234,25 @@ async function edit(
     meter,
     {
       model: models.editor,
-      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:''),
+      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:''),
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
         ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: accountingPolicy?Math.max(4000,articles.length*48):4000,
+      ...(accountingPolicy==='complete-source-decisions-v3'?{responseSchema:editorAccountingSchema(articles.map(a=>a.ref))}:{}),
     },
     (raw) => {
       recovery.value=undefined;
       const drafts=parseDrafts(raw,known,priorIds,promptVersion>=4);
+      if(accountingPolicy==='complete-source-decisions-v3')raw=normalizeEditorAccounting(raw,articles.map(a=>a.ref));
       if(accountingPolicy){
-        try{assertCompleteEditorAccounting(raw,articles,accountingPolicy==='complete-source-decisions-v2');}
+        try{assertCompleteEditorAccounting(raw,articles,accountingPolicy!=='complete-source-decisions-v1');}
         catch(error){
           const missing=auditEditorSourceAccounting(raw,articles);
           if(failurePolicy==='isolate-unaccounted-sources-v2'&&missing.length){
             const absent=new Set(missing.map(a=>a.ref));
             // Validate every received decision independently of the missing refs.
             // Conflicts, fabricated refs and invalid exclusions still fail closed.
-            assertCompleteEditorAccounting(raw,articles.filter(a=>!absent.has(a.ref)),accountingPolicy==='complete-source-decisions-v2');
+            assertCompleteEditorAccounting(raw,articles.filter(a=>!absent.has(a.ref)),accountingPolicy!=='complete-source-decisions-v1');
             recovery.value={drafts,omitted:parseLeftOut(raw,known,idsOf),unaccounted:missing};
           }
           throw error;
@@ -356,23 +360,28 @@ interface Verdict {
   issues: string[];
 }
 
-function batchesBySourceSize(indices: number[], drafts: Draft[], byRef: Map<string, PreparedArticle>, maxChars: number): number[][] {
-  const batches: Array<{ indices: number[]; refs: Set<string>; chars: number }> = [];
+export function batchesBySourceSize(indices: number[], drafts: Draft[], byRef: Map<string, PreparedArticle>, maxChars: number,proofAware=false): number[][] {
+  const batches: Array<{ indices: number[]; refs: Set<string>; chars: number;proof:number }> = [];
   for (const index of indices) {
     const refs = drafts[index].refs;
+    // Planning estimate for the existing 8k verification reply, not a cap on
+    // stories/evidence. The measured 147-facet reply exceeded that allowance.
+    // Preserve an oversized individual story intact; every index is processed.
+    const proof=2*(drafts[index].headline.length+drafts[index].body.length)+128*refs.length+256;
     let placed = false;
     for (const batch of batches) {
       const added = refs.filter((ref) => !batch.refs.has(ref)).reduce((sum, ref) => sum + (byRef.get(ref)?.text.length ?? 0), 0);
-      if (batch.chars + added <= maxChars) {
+      if (batch.chars + added <= maxChars&&(!proofAware||batch.proof+proof<=8000)) {
         batch.indices.push(index);
         for (const ref of refs) batch.refs.add(ref);
         batch.chars += added;
+        batch.proof += proof;
         placed = true;
         break;
       }
     }
     if (!placed) {
-      batches.push({ indices: [index], refs: new Set(refs), chars: refs.reduce((s, ref) => s + (byRef.get(ref)?.text.length ?? 0), 0) });
+      batches.push({ indices: [index], refs: new Set(refs), chars: refs.reduce((s, ref) => s + (byRef.get(ref)?.text.length ?? 0), 0),proof });
     }
   }
   return batches.map((batch) => batch.indices);
@@ -396,7 +405,7 @@ async function verify(
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
-  const batches = batchesBySourceSize(indices, drafts, byRef, maxChars);
+  const batches = batchesBySourceSize(indices, drafts, byRef, maxChars,input.feed.verificationOutputPolicy==='reader-load-batches-v1');
   await Promise.all(
     batches.map(async (batch) => {
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
@@ -671,7 +680,7 @@ export async function generateBriefing(
       // Reuse evidence-size batching; every draft and its complete cited evidence is retained.
       const decisions=(await Promise.all(batchesBySourceSize(drafts.map((_,i)=>i),drafts,byRef,options.maxVerifyChars).map(async batch=>{
         const selected=batch.map(i=>drafts[i]);
-        const rows=await occurrenceNovelty(port,meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd,Boolean(options.editorSelectionPolicy));
+        const rows=await occurrenceNovelty(port,meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd,Boolean(options.editorSelectionPolicy),options.noveltyWirePolicy);
         return rows.map(row=>({...row,i:batch[row.i]}));
       }))).flat();
       for(const d of decisions)if(d.redundant)repeatReasons.set(drafts[d.i],`Same occurrence already covered in ${d.priorIds.join(', ')}: ${d.sameOccurrence}`);

@@ -27,9 +27,21 @@ import {recoverPendingProviderGenerations} from './provider-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
+// Adapt fully accounted successful legacy-shaped fixtures to the requested
+// provider schema. Never invent decisions for unaccounted/conflicting sources.
+function editorFixture(body:any,value:any){
+ const refs=body.response_format?.json_schema?.schema?.properties?.source_decisions?.required as string[]|undefined;
+ if(!refs||!Array.isArray(value?.items)||value.source_decisions)return value;
+ const selected=new Set(value.items.flatMap((i:any)=>i.sources??[])),excluded=new Map<string,string>();
+ for(const row of value.left_out??[])for(const ref of row.sources??[])excluded.set(ref,row.why);
+ if(refs.some(ref=>selected.has(ref)&&excluded.has(ref)))return value;
+ return {items:value.items,source_decisions:Object.fromEntries(refs.filter(ref=>selected.has(ref)||excluded.has(ref)).map(ref=>[ref,selected.has(ref)?{decision:'selected',why:'Selected by the fixture editor.'}:{decision:'excluded',why:excluded.get(ref)}]))};
+}
 it('versions new accounting and selection recovery without changing an old frozen input',async()=>{
  await article();const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
  const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,undefined,'preserve-selected-developments-v1');
+ expect(old.editorAccountingPolicy).toBe('complete-source-decisions-v2');expect(next.editorAccountingPolicy).toBe('complete-source-decisions-v3');
+ expect(old.noveltyWirePolicy).toBeUndefined();expect(next.noveltyWirePolicy).toBe('consistent-links-v2');expect(next.input.feed.verificationOutputPolicy).toBe('reader-load-batches-v1');
  expect(old.editorFailurePolicy).toBe('isolate-unusable-chunks-v1');expect(old.editorSelectionPolicy).toBeUndefined();expect(next.editorFailurePolicy).toBe('isolate-unaccounted-sources-v2');expect(next.fingerprint).not.toBe(old.fingerprint);expect(next.input.articles).toEqual(old.input.articles);
 });
 it.each(['arabic-person-role-v1','source-bound-claims-v1','source-bound-claims-v2','source-bound-claims-v3'] as const)('freezes %s into a distinct input without rewriting source evidence',async policy=>{
@@ -50,7 +62,7 @@ it('opts new windows into general evidence bindings and durably reuses all four 
   else if(system.startsWith('Independently ')){const packet=JSON.parse(request.messages[1].content);expect(packet).not.toHaveProperty('sources');value={units:packet.units.map((u:any)=>({id:u.id,facets:[{id:u.id+'-F1',quote:u.text,claim:u.text,kind:'action'}]})),assertions:Object.fromEntries(packet.units.map((u:any)=>[u.id,[{tokens:{start:'T0',end:'T'+([...u.indexedText.matchAll(/\[T[0-9]+\]/g)].length-1)},kind:'action'}]]))}}
   else if(system.startsWith('You are a meticulous source-grounded')){const packet=JSON.parse(request.messages[1].content);value={results:packet.items.map((item:any,i:number)=>({i,inventory:'complete',verdict:'ok',issues:[],facets:packet.inventory.filter((f:any)=>f.item===i).map((f:any)=>({id:f.id,support:'supported',evidence:[{source:item.refs[0],quote:packet.evidencePassages.find((p:any)=>p.source===item.refs[0]).quote}],explanation:'Source supports the supplied assertion.'}))}))}}
   else value={items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['S1'],relation:'new',updates:null,importance:1}]};
-  return Response.json({id:'gen-general-'+calls.length,choices:[{message:{content:JSON.stringify(value)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+  return Response.json({id:'gen-general-'+calls.length,choices:[{message:{content:JSON.stringify(editorFixture(request,value))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
  const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true'},message={type:'v1_briefing' as const,feedId:'feed-1',window};
  const edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);expect(edition).toBeDefined();expect(calls).toHaveLength(4);
@@ -420,7 +432,7 @@ const fetcher=(seen:string[])=>async(_url:unknown,init?:RequestInit)=>{
  const verify=body.messages[0].content.includes('meticulous fact-checker')||body.messages[0].content.startsWith('You are an independent factual verifier.');
  const coverage=body.messages[0].content.startsWith('You audit source coverage');
  const content=coverage?{sources:JSON.parse(body.messages[1].content).sources.map((s:{ref:string;text:string})=>({ref:s.ref,stories:s.text.includes('Parliament approved')?[0]:[]}))}:verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Parliament approved banking reform legislation; presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
- return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
+ return Response.json({id:`gen-test-${seen.length}`,choices:[{message:{content:JSON.stringify(editorFixture(body,content))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
 };
 it.each(['body','headline'] as const)('keeps unrecoverable malformed V4 %s pending, never DONE/QUIET, and reuses its settled calls',async field=>{
  await article();const seen:any[]=[],message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
@@ -445,14 +457,14 @@ it('publishes a valid empty-string body after bounded correction with independen
   const body=JSON.parse(String(init?.body));seen.push(body);
   const draft={headline:'Banking reform approved; presidential approval remains required',sources:['S1'],relation:'new',updates:null,importance:1};
   const content=seen.length===3?{results:[{i:0,verdict:'ok'}]}:{items:[{...draft,...(seen.length===2?{body:''}:{})}]};
-  return Response.json({id:`gen-corrected-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+  return Response.json({id:`gen-corrected-${seen.length}`,choices:[{message:{content:JSON.stringify(editorFixture(body,content))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
  const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,corrected);
  expect(edition).toBeDefined();expect(seen).toHaveLength(3);expect(seen[1].messages[1].content).toContain('INVALID_ARTICLE_BODY');expect(seen[2].messages[0].content).toContain('meticulous fact-checker');
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'DONE',result:'PUBLISHED'});
 });
 it('keeps an explicit empty V4 selection a legitimate quiet completion',async()=>{
- await article();let calls=0;const empty=(async()=>{calls++;return Response.json({id:'gen-empty-selection',choices:[{message:{content:JSON.stringify({items:[],left_out:[{sources:['S1'],why:'No relevant new development.'}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});}) as typeof fetch;
+ await article();let calls=0;const empty=(async(_url:unknown,init?:RequestInit)=>{calls++;return Response.json({id:'gen-empty-selection',choices:[{message:{content:JSON.stringify(editorFixture(JSON.parse(String(init?.body)),{items:[],left_out:[{sources:['S1'],why:'No relevant new development.'}]}))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});}) as typeof fetch;
  expect(await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,empty)).toBeUndefined();expect(calls).toBe(1);
  expect(await store.read('feed-1','briefing_requests',await windowIdentity('feed-1',window))).toMatchObject({state:'DONE',result:'QUIET',reason:'NO_SELECTED_DEVELOPMENTS'});
 });
@@ -708,7 +720,7 @@ it('multi-chunk malformed consolidation cannot complete as quiet and reuses sett
   const ref=(request.messages[1].content.split('NEW ARTICLES')[1]??'').match(/\[(S\d+)\]/)?.[1];
   const content=editor?{items:[{headline:ref==='S1'?'Banking legislation approved':'Meteorite discovered beneath Antarctic ice',body:'Further details reported.',sources:[ref],relation:'new',importance:2}]}:
    {items:[{headline:'Banking legislation approved',body:null,from:[0],relation:'new',importance:2}],cut:[{from:[1],why:'Off topic'}]};
-  return Response.json({id:`gen-consolidation-${seen.length}`,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
+  return Response.json({id:`gen-consolidation-${seen.length}`,choices:[{message:{content:JSON.stringify(editorFixture(request,content))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
  const message={type:'v1_briefing' as const,feedId:'feed-1',window},id=await windowIdentity('feed-1',window);
  await expect(processV1Briefing(env,message,()=>window.end,undefined,provider)).rejects.toMatchObject({code:'TEMPORARY_UNAVAILABLE'});
@@ -732,7 +744,7 @@ it('large V3 batches serialize feed commits and can replay paid chunks without l
   if(body.messages[0].content.startsWith('You are the editor')){
    const chunk=body.messages[1].content.split('NEW ARTICLES')[1]??'',ref=chunk.match(/\[(S\d+)\]/)?.[1];
    const items=chunk.includes('Parliament approved')?[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:[ref],relation:'new',importance:1}]:[];
-   seen.push(JSON.stringify(body));return Response.json({id:'gen-chunk-'+seen.length,choices:[{message:{content:JSON.stringify({items})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
+   seen.push(JSON.stringify(body));return Response.json({id:'gen-chunk-'+seen.length,choices:[{message:{content:JSON.stringify(editorFixture(body,{items}))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
   }
   return fetcher(seen)(url,init);
  };
@@ -776,7 +788,7 @@ it('publishes verified available evidence while retaining a recoverable foreign-
 
 it('persists a verified complete headline without padding its body',async()=>{
  await article();const seen:string[]=[];
- const provider=async(_url:unknown,init?:RequestInit)=>{const request=JSON.parse(String(init?.body));seen.push(request.messages[0].content);const verify=request.messages[0].content.includes('meticulous fact-checker');return Response.json({id:'gen-headline-'+seen.length,choices:[{message:{content:JSON.stringify(verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Parliament approves banking reform; presidential approval still required',body:'',sources:['S1'],relation:'new',importance:1}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});};
+ const provider=async(_url:unknown,init?:RequestInit)=>{const request=JSON.parse(String(init?.body));seen.push(request.messages[0].content);const verify=request.messages[0].content.includes('meticulous fact-checker');return Response.json({id:'gen-headline-'+seen.length,choices:[{message:{content:JSON.stringify(editorFixture(request,verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Parliament approves banking reform; presidential approval still required',body:'',sources:['S1'],relation:'new',importance:1}]}))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});};
  const edition=await processV1Briefing(env,{type:'v1_briefing',feedId:'feed-1',window},()=>window.end,undefined,provider as typeof fetch);
  expect(edition?.stories).toHaveLength(1);expect(seen).toHaveLength(2);const published=await publicV1Edition(ctx.db,edition!.id);expect(published?.stories[0].claims[0].text.trim()).toBe('Parliament approves banking reform; presidential approval still required');
 },30000);
@@ -921,7 +933,7 @@ it('accounts the citation correction separately and reuses all settled calls on 
  const provider=async(_url:unknown,init?:RequestInit)=>{
   const request=JSON.parse(init!.body as string);requests.push(request);calls++;
   const content=calls===1?{items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['publisher-1'],relation:'new',importance:1}]}:request.messages[0].content.includes('meticulous fact-checker')?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['S1'],relation:'new',importance:1}]};
-  return Response.json({id:'gen-citation-'+calls,choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
+  return Response.json({id:'gen-citation-'+calls,choices:[{message:{content:JSON.stringify(editorFixture(request,content))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:0.001}});
  };
  const message={type:'v1_briefing' as const,feedId:'feed-1',window};
  await processV1Briefing(env,message,()=>window.end,undefined,provider as typeof fetch);
@@ -1127,13 +1139,13 @@ it('freezes complete accounting in new inputs and persists every source decision
  const edition=await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
  expect(edition).toBeDefined();
  const id=await windowIdentity('feed-1',window),snapshot=await store.read<any>('feed-1','v3_window_inputs',id),saved=await store.read<any>('feed-1','v3_window_results',id);
- expect(snapshot.editorAccountingPolicy).toBe('complete-source-decisions-v2');
+ expect(snapshot.editorAccountingPolicy).toBe('complete-source-decisions-v3');
  expect(snapshot.input.feed.verificationRecoveryPolicy).toBe('supported-core-v2');
  expect(seen.join('\n')).toContain('SUPPORTED-CORE VERIFICATION');
  expect(snapshot.editorSourcePolicy).toBe('all-supporting-sources-v1');expect(snapshot.citationCoverage).toBe(false);
  expect(saved.result.sourceDecisions).toHaveLength(snapshot.input.articles.length);
  expect(saved.result.sourceDecisions[0].outcomes).toContainEqual(expect.objectContaining({stage:'final',decision:'selected'}));
- expect(seen[0]).toContain('SOURCE ACCOUNTING CONTRACT');
+ expect(seen[0]).toContain('EXHAUSTIVE SOURCE DECISIONS');
  await processV1Briefing(env,message,()=>window.end,undefined,fetcher(seen) as typeof fetch);
  expect(seen).toHaveLength(2);expect(await store.read('feed-1','v3_window_results',id)).toEqual(saved);
 });

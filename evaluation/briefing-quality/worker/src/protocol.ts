@@ -19,7 +19,7 @@ export interface Coverage {priorIds?:string[];developmentId:string;status:'cover
 export interface ItemReview {item:number;relevance:'relevant'|'irrelevant'|'uncertain';repetition:'novel'|'necessary_update'|'repeated'|'uncertain';temporal:'correct'|'incorrect'|'uncertain';language:'correct'|'incorrect'|'uncertain';explanation:string}
 export interface Finding {category:'factual'|'citation'|'coverage'|'relevance'|'repetition'|'temporal'|'language';severity:'warning'|'error';item:number|null;explanation:string;evidence:Evidence[]}
 export interface Review {claims:Claim[];coverage:Coverage[];items:ItemReview[];findings:Finding[];limitations:string[]}
-export interface Request {system:string;user:string;schemaPolicy?:'source-inventory-v3'|'inventory-grounding-v1'|'grounded-review-v3'|'claim-inventory-audit-v1'|'omission-history-v1'}
+export interface Request {system:string;user:string;schemaPolicy?:'review-consistency-v2'|'source-inventory-v3'|'inventory-grounding-v1'|'grounded-review-v3'|'claim-inventory-audit-v1'|'omission-history-v1'}
 export function check(condition:unknown,message:string):asserts condition {if(!condition)throw Error(message)}
 const record=(x:unknown):Record<string,unknown>=>{check(x!==null&&typeof x==='object'&&!Array.isArray(x),'OBJECT_REQUIRED');return x as Record<string,unknown>};
 const array=(x:unknown):unknown[]=>{check(Array.isArray(x),'ARRAY_REQUIRED');return x};

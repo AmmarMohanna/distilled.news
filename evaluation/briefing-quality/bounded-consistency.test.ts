@@ -38,3 +38,12 @@ it('supplies the exact evidence-preserving resolution requirement for each adver
  await expect(consistentReview(c,d,bad,async request=>{packet=JSON.parse(request.user);return bad})).rejects.toThrow('CITED_SUPPORT_LABEL_CONTRADICTION');
  expect(packet.concernResolutionRequirements).toEqual([{concernKey:'citation:0:C1',ifClearedLimitationsPrefix:'CORRECTION_RECONSIDERED:citation:0:C1 ',requirement:expect.stringContaining('source-grounded')}]);
 });
+it('accepts an explicit structured resolution without relying on a magic prose prefix, retaining evidence checks',async()=>{
+ const bad=good();bad.claims[0].citationSupport='missing';const fixed={...good(),concern_resolutions:{'citation:0:C1':{decision:'reconsidered',reason:'Source a explicitly supports the unchanged court charge and is attached to this reader item.'}}};
+ const result=await consistentReview(c,d,bad,async()=>fixed);expect(result.correction?.reconsideredConcerns).toEqual(['citation:0:C1']);expect(result.correction?.replacementRawReview).toEqual(fixed);expect(result.review.limitations).toContain('CORRECTION_RECONSIDERED:citation:0:C1 '+fixed.concern_resolutions['citation:0:C1'].reason);
+ const renamed={...fixed,claims:[{...fixed.claims[0],id:'C99'}]};await expect(consistentReview(c,d,bad,async()=>renamed)).rejects.toThrow('CORRECTION_CLAIM_IDENTITY_LOST');
+});
+it('rejects a structured resolution that says retained while deleting the concern',async()=>{
+ const bad=good();bad.claims[0].citationSupport='missing';const fixed={...good(),concern_resolutions:{'citation:0:C1':{decision:'retained',reason:'The citation finding still requires additional current evidence and must remain uncertain.'}}};
+ await expect(consistentReview(c,d,bad,async()=>fixed)).rejects.toThrow('CORRECTION_RESOLUTION_CONTRADICTION');
+});

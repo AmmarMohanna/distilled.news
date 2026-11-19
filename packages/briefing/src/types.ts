@@ -11,6 +11,8 @@ export interface Article {
 }
 
 export interface FeedSpec {
+  /** Versioned proof-size batching; never removes reader items or evidence. */
+  verificationOutputPolicy?:'reader-load-batches-v1';
   /** New inputs use general evidence bindings. The Arabic marker is legacy replay only. */
   identityFidelityPolicy?: 'arabic-person-role-v1' | 'source-bound-claims-v1' | 'source-bound-claims-v2' | 'source-bound-claims-v3';
   /** What the reader follows, in the reader's own words. */

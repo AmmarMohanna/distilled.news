@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {openAiCompatibleModel,UsageMeter,callJson,extractJson,type ModelRequest} from '../../packages/briefing/src/model';
-import {consistentReview,mappedReviewRequest} from './worker/src/review-consistency';
+import {consistentReview,mappedReviewRequest,consistencySchema} from './worker/src/review-consistency';
 import {auditOmissionHistory,omissionHistorySchema} from './worker/src/omission-history';
 import {groundedReviewRequest,groundedReview,groundedMetrics} from './worker/src/grounding';
 import {groundedReviewSchema,claimInventoryAuditSchema} from './worker/src/schema';
@@ -174,7 +174,9 @@ if(mode==='reconcile-refusals'){
  const responseCache=new Map<string,{id:string;response:Awaited<ReturnType<ReturnType<typeof openAiCompatibleModel>['complete']>>}>();let nextDispatch=0;
  const historical=plan.historicalWritersHash?JSON.parse(fs.readFileSync(path.join(dir,'historical-writers.json'),'utf8')):[];
  if(plan.historicalWritersHash&&hash(historical)!==plan.historicalWritersHash)throw Error('HISTORICAL_WRITER_CHANGED');
- const portFor=(caseId:string,system:string)=>({complete:async(request:ModelRequest)=>{
+ const campaignInFlight=new Set<Promise<unknown>>();let providerTurn:Promise<unknown>=Promise.resolve();
+ const sequenced=<T>(work:()=>Promise<T>):Promise<T>=>{const task=providerTurn.then(work);providerTurn=task.catch(()=>{});campaignInFlight.add(task);void task.then(()=>campaignInFlight.delete(task),()=>campaignInFlight.delete(task));return task};
+ const portFor=(caseId:string,system:string)=>({complete:(request:ModelRequest)=>sequenced(async()=>{
   if(unresolved)throw Error('UNKNOWN_OPERATION_STOP');
   const requestHash=hash(request),cached=responseCache.get(requestHash);
   if(plan.forbiddenRequestHashes?.includes(requestHash))throw Error('HISTORICAL_UNKNOWN_REQUEST_FORBIDDEN');
@@ -198,7 +200,7 @@ if(mode==='reconcile-refusals'){
   try{const response=await inner.complete(request);responseCache.set(requestHash,{id,response});return response}catch(error){
    if(!received&&status!==undefined&&(status<500||status===503)&&(error as any)?.uncertain===false){held-=reserve;append({id,state:'REFUSED',status,costUsd:0,reserveUsd:reserve,error:String(error)});if(status===429)nextDispatch=Date.now()+45000}
    else if(!received){unresolved=true;append({id,state:'UNKNOWN',reserveUsd:reserve,error:String(error)})}throw error}
- }});
+ })});
  campaign:for(const c of cases)for(const system of (c as any).systems??plan.systems??['current','candidate']){
   const meter=new UsageMeter(),start=Date.now();let decisions:unknown,error:string|undefined,engineResult:any;
   try{const port=portFor(c.id,system);
@@ -209,7 +211,7 @@ if(mode==='reconcile-refusals'){
      if(!generated?.engineResult||generated.error)throw Error('ENGINE_RESULT_UNAVAILABLE');
      assessment.items=generated.engineResult.items.map((i:any)=>({headline:i.headline,body:i.body,sourceIds:i.sourceIds}));assessment.pipelineStatus=generated.engineResult.status;
     }
-    const send=async(q:any)=>{const response=await port.complete({model:plan.model,system:q.system,user:q.user,maxTokens:10000,responseSchema:q.schemaPolicy==='claim-inventory-audit-v1'?claimInventoryAuditSchema(q.user):q.schemaPolicy==='omission-history-v1'?omissionHistorySchema(q.user):groundedReviewSchema(q.user)});meter.add(response);if(response.finishReason==='length')throw Error('TRUNCATED_ASSESSMENT');return extractJson(response.text)};
+    const send=async(q:any)=>{const response=await port.complete({model:plan.model,system:q.system,user:q.user,maxTokens:10000,responseSchema:q.schemaPolicy==='review-consistency-v2'?consistencySchema(q.user):q.schemaPolicy==='claim-inventory-audit-v1'?claimInventoryAuditSchema(q.user):q.schemaPolicy==='omission-history-v1'?omissionHistorySchema(q.user):groundedReviewSchema(q.user)});meter.add(response);if(response.finishReason==='length')throw Error('TRUNCATED_ASSESSMENT');return extractJson(response.text)};
     if(system==='consistency')decisions=await consistentReview(assessment,inventory,spec.rawReview,send);
     else if(system==='history')decisions=await auditOmissionHistory(assessment,inventory,spec.rawReview,send);
     else {const response=await send(mappedReviewRequest(assessment,inventory)),review=await consistentReview(assessment,inventory,response,send),history=await auditOmissionHistory(assessment,inventory,review.review,send);const metrics=groundedMetrics(history.review,inventory,assessment),eligible=new Set(inventory.developments.filter((d:any)=>d.importance>=2&&d.relation!=='already_reported'&&!history.review.coverage.some((v:any)=>v.developmentId===d.id&&v.status==='already_reported')).map((d:any)=>d.id)),rows=history.review.coverage.filter((v:any)=>eligible.has(v.developmentId)),covered=rows.filter((v:any)=>v.status==='covered').length,uncertain=rows.filter((v:any)=>v.status==='uncertain').length;decisions={...review,preHistoryReview:review.review,...history,metrics:{...metrics,completionConditionedDevelopmentRecall:metrics.importantDevelopmentRecall,importantDevelopmentRecall:{numerator:covered,denominator:rows.length,value:rows.length?covered/rows.length:null},importantDevelopmentRecallBounds:{lower:rows.length?covered/rows.length:null,upper:rows.length?(covered+uncertain)/rows.length:null},recallAggregationPolicy:'uncertainty-in-denominator-v1'}};}
@@ -220,12 +222,13 @@ if(mode==='reconcile-refusals'){
     decisions=Object.fromEntries(c.items.map((_,i)=>[i,{verdict:blocked.has(i)?'fix':'ok',issues:blocked.has(i)?[blocked.get(i)]:[]} ]));
    }else if(system==='engine'){
     const frozen=c.engineSnapshot;if(!frozen)throw Error('ENGINE_SNAPSHOT_REQUIRED');
-    engineResult=await generateBriefing({...frozen.input,feed:{...frozen.input.feed,identityFidelityPolicy:plan.preserveFrozenInput?frozen.input.feed.identityFidelityPolicy:plan.atomicReaderAssertions?'source-bound-claims-v3':'source-bound-claims-v2'}},port,{...frozen.models,verifier:plan.model},{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,...(plan.engineOptions??{}),citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(frozen.input.windowEnd),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}});
+    engineResult=await generateBriefing({...frozen.input,feed:{...frozen.input.feed,...(plan.verificationOutputPolicy?{verificationOutputPolicy:plan.verificationOutputPolicy}:{}),identityFidelityPolicy:plan.preserveFrozenInput?frozen.input.feed.identityFidelityPolicy:plan.atomicReaderAssertions?'source-bound-claims-v3':'source-bound-claims-v2'}},port,{...frozen.models,verifier:plan.model},{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,...(plan.engineOptions??{}),citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(frozen.input.windowEnd),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}});
    }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(port,meter,{model:plan.model,independentSourceBindings:true,atomicReaderAssertions:plan.atomicReaderAssertions===true,language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
    else{const req=c.original??{model:plan.model,system:VERIFY_SYSTEM,user:JSON.stringify({language:c.language,items:c.items.map((i,index)=>({...i,i:index})),sources:c.sources,prior:c.prior,context:c.context}),maxTokens:3000};
     decisions=await callJson(port,meter,req,raw=>{const rows=(raw as any)?.results;if(!Array.isArray(rows)||rows.length!==c.items.length)throw Error('MISSING_ITEM');const out:Record<number,unknown>={};for(const r of rows){if(!Number.isInteger(r.i)||r.i<0||r.i>=c.items.length||out[r.i]||!['ok','fix','drop','redundant'].includes(r.verdict)||r.issues!==undefined&&(!Array.isArray(r.issues)||r.issues.some((x:unknown)=>typeof x!=='string')))throw Error('INVALID_DECISION');out[r.i]=r}return out});
    }
   }catch(e){error=String(e)}
+  while(campaignInFlight.size)await Promise.allSettled([...campaignInFlight]);
   const journalRows=fs.existsSync(journal)?fs.readFileSync(journal,'utf8').trim().split('\n').map(line=>JSON.parse(line)):[],ids=new Set(journalRows.filter(r=>r.state==='RESERVED'&&r.caseId===c.id&&r.system===system).map(r=>r.id)),receipts=journalRows.filter(r=>r.state==='SETTLED'&&ids.has(r.id)),paidUsage={calls:receipts.length,inputTokens:receipts.reduce((n,r)=>n+r.inputTokens,0),outputTokens:receipts.reduce((n,r)=>n+r.outputTokens,0),costUsd:receipts.reduce((n,r)=>n+r.costUsd,0)};
   const row={caseId:c.id,system,decisions,error,engineResult,usage:engineResult?.usage??meter.usage,paidUsage,latencyMs:Date.now()-start};outcomes.push(row);write(path.join(dir,c.id+'.'+system+'.outcome.json'),row);console.log(JSON.stringify({caseId:c.id,system,error,usage:row.usage,paidUsage,status:engineResult?.status,items:engineResult?.items?.length,latencyMs:row.latencyMs}));
   if(unresolved)break campaign;
