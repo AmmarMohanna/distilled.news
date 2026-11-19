@@ -1,4 +1,5 @@
-import {afterAll,beforeAll,beforeEach,expect,it} from 'vitest';
+import {afterAll,beforeAll,beforeEach,expect,it,vi} from 'vitest';
+import * as sourceAvailability from './connector-availability';
 import {createIntakeDatabase} from './v1-intake/test-utils';
 import {createApp,etagMatches} from './app';
 import {D1Repository} from './repository';
@@ -13,6 +14,16 @@ let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,ownerId:string;
 beforeAll(async()=>{ctx=await createIntakeDatabase({product:true});ownerId=(await seedQaShape(ctx.db,SHAPE)).owner.id;});
 afterAll(async()=>{await ctx?.dispose();});
 beforeEach(()=>resetFeedReadCacheForTests());
+
+it('does not run owner-only source diagnostics for an anonymous cold reader',async()=>{
+ const spy=vi.spyOn(sourceAvailability,'feedSourceAvailability').mockRejectedValue(new Error('D1_ERROR: diagnostics unavailable'));
+ try{const response=await read(0,true);expect(response.status).toBe(200);expect((await response.json() as any).editions.length).toBeGreaterThan(0);expect(spy).not.toHaveBeenCalled();}finally{spy.mockRestore();}
+});
+it('preserves published data and explicitly reports unavailable source diagnostics to its owner',async()=>{
+ const owner=await new D1Repository(ctx.db).getAccountById(ownerId),cookie=`dn_session=${await createSession('cache-secret',owner!)}`;
+ const spy=vi.spyOn(sourceAvailability,'feedSourceAvailability').mockRejectedValue(new Error('D1_ERROR: diagnostics unavailable'));
+ try{for(const cache of [true,false]){const response=await read(0,cache,{headers:{cookie}});expect(response.status).toBe(200);const body=await response.json() as any;expect(body.editions.length).toBeGreaterThan(0);expect(body.sourceHealthUnavailable).toBe(true);expect(body).not.toHaveProperty('sourceAvailability');}}finally{spy.mockRestore();}
+});
 
 const env=(db:D1Database,cache:boolean,extra:Partial<Env>={})=>({DB:db,ADMIN_SESSION_SECRET:'cache-secret',PRODUCT_FEEDS_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',
  BRIEFING_ENGINE:'v3',FEED_READ_CACHE_ENABLED:cache?'true':'false',...extra}) as unknown as Env;

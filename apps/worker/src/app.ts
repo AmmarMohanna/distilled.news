@@ -1397,7 +1397,6 @@ export function createApp(options: AppOptions = {}) {
         cachedProductEditions(env, briefing.id, version),
         cachedFeedStatus(env, briefing.id, version, async () => {
           const value = {
-            sourceAvailability: await feedSourceAvailability(env, briefing.id),
             publicationState: await productPublicationState(env, briefing.id),
             publicationProgress: await productPublicationProgress(env, briefing.id)
           };
@@ -1410,8 +1409,10 @@ export function createApp(options: AppOptions = {}) {
       const publicFeed = publicBriefing(briefing);
       // The cached status is shared by every viewer; source diagnostics are removed
       // per request so readers never receive them, and the tag covers only what is sent.
-      const { sourceAvailability, ...readerStatus } = status.value.value;
-      const feedStatus = await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? { sourceAvailability: await withCollectionAlerts(env, briefing.id, sourceAvailability), ...readerStatus } : readerStatus;
+      const diagnostics = await viewerSeesSourceHealth(c, briefing.ownerAccountId)
+        ? await readSourceDiagnostics(env,briefing.id,version)
+        : {};
+      const feedStatus = { ...status.value.value, ...diagnostics };
       const statusHash = fnv1a(JSON.stringify(feedStatus));
       // Content-derived, so every isolate computes the same tag for the same response.
       const etag = `W/"${version}-${fnv1a([published.hash, statusHash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
@@ -1433,7 +1434,7 @@ export function createApp(options: AppOptions = {}) {
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
-      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await withCollectionAlerts(c.env,briefing.id,await feedSourceAvailability(c.env,briefing.id)) : undefined,
+      ...(c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await readSourceDiagnostics(c.env,briefing.id) : {}),
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
@@ -1719,6 +1720,14 @@ export function createApp(options: AppOptions = {}) {
 
   type FeedAccess={public_feed_enabled:number;owner_account_id:string;disabled_at:string|null};
   /** The latest-100 published list, shared by the feed page, edition detail and search. */
+  async function readSourceDiagnostics(env:Env,feedId:string,version?:number){
+    try{
+      const sources=version===undefined?await feedSourceAvailability(env,feedId):(await cachedFeedStatus(env,feedId,version,()=>feedSourceAvailability(env,feedId),'source-diagnostics')).value;
+      return {sourceAvailability:await withCollectionAlerts(env,feedId,sources)};
+    }
+    catch{console.warn(JSON.stringify({type:'SOURCE_DIAGNOSTICS_READ_FAILED',feedId}));return {sourceHealthUnavailable:true as const};}
+  }
+
   async function cachedProductEditions(env:Env, feedId:string, version:number) {
     const { value } = await cachedFeedEditions(feedId, version, async () => {
       const records = await publishedProductEditionRecords(env, feedId);

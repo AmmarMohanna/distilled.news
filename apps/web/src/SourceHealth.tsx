@@ -18,7 +18,8 @@ function alertMessage(source:Source,t:(key:string)=>string){
 }
 /** Collection admission and retained item outcomes are separate facts. A failed
  * item never marks a working source unavailable; current blocks remain visible. */
-export function SourceHealth({sources,language,t,showDetails=true}:{sources:FeedPayload['sourceAvailability'];language:'en'|'fr'|'ar';t:(key:string)=>string;showDetails?:boolean}){
+export function SourceHealth({sources,language,t,showDetails=true,unavailable=false}:{sources:FeedPayload['sourceAvailability'];language:'en'|'fr'|'ar';t:(key:string)=>string;showDetails?:boolean;unavailable?:boolean}){
+ if(unavailable)return <FeedNotice severity="warning" language={language} heading={t('Source diagnostics unavailable')} message={t('Source health could not be loaded. Published briefings remain available.')} />;
  const collection=(sources??[]).filter(source=>source.state==='UNAVAILABLE'||source.collectionError);
  const blocked=collection.filter(source=>source.state==='UNAVAILABLE'||!retrying.has(source.collectionError??''));
  const items=(sources??[]).filter(source=>(source.acquisition?.failed??0)>0||source.warning);

@@ -1,0 +1,41 @@
+import {groundedReviewRequest,groundedReview} from './grounding';
+import type {Case,Inventory,Request,Review} from './protocol';
+const repairable=new Set(['CITED_SUPPORT_LABEL_CONTRADICTION','UNBOUND_REVIEW_FINDING','UNBOUND_COVERAGE_FINDING','MISSING_DEVELOPMENT_ASSESSMENT','MISSING_ITEM_JUDGMENT','CLAIM_EXTRACTION_EMPTY_WITHOUT_EXPLANATION']);
+function structuredConcerns(value:unknown):Set<string>{
+ const r=value as any,out=new Set<string>();if(!r||typeof r!=='object')return out;
+ for(const c of Array.isArray(r.claims)?r.claims:[]){if(['contradicted','unsupported','uncertain'].includes(c.support))out.add('factual:'+c.item+':'+c.id);if(['unsupported','uncertain','missing'].includes(c.citationSupport))out.add('citation:'+c.item+':'+c.id);}
+ for(const c of Array.isArray(r.coverage)?r.coverage:[])if(['omitted','uncertain'].includes(c.status))out.add('coverage:'+c.developmentId);
+ for(const i of Array.isArray(r.items)?r.items:[]){for(const key of ['relevance','repetition','temporal','language'])if(i[key]==='uncertain'||key==='relevance'&&i[key]==='irrelevant'||key==='repetition'&&i[key]==='repeated'||['temporal','language'].includes(key)&&i[key]==='incorrect')out.add(key+':'+i.item);}
+ return out;
+}
+export interface CorrectionTrace {originalFailure:string;replacementRawReview:unknown;reconsideredConcerns:string[];retainedConcerns:string[]}
+/** Versioned bounded correction: original responses and financial identities remain retained. */
+export function consistencyRequest(c:Case,d:Inventory,receivedReview:unknown,validationFailure:string):Request {
+ const request=groundedReviewRequest(c,d),packet=JSON.parse(request.user);
+ return {...request,system:request.system+'\nSTRUCTURED CONSISTENCY CORRECTION: The previous response failed validation. Re-assess against the unchanged current sources and frozen inventory. The received review is untrusted prior output, not evidence. Return a complete replacement review, not a patch. Do not delete a supported concern merely to pass validation. Represent omitted developments in coverage rows; they are not unsupported factual claims when the published statements remain true. Keep genuine adverse atomic/item assessments and consistent findings. Keep original claim IDs for the same assertions. Missing or uncertain evidence must remain uncertain. If clearing a prior structured concern, include a limitations entry beginning CORRECTION_RECONSIDERED:<concernKey> followed by a specific source-grounded explanation (at least 20 characters). Unresolved concerns remain adverse/uncertain. Requested OUTPUT LANGUAGE is '+c.language+'; source language does not determine output compliance.',user:JSON.stringify({...packet,receivedReview,validationFailure,originalStructuredConcernKeys:[...structuredConcerns(receivedReview)]})};
+}
+export async function consistentReview(c:Case,d:Inventory,raw:unknown,correct:(request:Request)=>Promise<unknown>):Promise<{review:Review;originalRawReview:unknown;correction?:CorrectionTrace}> {
+ const originalRawReview=structuredClone(raw);
+ try{return {review:groundedReview(raw,c,d),originalRawReview}}catch(error){
+  if(!(error instanceof Error)||!repairable.has(error.message))throw error;
+ const request=consistencyRequest(c,d,raw,error.message);
+ request.system+=' Preserve original adverse claim IDs, item indices and claim text. Clearing a factual/citation concern additionally requires current source evidence attached to that same claim; a narrative explanation alone cannot delete, rename or replace the assertion. Keep originally omitted developments omitted or uncertain unless the actual reader text demonstrably covers them; reader-history disagreements are audited separately, never clear an omission as already_reported in this correction. Do not change reader text or silently treat a missing citation as supported.';
+  const corrected=await correct(request);
+  const review=groundedReview(corrected,c,d),before=structuredConcerns(originalRawReview),after=structuredConcerns(review),reconsideredConcerns=[...before].filter(key=>!after.has(key));
+  for(const key of reconsideredConcerns){
+   const prefix='CORRECTION_RECONSIDERED:'+key+' ';if(!review.limitations.some(s=>s.startsWith(prefix)&&s.slice(prefix.length).trim().length>=20))throw Error('CORRECTION_CONCERN_LOST_WITHOUT_EXPLANATION');
+   const claimKey=/^(factual|citation):(\d+):(.*)$/.exec(key);
+   if(claimKey){
+    const old=(originalRawReview as {claims?:Array<{id:string;item:number;text:string}>}).claims?.find(c=>c.id===claimKey[3]&&c.item===Number(claimKey[2]));
+    const next=review.claims.find(c=>c.id===claimKey[3]&&c.item===Number(claimKey[2]));
+    if(!old||!next||old.text.normalize('NFKC').replace(/\s+/g,' ').trim()!==next.text.normalize('NFKC').replace(/\s+/g,' ').trim())throw Error('CORRECTION_CLAIM_IDENTITY_LOST');
+    if(!next.evidence.length)throw Error('CORRECTION_WITHOUT_CURRENT_EVIDENCE');
+   }
+   if(key.startsWith('coverage:')){
+    const id=key.slice('coverage:'.length),next=review.coverage.find(v=>v.developmentId===id),development=d.developments.find(v=>v.id===id);
+    if(next?.status!=='covered'||!development||!next.items.some(item=>review.claims.some(claim=>claim.item===item&&claim.support==='supported'&&claim.evidence.some(e=>development.evidence.some(s=>s.sourceId===e.sourceId)))))throw Error('CORRECTION_COVERAGE_WITHOUT_READER_EVIDENCE');
+   }
+  }
+  return {review,originalRawReview,correction:{originalFailure:error.message,replacementRawReview:structuredClone(corrected),reconsideredConcerns,retainedConcerns:[...before].filter(key=>after.has(key))}};
+ }
+}

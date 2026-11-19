@@ -1,6 +1,8 @@
 // Only product copy belongs here. User names, feed titles, source text and input
 // values are rendered directly and never passed through this dictionary.
 export const interfaceTranslations: Record<string, [string, string]> = {
+  'Source diagnostics unavailable': ['Diagnostic des sources indisponible', 'تعذّر تحميل تشخيص المصادر'],
+  'Source health could not be loaded. Published briefings remain available.': ['Impossible de charger l’état des sources. Les bulletins publiés restent disponibles.', 'تعذّر تحميل حالة المصادر. تبقى النشرات المنشورة متاحة.'],
   'Some source checks timed out or could not finish. Try searching again.': ['Certaines vérifications ont expiré ou n’ont pas pu aboutir. Relancez la recherche.', 'انتهت مهلة التحقق من بعض المصادر أو تعذّر إكماله. أعد البحث.'],
   '{count} users': ['Utilisateurs : {count}', 'المستخدمون: {count}'],
   '{count} feeds': ['Fils : {count}', 'الخلاصات: {count}'],

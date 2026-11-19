@@ -147,5 +147,5 @@ export class BriefingBudgetError extends Error {
 
 /** Received replies exhausted JSON/schema correction, including truncation; no unknown provider outcome. */
 export class BriefingOutputError extends BriefingModelError {
- constructor(message:string){super(message,true);}
+ constructor(message:string,readonly validationFailure?:string){super(message,true);}
 }

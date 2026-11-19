@@ -27,6 +27,11 @@ import {recoverPendingProviderGenerations} from './provider-recovery';
 import type {Env} from '../types';
 
 const window={start:'2026-10-03T12:00:00Z',end:'2026-10-03T12:30:00Z',kind:'30M' as const};
+it('versions new accounting and selection recovery without changing an old frozen input',async()=>{
+ await article();const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,undefined,'preserve-selected-developments-v1');
+ expect(old.editorFailurePolicy).toBe('isolate-unusable-chunks-v1');expect(old.editorSelectionPolicy).toBeUndefined();expect(next.editorFailurePolicy).toBe('isolate-unaccounted-sources-v2');expect(next.fingerprint).not.toBe(old.fingerprint);expect(next.input.articles).toEqual(old.input.articles);
+});
 it.each(['arabic-person-role-v1','source-bound-claims-v1','source-bound-claims-v2','source-bound-claims-v3'] as const)('freezes %s into a distinct input without rewriting source evidence',async policy=>{
  await article();
  const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
