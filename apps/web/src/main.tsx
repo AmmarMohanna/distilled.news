@@ -11,6 +11,7 @@ import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./
 import { BriefingText } from "./BriefingText";
 import React, { useEffect, useRef, useState } from "react";
 import { FeedNotice } from "./FeedNotice";
+import { FeedReaderStatus } from "./FeedReaderStatus";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { FeedArt } from "./FeedArt";
 import { UnreadSummary } from './UnreadSummary';
@@ -1884,7 +1885,7 @@ function FeedPage(props: { username: string; slug: string }) {
       ) : null}
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
       {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
-      {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
+      <FeedReaderStatus payload={payload} isAdmin={sessionState === "authenticated" && account?.role === "admin"} language={language} t={t}/>
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>

@@ -15,8 +15,8 @@ it.each(['en','ar','fr'] as const)('pending correction is a warning, preserves e
 it('does not assert available editions when the API returned none',async()=>{
  await render(<FeedPublicationNotice publicationState="correction_pending" hasPublishedEditions={false} language="en"/>,host=>expect(host.textContent).toBe('Correction pendingA correction to an earlier briefing is pending.'));
 });
-it.each(['en','ar','fr'] as const)('failed windows do not show operational errors to readers (%s)',async language=>{
- await render(<><FeedPublicationNotice publicationState="failed" hasPublishedEditions language={language}/><article>Published story</article></>,host=>{expect(host.querySelector('.feed-publication-status')).toBeNull();expect(host.querySelector('[role="status"]')).toBeNull();expect(host.textContent).toBe('Published story')});
+it('failed window does not label readable Feed unavailable',async()=>{
+ await render(<FeedPublicationNotice publicationState="failed" hasPublishedEditions language="en"/>,host=>{expect(host.querySelector('.feed-publication-status')?.textContent).toContain('Briefing delayed');expect(host.querySelector('h2')).toBeNull();expect(host.textContent).toContain('Published briefings remain available.')});
 });
 it('actual read error retains unavailable heading and alert severity',async()=>{
  await render(<FeedNotice message="Feed could not be loaded." language="en"/>,host=>{expect(host.querySelector('h2')?.textContent).toBe('feed unavailable');expect(host.querySelector('[role="alert"]')).not.toBeNull()});
@@ -32,8 +32,10 @@ it('processing shows actual review counts and updates without pretending publica
 });
 it.each(['en','ar','fr'] as const)('publishing displays its stage without stale review counters (%s)',async language=>{await render(<FeedProcessingProgress progress={{stage:'PUBLISHING',acquisition:{completed:1,total:1,failed:0},review:{completed:1,total:1,failed:0},pending:0}} language={language}/>,host=>{expect(host.querySelector('[role="status"]')).not.toBeNull();expect(host.textContent).not.toContain('1 / 1');expect(host.textContent?.length).toBeGreaterThan(5);});});
 
-it('does not show retrieval failures in the reader',async()=>{
+it('reports a single retrieval failure without calling the briefing delayed',async()=>{
  await render(<FeedPublicationNotice publicationState="partial" hasPublishedEditions={false} language="en"/>,host=>{
-  expect(host.children).toHaveLength(0);
+  expect(host.textContent).toContain('No new developments in the sources we could check.');
+  expect(host.textContent).toContain('One article could not be retrieved.');
+  expect(host.textContent).not.toContain('Briefing delayed');
  });
 });
