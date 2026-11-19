@@ -11,6 +11,7 @@ import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./
 import { BriefingText } from "./BriefingText";
 import { CitationReference } from "./CitationReference";
 import { BriefingReadMore } from "./BriefingReadMore";
+import { VerificationCodeInput } from "./VerificationCodeInput";
 import React, { useEffect, useRef, useState } from "react";
 import { FeedNotice } from "./FeedNotice";
 import { FeedReaderStatus } from "./FeedReaderStatus";
@@ -746,11 +747,7 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           <button type="button" className="quiet-icon" aria-label={t(showPassword ? "Hide password" : "Show password")} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
         </div>{(mode === "register" || props.setupRequired) && <span className="field-help">{t("At least 8 characters")}</span>}</div>
       ) : null}
-      {authStep==="code" && <label className="auth-input">
-        <span className="sr-only">{t("Verification code")}</span>
-        <input required dir="ltr" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false}
-          placeholder={t("Verification code")} value={emailCode} maxLength={40} onChange={event=>setEmailCode(event.target.value)} />
-      </label>}
+      {authStep==="code" && <VerificationCodeInput value={emailCode} onChange={setEmailCode} label={t("Verification code")} language={preferredLanguage()}/>}
       {(authStep === "details" || authStep === "code") && requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
