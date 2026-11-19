@@ -161,6 +161,36 @@ it('rejects invalid maintenance bounds before changing budgets or scheduling wor
  await expect(runConnectorMaintenance(env)).rejects.toThrow('INVALID_POLL_RUNNER_BOUNDS');
  expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_provider_poll_jobs').first()).toEqual({n:0});
 });
+it('spaces new LinkedIn windows after a confirmed monthly provider cap',async()=>{
+ const locator='https://www.linkedin.com/company/nvidia/';
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,actor_id,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('linkedin-source','feed-1','NVIDIA','channel','apify','linkedin_company',?,?,?,1,'connector',?,?,?)").bind(locator,'linkedin: '+locator,TESTED_ACTORS.linkedin_company,testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
+ const queued={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:'linkedin-source',APIFY_API_TOKEN:'fixture',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{"linkedin_apify":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"apify":0.25}'};
+ const schedule=(time:string)=>runConnectorMaintenance(queued,new Date(time),{scheduleOnly:true});
+ await schedule('2026-10-03T12:00:00Z');
+ const result=JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'BUDGET_EXCEEDED',diagnostic:{detail:'PROVIDER_MONTHLY_USAGE_LIMIT'}}]});
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='BLOCKED',last_error='BUDGET_EXCEEDED',result=?").bind(result).run();
+ expect((await schedule('2026-10-03T12:05:00Z'))?.scheduled).toHaveLength(0);
+ expect((await schedule('2026-10-03T13:00:00Z'))?.scheduled).toHaveLength(1);
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_poll_jobs WHERE state='BLOCKED'").first()).toEqual({n:1});
+});
+it('schedules a fresh website poll without Zyte while a scoped paid outcome is unresolved',async()=>{
+ const locator='https://nowlebanon.com/';
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('website-source','feed-1','Now Lebanon','channel','web','web_page',?,?,1,'connector',?,?,?)").bind(locator,locator,testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
+ const queued={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:'website-source',ZYTE_API_KEY:'fixture',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0.05}'};
+ const backend=createConnectorRuntime(queued);
+ const {scope}=await enrollV1Source(ctx.db,'website-source','owner-1',testPolicy.now());
+ const old={...request,scope:{feedId:scope.feedId,feedSourceId:scope.feedSourceId,sourceId:scope.sourceId},configurationRevision:scope.feedRevision,runId:'held-website',source:{family:'website',locator} as const};
+ await backend.scheduler.schedule(old.runId,old,'2026-10-03T11:55:00Z');
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='BLOCKED',last_error='UNCERTAIN_PAID_SUBMISSION' WHERE job_id=?").bind(old.runId).run();
+ await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,feed_id,feed_source_id,headers) VALUES('zyte','held-payment','hash',0.05,-1,'feed-1','website-source','{}')").run();
+ await runConnectorMaintenance(queued,new Date('2026-10-03T12:00:00Z'),{scheduleOnly:true});
+ const polls=await ctx.db.prepare("SELECT state,last_error,provider_order FROM connector_provider_poll_jobs ORDER BY scheduled_at").all();
+ expect(polls.results).toEqual([
+  {state:'BLOCKED',last_error:'UNCERTAIN_PAID_SUBMISSION',provider_order:JSON.stringify(['website_http','website_playwright','website_zyte'])},
+  {state:'PENDING',last_error:null,provider_order:JSON.stringify(['website_http','website_playwright'])},
+ ]);
+ expect(await ctx.db.prepare("SELECT status,ceiling_usd FROM connector_provider_operations WHERE operation_id='held-payment'").first()).toEqual({status:-1,ceiling_usd:0.05});
+});
 it('reuses the winning durable provider order when funding changes race with initial scheduling',async()=>{
  const r:SourceFetchRequest={...request,source:{family:'website',locator:'https://example.com/article'},limit:1};
  let reads=0;

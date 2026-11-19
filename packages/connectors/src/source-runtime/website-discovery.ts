@@ -12,6 +12,8 @@ function publisherListing(url:URL):RegExp|undefined {
  if(host==='deepmind.google'&&(path==='/blog'||path==='/discover/blog'))return /^\/blog\/[^/]+\/?$/;
  if(host==='onthewire.ai'&&path==='')return /^\/article\/[^/]+\/?$/;
  if(host==='inference.report'&&(path===''||path==='/archive'))return /^\/archive\/\d{4}-\d{2}-\d{2}\/?$/;
+ if(host==='almodon.com'&&path==='')
+  return /^\/[^/]+\/\d{4}\/\d{2}\/\d{2}\/[^/]+\/?$/;
 }
 
 /** Fetch the dated index for the rolling Inference Report homepage. */
@@ -31,7 +33,11 @@ export function isWebsiteListingUrl(value:string):boolean {
  if(host==='jpost.com'&&['/mdaheroes','/podcast','/american-politics','/diaspora','/judaism','/christianworld','/food-recipes','/archaeology','/science','/israel-news/culture','/history','/omg','/travel'].includes(path))return true;
  if(host==='thenationalnews.com'&&(['/business','/arts-culture','/magazine'].includes(path)||/^\/podcasts\/(?:beyond-the-headlines|culture-bites|business-extra|tarab)$/.test(path)))return true;
  if(host==='lbcgroup.tv'&&(/^\/(?:news-highlights|latest-news)\/(?:ar|en)$/.test(path)||/^\/news-bulletin(?:\/[^/]+)*\/(?:ar|en)$/.test(path)))return true;
- if(host==='almodon.com'&&path==='/politics')return true;
+ if(host==='almodon.com'&&/^\/(?:politics|economy|arabworld|society|opinion|culture|media|video|infograph)$/.test(path))return true;
+ if(host==='lorientlejour.com'||host==='today.lorientlejour.com'){
+  if(path===''||/^\/(?:rubrique|boutique|archives-index)(?:\/|$)/.test(path))return true;
+  if(['/cuisine-liban-a-table','/editorials','/dessins','/portfolios'].includes(path))return true;
+ }
  // Al Arabiya stories always carry a /YYYY/MM/DD/ path; its undated links
  // (/aswaq/microscope, /aswaq/economy, ...) are section pages, not stories.
  if((host==='alarabiya.net'||host.endsWith('.alarabiya.net'))&&!/\/\d{4}\/\d{2}\/\d{2}\//.test(path+'/'))return true;

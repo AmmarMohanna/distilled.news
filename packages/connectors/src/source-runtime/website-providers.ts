@@ -129,7 +129,7 @@ export class WebsiteSourceProvider implements SourceProvider {
         requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
     const result=record(catalogue?.pageKind==='catalogue'?catalogue:await executeSource(this.execution,'extract',{url,html}));
-    const links=Array.isArray(result.articleLinks)?[...new Set(result.articleLinks.filter((v):v is string=>typeof v==='string').map(v=>articleUrl(v)).filter((v):v is string=>!!v&&new URL(v).origin===new URL(url).origin&&v!==url))]:[];
+    const links=Array.isArray(result.articleLinks)?[...new Set(result.articleLinks.filter((v):v is string=>typeof v==='string').map(v=>articleUrl(v)).filter((v):v is string=>!!v&&new URL(v).origin===new URL(url).origin&&v!==url&&!isWebsiteListingUrl(v)))]:[];
     const landing=new URL(url).pathname==='/';
     if(links.length&&(result.pageKind==='listing'||landing&&result.pageKind!=='catalogue')){
       const offset=input.continuation?Number(input.continuation.token):0;

@@ -13,6 +13,22 @@ it('discovers the Al Modon politics section even when its page metadata says art
  ]);
  expect(isWebsiteListingUrl(first)).toBe(false);
 });
+it('treats the Al Modon homepage as an index even when its first story marks the page as an article',()=>{
+ const home='https://www.almodon.com/';
+ const html='<meta property="og:type" content="article"><main><article><h1>Featured report</h1><p>Article teaser.</p></article><a href="/economy">Economy</a><a href="/author/132265/reporter">Reporter</a><a href="/politics/2026/11/19/real-story">Real report</a></main>';
+ expect(discoverWebsiteArticles(html,home)?.articles).toEqual([{url:home+'politics/2026/11/19/real-story',title:'Real report'}]);
+});
+it('excludes L’Orient sections and donation links while preserving actual articles',()=>{
+ const home='https://www.lorientlejour.com/';
+ const sections=['rubrique/1-liban','rubrique/31-technologies','editorials','dessins','cuisine-liban-a-table','boutique/?action=donate'];
+ for(const section of sections)expect(isWebsiteListingUrl(home+section),section).toBe(true);
+ expect(isWebsiteListingUrl('https://today.lorientlejour.com/portfolios')).toBe(true);
+ const article=home+'article/1499000/report.html';
+ const html='<main>'+sections.map(section=>'<h2><a href="/'+section+'">Section</a></h2>').join('')+'<h2><a href="'+article+'">Actual report</a></h2></main>';
+ expect(discoverWebsiteArticles(html,home)?.articles).toEqual([{url:article,title:'Actual report'}]);
+ expect(isWebsiteListingUrl(article)).toBe(false);
+ expect(isWebsiteListingUrl('https://today.lorientlejour.com/article/1499001/report.html')).toBe(false);
+});
 it('keeps undated Al Arabiya section links out of article discovery',()=>{
  const section='https://www.alarabiya.net/aswaq';
  const story=section+'/oil-and-gas/2026/11/15/%D8%A3%D8%B3%D8%B9%D8%A7%D8%B1-%D8%A7%D9%84%D9%86%D9%81%D8%B7';

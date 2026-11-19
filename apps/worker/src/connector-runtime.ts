@@ -167,6 +167,19 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   const table=request.source.family==='rss'?'connector_rss_poll_jobs':'connector_provider_poll_jobs';
   const existing=await env.DB.prepare(`SELECT job_id FROM ${table} WHERE job_id=?`).bind(request.runId).first();
   if(existing){scheduled.push({id:request.runId,scheduler:request.source.family==='rss'?'rss':'provider',sourceId:id});if(request.source.family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now);continue;}
+  if(paidFamily.startsWith('linkedin_')){
+   // A confirmed provider cap is account-side. Space fresh attempts while
+   // preserving the last failure and all existing poll and payment identities.
+   const since=new Date(now.getTime()-3_600_000).toISOString();
+   const capped=await env.DB.prepare(`SELECT 1 FROM (
+     SELECT state,last_error,result FROM connector_provider_poll_jobs
+     WHERE json_extract(request,'$.scope.feedSourceId')=? AND state IN ('DONE','BLOCKED') AND scheduled_at>?
+     ORDER BY CASE WHEN state IN ('DONE','BLOCKED') OR last_error NOT IN ('INTAKE_BUSY','BACKPRESSURE') THEN 0 ELSE 1 END,
+       scheduled_at DESC,job_id DESC LIMIT 1
+   ) WHERE state='BLOCKED' AND last_error='BUDGET_EXCEEDED'
+   AND json_extract(result,'$.attempts[#-1].diagnostic.detail')='PROVIDER_MONTHLY_USAGE_LIMIT'`).bind(id,since).first();
+   if(capped)continue;
+  }
   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&['x_profile','x_search'].includes(request.source.family)){
    // Coalescing must happen before freezing a later window: the first scan
    // still owns the source and its captured pages until it settles.
@@ -184,7 +197,8 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
     const family=request.source.family;
     const order=family==='telegram'?['telegram_telethon','telegram_public']:
       family==='google_news'?['google_rss',...(budgets.google_apify>0&&ceilings.apify>0?['google_apify']:[])]:
-      family==='website'?['website_http','website_playwright',...(budgets.zyte>0&&ceilings.zyte>0?['website_zyte']:[])]:
+      family==='website'?['website_http','website_playwright',...(budgets.zyte>0&&ceilings.zyte>0&&
+        !await hasUncertainSourcePayment(env.DB,row.briefing_id,id,['zyte'],true)?['website_zyte']:[])]:
       family.startsWith('linkedin_')?['linkedin_apify']:
       ['x_twitterapi_io','x_apify'].filter(provider=>provider==='x_twitterapi_io'?budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0:budgets.x_apify>0&&ceilings.apify>0);
     await scheduleProviderWindow(env.DB,backend.scheduler,request,now,order);

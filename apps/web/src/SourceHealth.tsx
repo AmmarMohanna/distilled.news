@@ -6,7 +6,8 @@ import {sourceAcquisitionMessage} from './source-acquisition-messages';
 type Source=NonNullable<FeedPayload['sourceAvailability']>[number];
 const retrying=new Set(['TRANSIENT','RATE_LIMIT','INTAKE_BUSY','BACKPRESSURE','TEMPORARY_UNAVAILABLE']);
 function collectionMessage(source:Source,t:(key:string)=>string){
- if(source.state==='UNAVAILABLE')return t(source.reason==='PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'?'Paid collection is not authorized or configured.':source.reason==='PAID_OPERATION_UNCERTAIN'?'A previous paid request needs reconciliation before collection can continue.':source.reason==='BUDGET_EXHAUSTED'?'The authorized collection budget is exhausted.':'Source collection is unavailable.');
+ if(source.collectionError==='PROVIDER_MONTHLY_USAGE_LIMIT')return t('The collection provider has reached its monthly usage limit.');
+ if(source.state==='UNAVAILABLE')return t(source.reason==='PAID_PROVIDER_NOT_AUTHORIZED_OR_CONFIGURED'?'Paid collection is not authorized or configured.':source.reason==='PAID_OPERATION_UNCERTAIN'?'A previous paid request needs reconciliation before paid collection can resume.':source.reason==='BUDGET_EXHAUSTED'?'The authorized collection budget is exhausted.':'Source collection is unavailable.');
  return t(source.collectionError==='RATE_LIMIT'?'Collection is waiting for the provider rate limit.':source.collectionError&&retrying.has(source.collectionError)?'Collection is waiting for processing capacity.':source.collectionError==='MALFORMED'?'The publisher response could not be read as a supported article or listing.':'The latest collection attempt failed.');
 }
 function itemMessages(source:Source,t:(key:string)=>string){

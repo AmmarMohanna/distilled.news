@@ -12,7 +12,7 @@ it('keeps saved item failures accessible but collapsed without a current outage 
  await render([source],host=>{expect(host.querySelector('[role="status"]')).toBeNull();expect(host.querySelector('[role="alert"]')).toBeNull();expect(host.querySelector('details')?.open).toBe(false);expect(host.querySelector('summary')?.textContent).toBe('Source details');expect(host.textContent).toContain('earlier failed attempts');expect(host.textContent).toContain('waiting for confirmation of an earlier paid request');expect(host.textContent).toContain('indexes or section listings');});
 });
 it('still warns for an actual collection block, including unresolved paid collection',async()=>{
- await render([{...source,state:'UNAVAILABLE',reason:'PAID_OPERATION_UNCERTAIN'}],host=>{expect(host.querySelector('[role="status"]')).not.toBeNull();expect(host.textContent).toContain('Source collection needs attention');expect(host.textContent).toContain('needs reconciliation before collection can continue');expect(host.querySelector('details')?.open).toBe(false);});
+ await render([{...source,state:'UNAVAILABLE',reason:'PAID_OPERATION_UNCERTAIN'}],host=>{expect(host.querySelector('[role="status"]')).not.toBeNull();expect(host.textContent).toContain('Source collection needs attention');expect(host.textContent).toContain('needs reconciliation before paid collection can resume');expect(host.querySelector('details')?.open).toBe(false);});
 });
 it('shows automatic recovery waits in details without an outage warning',async()=>{
  await render([{...source,collectionError:'BACKPRESSURE'}],host=>{expect(host.querySelector('[role="status"]')).toBeNull();expect(host.textContent).toContain('waiting for processing capacity');});
