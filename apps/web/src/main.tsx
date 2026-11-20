@@ -12,6 +12,7 @@ import { BriefingText } from "./BriefingText";
 import { CitationReference } from "./CitationReference";
 import { BriefingReadMore } from "./BriefingReadMore";
 import { VerificationCodeInput } from "./VerificationCodeInput";
+import { VerifiedEmailError } from "./VerifiedEmailError";
 import React, { useEffect, useRef, useState } from "react";
 import { FeedNotice } from "./FeedNotice";
 import { FeedReaderStatus } from "./FeedReaderStatus";
@@ -616,10 +617,12 @@ function AdminCommandPanel(props: {
 
 export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
   const { t } = useLanguage();
+  const params = new URLSearchParams(window.location.search);
+  const initialMode = props.setupRequired || params.has("signup") ? "register" : params.has("reset-password") ? "forgot" : "login";
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "register" : "login");
-  const [authStep, setAuthStep] = useState<"email" | "details" | "code">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "details" : "email");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(initialMode);
+  const [authStep, setAuthStep] = useState<"email" | "details" | "code">(initialMode === "login" ? "email" : "details");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -756,7 +759,11 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
       {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
-        {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
+        {error ? <p className="auth-error" role="alert">{typeof error !== "string" && error.id === "AUTH_EMAIL_ALREADY_VERIFIED"
+          ? <VerifiedEmailError language={preferredLanguage()} onNavigate={nextMode => {
+            clearVerificationRecovery(); setMode(nextMode); setAuthStep("details"); setPassword(""); setEmailCode(""); setError(""); setMessage(""); resetTurnstile();
+          }}/>
+          : t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
       <div className="auth-verification-actions">
       {!props.setupRequired && mode==="register" && authStep==="details" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
