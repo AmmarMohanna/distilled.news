@@ -28,16 +28,10 @@ for(const language of ['en','fr','ar'])test(`each supporting source opens separa
  await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
  await first.locator('.briefing-read-more > summary').click();
  await expect(first.locator('.briefing-expanded-text')).toContainText('First explanation.');
- await first.locator('.briefing-extra-sources').click();
- const dialog=page.locator('.news-briefing-dialog');
- await expect(dialog.locator('.news-briefing-publisher')).toHaveText('Publisher 1');
- await dialog.locator('.news-briefing-references button').nth(2).click();
- await expect(dialog.locator('.news-briefing-publisher')).toHaveText('Publisher 3');
- await expect(dialog.locator('.news-briefing-read')).toHaveAttribute('href','https://publisher3.example/article');
- await expect(dialog.locator('.news-briefing-additional-sources')).toHaveCount(0);
- await dialog.locator('.news-briefing-references button').nth(1).click();
- await expect(dialog.locator('.news-briefing-publisher')).toHaveText('Publisher 2');
- await expect(dialog.locator('.news-briefing-read')).toHaveAttribute('href','https://publisher2.example/article');
- await dialog.locator('.news-briefing-header > button').click();
+ await expect(first.locator('.briefing-extra-sources')).toHaveCount(0);
+ for(let index=0;index<3;index++){
+  await expect(first.locator('.briefing-reference').nth(index)).toHaveAttribute('href',`https://publisher${index+1}.example/article`);
+ }
+ await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
  await expect(page.locator('.news-story').nth(1).locator('.briefing-reference')).toHaveAttribute('href','https://publisher4.example/article');
 });
