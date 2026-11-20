@@ -38,11 +38,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade 
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY patches ./patches
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/worker/package.json ./apps/worker/package.json
 COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
+COPY packages/briefing/package.json ./packages/briefing/package.json
 COPY packages/browser-bridge/package.json ./packages/browser-bridge/package.json
 COPY packages/connectors/package.json ./packages/connectors/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/core/package.json ./packages/core/package.json
 
 # The bridge runs directly from the reviewed TypeScript source using the

@@ -4,14 +4,30 @@ on:
     paths:
       - apps/worker/browser-container.Dockerfile
       - packages/browser-bridge/**
+      - packages/agent-runtime/**
+      - 'apps/*/package.json'
+      - 'packages/*/package.json'
+      - package.json
       - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - patches/**
+      - tsconfig.base.json
+      - .dockerignore
       - .github/workflows/security-container-validation.yml
   push:
     branches: [main, ghada/DevSecOps, ghada/devsecops-security-automation]
     paths:
       - apps/worker/browser-container.Dockerfile
       - packages/browser-bridge/**
+      - packages/agent-runtime/**
+      - 'apps/*/package.json'
+      - 'packages/*/package.json'
+      - package.json
       - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - patches/**
+      - tsconfig.base.json
+      - .dockerignore
       - .github/workflows/security-container-validation.yml
   workflow_dispatch:
 permissions:
