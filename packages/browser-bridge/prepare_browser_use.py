@@ -1,0 +1,50 @@
+"""Prepare audited upstream sources with patched runtime dependency pins."""
+
+import hashlib
+import io
+import sys
+import tarfile
+from pathlib import Path
+from urllib.request import urlopen
+
+
+def prepare(directory: Path, source: str, version: str, url: str, digest: str, pins: dict[str, str]) -> None:
+    with urlopen(url, timeout=60) as response:
+        archive = response.read()
+    if hashlib.sha256(archive).hexdigest() != digest:
+        raise ValueError(f"Unexpected source digest for {source} {version}")
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as package:
+        package.extractall(directory, filter="data")
+
+    manifest = directory / f"{source}-{version}" / "pyproject.toml"
+    content = manifest.read_text(encoding="utf-8")
+    for old, new in {f'version = "{version}"': f'version = "{version}+distilled.1"', **pins}.items():
+        if old not in content:
+            raise ValueError(f"Expected pin is missing from {manifest}: {old}")
+        content = content.replace(old, new)
+    manifest.write_text(content, encoding="utf-8")
+
+
+if __name__ == "__main__":
+    destination = Path(sys.argv[1])
+    prepare(
+        destination,
+        "browser_harness",
+        "0.1.13",
+        "https://files.pythonhosted.org/packages/7f/fe/59ab493e7cf76731a7f5aabae3821eea6ea82a628c14c30e7aed48adc362/browser_harness-0.1.13.tar.gz",
+        "284dc547a042c309feafd9a9f4a74b2a8651b7963ea3ac6cb2f2d64889f6a8f3",
+        {"pillow==12.3.0": "pillow==13.0.0"},
+    )
+    prepare(
+        destination,
+        "browser_use",
+        "0.13.14",
+        "https://files.pythonhosted.org/packages/a2/eb/6b9183ec63541c2c7c1a87c30d142806e7fe3a95748ce95f8e37dcab2335/browser_use-0.13.14.tar.gz",
+        "9bb2f3d7ea215bf67b415c8e6e546413a3712ac5ea775b223b452189f4582d9d",
+        {
+            "browser-harness==0.1.13": "browser-harness==0.1.13+distilled.1",
+            "anyio==4.12.1": "anyio==4.14.2",
+            "pillow==12.3.0": "pillow==13.0.0",
+            "pypdf==6.16.2": "pypdf==6.21.4",
+        },
+    )

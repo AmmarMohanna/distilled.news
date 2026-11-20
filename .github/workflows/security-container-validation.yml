@@ -51,6 +51,47 @@ jobs:
       - name: Verify non-root account and package-manager-free runtime
         run: |
           docker run --rm --entrypoint sh distilled-browser-security:ci -c 'test "$(id -u)" -eq 1001 && test "$(id -g)" -eq 1001 && test ! -d /opt/corepack/v1/pnpm && test ! -d /usr/lib/node_modules/npm && node --import tsx --eval "console.log(\"TSX_LOADER_OK\")" | grep -Fx TSX_LOADER_OK'
+      - name: Verify Chromium and Python runtime dependencies offline
+        run: |
+          set -euo pipefail
+          docker run --rm -i --network none --entrypoint node distilled-browser-security:ci --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { chromium } from '@playwright/test';
+          for (const launchOptions of [{}, { executablePath: process.env.DISTILLED_BROWSER_USE_CHROMIUM }]) {
+            const browser = await chromium.launch(launchOptions);
+            try {
+              const page = await browser.newPage();
+              await page.setContent('<title>Browser image smoke test</title>');
+              assert.equal(await page.title(), 'Browser image smoke test');
+              assert.ok((await page.screenshot()).length > 0);
+            } finally {
+              await browser.close();
+            }
+          }
+          JS
+          docker run --rm -i --network none --entrypoint /opt/distilled-browser-use/bin/python distilled-browser-security:ci - <<'PY'
+          from importlib.metadata import version
+          from io import BytesIO
+          import anyio
+          from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult
+          from PIL import Image
+          from pypdf import PdfReader, PdfWriter
+
+          assert version("anyio") == "4.14.2"
+          assert version("pillow") == "13.0.0"
+          assert version("pypdf") == "6.21.4"
+          anyio.run(anyio.sleep, 0)
+          image = BytesIO()
+          Image.new("RGB", (2, 2), "red").save(image, format="PNG")
+          image.seek(0)
+          assert Image.open(image).getpixel((0, 0)) == (255, 0, 0)
+          pdf = BytesIO()
+          writer = PdfWriter()
+          writer.add_blank_page(width=72, height=72)
+          writer.write(pdf)
+          pdf.seek(0)
+          assert len(PdfReader(pdf).pages) == 1
+          PY
       - name: Launch local bridge and check health (no outside traffic)
         run: |
           set -euo pipefail
