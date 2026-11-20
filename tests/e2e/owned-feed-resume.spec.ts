@@ -28,13 +28,13 @@ const cards=(page:Page)=>page.locator('.home-view .personal-feed-grid');
 test('new private feed appears on resume without reload or duplicate reads',async({page})=>{
  const state=await mock(page);await page.goto('/');
  await expect(cards(page).getByText(existing.title,{exact:true})).toBeVisible();
- await expect.poll(()=>state.sources).toEqual(['existing']);
+ expect(state.sources).toEqual([]);
  state.feeds=[added,existing];let release!:()=>void;state.hold=new Promise<void>(resolve=>{release=resolve;});
  await page.evaluate(()=>{window.dispatchEvent(new Event('focus'));window.dispatchEvent(new Event('online'));window.dispatchEvent(new Event('pageshow'));document.dispatchEvent(new Event('visibilitychange'));});
  await expect.poll(()=>state.reads,{timeout:3000}).toBe(2);
  state.hold=undefined;release();
  await expect(cards(page).getByText(added.title,{exact:true})).toBeVisible();
- expect(state.reads).toBe(2);expect(state.sources).toEqual(['existing']);expect(state.writes).toBe(0);
+ expect(state.reads).toBe(2);expect(state.sources).toEqual([]);expect(state.writes).toBe(0);
 });
 
 test('an empty owned list can discover the first externally created feed',async({page})=>{

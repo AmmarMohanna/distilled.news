@@ -39,3 +39,20 @@ it('financial reconciliation denies anonymous and nonoperator sessions without r
  for(const headers of [new Headers(),new Headers({cookie})])for(const method of ['GET','POST'])expect((await app.request('/api/admin/model-spending/semantic_intents:op/reconciliation?accountId=account',{method,headers},env)).status).toBe(401);
  expect(queries).toBe(0);
 });
+
+it('runs at most two traces at once per isolate and answers 429 with Retry-After beyond that',async()=>{
+ const repo=new InMemoryRepository(),app=createApp({repository:repo});
+ let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+ const statement={bind(){return statement},async all(){await gate;return {results:[]}},async first(){await gate;return null}};
+ const env={ADMIN_SESSION_SECRET:'trace-cap',DB:{prepare:()=>statement}} as unknown as Env;
+ const admin=await repo.createAccount({email:'cap@test.invalid',username:'cap',role:'admin',passwordHash:'test-only'});
+ const headers={cookie:'dn_session='+await createSession(env.ADMIN_SESSION_SECRET!,admin)};
+ const path='/api/admin/briefings/feed-1/pipeline-trace';
+ const first=app.request(path,{headers},env),second=app.request(path,{headers},env);
+ await new Promise(resolve=>setTimeout(resolve,20));
+ const third=await app.request(path,{headers},env);
+ expect(third.status).toBe(429);expect(third.headers.get('Retry-After')).toBe('2');
+ release();
+ expect((await first).status).not.toBe(429);expect((await second).status).not.toBe(429);
+ expect((await app.request(path,{headers},env)).status).not.toBe(429);
+});

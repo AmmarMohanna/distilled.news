@@ -29,3 +29,20 @@ it('keeps a settled failure counted against the fixed model-call envelope',async
   expect(await raw.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first('n')).toBe(1);
  }finally{await mf.dispose()}
 });
+
+it('applies the same scope, cost and model guards to TRACK_ONLY reservations with a literal NULL authorization',async()=>{
+ const mf=new Miniflare({modules:true,script:'export default {fetch(){return new Response()}}',d1Databases:['DB']});
+ try{
+  const raw=await mf.getD1Database('DB') as unknown as D1Database;
+  await raw.exec("CREATE TABLE v1_model_spending_guards(id TEXT PRIMARY KEY,valid INTEGER CHECK(valid=1)); CREATE TABLE v1_model_spending_reservations(id TEXT PRIMARY KEY,account_id TEXT,authorization_id TEXT,token TEXT,model TEXT,feed_id TEXT,reserved_cost_usd REAL,lease_until INTEGER,created_at TEXT,json TEXT); CREATE TABLE v1_model_spending_settlements(id TEXT PRIMARY KEY,cost_usd REAL,reported INTEGER);");
+  const feed='staging-fresh-tracking',db=stagingMissionDb(raw,feed,.20,undefined,{m:2});
+  const reserve=(id:string,cost:number,scope=feed,model='m')=>db.batch([db.prepare('INSERT INTO v1_model_spending_reservations VALUES(?,?,NULL,?,?,?,?,?,?,?)').bind(id,'a','t',model,scope,cost,0,'now','{}')]);
+  await reserve('first',.12);
+  await expect(reserve('over-budget',.09)).rejects.toThrow();
+  await expect(reserve('wrong-feed',.01,'another')).rejects.toThrow('SCOPE_MISMATCH');
+  await expect(reserve('wrong-model',.01,feed,'other')).rejects.toThrow('MISSION_MODEL_OPERATION_LIMIT_INVALID');
+  await raw.prepare('INSERT INTO v1_model_spending_settlements VALUES(?,0.01,1)').bind('first').run();
+  await reserve('second',.12);await expect(reserve('extra-call',.01)).rejects.toThrow();
+  expect(await raw.prepare('SELECT COUNT(*) n FROM v1_model_spending_reservations').first('n')).toBe(2);
+ }finally{await mf.dispose()}
+});

@@ -16,6 +16,6 @@ export function InstallDialog({ status, error, onInstalled, onClose }: { status:
   return <Dialog label={t("Install app")} className="settings-status-dialog install-status-dialog" onClose={onClose}><section className="dialog-inner">
     <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={onClose}><X size={22}/></button>
     <span className={`install-status-icon ${successful ? "success" : ""}`} aria-hidden="true">{successful ? <Check size={32}/> : <Smartphone size={32}/>}</span>
-    <h2>{t("Install app")}</h2><p role="status">{t(message)}</p>
+    <h2>{t("Install app")}</h2><p className={status === "error" ? "error" : undefined} role={status === "error" ? "alert" : "status"}>{t(message)}</p>
   </section></Dialog>;
 }

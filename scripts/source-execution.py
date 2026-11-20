@@ -5,6 +5,7 @@ import datetime
 import ipaddress
 import json
 import html
+import http.client
 import os
 import re
 import socket
@@ -32,6 +33,52 @@ def public_url(url):
     if not addresses or any(not ipaddress.ip_address(answer[4][0]).is_global for answer in addresses):
         raise ValueError('NONPUBLIC_ADDRESS')
     # DNS validation is secondary; the required host egress firewall blocks DNS rebinding.
+
+
+def ipv4_first_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
+    """Keep every public DNS answer, but try working IPv4 before slow IPv6.
+
+    This is used only by opted-in anonymous HTTPS openers, not by Telegram,
+    browser sessions or the process-wide resolver. The egress firewall remains required.
+    """
+    addresses = socket.getaddrinfo(address[0], address[1], 0, socket.SOCK_STREAM)
+    if not addresses or any(not ipaddress.ip_address(answer[4][0]).is_global for answer in addresses):
+        raise ValueError('NONPUBLIC_ADDRESS')
+    last_error = None
+    for family, kind, protocol, _, target in sorted(addresses, key=lambda answer: answer[0] != socket.AF_INET):
+        connection = None
+        try:
+            connection = socket.socket(family, kind, protocol)
+            if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                connection.settimeout(timeout)
+            if source_address:
+                connection.bind(source_address)
+            connection.connect(target)
+            return connection
+        except OSError as error:
+            last_error = error
+            if connection:
+                connection.close()
+    if last_error:
+        raise last_error
+    raise OSError('SOURCE_CONNECTION_FAILED')
+
+
+class SourceHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = ipv4_first_connection
+
+
+class SourceHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, request):
+        return self.do_open(SourceHTTPSConnection, request, context=self._context)
+
+
+def source_opener(*handlers):
+    if os.environ.get('SOURCE_HTTP_IPV4_FIRST') == 'true':
+        return urllib.request.build_opener(*handlers, SourceHTTPSHandler())
+    return urllib.request.build_opener(*handlers)
 
 
 def parse_feed(data):
@@ -226,7 +273,7 @@ def fetch_public_article(data):
         def redirect_request(self, *args): return None
     try:
         request = urllib.request.Request(url, headers={'Accept': 'text/html,application/xhtml+xml'})
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=15) as response:
+        with source_opener(NoRedirect()).open(request, timeout=15) as response:
             if response.status != 200:
                 return {'status': response.status}
             content_type = response.headers.get('Content-Type', '').lower()
@@ -248,6 +295,35 @@ def fetch_public_article(data):
         return {'error': 'TRANSIENT', 'failureOrigin': 'upstream_transport'}
 
 
+def fetch_public_feed(data):
+    """One bounded anonymous HTTPS RSS fetch, with no redirect or paid provider."""
+    started = time.monotonic()
+    url = data.get('url', '')
+    parsed = urlsplit(url)
+    if (parsed.scheme != 'https' or not parsed.hostname or parsed.port or parsed.username or parsed.password
+            or parsed.fragment or len(url) > 2048):
+        raise ValueError('INVALID_PUBLIC_FEED')
+    if os.environ.get('SOURCE_BROWSER_EGRESS_CONFIRMED') != 'true':
+        return {'error': 'UNAVAILABLE'}
+    public_url(url)
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args): return None
+
+    try:
+        request = urllib.request.Request(url, headers={'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml'})
+        with source_opener(NoRedirect()).open(request, timeout=12) as response:
+            body = response.read(2000001)
+            if len(body) > 2000000:
+                return {'error': 'FEED_TOO_LARGE'}
+            return {'status': response.status, 'xml': body.decode('utf-8'), 'requests': 1,
+                    'latencyMs': int((time.monotonic() - started) * 1000)}
+    except urllib.error.HTTPError as error:
+        return {'status': error.code, 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000)}
+    except (OSError, TimeoutError):
+        return {'error': 'TRANSIENT', 'requests': 1, 'latencyMs': int((time.monotonic() - started) * 1000)}
+
+
 def fetch_google_feed(data):
     """Bounded public Google feed fallback; no publisher or arbitrary URL fetch."""
     started = time.monotonic()
@@ -260,7 +336,7 @@ def fetch_google_feed(data):
         def redirect_request(self, *args): return None
     public_url(data['url'])
     try:
-        with urllib.request.build_opener(NoRedirect()).open(urllib.request.Request(data['url'], headers={'Accept': 'application/rss+xml,application/xml'}), timeout=10) as response:
+        with source_opener(NoRedirect()).open(urllib.request.Request(data['url'], headers={'Accept': 'application/rss+xml,application/xml'}), timeout=10) as response:
             body = response.read(2000001)
             if len(body) > 2000000:
                 raise ValueError('GOOGLE_FEED_TOO_LARGE')
@@ -301,7 +377,7 @@ def resolve_google_article(data):
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args):
             return None
-    opener = urllib.request.build_opener(NoRedirect())
+    opener = source_opener(NoRedirect())
     def read(request):
         nonlocal requests
         remaining = budget - (time.monotonic() - started)
@@ -366,8 +442,14 @@ def resolve_google_articles(data):
         parsed = urlsplit(url)
         if parsed.scheme != 'https' or parsed.netloc != 'news.google.com' or not re.fullmatch(r'/(?:rss/)?articles/[A-Za-z0-9_-]{1,2000}', parsed.path):
             raise ValueError('INVALID_GOOGLE_ARTICLE')
+    budget = data.get('timeoutSeconds', 35)
+    if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not 1 <= budget <= 35:
+        raise ValueError('INVALID_GOOGLE_BATCH_TIMEOUT')
+    max_fresh = data.get('maxFreshDecodes', 30)
+    if isinstance(max_fresh, bool) or not isinstance(max_fresh, int) or not 1 <= max_fresh <= 60:
+        raise ValueError('INVALID_GOOGLE_BATCH_LIMIT')
     started = time.monotonic()
-    deadline = started + 35
+    deadline = started + budget
     results = {}
     cache = None
     try:
@@ -389,12 +471,13 @@ def resolve_google_articles(data):
     pending = {}
     unresolved = [url for url in urls if url not in results]
     # Reading cached URLs spans later snapshot pages. Network work still starts
-    # at most thirty fresh decodes under the same concurrency and time budget.
-    remaining = iter(unresolved[:30])
+    # Legacy collection keeps thirty fresh decodes; search explicitly requests
+    # up to sixty under the same six-thread concurrency and stage deadline.
+    remaining = iter(unresolved[:max_fresh])
     try:
-        for _ in range(min(6, len(unresolved))):
+        for _ in range(min(6, len(unresolved), max_fresh)):
             url = next(remaining)
-            pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': 16})] = url
+            pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': min(16, max(1, deadline-time.monotonic()))})] = url
         while pending:
             done, _ = wait(pending, timeout=max(0, deadline-time.monotonic()), return_when=FIRST_COMPLETED)
             if not done:
@@ -408,7 +491,7 @@ def resolve_google_articles(data):
                 if time.monotonic() < deadline:
                     url = next(remaining, None)
                     if url:
-                        pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': 16})] = url
+                        pending[pool.submit(resolve_google_article, {'url': url, 'timeoutSeconds': min(16, max(1, deadline-time.monotonic()))})] = url
         # Only six requests can remain in flight. Finish those bounded requests;
         # do not enqueue more work after the stage deadline. The parent process
         # has a separate hard timeout and kills its entire process group.
@@ -712,6 +795,8 @@ async def main():
         result = await asyncio.to_thread(resolve_google_articles if 'urls' in inputs else resolve_google_article, inputs)
     elif kind == 'google_feed':
         result = await asyncio.to_thread(fetch_google_feed, inputs)
+    elif kind == 'public_feed':
+        result = await asyncio.to_thread(fetch_public_feed, inputs)
     elif kind == 'public_article':
         result = await asyncio.to_thread(fetch_public_article, inputs)
     elif kind == 'playwright':

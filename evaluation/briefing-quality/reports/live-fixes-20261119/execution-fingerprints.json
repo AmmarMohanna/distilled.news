@@ -1,0 +1,38 @@
+{
+  "paidExecutionBundles": [
+    {
+      "file": ".local-reports/integration/qualify-live-fixes.mjs",
+      "sha256": "ffe2276ec02ba9381ae1d395ec4f9fc462d3bfe0babe125b7747853137dff2db"
+    },
+    {
+      "file": ".local-reports/integration/qualify-live-fixes-v2.mjs",
+      "sha256": "ba8d5f3a3de5e579f5faa5d24ec71ef7b3e1e1239f9ad192db71f4655c6ce7a9"
+    },
+    {
+      "file": ".local-reports/integration/qualify-live-fixes-v3.mjs",
+      "sha256": "1b737679cd350467e1bd657ea85ba329a9053b6a976d29b3a219f77e710ec7ed"
+    }
+  ],
+  "committedCandidateSources": [
+    {
+      "file": "packages/briefing/src/novelty.ts",
+      "sha256": "f576cc9591ded6bec2546bf476fb3764ef33fb8c7df482520cdc4dfbf29bc4ff"
+    },
+    {
+      "file": "evaluation/briefing-quality/worker/src/review-consistency.ts",
+      "sha256": "84faaf2eb9694683feaa34c98f2c6047ca16440bf5e6f879a5e660f2f1f4d1e8"
+    },
+    {
+      "file": "evaluation/briefing-quality/worker/src/index.ts",
+      "sha256": "c9033cb6e54962b36ed4698cbc3bee8db7e65bade066f4cea5f7405293d7434e"
+    },
+    {
+      "file": "evaluation/briefing-quality/worker/src/budget.ts",
+      "sha256": "a1a3478779dbaa2e8c22d9c917b6c81e9110fab58170adaa45b24a9ae822de79"
+    },
+    {
+      "file": "evaluation/briefing-quality/qualify-source-bindings.ts",
+      "sha256": "789332d877c9a73984176c3b7c9a3596b3211f48f32f8d49f10ff52e51a28b5a"
+    }
+  ]
+}

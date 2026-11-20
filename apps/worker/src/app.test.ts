@@ -9,6 +9,7 @@ import { enqueueDueSourceRefreshJobs, pollApifySourceRuns, refreshSourceById } f
 import type { BriefingEdition, BriefingItem, EventReviewAdapter, NormalizedMessage, SummaryAdapter } from "@distilled/core";
 import type { DistilledQueueMessage, Env, ProcessingJobMessage } from "./types";
 import {rememberSourceAssessment} from './source-assessment-cache';
+import * as searchRelevance from './source-search-relevance';
 
 class FakeBucket {
   objects = new Map<string, string>();
@@ -81,6 +82,29 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it.each([1,50,75])('marks whether the legacy feed snapshot covers searchable history (%s editions)',async(count)=>{
+    const repo=new InMemoryRepository(),app=createApp({repository:repo});
+    const user=await createVerifiedUser(app,repo,'history@example.invalid','History Owner');
+    const briefing=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+    for(let i=0;i<count;i++){
+      const at=new Date(Date.now()-(i+1)*60000).toISOString();
+      await repo.saveBriefingEdition({id:'history-'+i,briefingId:briefing.id,cadence:'hourly',windowStart:at,windowEnd:at,title:'Archive development '+i,summary:'The coastal road reopened after an overnight security closure.',sections:[{title:'Infrastructure',summary:'The coastal road reopened after an overnight security closure.',evidence:[]}],status:'published',publishedAt:at,createdAt:at,updatedAt:at});
+    }
+    const response=await app.request('/api/feed/history-owner/personal',{},env());expect(response.status).toBe(200);
+    const payload=await response.json() as {editionsComplete:boolean;publicationVersion:string;editions:unknown[]};
+    expect(payload.editions).toHaveLength(Math.min(count,50));expect(payload.editionsComplete).toBe(count<=50);expect(payload.publicationVersion).toEqual(expect.any(String));
+    expect((await(await app.request('/api/feed/history-owner/personal',{},env())).json() as typeof payload).publicationVersion).toBe(payload.publicationVersion);
+    const search=await app.request('/api/feed/history-owner/personal/search?q=coastal',{},env());
+    expect((await search.json() as {editions:unknown[]}).editions).toHaveLength(count);
+    if(count===75){
+      const old=(await repo.getBriefingEdition(briefing.id,'history-74'))!;
+      await repo.saveBriefingEdition({...old,status:'empty',updatedAt:new Date().toISOString()});
+      const changed=await(await app.request('/api/feed/history-owner/personal',{},env())).json() as typeof payload;
+      expect(changed.editions).toEqual(payload.editions);expect(changed.publicationVersion).not.toBe(payload.publicationVersion);
+      const after=await(await app.request('/api/feed/history-owner/personal/search?q=coastal',{},env())).json() as {editions:Array<{id:string}>};
+      expect(after.editions.some(edition=>edition.id===old.id)).toBe(false);
+    }
+  });
   it('rejects invalid retrieval budgets and never spends on an ordinary blocked source check',async()=>{
     const fetcher=vi.fn<typeof fetch>(async()=>new Response('Blocked',{status:403})),app=createApp({repository:new InMemoryRepository(),fetcher});
     const target={...env(),SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_PAID_VERIFICATION_ENABLED:'true',OPENROUTER_API_KEY:'test',ZYTE_API_KEY:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0.05}'};
@@ -120,6 +144,8 @@ describe("worker app accounts", () => {
     expect(fetcher).toHaveBeenCalledTimes(30);
   });
   it('accepts topic-scoped search in a POST body and excludes off-topic indexed articles',async()=>{
+    const relevance=vi.spyOn(searchRelevance,'alignedSearchResults').mockResolvedValueOnce({results:[],unavailable:false});
+    try{
     const fetcher=vi.fn<typeof fetch>(async()=>new Response('<rss><channel><item><guid>1</guid><title>AI workforce trends</title><link>https://news.google.com/rss/articles/1</link><source url="https://publisher.example">Publisher</source></item></channel></rss>'));
     const app=createApp({repository:new InMemoryRepository(),fetcher}),target={...env(),SOURCE_RECOMMENDATIONS_WEB_SEARCH:'true'};
     const setup=await app.request('/api/auth/setup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'topic@example.com',username:'topic-search',password:'password123',setupToken:'setup-token'})},target);
@@ -128,7 +154,9 @@ describe("worker app accounts", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({results:[],topicMismatch:true});
     expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(relevance).toHaveBeenCalledWith(target,'AI',{title:'Ammar Mohanna',description:'Latest news about Ammar Mohanna'},expect.arrayContaining([expect.objectContaining({title:'AI workforce trends'})]),fetcher,expect.any(String));
     expect((await app.request('/api/me/sources/search',{method:'POST',headers,body:JSON.stringify({q:'AI',title:'Ammar'})},target)).status).toBe(400);
+    }finally{relevance.mockRestore();}
   });
   it("sets up the first verified admin account and session", async () => {
     const repo = new InMemoryRepository();
@@ -278,20 +306,23 @@ describe("worker app accounts", () => {
     );
     expect(rejectedLogin.status).toBe(403);
 
-    const verifyToken = tokenFromMessage(email.messages[0].text);
+    const verifyCode = codeFromMessage(email.messages[0].text);
     const verifyResponse = await app.request(
       "/api/auth/verify-email",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: verifyToken })
+        body: JSON.stringify({ email:"user@test.com", code:verifyCode })
       },
       env(email)
     );
     expect(verifyResponse.status).toBe(200);
     const verifiedAccount=(await repo.getAccountByEmail('user@test.com'))!;
     expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
-    const sessionHeaders={cookie:verifyResponse.headers.get('set-cookie')!.split(';')[0]};
+    expect(verifyResponse.headers.get('set-cookie')).toBeNull();
+    const explicitLogin=await app.request('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'user@test.com',password:'password123'})},env(email));
+    expect(explicitLogin.status).toBe(200);
+    const sessionHeaders={cookie:explicitLogin.headers.get('set-cookie')!.split(';')[0]};
     expect(await (await app.request('/api/me/briefings',{headers:sessionHeaders},env(email))).json()).toEqual({briefings:[]});
     // Legacy source/health reads cannot create the old default feed either.
     for(const path of ['/api/me/sources','/api/me/health'])expect((await app.request(path,{headers:sessionHeaders},env(email))).status).toBe(404);
@@ -302,18 +333,13 @@ describe("worker app accounts", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: verifyToken })
+        body: JSON.stringify({ email:"user@test.com", code:verifyCode })
       },
       env(email)
     );
-    expect(repeatedVerifyResponse.status).toBe(200);
+    expect(repeatedVerifyResponse.status).toBe(400);
+    expect(repeatedVerifyResponse.headers.get("set-cookie")).toBeNull();
     expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
-    expect(await repeatedVerifyResponse.json()).toMatchObject({
-      account: {
-        email: "user@test.com",
-        emailVerifiedAt: expect.any(String)
-      }
-    });
 
     await app.request(
       "/api/auth/password/forgot",
@@ -357,8 +383,8 @@ describe("worker app accounts", () => {
       const endpoint=purpose==="email_verification"?"/api/auth/verify-email":"/api/auth/password/reset";
       expect((await app.request(endpoint,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token,password:"changed-pass123"})},config)).status).toBe(400);
     }
-    const verify=tokenFromMessage(mail.messages[0].text);await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);
-    const replay=await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);expect(replay.status).toBe(200);expect(replay.headers.get("set-cookie")).toBeNull();
+    const verify=codeFromMessage(mail.messages[0].text);await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email,code:verify})},config);
+    const replay=await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email,code:verify})},config);expect(replay.status).toBe(400);expect(replay.headers.get("set-cookie")).toBeNull();
     await app.request("/api/auth/password/forgot",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email})},config);
     const reset=tokenFromMessage(mail.messages[1].text),body=JSON.stringify({token:reset,password:"changed-pass123"});
     expect((await app.request("/api/auth/password/reset",{method:"POST",headers:{"content-type":"application/json"},body},config)).status).toBe(200);
@@ -2453,14 +2479,21 @@ it('uses each request language for signup and reset mail independently', async (
   const repo = new InMemoryRepository(), app = createApp({repository: repo}), mail = new FakeEmail(), config = env(mail);
   const post = (path: string, body: unknown) => app.request(path, {method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify(body)}, config);
   expect((await post('/api/auth/register', {email:'language@example.com',username:'Home',password:'local-fixture-123',language:'ar'})).status).toBe(200);
-  expect(mail.messages[0].subject).toContain('تأكيد');
+  expect(mail.messages[0].subject).toBe('رمز التحقق لحساب Distilled.News');
+  expect(mail.messages[0].text).toContain('أدخل هذا الرمز');
   expect(mail.messages[0].html).toContain('lang="ar" dir="rtl"');
-  expect((await post('/api/auth/verify-email', {token:tokenFromMessage(mail.messages[0].text)})).status).toBe(200);
+  expect((await post('/api/auth/verify-email', {email:'language@example.com',code:codeFromMessage(mail.messages[0].text)})).status).toBe(200);
   expect((await post('/api/auth/password/forgot', {email:'language@example.com',language:'fr'})).status).toBe(200);
   expect(mail.messages[1].subject).toContain('Réinitialisez');
   expect(mail.messages[1].text).toContain('&lang=fr');
   expect((await post('/api/auth/password/reset', {token:tokenFromMessage(mail.messages[1].text),password:'another-local-fixture'})).status).toBe(200);
 });
+
+function codeFromMessage(text:string|undefined):string {
+  const code=text?.match(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/m)?.[0];
+  if(!code)throw new Error("verification code not found in email");
+  return code;
+}
 
 function tokenFromMessage(text: string | undefined): string {
   const token = text?.match(/token=([^&\s]+)/)?.[1];

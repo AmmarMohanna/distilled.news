@@ -2,6 +2,7 @@ import {collectVerificationEvidence,type SourceVerificationScope} from './source
 import { normalizeRssSnapshot,HttpSourceExecution } from '@distilled/connectors';
 import type {Env} from './types';
 import {WorkerPublicSourceFetch} from './public-source-fetch';
+import {searchArticleChecks} from './source-search-helper';
 
 export interface TopicPublisherEvidence { publisherOrigin: string; title: string; url: string; excerpt: string; publishedAt?: string }
 type DiscoveryOptions={maxPublishers?:number;perPublisher?:number;acceptArticle?:(title:string,excerpt:string,publisherOrigin:string)=>boolean};
@@ -54,8 +55,9 @@ export async function readTopicPublishers(env:Env,searchUrl:string,fetcher:typeo
  const runtime=async()=>{
  if(env.SOURCE_EXECUTION_SERVICE&&env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN){
   try{
-   const execution=new HttpSourceExecution(env.SOURCE_EXECUTION_URL,env.SOURCE_EXECUTION_TOKEN,(url,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(url,init),true);
-   const result=await execution.execute('google_feed',{url:searchUrl},{timeoutMs:options.preferRuntime?15_000:60_000});
+   const endpoint=env.SOURCE_EXECUTION_URL,token=env.SOURCE_EXECUTION_TOKEN;
+   const execute=(helper:typeof fetch)=>new HttpSourceExecution(endpoint,token,helper,true).execute('google_feed',{url:searchUrl},{timeoutMs:options.preferRuntime?15_000:60_000});
+   const result=options.raceRoutes&&options.preferRuntime?await searchArticleChecks(env,Date.now()+15_000)(execute):await execute((url,init)=>env.SOURCE_EXECUTION_SERVICE!.fetch(url,init));
    onTransport?.({route:'runtime',status:result&&typeof result==='object'&&'status' in result?Number(result.status)||0:0});
    if(result&&typeof result==='object'&&'status' in result&&result.status===200&&'xml' in result&&typeof result.xml==='string'&&new TextEncoder().encode(result.xml).length<=2_000_000)return topicPublishers(result.xml,searchUrl,options);
   }catch{/* The configured paid route retains its own durable budget and retry fences. */}
@@ -69,14 +71,22 @@ export async function readTopicPublishers(env:Env,searchUrl:string,fetcher:typeo
    if(response.status!==200)throw Error('PUBLIC_SEARCH_UNAVAILABLE');
    return topicPublishers(response.body,searchUrl,options);
   };
-  try{return await Promise.any([publicRead(),runtime().then(found=>{if(found===undefined)throw Error('PRIVATE_SEARCH_UNAVAILABLE');return found;})]);}
-  catch{return paidFallback();}
+  let readable=false;
+  const nonempty=async(pending:Promise<TopicPublisherEvidence[]|undefined>)=>{
+   const found=await pending;
+   if(found===undefined)throw Error('SEARCH_ROUTE_UNAVAILABLE');
+   readable=true;
+   if(!found.length)throw Error('SEARCH_ROUTE_EMPTY');
+   return found;
+  };
+  try{return await Promise.any([nonempty(publicRead()),nonempty(runtime())]);}
+  catch{return readable?[]:paidFallback();}
  }
  if(options.preferRuntime){const found=await runtime();if(found)return found;}
  let response;
  try{response=await new WorkerPublicSourceFetch(searchUrl,fetcher).get(searchUrl);}catch{response={status:0,body:''};}
  onTransport?.({route:'worker',status:response.status});
  if(response.status===200)return topicPublishers(response.body,searchUrl,options);
- if(!options.preferRuntime&&(response.status===0||response.status>=500)){const found=await runtime();if(found)return found;}
+ if(!options.preferRuntime&&(response.status===0||response.status>=500||(env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'&&[403,429].includes(response.status)))){const found=await runtime();if(found)return found;}
  return paidFallback();
 }

@@ -59,10 +59,10 @@ export interface PublicationProgress {stage:'COLLECTING'|'PROCESSING'|'PUBLISHIN
 /** Read-only progress for the same closed boundary used by publication admission.
  * Later polling arrivals cannot continually enlarge this request's displayed backlog. */
 export async function productPublicationProgress(env:Env,feedId:string):Promise<PublicationProgress|undefined> {
- const request=await env.DB.prepare("SELECT json_extract(json,'$.window.end') AS window_end,json_extract(json,'$.window.scheduledFor') AS scheduled_for,json_extract(json,'$.engine') AS engine FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.state')='PENDING' ORDER BY json_extract(json,'$.window.end'),id LIMIT 1").bind(feedId).first<{window_end:string|null;scheduled_for:string|null;engine:string|null}>();
+ const request=await env.DB.prepare("SELECT json_extract(json,'$.window.start') AS window_start,json_extract(json,'$.window.end') AS window_end,json_extract(json,'$.window.scheduledFor') AS scheduled_for,json_extract(json,'$.engine') AS engine FROM v1_feed_documents WHERE feed_id=? AND kind='briefing_requests' AND json_extract(json,'$.state')='PENDING' ORDER BY json_extract(json,'$.window.end'),id LIMIT 1").bind(feedId).first<{window_start:string|null;window_end:string|null;scheduled_for:string|null;engine:string|null}>();
  const end=request?.window_end??undefined;
  if(!end)return undefined;
- const rows=await env.DB.prepare("SELECT json_extract(j.json,'$.kind') AS kind,json_extract(j.json,'$.state') AS state,COALESCE(json_extract(j.json,'$.exhausted'),0) AS exhausted,COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?)) GROUP BY 1,2,3").bind(feedId,end).all<{kind:string;state:string;exhausted:number;n:number}>();
+ const rows=await env.DB.prepare("SELECT json_extract(j.json,'$.kind') AS kind,json_extract(j.json,'$.state') AS state,COALESCE(json_extract(j.json,'$.exhausted'),0) AS exhausted,COUNT(*) AS n FROM v1_jobs j JOIN v1_intake_scopes s ON s.id=j.feed_source_id LEFT JOIN v1_inputs i ON i.id=json_extract(j.json,'$.observationId') AND i.feed_source_id=j.feed_source_id WHERE s.feed_id=? AND json_extract(s.json,'$.enabled')=1 AND json_extract(j.json,'$.kind') IN ('ACQUIRE','REASSESS') AND (json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))<julianday(?)) AND (json_extract(j.json,'$.state') IN ('PENDING','RUNNING') OR json_extract(i.json,'$.observation.observedAt') IS NULL OR julianday(json_extract(i.json,'$.observation.observedAt'))>=julianday(COALESCE(?,json_extract(i.json,'$.observation.observedAt')))) GROUP BY 1,2,3").bind(feedId,end,request?.window_start??null).all<{kind:string;state:string;exhausted:number;n:number}>();
  const acquisition:PublicationProgress['acquisition']={completed:0,total:0,failed:0},review={completed:0,total:0,failed:0};let pending=0;
  for(const row of rows.results){if(row.kind==='ACQUIRE'&&row.state==='DEFERRED'){acquisition.deferred=(acquisition.deferred??0)+row.n;continue;}const counts=row.kind==='ACQUIRE'?acquisition:review;counts.total+=row.n;if(row.state==='DONE')counts.completed+=row.n;else if(row.state==='FAILED'||row.exhausted)counts.failed+=row.n;else if(row.state==='PENDING'||row.state==='RUNNING')pending+=row.n;}
  const collection=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?await pendingWindowCollections(env.DB,feedId,end,request?request.engine==='v3':env.BRIEFING_ENGINE==='v3',{scheduledFor:request?.scheduled_for??undefined,now:Date.now()}):undefined;
@@ -122,20 +122,22 @@ export async function resolveProductSourceInput(input:string,fetcher:typeof fetc
  return {detected,actorId:undefined,sourceUrl:feedUrl,input,canonicalUrl:feedUrl};
 }
 
+/** All external resolution/verification happens before the atomic configuration write. */
+export function configuredProductSource(feedId:string,plan:Awaited<ReturnType<typeof resolveProductSourceInput>>):Parameters<Repository['upsertConfiguredSource']>[0] {
+ if(plan.detected.kind==='telegram_channel'){
+  const result=plan.verifiedTelegram;
+  if(!result)throw new ProductSourceApprovalError('Could not verify this Telegram channel.');
+  return {briefingId:feedId,title:`@${result.username}`,provider:'telegram',kind:'telegram_channel',identityKey:result.channelId,username:result.username,sourceUrl:`https://t.me/${result.username}`,input:JSON.stringify(result),enabled:true};
+ }
+ return {briefingId:feedId,title:plan.detected.title,provider:plan.detected.provider,kind:plan.detected.kind,username:'username' in plan.detected?plan.detected.username:undefined,sourceUrl:plan.sourceUrl,input:plan.input,actorId:plan.actorId,actorInput:'actorInput' in plan.detected?plan.detected.actorInput:undefined,enabled:true};
+}
+
 export async function approveProductSource(env:Env,repo:Repository,feed:BriefingConfig,input:string,
  preResolved?:Awaited<ReturnType<typeof resolveProductSourceInput>>) {
- const plan=preResolved??await resolveProductSourceInput(input);
- if(plan.detected.kind==='telegram_channel'){
-  const result=plan.verifiedTelegram??await verifyTelegramApproval(env,plan.detected.username);
-  const verifiedInput=JSON.stringify(result);
-  const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:`@${result.username}`,provider:'telegram',kind:'telegram_channel',
-   identityKey:result.channelId,username:result.username,sourceUrl:`https://t.me/${result.username}`,input:verifiedInput,enabled:true});
-  await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=?").bind(source.id).run();
-  if(!feed.paused)await enrollV1Source(env.DB,source.id,feed.ownerAccountId,new Date().toISOString());
-  return {sourceId:source.id,url:`https://t.me/${result.username}`,title:source.title,fetched:0,imported:0,queued:0,skipped:0};
- }
+ let plan=preResolved??await resolveProductSourceInput(input);
+ if(plan.detected.kind==='telegram_channel'&&!plan.verifiedTelegram)plan={...plan,verifiedTelegram:await verifyTelegramApproval(env,plan.detected.username)};
  if(plan.detected.kind==='web_page'&&(!env.SOURCE_EXECUTION_SERVICE||!env.SOURCE_EXECUTION_TOKEN))throw new Error('Website extraction requires the source execution service.');
- const source=await repo.upsertConfiguredSource({briefingId:feed.id,title:plan.detected.title,provider:plan.detected.provider,kind:plan.detected.kind,username:'username' in plan.detected?plan.detected.username:undefined,sourceUrl:plan.sourceUrl,input:plan.input,actorId:plan.actorId,actorInput:'actorInput' in plan.detected?plan.detected.actorInput:undefined,enabled:true});
+ const source=await repo.upsertConfiguredSource(configuredProductSource(feed.id,plan));
  await env.DB.prepare("UPDATE sources SET collection_owner='connector' WHERE id=?").bind(source.id).run();
  if(!feed.paused)await enrollV1Source(env.DB,source.id,feed.ownerAccountId,new Date().toISOString());
  return {sourceId:source.id,url:plan.canonicalUrl,title:source.title,fetched:0,imported:0,queued:0,skipped:0};
@@ -144,10 +146,19 @@ export async function approveProductSource(env:Env,repo:Repository,feed:Briefing
 /** Presentation adapter: copies immutable published prose and exact provenance.
  * It never runs editorial selection or reads current Event/Storyline state. */
 export async function publishedProductEditions(env:Env,feed:BriefingConfig,editionId?:string):Promise<BriefingEdition[]> {
- const publishedEditions=await publicV1Editions(env.DB,feed.id,editionId,env.EDITION_ARTIFACTS_ENABLED==='true'?env.RAW_ARCHIVE:undefined);
+ return presentProductEditions(feed,await publishedProductEditionRecords(env,feed.id,editionId));
+}
+export type PublishedProductEditionRecord=Awaited<ReturnType<typeof publicV1Editions>>[number];
+/** The D1/R2 read only. Its output depends on publication records, never on
+ * mutable feed settings, so it can be cached by the feed's read version. */
+export function publishedProductEditionRecords(env:Env,feedId:string,editionId?:string):Promise<PublishedProductEditionRecord[]> {
+ return publicV1Editions(env.DB,feedId,editionId,env.EDITION_ARTIFACTS_ENABLED==='true'?env.RAW_ARCHIVE:undefined);
+}
+/** Pure presentation over published records plus the feed's current cadence. It never mutates its input. */
+export function presentProductEditions(feed:BriefingConfig,publishedEditions:readonly PublishedProductEditionRecord[]):BriefingEdition[] {
  const editions:BriefingEdition[]=[];
  for(const published of publishedEditions) {
-  const sections=published.stories.map(story=>({title:'',summary:story.claims.map(c=>c.text).join(' '),evidence:published.citations.filter(c=>story.claims.some(claim=>claim.support.some(ref=>ref.evidenceRevisionId===c.evidenceRevisionId))).map(c=>({messageId:c.evidenceRevisionId,sourceId:c.publisherId,sourceTitle:c.publisherName||c.title||c.publisherId,sourceType:'channel' as const,sourceUrl:c.url,postedAt:c.publishedAt??published.createdAt,text:story.claims.flatMap(claim=>claim.support.filter(ref=>ref.evidenceRevisionId===c.evidenceRevisionId).map(ref=>ref.quote)).join('\n'),links:c.url?[c.url]:[],media:[]}))}));
+  const sections=published.stories.map(story=>({...(story.relation?{relation:story.relation,...(story.updatesId?{updatesId:story.updatesId}:{})}:{}),title:'',summary:story.claims.map(c=>c.text).join(' '),evidence:published.citations.filter(c=>story.claims.some(claim=>claim.support.some(ref=>ref.evidenceRevisionId===c.evidenceRevisionId))).map(c=>({messageId:c.evidenceRevisionId,sourceId:c.publisherId,sourceTitle:c.publisherName||c.title||c.publisherId,sourceType:'channel' as const,sourceUrl:c.url,postedAt:c.publishedAt??published.createdAt,text:story.claims.flatMap(claim=>claim.support.filter(ref=>ref.evidenceRevisionId===c.evidenceRevisionId).map(ref=>ref.quote)).join('\n'),links:c.url?[c.url]:[],media:[]}))}));
   editions.push({id:published.id,briefingId:feed.id,cadence:feed.briefingCadence,windowStart:published.windowStart,windowEnd:published.windowEnd,...(published.scheduledFor?{scheduledFor:published.scheduledFor}:{}),title:published.title,summary:sections.map((s,i)=>`${s.summary} [${i+1}]`).join('\n\n'),sections,status:'published',publishedAt:published.publishedAt,createdAt:published.createdAt,updatedAt:published.createdAt});
  }
  return editions;

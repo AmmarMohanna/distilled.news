@@ -1,0 +1,97 @@
+{
+  "provenance": {
+    "jobId": "b9913baee12ec7b2665479b6c490503ebe27229c986a8740efb3c40384043306",
+    "expected": "accepted",
+    "originalNormalizedSha256": "74c3561138343d5944a11a37767569dcff6de729ce9c7d3db135049d413dcd33",
+    "scope": "Reduced exact-response diagnostic: inventory removed; evidence aliases resolved; quotes truncated to 180 characters. Not a full factuality benchmark."
+  },
+  "c": {
+    "id": "827b1694b5fea1a0b59da150d9b393de317faaab24e84fdb7af426e4b4a5bb1d",
+    "feedId": "briefing_a80efb63-236e-4b0d-b047-87cb71aae785",
+    "language": "ar",
+    "interest": "أريد متابعة أهم الأخبار والتطورات في لبنان، خصوصاً القرارات الحكومية والسياسية، الأوضاع الأمنية في الجنوب، العلاقات مع الدول المجاورة، الإصلاحات الاقتصادية والمصرفية، الودائع، سعر صرف الليرة، التضخم والأسعار، الكهرباء والمياه، التعليم والجامعات، والصحة والخدمات العامة. أهتم بالقرارات الجديدة والتطورات التي تؤثر فعلياً على حياة اللبنانيين، مع تجنّب التصريحات السياسية المتكررة والأخبار الترفيهية والشائعات.",
+    "windowStart": "2026-11-18T03:55:00.000Z",
+    "windowEnd": "2026-11-18T05:55:00.000Z",
+    "frozenAt": "2026-11-18T06:05:26.900Z",
+    "evidenceScope": "all_eligible_frozen_input",
+    "evidenceComplete": false,
+    "articles": [
+      {
+        "id": "4e2c0d75-5730-4aa2-8667-50576ef03838",
+        "feedId": "briefing_a80efb63-236e-4b0d-b047-87cb71aae785",
+        "text": null,
+        "publishedAt": "2026-11-18T05:01:31.000Z",
+        "completeness": "partial"
+      },
+      {
+        "id": "8c1fddca-bb16-4208-8be5-b9bb5517d4d9",
+        "feedId": "briefing_a80efb63-236e-4b0d-b047-87cb71aae785",
+        "text": null,
+        "publishedAt": "2026-11-18T05:10:09.000Z",
+        "completeness": "partial"
+      },
+      {
+        "id": "c6a961b5-b16a-452f-9af8-f3aeca411727",
+        "feedId": "briefing_a80efb63-236e-4b0d-b047-87cb71aae785",
+        "text": "رئاسة الحكومة: لن تُعقد جلسة لمجلس الوزراء هذا الأسبوع نظراً إلى ظرف عائلي خاص طرأ على سلام واضطراره إلى مغادرة لبنان يوم الخميس",
+        "publishedAt": "2026-11-18T04:26:56.000Z",
+        "completeness": "partial"
+      }
+    ],
+    "prior": [],
+    "items": [
+      {
+        "headline": "",
+        "body": "رئاسة الحكومة: لا جلسة لمجلس الوزراء اللبناني هذا الأسبوع بسبب ظرف عائلي لرئيس الحكومة نجيب سلام\n",
+        "sourceIds": [
+          "c6a961b5-b16a-452f-9af8-f3aeca411727",
+          "4e2c0d75-5730-4aa2-8667-50576ef03838",
+          "8c1fddca-bb16-4208-8be5-b9bb5517d4d9"
+        ]
+      }
+    ],
+    "pipelineStatus": "published",
+    "publishedAt": "2026-11-18T06:00:15.259Z",
+    "sourceLabel": "distilled-news-production",
+    "limitations": [
+      "Some original article bodies are incomplete, missing, changed or unlabelled; quality cannot be certified against unavailable evidence."
+    ]
+  },
+  "d": {
+    "developments": [],
+    "limitations": []
+  },
+  "raw": {
+    "claims": [
+      {
+        "id": "C1",
+        "item": 0,
+        "text": "لن تُعقد جلسة لمجلس الوزراء اللبناني هذا الأسبوع بسبب ظرف عائلي خاص برئيس الحكومة نجيب سلام.",
+        "support": "supported",
+        "citationSupport": "supported",
+        "evidence": [
+          {
+            "sourceId": "c6a961b5-b16a-452f-9af8-f3aeca411727",
+            "quote": "رئاسة الحكومة: لن تُعقد جلسة لمجلس الوزراء هذا الأسبوع نظراً إلى ظرف عائلي خاص طرأ على سلام واضطراره إلى مغادرة لبنان يوم الخميس"
+          }
+        ],
+        "explanation": "ورد نص الخبر بأن رئاسة الحكومة صرّحت أنه لن تعقد جلسة للمجلس هذا الأسبوع بسبب ظرف عائلي خاص بسلام واضطراره لمغادرة لبنان."
+      }
+    ],
+    "coverage": [],
+    "items": [
+      {
+        "item": 0,
+        "relevance": "relevant",
+        "repetition": "novel",
+        "temporal": "correct",
+        "language": "correct",
+        "explanation": "مستجد مهم حكومي يؤثر على عمل الدولة؛ لم يسبق ذكره في النافذة، وصياغته صحيحة زمنياً ولغوياً."
+      }
+    ],
+    "findings": [],
+    "limitations": [
+      "Some original article bodies are incomplete, missing, changed or unlabelled; quality cannot be certified against unavailable evidence."
+    ]
+  }
+}

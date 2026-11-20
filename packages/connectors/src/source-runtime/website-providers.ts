@@ -4,7 +4,7 @@ import { executeSource } from './platform-providers';
 import type { SecretResolver } from './social-providers';
 import { requireProviderSuccess, type ProviderHttpPort } from './provider-http';
 import { SourceProviderError, type SourceProvider, type SourceFetchRequest, type SourceFamily, type ProviderPage } from './provider-types';
-import {discoverWebsiteArticles} from './website-discovery';
+import {discoverByUrlPattern,discoverWebsiteArticles,isWebsiteListingUrl,listingLinkCandidates,websiteCollectionUrl,type WebsiteLinkSelector} from './website-discovery';
 import {extractPublicHtml} from './public-html';
 import { record, articleUrl, string } from './provider-normalize';
 import {readArticleDateMetadata,unreadableArticleReason} from './article-integrity';
@@ -12,12 +12,15 @@ import {readArticleDateMetadata,unreadableArticleReason} from './article-integri
 export class WebsiteSourceProvider implements SourceProvider {
   readonly families:SourceFamily[]=['website'];
   constructor(readonly id:'website_http'|'website_playwright'|'website_zyte',private http:FeedHttpPort,
-    private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01){}
+    private execution:SourceExecutionPort,private paid?:ProviderHttpPort,private secrets?:SecretResolver,private ceilingUsd=0.01,private selectLinks?:WebsiteLinkSelector,private zyteListingRetryEnabled?:boolean){}
   async fetch(input:SourceFetchRequest,run:FetchRun):Promise<ProviderPage>{
     // Resume legacy inventory offsets as well as exact same-origin next pages.
     const continuation=input.continuation?.token,inventoryOffset=continuation!==undefined&&/^\d+$/.test(continuation);
     if(inventoryOffset&&!Number.isSafeInteger(Number(continuation)))throw new Error('INVALID_WEBSITE_CONTINUATION');
-    const approved=articleUrl(input.source.locator),url=articleUrl(continuation&&!inventoryOffset?continuation:input.source.locator);if(!approved||!url||new URL(url).origin!==new URL(approved).origin)throw new Error('INVALID_ARTICLE_URL');
+    const approved=articleUrl(input.source.locator);
+    if(!approved)throw new Error('INVALID_ARTICLE_URL');
+    const url=continuation&&!inventoryOffset?articleUrl(continuation):websiteCollectionUrl(approved);
+    if(!url||new URL(url).origin!==new URL(approved).origin)throw new Error('INVALID_ARTICLE_URL');
     const start=Date.now();let html:string,requests=1;
     if(this.id==='website_http'){
       const response=await this.http.get(url,{});
@@ -25,7 +28,7 @@ export class WebsiteSourceProvider implements SourceProvider {
       if(response.status===429){const h=response.headers['retry-after'],s=Number(h),at=h&&Number.isFinite(s)?Date.now()+Math.max(0,s)*1000:h?Date.parse(h):NaN;throw new SourceProviderError('RATE_LIMIT',Number.isFinite(at)?new Date(at).toISOString():undefined,{detail:'UPSTREAM_RATE_LIMIT',httpStatus:429});}
       if(response.status===401)throw new SourceProviderError('AUTH_REQUIRED',undefined,{detail:'UPSTREAM_AUTHENTICATION',httpStatus:401});
       if(response.status===404||response.status===410)throw new SourceProviderError('UNAVAILABLE',undefined,{detail:'HTTP_NOT_FOUND',httpStatus:response.status});
-      if(response.status!==200)throw new SourceProviderError(response.status>=500||response.status===0?'TRANSIENT':'CHALLENGE',undefined,{detail:response.status===403?'ACCESS_BLOCKED':response.status>=500||response.status===0?'UPSTREAM_TRANSPORT_FAILURE':'UPSTREAM_HTTP_ERROR',httpStatus:response.status});
+      if(response.status!==200)throw new SourceProviderError(response.status>=500||response.status===0?'TRANSIENT':'CHALLENGE',undefined,{detail:response.status===403?'ACCESS_BLOCKED':[301,302,303,307,308].includes(response.status)?'UPSTREAM_REDIRECT':response.status>=500||response.status===0?'UPSTREAM_TRANSPORT_FAILURE':'UPSTREAM_HTTP_ERROR',httpStatus:response.status});
       html=new TextDecoder().decode(response.bytes);requests=response.telemetry.requests;
     }else if(this.id==='website_playwright'){
       const result=record(await executeSource(this.execution,'playwright',{url}));
@@ -35,14 +38,64 @@ export class WebsiteSourceProvider implements SourceProvider {
       if(result.error||result.status!==200||typeof result.html!=='string')throw new SourceProviderError('CHALLENGE',undefined,{detail:'BROWSER_PAGE_UNUSABLE',...(typeof result.status==='number'?{httpStatus:result.status}:{})});html=result.html;
       requests=Number.isSafeInteger(result.requests)&&result.requests>=1?result.requests:1;
     }else{
-      const key=await this.secrets?.('zyte');if(!key||!this.paid)throw new SourceProviderError('UNAVAILABLE');
-      const result=await this.paid.request(input.scope,run.id,'zyte',this.ceilingUsd,'https://api.zyte.com/v1/extract',
-        {method:'POST',headers:{authorization:`Basic ${btoa(key+':')}`,'content-type':'application/json'},body:JSON.stringify({url,httpResponseBody:true,httpResponseHeaders:true})});
-      requireProviderSuccess(result);const data=record(result.json);
-      if(data.statusCode===451)throw new SourceProviderError('POLICY_REFUSAL');
-      if(data.statusCode!==200||typeof data.httpResponseBody!=='string')throw new SourceProviderError('CHALLENGE');
-      try{const bytes=Uint8Array.from(atob(data.httpResponseBody),(c)=>c.charCodeAt(0));html=new TextDecoder().decode(bytes);}catch{throw new SourceProviderError('MALFORMED');}
+      return this.fetchZyte(input,run,url,start);
     }
+    return this.parsePage(input,url,html,requests,start);
+  }
+
+  private async fetchZyte(input:SourceFetchRequest,run:FetchRun,url:string,start:number):Promise<ProviderPage>{
+    const key=await this.secrets?.('zyte'),paid=this.paid;
+    if(!key||!paid)throw new SourceProviderError('UNAVAILABLE');
+    const request=(operationId:string,body:Record<string,unknown>)=>paid.request(input.scope,operationId,'zyte',this.ceilingUsd,'https://api.zyte.com/v1/extract',{
+      method:'POST',headers:{authorization:`Basic ${btoa(key+':')}`,'content-type':'application/json'},
+      body:JSON.stringify(body),
+    });
+    const target=new URL(url);
+    const canRetry=!input.recheckItemKeys&&this.zyteListingRetryEnabled&&
+      (target.pathname==='/'||isWebsiteListingUrl(url));
+    const plainHttp={url,httpResponseBody:true,httpResponseHeaders:true};
+    let result=await request(run.id,plainHttp),requests=1;
+    if(canRetry&&[500,520].includes(result.status)){
+      // The first response was recorded. A different durable operation ID
+      // lets this one retry consume its own budget and replay its own receipt.
+      result=await request('website-zyte-listing-retry-v1:'+run.id,plainHttp);
+      requests++;
+    }
+    requireProviderSuccess(result);
+    const data=record(result.json);
+    if(data.statusCode===451)throw new SourceProviderError('POLICY_REFUSAL');
+    if(data.statusCode!==200||typeof data.httpResponseBody!=='string')throw new SourceProviderError('CHALLENGE');
+    let html:string;
+    try{html=new TextDecoder().decode(Uint8Array.from(atob(data.httpResponseBody),c=>c.charCodeAt(0)));}
+    catch{throw new SourceProviderError('MALFORMED');}
+    try{return await this.parsePage(input,url,html,requests,start);}
+    catch(error){
+      if(!canRetry||requests!==1||!(error instanceof SourceProviderError)||error.code!=='MALFORMED'||
+         error.diagnostic?.detail!=='NO_LISTING_LINKS'||articleUrl(data.url)!==url)throw error;
+      const raw=new TextEncoder().encode(html);
+      if(raw.length>1_000_000)throw error;
+      const candidates=listingLinkCandidates(html,url);
+      if(!candidates.length)throw error;
+
+      // The follow-up slot is still unused. Extract from the retained HTML
+      // and admit only the publisher links we can also verify in that HTML.
+      const structured=await request('website-zyte-article-list-v1:'+run.id,{
+        url,articleList:true,articleListOptions:{extractFrom:'userHtml',userHtml:html},
+      });
+      requireProviderSuccess(structured);
+      const list=record(record(structured.json).articleList);
+      if(articleUrl(list.url)!==url||!Array.isArray(list.articles))throw error;
+      const selected=new Set(list.articles.slice(0,100).map(row=>articleUrl(record(row).url)));
+      const items:ProviderPage['items']=candidates.filter(candidate=>selected.has(candidate.url)).slice(0,30)
+        .map(({url:article,title})=>({sourceItemKey:`url:${article}`,upstreamId:article,url:article,
+          publisherId:new URL(article).hostname,title,representation:'LISTING_RESULT',contentCompleteness:'UNKNOWN',
+          identityValid:true,authoritativeCurrentState:false}));
+      if(!items.length)throw error;
+      return {items,raw,complete:false,requests:2,latencyMs:Date.now()-start,providerCostUsd:null};
+    }
+  }
+
+  private async parsePage(input:SourceFetchRequest,url:string,html:string,requests:number,start:number):Promise<ProviderPage>{
     if(/<title[^>]*>\s*(?:just a moment|access denied|client challenge|captcha)/i.test(html))throw new SourceProviderError('CHALLENGE',undefined,{detail:'ACCESS_CHALLENGE_PAGE'});
     if(html.includes('isAccessibleForFree')&&/paywall/i.test(html)&&new TextEncoder().encode(html).length<=2_000_000&&extractPublicHtml(html,url).accessRestricted)
       throw new SourceProviderError('AUTH_REQUIRED',undefined,{detail:'ARTICLE_ACCESS_RESTRICTED'});
@@ -51,15 +104,32 @@ export class WebsiteSourceProvider implements SourceProvider {
     const inventory=discoverWebsiteArticles(html,url),discovery=catalogue?.pageKind==='catalogue'?undefined:inventory;
     if(discovery){
       // Do not report a readable but unrecognized section layout as success.
-      if(!discovery.articles.length)throw new SourceProviderError('MALFORMED');
+      let modelSelected=false;
+      // Second, markup-independent parser before any paid or model fallback.
+      if(!discovery.articles.length&&!input.recheckItemKeys){
+        const patterned=html.length<=2_000_000?discoverByUrlPattern(html,url):[];
+        discovery.articles.push(...patterned);
+        modelSelected=patterned.length>0;
+      }
+      if(!discovery.articles.length&&this.selectLinks&&!input.recheckItemKeys&&html.length<=2_000_000){
+        const candidates=listingLinkCandidates(html,url);
+        if(candidates.length){
+          const ids=await this.selectLinks(url,candidates);
+          if(!Array.isArray(ids)||ids.length>30||new Set(ids).size!==ids.length||
+             ids.some(id=>!Number.isInteger(id)||id<0||id>=candidates.length))throw new SourceProviderError('MALFORMED');
+          discovery.articles.push(...ids.map(id=>candidates[id]));
+          modelSelected=ids.length>0;
+        }
+      }
+      if(!discovery.articles.length)throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_LISTING_LINKS'});
       const selected=input.recheckItemKeys?discovery.articles.filter(a=>input.recheckItemKeys!.includes(`url:${a.url}`)):discovery.articles;
       return {items:selected.map(a=>({sourceItemKey:`url:${a.url}`,upstreamId:a.url,url:a.url,publisherId:new URL(a.url).hostname,title:a.title,...(a.publishedAt?{publishedAt:a.publishedAt}:{}),
         representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),
-        raw:new TextEncoder().encode(html),complete:!discovery.nextPage&&!discovery.paginationUnresolved,continuationToken:discovery.nextPage,
+        raw:new TextEncoder().encode(html),complete:!modelSelected&&!discovery.nextPage&&!discovery.paginationUnresolved,continuationToken:discovery.nextPage,
         requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
     const result=record(catalogue?.pageKind==='catalogue'?catalogue:await executeSource(this.execution,'extract',{url,html}));
-    const links=Array.isArray(result.articleLinks)?[...new Set(result.articleLinks.filter((v):v is string=>typeof v==='string').map(v=>articleUrl(v)).filter((v):v is string=>!!v&&new URL(v).origin===new URL(url).origin&&v!==url))]:[];
+    const links=Array.isArray(result.articleLinks)?[...new Set(result.articleLinks.filter((v):v is string=>typeof v==='string').map(v=>articleUrl(v)).filter((v):v is string=>!!v&&new URL(v).origin===new URL(url).origin&&v!==url&&!isWebsiteListingUrl(v)))]:[];
     const landing=new URL(url).pathname==='/';
     if(links.length&&(result.pageKind==='listing'||landing&&result.pageKind!=='catalogue')){
       const offset=input.continuation?Number(input.continuation.token):0;
@@ -73,6 +143,15 @@ export class WebsiteSourceProvider implements SourceProvider {
       }
       return {items,raw:new TextEncoder().encode(html),complete:false,
         continuationToken:offset+input.limit<links.length?String(offset+input.limit):undefined,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
+    }
+    if(!links.length&&((landing&&result.pageKind!=='catalogue')||result.pageKind==='listing'||isWebsiteListingUrl(url))){
+      // The extractor saw a listing without links. Try the URL-pattern parser
+      // on the same HTML before reporting the layout as unreadable.
+      const patterned=!input.recheckItemKeys&&html.length<=2_000_000?discoverByUrlPattern(html,url):[];
+      if(!patterned.length)throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_LISTING_LINKS'});
+      return {items:patterned.slice(0,input.limit).map(({url:article,title})=>({sourceItemKey:`url:${article}`,upstreamId:article,url:article,publisherId:new URL(article).hostname,title:title??article,
+        representation:'LISTING_RESULT' as const,contentCompleteness:'UNKNOWN' as const,identityValid:true,authoritativeCurrentState:false})),
+        raw:new TextEncoder().encode(html),complete:false,requests,latencyMs:Date.now()-start,providerCostUsd:this.id==='website_zyte'?null:0};
     }
     if(!string(result.body)||result.body.length<(result.pageKind==='catalogue'||result.contentCompleteness==='PARTIAL'?80:200))throw new SourceProviderError('MALFORMED',undefined,{detail:'NO_EXTRACTABLE_ARTICLE'});
     const unreadable=unreadableArticleReason(result.body);

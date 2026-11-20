@@ -92,6 +92,8 @@ describe('publication versus actual reader delivery is reported step by step',()
   expect(PUSH_DELIVERY_CONSUMER_IMPLEMENTED).toBe(true);
   const root=join(__dirname,'..'),files:string[]=[];const walk=(d:string)=>{for(const e of readdirSync(d,{withFileTypes:true})){const p=join(d,e.name);if(e.isDirectory()){if(e.name!=='node_modules')walk(p)}else if(/\.ts$/.test(e.name)&&!/\.test\.ts$/.test(e.name))files.push(p)}};walk(root);
   const users=files.filter(f=>readFileSync(f,'utf8').includes('delivery_jobs')).map(f=>f.slice(root.length+1).replaceAll('\\','/')).sort();
-  expect(users).toEqual(['push-outbox.ts','v1-intelligence/delivery-status.ts','v1-intelligence/pipeline-trace.ts','v1-intelligence/publication.ts','v1-intelligence/store.ts','v1-intelligence/v3-window.ts']);
+  // edition-artifact-backfill.ts only checks that a delivery job exists (the 0090 attach
+  // trigger requires one); perf/qa-shape.ts seeds profiling data. Neither consumes the outbox.
+  expect(users).toEqual(['edition-artifact-backfill.ts','perf/qa-shape.ts','push-outbox.ts','v1-intelligence/delivery-status.ts','v1-intelligence/pipeline-trace.ts','v1-intelligence/publication.ts','v1-intelligence/store.ts','v1-intelligence/v3-window.ts']);
  });
 });

@@ -79,3 +79,37 @@ it('ignores a late owner lookup for the previous feed', async () => {
   expect(host.textContent).not.toContain('Edit feed');
   expect(host.querySelector('[aria-busy="true"]')).toBeNull();
 });
+
+it('keeps a failed session unresolved instead of anonymous, then retries to the confirmed account',async()=>{
+ let latest:ReturnType<typeof useFeedViewer>;
+ function Session(){latest=useFeedViewer('owner','news');return <p>{latest.account?.id??'no-account'}</p>;}
+ vi.mocked(getSession).mockRejectedValueOnce(new Error('temporarily busy')).mockResolvedValueOnce({authenticated:true,setupRequired:false,account:owner});
+ vi.mocked(getBriefings).mockResolvedValue([feed]);
+ await act(async()=>root.render(<Session/>));
+ expect(latest!.readerId).toBeUndefined();expect(latest!.sessionState).toBe('error');
+ await act(async()=> latest!.retrySession());
+ expect(latest!.readerId).toBe('owner');expect(latest!.sessionState).toBe('authenticated');
+});
+
+it('distinguishes an ownership failure from non-ownership and retries while retaining the confirmed reader',async()=>{
+ let latest:ReturnType<typeof useFeedViewer>;
+ function Viewer(){latest=useFeedViewer('owner','news');return null;}
+ vi.mocked(getSession).mockResolvedValue({authenticated:true,setupRequired:false,account:owner});
+ vi.mocked(getBriefings).mockRejectedValueOnce(new Error('Temporary owner failure')).mockResolvedValueOnce([feed]);
+ await act(async()=>root.render(<Viewer/>));expect(latest!.readerId).toBe(owner.id);expect(latest!.ownershipState).toBe('error');
+ await act(async()=>latest!.retryOwnership());expect(latest!.ownershipState).toBe('owner');expect(latest!.ownedFeed?.id).toBe(feed.id);
+ expect(latest!.readerId).toBe(owner.id);
+});
+it('uses an anonymous identity only after an explicit unauthenticated session',async()=>{
+ let latest:ReturnType<typeof useFeedViewer>;
+ function Session(){latest=useFeedViewer('owner','news');return null;}
+ vi.mocked(getSession).mockResolvedValue({authenticated:false,setupRequired:false});
+ await act(async()=>root.render(<Session/>));expect(latest!.readerId).toBeNull();expect(latest!.sessionState).toBe('anonymous');
+});
+
+it('does not classify a malformed authenticated response as anonymous',async()=>{
+ let latest:ReturnType<typeof useFeedViewer>;
+ function Session(){latest=useFeedViewer('owner','news');return null;}
+ vi.mocked(getSession).mockResolvedValue({authenticated:true,setupRequired:false});
+ await act(async()=>root.render(<Session/>));expect(latest!.readerId).toBeUndefined();expect(latest!.sessionState).toBe('error');expect(getBriefings).not.toHaveBeenCalled();
+});

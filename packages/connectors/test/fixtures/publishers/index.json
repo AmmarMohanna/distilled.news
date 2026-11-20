@@ -1,0 +1,4 @@
+{
+  "comment": "Saved real publisher listing pages. Add entries with scripts/capture-publisher-fixtures.mjs. Each entry must keep yielding at least minArticles article links.",
+  "captures": []
+}

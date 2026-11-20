@@ -57,6 +57,12 @@ export function createCandidateAcquisitionRouter(options:CandidateAcquisitionOpt
    claim={...claim,input:{...claim.input,observation:{...claim.input.observation,canonicalUrl:result.url}}};
   }
   const o=claim.input.observation,base={id:JSON.stringify(['acquired',o.id]),feedId:o.feedId,candidateId:claim.candidate.id,sourceId:o.sourceId,sourceObservationId:o.id,acquiredAt:options.now()};
+  if(o.canonicalUrl&&['LISTING_RESULT','LINK_ONLY'].includes(o.representation)){
+   // Retained L’Orient index and donation links are known before any transport.
+   const host=new URL(o.canonicalUrl).hostname.replace(/^www\./,'');
+   if(['lorientlejour.com','today.lorientlejour.com'].includes(host)&&isWebsiteListingUrl(o.canonicalUrl))
+    throw new AcquisitionFailure('UNSUPPORTED',false,{detail:'LISTING_PAGE'});
+  }
   if(o.suppliedPayloadRef && options.readPayload && !(options.preferFullArticle&&o.canonicalUrl&&['ARTICLE_EXCERPT','LISTING_RESULT','LINK_ONLY'].includes(o.representation))) {
    const payload=await options.readPayload(claim);
    if(payload) {

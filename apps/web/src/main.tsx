@@ -1,12 +1,21 @@
-import {toUiError, type UiMessage} from './api-errors';
-import {SourceHealth} from './SourceHealth';
+import {cadenceMetaLabel,formatCountdown,nextBriefingText} from './briefing-labels';
+import {useReadProgress} from './useReadProgress';
+import {ApiError, toUiError, type UiMessage} from './api-errors';
+import {FEED_REFRESH_INTERVAL_MS, afterFeedRefresh, initialFeedRefreshState, mayRefreshFeed} from './feed-refresh-policy';
 import { useFeedViewer } from './useFeedViewer';
 import { usePageMagnification } from './usePageMagnification';
 import { NewsBriefing } from "./NewsBriefing";
+import {PrivateFeedPage} from './PrivateFeedPage';
+import {briefingReferences} from './briefing-references';
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
+import { CitationReference } from "./CitationReference";
+import { BriefingReadMore } from "./BriefingReadMore";
+import { VerificationCodeInput } from "./VerificationCodeInput";
+import { VerifiedEmailError } from "./VerifiedEmailError";
 import React, { useEffect, useRef, useState } from "react";
-import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
+import { FeedNotice } from "./FeedNotice";
+import { FeedReaderStatus } from "./FeedReaderStatus";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { FeedArt } from "./FeedArt";
 import { UnreadSummary } from './UnreadSummary';
@@ -69,6 +78,7 @@ import {
   deleteAdminBriefing,
   deleteSource,
   forgotPassword,
+  resendVerification,
   getBriefings,
   getExploreFeeds,
   getFeed,
@@ -342,6 +352,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     try {
       const draft = { ...createBriefingDraft(briefings, account), language: preferredLanguage(), ...input };
       const created = input ? await saveFeed(input) : await persistBriefing(draft, "feed created");
+      if ("sourceActivation" in created && created.sourceActivation === "pending") window.alert(t("Feed saved. Some sources are awaiting activation. Check source health for updates."));
       await loadBriefings(created.id);
       if (input) {
         window.location.href = `/${created.ownerUsername}/${created.slug}/`;
@@ -363,9 +374,10 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
   }
 
   async function handleLogout() {
+    const result = await logout();
     setAccountDialogOpen(false);
     setFeedSettingsOpen(false);
-    await logout();
+    if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
     setSession({ authenticated: false, setupRequired: false });
     setBriefings([]);
     setBriefingsState('loading');
@@ -471,11 +483,11 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
               onAuthenticated={async () => {
                 const next = await getSession();
                 if (next.authenticated) {
-                  await loadBriefings();
+                  setSession(next);
                   setCreationOpen(createAfterLogin);
                   setAuthOpen(false);
                   setCreateAfterLogin(false);
-                  setSession(next);
+                  try { await loadBriefings(); } catch { /* Feed-list state owns its error and retry. */ }
                 }
               }}
             /> : error ? <section className="auth-unavailable" role="alert" aria-labelledby="auth-unavailable-title" dir="ltr">
@@ -603,22 +615,31 @@ function AdminCommandPanel(props: {
   );
 }
 
-function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
+export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
   const { t } = useLanguage();
+  const params = new URLSearchParams(window.location.search);
+  const initialMode = props.setupRequired || params.has("signup") ? "register" : params.has("reset-password") ? "forgot" : "login";
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "register" : "login");
-  const [authStep, setAuthStep] = useState<"email" | "details">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "details" : "email");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(initialMode);
+  const [authStep, setAuthStep] = useState<"email" | "details" | "code">(initialMode === "login" ? "email" : "details");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
+  const [verificationRecoveryEmail,setVerificationRecoveryEmail]=useState("");
+  const verificationFlow = useRef(0);
+  function clearVerificationRecovery() {
+    verificationFlow.current += 1;
+    setVerificationRecoveryEmail("");
+  }
   const [message, setMessage] = useState("");
   const [error, setError] = useState<UiMessage>("");
-  const copy = authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
-  const submitLabel = authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
+  const [emailCode,setEmailCode]=useState("");
+  const copy = authStep === "code" ? {title:"Verify your email",description:"Enter the code from your verification email."} : authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
+  const submitLabel = authStep === "code" ? "Verify your email" : authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
   const usernamePreview = username.trim() ? normalizeUsername(username) : "";
 
@@ -639,8 +660,21 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           setAuthStep("details");
           return;
         }
+        const submittedFlow = verificationFlow.current;
         setSubmitting(true);
         try {
+          if(authStep==="code"){
+            await verifyEmail({email,code:emailCode});
+            if (submittedFlow !== verificationFlow.current) return;
+            setMode("login");
+            setAuthStep("details");
+            setPassword("");
+            setEmailCode("");
+            clearVerificationRecovery();
+            setMessage("Email verified. Sign in to continue.");
+            resetTurnstile();
+            return;
+          }
           if (requiresTurnstile && !turnstileToken) {
             setError("Complete the verification check.");
             return;
@@ -652,21 +686,27 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           }
           if (mode === "register") {
             await register({ email, username, password, turnstileToken });
+            if (submittedFlow !== verificationFlow.current) return;
             setPassword("");
-            setMessage("Verification email sent. Check your inbox and spam folder. The link expires in 24 hours.");
+            setAuthStep("code");
+            setMessage("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
+            setVerificationRecoveryEmail(email.trim().toLowerCase());
             resetTurnstile();
             return;
           }
           if (mode === "forgot") {
             await forgotPassword(email, turnstileToken);
-            setMessage("If the account exists, a reset email was sent.");
+            setMessage("If the account is eligible, an email was requested. Unverified accounts receive a verification code first; verified accounts receive a password-reset link. Check your inbox and spam folder.");
             resetTurnstile();
             return;
           }
           await login(email, password, turnstileToken);
           await props.onAuthenticated();
         } catch (cause) {
+          if (submittedFlow !== verificationFlow.current) return;
+          if(cause instanceof ApiError&&cause.id==="AUTH_EMAIL_ALREADY_VERIFIED")clearVerificationRecovery();
           setError(toUiError(cause));
+          if(mode === "register" && cause instanceof ApiError&&['AUTH_EMAIL_VERIFICATION_REQUIRED','AUTH_EMAIL_REGISTERED'].includes(cause.id))setVerificationRecoveryEmail(email.trim().toLowerCase());
           resetTurnstile();
         } finally {
           setSubmitting(false);
@@ -684,10 +724,12 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           <span className="field-help" id="admin-setup-token-help">{t("Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.")}</span>
         </label>
       ) : null}
-      <label className="auth-input">
+      {authStep === "code" ? <div className="auth-input auth-verified-email" role="group" aria-label={t("email")}>
+        <Mail size={21} aria-hidden/><span className="auth-email-address" dir="auto">{email}</span>
+      </div> : <label className="auth-input">
         <span className="sr-only">{t("email")}</span><Mail size={21} aria-hidden/>
-        <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-      </label>
+        <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); clearVerificationRecovery(); }} />
+      </label>}
       {authStep === "details" && (mode === "register" || props.setupRequired) ? (
         <label>
           <span className="auth-input"><span className="sr-only">{t("username")}</span><User size={21} aria-hidden/>
@@ -711,16 +753,43 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           <button type="button" className="quiet-icon" aria-label={t(showPassword ? "Hide password" : "Show password")} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
         </div>{(mode === "register" || props.setupRequired) && <span className="field-help">{t("At least 8 characters")}</span>}</div>
       ) : null}
-      {authStep === "details" && requiresTurnstile && props.turnstileSiteKey ? (
+      {authStep==="code" && <VerificationCodeInput value={emailCode} onChange={setEmailCode} label={t("Verification code")} language={preferredLanguage()}/>}
+      {(authStep === "details" || authStep === "code") && requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
-      {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
+      {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
-        {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
+        {error ? <p className="auth-error" role="alert">{typeof error !== "string" && (error.id === "AUTH_EMAIL_ALREADY_VERIFIED" || error.id === "AUTH_EMAIL_REGISTERED")
+          ? <VerifiedEmailError language={preferredLanguage()} errorId={error.id} onNavigate={nextMode => {
+            clearVerificationRecovery(); setMode(nextMode); setAuthStep("details"); setPassword(""); setEmailCode(""); setError(""); setMessage(""); resetTurnstile();
+          }}/>
+          : t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
-      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
-      {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
+      <div className="auth-verification-actions">
+      {!props.setupRequired && mode==="register" && authStep==="details" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
+        <button type="button" className="button-link" onClick={()=>{setAuthStep("code");setError("");setMessage("");}}>{t("Enter verification code")}</button>}
+      {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setMode("login");clearVerificationRecovery();setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
+      {!props.setupRequired&&mode==="register"&&authStep!=="email"&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
+        const requestedFlow=verificationFlow.current;
+        setError("");setMessage("");setSubmitting(true);
+        try{
+          if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");resetTurnstile();return;}
+          await resendVerification(email,turnstileToken);
+          if(requestedFlow!==verificationFlow.current)return;
+          setMessage("If this account needs verification, an email was requested. Check your inbox and spam folder. If it still does not arrive, contact support.");
+          resetTurnstile();
+        }catch(cause){
+          if(requestedFlow!==verificationFlow.current)return;
+          if(cause instanceof ApiError&&cause.id==="AUTH_EMAIL_ALREADY_VERIFIED")clearVerificationRecovery();
+          setError(toUiError(cause));
+          resetTurnstile();
+        }
+        finally{setSubmitting(false);}
+      }}>{t("Resend verification email")}</button>:null}
+      </div>
+      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); clearVerificationRecovery(); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
+      {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
 
     </form>
   );
@@ -829,27 +898,36 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
   const [error, setError] = useState<UiMessage>("");
   const language = props.language ?? "en";
 
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const failedOffset = useRef(0);
+  const loader = useRef<(offset?: number) => Promise<void>>(async () => {});
   useEffect(() => {
-    let active = true;
-    getExploreFeeds()
-      .then((nextFeeds) => {
-        if (active) setFeeds(nextFeeds);
-      })
-      .catch((cause) => {
-        if (active) setError(toUiError(cause));
-      });
-    return () => {
-      active = false;
-    };
+    let active = true, inFlight = false;
+    async function load(offset = 0) {
+      if (inFlight) return;
+      inFlight = true; failedOffset.current = offset;
+      setLoading(true); setError("");
+      try {
+        const page = await getExploreFeeds(offset);
+        if (active) {
+          setFeeds(current => offset === 0 ? page.feeds : [...new Map([...(current ?? []), ...page.feeds].map(feed => [feed.id, feed])).values()]);
+          setNextOffset(page.nextOffset);
+        }
+      } catch (cause) { if (active) setError(toUiError(cause)); }
+      finally { inFlight = false; if (active) setLoading(false); }
+    }
+    loader.current = load; void load();
+    return () => { active = false; };
   }, []);
 
-  if (error) return <p className="error">{t(error)}</p>;
-  if (!feeds) return null;
-  if (feeds.length === 0) return <p className="muted">{noFeaturedFeedsLabel(language)}</p>;
+  if (!feeds && !error) return null;
+  if (feeds?.length === 0 && !error) return <p className="muted">{noFeaturedFeedsLabel(language)}</p>;
 
   return (
     <div className="explore-list">
-      {feeds.map((feed) => {
+      {error && <div role="alert">{Boolean(feeds?.length) && <p>{t("Some feeds could not be loaded. Previously loaded feeds are still available.")}</p>}<p className="error">{t(error)}</p><button type="button" disabled={loading} onClick={() => void loader.current(failedOffset.current)}>{t("Try Again")}</button></div>}
+      {(feeds ?? []).map((feed) => {
         const href = `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
         const isCurrent = props.currentFeed?.id === feed.id;
         return (
@@ -864,6 +942,7 @@ function ExploreFeedList(props: { currentFeed?: PublicBriefing; language?: "en" 
           </a>
         );
       })}
+      {nextOffset !== null && !error && <button type="button" disabled={loading} onClick={() => void loader.current(nextOffset)}>{t("Load more feeds")}</button>}
     </div>
   );
 }
@@ -892,6 +971,7 @@ function VerifyEmailPage(props: { token: string }) {
               try {
                 await verifyEmail(props.token);
                 setVerified(true);
+                window.location.replace("/login");
               } catch (cause) {
                 setError(toUiError(cause));
               } finally {
@@ -1260,8 +1340,10 @@ function AccountDialog(props: {
           title={t("logout")}
           disabled={busy === "logout"}
           onClick={async () => {
-            setBusy("logout");
-            await props.onLogout();
+            setBusy("logout"); setError("");
+            try { await props.onLogout(); }
+            catch (cause) { setError(toUiError(cause)); }
+            finally { setBusy(null); }
           }}
         >
           <LogOut size={22} aria-hidden /> {t("Log out")}
@@ -1348,7 +1430,7 @@ function AdminAccountsSection(props: {
         <div className={`user-management ${managedAccount ? "has-selection" : ""}`}>
         <div className="user-management-main">
         <div className="user-management-heading"><h1>{t("User Management")}</h1><p>{t("Manage registered users and their feeds.")}</p></div>
-        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><span id="users-role-filter-label" className="sr-only">{t("Filter users by role")}</span><FeedSettingsSelect kind="role" value={role} onChange={setRole} labelId="users-role-filter-label" options={[{value:'all',label:t('All Roles')},{value:'admin',label:t('Admin')},{value:'user',label:t('User')}]}/></span><div className="users-counts"><span>{props.accounts.length} {t("users")}</span><span>{props.accounts.reduce((total, account) => total + feedCountFor(account), 0)} {t("feeds")}</span></div></div>
+        <div className="users-toolbar"><label className="users-search"><Search size={20}/><input aria-label={t("Search users")} placeholder={t("Search users...")} value={query} onChange={event => setQuery(event.target.value)}/></label><span className="users-role-filter"><span id="users-role-filter-label" className="sr-only">{t("Filter users by role")}</span><FeedSettingsSelect kind="role" value={role} onChange={setRole} labelId="users-role-filter-label" options={[{value:'all',label:t('All Roles')},{value:'admin',label:t('Admin')},{value:'user',label:t('User')}]}/></span><div className="users-counts"><span>{t("{count} users",{count:props.accounts.length})}</span><span>{t("{count} feeds",{count:props.accounts.reduce((total, account) => total + feedCountFor(account), 0)})}</span></div></div>
 
         {accountsError ? <div role="alert"><p className="error">{t(accountsError)}</p><button type="button" className="feed-state-retry" onClick={() => setAccountLoad(current => current + 1)}>{t("Try Again")}</button></div> : null}
         {error ? <p className="error">{t(error)}</p> : null}
@@ -1469,7 +1551,7 @@ function InlineAccountPanel(props: { title: string; closeLabel: string; icon: Re
 function FeedPage(props: { username: string; slug: string }) {
   const [summaryTarget,setSummaryTarget] = useState<HTMLDivElement|null>(null);
   const { language: uiLanguage, t } = useLanguage();
-  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading } = useFeedViewer(props.username, props.slug);
+  const { account, setAccount, ownedFeed, setOwnedFeed, loading: viewerLoading, readerId, sessionState, retrySession, ownershipState, retryOwnership } = useFeedViewer(props.username, props.slug);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(new URLSearchParams(window.location.search).has("edit"));
   const feedKey = `${props.username}/${props.slug}`;
@@ -1478,25 +1560,32 @@ function FeedPage(props: { username: string; slug: string }) {
   const feedRead = useRef<AbortController | null>(null);
   const searchRequest = useRef(0);
   const latestQuery = useRef("");
-  const searchFailed = useRef(false);
   const loadedFeed = useRef<string | null>(null);
   const visibleEditionIds = useRef(new Set<string>());
+  const publicationVersion = useRef<string|undefined>(undefined);
   if (feedIdentity.current !== feedKey) {
     feedIdentity.current = feedKey; feedRequest.current++; searchRequest.current++;
+    publicationVersion.current=undefined;
   }
   const [feedResult, setFeedResult] = useState<{ key: string; value: FeedPayload } | null>(null);
+  const [inaccessibleFeed,setInaccessibleFeed]=useState<string|null>(null);
   const payload = feedResult?.key === feedKey ? feedResult.value : null;
   const [readState, setReadState] = useState<{ key: string; state: "loading" | "loaded" | "failed" }>({ key: feedKey, state: "loading" });
   const initialLoading = !payload && (readState.key !== feedKey || readState.state === "loading");
   const readerLoading = initialLoading || viewerLoading;
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
+  const [editionSource,setEditionSource]=useState<{key:string;text:string}|null>(null);
   const [query, setQuery] = useState("");
   const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
   const [error, setError] = useState<UiMessage>("");
+  const [searchError,setSearchError]=useState<{key:string;text:string;message:UiMessage}|null>(null);
   const [starBusy, setStarBusy] = useState(false);
   const [summaryMessage, setSummaryMessage] = useState("");
   const [editionBusyIds, setEditionBusyIds] = useState<Set<string>>(new Set());
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [readIds, setReadIds] = useReadProgress(payload?.briefing.id, readerId, payload ? [
+    ...payload.editions.map(edition=>edition.id),
+    ...(editionSource?.key===feedKey?editions.map(edition=>edition.id):[])
+  ] : []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
   const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
@@ -1508,7 +1597,7 @@ function FeedPage(props: { username: string; slug: string }) {
     const read = new AbortController();
     feedRead.current = read;
     const key = feedKey, request = ++feedRequest.current;
-    if (!silent || loadedFeed.current !== key) { searchFailed.current = false; setError(""); setSummaryMessage(""); }
+    if (!silent || loadedFeed.current !== key) { setError(""); setSummaryMessage(""); }
     if (loadedFeed.current !== key) setReadState({ key, state: "loading" });
     try {
       const next = await getFeed(props.username, props.slug, {
@@ -1517,30 +1606,48 @@ function FeedPage(props: { username: string; slug: string }) {
       });
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       loadedFeed.current = key;
-      visibleEditionIds.current = new Set(next.editions.map(edition => edition.id));
+      setInaccessibleFeed(null);
+      const searching=Boolean(latestQuery.current.trim()),complete=next.editionsComplete===true;
+      const changed=searching&&!complete&&(next.publicationVersion===undefined||next.publicationVersion!==publicationVersion.current);
+      publicationVersion.current=next.publicationVersion;
+      visibleEditionIds.current = new Set([
+        ...(searching&&!complete&&!changed?visibleEditionIds.current:[]),
+        ...next.editions.map(edition => edition.id)
+      ]);
       setFeedResult({ key, value: next }); setReadState({ key, state: "loaded" });
       const sourceNotice = sessionStorage.getItem(`feed-notice:${next.briefing.id}`);
-      searchFailed.current = false; setError(sourceNotice ?? "");
+      setError(sourceNotice ?? "");
       if (sourceNotice) sessionStorage.removeItem(`feed-notice:${next.briefing.id}`);
-      // Invalidate pending searches before they can restore newly withdrawn prose.
-      searchRequest.current++;
+      // Only a complete searchable snapshot can prove an edition was withdrawn.
+      if(!searching||complete||changed)searchRequest.current++;
       const ids = visibleEditionIds.current;
       // Refresh visibility without discarding pagination, search or loaded detail.
-      setEditions(current => latestQuery.current.trim() ? current.filter(edition => ids.has(edition.id)) : next.editions);
+      // Changed or unknown publication state must not leave stale search prose
+      // visible while its authoritative replacement is pending or unavailable.
+      setEditions(current => searching ? (changed?[]:complete?current.filter(edition => ids.has(edition.id)):current) : next.editions);
+      if(!searching)setEditionSource({key,text:latestQuery.current});
+      if(changed){setEditionSource(null);setSettledSearch(null);setSelectedReport(null);setEditionDetails(new Map());}
       setEditionDetails(current => new Map([...current].filter(([id]) => ids.has(id))));
       setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
     } catch (cause) {
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
-      if (!silent || loadedFeed.current !== key) {
-        searchFailed.current = false; setReadState({ key, state: "failed" }); setError(toUiError(cause));
+      if(cause instanceof ApiError&&[403,404].includes(cause.uiMessage.details.status??0)){
+        setInaccessibleFeed(key);setFeedResult(null);setReadState({key,state:'failed'});
+        setEditions([]);setEditionDetails(new Map());setSelectedReport(null);
+        visibleEditionIds.current=new Set();loadedFeed.current=null;
+        return cause.uiMessage.details;
       }
+      if (!silent || loadedFeed.current !== key) {
+        setReadState({ key, state: "failed" }); setError(toUiError(cause));
+      }
+      return cause instanceof ApiError ? cause.uiMessage.details : {};
     } finally {
       if (feedRead.current === read) feedRead.current = null;
     }
   }
 
   useEffect(() => {
-    setError(""); setSummaryMessage(""); latestQuery.current = "";
+    setError("");setSearchError(null);setEditionSource(null); setSummaryMessage(""); latestQuery.current = "";
     setQuery(""); setEditions([]); setEditionBusyIds(new Set());
     setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
     visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
@@ -1554,24 +1661,20 @@ function FeedPage(props: { username: string; slug: string }) {
 
   useEffect(() => {
     let pending = false;
+    // After an overload answer or a network failure, every trigger waits 30,
+    // 60, then 120 seconds. Healthy refreshes stay immediate, and coming back
+    // online always retries.
+    let policy = initialFeedRefreshState();
     const update = async () => {
-      if (document.visibilityState !== "visible" || pending) return;
+      if (document.visibilityState !== "visible" || pending || !mayRefreshFeed(policy, Date.now())) return;
       pending = true;
-      try { await refresh(true); } finally { pending = false; }
+      try { policy = afterFeedRefresh(policy, Date.now(), await refresh(true)); } finally { pending = false; }
     };
-    const interval = window.setInterval(() => void update(), 60_000);
-    document.addEventListener("visibilitychange", update); window.addEventListener("focus", update); window.addEventListener("online", update);
-    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); window.removeEventListener("focus", update); window.removeEventListener("online", update); };
+    const online = () => { policy = initialFeedRefreshState(); void update(); };
+    const interval = window.setInterval(() => void update(), FEED_REFRESH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", update); window.addEventListener("focus", update); window.addEventListener("online", online);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); window.removeEventListener("focus", update); window.removeEventListener("online", online); };
   }, [props.username, props.slug]);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(`ln_read:${props.username}:${props.slug}`);
-    setReadIds(new Set(raw ? (JSON.parse(raw) as string[]) : []));
-  }, [props.username, props.slug]);
-
-  useEffect(() => {
-    localStorage.setItem(`ln_read:${props.username}:${props.slug}`, JSON.stringify(Array.from(readIds)));
-  }, [props.username, props.slug, readIds]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -1591,25 +1694,28 @@ function FeedPage(props: { username: string; slug: string }) {
       const next = text.trim() ? await searchFeed(props.username, props.slug, text) : payload?.editions ?? [];
       if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) {
         visibleEditionIds.current = new Set([...visibleEditionIds.current, ...next.map(edition => edition.id)]);
-        searchFailed.current = false; setError(""); setEditions(next); setSettledSearch({ key, text });
+        setSearchError(null); setEditions(next);setEditionSource({key,text}); setSettledSearch({ key, text });
       }
     } catch (cause) {
-      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { searchFailed.current = true; setError(toUiError(cause)); }
+      if (feedIdentity.current === key && request === searchRequest.current && text === latestQuery.current) { setSearchError({key,text,message:toUiError(cause)}); setSettledSearch({key,text}); }
     }
   }
 
+  const searchSnapshot=payload?.editionsComplete===false&&payload.publicationVersion!==undefined?payload.publicationVersion:payload;
   useEffect(() => {
     const request = ++searchRequest.current;
     if (!payload) return;
-    if (!query.trim()) { if (searchFailed.current) { searchFailed.current = false; setError(""); } setEditions(payload.editions); return; }
+    if (!query.trim()) { setSearchError(null); setEditions(payload.editions);setEditionSource({key:feedKey,text:query}); return; }
     const timeout = window.setTimeout(() => {
       if (request === searchRequest.current && feedIdentity.current === feedKey && query === latestQuery.current) void applySearch(query, request);
     }, 250);
     return () => window.clearTimeout(timeout);
-  }, [payload, props.username, props.slug, query]);
+  }, [searchSnapshot, props.username, props.slug, query]);
 
-  const currentEditions = payload ? editions : [];
+  const editionMatchesQuery=editionSource?.key===feedKey&&editionSource.text===query;
+  const currentEditions = payload&&editionMatchesQuery ? editions : [];
   const searchLoading = Boolean(payload && query.trim() && (settledSearch?.key !== feedKey || settledSearch.text !== query));
+  const activeSearchError=searchError?.key===feedKey&&searchError.text===query?searchError.message:null;
   const archivedReadEditions = currentEditions.filter((edition) => readIds.has(edition.id));
   const filteredEditions = [
     ...currentEditions.filter(edition => !readIds.has(edition.id)),
@@ -1622,7 +1728,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const canStar = Boolean(payload);
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
   const compactFeedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language, true) : "";
-  const reportEdition = selectedReport
+  const reportEdition = editionMatchesQuery&&selectedReport
     ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
     : undefined;
   const feedTitle = payload ? (
@@ -1672,8 +1778,11 @@ function FeedPage(props: { username: string; slug: string }) {
 
   async function openEditionReport(edition: BriefingEdition, sectionIndex: number) {
     const detailed = await loadEditionDetail(edition);
-    if (!detailed || !detailed.sections[sectionIndex]) return;
-    setSelectedReport({ editionId: edition.id, sectionIndex });
+    if (!detailed) return;
+    const references=briefingReferences(detailed);
+    const selectedIndex=edition.sections.length||editionDetails.has(edition.id)?sectionIndex:references.findIndex(reference=>reference.sectionIndex===sectionIndex);
+    if (!references[selectedIndex]) return;
+    setSelectedReport({ editionId: edition.id, sectionIndex:selectedIndex });
   }
 
   const { theme, setTheme } = useTheme();
@@ -1688,12 +1797,14 @@ function FeedPage(props: { username: string; slug: string }) {
         aria-pressed={payload?.viewerHasStarred ?? false}
         onClick={async () => {
           if (!payload) return;
-          setStarBusy(true);
+          setStarBusy(true); setError("");
           try {
             const result = await setFeedStar(props.username, props.slug, !payload.viewerHasStarred);
             setFeedResult(current => current?.key === feedKey && feedIdentity.current === feedKey ? {
               key: feedKey, value: { ...current.value, briefing: { ...current.value.briefing, stars: result.stars }, viewerHasStarred: result.viewerHasStarred }
             } : current);
+          } catch (cause) {
+            setError(toUiError(cause));
           } finally {
             setStarBusy(false);
           }
@@ -1708,9 +1819,31 @@ function FeedPage(props: { username: string; slug: string }) {
     </div>
   );
 
+  const accountDialog = account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
+        onLogout={async () => {
+          const result = await logout();
+          feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
+          visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
+          setFeedResult(null);setEditions([]);setEditionSource(null);setEditionDetails(new Map());setSelectedReport(null);
+          setQuery('');setSettledSearch(null);setSearchError(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
+          setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
+          if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
+          window.location.replace('/');
+        }}
+        onSaved={async (nextAccount, nextBriefings) => {
+          setAccount(nextAccount);
+          const nextOwned=nextBriefings.find(feed=>feed.id===(ownedFeed?.id??payload?.briefing.id)&&feed.ownerAccountId===nextAccount.id)??null;
+          setOwnedFeed(nextOwned);
+          if(nextAccount.username!==props.username&&nextOwned){
+            window.location.replace(`/${encodeURIComponent(nextAccount.username)}/${encodeURIComponent(nextOwned.slug)}/`);
+          }
+        }}/>;
+
+  if(inaccessibleFeed===feedKey)return <><PrivateFeedPage language={language} header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)}/>}/>{accountDialog}</>;
+
   return (
     <Shell
-      header={<AppHeader account={account} loading={viewerLoading} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>}/>}
+      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language} isOwnFeed={Boolean(ownedFeed || (account && account.id === payload?.briefing.ownerAccountId))}/>}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
@@ -1719,15 +1852,20 @@ function FeedPage(props: { username: string; slug: string }) {
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
     >
+      {sessionState==='error' && <div role="alert" className="feed-session-error">
+        <p>{t("We couldn’t confirm your session. Retry to restore your account and read progress.")}</p>
+        <button type="button" onClick={retrySession}>{t("Retry session")}</button>
+      </div>}
+      {sessionState==='authenticated'&&ownershipState==='error'&&<div role="alert">
+        <p>{t('Could not load feed-management controls. Retry to restore access to settings.')}</p>
+        <button type="button" onClick={retryOwnership}>{t('Retry feed controls')}</button>
+      </div>}
+      {sessionState==='authenticated'&&!viewerLoading&&ownershipState==='loading'&&<p role="status">{t('Loading feed controls…')}</p>}
       {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
-      {account && accountDialogOpen && <AccountDialog account={account} onClose={() => setAccountDialogOpen(false)}
-        onLogout={async () => { await logout(); setAccount(null); setOwnedFeed(null); setAccountDialogOpen(false); }}
-        onSaved={async (nextAccount, nextBriefings) => {
-          setAccount(nextAccount);
-          setOwnedFeed(nextBriefings.find(feed => feed.ownerUsername === props.username && feed.slug === props.slug) ?? null);
-        }}/>}
+      {accountDialog}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveFeed(input);
+        if (saved.sourceActivation === "pending") window.alert(t("Feed saved. Some sources are awaiting activation. Check source health for updates."));
         setOwnedFeed(saved); setEditorOpen(false);
         if (saved.slug !== props.slug) window.location.href = `/${saved.ownerUsername}/${saved.slug}/`;
         else await refresh();
@@ -1771,17 +1909,15 @@ function FeedPage(props: { username: string; slug: string }) {
         />
       ) : null}
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
-      <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
-      <SourceHealth sources={payload?.sourceAvailability} language={language} t={t} showDetails={false}/>
-      {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
-      {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
+      {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
+      <FeedReaderStatus payload={payload} isAdmin={sessionState === "authenticated" && account?.role === "admin"} language={language} t={t}/>
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>
         </p>
       ) : null}
 
-      {searchLoading && !error && currentEditions.length === 0 ? <FeedLoadingSkeleton label={loadingFeedLabel(language)}/> : null}
+      {searchLoading && !error && !activeSearchError && currentEditions.length === 0 ? <FeedLoadingSkeleton label={loadingFeedLabel(language)}/> : null}
       <div className="news-line">
         {groupEditionsByDay(visibleUnreadEditions, language, clock).map(group => (
           <section className="news-day-group" key={group.key}>
@@ -1796,7 +1932,9 @@ function FeedPage(props: { username: string; slug: string }) {
                   contentLanguage={payload?.briefing.language ?? language}
                   isLoading={editionBusyIds.has(edition.id)}
                   isRead={readIds.has(edition.id)}
+                  readProgressUnavailable={readerId===undefined}
                   onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
+                  onLoadDetail={() => loadEditionDetail(edition)}
                   onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
                 />
               ))}
@@ -1812,7 +1950,7 @@ function FeedPage(props: { username: string; slug: string }) {
             <span className="muted">{moreCountLabel(hiddenUnreadCount, language)}</span>
           </div>
         ) : null}
-        {payload && !initialLoading && !searchLoading && filteredEditions.length === 0 && !error ? (
+        {payload && !initialLoading && !searchLoading && filteredEditions.length === 0 && !error && !activeSearchError ? (
           <div className="empty-state feed-empty-state">
             {archivedReadEditions.length === 0 && <span className="feed-empty-icon" aria-hidden="true"><Newspaper size={32} strokeWidth={1.5}/></span>}
             <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
@@ -1892,7 +2030,9 @@ function FeedEditionRow(props: {
   isLoading: boolean;
   isRead: boolean;
   onToggleRead: () => void;
+  readProgressUnavailable?: boolean;
   onOpenReport: (sectionIndex: number) => void;
+  onLoadDetail: () => Promise<BriefingEdition | null>;
 }) {
   const { edition, language } = props;
   const textDir = textDirection(props.contentLanguage);
@@ -1901,7 +2041,9 @@ function FeedEditionRow(props: {
   const headline = (edition.sections.length === 1 ? edition.sections[0].title || retainedHeadline : undefined) || edition.title;
   const narrative = normalizeSummary(edition.summary);
   const summary = headline && narrative.startsWith(headline) ? narrative.slice(headline.length).trimStart() : narrative;
-  const referenceCount = Math.max(props.detailEdition?.sections.length ?? 0, edition.sections.length, highestReferenceNumber(edition.summary));
+  const references = briefingReferences(props.detailEdition ?? edition);
+  const referenceCount = Math.max(edition.sections.length ? references.length : 0, highestReferenceNumber(edition.summary));
+  const referenceNumbers = Array.from({length: referenceCount}, (_, index) => index + 1);
   const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
@@ -1916,6 +2058,12 @@ function FeedEditionRow(props: {
         fallbackSummary={summary}
         sections={edition.sections}
         direction={textDir}
+        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <CitationReference
+          key={number} number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}
+        />)}
+        renderDetails={(body, sectionIndex) => <BriefingReadMore body={body} sectionIndex={sectionIndex} language={language} loadDetail={props.onLoadDetail}
+          renderBody={text => <ReferenceParagraph className="news-summary" text={text} language={language} direction={textDir} referenceCount={referenceCount} onOpenReference={props.onOpenReport}
+            renderReference={number => <CitationReference number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}/>}/>}/>}
         renderBody={text=><ReferenceParagraph
           className="news-summary"
           text={text}
@@ -1926,16 +2074,11 @@ function FeedEditionRow(props: {
         />}
       />
       <div className="news-foot">
-        {referenceCount > 0 ? (
-          <button type="button" className="news-sources" aria-busy={props.isLoading} onClick={() => props.onOpenReport(0)}>
-            <span>{sourcesLabel(language)}</span>
-            <span className="news-sources-count">{referenceCount}</span>
-            {textDirection(language) === "rtl" ? <ChevronLeft size={16} aria-hidden /> : <ChevronRight size={16} aria-hidden />}
-          </button>
-        ) : <span />}
+        <span />
         <button
           type="button"
           className="read-button"
+          disabled={props.readProgressUnavailable}
           aria-pressed={props.isRead}
           onClick={props.onToggleRead}
         >
@@ -1956,6 +2099,7 @@ function ReferenceParagraph(props: {
   referenceCount: number;
   className: string;
   onOpenReference: (sectionIndex: number) => void;
+  renderReference?: (number: number) => React.ReactNode;
 }) {
   const textDir = props.direction;
   const parts = referenceTextParts(props.text);
@@ -1978,7 +2122,7 @@ function ReferenceParagraph(props: {
         const canOpen = part.value >= 1 && part.value <= props.referenceCount;
         const following = parts[index + 1];
         const punctuation = following?.kind === "text" ? following.value.match(trailingPunctuation)?.[0] ?? "" : "";
-        const marker = (
+        const marker = props.renderReference && canOpen ? <React.Fragment key={`reference-${part.value}-${index}`}>{props.renderReference(part.value)}</React.Fragment> : (
           <button
             key={`reference-${part.value}-${index}`}
             type="button"
@@ -2018,12 +2162,9 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
   );
 }
 
-function FeedBackLink({ language }: { language: "en" | "ar" | "fr" }) {
+function FeedBackLink({ isOwnFeed, language }: { isOwnFeed: boolean; language: "en" | "ar" | "fr" }) {
   const label = language === "ar" ? "رجوع" : language === "fr" ? "Retour" : "Back";
-  return <a className="feed-nav-back" href="/" onClick={event => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
-  }}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
+  return <a className="feed-nav-back" lang={language} href={isOwnFeed ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
 }
 
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {
@@ -2103,7 +2244,7 @@ function Shell(props: {
               </button>
             ) : null}
             <ThemeToggle/>
-            {props.onLogout ? <button type="button" title={t("logout")} onClick={() => void props.onLogout?.()}><LogOut size={15} aria-hidden /> {t("logout")}</button> : null}
+            {props.onLogout ? <button type="button" title={t("logout")} onClick={() => { void props.onLogout?.().catch(() => window.alert(t("Could not complete the request. Try again."))); }}><LogOut size={15} aria-hidden /> {t("logout")}</button> : null}
           </div>
         </div>
       </header>}
@@ -2305,8 +2446,8 @@ function bylineLabel(language: "en" | "ar" | "fr"): string {
 }
 
 function loadingFeedLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار تحميل الموجز";
-  if (language === "fr") return "chargement du fil";
+  if (language === "ar") return "جارٍ تحميل الخلاصة";
+  if (language === "fr") return "Chargement du fil";
   return "loading feed";
 }
 
@@ -2318,25 +2459,25 @@ function refreshControlLabel(language: "en" | "ar" | "fr"): string {
 
 function summaryPublishedLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "تم نشر موجز جديد.";
-  if (language === "fr") return "nouveau brief publié.";
+  if (language === "fr") return "Nouveau brief publié.";
   return "new brief published.";
 }
 
 function starControlLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return starred ? "مميّز" : "تمييز";
-  if (language === "fr") return starred ? "Favori" : "Favoriser";
+  if (language === "ar") return starred ? "في المفضلة" : "إضافة للمفضلة";
+  if (language === "fr") return starred ? "Favori" : "Ajouter aux favoris";
   return starred ? "Starred" : "Star";
 }
 
 function starTitleLabel(starred: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return starred ? "إزالة التمييز" : "تمييز الموجز";
-  if (language === "fr") return starred ? "retirer le favori" : "favoriser le fil";
+  if (language === "ar") return starred ? "إزالة من المفضلة" : "إضافة الخلاصة إلى المفضلة";
+  if (language === "fr") return starred ? "Retirer des favoris" : "Ajouter le fil aux favoris";
   return starred ? "remove star" : "star feed";
 }
 
 function loadingFeedsLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "جار تحميل الموجزات";
-  if (language === "fr") return "chargement des fils";
+  if (language === "ar") return "جارٍ تحميل الخلاصات";
+  if (language === "fr") return "Chargement des fils";
   return "loading feeds";
 }
 
@@ -2359,49 +2500,49 @@ function allFilterLabel(language: "en" | "ar" | "fr"): string {
 }
 
 function unreadFilterLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "غير مقروء";
+  if (language === "ar") return "غير المقروءة";
   if (language === "fr") return "Non lus";
   return "Unread";
 }
 
 function searchPublishedLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "ابحث في الموجز المنشور";
+  if (language === "ar") return "البحث في الموجزات";
   if (language === "fr") return "Chercher dans les briefs";
   return "Search briefings";
 }
 
 function loadMoreLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "عرض المزيد";
-  if (language === "fr") return "afficher plus";
+  if (language === "fr") return "Afficher plus";
   return "Load More";
 }
 
 function moreCountLabel(count: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `${count} إضافية`;
+  if (language === "ar") return `المزيد: ${count}`;
   if (language === "fr") return `${count} de plus`;
   return `${count} more`;
 }
 
 function emptyFeedTitle(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "كل الموجزات الظاهرة مقروءة" : "لا توجد موجزات منشورة";
-  if (language === "fr") return readCount > 0 ? "tous les briefs visibles sont lus" : "aucun brief publié";
+  if (language === "ar") return readCount > 0 ? "جميع الموجزات المعروضة مقروءة" : "لا توجد موجزات منشورة";
+  if (language === "fr") return readCount > 0 ? "Tous les briefs affichés sont lus" : "Aucun brief publié";
   return readCount > 0 ? "all visible briefings are read" : "no published briefings";
 }
 
 function emptyFeedMessage(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "افتح قسم المقروء للعودة إلى الموجزات السابقة." : "سيظهر الموجز المجدول التالي هنا.";
-  if (language === "fr") return readCount > 0 ? "Ouvrez la section lue pour revoir les anciens briefs." : "Le prochain brief programmé apparaîtra ici.";
+  if (language === "ar") return readCount > 0 ? "افتح قسم «المقروءة» للاطلاع على الموجزات السابقة." : "سيظهر الموجز المجدول التالي هنا.";
+  if (language === "fr") return readCount > 0 ? "Ouvrez la section « Lus » pour consulter les briefs précédents." : "Le prochain brief programmé apparaîtra ici.";
   return readCount > 0 ? "Open the read section below to revisit archived briefings." : "The next scheduled briefing will appear here.";
 }
 
 function readSectionLabel(count: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return `مقروء · ${count}`;
+  if (language === "ar") return `المقروءة · ${count}`;
   if (language === "fr") return `Lus · ${count}`;
   return `Read · ${count}`;
 }
 
 function markReadLabel(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "وضع كغير مقروء" : "وضع كمقروء";
+  if (language === "ar") return isRead ? "تعيين كغير مقروء" : "تعيين كمقروء";
   if (language === "fr") return isRead ? "Marquer comme non lu" : "Marquer comme lu";
   return isRead ? "Mark as unread" : "Mark as read";
 }
@@ -2413,14 +2554,14 @@ function readToggleText(isRead: boolean, language: "en" | "ar" | "fr"): string {
 }
 
 function readToggleTitle(isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? "وضع كغير مقروء" : "وضع كمقروء";
-  if (language === "fr") return isRead ? "marquer non lu" : "marquer lu";
+  if (language === "ar") return isRead ? "تعيين كغير مقروء" : "تعيين كمقروء";
+  if (language === "fr") return isRead ? "Marquer comme non lu" : "Marquer comme lu";
   return isRead ? "mark unread" : "mark read";
 }
 
 function readToggleAria(title: string, isRead: boolean, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return isRead ? `وضع ${title} كغير مقروء` : `وضع ${title} كمقروء`;
-  if (language === "fr") return isRead ? `marquer ${title} non lu` : `marquer ${title} lu`;
+  if (language === "ar") return isRead ? `تعيين «${title}» كغير مقروء` : `تعيين «${title}» كمقروء`;
+  if (language === "fr") return isRead ? `Marquer « ${title} » comme non lu` : `Marquer « ${title} » comme lu`;
   return isRead ? `mark ${title} unread` : `mark ${title} read`;
 }
 
@@ -2437,32 +2578,7 @@ function formatAutosaveStatus(state: "idle" | "saving" | "saved" | "error", stat
   return status || "ready";
 }
 
-function formatCountdown(isoDate: string, nowMs: number, language: "en" | "ar" | "fr" = "en"): string {
-  const diffMs = new Date(isoDate).getTime() - nowMs;
-  if (!Number.isFinite(diffMs)) return "";
-  if (diffMs <= 0) {
-    if (language === "ar") return "مستحق الآن";
-    if (language === "fr") return "maintenant";
-    return "is due";
-  }
-  const minutes = Math.ceil(diffMs / 60_000);
-  if (minutes < 60) {
-    if (language === "ar") return `بعد ${minutes} د`;
-    if (language === "fr") return `dans ${minutes} min`;
-    return `in ${minutes} min`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (hours < 24) {
-    if (language === "ar") return remainder === 0 ? `بعد ${hours} س` : `بعد ${hours} س ${remainder} د`;
-    if (language === "fr") return remainder === 0 ? `dans ${hours}h` : `dans ${hours}h ${remainder}m`;
-    return remainder === 0 ? `in ${hours}h` : `in ${hours}h ${remainder}m`;
-  }
-  const days = Math.floor(hours / 24);
-  if (language === "ar") return `بعد ${days} يوم`;
-  if (language === "fr") return `dans ${days}j`;
-  return `in ${days}d`;
-}
+
 
 function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" | "ar" | "fr", compact = false): string {
   if (briefing.paused) return pausedFeedMessage(language);
@@ -2470,14 +2586,14 @@ function feedStatusText(briefing: PublicBriefing, nowMs: number, language: "en" 
   const nextAt = new Date(briefing.nextBriefingAt).getTime();
   if (!Number.isFinite(nextAt)) return "";
   if (nextAt <= nowMs) return awaitingAcceptedBriefMessage(briefing.briefingCadence, language);
-  const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language);
-  if (compact && countdown) return `${language === "ar" ? "التالي" : language === "fr" ? "Brief" : "Next"} ${countdown}`;
+  const countdown = formatCountdown(briefing.nextBriefingAt, nowMs, language, compact);
+  if (compact && countdown) return `${language === "ar" ? "التالي" : language === "fr" ? (briefing.briefingCadence === "hourly" ? "Vérif." : "Brief") : "Next"} ${countdown}`;
   return countdown ? nextBriefingText(briefing.briefingCadence, countdown, language) : "";
 }
 
 function pausedFeedMessage(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "الموجز متوقف مؤقتاً؛ لن تُنشر موجزات جديدة حتى يُستأنف.";
-  if (language === "fr") return "fil en pause; aucun nouveau brief ne sera publié avant reprise.";
+  if (language === "ar") return "الخلاصة متوقفة مؤقتًا. لن تُنشر فيها موجزات جديدة حتى استئنافها.";
+  if (language === "fr") return "Fil en pause. Aucun nouveau brief ne sera publié avant sa reprise.";
   return "feed paused; no new briefings will publish until it resumes.";
 }
 
@@ -2485,8 +2601,8 @@ function awaitingAcceptedBriefMessage(
   cadence: BriefingConfig["briefingCadence"],
   language: "en" | "ar" | "fr"
 ): string {
-  if (language === "ar") return cadence === "hourly" ? "بانتظار التحديث المقبول التالي." : `بانتظار الموجز المقبول التالي (${cadenceMetaLabel(cadence, language)}).`;
-  if (language === "fr") return cadence === "hourly" ? "en attente de la prochaine mise à jour acceptée." : `en attente du prochain brief ${cadenceMetaLabel(cadence, language)} accepté.`;
+  if (language === "ar") return cadence === "hourly" ? "بانتظار تحديث جديد بعد مراجعته." : `بانتظار الموجز ال${cadenceMetaLabel(cadence, language)} التالي بعد مراجعته.`;
+  if (language === "fr") return cadence === "hourly" ? "En attente d’une nouvelle mise à jour validée." : `En attente du prochain brief ${cadenceMetaLabel(cadence, language)} validé.`;
   return cadence === "hourly" ? "waiting for the next accepted update." : `waiting for the next accepted ${cadence} brief.`;
 }
 
@@ -2530,32 +2646,9 @@ function showLessLabel(language: "en" | "ar" | "fr"): string {
   return "Show less";
 }
 
-function cadenceMetaLabel(cadence: BriefingConfig["briefingCadence"], language: "en" | "ar" | "fr"): string {
-  if (language === "ar") {
-    if (cadence === "daily") return "يومي";
-    if (cadence === "weekly") return "أسبوعي";
-    if (cadence === "monthly") return "شهري";
-    return "تحديثات";
-  }
-  if (language === "fr") {
-    if (cadence === "daily") return "quotidien";
-    if (cadence === "weekly") return "hebdomadaire";
-    if (cadence === "monthly") return "mensuel";
-    return "mises à jour";
-  }
-  if (cadence === "hourly") return "updates";
-  return cadence;
-}
 
-function nextBriefingText(
-  cadence: BriefingConfig["briefingCadence"],
-  countdown: string,
-  language: "en" | "ar" | "fr"
-): string {
-  if (language === "ar") return cadence === "hourly" ? `الفحص التالي ${countdown}` : `الموجز التالي ${countdown}`;
-  if (language === "fr") return `prochain brief ${cadenceMetaLabel(cadence, language)} ${countdown}`;
-  return cadence === "hourly" ? `Next check ${countdown}` : `Next ${cadence} brief ${countdown}`;
-}
+
+
 
 function noReferencesLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "لا توجد مصادر لهذا الخبر.";
@@ -2565,7 +2658,7 @@ function noReferencesLabel(language: "en" | "ar" | "fr"): string {
 
 function originalPostLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "المنشور الأصلي";
-  if (language === "fr") return "publication originale";
+  if (language === "fr") return "Publication originale";
   return "original post";
 }
 

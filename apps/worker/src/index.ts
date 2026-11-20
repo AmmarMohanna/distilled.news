@@ -1,4 +1,6 @@
 import {withD1ResetDiagnostics} from './d1-reset-diagnostics';
+import {readRouteDatabase} from './d1-read-routes';
+import {backfillEditionArtifacts,editionArtifactBackfillEnabled} from './edition-artifact-backfill';
 import {observeInvocation,emitAgentOps} from './agentops';
 import {runStorageMaintenance} from './storage-maintenance';
 import {sweepVerifiedArchiveOrphans} from './verified-archives';
@@ -54,7 +56,8 @@ const SLOW_QUEUE_JOB_MS = 10_000;
 
 export default {
   fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
-    env={...env,DB:withD1ResetDiagnostics(env.DB)};
+    // Read-only routes may use a replica session and retry an overloaded read once.
+    env={...env,DB:readRouteDatabase(env,request,withD1ResetDiagnostics)};
     return env.AGENTOPS_ENABLED==='true' ? observeInvocation('fetch',async()=>app.fetch(request,await productRuntimeEnv(env),ctx)) : app.fetch(request,await productRuntimeEnv(env),ctx);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
@@ -343,6 +346,8 @@ async function runProjectionMaintenance(env:Env):Promise<void> {
 export async function runScheduledMaintenance(env: Env): Promise<void> {
   if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&env.VERIFIED_ARCHIVE_ENABLED==='true')try {await runStorageMaintenance(env,new Date(),{maxRecords:5,budgetMs:5000})}
   catch(error){console.error(JSON.stringify({event:'storage_maintenance_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
+  if(editionArtifactBackfillEnabled(env))try {await backfillEditionArtifacts(env,{maxAttached:5,budgetMs:5000})}
+  catch(error){console.error(JSON.stringify({event:'edition_artifact_backfill_failed',reason:error instanceof Error?error.message:'UNKNOWN'}))}
   env = await productRuntimeEnv(env);
   await runModelPublicationMaintenance(env);
   try {await retireManualBriefingRequests(env)} catch {console.warn('Could not retire historical manual requests')}

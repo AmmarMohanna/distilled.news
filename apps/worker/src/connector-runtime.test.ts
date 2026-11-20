@@ -43,7 +43,9 @@ function v3Fixture(summary:string){
  Object.assign(env,{BRIEFING_ENGINE:'v3',BRIEFING_EDITOR_MODEL:'openai/gpt-4.1',BRIEFING_VERIFIER_MODEL:'openai/gpt-4.1-mini',OPENROUTER_API_KEY:'test-only-key'});
  return vi.fn(async(_url:unknown,init?:RequestInit)=>{
   const body=JSON.parse(String(init?.body)),verify=body.messages[0].content.includes('meticulous fact-checker');
-  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:summary,body:summary,sources:['S1'],relation:'new',importance:1}]};
+  const content=verify?{results:[{i:0,verdict:'ok',issues:[]}]}:{items:[{headline:summary,body:summary,sources:['S1'],relation:'new',updates:null,importance:1}]};
+  const required=body.response_format?.json_schema?.schema?.properties?.source_decisions?.required;
+  if(!verify&&required){expect(required).toEqual(['S1']);Object.assign(content,{source_decisions:{S1:{decision:'selected',why:'The collected source supports this fixture development.'}}});}
   return Response.json({id:crypto.randomUUID(),choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
 }
@@ -74,6 +76,19 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('collects RSS from publishers requiring the same bot identity used during assessment',async()=>{
+ const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
+  const headers=new Headers(init?.headers);
+  if(headers.get('user-agent')!=='DistilledNewsBot/0.1 (+https://distilled.news)')return new Response('Bot identity required',{status:403});
+  expect(headers.get('accept')).toContain('application/rss+xml');
+  return new Response('<rss><channel><item><guid>identified-report</guid><title>Lebanon banking reform approved</title><description>Parliament approved banking legislation.</description><link>https://example.com/identified</link></item></channel></rss>');
+ });
+ const backend=createConnectorRuntime(env,fetcher);
+ const result=await backend.collectRss({scope:request.scope,configurationRevision:request.configurationRevision,runId:'identified-rss',url:request.source.locator,maxItems:30});
+ expect(result.checkpoint).toBe('ADVANCED');
+ expect(result.coverage.failureReason).toBe('NONE');
+ expect(fetcher).toHaveBeenCalledTimes(1);
+});
 it('CAS retries reuse only verified immutable payload metadata within their own policy instance',async()=>{
  const body='Known immutable body',fixture=handoffFixture().observations[0],canonicalUrl='https://example.com/article';
  const o={...fixture,...request.scope,id:'verification-observation',representation:'ARTICLE_EXCERPT' as const,contentCompleteness:'UNKNOWN' as const,canonicalUrl,titleHint:'Known title',contentHash:await hashContent({representation:'ARTICLE_EXCERPT',title:'Known title',body})};
@@ -147,6 +162,36 @@ it('rejects invalid maintenance bounds before changing budgets or scheduling wor
  env.SOURCE_POLL_MAX_JOBS_PER_TICK='21';
  await expect(runConnectorMaintenance(env)).rejects.toThrow('INVALID_POLL_RUNNER_BOUNDS');
  expect(await ctx.db.prepare('SELECT COUNT(*) AS n FROM connector_provider_poll_jobs').first()).toEqual({n:0});
+});
+it('spaces new LinkedIn windows after a confirmed monthly provider cap',async()=>{
+ const locator='https://www.linkedin.com/company/nvidia/';
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,actor_id,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('linkedin-source','feed-1','NVIDIA','channel','apify','linkedin_company',?,?,?,1,'connector',?,?,?)").bind(locator,'linkedin: '+locator,TESTED_ACTORS.linkedin_company,testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
+ const queued={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:'linkedin-source',APIFY_API_TOKEN:'fixture',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{"linkedin_apify":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"apify":0.25}'};
+ const schedule=(time:string)=>runConnectorMaintenance(queued,new Date(time),{scheduleOnly:true});
+ await schedule('2026-10-03T12:00:00Z');
+ const result=JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'BUDGET_EXCEEDED',diagnostic:{detail:'PROVIDER_MONTHLY_USAGE_LIMIT'}}]});
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='BLOCKED',last_error='BUDGET_EXCEEDED',result=?").bind(result).run();
+ expect((await schedule('2026-10-03T12:05:00Z'))?.scheduled).toHaveLength(0);
+ expect((await schedule('2026-10-03T13:00:00Z'))?.scheduled).toHaveLength(1);
+ expect(await ctx.db.prepare("SELECT COUNT(*) n FROM connector_provider_poll_jobs WHERE state='BLOCKED'").first()).toEqual({n:1});
+});
+it('schedules a fresh website poll without Zyte while a scoped paid outcome is unresolved',async()=>{
+ const locator='https://nowlebanon.com/';
+ await ctx.db.prepare("INSERT INTO sources(id,briefing_id,title,type,provider,kind,source_url,input,enabled,collection_owner,last_seen_at,created_at,updated_at) VALUES('website-source','feed-1','Now Lebanon','channel','web','web_page',?,?,1,'connector',?,?,?)").bind(locator,locator,testPolicy.now(),testPolicy.now(),testPolicy.now()).run();
+ const queued={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:'website-source',ZYTE_API_KEY:'fixture',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0.05}'};
+ const backend=createConnectorRuntime(queued);
+ const {scope}=await enrollV1Source(ctx.db,'website-source','owner-1',testPolicy.now());
+ const old={...request,scope:{feedId:scope.feedId,feedSourceId:scope.feedSourceId,sourceId:scope.sourceId},configurationRevision:scope.feedRevision,runId:'held-website',source:{family:'website',locator} as const};
+ await backend.scheduler.schedule(old.runId,old,'2026-10-03T11:55:00Z');
+ await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='BLOCKED',last_error='UNCERTAIN_PAID_SUBMISSION' WHERE job_id=?").bind(old.runId).run();
+ await ctx.db.prepare("INSERT INTO connector_provider_operations(provider_id,operation_id,request_hash,ceiling_usd,status,feed_id,feed_source_id,headers) VALUES('zyte','held-payment','hash',0.05,-1,'feed-1','website-source','{}')").run();
+ await runConnectorMaintenance(queued,new Date('2026-10-03T12:00:00Z'),{scheduleOnly:true});
+ const polls=await ctx.db.prepare("SELECT state,last_error,provider_order FROM connector_provider_poll_jobs ORDER BY scheduled_at").all();
+ expect(polls.results).toEqual([
+  {state:'BLOCKED',last_error:'UNCERTAIN_PAID_SUBMISSION',provider_order:JSON.stringify(['website_http','website_playwright','website_zyte'])},
+  {state:'PENDING',last_error:null,provider_order:JSON.stringify(['website_http','website_playwright'])},
+ ]);
+ expect(await ctx.db.prepare("SELECT status,ceiling_usd FROM connector_provider_operations WHERE operation_id='held-payment'").first()).toEqual({status:-1,ceiling_usd:0.05});
 });
 it('reuses the winning durable provider order when funding changes race with initial scheduling',async()=>{
  const r:SourceFetchRequest={...request,source:{family:'website',locator:'https://example.com/article'},limit:1};

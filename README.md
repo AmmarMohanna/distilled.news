@@ -85,6 +85,40 @@ Sending. For public user registration, Cloudflare must also allow sending to
 arbitrary recipients; Email Routing-only bindings can send only to verified
 destination addresses in the Cloudflare account.
 
+### Optional Zyte retry for website listings
+
+Set `SOURCE_ZYTE_LISTING_RETRY_ENABLED=true` to allow one Zyte follow-up per collection run for any homepage or recognized listing already eligible for paid Zyte collection. A recorded Zyte HTTP 500 or 520 uses the follow-up for a plain HTTP retry. If the initial request returned usable HTML but regular discovery found no article links, the follow-up can use Zyte Article List on that same HTML. Only links validated against the original page enter article acquisition, and coverage remains incomplete. Both modes use the existing budget and store separate receipts. Unknown provider outcomes, rate limits, and access refusals do not trigger a follow-up.
+
+### Website listing fallbacks and source regression fixtures
+
+When regular discovery reads a recognized listing or homepage but finds no article links, the collector tries a second parser before any paid or model fallback. It ignores card markup and keeps same-origin links that share the page's dominant article URL pattern (dated paths, numeric or opaque story IDs, long slugs), including links found only in embedded page data. It needs at least three matching links, and the coverage stays incomplete. Per-source scenarios live in `packages/connectors/test/publisher-scenarios.test.ts`. Save real listing pages with `node scripts/capture-publisher-fixtures.mjs <listing URL>` from a network that can reach the publisher; `publisher-captures.test.ts` then checks each saved page still yields its recorded minimum number of article links.
+
+Source health (`/api/me/sources/:sourceId/connector-health`) also warns with `SOURCE_NO_RECENT_SUCCESS` when a source has been checked without an accepted batch for 48 hours, and `SOURCE_NEVER_COLLECTED` when it has been checked three times without producing a single item. The same warnings appear on the feed page source notice for the feed owner and admins, in the pipeline trace `view=sources`, and in Grafana as `distilled_source_no_recent_success` and `distilled_source_never_collected` with two paused provisional alert rules. Apply migration `0100_source_collection_history_index.sql` before deploying the AgentOps collector.
+
+### Optional model fallback for website listings
+
+Set `SOURCE_WEBSITE_LINK_FALLBACK_MODEL` to a model covered by your existing OpenRouter model spending configuration. Leave the variable unset to disable the fallback. It runs only when a recognized public listing yields no links through regular HTTP collection. The model selects from at most 48 visible same-origin links. The collector sends the selected links through normal article acquisition and records the listing coverage as incomplete.
+
+The fallback uses the existing model ledger, with two admissions per source per hour and a $0.01 estimated cost limit per call. Identical requests reuse retained receipts. Unpaid recovery runs skip the fallback.
+
+### Gmail for verification emails
+
+Enable the Gmail API in Google Cloud and authorize a dedicated sending mailbox
+with the `https://www.googleapis.com/auth/gmail.send` scope and offline access.
+Follow [Google's OAuth setup guide](https://developers.google.com/workspace/gmail/api/auth/web-server)
+to obtain the refresh token. Set these values on the target Worker:
+
+- `VERIFICATION_MAIL_TRANSPORT=GMAIL_API`
+- `GMAIL_FROM` with the address of the authorized mailbox
+- `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` as Worker secrets
+- `PUBLIC_WEB_BASE_URL` with the public URL for that deployment
+
+Password resets continue to use `MAIL_TRANSPORT` and `EMAIL_FROM`. To switch
+verification back to the Outlook configuration, remove the override when
+`MAIL_TRANSPORT=OUTLOOK_GRAPH`, or set `VERIFICATION_MAIL_TRANSPORT=OUTLOOK_GRAPH`.
+After configuring Gmail, verify delivery by requesting a fresh signup link and
+opening it from the recipient's inbox.
+
 ## Feed Illustrations
 
 Feed illustrations use Cloudflare Workers AI model `@cf/black-forest-labs/flux-2-klein-4b`.

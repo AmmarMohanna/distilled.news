@@ -141,6 +141,15 @@ it('retains a readable main body even without article tags, headings or metadata
  expect(acquired.body).toContain(prose.trim());expect(acquired.contentCompleteness).toBe('UNKNOWN');
 });
 
+it('rejects a retained L’Orient donation link before starting article transport',async()=>{
+ const publicGet=vi.fn(),articleFallback=vi.fn();
+ const candidate={...claim,input:{...claim.input,observation:{...claim.input.observation,representation:'LISTING_RESULT' as const,canonicalUrl:'https://www.lorientlejour.com/boutique/?action=donate'}}};
+ const acquire=createCandidateAcquisitionRouter({now:()=> '2026-11-19T10:00:00.000Z',preferFullArticle:true,publicGet,articleFallback});
+ await expect(acquire(candidate)).rejects.toMatchObject({code:'UNSUPPORTED',diagnostic:{detail:'LISTING_PAGE'}});
+ expect(publicGet).not.toHaveBeenCalled();
+ expect(articleFallback).not.toHaveBeenCalled();
+});
+
 it('reads a text-bearing main container without paragraph markup',async()=>{
  expect((await router('<main>'+body+'</main>')(claim)).body).toBe(body.trim());
 });

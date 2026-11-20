@@ -1,4 +1,5 @@
 import type { BriefingConfig, BriefingEdition } from "@distilled/core";
+import {EXPLORE_CHANGED_EVENT} from './explore-events';
 import { preferredLanguage } from './LanguageControl';
 import {ApiError, apiError} from './api-errors';
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
@@ -96,10 +97,10 @@ export async function register(input: {
   });
 }
 
-export async function verifyEmail(token: string): Promise<AccountRecord> {
+export async function verifyEmail(token: string | {email:string;code:string}): Promise<AccountRecord> {
   const payload = await requestJson<{ account: AccountRecord }>("/api/auth/verify-email", {
     method: "POST",
-    body: JSON.stringify({ token })
+    body: JSON.stringify(typeof token === "string" ? { token } : token)
   });
   return payload.account;
 }
@@ -112,12 +113,17 @@ export async function login(email: string, password: string, turnstileToken?: st
   return payload.account;
 }
 
-export async function logout(): Promise<void> {
-  const {stopNotificationsOnLogout}=await import("./pwa");
-  await stopNotificationsOnLogout();
+export async function logout(): Promise<{ pushRevocationFailed: boolean }> {
+  let pushRevocationFailed = false;
+  try {
+    const {stopNotificationsOnLogout}=await import("./pwa");
+    await stopNotificationsOnLogout();
+  } catch { pushRevocationFailed = true; }
   await requestJson("/api/auth/logout", {
     method: "POST"
   });
+  feedCacheEpoch++; feedValidators.clear();
+  return { pushRevocationFailed };
 }
 
 export async function forgotPassword(email: string, turnstileToken?: string): Promise<void> {
@@ -125,6 +131,10 @@ export async function forgotPassword(email: string, turnstileToken?: string): Pr
     method: "POST",
     body: JSON.stringify({ email, turnstileToken, language: preferredLanguage() })
   });
+}
+
+export async function resendVerification(email:string,turnstileToken?:string):Promise<void>{
+  await requestJson('/api/auth/verification/resend',{method:'POST',body:JSON.stringify({email,turnstileToken,language:preferredLanguage()})});
 }
 
 export async function resetPassword(token: string, password: string): Promise<void> {
@@ -151,9 +161,9 @@ export async function getBriefings(): Promise<BriefingConfig[]> {
 }
 
 export type SaveFeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
-export async function saveFeed(input: SaveFeedInput): Promise<BriefingConfig> {
-  const payload = await requestJson<{briefing:BriefingConfig}>("/api/me/feeds", {method:"POST",body:JSON.stringify(input)});
-  return payload.briefing;
+export async function saveFeed(input: SaveFeedInput): Promise<BriefingConfig & {sourceActivation?: "pending" | "ready"}> {
+  const payload = await requestJson<{briefing:BriefingConfig;sourceActivation?:"pending"|"ready"}>("/api/me/feeds", {method:"POST",body:JSON.stringify(input)});
+  return payload.sourceActivation ? {...payload.briefing,sourceActivation:payload.sourceActivation} : payload.briefing;
 }
 
 export async function saveBriefing(briefing: BriefingConfig): Promise<BriefingConfig> {
@@ -288,18 +298,42 @@ export async function deleteAdminBriefing(
   );
 }
 
+/** The last feed payload per path with the server's validator, so refreshing
+ * an unchanged feed returns 304 and downloads nothing. Memory only. */
+let feedCacheEpoch = 0;
+const feedValidators = new Map<string, { etag: string; payload: FeedPayload }>();
+async function readFeed(path: string, signal?: AbortSignal): Promise<FeedPayload> {
+  const epoch = feedCacheEpoch;
+  const known = feedValidators.get(path);
+  let response: Response;
+  try {
+    response = await fetch(path, { credentials: "include", signal, headers: known ? { "If-None-Match": known.etag } : {} });
+  } catch {
+    throw apiError(undefined);
+  }
+  if (response.status === 304 && known) return known.payload;
+  if (!(response.headers.get("content-type") ?? "").includes("application/json")) throw apiError(undefined, response);
+  const payload = (await response.json().catch(() => ({}))) as FeedPayload & { error?: string };
+  if (!response.ok) throw apiError(errorDetail(payload), response);
+  const etag = response.headers.get("ETag");
+  if (epoch === feedCacheEpoch) {
+    if (etag) feedValidators.set(path, { etag, payload }); else feedValidators.delete(path);
+  }
+  return payload;
+}
+
 export async function getFeed(username: string, slug: string, options?: { signal: AbortSignal; retryInitialRead: boolean }): Promise<FeedPayload> {
   const path = `/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`;
   const signal = options?.signal;
   try {
-    return await requestJson<FeedPayload>(path, { signal });
+    return await readFeed(path, signal);
   } catch (cause) {
     if (!options?.retryInitialRead || signal?.aborted || !(cause instanceof ApiError)) throw cause;
     const { status, retryAfterSeconds } = cause.uiMessage.details;
     if ((status !== undefined && ![502, 503, 504].includes(status)) || retryAfterSeconds) throw cause;
     await new Promise(resolve => setTimeout(resolve, 700 + Math.random() * 300));
     if (signal?.aborted) throw cause;
-    return requestJson<FeedPayload>(path, { signal });
+    return readFeed(path, signal);
   }
 }
 
@@ -310,15 +344,15 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
   return payload.edition;
 }
 
-export async function getExploreFeeds(): Promise<PublicBriefing[]> {
-  const feeds: PublicBriefing[] = [];
-  let offset: number | null = 0;
-  do {
-    const payload: { feeds: PublicBriefing[]; nextOffset?: number | null } = await requestJson(`/api/explore/feeds?offset=${offset}`);
-    feeds.push(...payload.feeds);
-    offset = payload.nextOffset ?? null;
-  } while (offset !== null);
-  return feeds;
+export interface ExplorePage {
+  revision?: string;
+  feeds: Array<PublicBriefing & { viewerHasStarred: boolean; latestUpdatedAt?: string }>;
+  nextOffset: number | null;
+}
+/** One bounded page. The caller retains earlier pages if a subsequent read fails. */
+export async function getExploreFeeds(offset = 0, revision?:string): Promise<ExplorePage> {
+  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}${revision?'&revision='+encodeURIComponent(revision):''}`);
+  return { ...payload, nextOffset: payload.nextOffset ?? null };
 }
 
 export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["editions"]> {
@@ -329,10 +363,12 @@ export async function searchFeed(username: string, slug: string, query: string):
 }
 
 export async function setFeedStar(username: string, slug: string, starred: boolean): Promise<FeedStarResult> {
-  return requestJson<FeedStarResult>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/star`, {
+  const result=await requestJson<FeedStarResult>(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/star`, {
     method: "POST",
     body: JSON.stringify({ starred })
   });
+  window.dispatchEvent(new CustomEvent(EXPLORE_CHANGED_EVENT,{detail:{vote:{ownerUsername:username,slug,...result}}}));
+  return result;
 }
 
 export async function recommendSources(title: string, description: string): Promise<string[]> {
@@ -353,8 +389,27 @@ export interface SourceSearchResult { source: string; title: string; publisher: 
 export function getSourceQuerySuggestions(query:string,language:string,signal?:AbortSignal):Promise<{suggestions:string[];unavailable:boolean}>{
  return requestJson(`/api/me/sources/suggestions?${new URLSearchParams({q:query,language})}`,{signal});
 }
-export function searchSourceCandidates(query:string,signal?:AbortSignal,context?:{title:string;description:string}):Promise<{results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;topicMismatch?:boolean}> {
-  return context?requestJson('/api/me/sources/search',{method:'POST',body:JSON.stringify({q:query,...context}),signal}):requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
+export interface SourceSearchResponse {results:SourceSearchResult[];unavailable:boolean;accessIncomplete?:boolean;verificationIncomplete?:boolean;topicMismatch?:boolean}
+export async function searchSourceCandidates(query:string,signal?:AbortSignal,context?:{title:string;description:string},onProgress?:(result:SourceSearchResponse)=>void):Promise<SourceSearchResponse> {
+  if(!onProgress)return context?requestJson('/api/me/sources/search',{method:'POST',body:JSON.stringify({q:query,...context}),signal}):requestJson(`/api/me/sources/search?q=${encodeURIComponent(query)}`,{signal});
+  const response=await fetch('/api/me/sources/search',{method:'POST',credentials:'include',headers:{'content-type':'application/json',accept:'application/x-ndjson'},body:JSON.stringify({q:query,...context}),signal});
+  if(!response.ok){const payload=await response.json().catch(()=>({}));throw apiError(errorDetail(payload),response);}
+  if(!response.headers.get('content-type')?.includes('application/x-ndjson'))return response.json();
+  const reader=response.body?.getReader();if(!reader)throw apiError(undefined,response);
+  const decoder=new TextDecoder();let pending='',complete:SourceSearchResponse|undefined;
+  const consume=(line:string)=>{
+    if(!line.trim())return;
+    const event=JSON.parse(line) as SourceSearchResponse&{type:string;error?:string};
+    if(event.type==='error')throw apiError(event.error);
+    if(!Array.isArray(event.results)||typeof event.unavailable!=='boolean')throw apiError(undefined,response);
+    const {type,...result}=event;
+    if(type==='complete')complete=result;
+    if(type==='progress'||type==='complete')onProgress(result);
+  };
+  try{
+    for(;;){signal?.throwIfAborted();const {value,done}=await reader.read();pending+=decoder.decode(value,{stream:!done});if(pending.length>256_000)throw apiError(undefined,response);let end;while((end=pending.indexOf('\n'))>=0){consume(pending.slice(0,end));pending=pending.slice(end+1);}if(done)break;}
+    consume(pending);if(!complete)throw apiError(undefined,response);return complete;
+  }finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
 }
 export async function recommendSourceCandidates(title: string, description: string, onProgress?: (result:SourceRecommendations)=>void): Promise<SourceRecommendations> {
   if(!onProgress)return requestJson("/api/me/sources/recommend", { method: "POST", body: JSON.stringify({ title, description }) });

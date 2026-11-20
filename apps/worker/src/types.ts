@@ -61,14 +61,21 @@ export interface ProcessingJobRecord {
 export interface Env extends Cloudflare.Env {
   AGENTOPS_ENABLED?: string;
   MAIL_TRANSPORT?: "CLOUDFLARE" | "OUTLOOK_GRAPH";
+  VERIFICATION_MAIL_TRANSPORT?: "GMAIL_API" | "CLOUDFLARE" | "OUTLOOK_GRAPH";
+  GMAIL_FROM?: string;
+  GMAIL_CLIENT_ID?: string;
+  GMAIL_CLIENT_SECRET?: string;
+  GMAIL_REFRESH_TOKEN?: string;
   OUTLOOK_CLIENT_ID?: string;
   OUTLOOK_REFRESH_TOKEN?: string;
   OUTLOOK_TOKEN_ENCRYPTION_KEY?: string;
   PRODUCT_FEEDS_ENABLED?: string;
   SOURCE_RECOMMENDATIONS_ENABLED?: string;
   SOURCE_DISCOVERY_MODEL?: string;
+  SOURCE_WEBSITE_LINK_FALLBACK_MODEL?: string;
   SOURCE_RECOMMENDATIONS_FAST_CATALOG?: string;
   SOURCE_RECOMMENDATIONS_WEB_SEARCH?: string;
+  SOURCE_SEARCH_WEB_DISCOVERY_ENABLED?: string;
   SOURCE_RECOMMENDATIONS_WEB_HTML?: string;
   SOURCE_RECOMMENDATIONS_GOOGLE_NEWS?: string;
   SOURCE_ASSESSMENT_ENABLED?: string;
@@ -87,6 +94,10 @@ export interface Env extends Cloudflare.Env {
   SOURCE_POLL_TICK_BUDGET_MS?: string;
   STAGING_ASSETS_PREFIX?: string;
   STAGING_MISSION_FEED_ID?: string;
+  STAGING_MISSION_ATTEMPT_ID?: string;
+  STAGING_MISSION_SOURCE_BINDINGS_ENABLED?: string;
+  /** Operator-only source choice, frozen in a fresh private staging mission. */
+  STAGING_MISSION_RSS_URL?: string;
   STAGING_GROUPING_RUN_POLICY?: string;
   STAGING_MISSION_TOKEN?: string;
   SOURCE_LEGACY_POLLING_ENABLED?: string;
@@ -151,6 +162,7 @@ export interface Env extends Cloudflare.Env {
   SOURCE_BUDGET_TIME_ZONE?: string;
   SOURCE_PAID_VERIFICATION_ENABLED?: string;
   SOURCE_NATIVE_EXECUTION_ENABLED?: string;
+  SOURCE_ZYTE_LISTING_RETRY_ENABLED?:string;
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
   VAPID_PUBLIC_KEY?: string;
@@ -185,6 +197,16 @@ export interface Env extends Cloudflare.Env {
   WINDOW_READINESS_MODE?: 'shadow'|'relay';
   WINDOW_READINESS_FEED_IDS?: string;
   EDITION_ARTIFACTS_ENABLED?: string;
+  /** "true" caches feed-page reads per isolate, keyed by v1_feed_read_versions (0095). Off by default. */
+  FEED_READ_CACHE_ENABLED?: string;
+  /** Seconds the feed page's collection status may be reused (0–120, default 15). */
+  FEED_STATUS_CACHE_SECONDS?: string;
+  /** "true" (with EDITION_ARTIFACTS_ENABLED) backfills R2 copies of published V3 editions in Cron, a few per tick. */
+  EDITION_ARTIFACT_BACKFILL_ENABLED?: string;
+  /** "true" sends read-only routes through a D1 session that read replicas may serve. Needs read replication on the database. */
+  D1_READ_SESSIONS_ENABLED?: string;
+  /** Admin pipeline traces one isolate runs at once before answering 429 (1-10, default 2). */
+  ADMIN_TRACE_MAX_CONCURRENT?: string;
   VERIFIED_ARCHIVE_ENABLED?: string;
   /** Isolated performance deployment only. All are disabled by default. */
   AGENTOPS_CAMPAIGN_ENABLED?: string;
@@ -193,6 +215,14 @@ export interface Env extends Cloudflare.Env {
   UNREAD_SUMMARY_ENABLED?: string;
   /** Version 5 is opt-in pending real novelty/false-rejection qualification. */
   BRIEFING_PROMPT_VERSION?: "4" | "5" | "6";
+  BRIEFING_WORDING_FIDELITY_ENABLED?: string;
+  /** Candidate evidence-binding verifier; enable only after real-model qualification. */
+  BRIEFING_SOURCE_BINDINGS_ENABLED?: string;
+  /** Experimental lossless input compaction; enable only after separate live qualification. */
+  BRIEFING_COMPACT_VERIFICATION_ENABLED?: string;
+  /** Opt-in source-binding verifier; frozen per window. Default GPT-4.1. */
+  BRIEFING_SOURCE_BINDINGS_MODEL?: string;
+  BRIEFING_TOPIC_SELECTION_ENABLED?: string;
   BRIEFING_EDITOR_MODEL?: string;
   BRIEFING_VERIFIER_MODEL?: string;
   /** Required for V3: rolling 24h dollar ceiling across all feeds. V3 does not run without it. */
@@ -366,18 +396,20 @@ export interface Repository {
     expiresAt: string;
   }, now?: Date): Promise<AuthTokenRecord>;
   getAuthToken(tokenHash: string, purpose: AuthTokenPurpose): Promise<AuthTokenRecord | null>;
-  consumeAuthToken(id: string, now?: Date): Promise<void>;
+  consumeAuthToken(id: string, now?: Date): Promise<boolean>;
   countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number>;
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
-  listBriefings(accountId?: string): Promise<BriefingConfig[]>;
-  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string): Promise<BriefingConfig[]>;
+  listBriefings(accountId?: string, voterId?: string): Promise<BriefingConfig[]>;
+  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>>;
+  getExploreRevision(): Promise<string>;
   setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;
   getBriefingBySlug(ownerAccountId: string, slug: string): Promise<BriefingConfig | null>;
   hasBriefingStar(briefingId: string, voterId: string): Promise<boolean>;
   setBriefingStar(briefingId: string, voterId: string, starred: boolean, now?: Date): Promise<number>;
   upsertBriefing(input: BriefingConfig, now?: Date): Promise<BriefingConfig>;
+  saveFeedConfiguration(input:BriefingConfig,sources:Parameters<Repository['upsertConfiguredSource']>[0][],previous:BriefingConfig|null,now?:Date):Promise<{briefing:BriefingConfig;sourceIds:string[]}>;
   deleteBriefing(id: string, now?: Date): Promise<void>;
   listSources(briefingId: string): Promise<SourceRecord[]>;
   getSource(sourceId: string): Promise<SourceRecord | null>;

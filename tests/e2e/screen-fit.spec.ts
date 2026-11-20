@@ -218,6 +218,24 @@ test("install action invokes the browser installation prompt", async ({ page }) 
   await expect(page.getByRole('dialog', {name:'Install app'}).getByRole('status')).toHaveText('Installation completed. Check your apps.');
 });
 
+test("failed server notification deletion still reflects successful browser unsubscription",async({page})=>{
+ await page.addInitScript(()=>{
+  let active=true;
+  const subscription={endpoint:'https://push.example/device',unsubscribe:async()=>{active=false;return true;}};
+  const worker={pushManager:{getSubscription:async()=>active?subscription:null}};
+  Object.defineProperty(navigator,'serviceWorker',{value:{register:async()=>worker,ready:Promise.resolve(worker)}});
+  Object.defineProperty(window,'Notification',{value:{permission:'granted',requestPermission:async()=>'granted'}});
+  Object.defineProperty(window,'PushManager',{value:class{}});
+ });
+ let deletes=0;
+ await page.route('**/api/me/push/status',route=>route.fulfill({json:{subscribed:true}}));
+ await page.route('**/api/me/push',route=>{deletes++;return route.fulfill({status:503,json:{error:'unavailable'}});});
+ await page.goto('/?view=settings');
+ const toggle=page.getByRole('switch',{name:'Notifications',exact:true});await expect(toggle).toBeChecked();await toggle.click();
+ await expect(toggle).not.toBeChecked();await expect(toggle).toBeEnabled();
+ await expect(page.getByRole('alert')).toContainText('Notifications are disabled on this device, but server cleanup failed.');expect(deletes).toBe(1);
+});
+
 test("disabled notifications do not request a browser subscription", async ({ page }) => {
   await page.addInitScript(() => {
     let subscription: any = null;

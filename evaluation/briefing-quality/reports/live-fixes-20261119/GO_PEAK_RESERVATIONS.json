@@ -1,0 +1,50 @@
+{
+  "peakExposureUsd": 5.279506,
+  "byRun": [
+    {
+      "name": "live-fixes-20261119",
+      "ceilingUsd": 5,
+      "peakExposureUsd": 1.623744
+    },
+    {
+      "name": "live-fixes-followup-20261119",
+      "ceilingUsd": 5,
+      "peakExposureUsd": 2.290626
+    },
+    {
+      "name": "live-fixes-final-20261119",
+      "ceilingUsd": 5,
+      "peakExposureUsd": 2.837604
+    },
+    {
+      "name": "go-accounting-20261119",
+      "ceilingUsd": 5,
+      "peakExposureUsd": 3.470786
+    },
+    {
+      "name": "go-final-20261119",
+      "ceilingUsd": 5,
+      "peakExposureUsd": 4.216758
+    },
+    {
+      "name": "go-ai-20261119",
+      "ceilingUsd": 5,
+      "peakExposureUsd": 4.880648
+    },
+    {
+      "name": "go-proof-20261119",
+      "ceilingUsd": 5,
+      "peakExposureUsd": 4.939649
+    },
+    {
+      "name": "go-proof-final-20261119",
+      "ceilingUsd": 5,
+      "peakExposureUsd": 4.79773
+    },
+    {
+      "name": "go-approved-20261119",
+      "ceilingUsd": 5.5,
+      "peakExposureUsd": 5.279506
+    }
+  ]
+}

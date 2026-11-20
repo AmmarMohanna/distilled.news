@@ -44,6 +44,16 @@ test('executes authorized structured requests and sanitizes failures',async t=>{
   assert.deepEqual(await (await call({})).json(),{body:'article'});
   const failure=await call({fail:true});assert.equal(failure.status,502);assert.equal(await failure.text(),'{"error":"EXECUTION_FAILED"}');
 });
+test('passes a bounded public feed request to the private executor',async t=>{
+  const feed='https://www.theguardian.com/technology/nvidia/rss';
+  const url=await server(t,async(kind,input)=>{
+    assert.equal(kind,'public_feed');assert.deepEqual(input,{url:feed});
+    return {status:200,xml:'<rss><channel/></rss>',requests:1};
+  });
+  const response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'public_feed',input:{url:feed}})});
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).status,200);
+});
 test('passes only an authenticated Telegram username to private resolution',async t=>{
   const url=await server(t,async(kind,input)=>{assert.equal(kind,'telegram_resolve');assert.deepEqual(input,{username:'examplechannel'});return {channelId:'-1001234567890',username:'examplechannel'};});
   const response=await fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body:JSON.stringify({kind:'telegram_resolve',input:{username:'examplechannel'}})});

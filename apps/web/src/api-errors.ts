@@ -1,5 +1,9 @@
 /** Safe frontend error state. No locale or arbitrary server prose is stored. */
 export const apiErrorCopy = {
+  AUTH_EMAIL_ALREADY_VERIFIED: ['Email is already verified. Please sign in or reset your password.', 'Votre adresse e-mail est déjà vérifiée. Veuillez vous connecter ou réinitialiser votre mot de passe.', 'تم التحقق من البريد الإلكتروني بالفعل. يرجى تسجيل الدخول أو إعادة تعيين كلمة المرور.'],
+  EXPLORE_CHANGED: ['Community feed listing changed. Reload it.', 'La liste des fils communautaires a changé. Rechargez-la.', 'تغيّرت قائمة الخلاصات المجتمعية. أعد تحميلها.'],
+  FEED_CONFIGURATION_CHANGED: ["Feed configuration changed. Reload and try again.","Les paramètres du fil ont changé. Rechargez la page et réessayez.","تغيّرت إعدادات الخلاصة. أعد تحميل الصفحة وحاول مجددًا."],
+  SUMMARY_QUOTA_EXCEEDED: ['The hourly summary allowance has been used. Try again later.', 'Le quota horaire de résumés est atteint. Réessayez plus tard.', 'تم استهلاك حصة الملخصات لهذه الساعة. حاول لاحقًا.'],
   REQUEST_FAILED: ['Could not complete the request. Try again.', 'Impossible de terminer la demande. Réessayez.', 'تعذّر إكمال الطلب. حاول مجددًا.'],
   AUTH_EMAIL_VERIFICATION_REQUIRED: ['Verify your email before logging in.', 'Vérifiez votre adresse e-mail avant de vous connecter.', 'تحقّق من بريدك الإلكتروني قبل تسجيل الدخول.'],
   AUTH_INVALID_CREDENTIALS: ['Invalid email or password.', 'Adresse e-mail ou mot de passe incorrect.', 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'],
@@ -8,21 +12,25 @@ export const apiErrorCopy = {
   AUTH_INVALID_CURRENT_PASSWORD: ['Invalid current password.', 'Le mot de passe actuel est incorrect.', 'كلمة المرور الحالية غير صحيحة.'],
   AUTH_EMAIL_REGISTERED: ['Email is already registered. Sign in or reset your password.', 'Cette adresse e-mail est déjà inscrite. Connectez-vous ou réinitialisez votre mot de passe.', 'البريد الإلكتروني مسجّل بالفعل. سجّل الدخول أو أعد تعيين كلمة المرور.'],
   AUTH_USERNAME_TAKEN: ['Username is already taken. Choose another username.', 'Ce nom d’utilisateur est déjà utilisé. Choisissez-en un autre.', 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.'],
-  AUTH_TOO_MANY_ATTEMPTS: ['Too many attempts. Wait before trying again.', 'Trop de tentatives. Patientez avant de réessayer.', 'محاولات كثيرة. انتظر قبل المحاولة مجددًا.'],
+  AUTH_TOO_MANY_ATTEMPTS: ["Too many attempts. Wait before trying again.","Trop de tentatives. Patientez avant de réessayer.","محاولات كثيرة. انتظر قليلًا ثم حاول مجددًا."],
   AUTH_INVALID_SETUP_TOKEN: ['Invalid setup token. Check the token supplied by the site owner.', 'Jeton de configuration invalide. Vérifiez celui fourni par le propriétaire du site.', 'رمز الإعداد غير صالح. تحقّق من الرمز الذي قدّمه مالك الموقع.'],
   AUTH_SETUP_COMPLETE: ['Setup is already complete. Sign in instead.', 'La configuration est déjà terminée. Connectez-vous.', 'اكتمل الإعداد بالفعل. سجّل الدخول.'],
   AUTH_EMAIL_SEND_FAILED: ['Could not send the verification email. Try again later.', 'Impossible d’envoyer l’e-mail de vérification. Réessayez plus tard.', 'تعذّر إرسال رسالة التحقّق. حاول لاحقًا.'],
   AUTH_SIGN_IN_REQUIRED: ['Sign in to continue.', 'Connectez-vous pour continuer.', 'سجّل الدخول للمتابعة.'],
   SOURCE_RECOMMENDATIONS_DISABLED: ['Source recommendations are not enabled on this deployment.', 'Les suggestions de sources ne sont pas activées sur ce site.', 'اقتراحات المصادر غير مفعّلة على هذا الموقع.'],
-  SOURCE_RECOMMENDATIONS_INTERRUPTED: ['Source recommendations were interrupted. Please try again.', 'Les suggestions de sources ont été interrompues. Réessayez.', 'انقطعت اقتراحات المصادر. حاول مجددًا.'],
+  SOURCE_RECOMMENDATIONS_INTERRUPTED: ["Source recommendations were interrupted. Please try again.","La recherche de sources a été interrompue. Réessayez.","توقّف البحث عن مصادر. حاول مجددًا."],
   SOURCE_RECOMMENDATIONS_LIMIT: ['You can request AI source recommendations three times every five hours. Please try again later, or add a source URL directly.', 'Vous pouvez demander des suggestions de sources trois fois toutes les cinq heures. Réessayez plus tard ou ajoutez directement un lien.', 'يمكنك طلب اقتراحات المصادر ثلاث مرات كل خمس ساعات. حاول لاحقًا أو أضف رابط المصدر مباشرة.'],
-  FEED_NAME_TOO_LONG: ['Use {max} characters or fewer for the feed name.', 'Utilisez au maximum {max} caractères pour le nom du fil.', 'استخدم {max} حرفًا أو أقل لاسم الخلاصة.']
+  FEED_NAME_TOO_LONG: ["Use {max} characters or fewer for the feed name.","Utilisez au maximum {max} caractères pour le nom du fil.","استخدم اسمًا للخلاصة لا يتجاوز {max} حرفًا."]
 } as const;
 export type ApiErrorId = keyof typeof apiErrorCopy;
 export interface SafeErrorDetails { readonly status?: number; readonly retryAfterSeconds?: number; readonly max?: number }
 export interface ApiErrorMessage { readonly id: ApiErrorId; readonly details: SafeErrorDetails }
 export type UiMessage = string | ApiErrorMessage;
 const knownErrors: Record<string, ApiErrorId> = {
+  'email is already verified. please sign in or reset your password.': 'AUTH_EMAIL_ALREADY_VERIFIED',
+  'community feed listing changed. reload it.': 'EXPLORE_CHANGED',
+  'feed configuration changed. reload and try again.': 'FEED_CONFIGURATION_CHANGED',
+  'the hourly summary allowance has been used. try again later.': 'SUMMARY_QUOTA_EXCEEDED',
   'verify your email before logging in': 'AUTH_EMAIL_VERIFICATION_REQUIRED',
   'invalid email or password': 'AUTH_INVALID_CREDENTIALS',
   'verification failed': 'AUTH_VERIFICATION_FAILED',
@@ -31,6 +39,7 @@ const knownErrors: Record<string, ApiErrorId> = {
   'email is already registered': 'AUTH_EMAIL_REGISTERED',
   'username is already taken': 'AUTH_USERNAME_TAKEN',
   'too many attempts': 'AUTH_TOO_MANY_ATTEMPTS',
+  'too many source checks. please try again shortly.': 'AUTH_TOO_MANY_ATTEMPTS',
   'invalid setup token': 'AUTH_INVALID_SETUP_TOKEN',
   'setup is already complete': 'AUTH_SETUP_COMPLETE',
   'could not send verification email': 'AUTH_EMAIL_SEND_FAILED',

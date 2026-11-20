@@ -1,6 +1,6 @@
 import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence,campaignSourceProbe} from './agentops-campaign';
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
-import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryError} from './unread-summary';
+import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryQuotaError,UnreadSummaryError} from './unread-summary';
 import {unreadSummaryPort} from './unread-summary-provider';
 import {readTopicPublishers,type TopicPublisherEvidence} from './source-topic-publishers';
 import {runStorageMaintenance,storageMaintenanceStatus} from './storage-maintenance';
@@ -14,12 +14,14 @@ import {sourceRecommendations,verifiedSourceRecommendations,type SourceDiscovery
 import {searchSourceCandidates} from './source-search';
 import {sourceSearchCacheQuery} from './source-search-topic';
 import {sourceQuerySuggestions} from './source-query-suggestions';
-import {cachedSourceSearch,readSourceSearchCache} from './source-search-cache';
+import {cachedSourceSearch,readSourceSearchCache,cacheSourceSearchProgress} from './source-search-cache';
 import {freelyReadableResults,rememberUnavailableSearchSource} from './source-search-free';
+import {WorkerPublicSourceFetch} from './public-source-fetch';
 import {assessSource,assessSources} from './source-assessment';
 import {cachedSourceAssessment,rememberSourceAssessment} from './source-assessment-cache';
-import {ProductSourceApprovalError,approveProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
-import {connectorSourceHealth} from './connector-health';
+import {ProductSourceApprovalError,approveProductSource,configuredProductSource,prepareProductSourceInput,resolveProductSourceInput,publishedProductEditions,publishedProductEditionRecords,presentProductEditions,productPublicationState,productPublicationProgress} from './product-feeds';
+import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
+import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
 import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
@@ -78,7 +80,7 @@ import {
   verifySession
 } from "./auth";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
-import { D1Repository } from "./repository";
+import { D1Repository, FeedConfigurationConflict } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
 import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
@@ -134,13 +136,16 @@ const loginInputSchema = z.object({
   turnstileToken: z.string().optional()
 });
 
-const tokenInputSchema = z.object({
-  token: z.string().min(1)
-});
+const verificationCodePattern=/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{16}$/;
+const tokenInputSchema = z.union([
+  z.object({token:z.string().min(1).max(256).refine(value=>!value.startsWith("code-v1:"))}).strict(),
+  z.object({email:z.string().trim().email(),code:z.string().max(40).transform(value=>value.replace(/[\s-]/g,'').toUpperCase())
+    .pipe(z.string().regex(verificationCodePattern))}).strict()
+]);
 
 const passwordResetRequestSchema = z.object({
   language: z.enum(['en', 'fr', 'ar']).default('en'),
-  email: z.string().email(),
+  email: z.string().trim().email(),
   turnstileToken: z.string().optional()
 });
 
@@ -287,11 +292,13 @@ function isDatabaseUnavailable(error: unknown): boolean {
 
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+  let activeTraces = 0;
 
   app.onError((error, c) => {
     if (error instanceof z.ZodError) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
+    if(error instanceof Error&&error.message==='too many attempts'){c.header('Retry-After','3600');return c.json({error:'too many attempts'},429);}
     console.error(error);
     if(isDatabaseUnavailable(error)){
       c.header('Retry-After','5');c.header('Cache-Control','no-store');
@@ -646,13 +653,15 @@ export function createApp(options: AppOptions = {}) {
   app.post("/api/auth/verify-email", async (c) => {
     const repo = repoFor(c);
     const input = tokenInputSchema.parse(await c.req.json().catch(() => ({})));
-    const result = await consumeEmailVerificationTokenOrNull(repo, input.token, new Date());
-    if (!result) return c.json({ error: "invalid or expired token" }, 400);
+    if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
+    const result = await consumeEmailVerificationTokenOrNull(repo,
+      "code" in input ? "code-v1:"+input.code : input.token, new Date(),
+      "code" in input ? normalizeEmail(input.email) : undefined);
+    if (!result) return c.json({ error: "code" in input ? "Invalid or expired verification code." : "invalid or expired token" }, 400);
     const verified = result.account.emailVerifiedAt
       ? result.account
       : await repo.updateAccount({ id: result.account.id, emailVerifiedAt: new Date().toISOString() });
-    if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
-    if (result.newlyConsumed) setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, verified));
+    // Verification confirms the address; signing in still requires credentials.
     return c.json({ account: publicAccount(verified) });
   });
 
@@ -678,6 +687,21 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ ok: true });
   });
 
+  app.post('/api/auth/verification/resend', async c => {
+    const repo=repoFor(c),input=passwordResetRequestSchema.parse(await c.req.json().catch(()=>({}))),email=normalizeEmail(input.email);
+    // Share the send allowance with forgot-password verification recovery.
+    await assertRateLimit(repo,`verification:${email}`,'verification_recovery',5,60*60*1000);
+    if(!await verifyTurnstileIfConfigured(c,input.turnstileToken))return c.json({ok:true});
+    const account=await repo.getAccountByEmail(email);
+    if(account?.emailVerifiedAt&&!account.disabledAt)return c.json({error:'Email is already verified. Please sign in or reset your password.'},409);
+    if(account&&!account.emailVerifiedAt&&!account.disabledAt){
+      try{await sendVerificationToken(repo,c.env,account,input.language)}
+      catch(error){logAuthEmailFailure('verification resend',account,c.env,error)}
+    }
+    // Unknown/disabled accounts remain generic; do not claim recipient delivery.
+    return c.json({ok:true});
+  });
+
   app.post("/api/auth/password/forgot", async (c) => {
     const repo = repoFor(c);
     const input = passwordResetRequestSchema.parse(await c.req.json().catch(() => ({})));
@@ -685,11 +709,13 @@ export function createApp(options: AppOptions = {}) {
     await assertRateLimit(repo, `forgot:${email}`, "password_reset_request", 5, 60 * 60 * 1000);
     if (!(await verifyTurnstileIfConfigured(c, input.turnstileToken))) return c.json({ ok: true });
     const account = await repo.getAccountByEmail(email);
-    if (account && account.emailVerifiedAt && !account.disabledAt) {
+    if (account && !account.disabledAt) {
+      if(!account.emailVerifiedAt)await assertRateLimit(repo,`verification:${email}`,'verification_recovery',5,60*60*1000);
       try {
-        await sendPasswordResetToken(repo, c.env, account, input.language);
+        if(account.emailVerifiedAt)await sendPasswordResetToken(repo, c.env, account, input.language);
+        else await sendVerificationToken(repo,c.env,account,input.language);
       } catch (error) {
-        logAuthEmailFailure("password reset", account, c.env, error);
+        logAuthEmailFailure(account.emailVerifiedAt?'password reset':'verification recovery', account, c.env, error);
       }
     }
     return c.json({ ok: true });
@@ -823,7 +849,7 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    return c.json({ briefings: (await repo.listBriefings(account.id)).map(feed => ({...feed,nextBriefingAt:readNextBriefingAt(feed)})) });
+    return c.json({ briefings: (await repo.listBriefings(account.id, await getVoterId(c) ?? undefined)).map(feed => ({...feed,nextBriefingAt:readNextBriefingAt(feed)})) });
   });
 
   app.post('/api/me/v1/editions/:id/withdraw',async c=>{
@@ -832,10 +858,10 @@ export function createApp(options: AppOptions = {}) {
     catch(error) {return c.json({error:error instanceof HandoffError?error.code:'TEMPORARY_UNAVAILABLE'},error instanceof HandoffError && error.code==='SCOPE_DENIED'?403:503)}
   });
 
-  app.post("/api/me/briefings", async (c) => {
+  async function saveBriefingConfiguration(c:Context<{Bindings:Env;Variables:Variables}>,raw:unknown,plans?:Awaited<ReturnType<typeof resolveProductSourceInput>>[]) {
     const repo = c.get("repo");
     const account = c.get("account")!;
-    const input = briefingInputSchema.parse(await c.req.json());
+    const input = briefingInputSchema.parse(raw);
     const existing = await repo.getBriefingById(input.id);
     if (existing && existing.ownerAccountId !== account.id) return c.json({ error: "briefing not found" }, 404);
     const slug = normalizeUsername(input.slug || input.title);
@@ -869,7 +895,7 @@ export function createApp(options: AppOptions = {}) {
           timezone: input.briefingTimezone
         })
       : existing.nextBriefingAt;
-    const briefing = await repo.upsertBriefing({
+    const configuration:BriefingConfig = {
       ...input,
       ownerAccountId: account.id,
       ownerUsername: account.username,
@@ -884,18 +910,45 @@ export function createApp(options: AppOptions = {}) {
       briefingScheduleClockStartAt,
       briefingSchedulePolicy,
       retentionDays: FIXED_RETENTION_DAYS
-    },savedAt);
+    };
+    let briefing:BriefingConfig,sourceIds:string[]=[];
+    try {
+      if(plans) {
+        const saved=await repo.saveFeedConfiguration(configuration,plans.map(plan=>configuredProductSource(configuration.id,plan)),existing,savedAt);
+        briefing=saved.briefing;sourceIds=saved.sourceIds;
+      } else briefing=await repo.upsertBriefing(configuration,savedAt);
+    } catch(error) {if(error instanceof FeedConfigurationConflict)return c.json({error:error.message},409);throw error;}
+    const pendingSourceIds:string[]=[];
+    if(plans&&!briefing.paused)for(const id of sourceIds) {
+      try {await enrollV1Source(c.env.DB,id,briefing.ownerAccountId,savedAt.toISOString());}
+      catch {
+        pendingSourceIds.push(id);
+        console.warn("Feed saved; source activation needs scheduler recovery",{feedId:briefing.id,sourceId:id});
+        try {
+          const prior=await repo.getSource(id),note="Source activation is pending. Check source health for updates.";
+          await repo.updateSourceState({sourceId:id,lastError:prior?.lastError?.includes(note)?prior.lastError:[prior?.lastError,note].filter(Boolean).join(' ')});
+        } catch { /* The committed scheduler trigger remains the recovery record. */ }
+      }
+    }
     try { await queueInitialFeedSketch(c.env, briefing); }
     catch { console.warn("Feed illustration enqueue needs recovery",{feedId:briefing.id}); }
-    return c.json({ briefing });
-  });
+    return c.json({briefing,...(plans?{sourceActivation:pendingSourceIds.length?"pending":"ready",pendingSourceIds}:{})},pendingSourceIds.length?202:200);
+  }
+  app.post("/api/me/briefings",async c=>saveBriefingConfiguration(c,await c.req.json()));
 
   app.post('/api/me/feeds', async c => {
     if(c.env.PRODUCT_FEEDS_ENABLED!=='true')return c.json({error:'Feed configuration is not enabled on this deployment.'},503);
-    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(FEED_TITLE_MAX_LENGTH),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")).min(1),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleFields.durationMinutes,briefingTimeOfDay:liveScheduleFields.deliveryAnchor,briefingTimezone:liveScheduleFields.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
+    const input=z.object({id:z.string().min(1),title:z.string().trim().min(1).max(FEED_TITLE_MAX_LENGTH),interestProfile:z.string().trim().min(1).max(4000),sourceInputs:z.array(z.string().trim().min(1).max(500).refine(value=>{try{prepareProductSourceInput(value);return true}catch{return false}},"Enter a public website, feed, Telegram, X or LinkedIn link, or a news topic.")),publicFeedEnabled:z.boolean(),updateIntervalMinutes:liveScheduleFields.durationMinutes,briefingTimeOfDay:liveScheduleFields.deliveryAnchor,briefingTimezone:liveScheduleFields.timezone,language:z.enum(['en','ar','fr'])}).strict().parse(await c.req.json());
     if(input.updateIntervalMinutes===1440&&!input.briefingTimeOfDay)return c.json({error:'Choose a Daily delivery time.'},400);
     const repo=c.get('repo'),owner=c.get('account')!,existing=await repo.getBriefingById(input.id);
     if(existing&&existing.ownerAccountId!==owner.id)return c.json({error:'feed not found'},404);
+    if(input.sourceInputs.length===0){
+      const sources=existing?await repo.listSources(existing.id):[];
+      // Preserve intentionally disabled records; an empty list must not create
+      // an unconfigured feed or silently remove its active sources.
+      if(sources.length===0||sources.some(source=>source.enabled))return c.json({error:'Add at least one source.'},400);
+      return saveBriefingConfiguration(c,{...existing!,...input,slug:existing!.slug});
+    }
     if(c.env.SOURCE_ASSESSMENT_ENABLED==='true') {
       const checks=await assessSources(c.env,{title:input.title,description:input.interestProfile},input.sourceInputs,fetcher,{ownerAccountId:owner.id,providerFetcher:fetcher});
       const blocked=checks.find(check=>check.status!=='accepted');
@@ -908,19 +961,10 @@ export function createApp(options: AppOptions = {}) {
     const plans=[...new Map(resolved.map(plan=>[plan.canonicalUrl,plan] as const)).values()];
     if(plans.some(plan=>plan.detected.kind==='web_page')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Website extraction requires the source execution service.'},400);
     if(plans.some(plan=>plan.detected.kind==='telegram_channel')&&(!c.env.SOURCE_EXECUTION_SERVICE||!c.env.SOURCE_EXECUTION_URL||!c.env.SOURCE_EXECUTION_TOKEN))return c.json({error:'Telegram collection requires the private source execution service.'},400);
-    const prior=existing?await repo.listSources(existing.id):[];
     const feeds=await repo.listBriefings(owner.id);
     const base=normalizeUsername(input.title);let slug=existing?.slug??base,index=2;
     while(!existing&&feeds.some(f=>f.slug===slug))slug=`${base}-${index++}`;
-    const savedResponse=await app.fetch(new Request(new URL('/api/me/briefings',c.req.url),{method:'POST',headers:c.req.raw.headers,body:JSON.stringify({...existing,...input,slug})}),c.env);
-    if(!savedResponse.ok)return savedResponse;
-    const {briefing}=await savedResponse.json() as {briefing:BriefingConfig};
-    const approvedIds=new Set<string>();
-    for(const plan of plans)approvedIds.add((await approveProductSource(c.env,repo,briefing,plan.input,plan)).sourceId);
-    // Ordinary editor lists active sources. Preserve independently paused sources
-    // that the user did not see or explicitly remove in this edit.
-    for(const source of prior)if(source.enabled&&!approvedIds.has(source.id))await repo.deleteSource(source.id);
-    return c.json({briefing});
+    return saveBriefingConfiguration(c,{...existing,...input,slug},plans);
   });
 
   app.delete("/api/me/briefings/:briefingId", async (c) => {
@@ -969,7 +1013,24 @@ export function createApp(options: AppOptions = {}) {
     try{if(typeof caches!=='undefined')[searchCache,accessCache]=await Promise.all([caches.open('source-search-v2-free-only'),caches.open('source-search-free-access-v1')]);}catch{/* Search remains available without caching. */}
     const owner=c.get('account')!.id,origin=new URL(c.req.url).origin;
     const context=input.data.title&&input.data.description?{title:input.data.title,description:input.data.description}:undefined;
-    return c.json(await cachedSourceSearch(owner,sourceSearchCacheQuery(input.data.q,context),origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context),searchCache,async result=>({...result,...await freelyReadableResults(result.results,fetcher,accessCache)})));
+    const key=sourceSearchCacheQuery(input.data.q,context);
+    type SearchResult=Awaited<ReturnType<typeof searchSourceCandidates>>;
+    const load=(onProgress?:(result:SearchResult)=>Promise<void>)=>cachedSourceSearch(owner,key,origin,()=>searchSourceCandidates(c.env,input.data.q,fetcher,accessCache,{owner,origin,cache:searchCache},context,onProgress),searchCache,async result=>{const accessible=await freelyReadableResults(result.results,fetcher,accessCache,c.env,onProgress?results=>onProgress({results,unavailable:false}):undefined);return {...result,...accessible,accessIncomplete:result.accessIncomplete===true||accessible.accessIncomplete};});
+    if(c.req.header('accept')?.includes('application/x-ndjson')){
+      c.header('Content-Type','application/x-ndjson; charset=utf-8');c.header('X-Content-Type-Options','nosniff');
+      return stream(c,async output=>{
+        const stopHeartbeat=sourceStreamHeartbeat(output);
+        try{
+          const result=await load(async progress=>{
+            await cacheSourceSearchProgress(owner,key,origin,progress,searchCache);
+            await output.writeln(JSON.stringify({type:'progress',...progress}));
+          });
+          await output.writeln(JSON.stringify({type:'complete',...result}));
+        }catch{await output.writeln(JSON.stringify({type:'error',error:'Web search is unavailable right now. You can still paste a source URL.'}));}
+        finally{await stopHeartbeat();}
+      });
+    }
+    return c.json(await load());
   });
 
   app.post("/api/me/sources/assess", async c => {
@@ -979,12 +1040,22 @@ export function createApp(options: AppOptions = {}) {
     const context={title:input.title,description:input.description};
     const cached=await cachedSourceAssessment(c.env,owner,context,input.source);
     if(cached)return c.json({assessment:cached});
+    try{await assertRateLimit(c.get('repo'),'source-assess:'+owner,'source_assess',30,5*60*1000);}
+    catch(error){if(!(error instanceof Error)||error.message!=='too many attempts')throw error;c.header('Retry-After','300');return c.json({error:'Too many source checks. Please try again shortly.'},429);}
     let publisherEvidence:TopicPublisherEvidence[]|undefined;
     if(input.searchQuery)try{
       const cache=typeof caches==='undefined'?undefined:await caches.open('source-search-v2-free-only');
       const saved=await readSourceSearchCache(owner,sourceSearchCacheQuery(input.searchQuery,{title:input.title,description:input.description}),new URL(c.req.url).origin,cache);
       const origin=new URL(prepareProductSourceInput(input.source).sourceUrl!).origin;
-      const hints=(saved?.results??[]).filter(row=>row.articleUrl&&new URL(prepareProductSourceInput(row.source).sourceUrl!).origin===origin&&new URL(row.articleUrl).hostname==='news.google.com').map(row=>({publisherOrigin:origin,title:row.title,url:row.articleUrl!,excerpt:row.excerpt??''}));
+      const hints=(saved?.results??[]).filter(row=>{
+        if(!row.articleUrl||row.blocked)return false;
+        try{
+          if(new URL(prepareProductSourceInput(row.source).sourceUrl!).origin!==origin)return false;
+          new WorkerPublicSourceFetch(row.articleUrl);
+          const host=new URL(row.articleUrl).hostname.replace(/^www\./,'');
+          return host==='news.google.com'||host===new URL(origin).hostname.replace(/^www\./,'');
+        }catch{return false;}
+      }).map(row=>({publisherOrigin:origin,title:row.title,url:row.articleUrl!,excerpt:row.excerpt??''}));
       if(hints.length)publisherEvidence=hints;
     }catch{/* Missing search receipts never substitute client-supplied evidence. */}
     const assessment=await assessSource(c.env,context,input.source,fetcher,{ownerAccountId:owner,providerFetcher:fetcher},publisherEvidence);
@@ -1180,8 +1251,14 @@ export function createApp(options: AppOptions = {}) {
     c.header('Cache-Control','private, no-store');
     const query=traceOptionsSchema.safeParse(c.req.query());
     if(!query.success)return c.json({error:'invalid trace filters'},400);
+    // A trace runs about 16 queries. Bound how many one isolate runs at once so
+    // a burst of diagnostics cannot crowd readers out of D1.
+    const limit=Math.max(1,Math.min(10,Number(c.env.ADMIN_TRACE_MAX_CONCURRENT??2)||2));
+    if(activeTraces>=limit){c.header('Retry-After','2');return c.json({error:'Too many traces are running. Try again shortly.',code:'TRACE_BUSY'},429);}
+    activeTraces++;
     try{return c.json(await readPipelineTrace(c.env.DB,c.req.param('feedId'),query.data,{admittedSourceIds:c.env.V1_DOWNSTREAM_FEED_SOURCE_IDS?.split(',').map(s=>s.trim()).filter(Boolean)}))}
     catch(error){if(error instanceof HandoffError)return c.json({error:error.code},error.code==='SCOPE_DENIED'?404:400);throw error}
+    finally{activeTraces--;}
   });
 
   app.get('/api/admin/storage',async c=>{
@@ -1273,14 +1350,23 @@ export function createApp(options: AppOptions = {}) {
   });
 
   app.get("/api/explore/feeds", async (c) => {
-    const repo = repoFor(c);
-    const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
-    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
-    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
-    const feeds = await repo.listExploreBriefings(101, offset, viewer && !viewer.disabledAt ? viewer.id : undefined);
     c.header('Cache-Control','private, no-store');
     c.header('Vary','Cookie');
-    return c.json({ feeds: feeds.slice(0, 100).map(publicBriefing), nextOffset: feeds.length > 100 ? offset + 100 : null });
+    const repo = repoFor(c);
+    const offset = z.coerce.number().int().min(0).max(1_000_000).parse(c.req.query("offset") ?? 0);
+    const expected=z.string().max(128).optional().parse(c.req.query('revision'));
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const excludedOwner=viewer&&!viewer.disabledAt?viewer.id:undefined;
+    const before=await repo.getExploreRevision();
+    const revision=await hashToken(JSON.stringify([before,excludedOwner??null]));
+    const changed=()=>c.json({error:'Community feed listing changed. Reload it.',code:'EXPLORE_CHANGED'},409);
+    if(offset>0&&expected!==undefined&&expected!==revision)return changed();
+    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined);
+    // The revision bookends the query, so a page cannot be labelled with a
+    // revision from before or after a concurrent membership/ranking change.
+    if(await repo.getExploreRevision()!==before)return changed();
+    return c.json({ feeds: feeds.slice(0, 100).map(feed => ({...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, latestUpdatedAt: feed.latestUpdatedAt})), nextOffset: feeds.length > 100 ? offset + 100 : null, revision });
   });
 
   app.get("/api/feed/:username/:briefingSlug/sketch", async (c) => {
@@ -1304,15 +1390,57 @@ export function createApp(options: AppOptions = {}) {
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
     const voterId = await getVoterId(c);
-    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true))
-      .filter((edition) => isPublicEditionVisible(edition, briefing.language));
+    if (c.env.PRODUCT_FEEDS_ENABLED === "true" && feedReadCacheEnabled(c.env)) {
+      // Cached data only: access, the viewer's star and feed settings are read per request.
+      const version = await feedReadVersion(c.env.DB, briefing.id);
+      const env = c.env;
+      const [published, status] = await Promise.all([
+        cachedProductEditions(env, briefing.id, version),
+        cachedFeedStatus(env, briefing.id, version, async () => {
+          const value = {
+            publicationState: await productPublicationState(env, briefing.id),
+            publicationProgress: await productPublicationProgress(env, briefing.id)
+          };
+          return { value, hash: fnv1a(JSON.stringify(value)) };
+        })
+      ]);
+      const viewerHasStarred = voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false;
+      if (usesEditionArtifacts(c.env) && !await canReadCurrentFeed(c, briefing.id)) return c.json({ error: 'feed not found' }, 404);
+      const unreadSummaryAvailable = c.env.UNREAD_SUMMARY_ENABLED === 'true' && c.env.BRIEFING_ENGINE === 'v3' && Boolean(c.env.DB && c.env.OPENROUTER_API_KEY);
+      const publicFeed = publicBriefing(briefing);
+      // The cached status is shared by every viewer; source diagnostics are removed
+      // per request so readers never receive them, and the tag covers only what is sent.
+      const diagnostics = await viewerSeesSourceHealth(c, briefing.ownerAccountId)
+        ? await readSourceDiagnostics(env,briefing.id,version)
+        : {};
+      const feedStatus = { ...status.value.value, ...diagnostics };
+      const statusHash = fnv1a(JSON.stringify(feedStatus));
+      // Content-derived, so every isolate computes the same tag for the same response.
+      const etag = `W/"${version}-${fnv1a([published.hash, statusHash, JSON.stringify(publicFeed), viewerHasStarred, unreadSummaryAvailable].join('|'))}"`;
+      c.header('ETag', etag);
+      if (etagMatches(c.req.header('If-None-Match'), etag)) return c.body(null, 304);
+      return c.json({
+        unreadSummaryAvailable,
+        briefing: publicFeed,
+        ...feedStatus,
+        editions: presentProductEditions(briefing, published.records),
+        editionsComplete:true,
+        viewerHasStarred
+      });
+    }
+    // Match legacy search's bounded window so withdrawals outside the recent
+    // page change the marker too. The reader still receives only 50 editions.
+    const legacyEditions=c.env.PRODUCT_FEEDS_ENABLED==='true'?undefined:await repo.listBriefingEditions(briefing.id,true,new Date(),100);
+    const editions = legacyEditions ? legacyEditions.slice(0,50).filter(edition=>isPublicEditionVisible(edition,briefing.language)) : await publishedProductEditions(c.env,briefing);
     const payload={
       unreadSummaryAvailable:c.env.UNREAD_SUMMARY_ENABLED==='true'&&c.env.BRIEFING_ENGINE==='v3'&&Boolean(c.env.DB&&c.env.OPENROUTER_API_KEY),
       briefing: publicBriefing(briefing),
-      sourceAvailability: c.env.PRODUCT_FEEDS_ENABLED === 'true' ? await feedSourceAvailability(c.env,briefing.id) : undefined,
+      ...(c.env.PRODUCT_FEEDS_ENABLED === 'true' && await viewerSeesSourceHealth(c, briefing.ownerAccountId) ? await readSourceDiagnostics(c.env,briefing.id) : {}),
       publicationState: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationState(c.env,briefing.id) : undefined,
       publicationProgress: c.env.PRODUCT_FEEDS_ENABLED === "true" ? await productPublicationProgress(c.env,briefing.id) : undefined,
       editions: editions.map((edition) => c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, false)),
+      editionsComplete:legacyEditions?legacyEditions.length<=50:true,
+      ...(legacyEditions?{publicationVersion:await hashToken(JSON.stringify([briefing.language,legacyEditions]))}:{}),
       viewerHasStarred: voterId ? await repo.hasBriefingStar(briefing.id, voterId) : false
     };
     if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
@@ -1331,7 +1459,9 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0] : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
+    const edition = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (feedReadCacheEnabled(c.env)
+      ? presentProductEditions(briefing, (await cachedProductEditions(c.env, briefing.id, await feedReadVersion(c.env.DB, briefing.id))).records.filter(record => record.id === c.req.param("editionId")))[0]
+      : (await publishedProductEditions(c.env, briefing, c.req.param("editionId")))[0]) : await repo.getBriefingEdition(briefing.id, c.req.param("editionId"));
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
@@ -1352,7 +1482,9 @@ export function createApp(options: AppOptions = {}) {
     const resolved = await resolvePublicFeed(c);
     if (resolved instanceof Response) return resolved;
     const { repo, briefing } = resolved;
-    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? await publishedProductEditions(c.env, briefing) : (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
+    const editions = c.env.PRODUCT_FEEDS_ENABLED === "true" ? (feedReadCacheEnabled(c.env)
+      ? presentProductEditions(briefing, (await cachedProductEditions(c.env, briefing.id, await feedReadVersion(c.env.DB, briefing.id))).records)
+      : await publishedProductEditions(c.env, briefing)) : (await repo.listBriefingEditions(briefing.id, true, new Date(), 100))
       .filter((edition) => isPublicEditionVisible(edition, briefing.language));
     if(usesEditionArtifacts(c.env)&&!await canReadCurrentFeed(c,briefing.id))return c.json({error:'feed not found'},404);
     return c.json({
@@ -1378,7 +1510,7 @@ export function createApp(options: AppOptions = {}) {
     try{c.executionCtx.waitUntil(task.catch(()=>{}));}catch{/* Direct app tests do not supply an execution context. */}
     c.header('Cache-Control','private, no-store');
     try{const result=await task;return c.json(result,result.status==='pending'?202:200);}
-    catch(error){if(error instanceof UnreadSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'?503:422);console.warn('unread-summary-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
+    catch(error){if(error instanceof UnreadSummaryQuotaError){c.header('Retry-After','3600');return c.json({error:error.message,code:'SUMMARY_QUOTA_EXCEEDED'},429);}if(error instanceof UnreadSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'?503:422);console.warn('unread-summary-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
   });
 
   // Retired: summaries above never collect articles or publish editions.
@@ -1588,6 +1720,22 @@ export function createApp(options: AppOptions = {}) {
   });
 
   type FeedAccess={public_feed_enabled:number;owner_account_id:string;disabled_at:string|null};
+  /** The latest-100 published list, shared by the feed page, edition detail and search. */
+  async function readSourceDiagnostics(env:Env,feedId:string,version?:number){
+    try{
+      const sources=version===undefined?await feedSourceAvailability(env,feedId):(await cachedFeedStatus(env,feedId,version,()=>feedSourceAvailability(env,feedId),'source-diagnostics')).value;
+      return {sourceAvailability:await withCollectionAlerts(env,feedId,sources)};
+    }
+    catch{console.warn(JSON.stringify({type:'SOURCE_DIAGNOSTICS_READ_FAILED',feedId}));return {sourceHealthUnavailable:true as const};}
+  }
+
+  async function cachedProductEditions(env:Env, feedId:string, version:number) {
+    const { value } = await cachedFeedEditions(feedId, version, async () => {
+      const records = await publishedProductEditionRecords(env, feedId);
+      return { records, hash: fnv1a(JSON.stringify(records)) };
+    });
+    return value;
+  }
   function usesEditionArtifacts(env:Env) {
     return env.PRODUCT_FEEDS_ENABLED==='true'&&env.EDITION_ARTIFACTS_ENABLED==='true';
   }
@@ -1609,6 +1757,26 @@ export function createApp(options: AppOptions = {}) {
     const token = getCookie(c, SESSION_COOKIE);
     const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
     return claims?.sub === row.owner_account_id;
+  }
+
+  /** Adds the stale and never-collected warnings. Computed per request, never cached for readers. */
+  async function withCollectionAlerts<T extends {sourceId:string}>(env: Env, feedId: string, rows: T[] | undefined) {
+    if (!rows?.length) return rows;
+    let alerts: Map<string, CollectionAlertCode[]>;
+    try { alerts = await feedCollectionAlerts(env.DB, feedId); }
+    catch (error) { console.warn('Could not read source collection history', { feedId, error: error instanceof Error ? error.message : 'unknown' }); return rows; }
+    return rows.map(row => alerts.has(row.sourceId) ? { ...row, collectionAlerts: alerts.get(row.sourceId)! } : row);
+  }
+
+  /** Source collection errors are operator diagnostics: only the feed owner and
+   * enabled admins receive them. Every other reader gets no source health data. */
+  async function viewerSeesSourceHealth(c: Context<{ Bindings: Env; Variables: Variables }>, ownerAccountId: string) {
+    const token = getCookie(c, SESSION_COOKIE);
+    const claims = token && c.env.ADMIN_SESSION_SECRET ? await verifySession(token, c.env.ADMIN_SESSION_SECRET) : null;
+    if (!claims) return false;
+    if (claims.sub === ownerAccountId) return true;
+    const account = await repoFor(c).getAccountById(claims.sub);
+    return account?.role === 'admin' && !account.disabledAt;
   }
 
   async function resolvePublicFeed(c: Context<{ Bindings: Env; Variables: Variables }>) {
@@ -1650,7 +1818,11 @@ async function createAccountOrError(
 ): Promise<AccountRecord> {
   const email = normalizeEmail(input.email);
   const username = normalizeUsername(input.username);
-  if (await repo.getAccountByEmail(email)) throw new Error("email is already registered");
+  const existing = await repo.getAccountByEmail(email);
+  if (existing) {
+    if (!input.verified && existing.emailVerifiedAt && !existing.disabledAt) throw new Error("Email is already verified. Please sign in or reset your password.");
+    throw new Error("email is already registered");
+  }
   await assertUsernameAvailable(repo, username);
   return repo.createAccount({
     email,
@@ -1662,7 +1834,10 @@ async function createAccountOrError(
 }
 
 async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
-  const token = randomToken();
+  const alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const code=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>alphabet[byte&31]).join('');
+  const campaign=env.ENVIRONMENT==='staging'&&env.AGENTOPS_CAMPAIGN_ENABLED==='true'&&env.AGENTOPS_CAMPAIGN_ISOLATED==='true';
+  const token=campaign?randomToken():'code-v1:'+code;
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await repo.createAuthToken({
     accountId: account.id,
@@ -1670,7 +1845,7 @@ async function sendVerificationToken(repo: Repository, env: Env, account: Accoun
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendVerificationEmail(env, account, token, language);
+  await sendVerificationEmail(env, account, campaign?token:code.match(/.{4}/g)!.join("-"), language);
 }
 
 async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
@@ -1704,14 +1879,15 @@ async function consumeToken(
 async function consumeEmailVerificationTokenOrNull(
   repo: Repository,
   token: string,
-  now: Date
+  now: Date,
+  email?:string
 ): Promise<{ account: AccountRecord; newlyConsumed: boolean } | null> {
   const record = await repo.getAuthToken(await hashToken(token), "email_verification");
   if (!record || new Date(record.expiresAt).getTime() <= now.getTime()) return null;
   const account = await repo.getAccountById(record.accountId);
-  if (!account || account.disabledAt) return null;
-  if (record.consumedAt) return account.emailVerifiedAt ? { account, newlyConsumed: false } : null;
-  await repo.consumeAuthToken(record.id, now);
+  if (!account || account.disabledAt || (email && normalizeEmail(account.email)!==email)) return null;
+  if (record.consumedAt) return !email && account.emailVerifiedAt ? { account, newlyConsumed: false } : null;
+  if(!await repo.consumeAuthToken(record.id, now))return null;
   return { account, newlyConsumed: true };
 }
 
@@ -2188,4 +2364,12 @@ async function maybeRedirectUsernameRoute(
   const url = new URL(c.req.url);
   url.pathname = `/${resolved.account.username}/${briefing.slug}/`;
   return c.redirect(url.toString(), 301);
+}
+
+/** RFC 9110 weak comparison for If-None-Match. */
+export function etagMatches(header:string|undefined,etag:string):boolean {
+  if(!header)return false;
+  if(header.trim()==='*')return true;
+  const opaque=(tag:string)=>tag.trim().replace(/^W\//,'');
+  return header.split(',').some(tag=>opaque(tag)===opaque(etag));
 }

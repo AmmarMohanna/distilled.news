@@ -1,12 +1,13 @@
 import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1ProviderPollScheduler,
   DurableProviderHttp,HttpSourceExecution,R2SourcePayloadStore,sourceSqlFromD1,
   D1RssPollScheduler,RssSourceCollector,D1SourceRepository,isSourceDatabaseUnavailable,SourceProviderError,type RssRequest,
-  type SourceFetchRequest} from '@distilled/connectors';
+  type SourceFetchRequest,type WebsiteLinkSelector} from '@distilled/connectors';
 import {HandoffError,type CandidateIntakePort} from '@distilled/contracts';
 import {sharedPublicHttp,PUBLIC_SOURCE_MAX_BYTES} from './connector-public-cache';
 import {composeSourceExecution} from './native-source-execution';
 import {rateLimitedPublicHttp} from './connector-rate-limit';
 import {admittedSourceExecution} from './source-execution-admission';
+import {PUBLIC_SOURCE_USER_AGENT} from './public-source-fetch';
 
 export interface SourceBackendEnv {
   DB:D1Database;
@@ -27,6 +28,7 @@ export interface SourceBackendEnv {
   SOURCE_DAILY_BUDGET_USD?:string;
   SOURCE_BUDGET_TIME_ZONE?:string;
   SOURCE_NATIVE_EXECUTION_ENABLED?:string;
+  SOURCE_ZYTE_LISTING_RETRY_ENABLED?:string;
 }
 
 /** Composition shared by the connector staging backend and downstream integration.
@@ -38,9 +40,15 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   fetcher?:typeof fetch;
   providerPageLimit?:number;
   paidResponseMaxBytes?:number;
+  selectWebsiteLinks?:(request:SourceFetchRequest)=>WebsiteLinkSelector;
 }) {
   const sql=sourceSqlFromD1(env.DB),payloads=new R2SourcePayloadStore(env.RAW_ARCHIVE);
   const dispatch=options.fetcher??fetch;
+  const publicDispatch:typeof fetch=(value,init)=>{
+    const headers=new Headers(init?.headers);
+    if(!headers.has('user-agent'))headers.set('user-agent',PUBLIC_SOURCE_USER_AGENT);
+    return dispatch(value,{...init,headers});
+  };
   const secrets=async(id:string)=>id==='x_twitterapi_io'?env.TWITTERAPI_IO_API_KEY:id==='apify'?env.APIFY_API_TOKEN:id==='zyte'?env.ZYTE_API_KEY:undefined;
   const ceilings={twitterApiIo:0,apify:0,zyte:0};
   if(env.SOURCE_OPERATION_CEILINGS_JSON){
@@ -56,6 +64,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   if(env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'&&(!deploymentLimits||typeof deploymentLimits!=='object'||Array.isArray(deploymentLimits)||Object.keys(deploymentLimits).some(k=>!['x_twitterapi_io','x_apify','google_apify','linkedin_apify','zyte'].includes(k))))throw new Error('INVALID_SOURCE_BUDGETS');
   const dailyBudget=env.SOURCE_DAILY_BUDGET_USD===undefined?undefined:{limitUsd:Number(env.SOURCE_DAILY_BUDGET_USD),timeZone:env.SOURCE_BUDGET_TIME_ZONE??'UTC'};
   const paidHttp=new DurableProviderHttp(sql,payloads,dispatch,options.paidResponseMaxBytes??4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited');
+  const zyteListingRetryEnabled=env.SOURCE_ZYTE_LISTING_RETRY_ENABLED==='true';
   const makeCollector=(request:SourceFetchRequest)=>{
     const requirePaidApproval=async()=>{
       let approved:boolean;
@@ -68,7 +77,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     };
     const guardedDispatch:typeof fetch=async(value,init)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
-      return dispatch(value,init);
+      return publicDispatch(value,init);
     };
     const executionDispatch:typeof fetch=async(value,init)=>{
       if(!await options.authorize(request))throw new Error('SOURCE_NOT_APPROVED');
@@ -92,13 +101,15 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
         !host.includes('.')||/\.(?:localhost|local|internal|test|invalid)$/.test(host)||/^\d+(?:\.\d+){0,3}$/.test(host)||host.startsWith('['))throw new Error('SOURCE_URL_DENIED');
       // Deployment must retain global_fetch_strictly_public to enforce public DNS at dispatch.
     };
-    const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return dispatch(value,{...init,redirect:'manual'})},{maxBytes:PUBLIC_SOURCE_MAX_BYTES,followSameOriginRedirects:request.source.family==='rss'||request.source.family==='website'});
+    const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return publicDispatch(value,{...init,redirect:'manual'})},{maxBytes:PUBLIC_SOURCE_MAX_BYTES,followSameOriginRedirects:request.source.family==='rss'||request.source.family==='website'});
     const originHttp=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?rateLimitedPublicHttp(env.DB,baseHttp,authorizeUrl):baseHttp;
     const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,originHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):originHttp;
     return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,dispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited',requirePaidApproval),execution,secrets,ceilings,
 
+      zyteListingRetryEnabled,
+      selectWebsiteLinks:options.selectWebsiteLinks&& (async (url,candidates)=>{await requirePaidApproval();return options.selectWebsiteLinks!(request)(url,candidates);}),
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
-      rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake)};
+      rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake,undefined,helper)};
   };
   const scheduledCollector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>makeCollector(request).provider.collect(request,order,offset)};
   const collector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>{

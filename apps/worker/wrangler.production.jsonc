@@ -1,0 +1,179 @@
+{
+  "name": "distilled-news-production",
+  "account_id": "e32b564514d4f9b9e383b7dd30dbb026",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-05",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "distilled.news",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "BRIEFING_EDITOR_MODEL": "openai/gpt-4.1",
+    "BRIEFING_ENGINE": "v3",
+    "BRIEFING_VERIFIER_MODEL": "openai/gpt-4.1-mini",
+    "CLOUDFLARE_IMAGE_ACCOUNT_ID": "e32b564514d4f9b9e383b7dd30dbb026",
+    "DISTILLED_LIVE_OPENROUTER_MODEL": "openai/gpt-4.1-mini",
+    "DISTILLED_LIVE_PUBLIC_ACQUISITION_SMOKE": "false",
+    "DISTILLED_LLM_API_GATEWAY": "openrouter",
+    "DISTILLED_NEWS_PIPELINE_EVALUATION": "false",
+    "DISTILLED_WEB_OPERATOR_ENABLED": "false",
+    "EDITION_ARTIFACTS_ENABLED": "true",
+    "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
+    "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
+    "PRODUCT_FEEDS_ENABLED": "true",
+    "PUBLIC_API_BASE_URL": "https://distilled.news",
+    "PUBLIC_WEB_BASE_URL": "https://distilled.news",
+    "SOURCE_ASSESSMENT_ENABLED": "true",
+    "SOURCE_ASSESSMENT_MODEL": "openai/gpt-4.1-mini",
+    "SOURCE_COLLECTION_BUDGET_MODE": "unlimited",
+    "SOURCE_CONNECTORS_ENABLED": "true",
+    "SOURCE_DISCOVERY_MODEL": "openai/gpt-4.1",
+    "SOURCE_EXECUTION_URL": "http://127.0.0.1:8790/v1/source-execution",
+    "SOURCE_FRESH_X_POLL_RECOVERY_FEED_IDS": "[\"*\"]",
+    "SOURCE_FULL_ARTICLES_ENABLED": "true",
+    "SOURCE_GOOGLE_RESOLUTION_ENABLED": "true",
+    "SOURCE_LEGACY_POLLING_ENABLED": "false",
+    "SOURCE_NATIVE_EXECUTION_ENABLED": "true",
+    "SOURCE_OPERATION_CEILINGS_JSON": "{\"twitterApiIo\":0.01,\"apify\":0.25,\"zyte\":0.05}",
+    "SOURCE_PER_PROVIDER_BUDGET_USD": "15",
+    "SOURCE_PROVIDER_BUDGETS_JSON": "{\"x_twitterapi_io\":15,\"x_apify\":15,\"google_apify\":0,\"linkedin_apify\":15,\"zyte\":15}",
+    "SOURCE_QUEUE_SCHEDULING_ENABLED": "true",
+    "SOURCE_RECOMMENDATIONS_ENABLED": "true",
+    "SOURCE_SHARED_PUBLIC_FETCH_ENABLED": "true",
+    "STAGING_ASSETS_PREFIX": "staging-assets/905fe696899a08e0e9a0521efed549416f3f3fe7/",
+    "STORAGE_MAINTENANCE_ENABLED": "true",
+    "UNREAD_SUMMARY_ENABLED": "true",
+    "V1_BROWSER_ACQUISITION_ENABLED": "false",
+    "V1_DOWNSTREAM_ENABLED": "true",
+    "V1_DOWNSTREAM_FEED_SOURCE_IDS": "staging-rss-source,staging-twitter-source",
+    "V1_EDITORIAL_MODEL_POLICY": "SEMANTIC",
+    "V1_EDITORIAL_PLAN_ENABLED": "true",
+    "V1_EDITORIAL_RANKING_POLICY": "SEMANTIC",
+    "V1_MODEL_UNCERTAIN_EXECUTION_POLICY": "isolate-after-5m-v1",
+    "V1_PUBLICATION_PREPARATION_ISOLATED": "true",
+    "V1_PUBLICATION_VALIDATION_CONTRACT": "EVIDENCE_GROUNDED_V2",
+    "V1_REAL_MODEL_REQUIRED": "true",
+    "V1_REVIEW_PREPARATION_ISOLATED": "true",
+    "V1_SALIENCE_POLICY": "DETERMINISTIC",
+    "V1_SEMANTIC_POLICY": "SEMANTIC",
+    "V1_SEMANTIC_STRONG_MODEL": "openai/gpt-4.1-mini",
+    "V1_SYNTHESIS_MODEL_ENABLED": "true",
+    "V3_BACKLOG_CATCHUP_ENABLED": "true",
+    "WINDOW_READINESS_MODE": "relay",
+    "CUTOFF_EDITIONS_ENABLED": "true",
+    "SOURCE_RECOMMENDATIONS_WEB_SEARCH": "true",
+    "SOURCE_RECOMMENDATIONS_WEB_HTML": "true"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "distilled-news-production",
+      "database_id": "070dcb92-88e1-463b-bb93-b95b81203810",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "RAW_ARCHIVE",
+      "bucket_name": "distilled-news-production-raw"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "PROCESSING_QUEUE",
+        "queue": "distilled-news-production-processing"
+      },
+      {
+        "binding": "SOURCE_COLLECTION_QUEUE",
+        "queue": "distilled-news-production-collection"
+      },
+      {
+        "binding": "V1_ACQUISITION_QUEUE",
+        "queue": "distilled-news-production-acquisition"
+      },
+      {
+        "binding": "V1_PROCESSING_QUEUE",
+        "queue": "distilled-news-production-v1"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "distilled-news-production-processing",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "distilled-news-production-processing-dlq"
+      },
+      {
+        "queue": "distilled-news-production-collection",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "max_concurrency": 8,
+        "dead_letter_queue": "distilled-news-production-collection-dlq"
+      },
+      {
+        "queue": "distilled-news-production-acquisition",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "distilled-news-production-acquisition-dlq"
+      },
+      {
+        "queue": "distilled-news-production-v1",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 5,
+        "dead_letter_queue": "distilled-news-production-v1-dlq"
+      }
+    ]
+  },
+  "vpc_services": [
+    {
+      "binding": "SOURCE_EXECUTION_SERVICE",
+      "service_id": "01a1099d-e88a-7c23-a1c5-eeb51471e780"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "secrets": {
+    "required": [
+      "ADMIN_SESSION_SECRET",
+      "ADMIN_SETUP_TOKEN",
+      "APIFY_API_TOKEN",
+      "CLOUDFLARE_IMAGE_API_TOKEN",
+      "OPENROUTER_API_KEY",
+      "OUTLOOK_CLIENT_ID",
+      "OUTLOOK_REFRESH_TOKEN",
+      "OUTLOOK_TOKEN_ENCRYPTION_KEY",
+      "SOURCE_EXECUTION_TOKEN",
+      "STAGING_MISSION_TOKEN",
+      "TWITTERAPI_IO_API_KEY",
+      "VAPID_PRIVATE_KEY",
+      "VAPID_PUBLIC_KEY",
+      "VAPID_SUBJECT",
+      "ZYTE_API_KEY"
+    ]
+  }
+}

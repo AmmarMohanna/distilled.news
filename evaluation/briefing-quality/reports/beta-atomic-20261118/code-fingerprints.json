@@ -1,0 +1,7 @@
+{
+  "packages/briefing/src/source-bound-claims.ts": "3569cd1a2f2db4cda14ab9c0b359050668581acc277412b634d47d2783487ee6",
+  "packages/briefing/src/verification-recovery.ts": "67fe04ec68423212a1afccfe58c47827cae6a446fe5724ec529c3ba838785cdf",
+  "packages/briefing/src/engine.ts": "beba0bb0b368b8f0acfff77f7201841796f2b3fb71a5b2a50d94142913211901",
+  "apps/worker/src/v1-intelligence/v3-window.ts": "f390f44bc3db7a1ff784de23262d53b98d61978af8d464439bd197bfcd1fd264",
+  "apps/worker/src/staging-mission.ts": "08a401581f6451c113f4e30f7cfd671ae88ac874aee16c2439873f325e7ebad8"
+}

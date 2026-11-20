@@ -21,7 +21,7 @@ export * from "./source-runtime/platform-providers";
 export * from "./source-runtime/social-providers";
 export * from "./source-runtime/website-providers";
 export {SourceHandoffWait,isSourceDatabaseUnavailable} from './source-runtime/handoff-wait';
-export {discoverWebsiteArticles,isWebsiteListingUrl} from './source-runtime/website-discovery';
+export {discoverWebsiteArticles,discoverByUrlPattern,isWebsiteListingUrl,type WebsiteLinkSelector} from './source-runtime/website-discovery';
 export {extractPublicHtml,wikipediaArticlePassages,PUBLIC_ARTICLE_HTML_MAX_BYTES} from './source-runtime/public-html';
 export {sameArticleUrl} from './source-runtime/article-schema';
 export type { SourceScope, SourceRepository, ImmutablePayloadStore, FeedHttpPort, RssRequest, StoredRssBatch, FetchRun, RssCheckpoint } from "./source-runtime/ports";

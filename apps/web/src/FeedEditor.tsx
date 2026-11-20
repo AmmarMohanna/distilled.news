@@ -11,7 +11,7 @@ import { getSources, recommendSourceCandidates, assessSourceInput, searchSourceC
 import { VoiceInput } from "./VoiceInput";
 import {FeedLanguageSelect, FeedSettingsSelect} from './FeedLanguageSelect';
 import { SourceLogo } from "./SourceLogo";
-import {sourcePublisherKey} from './source-publisher-key';
+import {sourceIsAlreadyAdded} from './source-publisher-key';
 import {sourceSearchSuggestions} from './source-search-suggestions';
 
 export type FeedInput = Pick<BriefingConfig, "title" | "interestProfile" | "language" | "briefingTimezone" | "publicFeedEnabled"> & { id: string; sourceInputs: string[]; updateIntervalMinutes: 30 | 60 | 120 | 360 | 720 | 1440; briefingTimeOfDay?: string };
@@ -23,12 +23,28 @@ export function FeedEditor(props: {
   const [id] = useState(() => props.feed?.id ?? `briefing_${crypto.randomUUID()}`);
   const editing = Boolean(props.feed);
   const [sourcesReady, setSourcesReady] = useState(!props.feed);
+  const [sourceLoadAttempt,setSourceLoadAttempt]=useState(0);
+  const [sourceLoadError,setSourceLoadError]=useState<UiMessage>('');
+  const [inactiveConfiguration,setInactiveConfiguration]=useState(false);
   useEffect(() => {
     if (!props.feed) return;
     let active = true;
-    getSources(props.feed.id).then(items => { if (active) { setSources(items.filter(s=>s.enabled).map(s=>s.input || s.sourceUrl || s.url || s.title)); setSourcesReady(true); } }).catch(cause => { if (active) setMessage(toUiError(cause)); });
+    setSourcesReady(false);setSourceLoadError('');
+    getSources(props.feed.id).then(items => { if (active) {
+      setSources(items.filter(s=>s.enabled).map(s=>{
+        // Telegram input contains verification metadata, not an editable URL.
+        if(s.kind==='telegram_channel'||s.provider==='telegram'){
+          const url=s.sourceUrl||s.url||(s.username?`https://t.me/${s.username.replace(/^@/,'')}`:undefined);
+          if(!url)throw new Error('The Telegram source URL is missing. Reload before saving.');
+          return url;
+        }
+        return s.input||s.sourceUrl||s.url||s.title;
+      }));
+      setInactiveConfiguration(items.length>0&&items.every(source=>!source.enabled));
+      setSourcesReady(true);
+    } }).catch(cause => { if (active) setSourceLoadError(toUiError(cause)); });
     return () => { active = false; };
-  }, [props.feed?.id]);
+  }, [props.feed?.id,sourceLoadAttempt]);
   const [title, setTitle] = useState(props.feed?.title ?? "");
   const [prompt, setPrompt] = useState(props.feed?.interestProfile ?? "");
   const [rhythm, setRhythm] = useState<FeedInput["updateIntervalMinutes"]>(props.feed?.updateIntervalMinutes ?? (props.feed?.briefingCadence === "hourly" ? 60 : 1440));
@@ -45,12 +61,12 @@ export function FeedEditor(props: {
   const [liveSuggestions,setLiveSuggestions]=useState<{query:string;language:string;values:string[]}|null>(null);
   const suggestionCache=useRef(new Map<string,string[]>());
   const [searchResults, setSearchResults] = useState<SourceSearchResult[]>([]);
-  const addedPublishers=new Set(sources.map(sourcePublisherKey));
-  const visibleSearchResults=searchResults.filter(result=>!addedPublishers.has(sourcePublisherKey(result.source)));
+  const visibleSearchResults=searchResults.filter(result=>!sourceIsAlreadyAdded(result.source,sources));
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
   const searchFeedback=searchStatus||(!searching&&searchResults.length>0&&visibleSearchResults.length===0?'All matching sources are already added to this feed.':'');
   const searchCache=useRef(new Map<string,{at:number;query:string;result:Awaited<ReturnType<typeof searchSourceCandidates>>}>());
+  const sourceQueryRevision=useRef(0);
   const sourceQueryRef = useRef(sourceQuery);
   sourceQueryRef.current = sourceQuery;
   const directSource=/^(?:https?:\/\/|(?:rss|news|x|telegram|linkedin)\s*:|(?:[\w-]+\.)+[a-z]{2,}(?:\/|$))/i.test(sourceQuery.trim());
@@ -70,18 +86,21 @@ export function FeedEditor(props: {
     return ()=>{window.clearTimeout(timer);controller.abort();};
   },[sourceQuery,directSource,suggestionsOpen,interfaceLanguage]);
   const queryContext=JSON.stringify([title.trim(),prompt.trim()]);
-  const submitSourceSearch=(query=sourceQuery.trim())=>{if(query.length<2||query.length>200)return;if(!title.trim()||!prompt.trim()){setMessage('Enter a feed name and interests before checking a source.');return;}setSourceQuery(query);setSuggestionsOpen(false);setSuggestionIndex(-1);setSubmittedSearch({query,context:queryContext});};
+  const submitSourceSearch=(query=sourceQuery.trim())=>{if(query.length<2||query.length>200)return;if(!title.trim()||!prompt.trim()){setMessage('Enter a feed name and interests before checking a source.');return;}sourceQueryRevision.current++;setSourceQuery(query);setSuggestionsOpen(false);setSuggestionIndex(-1);setSubmittedSearch({query,context:queryContext});};
   useEffect(()=>{
     const query=sourceQuery.trim();
     setSearchResults([]);setSearchStatus("");setSearching(false);
     if(query.length<2||query.length>200||directSource||submittedSearch?.query!==query||submittedSearch.context!==queryContext)return;
     const cacheKey=JSON.stringify([query,queryContext]);
-    const status=(result:Awaited<ReturnType<typeof searchSourceCandidates>>)=>result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.topicMismatch?'The results were off topic for this feed, so they were not shown. Try another search.':result.results.length?'':result.accessIncomplete?'No freely accessible sources found. Try another name or a public feed URL.':'No sources matched your search and this feed’s topic. Try a related search.';
+    const status=(result:Awaited<ReturnType<typeof searchSourceCandidates>>)=>result.unavailable?'Web search is unavailable right now. You can still paste a source URL.':result.topicMismatch?'The results were off topic for this feed, so they were not shown. Try another search.':result.results.length?'':result.verificationIncomplete?'Some source checks timed out or could not finish. Try searching again.':result.accessIncomplete?'No freely accessible sources found. Try another name or a public feed URL.':'No sources matched your search and this feed’s topic. Try a related search.';
     const cached=searchCache.current.get(cacheKey);
     if(cached&&Date.now()-cached.at<(cached.result.accessIncomplete?15_000:60_000)){setSearchResults(cached.result.results.filter(row=>!row.blocked));setSearchStatus(status(cached.result));return;}
     const controller=new AbortController();
     setSearching(true);
-      void searchSourceCandidates(query,controller.signal,{title:title.trim(),description:prompt.trim()}).then(result=>{
+      void searchSourceCandidates(query,controller.signal,{title:title.trim(),description:prompt.trim()},result=>{
+        if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
+        setSearchResults(result.results.filter(row=>!row.blocked));setSearchStatus('');
+      }).then(result=>{
         if(controller.signal.aborted||sourceQueryRef.current.trim()!==query)return;
         if(!result.unavailable&&(!result.accessIncomplete||result.results.length>0)){if(searchCache.current.size>=20)searchCache.current.delete(searchCache.current.keys().next().value!);searchCache.current.set(cacheKey,{at:Date.now(),query,result});}
         setSearchResults(result.results.filter(row=>!row.blocked));
@@ -105,6 +124,9 @@ export function FeedEditor(props: {
   const [busy, setBusy] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [message, setMessage] = useState<UiMessage>("");
+  useEffect(()=>{
+    if(title.trim()&&prompt.trim())setMessage(current=>current==='Enter a feed name and interests before checking a source.'?'':current);
+  },[title,prompt]);
   const { confirm, confirmation } = useConfirmation();
   async function findSources() {
     setRecommending(true); setMessage("");
@@ -124,7 +146,8 @@ export function FeedEditor(props: {
     finally { setRecommending(false); }
   }
   async function addSource(source: string): Promise<boolean> {
-    if(checkingSource||!title.trim()||!prompt.trim()) { setMessage("Enter a feed name and interests before checking a source."); return false; }
+    if(checkingSource)return false;
+    if(!title.trim()||!prompt.trim()) { setMessage("Enter a feed name and interests before checking a source."); return false; }
     if(sources.includes(source))return true;
     const context=sourceContext.current;
     const checked=sourceChecks.find(check=>check.input===source&&check.status==='accepted');
@@ -149,7 +172,12 @@ export function FeedEditor(props: {
     } catch(cause) { setMessage(toUiError(cause)); return false; }
     finally { setCheckingSource(false);setCheckingSourceInput(""); }
   }
-  const matchingSources = recommendations.filter(source => !addedPublishers.has(sourcePublisherKey(source)) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
+  async function addQueriedSource(source:string){
+    const query=sourceQueryRef.current,revision=sourceQueryRevision.current;
+    const added=await addSource(source);
+    if(added&&sourceQueryRef.current===query&&sourceQueryRevision.current===revision){setSourceQuery('');sourceSearchRef.current?.focus();}
+  }
+  const matchingSources = recommendations.filter(source => !sourceIsAlreadyAdded(source,sources) && (!sourceQuery.trim() || sourceQuery.trim() === recommendationQuery || source.toLowerCase().includes(sourceQuery.trim().toLowerCase())));
   async function run(action: () => Promise<void>) { setBusy(true); setMessage(""); try { await action(); } catch (cause) { setMessage(toUiError(cause)); } finally { setBusy(false); } }
   return <Dialog className="feed-editor" label={t(editing ? "Edit feed settings" : "Add feed")} onClose={props.onClose}>
 
@@ -159,7 +187,7 @@ export function FeedEditor(props: {
       try { new Intl.DateTimeFormat("en", { timeZone: timezone.trim() }).format(); }
       catch { setMessage("Enter a valid time zone, such as Asia/Beirut or UTC."); return; }
       if (checkingSource) return;
-      if (!sourcesReady || sources.length === 0) { setMessage("Add at least one source."); return; }
+      if (!sourcesReady || (sources.length === 0 && !inactiveConfiguration)) { setMessage("Add at least one source."); return; }
       void run(() => props.onSave({ id, title: title.trim(), interestProfile: prompt.trim(), updateIntervalMinutes: rhythm, briefingTimeOfDay: rhythm === 1440 ? deliveryTime : undefined, language: feedLanguage, publicFeedEnabled, briefingTimezone: timezone.trim(), sourceInputs: sources }));
     }}>
       <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={props.onClose}><X size={20}/></button>
@@ -170,26 +198,28 @@ export function FeedEditor(props: {
         <label>{t("What would you like to follow?")}<span className="voice-field"><textarea aria-label={t("What would you like to follow?")} placeholder={t("e.g. topics, keywords...")} required rows={2} value={prompt} onChange={event => setPrompt(event.target.value)}/><VoiceInput language={feedLanguage} onText={setPrompt}/></span></label>
         <div className="source-picker">
           <label htmlFor="feed-source-search">{t("Sources")}</label>
-          <div className="source-search-field"><button type="button" className="source-search-submit" aria-label={t("Search sources")} title={t("Search sources")} disabled={directSource||searching||sourceQuery.trim().length<2||sourceQuery.trim().length>200} onClick={()=>submitSourceSearch()}><Search size={21} aria-hidden/></button><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} maxLength={500} role="combobox" aria-autocomplete="list" aria-expanded={suggestionsOpen&&querySuggestions.length>0} aria-controls="source-query-suggestions" aria-activedescendant={suggestionsOpen&&suggestionIndex>=0?`source-query-option-${suggestionIndex}`:undefined} aria-describedby="feed-source-search-help feed-source-search-status" placeholder={t("Search sources or paste a URL")} onChange={event => {setSourceQuery(event.target.value);setSubmittedSearch(null);setSuggestionsOpen(true);setSuggestionIndex(-1);}} onKeyDown={event => {
+          {sourceLoadError&&<div role="alert"><p>{t(sourceLoadError)}</p><button type="button" onClick={()=>setSourceLoadAttempt(attempt=>attempt+1)}>{t('Retry sources')}</button></div>}
+          {sourcesReady&&inactiveConfiguration&&sources.length===0&&<p>{t('All configured sources are disabled. You can save settings without enabling them.')}</p>}
+          <div className="source-search-field"><button type="button" className="source-search-submit" aria-label={t("Search sources")} title={t("Search sources")} disabled={directSource||searching||sourceQuery.trim().length<2||sourceQuery.trim().length>200} onClick={()=>submitSourceSearch()}><Search size={21} aria-hidden/></button><input id="feed-source-search" ref={sourceSearchRef} value={sourceQuery} maxLength={500} role="combobox" aria-autocomplete="list" aria-expanded={suggestionsOpen&&querySuggestions.length>0} aria-controls="source-query-suggestions" aria-activedescendant={suggestionsOpen&&suggestionIndex>=0?`source-query-option-${suggestionIndex}`:undefined} aria-describedby="feed-source-search-help feed-source-search-status" placeholder={t("Search sources or paste a URL")} onChange={event => {sourceQueryRevision.current++;setSourceQuery(event.target.value);setSubmittedSearch(null);setSuggestionsOpen(true);setSuggestionIndex(-1);}} onKeyDown={event => {
             if((event.key==='ArrowDown'||event.key==='ArrowUp')&&querySuggestions.length){event.preventDefault();setSuggestionsOpen(true);setSuggestionIndex(index=>index<0?(event.key==='ArrowDown'?0:querySuggestions.length-1):(index+(event.key==='ArrowDown'?1:-1)+querySuggestions.length)%querySuggestions.length);}
             if(event.key==='Escape'){setSuggestionsOpen(false);setSuggestionIndex(-1);}
-            if(event.key==='Enter'){event.preventDefault();if(sourceQuery.trim()&&directSource){void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery('');});}else submitSourceSearch(suggestionsOpen&&suggestionIndex>=0?querySuggestions[suggestionIndex]:sourceQuery.trim());}
-          }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => {setSourceQuery('');setSubmittedSearch(null);setSuggestionsOpen(false);}}><X size={18}/></button>}</div>
+            if(event.key==='Enter'){event.preventDefault();if(sourceQuery.trim()&&directSource){void addQueriedSource(sourceQuery.trim());}else submitSourceSearch(suggestionsOpen&&suggestionIndex>=0?querySuggestions[suggestionIndex]:sourceQuery.trim());}
+          }}/>{sourceQuery && <button type="button" aria-label={t("Clear source search")} onClick={() => {sourceQueryRevision.current++;setSourceQuery('');setSubmittedSearch(null);setSuggestionsOpen(false);}}><X size={18}/></button>}</div>
           {suggestionsOpen&&querySuggestions.length>0&&<div className="source-query-suggestions" id="source-query-suggestions" role="listbox" aria-label={t('Suggested searches')}>{querySuggestions.map((query,index)=><button type="button" role="option" id={`source-query-option-${index}`} aria-selected={suggestionIndex===index} key={query} onMouseDown={event=>event.preventDefault()} onClick={()=>submitSourceSearch(query)}><Search size={16} aria-hidden/><span>{query}</span></button>)}</div>}
           <small id="feed-source-search-help">{t("Search by publisher, person or article title. Select a result to follow its source.")}</small>
-          <p id="feed-source-search-status" className={searchFeedback&&!searching?'source-search-feedback':undefined} role="status" hidden={!searching&&!searchFeedback}>{t(searching?'Searching sources...':searchFeedback)}</p>
+          <p id="feed-source-search-status" className={searching?'source-search-loading':searchFeedback?(searchFeedback==='All matching sources are already added to this feed.'?'source-search-feedback source-search-added':'source-search-feedback'):undefined} role="status" hidden={!searching&&!searchFeedback}>{t(searching?'Searching sources...':searchFeedback)}</p>
           {checkingSource&&<small role="status">{t("Checking {source}...",{source:checkingSourceInput})}</small>}
           {visibleSearchResults.length>0&&<div className="source-search-results source-web-results" aria-label={t("Source search results")} aria-busy={searching||checkingSource}>{visibleSearchResults.map((result,index)=>{
             const check=sourceChecks.find(check=>check.input===result.source);
             const selected=sources.includes(result.source);
             return <div className="source-web-result-row" key={`${result.source}:${index}`}>
-              <button className="source-web-result-choice" type="button" disabled={checkingSource||selected} aria-busy={checkingSourceInput===result.source} onClick={()=>void addSource(result.source).then(added=>{if(added)setSourceQuery("");})}><SourceLogo source={result.source}/><span className="source-web-result"><strong>{result.title}</strong><small>{result.publisher}</small>{result.blocked&&<small>{t("Direct access was blocked. Select to check other configured collection routes.")}{result.httpStatus?` (HTTP ${result.httpStatus})`:""}</small>}{selected&&<small>{t("Already added")}</small>}{result.excerpt&&<span>{result.excerpt}</span>}</span>{selected?<Check size={18} aria-hidden="true"/>:<Plus size={18} aria-hidden="true"/>}</button>
+              <button className="source-web-result-choice" type="button" disabled={checkingSource||selected} aria-busy={checkingSourceInput===result.source} onClick={()=>void addQueriedSource(result.source)}><SourceLogo source={result.source}/><span className="source-web-result"><strong>{result.title}</strong><small>{result.publisher}</small>{result.blocked&&<small>{t("Direct access was blocked. Select to check other configured collection routes.")}{result.httpStatus?` (HTTP ${result.httpStatus})`:""}</small>}{selected&&<small>{t("Already added")}</small>}{result.excerpt&&<span>{result.excerpt}</span>}</span>{selected?<Check size={18} aria-hidden="true"/>:<Plus size={18} aria-hidden="true"/>}</button>
               {check&&check.status!=='accepted'&&<small className="source-result-status" role="status">{t(check.reason)}</small>}
             </div>;
           })}</div>}
           <small>{t("Paste a website, feed, Telegram, X or LinkedIn link, or enter a news topic.")}</small>
           {matchingSources.length > 0 && <div className="source-search-results" aria-label={t("Suggested sources")}>{matchingSources.map(source => <button type="button" key={source} className={sources.includes(source) ? "selected" : ""} aria-pressed={sources.includes(source)} disabled={checkingSource} onClick={() => void addSource(source)}><span className="source-recommendation-option"><span className="source-recommendation-identity"><SourceIdentity source={source}/></span>{sourceChecks.find(check=>check.input===source)?.evidenceQuote && <q className="source-recommendation-evidence">{sourceChecks.find(check=>check.input===source)?.evidenceQuote}</q>}</span></button>)}</div>}
-          {directSource && sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" disabled={checkingSource} onClick={() => { void addSource(sourceQuery.trim()).then(added=>{if(added)setSourceQuery(""); sourceSearchRef.current?.focus();}); }}><Plus size={24}/>{t("Add source")}</button>}
+          {directSource && sourceQuery.trim() && !sources.includes(sourceQuery.trim()) && <button className="add-source-button" type="button" disabled={checkingSource} onClick={() => { void addQueriedSource(sourceQuery.trim()); }}><Plus size={24}/>{t("Add source")}</button>}
           <button className="source-recommend-button" type="button" disabled={recommending || checkingSource || !title.trim() || !prompt.trim()} onClick={() => void findSources()}>{t(recommending ? "Finding sources..." : "Recommend sources with AI")}</button>
         </div>
         {sources.length > 0 && <div className="selected-sources"><span className="selected-sources-label">{t("Selected sources")}</span>{sources.map(source => <div className="selected-source-row" key={source}><SourceIdentity source={source}/><button type="button" aria-label={`${t("Remove source")}: ${source}`} onClick={() => setSources(current => current.filter(value => value !== source))}><X size={20}/></button></div>)}

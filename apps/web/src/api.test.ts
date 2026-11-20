@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {getFeed,saveFeed,recommendSources,recommendSourceCandidates,register,forgotPassword} from './api';
+import {getExploreFeeds,getFeed,saveFeed,recommendSources,recommendSourceCandidates,searchSourceCandidates,register,forgotPassword,resendVerification} from './api';
 
 it.each(['en','fr','ar'])('sends the currently chosen %s language when requesting either auth email',async language=>{
  localStorage.setItem('dn_language',language);
@@ -7,6 +7,7 @@ it.each(['en','fr','ar'])('sends the currently chosen %s language when requestin
  try {
   await register({email:'fixture@example.invalid',username:'Home',password:'local-only-fixture'});
   await forgotPassword('fixture@example.invalid');
+  await resendVerification('fixture@example.invalid');
   for(const [,init]of fetcher.mock.calls as unknown as [string,RequestInit][]){expect(JSON.parse(String(init.body))).toMatchObject({language,email:'fixture@example.invalid'});}
  } finally {localStorage.removeItem('dn_language');}
 });
@@ -38,6 +39,22 @@ it('does not retry a cancelled feed read',async()=>{
   vi.stubGlobal('fetch',fetcher);
   await expect(getFeed('owner','news',{signal:controller.signal,retryInitialRead:true})).rejects.toMatchObject({id:'REQUEST_FAILED'});
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('delivers verified source-search matches before completion and keeps complete status separate',async()=>{
+ let output!:ReadableStreamDefaultController<Uint8Array>;
+ const body=new ReadableStream<Uint8Array>({start(controller){output=controller;}}),encoder=new TextEncoder();
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(body,{headers:{'content-type':'application/x-ndjson'}})));
+ const progress=vi.fn(),row={source:'https://fast.example/',publisher:'fast.example',title:'Verified article'};
+ const work=searchSourceCandidates('topic',undefined,{title:'Topic',description:'Topic reporting'},progress);
+ const line=JSON.stringify({type:'progress',results:[row],unavailable:false})+'\n';
+ output.enqueue(encoder.encode('\n'+line.slice(0,20)));output.enqueue(encoder.encode(line.slice(20)));
+ await vi.waitFor(()=>expect(progress).toHaveBeenCalledWith({results:[row],unavailable:false}));
+ output.enqueue(encoder.encode(JSON.stringify({type:'complete',results:[row],unavailable:false,verificationIncomplete:true})+'\n'));output.close();
+ expect(await work).toEqual({results:[row],unavailable:false,verificationIncomplete:true});
+});
+it('does not report an interrupted source-search stream as complete',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({type:'progress',results:[],unavailable:false})+'\n',{headers:{'content-type':'application/x-ndjson'}})));
+ await expect(searchSourceCandidates('topic',undefined,{title:'Topic',description:'Topic reporting'},vi.fn())).rejects.toBeInstanceOf(Error);
 });
 it('delivers verified suggestions before a slower check finishes and handles split stream chunks',async()=>{
  let output!:ReadableStreamDefaultController<Uint8Array>;
@@ -81,4 +98,26 @@ it.each([null,[],42,'upstream error'])('handles non-object JSON error payload %j
  vi.stubGlobal('fetch',vi.fn(async()=>Response.json(payload,{status:502})));
  await expect(recommendSources('News','World')).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{id:'REQUEST_FAILED',details:{status:502}}});
  await expect(recommendSourceCandidates('News','World',vi.fn())).rejects.toMatchObject({id:'REQUEST_FAILED',uiMessage:{id:'REQUEST_FAILED',details:{status:502}}});
+});
+it('revalidates an unchanged feed with its ETag and reuses the payload on 304',async()=>{
+  const payload={briefing:{id:'feed'},editions:[]};
+  const fetcher=vi.fn()
+    .mockResolvedValueOnce(Response.json(payload,{headers:{ETag:'W/"7-abc"'}}))
+    .mockResolvedValueOnce(new Response(null,{status:304,headers:{ETag:'W/"7-abc"'}}));
+  vi.stubGlobal('fetch',fetcher);
+  await expect(getFeed('etag-owner','news')).resolves.toEqual(payload);
+  await expect(getFeed('etag-owner','news')).resolves.toEqual(payload);
+  const [,second]=fetcher.mock.calls[1] as [string,RequestInit];
+  expect((second.headers as Record<string,string>)['If-None-Match']).toBe('W/"7-abc"');
+});
+
+it('fetches exactly the requested Explore page and exposes its continuation',async()=>{
+ const fetcher=vi.fn(async(_url: string)=>Response.json({feeds:[{id:'page-one'}],nextOffset:100}));vi.stubGlobal('fetch',fetcher);
+ expect(await getExploreFeeds()).toMatchObject({feeds:[{id:'page-one'}],nextOffset:100});
+ expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher.mock.calls[0][0]).toBe('/api/explore/feeds?offset=0');
+});
+
+it('preserves successful pending-activation semantics instead of reporting a committed save as failed',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json({briefing:{id:'saved'},sourceActivation:'pending',pendingSourceIds:['second-source']},{status:202})));
+ expect(await saveFeed({id:'saved',title:'Science',interestProfile:'Science',sourceInputs:['https://example.com/feed.xml'],language:'en',briefingTimezone:'UTC',publicFeedEnabled:true,updateIntervalMinutes:60})).toEqual({id:'saved',sourceActivation:'pending'});
 });

@@ -3,17 +3,19 @@ import { chooseSetting, cycleLanguage, openEditSettings, expectSignedInAppearanc
 const feed = { id: "lebanon", ownerAccountId: "joud", ownerUsername: "joud", slug: "lebanon", title: "Lebanon", stars: 3, interestProfile: "Lebanon news", styleInstruction: "Calm", publicFeedEnabled: true, paused: false, language: "en", intensity: "low", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "Asia/Beirut", retentionDays: 15 };
 async function mock(page: any, authenticated = true, username = 'joud') {
  let currentFeed = { ...feed, ownerUsername: username };
+ let viewerHasStarred=false;
  await page.route("**/api/**", async (route: any) => {
  const path = new URL(route.request().url()).pathname;
+ if(path.endsWith('/star')&&route.request().method()==='POST')viewerHasStarred=route.request().postDataJSON().starred;
  if ((path === '/api/me/briefings' || path === '/api/me/feeds') && route.request().method() === 'POST') {
    const input = route.request().postDataJSON();
    currentFeed = { ...currentFeed, ...input, slug: input.title === 'Science today' ? 'science-today' : currentFeed.slug };
  }
- const body = path.endsWith('/star') ? {stars:4,viewerHasStarred:true}
+ const body = path.endsWith('/star') ? {stars:feed.stars+(viewerHasStarred?1:0),viewerHasStarred}
  : path === '/api/auth/session' ? { authenticated, setupRequired:false, account:authenticated ? {id:'joud',username,email:'joud@example.test',role:'user'} : null }
  : path === '/api/me/briefings' || path === '/api/me/feeds' ? (route.request().method()==='POST' ? {briefing:currentFeed} : {briefings:[currentFeed]})
- : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[feed]}
- : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:currentFeed,editions:[],viewerHasStarred:false}
+ : (path === '/api/explore/feeds' || path === '/api/explore/popular') ? {feeds:[{...feed,stars:feed.stars+(viewerHasStarred?1:0),viewerHasStarred}],nextOffset:null}
+ : path === '/api/feed/' + username + '/' + currentFeed.slug ? {briefing:{...currentFeed,stars:feed.stars+(viewerHasStarred?1:0)},editions:[],viewerHasStarred}
  : path === '/api/me/sources/assess' ? {assessment:{status:'accepted',input:route.request().postDataJSON().source,reason:'Fixture source matches',checkedAt:'2026-10-24T12:00:00Z'}}
  : path === '/api/me/sources' ? {sources:[{id:'rss-1',enabled:true,input:'https://example.test/feed.xml',title:'Science',provider:'rss',kind:'rss_feed'}]}
  : path === '/api/me/health' ? {health:{processing:{queued:0,completed:0,failed:0}}} : {};
@@ -28,8 +30,8 @@ test('home has one creation entry and no decorative globe or briefing card',asyn
  await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(1);
  await page.getByRole('button',{name:'Create feed',exact:true}).click();
  const dialog=page.getByRole('dialog');
- await expect(dialog.getByRole('textbox')).toHaveCount(3);
- await expect(dialog.getByRole('combobox')).toHaveCount(0);
+ await expect(dialog.getByRole('textbox')).toHaveCount(2);
+ await expect(dialog.getByRole('combobox', {name:'Sources',exact:true})).toHaveCount(1);
  await page.keyboard.press('Escape');
  await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -38,6 +40,8 @@ test('guests can explore and star feeds',async({page})=>{
  await mock(page,false); await page.goto('/explore');
  await expect(page.getByRole('heading',{name:'Featured feeds',level:2})).toHaveCount(0);
  await page.getByRole('button',{name:'Star Lebanon',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.reload();
  await expect(page.getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(1);
  await expect(page.locator('.experience-brand a')).toHaveCount(0);
@@ -144,9 +148,9 @@ test('feed language and advanced settings persist independently of website langu
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.locator('.feed-preferences-disclosure').click();
- await expect(dialog.getByRole('button',{name:'Langue du bulletin Anglais',exact:true})).toBeVisible();
+ await expect(dialog.getByRole('button',{name:'Langue des briefs Anglais',exact:true})).toBeVisible();
  expect(edits).toHaveLength(0);
- await chooseSetting(dialog,'Langue du bulletin','Arabe');
+ await chooseSetting(dialog,'Langue des briefs','Arabe');
  await expect(dialog.getByLabel('Fuseau horaire')).toHaveCount(0);
  const saved=page.waitForRequest(request=>request.url().endsWith('/api/me/feeds')&&request.method()==='POST');
  await dialog.getByRole('button',{name:'Enregistrer',exact:true}).click();
@@ -155,7 +159,7 @@ test('feed language and advanced settings persist independently of website langu
  await expect(page.locator('html')).toHaveAttribute('lang','fr');
  await page.getByRole('button',{name:'Modifier le fil',exact:true}).click();
  await page.locator('.feed-preferences-disclosure').click();
- await expect(dialog.getByRole('button',{name:'Langue du bulletin Arabe',exact:true})).toBeVisible();
+ await expect(dialog.getByRole('button',{name:'Langue des briefs Arabe',exact:true})).toBeVisible();
  await page.mouse.click(4,4);
  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
@@ -205,11 +209,11 @@ for(const size of [{width:320,height:568},{width:667,height:375}])test(`Arabic p
  await page.getByRole('button',{name:'إنشاء خلاصة',exact:true}).click();
  const dialog=page.getByRole('dialog');
  await dialog.getByRole('button',{name:'التفضيلات',exact:true}).click();
- await chooseSetting(dialog,'لغة الملخص','الفرنسية');
+ await chooseSetting(dialog,'لغة الموجز','الفرنسية');
  await expect(page.locator('html')).toHaveAttribute('dir','rtl');
  await expect(page.locator('html')).toHaveAttribute('lang','ar');
- await dialog.getByRole('button',{name:'لغة الملخص الفرنسية',exact:true}).press('ArrowDown');
- const menu=dialog.getByRole('listbox',{name:'لغة الملخص',exact:true});
+ await dialog.getByRole('button',{name:'لغة الموجز الفرنسية',exact:true}).press('ArrowDown');
+ const menu=dialog.getByRole('listbox',{name:'لغة الموجز',exact:true});
  await expect(menu.getByRole('option',{name:'الفرنسية',exact:true})).toHaveAttribute('aria-selected','true');
  await page.screenshot({path:info.outputPath('rtl-language-menu.png')});
  await menu.press('Escape');

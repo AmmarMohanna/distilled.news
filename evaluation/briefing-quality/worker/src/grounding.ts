@@ -1,4 +1,5 @@
 import {check,inventoryRequest,reviewRequest,review,metrics,type Review,type Case,type Inventory,type Request} from './protocol';
+export const REVIEW_VALIDATION_POLICY='claim-citation-consistency-v2';
 export interface GroundingRow {developmentId:string;support:'supported'|'unsupported'|'uncertain';explanation:string}
 export interface Grounding {results:GroundingRow[];limitations:string[]}
 /** Candidate-blind and history-blind: history cannot supply missing current facts. */
@@ -23,7 +24,16 @@ export function groundedReviewRequest(c:Case,d:Inventory):Request{
  return {...old,schemaPolicy:'grounded-review-v3',system:old.system+'\nGROUNDED INVENTORY POLICY: All omission scoring is restricted to the supplied evidence-grounded inventory. Never add a development from reader history. Include priorIds:[] in each coverage row; already_reported requires exact supplied prior IDs establishing the same event or unchanged fact. History is for reader novelty only, never proof of current claims. Do not emit findings with category coverage; structured coverage rows generate those warnings after validation. Do not invent extra missed stories in narrative findings. Each non-coverage finding must name an actual reader item index and agree with an adverse claim or item assessment for that item. Never relabel an omission as a factual finding. If claims and item judgments are all good, return findings:[]; omissions are represented only in coverage rows.'};
 }
 export function groundedReview(raw:unknown,c:Case,d:Inventory){
- const r=review(raw,c,d,true);check(!r.findings.some(f=>f.category==='coverage'),'UNBOUND_COVERAGE_FINDING');
+ const r=review(raw,c,d,true);
+ // Missing/unsupported refer to this atomic claim, not the whole item.
+ // Other claims may legitimately have citations on the same item.
+ // Reject contradictions, never upgrade a negative/uncertain label into a score.
+ for(const claim of r.claims){
+  const attached=new Set(c.items[claim.item].sourceIds);
+  const allSupportAttached=claim.evidence.length>0&&claim.evidence.every(e=>attached.has(e.sourceId));
+  check(!(claim.support==='supported'&&['missing','unsupported'].includes(claim.citationSupport)&&allSupportAttached),'CITED_SUPPORT_LABEL_CONTRADICTION');
+ }
+ check(!r.findings.some(f=>f.category==='coverage'),'UNBOUND_COVERAGE_FINDING');
  for(const f of r.findings){
   const item=r.items.find(i=>i.item===f.item),claims=r.claims.filter(claim=>claim.item===f.item);
   const adverse=f.category==='factual'?claims.some(c=>c.support!=='supported'):f.category==='citation'?claims.some(c=>c.citationSupport!=='supported'):f.category==='relevance'?item?.relevance!=='relevant':f.category==='repetition'?['repeated','uncertain'].includes(item?.repetition??''):f.category==='temporal'?item?.temporal!=='correct':f.category==='language'?item?.language!=='correct':false;

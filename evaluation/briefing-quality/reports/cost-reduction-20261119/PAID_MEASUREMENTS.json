@@ -1,0 +1,643 @@
+{
+  "candidateCommit": "3107ea8b",
+  "approvedCeilingUsd": 2,
+  "confirmedCostUsd": 0.46725599999999995,
+  "newHeldUsd": 0,
+  "peakExposureUsd": 0.711834,
+  "dispatches": 22,
+  "completeResponseReceipts": 22,
+  "newUnknowns": 0,
+  "remainingAuthorizationUsd": 1.532744,
+  "priorHoldsUnchangedUsd": [
+    0.658358,
+    0.012416
+  ],
+  "planHash": "ed86f08581a63182d28d80d01e1cc694bf9ac391d38f797c032ad443b93e75f9",
+  "casesHash": "e485536b0836ec04e39bf1ae23af3e0e0819cfc417f134ce883171af5eddfc02",
+  "journalHash": "9e3d90a100c3dfc6512517f8cbdee23ededa1df39ebc49235dca01249d56df47",
+  "execution": [
+    {
+      "file": "evaluation/briefing-quality/qualify-source-bindings.ts",
+      "sha256": "a89e4b362f62e6daf525740729339c5020f32818c12329d4f9fc54faa65c9189"
+    },
+    {
+      "file": "packages/briefing/src/source-bound-claims.ts",
+      "sha256": "2a508ec99291b6c9a1b7fc84d762feb738b0c0ca9995a92a7811af5f0220833e"
+    },
+    {
+      "file": "packages/briefing/src/engine.ts",
+      "sha256": "2997dedce92e1a479a867407ddec5102d54b1f23a20d32b8f42b91ec61f67d37"
+    },
+    {
+      "file": "packages/briefing/src/novelty.ts",
+      "sha256": "db7d3bd2ed631d4f41c024f3a4a2c747be4ed8e28edfbe5988b8a5059fe3b991"
+    }
+  ],
+  "real": [
+    {
+      "caseId": "lebanon-current",
+      "baselineOutcomeHash": "71f9494e69b03412dcffe0accb0a583158e0f07c00a9ec94f9a7a7bae8406f75",
+      "candidateOutcomeHash": "a19d81c833b63ab39586bf3b1718ef4a70a4ef10ee8ba32ebd27a4f402476739",
+      "status": "published",
+      "error": null,
+      "items": 5,
+      "identicalReaderItems": true,
+      "unaccounted": 0,
+      "withheld": 0,
+      "originalStageReceiptCostUsd": 0.334988,
+      "unchangedUpstreamReceiptCostUsd": 0.250138,
+      "newVerificationCostUsd": 0.07956,
+      "matchedStageReconstructedCostUsd": 0.32969800000000005,
+      "savingUsd": 0.005289999999999961,
+      "savingFraction": 0.015791610445747173,
+      "baselineAllInputTokens": 125266,
+      "candidateAllInputTokens": 121157,
+      "baselineAllOutputTokens": 10557,
+      "candidateAllOutputTokens": 10923,
+      "baselineExecutionMsWithReuse": 84019,
+      "candidateExecutionMsWithReuse": 29077,
+      "proofPairs": [
+        {
+          "baselineOperationId": "2a8919d0-c643-4ec8-b509-5d2922ab396f",
+          "candidateOperationId": "9fc866b2-6383-4918-833d-6f148543f13f",
+          "requestHash": "8688a2086737d2ae1f630b3040e7e9a9712c15ea0ddb3b7df6183737ca16dfb7",
+          "baselineRequestHash": "e1e6d619216fb135682d5e0f8d973671c5fc7bed8f0461a70a5caaeb6e7acafd",
+          "responseHash": "018405d9a4236a63d5293602e8b403f82f5906489bed2504a3c27bb792d9b847",
+          "facets": 73,
+          "facetSupportDisagreements": 0,
+          "citationSupportDisagreements": 0,
+          "baselineCostUsd": 0.08485,
+          "candidateCostUsd": 0.07956,
+          "baselineInputTokens": 27413,
+          "candidateInputTokens": 23304,
+          "baselineOutputTokens": 3753,
+          "candidateOutputTokens": 4119,
+          "baselineRecordedLatencyMs": 48342,
+          "candidateRecordedLatencyMs": 28549,
+          "finishReason": "stop",
+          "cachedPromptTokens": 0
+        }
+      ]
+    },
+    {
+      "caseId": "ai-current",
+      "baselineOutcomeHash": "8883d5fc4f9a945af2865c3040371478dec2d5c0b4d92bdb2937e86f32fc2e30",
+      "candidateOutcomeHash": "6536d7224a9519c9509870622cb7e466776a8257b327bb031a658e112cb545c8",
+      "status": "published",
+      "error": null,
+      "items": 9,
+      "identicalReaderItems": true,
+      "unaccounted": 0,
+      "withheld": 0,
+      "originalStageReceiptCostUsd": 0.7358860000000002,
+      "unchangedUpstreamReceiptCostUsd": 0.4233840000000001,
+      "newVerificationCostUsd": 0.282704,
+      "matchedStageReconstructedCostUsd": 0.706088,
+      "savingUsd": 0.029798000000000102,
+      "savingFraction": 0.04049268500827585,
+      "baselineAllInputTokens": 281227,
+      "candidateAllInputTokens": 262400,
+      "baselineAllOutputTokens": 21679,
+      "candidateAllOutputTokens": 22661,
+      "baselineExecutionMsWithReuse": 93193,
+      "candidateExecutionMsWithReuse": 77022,
+      "proofPairs": [
+        {
+          "baselineOperationId": "f69d9897-05c4-4943-a19a-923b766ced93",
+          "candidateOperationId": "20c57a12-90cd-4d53-af26-5ec1eab83a14",
+          "requestHash": "b55b6fef73a7bb2ea70004c06a100f93d33ae781b54cea1aea490e277c602dfc",
+          "baselineRequestHash": "668a127605588a71421e12782cd2b9d8f1e1255b66b99e96889335a798d1229b",
+          "responseHash": "bc161fdb27d956601f385f315f8d588f10c19eda091221fa906623809cbce415",
+          "facets": 92,
+          "facetSupportDisagreements": 0,
+          "citationSupportDisagreements": 0,
+          "baselineCostUsd": 0.139622,
+          "candidateCostUsd": 0.126464,
+          "baselineInputTokens": 50039,
+          "candidateInputTokens": 39216,
+          "baselineOutputTokens": 4943,
+          "candidateOutputTokens": 6004,
+          "baselineRecordedLatencyMs": 42598,
+          "candidateRecordedLatencyMs": 39109,
+          "finishReason": "stop",
+          "cachedPromptTokens": 0
+        },
+        {
+          "baselineOperationId": "be20d07a-a033-4ddb-be1e-ac7f5c1eb243",
+          "candidateOperationId": "b298cebc-e216-4db7-a652-b701d049956c",
+          "requestHash": "8b6597064ecfc90951c5bf730cdd438767ff4e10ddf6c02c529bfe24b410072f",
+          "baselineRequestHash": "5b8901e8c246c39fc07f2356dedb5441d69b2aa087a8b9065ad48602480b6fd5",
+          "responseHash": "68397ea7833767af17c43fc5deb4f72a369e5dca2f08efc017cb1262e98f96e6",
+          "facets": 131,
+          "facetSupportDisagreements": 0,
+          "citationSupportDisagreements": 0,
+          "baselineCostUsd": 0.141776,
+          "candidateCostUsd": 0.12732,
+          "baselineInputTokens": 45384,
+          "candidateInputTokens": 38016,
+          "baselineOutputTokens": 6376,
+          "candidateOutputTokens": 6411,
+          "baselineRecordedLatencyMs": 50183,
+          "candidateRecordedLatencyMs": 30705,
+          "finishReason": "stop",
+          "cachedPromptTokens": 0
+        },
+        {
+          "baselineOperationId": "49f80fc6-0f13-4371-8376-b48be8180855",
+          "candidateOperationId": "baf590a6-0d7b-425b-9f41-dd9fce4b0c6a",
+          "requestHash": "c72725f380d9795be78f123fb908573505802d2c98bfff56f0fec183848b5e42",
+          "baselineRequestHash": "6a7e1a861331c19f87f21c143f5eac9995f59a5821990e52d02c3dd25e612814",
+          "responseHash": "3e9f681f19f2144d6ad4395972aa04778de4b0293bab859508f71016dcb77b28",
+          "facets": 16,
+          "facetSupportDisagreements": 0,
+          "citationSupportDisagreements": 0,
+          "baselineCostUsd": 0.031104,
+          "candidateCostUsd": 0.02892,
+          "baselineInputTokens": 10796,
+          "candidateInputTokens": 10160,
+          "baselineOutputTokens": 1189,
+          "candidateOutputTokens": 1075,
+          "baselineRecordedLatencyMs": null,
+          "candidateRecordedLatencyMs": 6578,
+          "finishReason": "stop",
+          "cachedPromptTokens": 0
+        }
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "pair": "ar-compound-valid",
+      "language": "ar",
+      "expected": "ok",
+      "originalVerdict": "ok",
+      "compactVerdict": "ok",
+      "originalError": null,
+      "compactError": null,
+      "originalUsage": {
+        "calls": 3,
+        "inputTokens": 3709,
+        "outputTokens": 613,
+        "costUsd": 0.011302
+      },
+      "compactUsage": {
+        "calls": 3,
+        "inputTokens": 3724,
+        "outputTokens": 589,
+        "costUsd": 0.008696
+      },
+      "originalLatencyMs": 8067,
+      "compactLatencyMs": 3619,
+      "verificationOnly": {
+        "original": {
+          "costUsd": 0.008858,
+          "inputTokens": 2657,
+          "outputTokens": 443,
+          "latencyMs": 6229
+        },
+        "compact": {
+          "costUsd": 0.008696,
+          "inputTokens": 2672,
+          "outputTokens": 419,
+          "latencyMs": 3574
+        }
+      }
+    },
+    {
+      "pair": "ar-compound-substitution",
+      "language": "ar",
+      "expected": "reject",
+      "originalVerdict": "fix",
+      "compactVerdict": "fix",
+      "originalError": null,
+      "compactError": null,
+      "originalUsage": {
+        "calls": 3,
+        "inputTokens": 3710,
+        "outputTokens": 640,
+        "costUsd": 0.01152
+      },
+      "compactUsage": {
+        "calls": 3,
+        "inputTokens": 3725,
+        "outputTokens": 667,
+        "costUsd": 0.00932
+      },
+      "originalLatencyMs": 10887,
+      "compactLatencyMs": 3162,
+      "verificationOnly": {
+        "original": {
+          "costUsd": 0.009074,
+          "inputTokens": 2657,
+          "outputTokens": 470,
+          "latencyMs": 7605
+        },
+        "compact": {
+          "costUsd": 0.00932,
+          "inputTokens": 2672,
+          "outputTokens": 497,
+          "latencyMs": 3138
+        }
+      }
+    },
+    {
+      "pair": "en-valid-qualification",
+      "language": "en",
+      "expected": "ok",
+      "originalVerdict": "ok",
+      "compactVerdict": "ok",
+      "originalError": null,
+      "compactError": null,
+      "originalUsage": {
+        "calls": 3,
+        "inputTokens": 3356,
+        "outputTokens": 441,
+        "costUsd": 0.009441999999999999
+      },
+      "compactUsage": {
+        "calls": 3,
+        "inputTokens": 3422,
+        "outputTokens": 452,
+        "costUsd": 0.007556
+      },
+      "originalLatencyMs": 8252,
+      "compactLatencyMs": 4630,
+      "verificationOnly": {
+        "original": {
+          "costUsd": 0.007336,
+          "inputTokens": 2304,
+          "outputTokens": 341,
+          "latencyMs": 5474
+        },
+        "compact": {
+          "costUsd": 0.007556,
+          "inputTokens": 2370,
+          "outputTokens": 352,
+          "latencyMs": 4607
+        }
+      }
+    },
+    {
+      "pair": "en-quantity-substitution",
+      "language": "en",
+      "expected": "reject",
+      "originalVerdict": "fix",
+      "compactVerdict": "fix",
+      "originalError": null,
+      "compactError": null,
+      "originalUsage": {
+        "calls": 3,
+        "inputTokens": 3014,
+        "outputTokens": 313,
+        "costUsd": 0.007772
+      },
+      "compactUsage": {
+        "calls": 3,
+        "inputTokens": 3111,
+        "outputTokens": 308,
+        "costUsd": 0.006186
+      },
+      "originalLatencyMs": 8835,
+      "compactLatencyMs": 4645,
+      "verificationOnly": {
+        "original": {
+          "costUsd": 0.006032,
+          "inputTokens": 2012,
+          "outputTokens": 251,
+          "latencyMs": 5484
+        },
+        "compact": {
+          "costUsd": 0.006186,
+          "inputTokens": 2109,
+          "outputTokens": 246,
+          "latencyMs": 4621
+        }
+      }
+    },
+    {
+      "pair": "fr-valid-uncertainty",
+      "language": "fr",
+      "expected": "ok",
+      "originalVerdict": "ok",
+      "compactVerdict": "ok",
+      "originalError": null,
+      "compactError": null,
+      "originalUsage": {
+        "calls": 3,
+        "inputTokens": 3402,
+        "outputTokens": 445,
+        "costUsd": 0.009559999999999999
+      },
+      "compactUsage": {
+        "calls": 3,
+        "inputTokens": 3448,
+        "outputTokens": 465,
+        "costUsd": 0.007688
+      },
+      "originalLatencyMs": 10272,
+      "compactLatencyMs": 4778,
+      "verificationOnly": {
+        "original": {
+          "costUsd": 0.007436,
+          "inputTokens": 2338,
+          "outputTokens": 345,
+          "latencyMs": 6789
+        },
+        "compact": {
+          "costUsd": 0.007688,
+          "inputTokens": 2384,
+          "outputTokens": 365,
+          "latencyMs": 4756
+        }
+      }
+    },
+    {
+      "pair": "fr-certainty-substitution",
+      "language": "fr",
+      "expected": "reject",
+      "originalVerdict": "fix",
+      "compactVerdict": "fix",
+      "originalError": null,
+      "compactError": null,
+      "originalUsage": {
+        "calls": 3,
+        "inputTokens": 3263,
+        "outputTokens": 418,
+        "costUsd": 0.009066000000000001
+      },
+      "compactUsage": {
+        "calls": 3,
+        "inputTokens": 3321,
+        "outputTokens": 375,
+        "costUsd": 0.006884
+      },
+      "originalLatencyMs": 7599,
+      "compactLatencyMs": 5121,
+      "verificationOnly": {
+        "original": {
+          "costUsd": 0.007112,
+          "inputTokens": 2200,
+          "outputTokens": 339,
+          "latencyMs": 5568
+        },
+        "compact": {
+          "costUsd": 0.006884,
+          "inputTokens": 2258,
+          "outputTokens": 296,
+          "latencyMs": 5097
+        }
+      }
+    }
+  ],
+  "originalConfusion": {
+    "tp": 3,
+    "tn": 3,
+    "fp": 0,
+    "fn": 0,
+    "failed": 0,
+    "precision": 1,
+    "recall": 1,
+    "f1": 1
+  },
+  "compactConfusion": {
+    "tp": 3,
+    "tn": 3,
+    "fp": 0,
+    "fn": 0,
+    "failed": 0,
+    "precision": 1,
+    "recall": 1,
+    "f1": 1
+  },
+  "distinctControlEvidenceGroups": 4,
+  "claims": "Descriptive exposed/control qualification only. Historical real verification receipts are not contemporaneous latency pairs. Composite per-briefing costs combine unchanged historical upstream receipts with new verification charges, not a new fully cold engine campaign.",
+  "operations": [
+    {
+      "id": "3b37757e-6ccd-44e5-967b-a04d7bd7f471",
+      "generationId": "gen-1795123495-1UEps2B8PkpEXhIKQ6kU",
+      "costUsd": 0.002444,
+      "inputTokens": 690,
+      "outputTokens": 133,
+      "latencyMs": 1780,
+      "requestHash": "fd86cc444bccc012bd25ba1d054ef7c3986c50ff7492baca639126619b1ccd45",
+      "responseHash": "10dcbc9d2be0bf01f04d5f988a44c7e68f98ab3bdf883fb8c9f825b61982c50a"
+    },
+    {
+      "id": "a67acb43-6b7f-45dd-8bbf-c12b553134d5",
+      "generationId": "gen-1795123500-Aa5KoGj9yffQiPB3st8t",
+      "costUsd": 0.008858,
+      "inputTokens": 2657,
+      "outputTokens": 443,
+      "latencyMs": 6229,
+      "requestHash": "ec4c21393eb39075acf6f889de2ae9734530641c4d3901241e3b9541ba91c943",
+      "responseHash": "75fa2b922cc7f2dbb07430f304d2cea194d841e81cf1e316b3028ecb7161f2d2"
+    },
+    {
+      "id": "acba22be-99bb-4122-b508-240d78644a52",
+      "generationId": "gen-1795123504-Y5agQnLz5hGyZ10Tf8iQ",
+      "costUsd": 0.008696,
+      "inputTokens": 2672,
+      "outputTokens": 419,
+      "latencyMs": 3574,
+      "requestHash": "9469680be6759e09732c88d63ea3da724383b99cd3eecd0296d1f466ed6d034c",
+      "responseHash": "53552669fc5733b7954e69fa6ae520a5fea0868cbe3c00ba4e539ebe549e62d0"
+    },
+    {
+      "id": "092ae3ed-ffc2-4429-8929-3e32ea57adf8",
+      "generationId": "gen-1795123509-EFRGbWU6rQCTqzNnZOGQ",
+      "costUsd": 0.002446,
+      "inputTokens": 691,
+      "outputTokens": 133,
+      "latencyMs": 3238,
+      "requestHash": "e9d8ec2903ab374ad158b57b5d40fe7f041a92643485ea5dc896c46d1565e877",
+      "responseHash": "8c91f439d27f16e30bb9b0daf6208c0ea41cdcbcd14621a29b4ba451b9d581ee"
+    },
+    {
+      "id": "1c0759f6-26a6-4845-afb3-e427c09b982a",
+      "generationId": "gen-1795123513-rzWNOhI0htQG6JBOneJU",
+      "costUsd": 0.009074,
+      "inputTokens": 2657,
+      "outputTokens": 470,
+      "latencyMs": 7605,
+      "requestHash": "e48607683bc6fb7b864fa3089120d159b31e6494fcebd198e1984ec23fac3a82",
+      "responseHash": "e5c2b21b23d5485045a3e066c13c79e88718cd966e0d380e1dc23376e8a11510"
+    },
+    {
+      "id": "2f6f2003-e5e8-486b-8f16-7089352c1cae",
+      "generationId": "gen-1795123518-ZNuc4PzvNbyXEEPGat9b",
+      "costUsd": 0.00932,
+      "inputTokens": 2672,
+      "outputTokens": 497,
+      "latencyMs": 3138,
+      "requestHash": "e72543a7a1a76f7eb8e22d2182554cb39484ee7e9af05bf91d3088cb18299269",
+      "responseHash": "ff034e13417058bf00f35a918c4e4a47a06b158d4c84f9ac713ffa72ba8726e5"
+    },
+    {
+      "id": "05969bf4-91b5-4503-b780-24f846ceb8f4",
+      "generationId": "gen-1795123522-FAlrbaJeaNMpHXpERQQm",
+      "costUsd": 0.002106,
+      "inputTokens": 685,
+      "outputTokens": 92,
+      "latencyMs": 2737,
+      "requestHash": "d0b9293d7cc8a71edf31b15dd4b46fb100091875976612ac74a1fbbea5f8d9e4",
+      "responseHash": "fb844a2fe226206b98da057cf2ce24da6cf95f953cade18ebd294142dd906b8c"
+    },
+    {
+      "id": "15cc14e6-56af-49cd-8c4e-8c7fcb174f04",
+      "generationId": "gen-1795123527-ZnxmpjaKAJukxrNLQxTZ",
+      "costUsd": 0.007336,
+      "inputTokens": 2304,
+      "outputTokens": 341,
+      "latencyMs": 5474,
+      "requestHash": "3e474321c8bc2c96d79921eabe80e1e0b84e12591c4a782bd9fa36b0cd3ca4bd",
+      "responseHash": "48b0591e387e51eafacaf618f5753cdcff9ea5efd72ab075b8912edf35f405ff"
+    },
+    {
+      "id": "cfa429f0-0a37-4842-9f04-609d6576b144",
+      "generationId": "gen-1795123531-kYEBQPjW4U7KVJJuAM6f",
+      "costUsd": 0.007556,
+      "inputTokens": 2370,
+      "outputTokens": 352,
+      "latencyMs": 4607,
+      "requestHash": "762dbb9491c9f16b05edb6c329771478f5b82d9d8e505518d755ddc92e16b106",
+      "responseHash": "f69a7cdb6cd5cb7124c40f0d08f29843d39ade7f0eeff4e6496cbb581c0c9341"
+    },
+    {
+      "id": "6796c045-5a77-4539-8a8d-79a3fd74dc74",
+      "generationId": "gen-1795123536-wn5v8wFiatuLO51Taxty",
+      "costUsd": 0.00174,
+      "inputTokens": 654,
+      "outputTokens": 54,
+      "latencyMs": 3309,
+      "requestHash": "a42ff9c3e69be28942cf1af4b93f962631c82d899283301a417e8c4cf2709c44",
+      "responseHash": "ccdbddddff6876722209ab9b760d7d514211dd1954293dda8f3b6dd899f44e16"
+    },
+    {
+      "id": "3f27d2a4-6053-4e5d-9613-4b345c0c637e",
+      "generationId": "gen-1795123540-qS5Vxt4hW0cnXO0WtCVu",
+      "costUsd": 0.006032,
+      "inputTokens": 2012,
+      "outputTokens": 251,
+      "latencyMs": 5484,
+      "requestHash": "723b463c1a1d4489437de20ba116f84fe5cf9f3e02fcc01137dd2f690cbd17ce",
+      "responseHash": "3bb75338b2d929baccb78c42a5483a70c65a12d56246a148635288a20d58584a"
+    },
+    {
+      "id": "4fbfa236-23bd-4c5a-90d1-bb21c706667d",
+      "generationId": "gen-1795123545-suQbLrHRfSn3uCNVmIFJ",
+      "costUsd": 0.006186,
+      "inputTokens": 2109,
+      "outputTokens": 246,
+      "latencyMs": 4621,
+      "requestHash": "41ae04d0f3fd9c29a10e481f33203b5726480a708e47608cade5bb6c4cfc504d",
+      "responseHash": "6a86d6a7836141246d86c00055c223002c3124a8623c7a7908c421a60a04b542"
+    },
+    {
+      "id": "6e60c8e9-1a08-427a-8a56-a90f5114707a",
+      "generationId": "gen-1795123549-SmunM7IUXd5Hg6azOp2v",
+      "costUsd": 0.002124,
+      "inputTokens": 694,
+      "outputTokens": 92,
+      "latencyMs": 3446,
+      "requestHash": "b3b6f5a9ae30e27dd0cb34ac8e4919e021ee456b21dcc0a031d4164a7d493514",
+      "responseHash": "d84429af4b8ad3c3973c01ce646c5be6620b75c78f6cf19f7af3b0b4b74790fd"
+    },
+    {
+      "id": "f34cf422-3f8b-447c-9a2b-1079b2ce4b4c",
+      "generationId": "gen-1795123554-vXmK3mdXGahluwUtcxsC",
+      "costUsd": 0.007436,
+      "inputTokens": 2338,
+      "outputTokens": 345,
+      "latencyMs": 6789,
+      "requestHash": "a5ace2caf6181b7b53fecc9ca4f0810be5c171128c8389bc6263d78070e5a8fe",
+      "responseHash": "2a310faf1cd6ae4c4a0e9025cd2cbbee3192c424261a53a97705615145d73d58"
+    },
+    {
+      "id": "a032f365-2648-4d08-b9f0-4f140397fdca",
+      "generationId": "gen-1795123558-VXPvCwcWAEEDwHG0pMSZ",
+      "costUsd": 0.007688,
+      "inputTokens": 2384,
+      "outputTokens": 365,
+      "latencyMs": 4756,
+      "requestHash": "8a120874d08d202527c1bdb6c054fe044ffca4507624189eb5235a997cd451e9",
+      "responseHash": "b63d29c19b6f0c19074e5c1744e828b3c88ca29184e1673b80a01fb8c981a05c"
+    },
+    {
+      "id": "2ce1b973-1e60-46bb-bdad-b93c3344ff3e",
+      "generationId": "gen-1795123563-VuWL2o21uSxGTRppQXCQ",
+      "costUsd": 0.001954,
+      "inputTokens": 693,
+      "outputTokens": 71,
+      "latencyMs": 1992,
+      "requestHash": "8486e4ad8456ad62cf3a6b675ee801c41139a03cc35ae897cabf275dfd3a0cf1",
+      "responseHash": "5cbbaf25c52958591ea74c9d1395c2d60c824fa9329a65eb05bb951e0497e6b9"
+    },
+    {
+      "id": "fb809eb2-38b9-45a5-8ad8-b213e5f71768",
+      "generationId": "gen-1795123567-1KU6ejMS3S1lADQ7T9Ne",
+      "costUsd": 0.007112,
+      "inputTokens": 2200,
+      "outputTokens": 339,
+      "latencyMs": 5568,
+      "requestHash": "ee9c2c5c39ca71832803e2c64f7008ff21098332451eb949306e5d6e8bd769e5",
+      "responseHash": "1a1431f170367a785edd8b17ee0c5ec80fdd96eb2a569352ccf134279a2419e1"
+    },
+    {
+      "id": "f43e1f81-28be-4a3d-bba6-b28a19c7e933",
+      "generationId": "gen-1795123572-jQe9q3YX7Op3LkJV6ymT",
+      "costUsd": 0.006884,
+      "inputTokens": 2258,
+      "outputTokens": 296,
+      "latencyMs": 5097,
+      "requestHash": "8861e51e753985e88186cadb1d20ba3d1e173c21780adc0a77ee4895a15a313c",
+      "responseHash": "9c9ee5c38a4b7512d74694bd6babc2f811b890f378d3f5751e30e0655f6c5b4b"
+    },
+    {
+      "id": "9fc866b2-6383-4918-833d-6f148543f13f",
+      "generationId": "gen-1795123576-2azZfDGtHMX5C6gRfAid",
+      "costUsd": 0.07956,
+      "inputTokens": 23304,
+      "outputTokens": 4119,
+      "latencyMs": 28549,
+      "requestHash": "8688a2086737d2ae1f630b3040e7e9a9712c15ea0ddb3b7df6183737ca16dfb7",
+      "responseHash": "018405d9a4236a63d5293602e8b403f82f5906489bed2504a3c27bb792d9b847"
+    },
+    {
+      "id": "20c57a12-90cd-4d53-af26-5ec1eab83a14",
+      "generationId": "gen-1795123605-z7UCj25bQEZzlnjupdN0",
+      "costUsd": 0.126464,
+      "inputTokens": 39216,
+      "outputTokens": 6004,
+      "latencyMs": 39109,
+      "requestHash": "b55b6fef73a7bb2ea70004c06a100f93d33ae781b54cea1aea490e277c602dfc",
+      "responseHash": "bc161fdb27d956601f385f315f8d588f10c19eda091221fa906623809cbce415"
+    },
+    {
+      "id": "b298cebc-e216-4db7-a652-b701d049956c",
+      "generationId": "gen-1795123644-clh39oeOKCqBxa9Ns5NU",
+      "costUsd": 0.12732,
+      "inputTokens": 38016,
+      "outputTokens": 6411,
+      "latencyMs": 30705,
+      "requestHash": "8b6597064ecfc90951c5bf730cdd438767ff4e10ddf6c02c529bfe24b410072f",
+      "responseHash": "68397ea7833767af17c43fc5deb4f72a369e5dca2f08efc017cb1262e98f96e6"
+    },
+    {
+      "id": "baf590a6-0d7b-425b-9f41-dd9fce4b0c6a",
+      "generationId": "gen-1795123675-TSEIBuwhuJVaXPpio0IV",
+      "costUsd": 0.02892,
+      "inputTokens": 10160,
+      "outputTokens": 1075,
+      "latencyMs": 6578,
+      "requestHash": "c72725f380d9795be78f123fb908573505802d2c98bfff56f0fec183848b5e42",
+      "responseHash": "3e9f681f19f2144d6ad4395972aa04778de4b0293bab859508f71016dcb77b28"
+    }
+  ],
+  "knownNewInputTokens": 143436,
+  "knownNewOutputTokens": 22548,
+  "controlVerificationOnly": {
+    "originalCostUsd": 0.045848,
+    "compactCostUsd": 0.04633,
+    "casesWithIncreasedBill": 4
+  }
+}

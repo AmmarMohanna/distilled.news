@@ -29,7 +29,10 @@
             "count": 1
           }
         ],
-        "observedAt": "2026-10-29T02:00:00Z"
+        "observedAt": "2026-10-29T02:00:00Z",
+        "alerts": [
+          "SOURCE_NO_RECENT_SUCCESS"
+        ]
       }
     }
   ],

@@ -5,7 +5,7 @@ test("requested feed layout and language controls", async ({ page }) => {
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
     const data = path === "/api/auth/session" ? { authenticated: true, account: { id: "owner", username: "admin", role: "user" } }
-      : path === "/api/me/briefings" ? { briefings: [feed,{...feed,id:"archived",slug:"archived",title:"Archived feed",paused:true}] }
+      : path === "/api/me/briefings" ? { briefings: [{...feed,viewerHasStarred:false,latestUpdatedAt:new Date(Date.now()-3600000).toISOString()},{...feed,id:"archived",slug:"archived",title:"Archived feed",paused:true}] }
       : path === "/api/explore/feeds" ? { feeds: [] }
       : path.startsWith("/api/feed/") ? { briefing: feed, editions: [{ id: "edition", publishedAt: new Date(Date.now() - 3600000).toISOString(), sections: [] }], viewerHasStarred: false }
       : path === "/api/me/sources" ? { sources: [] } : {};

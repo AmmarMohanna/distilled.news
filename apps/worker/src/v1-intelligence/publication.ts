@@ -67,7 +67,7 @@ export interface BriefingEditionRecord {
  id:string;feedId:string;feedRevision:number;windowStart:string;windowEnd:string;language:string;selectionId:string;
  provisionalSemanticStates?:{eventVersionId:string;provenance:EventSemanticState['provenance'];rematchRequestIds:string[]}[];
  selectedCandidateIds:string[];eventVersionIds:string[];storylineVersionIds:string[];evidenceRevisionIds:string[];
- stories:{candidateId:string;claims:GroundedClaim[]}[];
+ stories:{candidateId:string;claims:GroundedClaim[];relation?:'new'|'update'|'correction';updatesId?:string}[];
  generation:{model:string;provider:string;promptVersion:string;routerVersion:string;tokensIn:number;tokensOut:number;cost:number;latencyMs:number;usageConfirmed:boolean;repairCount?:number;draftId?:string;verificationId?:string};
  selectionPolicyVersion:string;groundingPolicyVersion:string;createdAt:string;
 }
@@ -605,7 +605,7 @@ export async function publishSelection(store:V1FeedStore,feedId:string,selection
    if(!grounding.stories.length){await feedTransact(store,feedId,async tx=>{
     await selectionInput(tx,selection,adaptiveExecution);const job=await requireJob(tx,editionId,token,options.now());
     await tx.write('synthesis_jobs',editionId,{...job,state:'DONE',failure:undefined});
-    const request=await tx.read<any>('briefing_requests',editionId),coverage=await windowIntakeCoverage(store.db,feedId,selection.window.end);
+    const request=await tx.read<any>('briefing_requests',editionId),coverage=await windowIntakeCoverage(store.db,feedId,selection.window.end,{start:selection.window.start});
     // Completion and its coverage classification share one CAS. The runtime
     // catch may never execute after a crash or replacement of its work lease.
     if(request){const incomplete=coverage.state!=='COMPLETE'||Boolean(request.semanticCoverage?.unresolvedTargets?.length);await tx.write('briefing_requests',editionId,{...request,coverage,state:'DONE',result:incomplete?'DEFERRED':'QUIET',reason:coverage.state!=='COMPLETE'?'INCOMPLETE_INTAKE_COVERAGE':incomplete?'INCOMPLETE_SEMANTIC_OWNERSHIP':'NO_NEW_VERIFIED_STORIES',completedAt:options.now()})}

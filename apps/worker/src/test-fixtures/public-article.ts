@@ -1,0 +1,2 @@
+export function articleHtml(title='Public reporting'){return `<html><head><title>${title}</title><meta property="og:type" content="article"></head><body><article><h1>${title}</h1><p>${'Detailed reporting about current research, economy and public developments. '.repeat(8)}</p></article></body></html>`;}
+export function articlePage(){return new Response(articleHtml(),{headers:{'content-type':'text/html'}});}

@@ -11,12 +11,24 @@ export interface Article {
 }
 
 export interface FeedSpec {
+  /** Opt-in wire deduplication; frozen inputs without this retain original requests. */
+  verificationInputPolicy?:'reader-unit-context-v1';
+  /** Versioned proof-size batching; never removes reader items or evidence. */
+  verificationOutputPolicy?:'reader-load-batches-v1';
+  /** New inputs use general evidence bindings. The Arabic marker is legacy replay only. */
+  identityFidelityPolicy?: 'arabic-person-role-v1' | 'source-bound-claims-v1' | 'source-bound-claims-v2' | 'source-bound-claims-v3';
   /** What the reader follows, in the reader's own words. */
   interest: string;
   language: "en" | "ar" | "fr";
   /** Length of the briefing window; shapes how selective the editor is. */
   windowMinutes: number;
   style?: string;
+  /** Persisted on new inputs only; frozen inputs retain their original prompts. */
+  topicSelectionPolicy?: 'reader-topic-boundaries-v1';
+  /** Frozen in new snapshots; preserve claim strength and action during compression. */
+  wordingFidelityPolicy?: 'faithful-writing-v1';
+  /** New frozen inputs only: bounded repair history and supported-core recovery. */
+  verificationRecoveryPolicy?: 'supported-core-v1' | 'supported-core-v2';
 }
 
 /** Something the reader has already been told. */
@@ -139,5 +151,5 @@ export class BriefingBudgetError extends Error {
 
 /** Received replies exhausted JSON/schema correction, including truncation; no unknown provider outcome. */
 export class BriefingOutputError extends BriefingModelError {
- constructor(message:string){super(message,true);}
+ constructor(message:string,readonly validationFailure?:string){super(message,true);}
 }

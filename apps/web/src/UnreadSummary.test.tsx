@@ -20,6 +20,37 @@ it('shows a useful failure and permits an explicit retry',async()=>{
  vi.mocked(summarizeUnread).mockRejectedValueOnce(new Error('Unavailable')).mockResolvedValue({status:'empty'});await render();await click('.unread-summary-button');expect(host.querySelector('[role="alert"]')?.textContent).toBe('Unavailable');await click('.unread-summary-button');expect(host.textContent).toContain('No recent unread briefings');expect(summarizeUnread).toHaveBeenCalledTimes(2);
 });
 
+it('discards an in-flight result when read IDs change without new edition content and permits a fresh request',async()=>{
+ let finish!:(value:{status:'ready';summary:string})=>void;
+ vi.mocked(summarizeUnread).mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;})).mockResolvedValue({status:'ready',summary:'Fresh remaining edition'});
+ await render();await click('.unread-summary-button');
+ await act(async()=>root.render(<UnreadSummary readerId="reader" username="owner" slug="news" readIds={['edition-a']} contentKey="one"/>));
+ await act(async()=>finish({status:'ready',summary:'Obsolete two-edition summary'}));
+ expect(host.textContent).not.toContain('Obsolete');expect(localStorage.getItem('dn-unread-summary:'+JSON.stringify(['reader','owner','news']))).toBeNull();
+ expect(host.querySelector<HTMLButtonElement>('.unread-summary-button')?.disabled).toBe(false);
+ await click('.unread-summary-button');expect(summarizeUnread).toHaveBeenLastCalledWith('owner','news',['edition-a']);expect(host.textContent).toContain('Fresh remaining edition');
+});
+
+it('does not let an obsolete completion clear a newer request in flight',async()=>{
+ const complete:Array<(value:{status:'ready';summary:string})=>void>=[];
+ vi.mocked(summarizeUnread).mockImplementation(()=>new Promise(resolve=>complete.push(resolve)));
+ await render();await click('.unread-summary-button');
+ await act(async()=>root.render(<UnreadSummary readerId="reader" username="owner" slug="news" readIds={['edition-a']} contentKey="one"/>));
+ await click('.unread-summary-button');
+ await act(async()=>complete[0]({status:'ready',summary:'Old selection'}));
+ expect(host.querySelector<HTMLButtonElement>('.unread-summary-button')?.disabled).toBe(true);expect(host.textContent).not.toContain('Old selection');
+ await act(async()=>complete[1]({status:'ready',summary:'New selection'}));
+ expect(host.textContent).toContain('New selection');expect(host.querySelector<HTMLButtonElement>('.unread-summary-button')?.disabled).toBe(false);
+});
+
+it('treats reordered and duplicate read IDs as the same selection',async()=>{
+ let complete!:(value:{status:'ready';summary:string})=>void;
+ vi.mocked(summarizeUnread).mockImplementation(()=>new Promise(resolve=>{complete=resolve;}));
+ const show=(readIds:string[])=>act(async()=>root.render(<UnreadSummary readerId="reader" username="owner" slug="news" readIds={readIds} contentKey="one"/>));
+ await show(['a','b']);await click('.unread-summary-button');await show(['b','a','a']);
+ await act(async()=>complete({status:'ready',summary:'Still current'}));expect(host.textContent).toContain('Still current');expect(summarizeUnread).toHaveBeenCalledOnce();
+});
+
 it('restores a saved result after leaving and returning without a request',async()=>{
  vi.mocked(summarizeUnread).mockResolvedValue({status:'ready',summary:'The proposal still needs approval.'});await render();await click('.unread-summary-button');await act(async()=>root.render(null));await render();expect(host.textContent).toContain('still needs approval');expect(summarizeUnread).toHaveBeenCalledOnce();expect(host.querySelector('h2')?.textContent).toBe('Summary');
 });

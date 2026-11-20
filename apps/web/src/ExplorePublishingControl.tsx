@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { Compass } from "lucide-react";
 import { setExploreFeed } from "./api";
 import { useLanguage } from "./LanguageControl";
-
-export const EXPLORE_CHANGED_EVENT = "dn-explore-changed";
+import {EXPLORE_CHANGED_EVENT} from './explore-events';
+export {EXPLORE_CHANGED_EVENT} from './explore-events';
 
 export function ExplorePublishingControl({ feedId, featured, onError }: {
   feedId: string; featured?: boolean; onError: (message: UiMessage) => void;

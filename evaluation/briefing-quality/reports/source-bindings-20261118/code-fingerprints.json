@@ -1,0 +1,8 @@
+{
+  "algorithm": "SHA-256 of raw file bytes, local LF checkout",
+  "files": {
+    "packages/briefing/src/source-bound-claims.ts": "5c3cfecea2f32feccd7bd8034621e2d1ae3b200021a570e6f491958ea1f3e9ee",
+    "packages/briefing/test/source-bound-claims.test.ts": "4c36435e8bac754ffd154f732e2b35ba8f432a3bcd81e3795d3b2abf2d97ad7c",
+    "evaluation/briefing-quality/qualify-source-bindings.ts": "9e6fab3c01e5793f09a4f9c02b27b914488442f2f133fb5662586411cafaac58"
+  }
+}

@@ -34,6 +34,32 @@ function text(root:Node,skip=true,keepHeader=false):string {
  while(stack.length&&seen++<100000){const n=stack.pop()!;if(skip&&excluded.has(n.tagName??'')&&!(keepHeader&&n.tagName==='header'))continue;if(n.nodeName==='#text')parts.push(n.value??'');else stack.push(...[...(n.childNodes??[])].reverse());}
  return parts.join(' ').replace(/\s+/g,' ').trim();
 }
+function visibleText(root:Node):string {
+ const parts:string[]=[],pending=[root];
+ while(pending.length){
+  const node=pending.pop()!;
+  if(excluded.has(node.tagName??'')||node.tagName==='template'||node.attrs?.some(a=>a.name==='hidden')||attr(node,'aria-hidden')==='true'||/\bdisplay\s*:\s*none\b/i.test(attr(node,'style')))continue;
+  if(node.nodeName==='#text')parts.push(node.value??'');
+  else pending.push(...[...(node.childNodes??[])].reverse());
+ }
+ return parts.join(' ').replace(/\s+/g,' ').trim();
+}
+/** Narrow rules for publisher pages whose prose is split across components.
+ * Only visible paragraphs inside a single article-owned scope are admitted. */
+function scopedPublisherParagraphs(root:Node,skipClasses:RegExp):string {
+ const paragraphs:string[]=[],pending=[root];
+ while(pending.length&&paragraphs.length<100){
+  const node=pending.pop()!,classes=attr(node,'class');
+  if(excluded.has(node.tagName??'')||node.tagName==='template'||node.attrs?.some(a=>a.name==='hidden')||attr(node,'aria-hidden')==='true'||/\bdisplay\s*:\s*none\b/i.test(attr(node,'style'))||skipClasses.test(classes))continue;
+  if(node.tagName==='p'){
+   const value=visibleText(node);
+   if(value.length>=20&&!/^(?:categories|tags)\s*:/i.test(value))paragraphs.push(value);
+   continue;
+  }
+  pending.push(...[...(node.childNodes??[])].reverse());
+ }
+ return paragraphs.join('\n\n');
+}
 /** Deterministic public HTML extraction. Dates come only from publisher
  * publication metadata; missing dates and content remain explicitly missing. */
 export function extractPublicHtml(html:string,url:string){
@@ -155,6 +181,40 @@ export function extractPublicHtml(html:string,url:string){
   body=text(main,true,true);contentKind=productMetadata?'PRODUCT_DETAIL':'CATALOGUE';
  }
  let canonicalUrl=url;try{const candidate=new URL(canonical?attr(canonical,'href'):url,url);if(candidate.origin===new URL(url).origin&&candidate.pathname!=='/')canonicalUrl=candidate.href}catch{}
+ let publisherScoped=false;
+ const explicitCanonical=attr(canonical??{},'href');
+ let publisherIdentity=false;
+ try {
+  publisherIdentity=!!explicitCanonical&&sameArticleUrl(new URL(explicitCanonical,url).href,url);
+ }catch{/* Invalid canonical metadata cannot admit these layouts. */}
+ // Google Research's article prose is divided among multiple rich-text blocks.
+ // The blog-detail wrapper binds those blocks to this page; global rich-text
+ // searches could otherwise select navigation and recommendation cards.
+ const host=new URL(url).hostname.replace(/^www\./,'');
+ if(!restrictedMetadata&&publisherIdentity&&!structuredBody&&articleBodies.length!==1&&host==='research.google'&&/^\/blog\/[^/]+\/?$/.test(new URL(url).pathname)&&title){
+  const wrappers=all.filter(n=>attr(n,'class').split(/\s+/).includes('blog-detail-wrapper'));
+  const heading=all.find(n=>n.tagName==='h1'&&text(n).trim()===title.trim());
+  if(wrappers.length===1&&heading){
+   const prose=scopedPublisherParagraphs(wrappers[0],/(?:^|\s)(?:quicklinks|related|share|card|caption)(?:\s|$)/i);
+   if(prose.length>=200){body=prose;publisherScoped=true;}
+  }
+ }
+ // Advanced Television puts its story under a nested main/section and uses an
+ // H3 for the headline. Stop before its related-post and advertising widgets.
+ if(!restrictedMetadata&&publisherIdentity&&!structuredBody&&articleBodies.length!==1&&host==='advanced-television.com'&&/^\/\d{4}\/\d{2}\/\d{2}\/[^/]+\/?$/.test(new URL(url).pathname)&&title){
+  const headings=all.filter(n=>{
+   if(n.tagName!=='h3'||!attr(n,'class').split(/\s+/).includes('h1'))return false;
+   const headline=text(n).trim();return headline.length>=20&&(headline===title.trim()||title.trim().startsWith(headline+' |'));
+  });
+  if(headings.length===1){
+   let section:Node|undefined=headings[0];
+   while(section&&section.tagName!=='section')section=section.parentNode;
+   if(section){
+    const prose=scopedPublisherParagraphs(section,/(?:^|\s)(?:yarpp|code-block|advert|addtoany|related)(?:\s|$)/i);
+    if(prose.length>=200){body=prose;title=text(headings[0]).trim();publisherScoped=true;}
+   }
+  }
+ }
  // MTV's article prose is a raw-text div; its login modal contains the first
  // H1. Bind the explicit body to the publisher's numeric article identity.
  const pageUrl=new URL(url),mtvId=/^\/News\/[^/]+\/(\d+)\/[^/]+\/?$/.exec(pageUrl.pathname)?.[1];
@@ -175,5 +235,5 @@ export function extractPublicHtml(html:string,url:string){
  const shortArticle=articleMetadata&&body.length>=80&&body.length<200&&(structuredBody!==undefined||articleBodies.length===1);
  return {title,body,...(partialSummary||shortArticle?{contentCompleteness:'PARTIAL' as const}:{}),...(contentKind?{contentKind}:{}),...(accessRestricted?{accessRestricted:true}:{}),publishedAt:publishedAt&&Number.isFinite(Date.parse(publishedAt))?new Date(publishedAt).toISOString():undefined,canonicalUrl,
   language:attr(all.find(n=>n.tagName==='html')??{},'lang')||undefined,
-  pageKind:contentKind?'catalogue':primary?'article':listing?'listing':articleMetadata||article?'article':'unknown',articleLinks:listing?.articles.map(a=>a.url)??[]};
+  pageKind:contentKind?'catalogue':primary||publisherScoped?'article':listing?'listing':articleMetadata||article?'article':'unknown',articleLinks:listing?.articles.map(a=>a.url)??[]};
 }

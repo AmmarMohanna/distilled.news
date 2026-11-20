@@ -1,0 +1,181 @@
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach, expect, it, vi } from 'vitest';
+import { AuthPanel } from './main';
+import { login, register, verifyEmail, resendVerification } from './api';
+import { ApiError } from './api-errors';
+
+vi.hoisted(() => { Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) }); });
+
+vi.mock('react-dom/client', async importOriginal => {
+  const actual = await importOriginal<typeof import('react-dom/client')>();
+  return { ...actual, createRoot: (host: Element | null) => host ? actual.createRoot(host) : { render() {} } };
+});
+vi.mock('./api', async importOriginal => ({
+  ...await importOriginal<typeof import('./api')>(), login: vi.fn(), register: vi.fn(), verifyEmail: vi.fn(), resendVerification: vi.fn(),
+}));
+afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); });
+
+async function mount(signup = false, url?: string) {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  localStorage.setItem('dn_language', 'en');
+  window.history.replaceState(null, '', url ?? (signup ? '/?signup' : '/'));
+  const host = document.createElement('div'), root = createRoot(host);
+  const onAuthenticated = vi.fn(async () => {});
+  await act(async () => root.render(<AuthPanel setupRequired={false} onAuthenticated={onAuthenticated}/>));
+  const click = async (label: string) => act(async () => {
+    const button = [...host.querySelectorAll('button')].find(button => button.textContent === label);
+    expect(button).toBeDefined(); button!.click();
+  });
+  const submit = async () => act(async () => { host.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+  const actions = () => [...host.querySelectorAll('.auth-verification-actions button')].map(button => button.textContent);
+  return { host, click, submit, actions, onAuthenticated, close: () => act(async () => root.unmount()) };
+}
+
+it('never shows registration recovery on sign in and clears it when leaving registration', async () => {
+  const ui = await mount();
+  try {
+    await ui.submit();
+    vi.mocked(login).mockRejectedValue(new ApiError('AUTH_EMAIL_VERIFICATION_REQUIRED'));
+    await ui.submit();
+    expect(ui.actions()).toEqual([]);
+    await ui.click('Create an account');
+    expect(ui.actions()).toEqual([]);
+    vi.mocked(register).mockRejectedValue(new ApiError('AUTH_EMAIL_REGISTERED'));
+    // The recovery email must be nonempty, as it is with browser form validation.
+    const input = ui.host.querySelector<HTMLInputElement>('input[type="email"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'reader@example.invalid');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await ui.submit();
+    expect(ui.actions()).toEqual(['Enter verification code', 'Resend verification email']);
+    await ui.click('Sign in');
+    expect(ui.actions()).toEqual([]);
+    await ui.click('Create an account');
+    expect(ui.actions()).toEqual([]);
+  } finally { await ui.close(); }
+});
+it('returns successful email verification to password sign in without authenticating', async () => {
+  const ui = await mount(true);
+  try {
+    const email = ui.host.querySelector<HTMLInputElement>('input[type="email"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(email, 'reader@example.invalid');
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    vi.mocked(register).mockResolvedValueOnce(undefined);
+    await ui.submit();
+    expect(ui.host.querySelector('.auth-code-step')).not.toBeNull();
+    expect(ui.host.querySelector('input[type="email"]')).toBeNull();
+    expect(ui.host.querySelector('.auth-email-address')?.textContent).toBe('reader@example.invalid');
+    vi.mocked(verifyEmail).mockResolvedValueOnce({ username: 'reader' } as Awaited<ReturnType<typeof verifyEmail>>);
+    await ui.submit();
+    expect(ui.onAuthenticated).not.toHaveBeenCalled();
+    expect(ui.host.querySelector('.auth-code-step')).toBeNull();
+    expect(ui.host.textContent).toContain('Welcome back');
+    expect(ui.host.textContent).toContain('Email verified. Sign in to continue.');
+    expect(ui.host.querySelector<HTMLInputElement>('input[type="password"]')?.value).toBe('');
+    expect(ui.host.querySelector<HTMLInputElement>('input[type="email"]')?.readOnly).toBe(false);
+    expect(ui.actions()).toEqual([]);
+  } finally { await ui.close(); }
+});
+
+it('ignores registration responses that arrive after leaving and returning', async () => {
+  const ui = await mount(true);
+  try {
+    let finish!: () => void;
+    vi.mocked(register).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    await ui.submit();
+    await ui.click('Sign in');
+    await ui.click('Create an account');
+    await act(async () => finish());
+    expect(ui.actions()).toEqual([]);
+    expect(ui.host.querySelector('.auth-code-step')).toBeNull();
+  } finally { await ui.close(); }
+});
+it.each([
+  ['sign in', 'Welcome back'], ['reset your password', 'Reset Password'],
+])('opens %s from the verified-email error and preserves the email', async (action, heading) => {
+  const ui = await mount(true);
+  try {
+    const email = ui.host.querySelector<HTMLInputElement>('input[type="email"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(email, 'verified@example.invalid');
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    vi.mocked(register).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_REGISTERED'));
+    await ui.submit();
+    vi.mocked(resendVerification).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_ALREADY_VERIFIED'));
+    await ui.click('Resend verification email');
+    expect(ui.host.querySelector('[role="alert"]')?.textContent).toBe('Email is already verified. Please sign in or reset your password.');
+    expect(ui.actions()).toEqual([]);
+    const link = [...ui.host.querySelectorAll<HTMLAnchorElement>('[role="alert"] a')].find(link => link.textContent === action)!;
+    expect(link).toBeDefined();
+    expect(link.getAttribute('href')).toBe(action === 'sign in' ? '/login' : '/login?reset-password');
+    await act(async () => link.click());
+    expect(ui.host.querySelector('h2')?.textContent).toBe(heading);
+    expect(ui.host.querySelector<HTMLInputElement>('input[type="email"]')?.value).toBe('verified@example.invalid');
+    expect(ui.host.querySelector('[role="alert"]')).toBeNull();
+    expect(ui.actions()).toEqual([]);
+    expect(ui.onAuthenticated).not.toHaveBeenCalled();
+  } finally { await ui.close(); }
+});
+it('removes resend after verification completes elsewhere while the code form is open', async () => {
+  const ui = await mount(true);
+  try {
+    const email = ui.host.querySelector<HTMLInputElement>('input[type="email"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(email, 'verified@example.invalid');
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    vi.mocked(register).mockResolvedValueOnce(undefined);
+    await ui.submit();
+    expect(ui.actions()).toEqual(['Back', 'Resend verification email']);
+    vi.mocked(resendVerification).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_ALREADY_VERIFIED'));
+    await ui.click('Resend verification email');
+    expect(ui.actions()).toEqual(['Back']);
+    expect(ui.host.querySelectorAll('[role="alert"] a')).toHaveLength(2);
+  } finally { await ui.close(); }
+});
+it('supports opening the reset-password request form through the hyperlink URL', async () => {
+  const ui = await mount(false, '/login?reset-password');
+  try {
+    expect(ui.host.querySelector('h2')?.textContent).toBe('Reset Password');
+    expect(ui.host.querySelector('input[type="password"]')).toBeNull();
+    expect(ui.host.querySelector('button[type="submit"]')?.textContent).toBe('Send Reset Link');
+  } finally { await ui.close(); }
+});
+it('shows clickable recovery links and no verification actions immediately after verified registration is rejected', async () => {
+  const ui = await mount(true);
+  try {
+    vi.mocked(register).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_ALREADY_VERIFIED'));
+    await ui.submit();
+    expect(ui.host.querySelector('[role="alert"]')?.textContent).toBe('Email is already verified. Please sign in or reset your password.');
+    expect(ui.host.querySelectorAll('[role="alert"] a')).toHaveLength(2);
+    expect(ui.actions()).toEqual([]);
+    expect(resendVerification).not.toHaveBeenCalled();
+  } finally { await ui.close(); }
+});
+for(const outcome of ['success','error'] as const)it.each(['email','login'] as const)(`ignores a late resend ${outcome} after changing %s`,async navigation=>{
+  const ui=await mount(true);
+  try{
+    const changeEmail=async(value:string)=>act(async()=>{
+      const input=ui.host.querySelector<HTMLInputElement>('input[type="email"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await changeEmail('previous@example.invalid');
+    vi.mocked(register).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_REGISTERED'));await ui.submit();
+    let finish!:()=>void,fail!:(error:unknown)=>void;
+    vi.mocked(resendVerification).mockImplementationOnce(()=>new Promise<void>((resolve,reject)=>{finish=resolve;fail=reject;}));
+    await ui.click('Resend verification email');
+    if(navigation==='email')await changeEmail('current@example.invalid');else await ui.click('Sign in');
+    await act(async()=>{if(outcome==='success')finish();else fail(new ApiError('AUTH_EMAIL_ALREADY_VERIFIED'));});
+    expect(ui.host.textContent).not.toContain('Email is already verified.');
+    expect(ui.host.querySelector('.auth-message')).toBeNull();expect(ui.actions()).toEqual([]);
+    expect(ui.host.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+    if(navigation==='email')expect(ui.host.querySelector<HTMLInputElement>('input[type="email"]')?.value).toBe('current@example.invalid');
+    else expect(ui.host.querySelector('h2')?.textContent).toBe('Welcome back');
+  }finally{await ui.close();}
+});

@@ -13,26 +13,38 @@ export function UnreadSummary({username,slug,readIds,contentKey,readerId,hasUnre
   const [summary,setSummary]=useState(''),[visible,setVisible]=useState(false),[busy,setBusy]=useState(false);
   const [error,setError]=useState<UiMessage>('');
   const version=useRef(0);
+  const selectionKey=JSON.stringify([...new Set(readIds)].sort());
+  const latestSelection=useRef(selectionKey);latestSelection.current=selectionKey;
+  const pending=useRef(false);
   useEffect(()=>{
-    version.current++;setSummary('');setVisible(false);setBusy(false);setError('');
+    version.current++;pending.current=false;setSummary('');setVisible(false);setBusy(false);setError('');
     try{const saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved&&saved.contentKey===contentKey&&saved.expires>Date.now()&&typeof saved.summary==='string'){setSummary(saved.summary);setVisible(true);}else localStorage.removeItem(storageKey);}catch{/* Ignore unavailable or invalid storage. */}
     return()=>{version.current++;};
   },[storageKey,contentKey]);
+  useEffect(()=>{
+    version.current++;
+    if(pending.current){
+      pending.current=false;setBusy(false);setError('');
+      // An earlier completed summary may remain visible; pending text cannot.
+      setVisible(Boolean(summary));
+    }
+  },[selectionKey]);
   async function generate(){
     if(busy||!hasUnread)return;setVisible(true);setError('');
-    const request=version.current;setBusy(true);
+    const request=version.current,requestedReadIds=[...readIds];pending.current=true;setBusy(true);
+    const isCurrent=()=>request===version.current&&selectionKey===latestSelection.current;
     try{
       for(let attempt=0;attempt<15;attempt++){
-        const result=await summarizeUnread(username,slug,readIds);
-        if(request!==version.current)return;
+        const result=await summarizeUnread(username,slug,requestedReadIds);
+        if(!isCurrent())return;
         if(result.status==='ready'){setSummary(result.summary);save(result.summary);return;}
         if(result.status==='empty'){setError('No recent unread briefings to summarize.');return;}
         await new Promise(resolve=>setTimeout(resolve,2000));
-        if(request!==version.current)return;
+        if(!isCurrent())return;
       }
       setError('Still preparing. Try again shortly.');
-    }catch(cause){if(request===version.current)setError(toUiError(cause));}
-    finally{if(request===version.current)setBusy(false);}
+    }catch(cause){if(isCurrent())setError(toUiError(cause));}
+    finally{if(isCurrent()){pending.current=false;setBusy(false);}}
   }
   const result=visible?<section id={resultId} className="unread-summary-section" aria-live="polite" aria-label={t('Unread summary')} aria-busy={busy}>
       <h2>{t("Summary")}</h2><div className="unread-summary-card">

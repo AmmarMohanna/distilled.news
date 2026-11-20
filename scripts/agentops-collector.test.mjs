@@ -63,7 +63,7 @@ test('OTLP preserves names, job selector, gauge values and excludes arbitrary me
   assert.ok(m[0].gauge.dataPoints[0].attributes.some(a=>a.key==='job'&&a.value.stringValue==='distilled-snapshot'));
   assert.throws(()=>metricsPayload({prompt:1},at),/INVALID_METRIC/);
   assert.throws(()=>metricsPayload({observer_up:NaN},at),/INVALID_METRIC/);
-  assert.throws(()=>metricsPayload({observer_up:1},at,'production'),/SCOPE/);
+  assert.throws(()=>metricsPayload({observer_up:1},at,'unknown'),/SCOPE/);
 });
 test('export has one attempt, rejects partial ingestion and never follows redirects',async()=>{
   const env={GRAFANA_OTLP_METRICS_URL:'https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics',GRAFANA_OTLP_AUTH:'private'};let n=0;
@@ -84,4 +84,14 @@ test('collector has no public surface and disabled configuration performs no wor
 test('deployment scope reads aggregates across feeds and exports no private identities',async()=>{
  const queries=[];const db={prepare(sql){assert.match(sql,/^SELECT/);queries.push(sql);return {bind(){return {all:async()=>({success:true,results:[sql.includes('v1_model_active_operations')?{active:2,expired:1}:{pending:4,oldest:120,failed:3}],meta:{rows_read:8,duration:1}})}}}}};
  const result=await collectDeploymentSnapshot(db,at);assert.equal(queries.length,2);assert.ok(queries[0].includes('INDEXED BY v1_unresolved_publication_windows'));assert.equal(result.values.deployment_scope,1);assert.equal(result.values.deployment_pending_briefings,4);assert.equal(result.values.deployment_expired_model_leases,1);const payload=JSON.stringify(metricsPayload(result.values,at));assert.ok(!payload.includes('feed_id'));assert.ok(!payload.includes('prompt'));
+});
+
+test('production collector metrics have a separate environment and service',async()=>{
+  let body;
+  await sendMetrics({DEPLOYMENT_ENVIRONMENT:'production',GRAFANA_OTLP_METRICS_URL:'https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics',GRAFANA_OTLP_AUTH:'test'},{observer_up:1},at,async(_url,init)=>{body=JSON.parse(init.body);return Response.json({});});
+  const attributes=body.resourceMetrics[0].scopeMetrics[0].metrics[0].gauge.dataPoints[0].attributes;
+  assert.equal(attributes.find(a=>a.key==='environment').value.stringValue,'production');
+  assert.equal(attributes.find(a=>a.key==='service').value.stringValue,'distilled-news-production');
+  assert.ok(!JSON.stringify(body).includes('staging'));
+  assert.throws(()=>metricsPayload({observer_up:1},at,'unknown'),/INVALID_SCOPE/);
 });

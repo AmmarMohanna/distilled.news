@@ -61,7 +61,32 @@ it('keeps opinion, latest-article and live indexes out of discovered article can
 it('tracking-only URL equivalence never admits another article, origin or content query',()=>{
  expect(sameArticleUrl(url+'?traffic_source=rss',url)).toBe(true);
  expect(sameArticleUrl(url+'?utm_source=rss#top',url)).toBe(true);
+ expect(sameArticleUrl(url+'?at_medium=RSS&at_campaign=feed',url)).toBe(true);
+ expect(sameArticleUrl(url+'?xtor=RSS-16',url)).toBe(true);
+ expect(sameArticleUrl(url+'?xtor=RSS-16&edition=other',url)).toBe(false);
  for(const different of [url+'/other',url+'?edition=other',url.replace('publisher.example','other.example'),url.replace('https:','http:')])expect(sameArticleUrl(url,different)).toBe(false);
+});
+it('compares BBC RSS attribution with its article canonical without ignoring other identities',()=>{
+ const article='https://www.bbc.co.uk/sport/football/articles/cq4gn7014x76o';
+ expect(sameArticleUrl(article+'?at_medium=RSS&at_campaign=rss',article)).toBe(true);
+ expect(sameArticleUrl(article+'?at_medium=RSS&at_article_id=other',article)).toBe(false);
+ for(const other of [article+'/other',article+'?edition=other',article.replace('bbc.co.uk','bbc.com'),article.replace('bbc.co.uk','bbc.co.uk.evil.example')])expect(sameArticleUrl(article+'?at_medium=RSS&at_campaign=rss',other)).toBe(false);
+ expect(sameArticleUrl(url+'?at_medium=article-2',url)).toBe(false);
+ expect(sameArticleUrl(url+'?at_article_id=other&at_medium=RSS',url)).toBe(false);
+});
+it('accepts an RSS attribution link when Sciences et Avenir identifies the same article',()=>{
+ const canonical='https://www.sciencesetavenir.fr/sante/une-radiotherapie-ultraciblee-contre-les-tumeurs-agressives_195864';
+ const requested=canonical+'?xtor=RSS-16';
+ const html=`<link rel="canonical" href="${canonical}"><meta property="og:type" content="article"><h1>${headline}</h1><article><p>${body}</p></article>`;
+ expect(extractPublicHtml(html,requested)).toMatchObject({canonicalUrl:canonical,body,pageKind:'article'});
+ expect(sameArticleUrl(requested,canonical)).toBe(true);
+});
+it('uses BBC Arabic article metadata when an RSS link adds attribution to the same article',()=>{
+ const canonical='https://www.bbc.com/arabic/articles/c9m2j8pry2ndo';
+ const requested=canonical+'?at_medium=RSS&at_campaign=rss';
+ const html=`<link rel="canonical" href="${canonical}"><meta property="og:type" content="article"><h1>${headline}</h1><script type="application/ld+json">${JSON.stringify({'@type':'NewsArticle',url:canonical,headline})}</script><article><p>${body}</p></article>`;
+ expect(extractPublicHtml(html,requested)).toMatchObject({canonicalUrl:canonical,body,pageKind:'article'});
+ expect(sameArticleUrl(canonical,requested)).toBe(true);
 });
 
 // Optional read-only replay of privately retained publisher HTML. No network,

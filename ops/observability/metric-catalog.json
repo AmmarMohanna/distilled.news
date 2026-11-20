@@ -3,12 +3,60 @@
   "extends": "../../evaluation/performance-reliability/metric-catalog.json",
   "protocol": "../../evaluation/performance-reliability/PROTOCOL.md",
   "metrics": [
-    {"name":"distilled_deployment_scope","unit":"boolean","sourceOfTruth":"collector deployment mode","aggregation":"deployment-wide snapshot","interpretation":"1 denotes all-feed operational scope","type":"gauge","status":"implemented_worker_collection"},
-    {"name":"distilled_deployment_pending_briefings","unit":"requests","sourceOfTruth":"indexed unresolved briefing requests","aggregation":"all feeds, pending and past intended delivery","interpretation":"overdue durable publication requests, not selected story count","type":"gauge","status":"implemented_worker_collection"},
-    {"name":"distilled_deployment_oldest_pending_age_seconds","unit":"seconds","sourceOfTruth":"indexed pending request scheduledFor or window end","aggregation":"maximum across all pending feeds","interpretation":"age beyond intended delivery; future prepared windows contribute zero","type":"gauge","status":"implemented_worker_collection"},
-    {"name":"distilled_deployment_failed_briefings","unit":"requests","sourceOfTruth":"indexed unresolved requests with state FAILED","aggregation":"all retained feeds","interpretation":"retained failed windows, not a failure rate","type":"gauge","status":"implemented_worker_collection"},
-    {"name":"distilled_deployment_active_model_calls","unit":"operations","sourceOfTruth":"v1_model_active_operations","aggregation":"all provider execution occupancy","interpretation":"execution slots only, excluding isolated financial uncertainty","type":"gauge","status":"implemented_worker_collection"},
-    {"name":"distilled_deployment_expired_model_leases","unit":"operations","sourceOfTruth":"v1_model_active_operations lease_until","aggregation":"all active identities with expired local leases","interpretation":"local expiry is not proof of provider completion","type":"gauge","status":"implemented_worker_collection"},
+    {
+      "name": "distilled_deployment_scope",
+      "unit": "boolean",
+      "sourceOfTruth": "collector deployment mode",
+      "aggregation": "deployment-wide snapshot",
+      "interpretation": "1 denotes all-feed operational scope",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_deployment_pending_briefings",
+      "unit": "requests",
+      "sourceOfTruth": "indexed unresolved briefing requests",
+      "aggregation": "all feeds, pending and past intended delivery",
+      "interpretation": "overdue durable publication requests, not selected story count",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_deployment_oldest_pending_age_seconds",
+      "unit": "seconds",
+      "sourceOfTruth": "indexed pending request scheduledFor or window end",
+      "aggregation": "maximum across all pending feeds",
+      "interpretation": "age beyond intended delivery; future prepared windows contribute zero",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_deployment_failed_briefings",
+      "unit": "requests",
+      "sourceOfTruth": "indexed unresolved requests with state FAILED",
+      "aggregation": "all retained feeds",
+      "interpretation": "retained failed windows, not a failure rate",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_deployment_active_model_calls",
+      "unit": "operations",
+      "sourceOfTruth": "v1_model_active_operations",
+      "aggregation": "all provider execution occupancy",
+      "interpretation": "execution slots only, excluding isolated financial uncertainty",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_deployment_expired_model_leases",
+      "unit": "operations",
+      "sourceOfTruth": "v1_model_active_operations lease_until",
+      "aggregation": "all active identities with expired local leases",
+      "interpretation": "local expiry is not proof of provider completion",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
     {
       "name": "distilled_publication_published",
       "unit": "requests",
@@ -332,6 +380,24 @@
       "interpretation": "not full source/window collection recall",
       "type": "gauge",
       "status": "implemented_offline_projection"
+    },
+    {
+      "name": "distilled_source_no_recent_success",
+      "unit": "sources",
+      "sourceOfTruth": "sources.collection.alerts (connector_fetch_runs and accepted connector batches)",
+      "aggregation": "count sources still checked without an accepted batch for 48 hours",
+      "interpretation": "a source failing silently; a quiet source with accepted empty batches is not counted",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
+    },
+    {
+      "name": "distilled_source_never_collected",
+      "unit": "sources",
+      "sourceOfTruth": "sources.collection.alerts (connector_fetch_runs and v1_inputs)",
+      "aggregation": "count sources checked at least three times that never produced an intake item",
+      "interpretation": "a source never proven to collect, often a hand-added locator",
+      "type": "gauge",
+      "status": "implemented_worker_collection"
     },
     {
       "name": "distilled_queue_failed",

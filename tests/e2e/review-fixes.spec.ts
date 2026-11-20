@@ -60,7 +60,7 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.route('**/api/feed/joud/lebanon', route => route.fulfill({ json: { briefing: feed, editions: [], viewerHasStarred: false, publicationState: 'failed' } }));
   await page.goto('/joud/lebanon/');
-  await expect(page.getByText('Briefing delayed', { exact: true })).toBeVisible();
+  await expect(page.getByText('Briefing delayed', { exact: true })).toHaveCount(0);
   await expect(page.locator('.feed-empty-state')).toBeVisible();
   await expect(page.locator('.feed-filter')).toBeHidden();
   const search = await page.locator('.feed-tools .search').boundingBox();
@@ -69,7 +69,7 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   expect(search!.x + search!.width).toBeLessThanOrEqual(1440);
   expect(empty!.x + empty!.width).toBeLessThanOrEqual(1440);
   await expect(page.locator('.notice')).toHaveCount(0);
-  await expect(page.locator('.feed-publication-status')).toBeVisible();
+  await expect(page.locator('.feed-publication-status')).toHaveCount(0);
   expect(empty!.height).toBeGreaterThanOrEqual(140);
   await expect(page.locator('.feed-shell h1')).toHaveCSS('font-size', '40px');
   await page.screenshot({ path: test.info().outputPath('feed-dashboard.png'), fullPage: true });

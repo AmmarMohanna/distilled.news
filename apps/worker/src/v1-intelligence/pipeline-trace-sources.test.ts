@@ -27,6 +27,8 @@ it('saved provider order, attempt and partial coverage are diagnostic evidence, 
         await ctx.db.prepare('INSERT INTO connector_fetch_runs VALUES(?,?,?,?,?)').bind('feed-1','feed-source-1','poll','2026-10-03T12:00:00Z',1).run();
         const before = await ctx.db.prepare('SELECT * FROM connector_provider_poll_jobs').all();
         const r = await traceSourceCollection(ctx.db, 'feed-1', 'feed-source-1', new Set(['connector_provider_poll_jobs', 'connector_provider_batches','connector_fetch_runs']));
+        // Checked in October, never accepted since: silent for far longer than 48 hours.
+        expect(r.alerts).toEqual(['SOURCE_NO_RECENT_SUCCESS']);
         expect(r.lastPollJobs[0]).toMatchObject({ id: 'poll', attempts: 2, lastError: 'AUTH_REQUIRED', providerOrder: '["telegram_telethon","telegram_public"]' });
         expect(r.lastBatches[0]).toMatchObject({ coverage: { status: 'PARTIAL' }, accepted: 0 });
         expect(r.pollingState).not.toBe('SUCCESS');

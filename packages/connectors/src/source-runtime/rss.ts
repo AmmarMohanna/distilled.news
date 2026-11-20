@@ -3,6 +3,7 @@ import type { CandidateIntakePort, CandidateProposal, SourceObservation, Collect
 import type { FeedHttpPort, FetchTelemetry, ImmutablePayloadStore, RssRequest, SourceRepository, StoredRssBatch } from './ports';
 import { normalizeRssSnapshot,rssEvidenceText } from './rss-normalize';
 import {itemFingerprint} from './item-fingerprint';
+import type {SourceExecutionPort} from './platform-providers';
 
 export interface RssCollectionResult {
   handoffId: string;
@@ -18,7 +19,8 @@ export interface RssCollectionResult {
 export class RssSourceCollector {
   constructor(private readonly repository: SourceRepository, private readonly payloads: ImmutablePayloadStore,
     private readonly http: FeedHttpPort, private readonly intake: CandidateIntakePort,
-    private readonly now: () => string = () => new Date().toISOString()) {}
+    private readonly now: () => string = () => new Date().toISOString(),
+    private readonly execution?:SourceExecutionPort) {}
 
   async collect(input: RssRequest, offset = 0): Promise<RssCollectionResult> {
     for (const id of [input.scope.feedId,input.scope.feedSourceId,input.scope.sourceId,input.runId]) idSchema.parse(id);
@@ -62,7 +64,19 @@ export class RssSourceCollector {
       if (checkpoint.etag) headers['if-none-match'] = checkpoint.etag;
       if (checkpoint.lastModified) headers['if-modified-since'] = checkpoint.lastModified;
     }
-    const response = await this.http.get(input.url,headers);
+    let response = await this.http.get(input.url,headers);
+    // A public publisher may reject the Cloudflare egress path while serving the
+    // same feed through the already authorized private helper. No paid provider
+    // is involved, and the original status remains visible if recovery fails.
+    if(this.execution&&response.status===406){
+      try{
+        const fallback=await this.execution.execute('public_feed',{url:input.url},{timeoutMs:20_000}) as {status?:number;xml?:string;latencyMs?:number;requests?:number};
+        if(fallback.status===200&&typeof fallback.xml==='string'){
+          const bytes=new TextEncoder().encode(fallback.xml);
+          if(bytes.length<=2_000_000)response={status:200,headers:{},bytes,telemetry:{requests:response.telemetry.requests+Math.max(0,Number(fallback.requests)||1),latencyMs:response.telemetry.latencyMs+Math.max(0,Number(fallback.latencyMs)||0),providerCostUsd:0,status:200}};
+        }
+      }catch{/* Preserve the original public response and its retry policy. */}
+    }
     let items: ReturnType<typeof normalizeRssSnapshot> = [], failure: CollectionCoverage['failureReason'] = 'NONE';
     const snapshotHash = response.status===200 ? await sha256(response.bytes) : undefined;
     if (response.status === 200) {
