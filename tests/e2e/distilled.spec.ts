@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import {expectCopiedSource, toggleTheme} from "./helpers";
+import {toggleTheme} from "./helpers";
 
 const briefing = {
   id: "briefing_default",
@@ -275,14 +275,8 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await page.locator('.briefing-read-more > summary').click();
   await expect(page.locator('.briefing-expanded-text')).toContainText('A third operational note stays in the full brief');
   await expect(page.locator('.briefing-reference').first()).toHaveAttribute('href',item.evidence[0].links[0]);
-  await page.locator('.briefing-extra-sources').click();
-  const reportDialog = page.getByRole("dialog", { name: "News Briefing" });
-  await expect(reportDialog).toBeVisible();
-  await expect(reportDialog.locator('.news-briefing-publisher')).toContainText("t.me");
-  await expect(reportDialog.locator('.news-briefing-description')).toContainText("A third operational note stays in the full brief");
-  await expectCopiedSource(page, item.evidence[0].links[0]);
-  await expect(reportDialog.locator(".news-briefing-read")).toHaveAttribute("href", item.evidence[0].links[0]);
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.locator('.briefing-extra-sources')).toHaveCount(0);
+  await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
 
   await page.getByPlaceholder("Search briefings").fill("power supply");
   await page.keyboard.press("Enter");
@@ -291,7 +285,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   expect(sessionRequests).toBeGreaterThan(0);
 });
 
-test("arabic feed keeps public chrome localized and summary stable when opening sources", async ({ page }) => {
+test("arabic feed keeps public chrome localized and summary stable when expanding details", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("dn_language", "ar"));
   await page.route("**/api/auth/session", route => route.fulfill({ json: { authenticated: false, setupRequired: false } }));
   await page.route("**/api/feed/ammar-mohanna/personal", async (route) => {
@@ -320,9 +314,9 @@ test("arabic feed keeps public chrome localized and summary stable when opening 
   await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
 
   await page.locator('.briefing-read-more > summary').click();
-  await page.locator('.briefing-extra-sources').click();
-  await expect(page.getByRole("dialog", { name: "موجز الأخبار" })).toBeVisible();
-  await page.getByRole("button", { name: "إغلاق", exact: true }).click();
+  await expect(page.locator('.briefing-extra-sources')).toHaveCount(0);
+  await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
+  await expect(page.locator('.briefing-expanded-text')).toBeVisible();
   await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
   await expect(page.locator(".news-item").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("refresh")).toHaveCount(0);
