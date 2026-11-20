@@ -1,6 +1,7 @@
+import {verificationWirePolicies} from './replay-policies';
 /** No network, credentials or inference: replay only exact completed paid requests. */
 import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';
-import {verifySourceBoundClaims,COMPACT_READER_CONTEXT} from '../../packages/briefing/src/source-bound-claims';
+import {verifySourceBoundClaims} from '../../packages/briefing/src/source-bound-claims';
 import {generateBriefing} from '../../packages/briefing/src/engine';
 import {UsageMeter,type ModelRequest,type ModelResponse} from '../../packages/briefing/src/model';
 globalThis.fetch=async()=>{throw Error('OFFLINE_REPLAY_NETWORK_FORBIDDEN')};
@@ -30,10 +31,10 @@ if(schemaReplay&&cases.some((c:any)=>c.sourceInventoryPolicy||c.verificationSche
 const memoReplay=process.argv.includes('--with-source-memo');
 const results=[];
 for(const c of cases.filter((c:any)=>c.engineSnapshot||schemaReplay||proofReplay||c.pair&&c.id.endsWith('-original'))){
- const traces:Array<{requestHash:string;paidOperationId:string;verification:boolean;format:string}>=[];
+ const traces:Array<{requestHash:string;paidOperationId:string;verification:boolean;format:string;proofFormat:string}>=[];
  const port={complete:async(q:ModelRequest):Promise<ModelResponse>=>{
   const seed=seeds.get(key(q));if(!seed)throw Error('UNRECORDED_REQUEST: '+q.system.slice(0,50));
-  traces.push({requestHash:hash(q),paidOperationId:seed.id,verification:q.system.startsWith('You are a meticulous source-grounded verifier.'),format:q.system.endsWith(COMPACT_READER_CONTEXT)?'compact-v1':'original'});
+  traces.push({requestHash:hash(q),paidOperationId:seed.id,verification:q.system.startsWith('You are a meticulous source-grounded verifier.'),...verificationWirePolicies(q)});
   return {...seed.response,costUsd:0};
  }};
  if(c.engineSnapshot){
@@ -49,4 +50,4 @@ for(const c of cases.filter((c:any)=>c.engineSnapshot||schemaReplay||proofReplay
  }
 }
 const reviews=results.flatMap(r=>r.traces.filter(t=>t.verification));
-console.log(JSON.stringify({policy:proofReplay?'compact-proofs-v1':schemaReplay?'source-definitions-v1':'reader-unit-context-v2',newPaidCalls:0,newCostUsd:0,sourceMemoEnabled:memoReplay,sourceCasesHash:hash(cases),sourceLedgerHash:hash(fs.readFileSync(path.join(dir,'ledger.jsonl'),'utf8')),cases:results.length,matchedRecordedRequests:results.reduce((n,r)=>n+r.traces.length,0),originalVerificationRequests:reviews.filter(r=>r.format==='original').length,compactVerificationRequests:reviews.filter(r=>r.format==='compact-v1').length,results,scope:'Exact recorded-response replay only, not new model assessments, independent news evaluation or fresh cost/latency measurement.'},null,2));
+console.log(JSON.stringify({policy:proofReplay?'compact-proofs-v1':schemaReplay?'source-definitions-v1':'reader-unit-context-v2',newPaidCalls:0,newCostUsd:0,sourceMemoEnabled:memoReplay,sourceCasesHash:hash(cases),sourceLedgerHash:hash(fs.readFileSync(path.join(dir,'ledger.jsonl'),'utf8')),cases:results.length,matchedRecordedRequests:results.reduce((n,r)=>n+r.traces.length,0),originalVerificationRequests:reviews.filter(r=>r.format==='original').length,compactVerificationRequests:reviews.filter(r=>r.format==='compact-v1').length,compactProofRequests:reviews.filter(r=>r.proofFormat==='compact-proofs-v1').length,results,scope:'Exact recorded-response replay only, not new model assessments, independent news evaluation or fresh cost/latency measurement.'},null,2));

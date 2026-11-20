@@ -54,7 +54,7 @@ interface Decision {verdict:'ok'|'fix'|'drop'|'redundant';issues:string[]}
 interface SourceIdentity {source:string;name:string;role:string}
 interface MemoValue {identities:SourceIdentity[];unresolved:string[];complete:boolean}
 /** Scoped to one generation; rejected provider promises remain fenced. */
-export const createSourceIdentityMemo=()=>new Map<string,Promise<MemoValue>>();
+export const createSourceIdentityMemo=()=>Object.assign(new Map<string,Promise<MemoValue>>(),{failure:undefined as {error:unknown}|undefined});
 type SourceIdentityMemo=ReturnType<typeof createSourceIdentityMemo>;
 type Row=Record<string,unknown>;
 const object=(v:unknown):Row=>{if(!v||typeof v!=='object'||Array.isArray(v))throw Error('BINDING_OBJECT_REQUIRED');return v as Row};
@@ -69,6 +69,13 @@ function tokenSurface(text:string,value:unknown):string{
  if(!ids.length)return '';const tokens=readerTokens(text),selected=ids.map(id=>tokens.findIndex(t=>t.id===id));
  if(selected.some((v,i)=>v<0||i>0&&v<selected[i-1]))throw Error('INVALID_READER_TOKEN_SPAN: select one occurrence with valid ordered inclusive start/end IDs: '+JSON.stringify(ids));
  return text.slice(tokens[selected[0]].start,tokens[selected.at(-1)!].end);
+}
+/** Validate token spans before comparing their inclusive index intervals. */
+function tokenSpansOverlap(text:string,left:unknown,right:unknown):boolean{
+ if(!tokenSurface(text,left)||!tokenSurface(text,right))return false;
+ const interval=(value:unknown)=>{const ids=Array.isArray(value)?strings(value):[string(object(value).start),string(object(value).end)];return [Number(ids[0].slice(1)),Number(ids[ids.length-1].slice(1))] as const};
+ const a=interval(left),b=interval(right);
+ return Math.max(a[0],b[0])<=Math.min(a[1],b[1]);
 }
 function indexedText(text:string):string{let out='',start=0;for(const t of readerTokens(text)){out+=text.slice(start,t.start)+`[${t.id}]`+t.text;start=t.end}return out+text.slice(start)}
 /** Deterministic full-reader obligations supplement, never certify, extraction.
@@ -219,31 +226,17 @@ export function decodeInventory(raw:unknown,items:ReaderItem[],atomicAssertions=
  const rows=object(object(raw).units);if(Object.keys(rows).length!==readerUnits(items).length)throw Error('MISSING_READER_UNIT');
  return parseReaderObligations({units:Object.entries(rows).map(([id,values])=>{
   const unit=readerUnits(items).find(u=>u.id===id);if(!unit)throw Error('UNKNOWN_READER_UNIT');
-  return {id,facets:array(values).map((v,i)=>{const f=object(v);if(checkPersonRole&&f.personTokens!==undefined&&f.roleTokens!==undefined){const person=tokenSurface(unit.text,f.personTokens),role=tokenSurface(unit.text,f.roleTokens);if(person&&role&&person===role)throw Error('PERSON_ROLE_INVENTORY_OVERLAP: the same tokens cannot be both a personal name and its occupational title; return no person for an unnamed role and retain its assertion.')}return {...f,kind:f.kind??'identity',claim:unit.text,id:`${id}_F${i}`,quote:unit.text,...(f.personTokens!==undefined?{personName:tokenSurface(unit.text,f.personTokens)}:{}),...(f.roleTokens!==undefined?{roleSurface:tokenSurface(unit.text,f.roleTokens)}:{})}})};
+  return {id,facets:array(values).map((v,i)=>{const f=object(v);if(checkPersonRole&&f.personTokens!==undefined&&f.roleTokens!==undefined&&tokenSpansOverlap(unit.text,f.personTokens,f.roleTokens))throw Error('PERSON_ROLE_INVENTORY_OVERLAP: personal-name and occupational-role token spans must be disjoint; select the complete name and a separate role, or return no person for an unnamed role and retain its assertion.');return {...f,kind:f.kind??'identity',claim:unit.text,id:`${id}_F${i}`,quote:unit.text,...(f.personTokens!==undefined?{personName:tokenSurface(unit.text,f.personTokens)}:{}),...(f.roleTokens!==undefined?{roleSurface:tokenSurface(unit.text,f.roleTokens)}:{})}})};
  })},items);
 }
 async function independentSourceIdentities(port:ModelPort,meter:UsageMeter,model:string,sources:Source[],unresolved:Set<string>,shareSchema=false,memo?:SourceIdentityMemo,onComplete?:()=>void):Promise<SourceIdentity[]>{
  if(memo){
+  if(memo.failure)throw memo.failure.error;
   const key=JSON.stringify({model,shareSchema,sources:sources.map(({ref,text,title,publishedAt,source,url,id})=>({ref,text,title,publishedAt,source,url,id}))});
   let pending=memo.get(key);
   if(!pending){
-   const requested=JSON.parse(key) as {sources:Source[]};
-   for(const [priorKey,prior]of memo){
-    const original=JSON.parse(priorKey) as {model:string;shareSchema:boolean;sources:Source[]};
-    if(original.model!==model||original.shareSchema!==shareSchema||!requested.sources.every(s=>original.sources.some(p=>JSON.stringify(p)===JSON.stringify(s))))continue;
-    // Awaiting the original promise also preserves its provider/UNKNOWN fence.
-    // Partial extraction never authorizes a subset reuse.
-    const completed=await prior;
-    if(!completed.complete)continue;
-    const identities=requested.sources.flatMap(s=>completed.identities.filter(i=>i.source===s.ref));
-    pending=Promise.resolve({identities:structuredClone(identities),unresolved:[],complete:true});
-    memo.set(key,pending);
-    break;
-   }
-  }
-  if(!pending){
    const missing=new Set<string>();let complete=false;
-   pending=independentSourceIdentities(port,meter,model,sources,missing,shareSchema,undefined,()=>{complete=true}).then(identities=>({identities,unresolved:[...missing],complete}));
+   pending=independentSourceIdentities(port,meter,model,sources,missing,shareSchema,undefined,()=>{complete=true}).then(identities=>({identities,unresolved:[...missing],complete})).catch(error=>{memo.failure={error};throw error});
    memo.set(key,pending);
   }
   const result=await pending;
