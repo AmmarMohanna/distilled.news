@@ -72,3 +72,11 @@ it('keeps source details reachable when a story has no expandable body', async (
     expect(onOpenSources).toHaveBeenCalledOnce();
   });
 });
+it('dismisses the publisher popup when opening its article', async () => {
+  await render(<CitationReference number={1} edition={edition} loadDetail={async () => edition} label="Source 1"/>, async host => {
+    const link = host.querySelector('a')!;
+    link.addEventListener('click', event => event.preventDefault());
+    await act(async () => link.click());
+    expect(host.querySelector('[role="tooltip"]')).toBeNull();
+  });
+});

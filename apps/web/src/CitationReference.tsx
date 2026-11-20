@@ -31,6 +31,10 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
     const left = rect.right - width;
     const clamped = Math.max(12, Math.min(left, window.innerWidth - width - 12));
     preview.current.style.transform = `translateX(${clamped - left}px)`;
+    const above = rect.top >= preview.current.offsetHeight + 14;
+    preview.current.dataset.placement = above ? 'above' : 'below';
+    preview.current.style.insetBlockStart = above ? 'auto' : 'calc(100% + 6px)';
+    preview.current.style.insetBlockEnd = above ? 'calc(100% + 6px)' : 'auto';
   }
   useLayoutEffect(fitPreview, [publisher, dismissed]);
   async function prepare() {
@@ -46,6 +50,7 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
     <a ref={trigger} className="briefing-reference" href={url} target={url ? '_blank' : undefined} rel="noopener noreferrer"
       aria-label={publisher ? `${label}: ${publisher}` : label} aria-describedby={publisher ? id : undefined}
       aria-busy={pending} role="link" tabIndex={0} onKeyDown={event => { if (!url && event.key === 'Enter') { event.preventDefault(); event.currentTarget.click(); } }} onClick={async event => {
+        setDismissed(true);
         if (url) return;
         event.preventDefault();
         const detail = await prepare();
