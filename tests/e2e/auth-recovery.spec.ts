@@ -67,4 +67,3 @@ test('successful signup opens code entry and keeps resend available',async({page
  await expect(dialog.getByRole('button',{name:'Resend verification email',exact:true})).toHaveCount(0);
  expect(requests).not.toContain('/api/auth/login');
 });
-
