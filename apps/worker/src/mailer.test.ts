@@ -67,36 +67,57 @@ it("routes verification to Gmail and leaves password resets on the configured tr
   expect(raw).toMatch(/^[a-zA-Z0-9_-]+$/);
   const mime = atob(raw.replace(/-/g, "+").replace(/_/g, "/"));
   expect(mime).toContain("To: <reader@example.com>\r\n");
-  const plain = /Content-Type: text\/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([\s\S]+?)\r\n--/.exec(mime)![1];
-  const decoded = new TextDecoder().decode(Uint8Array.from(atob(plain), char => char.charCodeAt(0)));
-  expect(decoded).toContain("fixture");
-  expect(decoded).not.toMatch(/https?:/);
-  expectVerificationMime(mime,"fixture");
+  const text = expectVerificationMime(mime, "fixture");
+  expect(text).toContain("أكّد بريدك الإلكتروني");
+  expect(text).toContain("صالح لمدة ٢٤ ساعة");
   expect(resetSend).toHaveBeenCalledOnce();
 });
 
-it.each(['en', 'fr', 'ar'] as const)('localizes both authentication emails in %s, including links and direction', async language => {
+it.each(['en', 'fr', 'ar'] as const)('localizes the plain verification code and HTML password reset in %s', async language => {
   const messages: any[] = [];
   const env = { EMAIL_FROM: 'Distilled.News <noreply@example.com>', PUBLIC_WEB_BASE_URL: 'https://joud.example', EMAIL: {send: async (message: unknown) => {messages.push(message);}} } as unknown as Env;
   await sendVerificationEmail(env, account, 'verification-fixture', language);
   await sendPasswordResetEmail(env, account, 'reset-fixture', language);
-  const copy = language === 'ar' ? ['تأكيد البريد الإلكتروني', 'إعادة تعيين كلمة المرور'] : language === 'fr' ? ['Vérifier mon adresse e-mail', 'Réinitialiser le mot de passe'] : ['Verify email', 'Reset password'];
+  const copy = {
+    en: ['Verify your email address', 'Valid for 24 hours', 'Reset password'],
+    fr: ['Vérifiez votre adresse e-mail', 'Valable pendant 24 heures', 'Réinitialiser le mot de passe'],
+    ar: ['أكّد بريدك الإلكتروني', 'صالح لمدة ٢٤ ساعة', 'إعادة تعيين كلمة المرور'],
+  }[language];
   for (const [index, message] of messages.entries()) {
     if(index===0){
       expect(message.text).toContain('verification-fixture');
-      expect(message.text).not.toMatch(/https?:/);
-      expect(message.html).toContain('Distilled<span style="color:#5E5CE6;">.</span>News');
-      expect(message.html).toContain('verification-fixture');
-      expect(message.html).not.toMatch(/https?:|<img/i);
+      expect(message.text).toContain(copy[0]);
+      expect(message.text).toContain(copy[1]);
+      expect(message.text).not.toMatch(/https?:|<[^>]+>/);
+      expect(message).not.toHaveProperty('html');
+      expect(message).not.toHaveProperty('inlineLogo');
       continue;
     }
     expect(message.html).toContain(`lang="${language}" dir="${language === 'ar' ? 'rtl' : 'ltr'}"`);
-    expect(message.html).toContain(copy[index]);
+    expect(message.html).toContain(copy[2]);
     expect(message.html).toContain('role="presentation" dir="ltr"');
     expect(message.text).toContain(`&lang=${language}`);
     expect(message.html).toContain('https://joud.example/');
-    expect(message.subject).not.toBe(language === 'en' ? '' : index === 0 ? 'Verify your email for Distilled.News' : 'Reset your Distilled.News password');
   }
+});
+
+it("keeps the isolated staging verification link in plain text", async () => {
+  const send = vi.fn();
+  const env = {
+    ENVIRONMENT: "staging",
+    AGENTOPS_CAMPAIGN_ENABLED: "true",
+    AGENTOPS_CAMPAIGN_ISOLATED: "true",
+    EMAIL_FROM: "noreply@example.com",
+    PUBLIC_WEB_BASE_URL: "https://staging.example.com",
+    EMAIL: { send }
+  } as unknown as Env;
+
+  await sendVerificationEmail(env, account, "campaign-token");
+
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({
+    html: undefined,
+    text: expect.stringContaining("https://staging.example.com/verify-email?token=campaign-token&lang=en")
+  }));
 });
 
 describe("Outlook QA mail", () => {
@@ -158,20 +179,13 @@ describe("Outlook QA mail", () => {
 });
 
 
-function expectVerificationMime(mime:string,code:string){
-  const alt=/multipart\/alternative; boundary="([^"]+)"/.exec(mime)![1];
-  const related=/multipart\/related; boundary="([^"]+)"; type="text\/html"/.exec(mime)![1];
-  expect(alt).not.toBe(related);
-  expect(mime).toContain(`--${related}--\r\n--${alt}--\r\n`);
-  const content=(type:string)=>{
-    const part=mime.split(`Content-Type: ${type}; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n`)[1].split("\r\n--")[0];
-    return new TextDecoder().decode(Uint8Array.from(atob(part),c=>c.charCodeAt(0)));
-  };
-  expect(content("text/plain")).toContain(code);
-  expect(content("text/plain")).not.toMatch(/https?:|<[^>]+>/);
-  expect(content("text/html")).toContain(code);
-  expect(content("text/html")).toContain("cid:distilled-verification-logo");
-  expect(content("text/html")).not.toMatch(/https?:|<a\s|<style|<script/i);
-  expect(mime).toContain("Content-ID: <distilled-verification-logo>");
-  expect(mime).toContain("Content-Type: image/png");
+function expectVerificationMime(mime: string, code: string) {
+  const [headers, body] = mime.split("\r\n\r\n");
+  expect(headers).toContain("Content-Type: text/plain; charset=UTF-8");
+  expect(headers).not.toMatch(/multipart\/|text\/html|image\/|Content-ID:|Content-Disposition:/i);
+  const text = new TextDecoder().decode(Uint8Array.from(atob(body), character => character.charCodeAt(0)));
+  expect(text).toContain("Distilled.News");
+  expect(text.split("\r\n")).toContain(code);
+  expect(text).not.toMatch(/https?:|<[^>]+>/);
+  return text;
 }
