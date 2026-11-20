@@ -45,7 +45,8 @@ const withoutName=(role:string,name:string)=>name&&role.endsWith(name)?role.slic
 const INDEPENDENT_REVIEW_WIRE=`The existing factual-verification rules above remain authoritative; the strict response schema overrides their array output example. Assess ONLY the actual reader headline/body. Current source text is supplied completely in evidencePassages with source refs; sources contains original publication timestamps, URLs and publisher metadata. Publication timestamps are context, not event dates. sourceIdentities contains independently extracted literal source name/role bindings from a request blind to the reader; never replace a current source role with an office recalled from memory. These model-derived bindings may still be mistaken: explain uncertainty against original passages rather than inventing proof.
 Return results as an OBJECT keyed by every item index. inventory means that all actual READER assertions were reviewed, not that all source details were included. Do not demand source background, omitted incidental facts, or body-only details in a headline. Facets is an OBJECT keyed by EVERY supplied facet ID including full reader units. Evaluate the complete quoted reader unit, not additional facts inferred from a kind label. Surname-only references are valid when unambiguous; do not demand given names. Do not invent a missing-time claim from a kind label or an ordinary present-tense news headline. Supported translations and paraphrases are valid. Never expand a reader's given name without source support.
 Each facet needs support (supported/contradicted/unsupported/uncertain), evidence and explanation. Each evidence quote field must contain an evidencePassages ID, not copied prose; code binds it to the exact original text. Supported/contradicted need evidence. Independently check EVERY attached citation in citationChecks for the same central development; a citation need not establish every supplementary detail that other citations support. Each citation check needs support, quote as a passage ID, explanation. Negative/uncertain facets or genuinely unreviewed READER assertions require fix/drop, never ok/redundant. priorIds is required; use [] except for grounded repetition. Prior history is never factual evidence. Never turn a parser/metadata problem into a factual accusation about reader wording.`;
-function separateScripts(a:string,b:string):boolean{
+/** Diagnostic only: different scripts never establish a name or role match. */
+function usesDisjointScripts(a:string,b:string):boolean{
  const scripts=['Latin','Arabic','Cyrillic','Greek','Han','Hebrew','Devanagari','Hangul','Hiragana','Katakana','Thai','Bengali','Tamil','Georgian','Armenian'];
  const used=(s:string)=>scripts.filter(name=>new RegExp(`\\p{Script=${name}}`,'u').test(s));
  const left=used(a),right=used(b);return !!left.length&&!!right.length&&!left.some(s=>right.includes(s));
@@ -135,8 +136,9 @@ export function parseBoundReview(raw:unknown,items:ReaderItem[],sources:Source[]
    if(facet.personName&&support==='supported'&&sourceIdentities!==undefined){
     const name=withoutRole(facet.personName,facet.roleSurface),boundNames=sourceIdentities.filter(s=>items[i].refs.includes(s.source)).map(s=>s.name);
     const literal=sources.some(s=>items[i].refs.includes(s.ref)&&`${s.title??''}\n${s.text}`.includes(name));
-    if(!name||!literal&&!boundNames.some(sourceName=>sourceContainsName(name,sourceName)||separateScripts(name,sourceName))){
-     identityMismatch=true;issues.push(`PERSON_NAME_NOT_SOURCE_BOUND: ${facet.personName} -> ${boundNames.join(' | ')||'no independently bound person name'}. Use only the identity established by cited evidence.`);
+    if(!name||!literal&&!boundNames.some(sourceName=>sourceContainsName(name,sourceName))){
+     const unresolved=boundNames.some(sourceName=>usesDisjointScripts(name,sourceName));
+     identityMismatch=true;issues.push(unresolved?`CROSS_SCRIPT_IDENTITY_UNRESOLVED: ${facet.personName} -> ${boundNames.join(' | ')}. Different writing systems do not establish identity equivalence; preserve the independently sourced name or withhold pending source-grounded equivalence.`:`PERSON_NAME_NOT_SOURCE_BOUND: ${facet.personName} -> ${boundNames.join(' | ')||'no independently bound person name'}. Use only the identity established by cited evidence.`);
     }
    }
    if(facet.personName&&support==='supported'&&sourceIdentities===undefined){
@@ -146,22 +148,22 @@ export function parseBoundReview(raw:unknown,items:ReaderItem[],sources:Source[]
      return source&&`${source.title??''}\n${source.text}`.includes(sourceName);
     });
     const readerName=withoutRole(facet.personName,facet.roleSurface),evidenceName=withoutRole(sourceName,f.sourceRoleSurface);
-    if(!bound||!sourceContainsName(readerName,evidenceName)&&!separateScripts(readerName,evidenceName)){
-     identityMismatch=true;issues.push(`PERSON_NAME_NOT_SOURCE_BOUND: ${facet.personName} -> ${bound?sourceName:'no exact supporting person-name surface'}. Use only the identity established by cited evidence.`);
+    if(!bound||!sourceContainsName(readerName,evidenceName)){
+     identityMismatch=true;issues.push(bound&&usesDisjointScripts(readerName,evidenceName)?`CROSS_SCRIPT_IDENTITY_UNRESOLVED: ${facet.personName} -> ${sourceName}. A model explanation and script difference do not independently establish identity equivalence; use the sourced identity or withhold.`:`PERSON_NAME_NOT_SOURCE_BOUND: ${facet.personName} -> ${bound?sourceName:'no exact supporting person-name surface'}. Use only the identity established by cited evidence.`);
     }
    }
    if(facet.roleSurface&&support==='supported'&&sourceIdentities===undefined&&typeof f.sourceRoleSurface==='string'&&f.sourceRoleSurface){
     const sourceRole=withoutName(f.sourceRoleSurface,typeof f.sourcePersonName==='string'?f.sourcePersonName:''),roleBound=proofs.some(p=>{const s=sources.find(s=>s.ref===object(p).source);return s&&`${s.title??''}\n${s.text}`.includes(sourceRole)});
     if(!roleBound)throw Error(`UNBOUND_SOURCE_ROLE_SURFACE: ${sourceRole}. This is invalid REPLY METADATA, not a factual finding about reader prose. Replace this metadata with empty string if the office is only implied, then independently assess the reader against source context. Do not flag a reader error solely because this optional source-role metadata was invalid.`);
-    if(!sameRole(facet.roleSurface,sourceRole)&&!separateScripts(facet.roleSurface,sourceRole)){
-     identityMismatch=true;issues.push(`ROLE_NOT_SOURCE_BOUND: ${facet.roleSurface} -> ${roleBound?sourceRole:'no exact source-role surface'}. Preserve the source role for this actor.`);
+    if(!sameRole(facet.roleSurface,sourceRole)){
+     identityMismatch=true;issues.push(usesDisjointScripts(facet.roleSurface,sourceRole)?`CROSS_SCRIPT_ROLE_UNRESOLVED: ${facet.roleSurface} -> ${sourceRole}. Different writing systems do not establish occupational-role equivalence; preserve the sourced role or withhold.`:`ROLE_NOT_SOURCE_BOUND: ${facet.roleSurface} -> ${roleBound?sourceRole:'no exact source-role surface'}. Preserve the source role for this actor.`);
     }
    }
    if(facet.personName&&facet.roleSurface&&support==='supported'){
     const name=withoutRole(facet.personName,facet.roleSurface);
     const roles=(sourceIdentities??[]).filter(s=>items[i].refs.includes(s.source)&&sourceContainsName(name,s.name)&&s.role).map(s=>s.role);
-    if(roles.length&&!roles.some(role=>sameRole(facet.roleSurface!,role)||separateScripts(facet.roleSurface!,role))){
-     identityMismatch=true;issues.push(`INDEPENDENT_ROLE_MISMATCH: ${facet.personName} / ${facet.roleSurface} -> ${roles.join(' | ')}. Preserve the independently extracted current source role.`);
+    if(roles.length&&!roles.some(role=>sameRole(facet.roleSurface!,role))){
+     identityMismatch=true;issues.push(roles.some(role=>usesDisjointScripts(facet.roleSurface!,role))?`CROSS_SCRIPT_ROLE_UNRESOLVED: ${facet.personName} / ${facet.roleSurface} -> ${roles.join(' | ')}. Independently extracted roles do not establish this cross-script equivalence; preserve the sourced role or withhold.`:`INDEPENDENT_ROLE_MISMATCH: ${facet.personName} / ${facet.roleSurface} -> ${roles.join(' | ')}. Preserve the independently extracted current source role.`);
     }
    }
    if(support!=='supported'){adverse=true;issues.push(`${support}: ${facet.quote} — ${f.explanation}`)}

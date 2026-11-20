@@ -56,13 +56,13 @@ it.each([
  ['قال نجيب سلام إن القرار اتخذ.','قال سلام إن القرار اتخذ.','نجيب سلام','سلام','fix'],
  ['قال عبد الفتاح الوحش إن القرار اتخذ.','قال عبد الفتاح السيسي إن القرار اتخذ.','عبد الفتاح الوحش','عبد الفتاح السيسي','fix'],
  ['قال سلام إن القرار اتخذ.','قال نواف سلام إن القرار اتخذ.','سلام','نواف سلام','ok'],
- ['قال جون سميث إن القرار اتخذ.','John Smith said the decision was taken.','جون سميث','John Smith','ok'],
+ ['قال جون سميث إن القرار اتخذ.','John Smith said the decision was taken.','جون سميث','John Smith','fix','CROSS_SCRIPT_IDENTITY_UNRESOLVED'],
  ['Macron approved the plan.','Emmanuel Macron approved the plan.','Macron','Emmanuel Macron','ok'],
-])('checks complete person surfaces without a name/role dictionary: %s',(headline,text,personName,sourcePersonName,verdict)=>{
+])('checks complete person surfaces without a name/role dictionary: %s',(headline,text,personName,sourcePersonName,verdict,issuePrefix='PERSON_NAME_NOT_SOURCE_BOUND')=>{
  const rows=[{headline,body:'',refs:['S1']}];const facets=parseReaderInventory({units:[{id:'I0.H',facets:[{id:'name',quote:headline,claim:headline,kind:'identity',personName}]}]},rows);
  const result=parseBoundReview({results:[{i:0,inventory:'complete',verdict:'ok',issues:[],facets:[{id:'name',support:'supported',sourcePersonName,evidence:[{source:'S1',quote:text}],explanation:'Model-approved identity.'}]}]},rows,[{ref:'S1',text}],facets);
  expect(result.get(0)?.verdict).toBe(verdict);
- if(verdict==='fix')expect(result.get(0)?.issues[0]).toContain('PERSON_NAME_NOT_SOURCE_BOUND');
+ if(verdict==='fix')expect(result.get(0)?.issues[0]).toContain(issuePrefix);
 });
 it('adds a mandatory full-reader assessment when extraction misses a quantity or punctuation',()=>{
  const rows=[{headline:'The grant is $15 million.',body:'',refs:['S1']}];
