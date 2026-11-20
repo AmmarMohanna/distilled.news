@@ -775,7 +775,10 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");return;}
           await resendVerification(email,turnstileToken);
           setMessage("If this account needs verification, an email was requested. Check your inbox and spam folder. If it still does not arrive, contact support.");
-        }catch(cause){setError(toUiError(cause));}
+        }catch(cause){
+          if(cause instanceof ApiError&&cause.id==="AUTH_EMAIL_ALREADY_VERIFIED")clearVerificationRecovery();
+          setError(toUiError(cause));
+        }
         finally{resetTurnstile();setSubmitting(false);}
       }}>{t("Resend verification email")}</button>:null}
       </div>

@@ -109,6 +109,7 @@ it.each([
     vi.mocked(resendVerification).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_ALREADY_VERIFIED'));
     await ui.click('Resend verification email');
     expect(ui.host.querySelector('[role="alert"]')?.textContent).toBe('Email is already verified. Please sign in or reset your password.');
+    expect(ui.actions()).toEqual([]);
     const link = [...ui.host.querySelectorAll<HTMLAnchorElement>('[role="alert"] a')].find(link => link.textContent === action)!;
     expect(link).toBeDefined();
     expect(link.getAttribute('href')).toBe(action === 'sign in' ? '/login' : '/login?reset-password');
@@ -118,6 +119,23 @@ it.each([
     expect(ui.host.querySelector('[role="alert"]')).toBeNull();
     expect(ui.actions()).toEqual([]);
     expect(ui.onAuthenticated).not.toHaveBeenCalled();
+  } finally { await ui.close(); }
+});
+it('removes resend after verification completes elsewhere while the code form is open', async () => {
+  const ui = await mount(true);
+  try {
+    const email = ui.host.querySelector<HTMLInputElement>('input[type="email"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(email, 'verified@example.invalid');
+      email.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    vi.mocked(register).mockResolvedValueOnce(undefined);
+    await ui.submit();
+    expect(ui.actions()).toEqual(['Back', 'Resend verification email']);
+    vi.mocked(resendVerification).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_ALREADY_VERIFIED'));
+    await ui.click('Resend verification email');
+    expect(ui.actions()).toEqual(['Back']);
+    expect(ui.host.querySelectorAll('[role="alert"] a')).toHaveLength(2);
   } finally { await ui.close(); }
 });
 it('supports opening the reset-password request form through the hyperlink URL', async () => {

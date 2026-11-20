@@ -21,6 +21,7 @@ for(const language of ['en','fr','ar'] as const)for(const action of ['login','fo
   const error=dialog.getByRole('alert');
   const link=error.locator(`a[href="${action==='login'?'/login':'/login?reset-password'}"]`);
   await expect(link).toBeVisible();
+  await expect(dialog.locator('.auth-verification-actions button')).toHaveCount(0);
   await expect(link).toHaveCSS('text-decoration-line','underline');
   await expect(link).toHaveCSS('color',await error.evaluate(node=>getComputedStyle(node).color));
   await link.click();
