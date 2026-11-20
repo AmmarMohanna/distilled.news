@@ -2062,10 +2062,6 @@ function FeedEditionRow(props: {
           key={number} number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}
         />)}
         renderDetails={(body, sectionIndex) => <BriefingReadMore body={body} sectionIndex={sectionIndex} language={language} loadDetail={props.onLoadDetail}
-          onOpenSources={() => {
-            const reference = references.find(item => item.sectionIndex === (sectionIndex ?? 0));
-            props.onOpenReport(edition.sections.length && reference ? reference.number - 1 : sectionIndex ?? 0);
-          }}
           renderBody={text => <ReferenceParagraph className="news-summary" text={text} language={language} direction={textDir} referenceCount={referenceCount} onOpenReference={props.onOpenReport}
             renderReference={number => <CitationReference number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}/>}/>}/>}
         renderBody={text=><ReferenceParagraph
