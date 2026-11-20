@@ -693,11 +693,12 @@ export function createApp(options: AppOptions = {}) {
     await assertRateLimit(repo,`verification:${email}`,'verification_recovery',5,60*60*1000);
     if(!await verifyTurnstileIfConfigured(c,input.turnstileToken))return c.json({ok:true});
     const account=await repo.getAccountByEmail(email);
+    if(account?.emailVerifiedAt&&!account.disabledAt)return c.json({error:'Email is already verified. Please sign in or reset your password.'},409);
     if(account&&!account.emailVerifiedAt&&!account.disabledAt){
       try{await sendVerificationToken(repo,c.env,account,input.language)}
       catch(error){logAuthEmailFailure('verification resend',account,c.env,error)}
     }
-    // Do not disclose account state or claim recipient delivery was established.
+    // Unknown/disabled accounts remain generic; do not claim recipient delivery.
     return c.json({ok:true});
   });
 

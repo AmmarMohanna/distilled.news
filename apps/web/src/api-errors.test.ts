@@ -1,9 +1,14 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {apiError,apiErrorCopy,ApiError,toUiError,renderApiError} from './api-errors';
-import {login} from './api';
+import {login,resendVerification} from './api';
 afterEach(()=>{localStorage.clear();vi.unstubAllGlobals();});
+it('preserves the already-verified resend response in the real API path',async()=>{
+ vi.stubGlobal('fetch',vi.fn(async()=>Response.json({error:'Email is already verified. Please sign in or reset your password.'},{status:409})));
+ await expect(resendVerification('verified@example.invalid')).rejects.toMatchObject({id:'AUTH_EMAIL_ALREADY_VERIFIED',uiMessage:{details:{status:409}}});
+});
 // These are actual business-error strings returned by the Worker auth routes.
 it.each([
+ ['Email is already verified. Please sign in or reset your password.','AUTH_EMAIL_ALREADY_VERIFIED'],
  ['verify your email before logging in','AUTH_EMAIL_VERIFICATION_REQUIRED'],
  ['invalid email or password','AUTH_INVALID_CREDENTIALS'],['verification failed','AUTH_VERIFICATION_FAILED'],
  ['invalid or expired token','AUTH_TOKEN_INVALID'],['invalid current password','AUTH_INVALID_CURRENT_PASSWORD'],
