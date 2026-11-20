@@ -1,0 +1,689 @@
+{
+  "scope": "Offline source-request trace opportunity analysis only. Not an executed engine replay or a measured full-generation saving. Reuse additionally requires successful full parser validation and identical source metadata/model/schema policy in production. Original repaired outputs may differ if an earlier independent source extraction disagreed; no approval is inferred.",
+  "results": [
+    {
+      "phase": "c",
+      "caseId": "lebanon-current",
+      "recordedSourceRequests": 3,
+      "potentialReusedRequests": 2,
+      "potentialAvoidedRecordedCostUsd": 0.0048256,
+      "requestEvidenceHashes": [
+        {
+          "model": "openai/gpt-4.1-mini",
+          "schemaHash": "55234795f080d3641b8d88b58c411b33a844e27ec938715ef5cec931b036be10",
+          "units": [
+            {
+              "id": "S47",
+              "hash": "40e745aae2e33e3e5a538b44f27e7d0b60e1e7137d20d8f79e41475f1d8cdad1"
+            },
+            {
+              "id": "S48",
+              "hash": "a7c9001a92da9aea2e7ea8822871257360a632585e2068c3366cadfde55bf55b"
+            },
+            {
+              "id": "S90",
+              "hash": "1d8a1af078351ca43d6634af0e1f064432f67771b337fa1bc0f580a794e5b0f4"
+            },
+            {
+              "id": "S91",
+              "hash": "829ac05291cd2168b3aebe0e7cff43dcc88b6f83a94a65835892ae543de504d2"
+            },
+            {
+              "id": "S95",
+              "hash": "9c47d405ece701f68e10118a10fa355eeaf8ce20ebd3f1fd19a576c8b760285e"
+            },
+            {
+              "id": "S100",
+              "hash": "0782e7946c13143eda1e0844876a78a99c04e099cca59db4d5565f24aaa18600"
+            },
+            {
+              "id": "S105",
+              "hash": "c0da18ade4e3e10c3ef2e467753178aa6173b717fd693a5c1f6951ecb4338b43"
+            }
+          ],
+          "recordedCallCostUsd": 0.0059508
+        },
+        {
+          "model": "openai/gpt-4.1-mini",
+          "schemaHash": "fd97850ae9ac7e0911f170cf7762ed79d0e11fd221fa6bed124fc194032866b7",
+          "units": [
+            {
+              "id": "S90",
+              "hash": "1d8a1af078351ca43d6634af0e1f064432f67771b337fa1bc0f580a794e5b0f4"
+            },
+            {
+              "id": "S91",
+              "hash": "829ac05291cd2168b3aebe0e7cff43dcc88b6f83a94a65835892ae543de504d2"
+            }
+          ],
+          "recordedCallCostUsd": 0.0024128
+        },
+        {
+          "model": "openai/gpt-4.1-mini",
+          "schemaHash": "fd97850ae9ac7e0911f170cf7762ed79d0e11fd221fa6bed124fc194032866b7",
+          "units": [
+            {
+              "id": "S90",
+              "hash": "1d8a1af078351ca43d6634af0e1f064432f67771b337fa1bc0f580a794e5b0f4"
+            },
+            {
+              "id": "S91",
+              "hash": "829ac05291cd2168b3aebe0e7cff43dcc88b6f83a94a65835892ae543de504d2"
+            }
+          ],
+          "recordedCallCostUsd": 0.0024128
+        }
+      ]
+    },
+    {
+      "phase": "c",
+      "caseId": "ai-current",
+      "recordedSourceRequests": 3,
+      "potentialReusedRequests": 0,
+      "potentialAvoidedRecordedCostUsd": 0,
+      "requestEvidenceHashes": [
+        {
+          "model": "openai/gpt-4.1-mini",
+          "schemaHash": "e4a53a661e28fe67768393b30cb89b4f65b8009a1d2b70e7ddbda487dfed41db",
+          "units": [
+            {
+              "id": "S8",
+              "hash": "291fc7dbc662d698f24969ebaac4da649ed0ef831551866089f14d5c2eb9d000"
+            },
+            {
+              "id": "S9",
+              "hash": "e1064640898d3906cc471fea8e1ee1a5008d983787c100bef91a7ba43ffa5014"
+            },
+            {
+              "id": "S32",
+              "hash": "95660b65c5db0d414b2a4929fd0342c27c30d86dffcf2a07281818d81655782a"
+            },
+            {
+              "id": "S34",
+              "hash": "4f6197aa7d18648958b2c0c160a784a705a2c072758e1213c4da2cc3d1d8f1f3"
+            },
+            {
+              "id": "S36",
+              "hash": "8315ee6ad47c67a5269fe4fd4e4adb07e133c0d2b9c9757bfb422f7f7b2b77bb"
+            },
+            {
+              "id": "S37",
+              "hash": "9a1a30593e04b140edbdb48bc49948490746f7c33fea7a071650a9d76dabead7"
+            },
+            {
+              "id": "S41",
+              "hash": "6c8f86d13e82d16b99051e73bde2aa741a5dd6c220ec73df6989671580575985"
+            },
+            {
+              "id": "S42",
+              "hash": "3b3440a86a76220cdfb30225bc09415410dcd54ebc84566a1a21e455f3a55860"
+            },
+            {
+              "id": "S43",
+              "hash": "d422075ab95a4b75e8865a8c9df214b09b5bad4f151c0fdc1eb538fd5d3be247"
+            },
+            {
+              "id": "S7",
+              "hash": "0bc982ff67ed1ada99a3c7d4b2e6d48a138c4ba8a7866cd84df31ab43e84d3d4"
+            },
+            {
+              "id": "S19",
+              "hash": "f423a2da1c96dd939a91c936cc1513cbc65ae949fc84f8d72836dc242918764d"
+            }
+          ],
+          "recordedCallCostUsd": 0.013278
+        },
+        {
+          "model": "openai/gpt-4.1-mini",
+          "schemaHash": "d44ca60f2a9f4db3d0ec8459274ba02bf49085e030e37c202354d94bcd99dd9e",
+          "units": [
+            {
+              "id": "S17",
+              "hash": "777f284f33bc8f01e74eb24be5d9c3bc18fe0324e35db78a04c31a7bcee4a176"
+            },
+            {
+              "id": "S2",
+              "hash": "e73837da2d1c6daea70b26825bec6ae0adb1084d4b03fe76d7e0d30f4cea136f"
+            },
+            {
+              "id": "S3",
+              "hash": "3f8c109c16249be51cf8c83d6c17def9456068b8086fb985dba7ecfcac26928e"
+            },
+            {
+              "id": "S14",
+              "hash": "dc728fc96f8681d160f63f0238c42844e49911602d39cd0117eed5e3fba6066f"
+            },
+            {
+              "id": "S15",
+              "hash": "fd0916553cb8475c1a9620e4dea663474fb0ec6d168bb37a3a7bd124d8a090d7"
+            }
+          ],
+          "recordedCallCostUsd": 0.0129264
+        },
+        {
+          "model": "openai/gpt-4.1-mini",
+          "schemaHash": "ed30ba4c7ee50e0130b1cd1bfdf1727b56dde8de6e18fa8fc7b5f39df4c86fc5",
+          "units": [
+            {
+              "id": "S18",
+              "hash": "591990ff9c3a09b5b55dc6488299dfe80884ce93110b437c83d5354a8a01219b"
+            }
+          ],
+          "recordedCallCostUsd": 0.0027608
+        }
+      ]
+    },
+    {
+      "phase": "d",
+      "caseId": "lebanon-current",
+      "recordedSourceRequests": 1,
+      "potentialReusedRequests": 0,
+      "potentialAvoidedRecordedCostUsd": 0,
+      "requestEvidenceHashes": [
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "55234795f080d3641b8d88b58c411b33a844e27ec938715ef5cec931b036be10",
+          "units": [
+            {
+              "id": "S47",
+              "hash": "40e745aae2e33e3e5a538b44f27e7d0b60e1e7137d20d8f79e41475f1d8cdad1"
+            },
+            {
+              "id": "S48",
+              "hash": "a7c9001a92da9aea2e7ea8822871257360a632585e2068c3366cadfde55bf55b"
+            },
+            {
+              "id": "S90",
+              "hash": "1d8a1af078351ca43d6634af0e1f064432f67771b337fa1bc0f580a794e5b0f4"
+            },
+            {
+              "id": "S91",
+              "hash": "829ac05291cd2168b3aebe0e7cff43dcc88b6f83a94a65835892ae543de504d2"
+            },
+            {
+              "id": "S95",
+              "hash": "9c47d405ece701f68e10118a10fa355eeaf8ce20ebd3f1fd19a576c8b760285e"
+            },
+            {
+              "id": "S100",
+              "hash": "0782e7946c13143eda1e0844876a78a99c04e099cca59db4d5565f24aaa18600"
+            },
+            {
+              "id": "S105",
+              "hash": "c0da18ade4e3e10c3ef2e467753178aa6173b717fd693a5c1f6951ecb4338b43"
+            }
+          ],
+          "recordedCallCostUsd": 0.02937
+        }
+      ]
+    },
+    {
+      "phase": "d",
+      "caseId": "ai-current",
+      "recordedSourceRequests": 5,
+      "potentialReusedRequests": 2,
+      "potentialAvoidedRecordedCostUsd": 0.077608,
+      "requestEvidenceHashes": [
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "e4a53a661e28fe67768393b30cb89b4f65b8009a1d2b70e7ddbda487dfed41db",
+          "units": [
+            {
+              "id": "S8",
+              "hash": "291fc7dbc662d698f24969ebaac4da649ed0ef831551866089f14d5c2eb9d000"
+            },
+            {
+              "id": "S9",
+              "hash": "e1064640898d3906cc471fea8e1ee1a5008d983787c100bef91a7ba43ffa5014"
+            },
+            {
+              "id": "S32",
+              "hash": "95660b65c5db0d414b2a4929fd0342c27c30d86dffcf2a07281818d81655782a"
+            },
+            {
+              "id": "S34",
+              "hash": "4f6197aa7d18648958b2c0c160a784a705a2c072758e1213c4da2cc3d1d8f1f3"
+            },
+            {
+              "id": "S36",
+              "hash": "8315ee6ad47c67a5269fe4fd4e4adb07e133c0d2b9c9757bfb422f7f7b2b77bb"
+            },
+            {
+              "id": "S37",
+              "hash": "9a1a30593e04b140edbdb48bc49948490746f7c33fea7a071650a9d76dabead7"
+            },
+            {
+              "id": "S41",
+              "hash": "6c8f86d13e82d16b99051e73bde2aa741a5dd6c220ec73df6989671580575985"
+            },
+            {
+              "id": "S42",
+              "hash": "3b3440a86a76220cdfb30225bc09415410dcd54ebc84566a1a21e455f3a55860"
+            },
+            {
+              "id": "S43",
+              "hash": "d422075ab95a4b75e8865a8c9df214b09b5bad4f151c0fdc1eb538fd5d3be247"
+            },
+            {
+              "id": "S7",
+              "hash": "0bc982ff67ed1ada99a3c7d4b2e6d48a138c4ba8a7866cd84df31ab43e84d3d4"
+            },
+            {
+              "id": "S19",
+              "hash": "f423a2da1c96dd939a91c936cc1513cbc65ae949fc84f8d72836dc242918764d"
+            }
+          ],
+          "recordedCallCostUsd": 0.067478
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "d44ca60f2a9f4db3d0ec8459274ba02bf49085e030e37c202354d94bcd99dd9e",
+          "units": [
+            {
+              "id": "S17",
+              "hash": "777f284f33bc8f01e74eb24be5d9c3bc18fe0324e35db78a04c31a7bcee4a176"
+            },
+            {
+              "id": "S2",
+              "hash": "e73837da2d1c6daea70b26825bec6ae0adb1084d4b03fe76d7e0d30f4cea136f"
+            },
+            {
+              "id": "S3",
+              "hash": "3f8c109c16249be51cf8c83d6c17def9456068b8086fb985dba7ecfcac26928e"
+            },
+            {
+              "id": "S14",
+              "hash": "dc728fc96f8681d160f63f0238c42844e49911602d39cd0117eed5e3fba6066f"
+            },
+            {
+              "id": "S15",
+              "hash": "fd0916553cb8475c1a9620e4dea663474fb0ec6d168bb37a3a7bd124d8a090d7"
+            }
+          ],
+          "recordedCallCostUsd": 0.06528
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "ed30ba4c7ee50e0130b1cd1bfdf1727b56dde8de6e18fa8fc7b5f39df4c86fc5",
+          "units": [
+            {
+              "id": "S18",
+              "hash": "591990ff9c3a09b5b55dc6488299dfe80884ce93110b437c83d5354a8a01219b"
+            }
+          ],
+          "recordedCallCostUsd": 0.014452
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "98c0e2651aec5f1a87482611217a11305e5bfb4c020eccec66e063a6386a1035",
+          "units": [
+            {
+              "id": "S8",
+              "hash": "291fc7dbc662d698f24969ebaac4da649ed0ef831551866089f14d5c2eb9d000"
+            },
+            {
+              "id": "S9",
+              "hash": "e1064640898d3906cc471fea8e1ee1a5008d983787c100bef91a7ba43ffa5014"
+            },
+            {
+              "id": "S32",
+              "hash": "95660b65c5db0d414b2a4929fd0342c27c30d86dffcf2a07281818d81655782a"
+            },
+            {
+              "id": "S34",
+              "hash": "4f6197aa7d18648958b2c0c160a784a705a2c072758e1213c4da2cc3d1d8f1f3"
+            },
+            {
+              "id": "S36",
+              "hash": "8315ee6ad47c67a5269fe4fd4e4adb07e133c0d2b9c9757bfb422f7f7b2b77bb"
+            },
+            {
+              "id": "S37",
+              "hash": "9a1a30593e04b140edbdb48bc49948490746f7c33fea7a071650a9d76dabead7"
+            },
+            {
+              "id": "S41",
+              "hash": "6c8f86d13e82d16b99051e73bde2aa741a5dd6c220ec73df6989671580575985"
+            },
+            {
+              "id": "S42",
+              "hash": "3b3440a86a76220cdfb30225bc09415410dcd54ebc84566a1a21e455f3a55860"
+            },
+            {
+              "id": "S43",
+              "hash": "d422075ab95a4b75e8865a8c9df214b09b5bad4f151c0fdc1eb538fd5d3be247"
+            }
+          ],
+          "recordedCallCostUsd": 0.038804
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "98c0e2651aec5f1a87482611217a11305e5bfb4c020eccec66e063a6386a1035",
+          "units": [
+            {
+              "id": "S8",
+              "hash": "291fc7dbc662d698f24969ebaac4da649ed0ef831551866089f14d5c2eb9d000"
+            },
+            {
+              "id": "S9",
+              "hash": "e1064640898d3906cc471fea8e1ee1a5008d983787c100bef91a7ba43ffa5014"
+            },
+            {
+              "id": "S32",
+              "hash": "95660b65c5db0d414b2a4929fd0342c27c30d86dffcf2a07281818d81655782a"
+            },
+            {
+              "id": "S34",
+              "hash": "4f6197aa7d18648958b2c0c160a784a705a2c072758e1213c4da2cc3d1d8f1f3"
+            },
+            {
+              "id": "S36",
+              "hash": "8315ee6ad47c67a5269fe4fd4e4adb07e133c0d2b9c9757bfb422f7f7b2b77bb"
+            },
+            {
+              "id": "S37",
+              "hash": "9a1a30593e04b140edbdb48bc49948490746f7c33fea7a071650a9d76dabead7"
+            },
+            {
+              "id": "S41",
+              "hash": "6c8f86d13e82d16b99051e73bde2aa741a5dd6c220ec73df6989671580575985"
+            },
+            {
+              "id": "S42",
+              "hash": "3b3440a86a76220cdfb30225bc09415410dcd54ebc84566a1a21e455f3a55860"
+            },
+            {
+              "id": "S43",
+              "hash": "d422075ab95a4b75e8865a8c9df214b09b5bad4f151c0fdc1eb538fd5d3be247"
+            }
+          ],
+          "recordedCallCostUsd": 0.038804
+        }
+      ]
+    },
+    {
+      "phase": "f",
+      "caseId": "lebanon-current",
+      "recordedSourceRequests": 1,
+      "potentialReusedRequests": 0,
+      "potentialAvoidedRecordedCostUsd": 0,
+      "requestEvidenceHashes": [
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "c8dc87b0a662b31de8c17132b5ee580fd2aa6e15ed99657ffa0f3b5051062943",
+          "units": [
+            {
+              "id": "S47",
+              "hash": "40e745aae2e33e3e5a538b44f27e7d0b60e1e7137d20d8f79e41475f1d8cdad1"
+            },
+            {
+              "id": "S48",
+              "hash": "a7c9001a92da9aea2e7ea8822871257360a632585e2068c3366cadfde55bf55b"
+            },
+            {
+              "id": "S90",
+              "hash": "1d8a1af078351ca43d6634af0e1f064432f67771b337fa1bc0f580a794e5b0f4"
+            },
+            {
+              "id": "S91",
+              "hash": "829ac05291cd2168b3aebe0e7cff43dcc88b6f83a94a65835892ae543de504d2"
+            },
+            {
+              "id": "S95",
+              "hash": "9c47d405ece701f68e10118a10fa355eeaf8ce20ebd3f1fd19a576c8b760285e"
+            },
+            {
+              "id": "S100",
+              "hash": "0782e7946c13143eda1e0844876a78a99c04e099cca59db4d5565f24aaa18600"
+            },
+            {
+              "id": "S105",
+              "hash": "c0da18ade4e3e10c3ef2e467753178aa6173b717fd693a5c1f6951ecb4338b43"
+            }
+          ],
+          "recordedCallCostUsd": 0.029666
+        }
+      ]
+    },
+    {
+      "phase": "f",
+      "caseId": "ai-current",
+      "recordedSourceRequests": 3,
+      "potentialReusedRequests": 0,
+      "potentialAvoidedRecordedCostUsd": 0,
+      "requestEvidenceHashes": [
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "a40f0067dcf5e68fb79c96084db0d024beeb2dfb21c593c998faee198083abd4",
+          "units": [
+            {
+              "id": "S8",
+              "hash": "291fc7dbc662d698f24969ebaac4da649ed0ef831551866089f14d5c2eb9d000"
+            },
+            {
+              "id": "S9",
+              "hash": "e1064640898d3906cc471fea8e1ee1a5008d983787c100bef91a7ba43ffa5014"
+            },
+            {
+              "id": "S32",
+              "hash": "95660b65c5db0d414b2a4929fd0342c27c30d86dffcf2a07281818d81655782a"
+            },
+            {
+              "id": "S34",
+              "hash": "4f6197aa7d18648958b2c0c160a784a705a2c072758e1213c4da2cc3d1d8f1f3"
+            },
+            {
+              "id": "S36",
+              "hash": "8315ee6ad47c67a5269fe4fd4e4adb07e133c0d2b9c9757bfb422f7f7b2b77bb"
+            },
+            {
+              "id": "S37",
+              "hash": "9a1a30593e04b140edbdb48bc49948490746f7c33fea7a071650a9d76dabead7"
+            },
+            {
+              "id": "S41",
+              "hash": "6c8f86d13e82d16b99051e73bde2aa741a5dd6c220ec73df6989671580575985"
+            },
+            {
+              "id": "S42",
+              "hash": "3b3440a86a76220cdfb30225bc09415410dcd54ebc84566a1a21e455f3a55860"
+            },
+            {
+              "id": "S43",
+              "hash": "d422075ab95a4b75e8865a8c9df214b09b5bad4f151c0fdc1eb538fd5d3be247"
+            },
+            {
+              "id": "S7",
+              "hash": "0bc982ff67ed1ada99a3c7d4b2e6d48a138c4ba8a7866cd84df31ab43e84d3d4"
+            },
+            {
+              "id": "S19",
+              "hash": "f423a2da1c96dd939a91c936cc1513cbc65ae949fc84f8d72836dc242918764d"
+            }
+          ],
+          "recordedCallCostUsd": 0.065486
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "5900bd99c1124685483b6cb9fb52f3e17b3c26fcc26fa004a280cfe1fbf4bec9",
+          "units": [
+            {
+              "id": "S17",
+              "hash": "777f284f33bc8f01e74eb24be5d9c3bc18fe0324e35db78a04c31a7bcee4a176"
+            },
+            {
+              "id": "S2",
+              "hash": "e73837da2d1c6daea70b26825bec6ae0adb1084d4b03fe76d7e0d30f4cea136f"
+            },
+            {
+              "id": "S3",
+              "hash": "3f8c109c16249be51cf8c83d6c17def9456068b8086fb985dba7ecfcac26928e"
+            },
+            {
+              "id": "S14",
+              "hash": "dc728fc96f8681d160f63f0238c42844e49911602d39cd0117eed5e3fba6066f"
+            },
+            {
+              "id": "S15",
+              "hash": "fd0916553cb8475c1a9620e4dea663474fb0ec6d168bb37a3a7bd124d8a090d7"
+            }
+          ],
+          "recordedCallCostUsd": 0.066
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "f74d0c0ca60b1daecbcc21af4deec2a3d03359f1e439ca57f956f2b5d024f11e",
+          "units": [
+            {
+              "id": "S18",
+              "hash": "591990ff9c3a09b5b55dc6488299dfe80884ce93110b437c83d5354a8a01219b"
+            }
+          ],
+          "recordedCallCostUsd": 0.01366
+        }
+      ]
+    },
+    {
+      "phase": "g2",
+      "caseId": "lebanon-current",
+      "recordedSourceRequests": 1,
+      "potentialReusedRequests": 0,
+      "potentialAvoidedRecordedCostUsd": 0,
+      "requestEvidenceHashes": [
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "55234795f080d3641b8d88b58c411b33a844e27ec938715ef5cec931b036be10",
+          "units": [
+            {
+              "id": "S47",
+              "hash": "40e745aae2e33e3e5a538b44f27e7d0b60e1e7137d20d8f79e41475f1d8cdad1"
+            },
+            {
+              "id": "S48",
+              "hash": "a7c9001a92da9aea2e7ea8822871257360a632585e2068c3366cadfde55bf55b"
+            },
+            {
+              "id": "S90",
+              "hash": "1d8a1af078351ca43d6634af0e1f064432f67771b337fa1bc0f580a794e5b0f4"
+            },
+            {
+              "id": "S91",
+              "hash": "829ac05291cd2168b3aebe0e7cff43dcc88b6f83a94a65835892ae543de504d2"
+            },
+            {
+              "id": "S95",
+              "hash": "9c47d405ece701f68e10118a10fa355eeaf8ce20ebd3f1fd19a576c8b760285e"
+            },
+            {
+              "id": "S100",
+              "hash": "0782e7946c13143eda1e0844876a78a99c04e099cca59db4d5565f24aaa18600"
+            },
+            {
+              "id": "S105",
+              "hash": "c0da18ade4e3e10c3ef2e467753178aa6173b717fd693a5c1f6951ecb4338b43"
+            }
+          ],
+          "recordedCallCostUsd": 0.02937
+        }
+      ]
+    },
+    {
+      "phase": "g2",
+      "caseId": "ai-current",
+      "recordedSourceRequests": 3,
+      "potentialReusedRequests": 0,
+      "potentialAvoidedRecordedCostUsd": 0,
+      "requestEvidenceHashes": [
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "e4a53a661e28fe67768393b30cb89b4f65b8009a1d2b70e7ddbda487dfed41db",
+          "units": [
+            {
+              "id": "S8",
+              "hash": "291fc7dbc662d698f24969ebaac4da649ed0ef831551866089f14d5c2eb9d000"
+            },
+            {
+              "id": "S9",
+              "hash": "e1064640898d3906cc471fea8e1ee1a5008d983787c100bef91a7ba43ffa5014"
+            },
+            {
+              "id": "S32",
+              "hash": "95660b65c5db0d414b2a4929fd0342c27c30d86dffcf2a07281818d81655782a"
+            },
+            {
+              "id": "S34",
+              "hash": "4f6197aa7d18648958b2c0c160a784a705a2c072758e1213c4da2cc3d1d8f1f3"
+            },
+            {
+              "id": "S36",
+              "hash": "8315ee6ad47c67a5269fe4fd4e4adb07e133c0d2b9c9757bfb422f7f7b2b77bb"
+            },
+            {
+              "id": "S37",
+              "hash": "9a1a30593e04b140edbdb48bc49948490746f7c33fea7a071650a9d76dabead7"
+            },
+            {
+              "id": "S41",
+              "hash": "6c8f86d13e82d16b99051e73bde2aa741a5dd6c220ec73df6989671580575985"
+            },
+            {
+              "id": "S42",
+              "hash": "3b3440a86a76220cdfb30225bc09415410dcd54ebc84566a1a21e455f3a55860"
+            },
+            {
+              "id": "S43",
+              "hash": "d422075ab95a4b75e8865a8c9df214b09b5bad4f151c0fdc1eb538fd5d3be247"
+            },
+            {
+              "id": "S7",
+              "hash": "0bc982ff67ed1ada99a3c7d4b2e6d48a138c4ba8a7866cd84df31ab43e84d3d4"
+            },
+            {
+              "id": "S19",
+              "hash": "f423a2da1c96dd939a91c936cc1513cbc65ae949fc84f8d72836dc242918764d"
+            }
+          ],
+          "recordedCallCostUsd": 0.067478
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "d44ca60f2a9f4db3d0ec8459274ba02bf49085e030e37c202354d94bcd99dd9e",
+          "units": [
+            {
+              "id": "S17",
+              "hash": "777f284f33bc8f01e74eb24be5d9c3bc18fe0324e35db78a04c31a7bcee4a176"
+            },
+            {
+              "id": "S2",
+              "hash": "e73837da2d1c6daea70b26825bec6ae0adb1084d4b03fe76d7e0d30f4cea136f"
+            },
+            {
+              "id": "S3",
+              "hash": "3f8c109c16249be51cf8c83d6c17def9456068b8086fb985dba7ecfcac26928e"
+            },
+            {
+              "id": "S14",
+              "hash": "dc728fc96f8681d160f63f0238c42844e49911602d39cd0117eed5e3fba6066f"
+            },
+            {
+              "id": "S15",
+              "hash": "fd0916553cb8475c1a9620e4dea663474fb0ec6d168bb37a3a7bd124d8a090d7"
+            }
+          ],
+          "recordedCallCostUsd": 0.06528
+        },
+        {
+          "model": "openai/gpt-4.1",
+          "schemaHash": "ed30ba4c7ee50e0130b1cd1bfdf1727b56dde8de6e18fa8fc7b5f39df4c86fc5",
+          "units": [
+            {
+              "id": "S18",
+              "hash": "591990ff9c3a09b5b55dc6488299dfe80884ce93110b437c83d5354a8a01219b"
+            }
+          ],
+          "recordedCallCostUsd": 0.014452
+        }
+      ]
+    }
+  ]
+}

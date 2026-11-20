@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "runId": "20261120T183436.147214Z-ebbcda47addc",
+  "checkedAt": "20261120T183436.147214Z",
+  "status": "passed",
+  "checks": [
+    {
+      "name": "evaluation-python",
+      "status": "passed",
+      "exitCode": 0,
+      "reason": null,
+      "durationSeconds": 1.334,
+      "log": "20261120T183436.147214Z-ebbcda47addc/evaluation-python.log"
+    },
+    {
+      "name": "evaluation-replay",
+      "status": "passed",
+      "exitCode": 0,
+      "reason": null,
+      "durationSeconds": 64.236,
+      "log": "20261120T183436.147214Z-ebbcda47addc/evaluation-replay.log"
+    },
+    {
+      "name": "briefing-engine",
+      "status": "passed",
+      "exitCode": 0,
+      "reason": null,
+      "durationSeconds": 31.47,
+      "log": "20261120T183436.147214Z-ebbcda47addc/briefing-engine.log"
+    },
+    {
+      "name": "dataset-exporter",
+      "status": "passed",
+      "exitCode": 0,
+      "reason": null,
+      "durationSeconds": 0.553,
+      "log": "20261120T183436.147214Z-ebbcda47addc/dataset-exporter.log"
+    },
+    {
+      "name": "evaluation-types",
+      "status": "passed",
+      "exitCode": 0,
+      "reason": null,
+      "durationSeconds": 8.225,
+      "log": "20261120T183436.147214Z-ebbcda47addc/evaluation-types.log"
+    },
+    {
+      "name": "evaluator-worker-types",
+      "status": "passed",
+      "exitCode": 0,
+      "reason": null,
+      "durationSeconds": 2.743,
+      "log": "20261120T183436.147214Z-ebbcda47addc/evaluator-worker-types.log"
+    }
+  ],
+  "scope": "offline correctness and regression checks; synthetic/provider-double tests are not factual-quality measurements",
+  "paidModelCalls": 0,
+  "liveBriefingsInspected": 0,
+  "humanQuality": "not_measured",
+  "participantOutcomes": "not_measured",
+  "retainedPrivateDataset": "not_inspected_by_this_runner"
+}

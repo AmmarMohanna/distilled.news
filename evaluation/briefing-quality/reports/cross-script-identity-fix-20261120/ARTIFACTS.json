@@ -1,0 +1,30 @@
+{
+  "baseCommit": "06ad2a24",
+  "hashPolicy": "SHA256 of raw file bytes; paid evidence and operation records unchanged.",
+  "files": [
+    {
+      "file": "evaluation/briefing-quality/reports/cross-script-identity-fix-20261120/OFFLINE_CHECKS.json",
+      "sha256": "2d04f4d5cf981bc650097294c53aa4ee170b023f555387afefcddc96f5cde856"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/cross-script-identity-fix-20261120/REPLAY.json",
+      "sha256": "449c66abf414c5efaa59259470f2f0a543202f82e1441665fd718cef4eec6c07"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/cross-script-identity-fix-20261120/REPORT.md",
+      "sha256": "60abb904cbfaa15167691f8406d841b337b84de65c39cf454e17fdb402138f69"
+    },
+    {
+      "file": "packages/briefing/src/source-bound-claims.ts",
+      "sha256": "cbc46324a64e373cd88674e4ab2c9a5ca1fa124c9831f5df88115a0cc15417b6"
+    },
+    {
+      "file": "packages/briefing/test/source-bound-claims.test.ts",
+      "sha256": "d1a78f2dbfce1678a079c839841cd0920ff18372ad94074ef3f60ad8cad010c0"
+    },
+    {
+      "file": "packages/briefing/test/cross-script-bindings.test.ts",
+      "sha256": "2256cd5e6ecddd67b6923edeee4cf9ef0358a81f4486c24f94707e4e784bb08b"
+    }
+  ]
+}

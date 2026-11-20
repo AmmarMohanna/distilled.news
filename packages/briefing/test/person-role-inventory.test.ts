@@ -1,0 +1,9 @@
+﻿import{expect,it}from'vitest';import{decodeInventory}from'../src/source-bound-claims';
+it.each(['The president approved.','الرئيس اللبناني أعلن القرار.','Le président a approuvé.'])('corrects overlapping person/role spans: %s',text=>{const raw={units:{'I0.H':[{personTokens:{start:'T0',end:'T1'},roleTokens:{start:'T0',end:'T1'}}]}};expect(()=>decodeInventory(raw,[{headline:text,body:'',refs:['S1']}],false,true)).toThrow('PERSON_ROLE_INVENTORY_OVERLAP');});
+it('preserves distinct name and title spans',()=>{const f=decodeInventory({units:{'I0.H':[{personTokens:{start:'T1',end:'T2'},roleTokens:{start:'T0',end:'T0'}}]}},[{headline:'President Jane Doe approved.',body:'',refs:['S1']}],false,true);expect(f.some(f=>f.personName==='Jane Doe')).toBe(true)});
+
+const examples=[{language:'en',text:'President Jane Doe approved.',name:'Jane Doe'},{language:'ar',text:'\u0627\u0644\u0631\u0626\u064a\u0633 \u062c\u0648\u0632\u0627\u0641 \u0639\u0648\u0646 \u0623\u0639\u0644\u0646.',name:'\u062c\u0648\u0632\u0627\u0641 \u0639\u0648\u0646'},{language:'fr',text:'Pr\u00e9sident Jean Dupont approuve.',name:'Jean Dupont'}];
+for(const example of examples){
+ for(const [label,start,end]of [['identical','T1','T2'],['partial','T0','T1'],['contained','T2','T2']]as const)it(`rejects ${label} token overlap in ${example.language}`,()=>{expect(()=>decodeInventory({units:{'I0.H':[{personTokens:{start:'T1',end:'T2'},roleTokens:{start,end}}]}},[{headline:example.text,body:'',refs:['S1']}],false,true)).toThrow('PERSON_ROLE_INVENTORY_OVERLAP');});
+ it(`preserves adjacent disjoint tokens in ${example.language}`,()=>{const facets=decodeInventory({units:{'I0.H':[{personTokens:{start:'T1',end:'T2'},roleTokens:{start:'T0',end:'T0'}}]}},[{headline:example.text,body:'',refs:['S1']}],false,true);expect(facets.some(f=>f.personName===example.name)).toBe(true)});
+}

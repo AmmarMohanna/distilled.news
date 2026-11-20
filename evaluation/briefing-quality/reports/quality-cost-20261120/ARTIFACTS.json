@@ -1,0 +1,54 @@
+{
+  "experimentCodeCheckpoint": "08d770bf",
+  "scope": "SHA256 of raw final artifact/code bytes; immutable paid request/response hashes are in measurements.json",
+  "files": [
+    {
+      "file": "evaluation/briefing-quality/reports/quality-cost-20261120/analyze.mjs",
+      "sha256": "ab81b1c06adf5ac5842b734a5dcfa03176edb2b2d39f0963e971affb1867ab8a"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/quality-cost-20261120/BASELINE.json",
+      "sha256": "c4cbd2084577568fed319e8e71fc030a9f6a65f1863d99ea7c11bb6f352931ca"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/quality-cost-20261120/measurements.json",
+      "sha256": "f2ea3d64ea025f9227c403bbf3ca9d6b6756c6e662b8dc52dc883e4a9df74fac"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/quality-cost-20261120/OFFLINE_CHECKS.json",
+      "sha256": "6cb3ae79ac5e5252348588cb0bd4f880c310180b3b5821403830d29ea7fa67e0"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/quality-cost-20261120/REPLAY.json",
+      "sha256": "3418f4dcedf363a3daad8fbe196ddbcf91c92a5de9091d88f9f42221b790031d"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/quality-cost-20261120/REPORT.md",
+      "sha256": "d87dd2c98e8ea20e4ff1c02edcd6b600328ccb334b4957098b7115baed92ce3d"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/quality-cost-20261120/RESULTS.json",
+      "sha256": "087e3d4ce36cfdc1fa0b28571f94dfeebfc857042e150398fb52fd286d64c267"
+    },
+    {
+      "file": "packages/briefing/src/schema-sharing.ts",
+      "sha256": "678ee80f1e4c0ca69d8b70cd3caa81aa3cda1123458187ce46f21f199d28cd45"
+    },
+    {
+      "file": "packages/briefing/src/source-bound-claims.ts",
+      "sha256": "d6f41f3f4c3125748b3858a8cc793e301bfd3a63dd2538faa59074850698e1a4"
+    },
+    {
+      "file": "packages/briefing/src/engine.ts",
+      "sha256": "de8a391f3af1cd13a7da606b405f4ce641f902462e29f718dcb2dbeb8481cf75"
+    },
+    {
+      "file": "evaluation/briefing-quality/qualify-source-bindings.ts",
+      "sha256": "3dd0c8ee7581972def6793995759ef7e23e2dced5fe82f983f191108a7e87827"
+    },
+    {
+      "file": "evaluation/briefing-quality/replay-adaptive-context.ts",
+      "sha256": "144b78526d1ef775709037f469881d73d033564ebed0c277ff83a78dce204f95"
+    }
+  ]
+}

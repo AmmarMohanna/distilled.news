@@ -1,0 +1,759 @@
+{
+  "policy": "compact-proofs-v1",
+  "newPaidCalls": 0,
+  "newCostUsd": 0,
+  "sourceMemoEnabled": true,
+  "sourceCasesHash": "e3065283b9362fb9b189fe3f5ae59102e631e9b6eaed08cc2df3d50687b83c9d",
+  "sourceLedgerHash": "a940dffedc2af88320885186ed0ac59b3b01a4461ac5655aab8594bbcd3d55e9",
+  "cases": 22,
+  "matchedRecordedRequests": 81,
+  "originalVerificationRequests": 16,
+  "compactVerificationRequests": 8,
+  "compactProofRequests": 14,
+  "results": [
+    {
+      "caseId": "ar-compound-valid-baseline",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "fd86cc444bccc012bd25ba1d054ef7c3986c50ff7492baca639126619b1ccd45",
+          "paidOperationId": "3b37757e-6ccd-44e5-967b-a04d7bd7f471",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "f521ff09120697c915296164c766b88e9d4c32b9d360631f2f936d740bc69ff9",
+          "paidOperationId": "7cd0a3f9-1def-4199-a08f-f7ab1e5eef9a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "ec4c21393eb39075acf6f889de2ae9734530641c4d3901241e3b9541ba91c943",
+          "paidOperationId": "a67acb43-6b7f-45dd-8bbf-c12b553134d5",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "ar-compound-valid-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "fd86cc444bccc012bd25ba1d054ef7c3986c50ff7492baca639126619b1ccd45",
+          "paidOperationId": "3b37757e-6ccd-44e5-967b-a04d7bd7f471",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "f521ff09120697c915296164c766b88e9d4c32b9d360631f2f936d740bc69ff9",
+          "paidOperationId": "7cd0a3f9-1def-4199-a08f-f7ab1e5eef9a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "0f7b16ab20110189d4b38109146bb52a5fffc74fee15460f426a927e392dc2fd",
+          "paidOperationId": "6123c11b-dbe1-4743-b329-27a7ed36b57c",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "ar-compound-substitution-baseline",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "e9d8ec2903ab374ad158b57b5d40fe7f041a92643485ea5dc896c46d1565e877",
+          "paidOperationId": "092ae3ed-ffc2-4429-8929-3e32ea57adf8",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "f521ff09120697c915296164c766b88e9d4c32b9d360631f2f936d740bc69ff9",
+          "paidOperationId": "7cd0a3f9-1def-4199-a08f-f7ab1e5eef9a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "e48607683bc6fb7b864fa3089120d159b31e6494fcebd198e1984ec23fac3a82",
+          "paidOperationId": "1c0759f6-26a6-4845-afb3-e427c09b982a",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "ar-compound-substitution-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "e9d8ec2903ab374ad158b57b5d40fe7f041a92643485ea5dc896c46d1565e877",
+          "paidOperationId": "092ae3ed-ffc2-4429-8929-3e32ea57adf8",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "f521ff09120697c915296164c766b88e9d4c32b9d360631f2f936d740bc69ff9",
+          "paidOperationId": "7cd0a3f9-1def-4199-a08f-f7ab1e5eef9a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "1bf3259e3751f79416c8e095e75f9468d40380166c2ba4e09b11cc597debcc13",
+          "paidOperationId": "15e65a27-64c6-45f4-a5b4-1cdab3c52bd1",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "en-valid-qualification-baseline",
+      "kind": "source-derived-control",
+      "language": "en",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "d0b9293d7cc8a71edf31b15dd4b46fb100091875976612ac74a1fbbea5f8d9e4",
+          "paidOperationId": "05969bf4-91b5-4503-b780-24f846ceb8f4",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "b74b595fbbdc45f63b61f124e17295f44ab54ab563c331ecb12b23306a4e2dd1",
+          "paidOperationId": "347083a7-efd0-439d-a8eb-4b32219cb88f",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "3e474321c8bc2c96d79921eabe80e1e0b84e12591c4a782bd9fa36b0cd3ca4bd",
+          "paidOperationId": "15cc14e6-56af-49cd-8c4e-8c7fcb174f04",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "en-valid-qualification-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "en",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "d0b9293d7cc8a71edf31b15dd4b46fb100091875976612ac74a1fbbea5f8d9e4",
+          "paidOperationId": "05969bf4-91b5-4503-b780-24f846ceb8f4",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "b74b595fbbdc45f63b61f124e17295f44ab54ab563c331ecb12b23306a4e2dd1",
+          "paidOperationId": "347083a7-efd0-439d-a8eb-4b32219cb88f",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "56d1f66a2dfd3903caabd38e58bd61958b03b0696c2db3f12829522362ba7f0b",
+          "paidOperationId": "0de3d934-a94a-4306-ae2b-0334fc6a8b60",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "en-quantity-substitution-baseline",
+      "kind": "source-derived-control",
+      "language": "en",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "a42ff9c3e69be28942cf1af4b93f962631c82d899283301a417e8c4cf2709c44",
+          "paidOperationId": "6796c045-5a77-4539-8a8d-79a3fd74dc74",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "e453b5bf93d9cc483568c1f9f292425ff7f45549f376b26c26f3a5726af4a44a",
+          "paidOperationId": "c236591b-f78e-460d-b395-5400a3adf867",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "723b463c1a1d4489437de20ba116f84fe5cf9f3e02fcc01137dd2f690cbd17ce",
+          "paidOperationId": "3f27d2a4-6053-4e5d-9613-4b345c0c637e",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "en-quantity-substitution-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "en",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "a42ff9c3e69be28942cf1af4b93f962631c82d899283301a417e8c4cf2709c44",
+          "paidOperationId": "6796c045-5a77-4539-8a8d-79a3fd74dc74",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "e453b5bf93d9cc483568c1f9f292425ff7f45549f376b26c26f3a5726af4a44a",
+          "paidOperationId": "c236591b-f78e-460d-b395-5400a3adf867",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "b19ccfb58bb6bf0aced54101d28cfe438926596e86897609bcfd00327830ac13",
+          "paidOperationId": "8ba9dcd6-a212-4136-b652-7d812d01f05e",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "fr-valid-uncertainty-baseline",
+      "kind": "source-derived-control",
+      "language": "fr",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "b3b6f5a9ae30e27dd0cb34ac8e4919e021ee456b21dcc0a031d4164a7d493514",
+          "paidOperationId": "6e60c8e9-1a08-427a-8a56-a90f5114707a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "fdf278003b7791402ee7114f2e576ccd5782b410e02daa8795cd1f8c4b402ed1",
+          "paidOperationId": "aea683d3-f1db-4e83-a688-720219bbbc1a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "a5ace2caf6181b7b53fecc9ca4f0810be5c171128c8389bc6263d78070e5a8fe",
+          "paidOperationId": "f34cf422-3f8b-447c-9a2b-1079b2ce4b4c",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "fr-valid-uncertainty-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "fr",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "b3b6f5a9ae30e27dd0cb34ac8e4919e021ee456b21dcc0a031d4164a7d493514",
+          "paidOperationId": "6e60c8e9-1a08-427a-8a56-a90f5114707a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "fdf278003b7791402ee7114f2e576ccd5782b410e02daa8795cd1f8c4b402ed1",
+          "paidOperationId": "aea683d3-f1db-4e83-a688-720219bbbc1a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "0715a9693c90c8d28228fdc3f553203db325821710ea9af4fe15510368cd956b",
+          "paidOperationId": "15ab1566-1ff3-4549-8aba-c087f5797d86",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "fr-certainty-substitution-baseline",
+      "kind": "source-derived-control",
+      "language": "fr",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "8486e4ad8456ad62cf3a6b675ee801c41139a03cc35ae897cabf275dfd3a0cf1",
+          "paidOperationId": "2ce1b973-1e60-46bb-bdad-b93c3344ff3e",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "fdf278003b7791402ee7114f2e576ccd5782b410e02daa8795cd1f8c4b402ed1",
+          "paidOperationId": "aea683d3-f1db-4e83-a688-720219bbbc1a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "ee9c2c5c39ca71832803e2c64f7008ff21098332451eb949306e5d6e8bd769e5",
+          "paidOperationId": "fb809eb2-38b9-45a5-8ad8-b213e5f71768",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "fr-certainty-substitution-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "fr",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "8486e4ad8456ad62cf3a6b675ee801c41139a03cc35ae897cabf275dfd3a0cf1",
+          "paidOperationId": "2ce1b973-1e60-46bb-bdad-b93c3344ff3e",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "fdf278003b7791402ee7114f2e576ccd5782b410e02daa8795cd1f8c4b402ed1",
+          "paidOperationId": "aea683d3-f1db-4e83-a688-720219bbbc1a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "b02f45a7ce3f702e7c57556e8cab1c38573c9121964e2033a95fa91a1707f4d0",
+          "paidOperationId": "8f6b2a3c-698b-4683-bf1b-2023a03a70e9",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "retained-name-focused-baseline",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "d5ac5605bf1c86d49fbf395e149b39b639e072c3d62e75b9431c8316e1bb6b1f",
+          "paidOperationId": "35da1444-53e1-4ab9-ac2f-9fb1b9201588",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "a9ab2491fec0843adbceb004522939f755fd86caa0ee055d4a4e3e52ee385c46",
+          "paidOperationId": "f44d9da2-ed2e-439c-aa3b-cecdff7bcaa8",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "6e355a68b730f96e199ca751dff1814e9a18407cb9bab0ca98052747b278e5fd",
+          "paidOperationId": "2c7c83d7-8e43-4465-8e9b-f00c26563f18",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "retained-name-focused-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "d5ac5605bf1c86d49fbf395e149b39b639e072c3d62e75b9431c8316e1bb6b1f",
+          "paidOperationId": "35da1444-53e1-4ab9-ac2f-9fb1b9201588",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "a9ab2491fec0843adbceb004522939f755fd86caa0ee055d4a4e3e52ee385c46",
+          "paidOperationId": "f44d9da2-ed2e-439c-aa3b-cecdff7bcaa8",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "07bca1cc54a792dcc65344e00bcadcb758f70f4c44412c0601b74f6cc9cefec3",
+          "paidOperationId": "cd881ac5-f9aa-4477-b8f7-de2e61de5b83",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "retained-name-identity-only-control-focused-baseline",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "b0f250bd13f925fd00d7e23ec8b34277a02d9a745fe0409dc981618c52b34340",
+          "paidOperationId": "998af168-5278-476f-bf83-84c970bb356d",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "a9ab2491fec0843adbceb004522939f755fd86caa0ee055d4a4e3e52ee385c46",
+          "paidOperationId": "f44d9da2-ed2e-439c-aa3b-cecdff7bcaa8",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "95a12d2daf7ddcb2927cae342f2f710312e68e903ea0c0d8e4461c9e5c214247",
+          "paidOperationId": "d51f38a9-44b1-440d-82c0-70b5969bc75b",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "retained-name-identity-only-control-focused-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "b0f250bd13f925fd00d7e23ec8b34277a02d9a745fe0409dc981618c52b34340",
+          "paidOperationId": "998af168-5278-476f-bf83-84c970bb356d",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "a9ab2491fec0843adbceb004522939f755fd86caa0ee055d4a4e3e52ee385c46",
+          "paidOperationId": "f44d9da2-ed2e-439c-aa3b-cecdff7bcaa8",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "22a7bb7a09332ab0d3ad18284ce09f909ba049a101c53536bb56f10e6693bcc5",
+          "paidOperationId": "7adacb9a-e970-4a83-a668-b28768e3e2ff",
+          "verification": true,
+          "format": "original",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "retained-role-focused-baseline",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "3f9a3490b2971706bf0d33040ce8e29bfd3c0b989b627e00d6988ccc85a62808",
+          "paidOperationId": "336fc7c9-7684-4faf-814b-99d75cc55f9d",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "e8dc0232cb0ad214c3ff779c9e4ff1953bb82c80a53a7145ace75b8cb41dfaed",
+          "paidOperationId": "a431189c-4c51-4190-8b60-8e4db0d33d14",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "cf58bda13f6504d9f24a7e0704c697e075f31d3318392982def4f9816fb296a9",
+          "paidOperationId": "54623ba2-9cd5-4242-a175-0e40a756448e",
+          "verification": true,
+          "format": "compact-v1",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "retained-role-focused-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "3f9a3490b2971706bf0d33040ce8e29bfd3c0b989b627e00d6988ccc85a62808",
+          "paidOperationId": "336fc7c9-7684-4faf-814b-99d75cc55f9d",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "e8dc0232cb0ad214c3ff779c9e4ff1953bb82c80a53a7145ace75b8cb41dfaed",
+          "paidOperationId": "a431189c-4c51-4190-8b60-8e4db0d33d14",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "432c186dbe0c0301d684dee76be9b22e29f47e35aaaa2cbcce914d64e2d7a389",
+          "paidOperationId": "34050c52-0b52-4b53-bd0a-851c4ccebc6d",
+          "verification": true,
+          "format": "compact-v1",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "retained-role-identity-only-control-focused-baseline",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "6b1682c8960f68036eb1cd19f7b510b767f7eae721094528aa537a9c8ff87d45",
+          "paidOperationId": "3b36ec7b-0579-43dc-a977-9e4bcc2f050d",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "e8dc0232cb0ad214c3ff779c9e4ff1953bb82c80a53a7145ace75b8cb41dfaed",
+          "paidOperationId": "a431189c-4c51-4190-8b60-8e4db0d33d14",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "66f21d7faead8a4f0f5aec619b945e2fc639e558500035aefd202bbfb15909c7",
+          "paidOperationId": "70dbbfac-69fd-4a5c-a156-b2de0bdcd66d",
+          "verification": true,
+          "format": "compact-v1",
+          "proofFormat": "original"
+        }
+      ]
+    },
+    {
+      "caseId": "retained-role-identity-only-control-focused-compact-proofs",
+      "kind": "source-derived-control",
+      "language": "ar",
+      "identicalPreviouslyPaidDecision": true,
+      "traces": [
+        {
+          "requestHash": "6b1682c8960f68036eb1cd19f7b510b767f7eae721094528aa537a9c8ff87d45",
+          "paidOperationId": "3b36ec7b-0579-43dc-a977-9e4bcc2f050d",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "e8dc0232cb0ad214c3ff779c9e4ff1953bb82c80a53a7145ace75b8cb41dfaed",
+          "paidOperationId": "a431189c-4c51-4190-8b60-8e4db0d33d14",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "241456fc0fdb013cd642bd951371e81fb61d9fc8ca7db85993fc8cac93fa3b6e",
+          "paidOperationId": "a26d5b08-63cb-4a13-9115-3ce5d0441077",
+          "verification": true,
+          "format": "compact-v1",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "lebanon-current",
+      "kind": "retained-real-engine",
+      "stories": 5,
+      "identicalPreviouslyPaidOutput": true,
+      "traces": [
+        {
+          "requestHash": "3d2e66a9ebb3fd2b9bfd3c4f863050ac73c6740dc0ebbfd9baf8fa8ea71abe8f",
+          "paidOperationId": "cdeb91bd-8d61-4093-8e0f-bd133b74da6f",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "b7d2d47b85c3cb41953fb7a040032b86f351d15fec0dd6ac1aad1b3045a7b937",
+          "paidOperationId": "c17e912b-e3bf-4d0c-ad75-4f5f590663ab",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "ff75fa3559dab9230c0a182eac7c057731a2d174d7d745d18a34e1c20511080c",
+          "paidOperationId": "2bf6fb88-35be-485c-92f8-96dcce75347e",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "a4f8788665921276cbfc983e4018cc96b8329ebaddfe62cf62f394f15f0bf819",
+          "paidOperationId": "115b2dc6-ee28-4ba6-9d90-3bfe6ab81664",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "a85f8e7bbf76eb4a245fddebc582a4a1ac4cb43f042e1fb08662c2be46865ae3",
+          "paidOperationId": "e7784ebf-2c91-4e8b-9fb8-4e3dd4926b63",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "dc8519db3ade03ecab6de54d30698e327293b30ee1096af9c5f943feaacd90cd",
+          "paidOperationId": "41a09756-053d-4101-ae4d-23c93eeba797",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "3d1b3e378d3e3565e56ca9aa96eee9476316ff8186178d75ed9ccac3b864ff50",
+          "paidOperationId": "1a275679-1a2e-46a2-a4b4-c55e6449734d",
+          "verification": true,
+          "format": "compact-v1",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    },
+    {
+      "caseId": "ai-current",
+      "kind": "retained-real-engine",
+      "stories": 9,
+      "identicalPreviouslyPaidOutput": true,
+      "traces": [
+        {
+          "requestHash": "b750b8ebb9ac658534f3049c0f162d5bb82b49a03a35487ec56e2fb94f222dbb",
+          "paidOperationId": "35de35ca-2a8c-44ac-903e-ee8c599dbc83",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "a3d77b9d7f665aa5c92855a01fcb48d1639f2a924b3c2f4559fa013f2e077bb7",
+          "paidOperationId": "4a37c6b2-a5d1-4fd7-93ae-041d2b440475",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "f16de3374f2dff74c4febbedace4ce6357afd24a1b31be354427f6f07c8d3014",
+          "paidOperationId": "7050ca58-0965-4273-96c7-133c2cbd96b6",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "539490280f37ff162568869435adf35e0c2b095745772eb4a1c636d850c159b3",
+          "paidOperationId": "2f7e0497-75a8-43ad-8d25-3c9a9dc99a9e",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "51bacea1e1046138d647faf3fcf310e19c81b655e8f716ce78341af3c61809f2",
+          "paidOperationId": "eb6964e3-1588-43f2-8950-1cd3805eba86",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "b3af0ae5465885808920108cc3949affa11cde83c451a7f2f76110b8ff8a147a",
+          "paidOperationId": "c06dd928-ca2a-4671-bf4b-eab56c7bf380",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "4099f0a626ad4b17266ad881da0c2e27a588d88a9b3a5336c90d72657e7e17b2",
+          "paidOperationId": "22f50b34-0e57-4313-b360-c18dd856e579",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "151de1da85b547b3e0fdfe5ba6f4700be5113c1425ede2f1246b7149ffff7b21",
+          "paidOperationId": "d99decc1-d327-479c-ad58-08c04db57fab",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "e2830a18e6107c16ec98201e083a7a1b6a93d2f8661b20402ec49471fc87c9b3",
+          "paidOperationId": "e74df934-f4d7-4847-b70d-bc16da65e26d",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "91a35feaeb5d08ca232576e3f3ebe37f68e2443b77a655112e0c8ead6d94ec7e",
+          "paidOperationId": "31f682b2-beca-4e12-afbc-a70cb24b969a",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "567e49b628cbbff25ef8800162703bfd3c468b00abd54cd9a8447c8dbba32837",
+          "paidOperationId": "5600f2fd-baf6-4e0c-a8c6-1563939d7811",
+          "verification": false,
+          "format": "original",
+          "proofFormat": "original"
+        },
+        {
+          "requestHash": "03d41a8c9f257ef582f7192bc90881e6320d729a90ae86cc1f316d77af2ee400",
+          "paidOperationId": "ec2ed459-92c3-4dcc-9782-d6967dc629ee",
+          "verification": true,
+          "format": "compact-v1",
+          "proofFormat": "compact-proofs-v1"
+        },
+        {
+          "requestHash": "30bd1ec5f944841f8296ca6b5aff3ccc64c7cf627ee0a2470aea79f7eda32471",
+          "paidOperationId": "fba53911-6036-4e2a-bf56-5cf5095d2951",
+          "verification": true,
+          "format": "compact-v1",
+          "proofFormat": "compact-proofs-v1"
+        },
+        {
+          "requestHash": "8151d6d121978883bb67b1f14f9ff6a78245dd5f8950ca889b3622178ef46172",
+          "paidOperationId": "75a1ef81-1bfe-4535-be18-b6eba380b421",
+          "verification": true,
+          "format": "compact-v1",
+          "proofFormat": "compact-proofs-v1"
+        }
+      ]
+    }
+  ],
+  "scope": "Exact recorded-response replay only, not new model assessments, independent news evaluation or fresh cost/latency measurement."
+}
