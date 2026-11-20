@@ -704,6 +704,7 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           await props.onAuthenticated();
         } catch (cause) {
           if (submittedFlow !== verificationFlow.current) return;
+          if(cause instanceof ApiError&&cause.id==="AUTH_EMAIL_ALREADY_VERIFIED")clearVerificationRecovery();
           setError(toUiError(cause));
           if(mode === "register" && cause instanceof ApiError&&['AUTH_EMAIL_VERIFICATION_REQUIRED','AUTH_EMAIL_REGISTERED'].includes(cause.id))setVerificationRecoveryEmail(email.trim().toLowerCase());
           resetTurnstile();
@@ -759,8 +760,8 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
       {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
-        {error ? <p className="auth-error" role="alert">{typeof error !== "string" && error.id === "AUTH_EMAIL_ALREADY_VERIFIED"
-          ? <VerifiedEmailError language={preferredLanguage()} onNavigate={nextMode => {
+        {error ? <p className="auth-error" role="alert">{typeof error !== "string" && (error.id === "AUTH_EMAIL_ALREADY_VERIFIED" || error.id === "AUTH_EMAIL_REGISTERED")
+          ? <VerifiedEmailError language={preferredLanguage()} errorId={error.id} onNavigate={nextMode => {
             clearVerificationRecovery(); setMode(nextMode); setAuthStep("details"); setPassword(""); setEmailCode(""); setError(""); setMessage(""); resetTurnstile();
           }}/>
           : t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}

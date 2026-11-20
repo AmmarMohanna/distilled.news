@@ -146,3 +146,14 @@ it('supports opening the reset-password request form through the hyperlink URL',
     expect(ui.host.querySelector('button[type="submit"]')?.textContent).toBe('Send Reset Link');
   } finally { await ui.close(); }
 });
+it('shows clickable recovery links and no verification actions immediately after verified registration is rejected', async () => {
+  const ui = await mount(true);
+  try {
+    vi.mocked(register).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_ALREADY_VERIFIED'));
+    await ui.submit();
+    expect(ui.host.querySelector('[role="alert"]')?.textContent).toBe('Email is already verified. Please sign in or reset your password.');
+    expect(ui.host.querySelectorAll('[role="alert"] a')).toHaveLength(2);
+    expect(ui.actions()).toEqual([]);
+    expect(resendVerification).not.toHaveBeenCalled();
+  } finally { await ui.close(); }
+});
