@@ -227,6 +227,21 @@ async function independentSourceIdentities(port:ModelPort,meter:UsageMeter,model
   const key=JSON.stringify({model,shareSchema,sources:sources.map(({ref,text,title,publishedAt,source,url,id})=>({ref,text,title,publishedAt,source,url,id}))});
   let pending=memo.get(key);
   if(!pending){
+   const requested=JSON.parse(key) as {sources:Source[]};
+   for(const [priorKey,prior]of memo){
+    const original=JSON.parse(priorKey) as {model:string;shareSchema:boolean;sources:Source[]};
+    if(original.model!==model||original.shareSchema!==shareSchema||!requested.sources.every(s=>original.sources.some(p=>JSON.stringify(p)===JSON.stringify(s))))continue;
+    // Awaiting the original promise also preserves its provider/UNKNOWN fence.
+    // Partial extraction never authorizes a subset reuse.
+    const completed=await prior;
+    if(!completed.complete)continue;
+    const identities=requested.sources.flatMap(s=>completed.identities.filter(i=>i.source===s.ref));
+    pending=Promise.resolve({identities:structuredClone(identities),unresolved:[],complete:true});
+    memo.set(key,pending);
+    break;
+   }
+  }
+  if(!pending){
    const missing=new Set<string>();let complete=false;
    pending=independentSourceIdentities(port,meter,model,sources,missing,shareSchema,undefined,()=>{complete=true}).then(identities=>({identities,unresolved:[...missing],complete}));
    memo.set(key,pending);

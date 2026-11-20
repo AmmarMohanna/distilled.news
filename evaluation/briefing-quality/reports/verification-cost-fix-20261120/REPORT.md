@@ -75,3 +75,11 @@ python evaluation/briefing-quality/continuous.py --output .local-reports/cost-wo
 ```
 
 The private retained directory is required for the exact-response replay. It forbids network access. Do not rerun a started paid directory; rejected experimental reproduction uses checkpoint `b92d0bbc`, its frozen manifests and its recorded receipts. See the previous `quality-cost-20261120/REPORT.md` for all earlier negative results.
+
+## Follow-up: repair subset reuse
+
+Both GitHub workflows for `a5efb9e5` completed successfully before this follow-up. Exact-batch memoization missed a confirmed case: a later repaired story needs only a subset of the sources in an earlier fully validated batch. The memo now recognizes that subset only when every requested source ID, body, title and metadata matches, with the same model/schema policy. It returns only the requested sources' already bound identities, in requested order. It does not treat absent reader names as permission to skip source extraction.
+
+The first subset regression failed with two source requests and passed with one after the fix; both fresh reader/final judgments still ran. Tests also verify that an incomplete superset is not reused, changed publication metadata causes a new extraction, and an uncertain superset provider operation fences subset dispatch. The expanded full engine suite passed **565 tests**. The combined candidate still matched all 81 recorded requests and 22 cases in the zero-network qualification replay. No additional paid calls were made; cumulative spending remains $3.3653396.
+
+`SUBSET_TRACE.json` reports offline opportunities in historical repair traces: the English phase-d path contains two fully repeated/subset source requests with recorded costs totaling $0.077608. This is **not a measured full-briefing saving**: it requires completed parser validation and matching metadata, and downstream repaired output was not rerun against fresh models. The two clean phase-g2 qualification windows contain no such opportunity, so their measured ~2% transport savings are unchanged. Do not add the counterfactual source-call costs to the measured savings table.

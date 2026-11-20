@@ -13,5 +13,11 @@
       "scope": "gating, independent frozen fields and actual stale recovery"
     }
   ],
-  "note": "One gate test appears in both subsets. Local checks are not a remote CI pass."
+  "note": "One gate test appears in both subsets. Local checks are not a remote CI pass.",
+  "followupSubsetReuse": {
+    "engineTestsPassed": 565,
+    "testFilesPassed": 80,
+    "additionalPaidCalls": 0,
+    "scope": "Validated-superset reuse for exact unchanged subsets, incomplete-superset rejection, metadata invalidation and provider UNKNOWN fencing; original worker tests unchanged."
+  }
 }
