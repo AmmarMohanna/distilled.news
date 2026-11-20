@@ -693,11 +693,12 @@ export function createApp(options: AppOptions = {}) {
     await assertRateLimit(repo,`verification:${email}`,'verification_recovery',5,60*60*1000);
     if(!await verifyTurnstileIfConfigured(c,input.turnstileToken))return c.json({ok:true});
     const account=await repo.getAccountByEmail(email);
+    if(account?.emailVerifiedAt&&!account.disabledAt)return c.json({error:'Email is already verified. Please sign in or reset your password.'},409);
     if(account&&!account.emailVerifiedAt&&!account.disabledAt){
       try{await sendVerificationToken(repo,c.env,account,input.language)}
       catch(error){logAuthEmailFailure('verification resend',account,c.env,error)}
     }
-    // Do not disclose account state or claim recipient delivery was established.
+    // Unknown/disabled accounts remain generic; do not claim recipient delivery.
     return c.json({ok:true});
   });
 
@@ -1817,7 +1818,11 @@ async function createAccountOrError(
 ): Promise<AccountRecord> {
   const email = normalizeEmail(input.email);
   const username = normalizeUsername(input.username);
-  if (await repo.getAccountByEmail(email)) throw new Error("email is already registered");
+  const existing = await repo.getAccountByEmail(email);
+  if (existing) {
+    if (!input.verified && existing.emailVerifiedAt && !existing.disabledAt) throw new Error("Email is already verified. Please sign in or reset your password.");
+    throw new Error("email is already registered");
+  }
   await assertUsernameAvailable(repo, username);
   return repo.createAccount({
     email,

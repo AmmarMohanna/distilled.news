@@ -12,6 +12,7 @@ import { BriefingText } from "./BriefingText";
 import { CitationReference } from "./CitationReference";
 import { BriefingReadMore } from "./BriefingReadMore";
 import { VerificationCodeInput } from "./VerificationCodeInput";
+import { VerifiedEmailError } from "./VerifiedEmailError";
 import React, { useEffect, useRef, useState } from "react";
 import { FeedNotice } from "./FeedNotice";
 import { FeedReaderStatus } from "./FeedReaderStatus";
@@ -616,10 +617,12 @@ function AdminCommandPanel(props: {
 
 export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
   const { t } = useLanguage();
+  const params = new URLSearchParams(window.location.search);
+  const initialMode = props.setupRequired || params.has("signup") ? "register" : params.has("reset-password") ? "forgot" : "login";
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [mode, setMode] = useState<"login" | "register" | "forgot">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "register" : "login");
-  const [authStep, setAuthStep] = useState<"email" | "details" | "code">(props.setupRequired || new URLSearchParams(window.location.search).has("signup") ? "details" : "email");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(initialMode);
+  const [authStep, setAuthStep] = useState<"email" | "details" | "code">(initialMode === "login" ? "email" : "details");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -701,6 +704,7 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           await props.onAuthenticated();
         } catch (cause) {
           if (submittedFlow !== verificationFlow.current) return;
+          if(cause instanceof ApiError&&cause.id==="AUTH_EMAIL_ALREADY_VERIFIED")clearVerificationRecovery();
           setError(toUiError(cause));
           if(mode === "register" && cause instanceof ApiError&&['AUTH_EMAIL_VERIFICATION_REQUIRED','AUTH_EMAIL_REGISTERED'].includes(cause.id))setVerificationRecoveryEmail(email.trim().toLowerCase());
           resetTurnstile();
@@ -756,20 +760,32 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
       {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
-        {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
+        {error ? <p className="auth-error" role="alert">{typeof error !== "string" && (error.id === "AUTH_EMAIL_ALREADY_VERIFIED" || error.id === "AUTH_EMAIL_REGISTERED")
+          ? <VerifiedEmailError language={preferredLanguage()} errorId={error.id} onNavigate={nextMode => {
+            clearVerificationRecovery(); setMode(nextMode); setAuthStep("details"); setPassword(""); setEmailCode(""); setError(""); setMessage(""); resetTurnstile();
+          }}/>
+          : t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
       <div className="auth-verification-actions">
       {!props.setupRequired && mode==="register" && authStep==="details" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
         <button type="button" className="button-link" onClick={()=>{setAuthStep("code");setError("");setMessage("");}}>{t("Enter verification code")}</button>}
       {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setMode("login");clearVerificationRecovery();setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
       {!props.setupRequired&&mode==="register"&&authStep!=="email"&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
+        const requestedFlow=verificationFlow.current;
         setError("");setMessage("");setSubmitting(true);
         try{
-          if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");return;}
+          if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");resetTurnstile();return;}
           await resendVerification(email,turnstileToken);
+          if(requestedFlow!==verificationFlow.current)return;
           setMessage("If this account needs verification, an email was requested. Check your inbox and spam folder. If it still does not arrive, contact support.");
-        }catch(cause){setError(toUiError(cause));}
-        finally{resetTurnstile();setSubmitting(false);}
+          resetTurnstile();
+        }catch(cause){
+          if(requestedFlow!==verificationFlow.current)return;
+          if(cause instanceof ApiError&&cause.id==="AUTH_EMAIL_ALREADY_VERIFIED")clearVerificationRecovery();
+          setError(toUiError(cause));
+          resetTurnstile();
+        }
+        finally{setSubmitting(false);}
       }}>{t("Resend verification email")}</button>:null}
       </div>
       {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); clearVerificationRecovery(); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}

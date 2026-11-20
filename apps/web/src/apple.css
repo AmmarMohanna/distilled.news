@@ -3177,3 +3177,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .auth-verified-email .auth-email-address { flex: 1; min-width: 0; padding-block: 8px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; user-select: text; cursor: text; }
 :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .feed-nav-back { gap: 0; }
 :root.apple-ui.apple-ui .citation-publisher[data-placement="above"]::before { inset-block-start: 100%; inset-block-end: auto; }
+
+:root.apple-ui.apple-ui .auth-error .auth-error-action { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+:root.apple-ui.apple-ui .auth-error .auth-error-action:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 3px; }
