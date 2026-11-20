@@ -5,15 +5,20 @@ import io
 import shutil
 import sys
 import tarfile
+from contextlib import closing
+from http.client import HTTPSConnection
 from pathlib import Path
-from urllib.request import urlopen
 
 
 def prepare(
-    directory: Path, source: str, version: str, url: str, digest: str, pins: dict[str, str], revision: int = 1
+    directory: Path, source: str, version: str, path: str, digest: str, pins: dict[str, str], revision: int = 1
 ) -> None:
-    with urlopen(url, timeout=60) as response:
-        archive = response.read()
+    with closing(HTTPSConnection("files.pythonhosted.org", timeout=60)) as connection:
+        connection.request("GET", path)
+        with connection.getresponse() as response:
+            if response.status != 200:
+                raise ValueError(f"Download failed for {source} {version}: HTTP {response.status}")
+            archive = response.read()
     if hashlib.sha256(archive).hexdigest() != digest:
         raise ValueError(f"Unexpected source digest for {source} {version}")
     source_directory = (directory / f"{source}-{version}").resolve()
@@ -46,7 +51,7 @@ if __name__ == "__main__":
         destination,
         "browser_harness",
         "0.1.13",
-        "https://files.pythonhosted.org/packages/7f/fe/59ab493e7cf76731a7f5aabae3821eea6ea82a628c14c30e7aed48adc362/browser_harness-0.1.13.tar.gz",
+        "/packages/7f/fe/59ab493e7cf76731a7f5aabae3821eea6ea82a628c14c30e7aed48adc362/browser_harness-0.1.13.tar.gz",
         "284dc547a042c309feafd9a9f4a74b2a8651b7963ea3ac6cb2f2d64889f6a8f3",
         {"pillow==12.3.0": "pillow==13.0.0"},
     )
@@ -54,7 +59,7 @@ if __name__ == "__main__":
         destination,
         "browser_use",
         "0.13.14",
-        "https://files.pythonhosted.org/packages/a2/eb/6b9183ec63541c2c7c1a87c30d142806e7fe3a95748ce95f8e37dcab2335/browser_use-0.13.14.tar.gz",
+        "/packages/a2/eb/6b9183ec63541c2c7c1a87c30d142806e7fe3a95748ce95f8e37dcab2335/browser_use-0.13.14.tar.gz",
         "9bb2f3d7ea215bf67b415c8e6e546413a3712ac5ea775b223b452189f4582d9d",
         {
             "browser-harness==0.1.13": "browser-harness==0.1.13+distilled.1",

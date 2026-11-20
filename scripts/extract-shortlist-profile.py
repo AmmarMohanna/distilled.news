@@ -25,8 +25,15 @@ with source.open('rb') as stream:
     digest = hashlib.file_digest(stream, 'sha256').hexdigest()
 if args.expected_sha256 and digest != args.expected_sha256.lower():
     raise SystemExit('PROFILE_EXPORT_HASH_MISMATCH')
-tables = {'v1_feeds', 'v1_intake_scopes', 'v1_evidence', 'v1_revisions',
-          'v1_inputs', 'v1_intake_receipts', 'v1_feed_documents'}
+count_queries = {
+    'v1_evidence': 'SELECT count(*) FROM v1_evidence',
+    'v1_feed_documents': 'SELECT count(*) FROM v1_feed_documents',
+    'v1_feeds': 'SELECT count(*) FROM v1_feeds',
+    'v1_inputs': 'SELECT count(*) FROM v1_inputs',
+    'v1_intake_receipts': 'SELECT count(*) FROM v1_intake_receipts',
+    'v1_intake_scopes': 'SELECT count(*) FROM v1_intake_scopes',
+    'v1_revisions': 'SELECT count(*) FROM v1_revisions',
+}
 excluded = {'semantic_intents', 'semantic_results', 'semantic_settlements',
             'salience_intents', 'salience_results', 'model_intents', 'model_executions',
             'editorial_proposals', 'semantic_construction_work', 'semantic_construction_progress'}
@@ -58,12 +65,12 @@ try:
     db.execute('PRAGMA foreign_keys=OFF')
     indexes = []
     for sql in statements():
-        if table_name(sql, create=True) in tables:
+        if table_name(sql, create=True) in count_queries:
             db.execute(sql)
         if table_name(sql) in {'v1_feeds', 'v1_intake_scopes'} and args.feed_id in sql:
             db.execute(sql)
         index = re.match(r'^CREATE (?:UNIQUE )?INDEX\s+.+?\s+ON\s+["`\[]?([\w]+)', sql, re.I)
-        if index and index.group(1) in tables:
+        if index and index.group(1) in count_queries:
             indexes.append(sql)
     db.commit()
     scopes = [row[0] for row in db.execute('SELECT id FROM v1_intake_scopes WHERE feed_id=?', (args.feed_id,))]
@@ -72,7 +79,7 @@ try:
     needles = [args.feed_id, *scopes]
     for sql in statements():
         table = table_name(sql)
-        if table not in tables or table in {'v1_feeds', 'v1_intake_scopes'} or not any(n in sql for n in needles):
+        if table not in count_queries or table in {'v1_feeds', 'v1_intake_scopes'} or not any(n in sql for n in needles):
             continue
         if table == 'v1_feed_documents':
             kind = re.search(r"VALUES\s*\('([^']+)'", sql, re.I)
@@ -84,12 +91,7 @@ try:
     for sql in indexes:
         db.execute(sql)
     db.commit()
-    counts = {}
-    for table in sorted(tables):
-        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
-            raise RuntimeError("INVALID_PROFILE_TABLE")
-        # 'tables' is a closed set of literals; the identifier is quoted and validated.
-        counts[table] = db.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]  # nosemgrep: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query -- fixed allowlist
+    counts = {table: db.execute(query).fetchone()[0] for table, query in count_queries.items()}
     print(json.dumps({'scope': 'local retained-export profiling fixture; not a replacement backup',
                       'sqlSha256': digest, 'tables': counts, 'ownedScopes': len(scopes),
                       'bytes': target.stat().st_size, 'elapsedSeconds': time.monotonic() - started,
