@@ -31,12 +31,14 @@ for(const language of ['fr','ar'] as const)test(`natural ${language} copy across
  await page.goto('/owner/science/');
  await expect(page.locator('.feed-check-status')).toHaveAttribute('aria-label',language==='fr'?/^prochaine vérif\. dans /:/^التحقق التالي بعد /);
  if(language==='fr')await expect(page.locator('.feed-check-status-compact')).toHaveText(/^Vérif\. dans /);
- await page.locator('.briefing-reference').first().click();
+ await expect(page.locator('.briefing-reference').first()).toHaveAttribute('href','https://publisher.example/article');
+ await page.locator('.briefing-read-more > summary').click();
+ await page.locator('.briefing-extra-sources').click();
  const details=page.locator('.news-briefing-dialog');
  await expect(details).toBeVisible();
  await expect(details.locator('.news-briefing-source-nav')).toHaveCount(0);
  await expect(details.locator('.news-briefing-additional-sources')).toHaveCount(0);
- await expect(page.locator('.briefing-reference')).toHaveText(['[1]','[2]']);
+ await expect(page.locator('.briefing-reference > bdi')).toHaveText(['[1]','[2]']);
  await details.locator('.news-briefing-references button').nth(1).click();
  await expect(details.locator('.news-briefing-publisher')).toHaveText('supporting.example');
  await expect(details.locator('.news-briefing-read')).toHaveAttribute('href','https://supporting.example/report');

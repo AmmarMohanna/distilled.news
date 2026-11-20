@@ -2,7 +2,6 @@ import {cadenceMetaLabel,formatCountdown,nextBriefingText} from './briefing-labe
 import {useReadProgress} from './useReadProgress';
 import {ApiError, toUiError, type UiMessage} from './api-errors';
 import {FEED_REFRESH_INTERVAL_MS, afterFeedRefresh, initialFeedRefreshState, mayRefreshFeed} from './feed-refresh-policy';
-import {SourceHealth} from './SourceHealth';
 import { useFeedViewer } from './useFeedViewer';
 import { usePageMagnification } from './usePageMagnification';
 import { NewsBriefing } from "./NewsBriefing";
@@ -10,8 +9,12 @@ import {PrivateFeedPage} from './PrivateFeedPage';
 import {briefingReferences} from './briefing-references';
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
+import { CitationReference } from "./CitationReference";
+import { BriefingReadMore } from "./BriefingReadMore";
+import { VerificationCodeInput } from "./VerificationCodeInput";
 import React, { useEffect, useRef, useState } from "react";
-import { FeedNotice, FeedPublicationNotice } from "./FeedNotice";
+import { FeedNotice } from "./FeedNotice";
+import { FeedReaderStatus } from "./FeedReaderStatus";
 import { FeedLoadingSkeleton } from "./FeedLoadingSkeleton";
 import { FeedArt } from "./FeedArt";
 import { UnreadSummary } from './UnreadSummary';
@@ -611,7 +614,7 @@ function AdminCommandPanel(props: {
   );
 }
 
-function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
+export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; onAuthenticated: () => Promise<void> }) {
   const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -624,6 +627,11 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
   const [verificationRecoveryEmail,setVerificationRecoveryEmail]=useState("");
+  const verificationFlow = useRef(0);
+  function clearVerificationRecovery() {
+    verificationFlow.current += 1;
+    setVerificationRecoveryEmail("");
+  }
   const [message, setMessage] = useState("");
   const [error, setError] = useState<UiMessage>("");
   const [emailCode,setEmailCode]=useState("");
@@ -649,11 +657,19 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           setAuthStep("details");
           return;
         }
+        const submittedFlow = verificationFlow.current;
         setSubmitting(true);
         try {
           if(authStep==="code"){
             await verifyEmail({email,code:emailCode});
-            await props.onAuthenticated();
+            if (submittedFlow !== verificationFlow.current) return;
+            setMode("login");
+            setAuthStep("details");
+            setPassword("");
+            setEmailCode("");
+            clearVerificationRecovery();
+            setMessage("Email verified. Sign in to continue.");
+            resetTurnstile();
             return;
           }
           if (requiresTurnstile && !turnstileToken) {
@@ -667,6 +683,7 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           }
           if (mode === "register") {
             await register({ email, username, password, turnstileToken });
+            if (submittedFlow !== verificationFlow.current) return;
             setPassword("");
             setAuthStep("code");
             setMessage("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
@@ -677,15 +694,15 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           if (mode === "forgot") {
             await forgotPassword(email, turnstileToken);
             setMessage("If the account is eligible, an email was requested. Unverified accounts receive a verification code first; verified accounts receive a password-reset link. Check your inbox and spam folder.");
-            setVerificationRecoveryEmail(email.trim().toLowerCase());
             resetTurnstile();
             return;
           }
           await login(email, password, turnstileToken);
           await props.onAuthenticated();
         } catch (cause) {
+          if (submittedFlow !== verificationFlow.current) return;
           setError(toUiError(cause));
-          if(cause instanceof ApiError&&['AUTH_EMAIL_VERIFICATION_REQUIRED','AUTH_EMAIL_REGISTERED'].includes(cause.id))setVerificationRecoveryEmail(email.trim().toLowerCase());
+          if(mode === "register" && cause instanceof ApiError&&['AUTH_EMAIL_VERIFICATION_REQUIRED','AUTH_EMAIL_REGISTERED'].includes(cause.id))setVerificationRecoveryEmail(email.trim().toLowerCase());
           resetTurnstile();
         } finally {
           setSubmitting(false);
@@ -703,10 +720,12 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           <span className="field-help" id="admin-setup-token-help">{t("Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.")}</span>
         </label>
       ) : null}
-      <label className="auth-input">
+      {authStep === "code" ? <div className="auth-input auth-verified-email" role="group" aria-label={t("email")}>
+        <Mail size={21} aria-hidden/><span className="auth-email-address" dir="auto">{email}</span>
+      </div> : <label className="auth-input">
         <span className="sr-only">{t("email")}</span><Mail size={21} aria-hidden/>
-        <input type="email" required placeholder={t("Email address")} autoComplete="email" readOnly={authStep==="code"} value={email} onChange={(event) => setEmail(event.target.value)} />
-      </label>
+        <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); clearVerificationRecovery(); }} />
+      </label>}
       {authStep === "details" && (mode === "register" || props.setupRequired) ? (
         <label>
           <span className="auth-input"><span className="sr-only">{t("username")}</span><User size={21} aria-hidden/>
@@ -730,23 +749,20 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
           <button type="button" className="quiet-icon" aria-label={t(showPassword ? "Hide password" : "Show password")} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button>
         </div>{(mode === "register" || props.setupRequired) && <span className="field-help">{t("At least 8 characters")}</span>}</div>
       ) : null}
-      {authStep==="code" && <label className="auth-input">
-        <span className="sr-only">{t("Verification code")}</span>
-        <input required dir="ltr" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false}
-          placeholder={t("Verification code")} value={emailCode} maxLength={40} onChange={event=>setEmailCode(event.target.value)} />
-      </label>}
+      {authStep==="code" && <VerificationCodeInput value={emailCode} onChange={setEmailCode} label={t("Verification code")} language={preferredLanguage()}/>}
       {(authStep === "details" || authStep === "code") && requiresTurnstile && props.turnstileSiteKey ? (
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
-      {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
+      {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
       <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
         {error ? <p className="auth-error" role="alert">{t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
-      {!props.setupRequired && authStep!=="code" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
+      <div className="auth-verification-actions">
+      {!props.setupRequired && mode==="register" && authStep==="details" && verificationRecoveryEmail && verificationRecoveryEmail===email.trim().toLowerCase() &&
         <button type="button" className="button-link" onClick={()=>{setAuthStep("code");setError("");setMessage("");}}>{t("Enter verification code")}</button>}
-      {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
-      {!props.setupRequired&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
+      {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setMode("login");clearVerificationRecovery();setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
+      {!props.setupRequired&&mode==="register"&&authStep!=="email"&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
         setError("");setMessage("");setSubmitting(true);
         try{
           if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");return;}
@@ -755,8 +771,9 @@ function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: string; o
         }catch(cause){setError(toUiError(cause));}
         finally{resetTurnstile();setSubmitting(false);}
       }}>{t("Resend verification email")}</button>:null}
-      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
-      {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
+      </div>
+      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); clearVerificationRecovery(); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
+      {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
 
     </form>
   );
@@ -938,6 +955,7 @@ function VerifyEmailPage(props: { token: string }) {
               try {
                 await verifyEmail(props.token);
                 setVerified(true);
+                window.location.replace("/login");
               } catch (cause) {
                 setError(toUiError(cause));
               } finally {
@@ -1809,7 +1827,7 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language}/>}/>}
+      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language} isOwnFeed={Boolean(ownedFeed || (account && account.id === payload?.briefing.ownerAccountId))}/>}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
@@ -1876,10 +1894,7 @@ function FeedPage(props: { username: string; slug: string }) {
       ) : null}
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
       {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
-      <FeedPublicationNotice publicationState={payload?.publicationState} hasPublishedEditions={Boolean(payload?.editions.length)} language={language}/>
-      <SourceHealth sources={payload?.sourceAvailability} unavailable={payload?.sourceHealthUnavailable} language={language} t={t} showDetails={false}/>
-      {payload?.publicationState === 'quiet' ? <p className="muted feed-status-message">{t('No new developments in the latest scheduled briefing.')}</p> : null}
-      {payload?.publicationState === 'setup_required' ? <p className="muted feed-status-message" role="status">{t('Briefing generation is awaiting an AI connection.')}</p> : null}
+      <FeedReaderStatus payload={payload} isAdmin={sessionState === "authenticated" && account?.role === "admin"} language={language} t={t}/>
       {summaryMessage ? (
         <p className="muted feed-status-message" lang={language} dir={pageDir}>
           <bdi dir={pageDir}>{summaryMessage}</bdi>
@@ -1903,6 +1918,7 @@ function FeedPage(props: { username: string; slug: string }) {
                   isRead={readIds.has(edition.id)}
                   readProgressUnavailable={readerId===undefined}
                   onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
+                  onLoadDetail={() => loadEditionDetail(edition)}
                   onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
                 />
               ))}
@@ -2000,6 +2016,7 @@ function FeedEditionRow(props: {
   onToggleRead: () => void;
   readProgressUnavailable?: boolean;
   onOpenReport: (sectionIndex: number) => void;
+  onLoadDetail: () => Promise<BriefingEdition | null>;
 }) {
   const { edition, language } = props;
   const textDir = textDirection(props.contentLanguage);
@@ -2009,7 +2026,7 @@ function FeedEditionRow(props: {
   const narrative = normalizeSummary(edition.summary);
   const summary = headline && narrative.startsWith(headline) ? narrative.slice(headline.length).trimStart() : narrative;
   const references = briefingReferences(props.detailEdition ?? edition);
-  const referenceCount = Math.max(references.length, highestReferenceNumber(edition.summary));
+  const referenceCount = Math.max(edition.sections.length ? references.length : 0, highestReferenceNumber(edition.summary));
   const referenceNumbers = Array.from({length: referenceCount}, (_, index) => index + 1);
   const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
   return (
@@ -2025,14 +2042,16 @@ function FeedEditionRow(props: {
         fallbackSummary={summary}
         sections={edition.sections}
         direction={textDir}
-        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <button
-          key={number}
-          type="button"
-          className="briefing-reference"
-          aria-label={referenceButtonLabel(number, language)}
-          aria-busy={props.isLoading}
-          onClick={() => props.onOpenReport(number - 1)}
-        ><bdi dir="ltr">[{number}]</bdi></button>)}
+        renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <CitationReference
+          key={number} number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}
+        />)}
+        renderDetails={(body, sectionIndex) => <BriefingReadMore body={body} sectionIndex={sectionIndex} language={language} loadDetail={props.onLoadDetail}
+          onOpenSources={() => {
+            const reference = references.find(item => item.sectionIndex === (sectionIndex ?? 0));
+            props.onOpenReport(edition.sections.length && reference ? reference.number - 1 : sectionIndex ?? 0);
+          }}
+          renderBody={text => <ReferenceParagraph className="news-summary" text={text} language={language} direction={textDir} referenceCount={referenceCount} onOpenReference={props.onOpenReport}
+            renderReference={number => <CitationReference number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}/>}/>}/>}
         renderBody={text=><ReferenceParagraph
           className="news-summary"
           text={text}
@@ -2068,6 +2087,7 @@ function ReferenceParagraph(props: {
   referenceCount: number;
   className: string;
   onOpenReference: (sectionIndex: number) => void;
+  renderReference?: (number: number) => React.ReactNode;
 }) {
   const textDir = props.direction;
   const parts = referenceTextParts(props.text);
@@ -2090,7 +2110,7 @@ function ReferenceParagraph(props: {
         const canOpen = part.value >= 1 && part.value <= props.referenceCount;
         const following = parts[index + 1];
         const punctuation = following?.kind === "text" ? following.value.match(trailingPunctuation)?.[0] ?? "" : "";
-        const marker = (
+        const marker = props.renderReference && canOpen ? <React.Fragment key={`reference-${part.value}-${index}`}>{props.renderReference(part.value)}</React.Fragment> : (
           <button
             key={`reference-${part.value}-${index}`}
             type="button"
@@ -2130,12 +2150,9 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
   );
 }
 
-function FeedBackLink({ language }: { language: "en" | "ar" | "fr" }) {
+function FeedBackLink({ isOwnFeed, language }: { isOwnFeed: boolean; language: "en" | "ar" | "fr" }) {
   const label = language === "ar" ? "رجوع" : language === "fr" ? "Retour" : "Back";
-  return <a className="feed-nav-back" href="/" onClick={event => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) { event.preventDefault(); window.history.back(); }
-  }}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
+  return <a className="feed-nav-back" lang={language} href={isOwnFeed ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
 }
 
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {

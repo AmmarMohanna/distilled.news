@@ -34,7 +34,7 @@
   --accent-soft: #5e5ce6;
   --accent-warm: #5e5ce6;
   --accent-gold: #5e5ce6;
-  --danger: #1d1d1f;
+  --danger: #c62828;
   --secondary-size: 0.875rem;
   --chrome: rgb(255 255 255 / 88%);
   --sidebar: rgb(245 245 247 / 90%);
@@ -62,7 +62,7 @@
   --muted: #aeb5c2;
   --line: #3b404b;
   --line-strong: #697383;
-  --danger: #ff9299;
+  --danger: #ff8585;
   --chrome: rgb(30 32 37 / 94%);
   --sidebar: rgb(30 32 37 / 96%);
   --shadow: 0 12px 36px rgb(0 0 0 / 24%);
@@ -3124,3 +3124,56 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   -webkit-text-fill-color:var(--text) !important;
   caret-color:var(--text);
 }
+
+/* Keep verification recovery actions together with outlined pill controls. */
+:root.apple-ui.apple-ui .auth-verification-actions { display: flex; align-items: stretch; justify-content: center; gap: 12px; min-width: 0; }
+:root.apple-ui.apple-ui .auth-verification-actions:empty { display: none; }
+:root.apple-ui.apple-ui .auth-verification-actions > button.button-link { flex: 1 1 0; min-width: 0; width: auto; min-height: 44px; padding: 10px 16px; border: 1.5px solid var(--accent); border-radius: 999px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.35; text-align: center; white-space: normal; }
+:root.apple-ui.apple-ui .auth-verification-actions > button.button-link:hover:not(:disabled) { background: color-mix(in srgb,var(--accent) 7%,var(--surface)); border-color: var(--accent); color: var(--accent); }
+:root.apple-ui.apple-ui .auth-verification-actions > button.button-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+:root.apple-ui.apple-ui .auth-verification-actions > button.button-link:disabled { opacity: .5; cursor: default; }
+
+/* Error messages share the same accessible red in every UI surface. */
+:root.apple-ui.apple-ui :is(.auth-error, .error, .source-error, [role="alert"], [data-severity="error"]) { color: var(--danger) !important; }
+:root.apple-ui.apple-ui :is([role="alert"], [data-severity="error"]) :is(p, h2, h3, li, .feed-notice-icon) { color: var(--danger) !important; }
+:root.apple-ui.apple-ui .notice[data-severity="error"] { border-color: color-mix(in srgb,var(--danger) 35%,var(--line)); background: color-mix(in srgb,var(--danger) 4%,var(--surface)); }
+:root.apple-ui.apple-ui .notice[data-severity="error"] .feed-notice-icon { background: color-mix(in srgb,var(--danger) 10%,var(--surface)); }
+:root.apple-ui.apple-ui .auth-unavailable-icon { background: var(--danger); }
+:root.apple-ui.apple-ui[data-theme="dark"] .auth-unavailable-icon { background: var(--danger); }
+/* Arabic glyphs sit lower than the icon within the system font's line box. */
+:root.apple-ui.apple-ui .feed-nav-back { gap: 4px; }
+:root.apple-ui.apple-ui .feed-nav-back > span { display: inline-block; line-height: 1; }
+:root.apple-ui.apple-ui .feed-nav-back:lang(ar) > span { transform: translateY(-.12em); }
+
+/* Compact publisher previews on article citations. */
+:root.apple-ui.apple-ui .citation-reference { position: relative; display: inline-flex; vertical-align: baseline; font-weight: 500; }
+:root.apple-ui.apple-ui .citation-reference > .briefing-reference { text-decoration: none; cursor: pointer; background: transparent; }
+:root.apple-ui.apple-ui .citation-publisher { position: absolute; z-index: 30; inset-block-start: calc(100% + 6px); inset-inline-end: 0; display: flex; align-items: center; gap: 8px; width: max-content; max-width: min(260px,70vw); padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); box-shadow: 0 6px 24px rgb(0 0 0 / 12%); font-size: 14px; line-height: 1.4; visibility: hidden; opacity: 0; pointer-events: none; }
+:root.apple-ui.apple-ui .citation-publisher strong { overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .citation-publisher :is(img,svg) { width: 20px; height: 20px; flex: none; object-fit: contain; }
+:root.apple-ui.apple-ui .citation-reference:is(:hover,:focus-within) .citation-publisher { visibility: visible; opacity: 1; }
+:root.apple-ui.apple-ui .news-story > .news-headline:has(+ .briefing-read-more), :root.apple-ui.apple-ui .news-item > .news-headline:has(+ .briefing-read-more) { display: inline; }
+:root.apple-ui.apple-ui .briefing-read-more { display: inline; margin: 0; margin-inline-start: 8px; padding: 0; border: 0; }
+:root.apple-ui.apple-ui .briefing-read-more > summary { display: inline; padding: 4px 0; list-style: none; cursor: pointer; color: var(--accent-ink); font-size: 14px; font-weight: 500; white-space: nowrap; }
+:root.apple-ui.apple-ui .briefing-read-more > summary::-webkit-details-marker { display: none; }
+:root.apple-ui.apple-ui .briefing-read-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+:root.apple-ui.apple-ui .briefing-expanded-text { margin-block-start: 12px; color: var(--muted); font-size: 16px; font-weight: 400; line-height: 1.6; }
+:root.apple-ui.apple-ui .briefing-expanded-text .news-summary { color: inherit; }
+:root.apple-ui.apple-ui .citation-publisher { pointer-events: auto; }
+:root.apple-ui.apple-ui .citation-publisher::before { content: ""; position: absolute; inset-inline: 0; inset-block-end: 100%; height: 8px; }
+:root.apple-ui.apple-ui .briefing-extra-sources { padding: 6px 0; border: 0; background: transparent; color: var(--accent-ink); font-size: 14px; }
+
+:root.apple-ui.apple-ui .feed-shell .citation-reference > .briefing-reference:is(:hover,:active,:focus) { background: transparent; }
+
+/* Verification codes retain their four groups while each character has a box. */
+:root.apple-ui.apple-ui .verification-code-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: clamp(8px,2vw,18px); min-width: 0; width: 100%; direction: ltr; }
+:root.apple-ui.apple-ui .verification-code-group { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; min-width: 0; }
+:root.apple-ui.apple-ui .verification-code-grid .verification-code-cell { box-sizing: border-box; width: 100%; min-width: 0; height: clamp(36px,6vw,48px); min-height: 36px; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font-size: clamp(14px,2vw,20px); font-weight: 500; line-height: 1; text-align: center; direction: ltr; caret-color: var(--accent); box-shadow: 0 1px 3px rgb(0 0 0 / 4%); }
+:root.apple-ui.apple-ui .verification-code-grid .verification-code-cell:focus { outline: none; border-color: transparent; background: linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(145deg,#6562ff,#e879df) border-box; box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 15%,transparent); }
+@media (max-width: 480px) {
+  :root.apple-ui.apple-ui .verification-code-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 18px; }
+  :root.apple-ui.apple-ui .verification-code-grid .verification-code-cell { height: 44px; font-size: 18px; }
+}
+:root.apple-ui.apple-ui .auth-verified-email .auth-email-address { flex: 1; min-width: 0; padding-block: 8px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; user-select: text; cursor: text; }
+:root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .feed-nav-back { gap: 0; }
+:root.apple-ui.apple-ui .citation-publisher[data-placement="above"]::before { inset-block-start: 100%; inset-block-end: auto; }

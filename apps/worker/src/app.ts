@@ -661,7 +661,7 @@ export function createApp(options: AppOptions = {}) {
     const verified = result.account.emailVerifiedAt
       ? result.account
       : await repo.updateAccount({ id: result.account.id, emailVerifiedAt: new Date().toISOString() });
-    if (result.newlyConsumed) setSessionCookie(c, await createSession(c.env.ADMIN_SESSION_SECRET, verified));
+    // Verification confirms the address; signing in still requires credentials.
     return c.json({ account: publicAccount(verified) });
   });
 

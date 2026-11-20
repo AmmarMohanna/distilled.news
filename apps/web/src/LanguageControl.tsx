@@ -8,6 +8,7 @@ export function preferredLanguage(): Language {
   return value === "fr" || value === "ar" ? value : "en";
 }
 const translations: Record<string, [string, string]> = {
+  'Email verified. Sign in to continue.': ['Adresse e-mail vérifiée. Connectez-vous pour continuer.', 'تم التحقق من بريدك الإلكتروني. سجّل الدخول للمتابعة.'],
   "Back": ["Retour", "رجوع"],
   "Resend verification email": ["Renvoyer l\u2019e-mail de v\u00e9rification", "\u0625\u0639\u0627\u062f\u0629 \u0625\u0631\u0633\u0627\u0644 \u0631\u0633\u0627\u0644\u0629 \u0627\u0644\u062a\u062d\u0642\u0642"],
   "Verify your email": ["Vérifiez votre adresse e-mail", "أكّد بريدك الإلكتروني"],

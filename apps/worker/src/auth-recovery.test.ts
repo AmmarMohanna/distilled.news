@@ -1,7 +1,7 @@
 import {expect,it,vi} from 'vitest';
 import {createApp} from './app';
 import {InMemoryRepository} from './repository';
-import {hashPassword} from './auth';
+import {hashPassword,hashToken} from './auth';
 import type {Env} from './types';
 
 function fixture(){
@@ -10,7 +10,7 @@ function fixture(){
  const config={ADMIN_SESSION_SECRET:'test-session',EMAIL_FROM:'Distilled.news <sender@example.invalid>',PUBLIC_WEB_BASE_URL:'https://distilled.news',EMAIL:{send:async(m:{to:string;subject:string;text:string})=>{messages.push(m)}}} as unknown as Env;
  const post=(path:string,body:unknown)=>app.request(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},config);
  const add=async(email='pending@example.invalid',verified=false)=>repo.createAccount({email,username:email.split('@')[0],passwordHash:await hashPassword('original-password'),role:'user',...(verified?{emailVerifiedAt:new Date().toISOString()}:{})});
- return {repo,config,messages,post,add};
+ return {app,repo,config,messages,post,add};
 }
 it('resends verification for a normalized pending account without changing its identity, password or authentication state',async()=>{
  const x=fixture(),before=await x.add();
@@ -22,10 +22,20 @@ it('resends verification for a normalized pending account without changing its i
  const login=await x.post('/api/auth/login',{email:before.email,password:'original-password'});expect(login.status).toBe(403);expect(await login.json()).toEqual({error:'verify your email before logging in'});
  expect((await x.post('/api/auth/verify-email',{email:'other@example.invalid',code})).status).toBe(400);
  const first=await x.post('/api/auth/verify-email',{email:before.email,code:code.toLowerCase()});
- expect(first.status).toBe(200);expect(first.headers.get('set-cookie')).toContain('dn_session');
+ expect(first.status).toBe(200);expect(first.headers.get('set-cookie')).toBeNull();
+ expect((await x.repo.getAccountById(before.id))?.emailVerifiedAt).toBeDefined();
+ expect(await (await x.app.request('/api/auth/session',{},x.config)).json()).toMatchObject({authenticated:false});
  const replay=await x.post('/api/auth/verify-email',{email:before.email,code});
  expect(replay.status).toBe(400);expect(replay.headers.get('set-cookie')).toBeNull();
  expect((await x.post('/api/auth/login',{email:before.email,password:'original-password'})).status).toBe(200);
+});
+it('verifies legacy email links without creating a session',async()=>{
+ const x=fixture(),account=await x.add(),token='retained-verification-token';
+ await x.repo.createAuthToken({accountId:account.id,purpose:'email_verification',tokenHash:await hashToken(token),expiresAt:new Date(Date.now()+60_000).toISOString()});
+ const response=await x.post('/api/auth/verify-email',{token});
+ expect(response.status).toBe(200);expect(response.headers.get('set-cookie')).toBeNull();
+ expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeDefined();
+ expect(await (await x.app.request('/api/auth/session',{},x.config)).json()).toMatchObject({authenticated:false});
 });
 it('routes password recovery to verification for an unverified account, never issues a reset token first',async()=>{
  const x=fixture(),account=await x.add();const r=await x.post('/api/auth/password/forgot',{email:account.email});

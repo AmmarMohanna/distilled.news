@@ -319,7 +319,10 @@ describe("worker app accounts", () => {
     expect(verifyResponse.status).toBe(200);
     const verifiedAccount=(await repo.getAccountByEmail('user@test.com'))!;
     expect(await repo.listBriefings(verifiedAccount.id)).toEqual([]);
-    const sessionHeaders={cookie:verifyResponse.headers.get('set-cookie')!.split(';')[0]};
+    expect(verifyResponse.headers.get('set-cookie')).toBeNull();
+    const explicitLogin=await app.request('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'user@test.com',password:'password123'})},env(email));
+    expect(explicitLogin.status).toBe(200);
+    const sessionHeaders={cookie:explicitLogin.headers.get('set-cookie')!.split(';')[0]};
     expect(await (await app.request('/api/me/briefings',{headers:sessionHeaders},env(email))).json()).toEqual({briefings:[]});
     // Legacy source/health reads cannot create the old default feed either.
     for(const path of ['/api/me/sources','/api/me/health'])expect((await app.request(path,{headers:sessionHeaders},env(email))).status).toBe(404);

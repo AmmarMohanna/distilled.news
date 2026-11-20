@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { expectCopiedSource, refreshFeed } from "./helpers";
+import { refreshFeed } from "./helpers";
 
 const briefing = { id: "personal", ownerAccountId: "admin-id", ownerUsername: "admin", slug: "personal-briefing", title: "Personal Briefing", stars: 0, interestProfile: "Current events", publicFeedEnabled: true, paused: true, language: "en", briefingCadence: "daily", briefingTimeOfDay: "09:00", briefingTimezone: "UTC", retentionDays: 15 };
 
@@ -88,16 +88,16 @@ test("published headlines open retained briefing evidence and preserve read-only
   });
   await page.goto("/admin/personal-briefing/");
   await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
-  await expect(page.locator(".news-summary")).toHaveCount(0);
+  await expect(page.locator(".news-summary:visible")).toHaveCount(0);
   await expect(page.locator(".news-sources")).toHaveCount(0);
-  await expect(page.locator(".briefing-reference")).toHaveText("[1]");
+  await expect(page.locator(".news-headline .briefing-reference > bdi")).toHaveText("[1]");
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
-  await page.locator(".briefing-reference").click();
-  const report = page.getByRole("dialog", { name: "News Briefing" });
-  await expect(report.locator('.news-briefing-description')).toContainText("Acme released an updated research model [1].");
-  await expectCopiedSource(page, sourceUrl);
-  await expect(report.locator(".news-briefing-read")).toHaveAttribute("href", sourceUrl);
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.locator(".news-headline .briefing-reference")).toHaveAttribute("href", sourceUrl);
+  await page.locator('.briefing-read-more > summary').click();
+  await expect(page.locator('.briefing-expanded-text .news-summary > bdi').first()).toHaveText("Acme released an updated research model");
+  await expect(page.locator('.briefing-expanded-text .briefing-reference')).toHaveAttribute('href',sourceUrl);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.locator('.briefing-read-more > summary').click();
   const readsBefore = feedReads;
   await refreshFeed(page);
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);
@@ -105,5 +105,5 @@ test("published headlines open retained briefing evidence and preserve read-only
   expect(manualRequests).toBe(0);
   await page.reload();
   await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
-  await expect(page.locator(".news-summary")).toHaveCount(0);
+  await expect(page.locator(".news-summary:visible")).toHaveCount(0);
 });
