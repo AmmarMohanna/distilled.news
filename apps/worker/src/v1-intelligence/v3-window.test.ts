@@ -68,16 +68,17 @@ it.each([false,true])('opts new windows into general evidence bindings and durab
  const edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);expect(edition).toBeDefined();expect(calls).toHaveLength(4);
  const id=await windowIdentity('feed-1',window),frozen=await store.read<any>('feed-1','v3_window_inputs',id);
  expect(frozen.input.feed.identityFidelityPolicy).toBe('source-bound-claims-v3');
- expect(frozen.input.feed.verificationInputPolicy).toBe(compact?'reader-unit-context-v1':undefined);
+ expect(frozen.input.feed.verificationInputPolicy).toBe(compact?'reader-unit-context-v2':undefined);
  const proof=JSON.parse(calls.find(r=>r.messages[0].content.startsWith('You are a meticulous source-grounded')).messages[1].content);
- expect(proof.inventory.every((f:any)=>compact?f.claimUnit===f.unit&&!('claim' in f):typeof f.claim==='string'&&!('claimUnit' in f))).toBe(true);
+ // This short fixture must stay on the original wire even when adaptive mode is enabled.
+ expect(proof.inventory.every((f:any)=>typeof f.claim==='string'&&!('claimUnit' in f))).toBe(true);
  expect(await store.list('feed-1','semantic_results')).toHaveLength(4);
  await processV1Briefing({...candidate,BRIEFING_COMPACT_VERIFICATION_ENABLED:String(!compact)},message,()=>window.end,undefined,provider);expect(calls).toHaveLength(4);
 },30000);
 it('keeps compact verification opt-in and freezes a distinct payload policy without changing evidence',async()=>{
  expect(productV3VerificationInputPolicy({})).toBeUndefined();
  expect(productV3VerificationInputPolicy({BRIEFING_COMPACT_VERIFICATION_ENABLED:'true'})).toBeUndefined();
- expect(productV3VerificationInputPolicy({BRIEFING_COMPACT_VERIFICATION_ENABLED:'true',BRIEFING_SOURCE_BINDINGS_ENABLED:'true'})).toBe('reader-unit-context-v1');
+ expect(productV3VerificationInputPolicy({BRIEFING_COMPACT_VERIFICATION_ENABLED:'true',BRIEFING_SOURCE_BINDINGS_ENABLED:'true'})).toBe('reader-unit-context-v2');
  await article();
  const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
  const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,'source-bound-claims-v3',undefined,'reader-unit-context-v1');
@@ -317,7 +318,7 @@ it.each(['v2','v3'] as const)('retains review-before-rematch transport ordering 
  expect(accepted).toEqual([{type:'v1_reassess',jobId:'legacy-review'}]);
  expect(await store.read('feed-1','briefing_requests',id)).toMatchObject({state:'PENDING',engine:'v2'});
 });
-it.each([undefined,'reader-unit-context-v1'] as const)('refreshes an unstarted stale snapshot while preserving its predecessor and reporting window (compact=%s)',async compactPolicy=>{
+it.each([undefined,'reader-unit-context-v1','reader-unit-context-v2'] as const)('refreshes an unstarted stale snapshot while preserving its predecessor and reporting window (compact=%s)',async compactPolicy=>{
  await article();const id=await windowIdentity('feed-1',window),prepared={...await prepareV3Window(store,'feed-1',window,window.end,undefined,4,undefined,false,undefined,undefined,undefined,undefined,undefined,compactPolicy),id};
  await feedTransact(store,'feed-1',async tx=>{await tx.write('briefing_requests',id,{id,feedId:'feed-1',window,state:'PENDING',attempts:0,createdAt:window.end,engine:'v3'});await tx.write('v3_window_inputs',id,prepared)});
  const next=await supersedeFrozenRevision(prepared.evidenceRevisionIds[0]),seen:string[]=[];
