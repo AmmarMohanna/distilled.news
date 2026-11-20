@@ -7,7 +7,6 @@ export function BriefingReadMore({ body, sectionIndex, language, loadDetail, ren
   language: 'en' | 'ar' | 'fr';
   loadDetail: () => Promise<BriefingEdition | null>;
   renderBody: (body: string) => React.ReactNode;
-  onOpenSources?: () => void;
 }) {
   const [loaded, setLoaded] = useState<BriefingEdition>();
   const [open, setOpen] = useState(false);
