@@ -254,7 +254,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 
   await page.goto("/ammar-mohanna/personal/");
 
-  await expect(page.getByRole("link", { name: "Back", exact: true })).toHaveAttribute("href", "/");
+  await expect(page.getByRole("link", { name: "Back", exact: true })).toHaveAttribute("href", "/explore");
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
   await expect(page.getByRole("status", { name: "waiting for the next accepted update.", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
@@ -270,9 +270,12 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.locator(".news-headline > bdi")).toHaveText("Verified updates");
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
-  await expect(page.locator(".news-summary")).toHaveCount(0);
+  await expect(page.locator(".news-summary:visible")).toHaveCount(0);
   await expect(page.locator(".brief-synthesis-text")).toHaveCount(0);
-  await page.locator(".briefing-reference").first().click();
+  await page.locator('.briefing-read-more > summary').click();
+  await expect(page.locator('.briefing-expanded-text')).toContainText('A third operational note stays in the full brief');
+  await expect(page.locator('.briefing-reference').first()).toHaveAttribute('href',item.evidence[0].links[0]);
+  await page.locator('.briefing-extra-sources').click();
   const reportDialog = page.getByRole("dialog", { name: "News Briefing" });
   await expect(reportDialog).toBeVisible();
   await expect(reportDialog.locator('.news-briefing-publisher')).toContainText("t.me");
@@ -316,7 +319,8 @@ test("arabic feed keeps public chrome localized and summary stable when opening 
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
   await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
 
-  await page.locator(".briefing-reference").first().click();
+  await page.locator('.briefing-read-more > summary').click();
+  await page.locator('.briefing-extra-sources').click();
   await expect(page.getByRole("dialog", { name: "موجز الأخبار" })).toBeVisible();
   await page.getByRole("button", { name: "إغلاق", exact: true }).click();
   await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
