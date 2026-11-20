@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.61.0-noble AS browser_use_python
+FROM mcr.microsoft.com/playwright:v1.65.1-noble AS browser_use_python
 
 WORKDIR /app
 RUN corepack enable
@@ -30,7 +30,7 @@ RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
     done
 
 # Preserve the deployed Node dependency layer; Python is copied in separately.
-FROM mcr.microsoft.com/playwright:v1.61.0-noble
+FROM mcr.microsoft.com/playwright:v1.65.1-noble
 WORKDIR /app
 # Only the build needs Corepack/pnpm. Remove them before creating runtime layers.
 ENV COREPACK_HOME=/opt/corepack
