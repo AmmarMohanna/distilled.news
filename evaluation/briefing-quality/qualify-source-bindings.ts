@@ -9,13 +9,14 @@ import {groundedReviewRequest,groundedReview,groundedMetrics} from './worker/src
 import {groundedReviewSchema,claimInventoryAuditSchema} from './worker/src/schema';
 import {assessClaimInventory} from './worker/src/claim-inventory';
 import {verifySourceBoundClaims} from '../../packages/briefing/src/source-bound-claims';
+import {withSharedSchemas} from '../../packages/briefing/src/schema-sharing';
 import {VERIFY_SYSTEM} from '../../packages/briefing/src/prompts';
 import {generateBriefing} from '../../packages/briefing/src/engine';
 import {auditRepairCoverage} from '../../packages/briefing/src/verification-recovery';
 const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const write=(file:string,v:unknown)=>fs.writeFileSync(file,JSON.stringify(v,null,2)+'\n',{flag:'wx'});
 const [mode,dirArg]=process.argv.slice(2),dir=path.resolve(dirArg||'.local-reports/integration/source-bindings-q1');
-type Case={id:string;kind:string;language:string;items:Array<{headline:string;body:string;refs:string[]}>;sources:Array<{ref:string;text:string;title?:string}>;prior:unknown[];context:string;expected:Record<number,'ok'|'reject'>;rationale:string;original?:ModelRequest;engineSnapshot?:any;coverageProbe?:boolean;verificationInputPolicy?:'reader-unit-context-v1'};
+type Case={id:string;kind:string;language:string;items:Array<{headline:string;body:string;refs:string[]}>;sources:Array<{ref:string;text:string;title?:string}>;prior:unknown[];context:string;expected:Record<number,'ok'|'reject'>;rationale:string;original?:ModelRequest;engineSnapshot?:any;coverageProbe?:boolean;verificationInputPolicy?:'reader-unit-context-v1'|'reader-unit-context-v2';sourceInventoryPolicy?:'literal-v1'|'literal-mini-v1'|'literal-v2'|'literal-mini-v2'|'indexed-mini-v1';verificationSchemaPolicy?:'shared-facet-definitions-v1';schemaSharingPolicy?:'shared-definitions-v1'|'source-definitions-v1'};
 function settledSeeds(runDir:string){
  const events=fs.readFileSync(path.join(runDir,'ledger.jsonl'),'utf8').trim().split('\n').map(l=>JSON.parse(l));
  return events.filter(e=>e.state==='SETTLED').flatMap(e=>{const file=path.join(runDir,e.id+'.response.json');if(!fs.existsSync(file))return [];const raw=JSON.parse(fs.readFileSync(file,'utf8')),choice=raw.choices?.[0];if(typeof choice?.message?.content!=='string'||!choice.message.content.trim()||raw.id!==e.generationId||raw.usage.cost!==e.costUsd)return [];
@@ -165,10 +166,10 @@ if(mode==='reconcile-refusals'){
  const line=fs.readFileSync(file,'utf8').split(/\r?\n/).find(l=>/^\s*OPENROUTER_API_KEY\s*=/.test(l));
  let key=line?.slice(line.indexOf('=')+1).trim();if(key&&(key[0]==='"'||key[0]==="'"))key=key.slice(1,key.lastIndexOf(key[0]));if(!key?.startsWith('sk-or-'))throw Error('KEY_NOT_CONFIGURED');
  const models=await (await fetch('https://openrouter.ai/api/v1/models')).json() as any;
- const pricing=models.data.find((v:any)=>v.id===plan.model)?.pricing;
- const rates=plan.model==='openai/gpt-4.1'?{input:2e-6,output:8e-6}:plan.model==='openai/gpt-4.1-mini'?{input:.4e-6,output:1.6e-6}:undefined;
- if(!rates||!pricing||Number(pricing.prompt)>rates.input||Number(pricing.completion)>rates.output)throw Error('PRICING_CEILING_CHANGED');
- write(path.join(dir,'pricing.json'),{at:new Date().toISOString(),model:plan.model,pricing});
+ const ceilings={'openai/gpt-4.1':{input:2e-6,output:8e-6},'openai/gpt-4.1-mini':{input:.4e-6,output:1.6e-6}};
+ const usedModels=[...new Set([plan.model,...(plan.additionalModels??[])])] as string[];
+ const checkedPricing=Object.fromEntries(usedModels.map(model=>{const pricing=models.data.find((v:any)=>v.id===model)?.pricing,limit=ceilings[model as keyof typeof ceilings];if(!limit||!pricing||Number(pricing.prompt)>limit.input||Number(pricing.completion)>limit.output)throw Error('PRICING_CEILING_CHANGED_'+model);return [model,pricing]}));
+ write(path.join(dir,'pricing.json'),{at:new Date().toISOString(),models:checkedPricing});
  if(plan.priorDir&&hash(fs.readFileSync(path.join(plan.priorDir,'ledger.jsonl'),'utf8'))!==plan.priorLedgerHash)throw Error('PRIOR_LEDGER_CHANGED');
  let settled=plan.priorSettledUsd??0,held=plan.priorHeldUsd??0,calls=0,unresolved=false;const outcomes=[];
  const responseCache=new Map<string,{id:string;response:Awaited<ReturnType<ReturnType<typeof openAiCompatibleModel>['complete']>>}>();let nextDispatch=0;
@@ -183,6 +184,7 @@ if(mode==='reconcile-refusals'){
   if(cached){append({state:'REUSED',caseId,system,requestHash,originalId:cached.id});return {...cached.response,costUsd:0}}
   const old=historical.find((v:any)=>['model','system','user','maxTokens','responseSchema'].every(k=>JSON.stringify(v.request[k]??null)===JSON.stringify((request as any)[k]??null)));
   if(old){append({state:'HISTORICAL_REUSE',caseId,system,requestHash,originalId:old.id,originalRequestHash:hash(old.request),originalReportedCostUsd:old.originalUsage.costUsd});return {...old.response,costUsd:0}}
+  const rates=ceilings[request.model as keyof typeof ceilings];if(!rates||!checkedPricing[request.model])throw Error('UNAUTHORIZED_MODEL');
   const reserve=Math.ceil(((Buffer.byteLength(JSON.stringify(request),'utf8')+4096)*rates.input+request.maxTokens*rates.output)*1e6)/1e6;
   if(settled+held+reserve>plan.ceilingUsd||calls>=plan.maxCalls)throw Error('CAMPAIGN_CEILING');
   if(plan.forbiddenRequestHashes?.includes(hash(request)))throw Error('HISTORICAL_UNKNOWN_REQUEST_FORBIDDEN');
@@ -223,7 +225,7 @@ if(mode==='reconcile-refusals'){
    }else if(system==='engine'){
     const frozen=c.engineSnapshot;if(!frozen)throw Error('ENGINE_SNAPSHOT_REQUIRED');
     engineResult=await generateBriefing({...frozen.input,feed:{...frozen.input.feed,...(plan.verificationOutputPolicy?{verificationOutputPolicy:plan.verificationOutputPolicy}:{}),identityFidelityPolicy:plan.preserveFrozenInput?frozen.input.feed.identityFidelityPolicy:plan.atomicReaderAssertions?'source-bound-claims-v3':'source-bound-claims-v2'}},port,{...frozen.models,verifier:plan.model},{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,...(plan.engineOptions??{}),...((c as any).engineOptions??{}),citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(frozen.input.windowEnd),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}});
-   }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(port,meter,{model:plan.model,independentSourceBindings:true,atomicReaderAssertions:plan.atomicReaderAssertions===true,verificationInputPolicy:c.verificationInputPolicy,language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
+   }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(c.schemaSharingPolicy==='shared-definitions-v1'?withSharedSchemas(port):port,meter,{model:plan.model,independentSourceBindings:true,atomicReaderAssertions:plan.atomicReaderAssertions===true,verificationInputPolicy:c.verificationInputPolicy,sourceInventoryPolicy:c.sourceInventoryPolicy,sourceSchemaSharing:c.schemaSharingPolicy==='source-definitions-v1',verificationSchemaPolicy:c.verificationSchemaPolicy,language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
    else{const req=c.original??{model:plan.model,system:VERIFY_SYSTEM,user:JSON.stringify({language:c.language,items:c.items.map((i,index)=>({...i,i:index})),sources:c.sources,prior:c.prior,context:c.context}),maxTokens:3000};
     decisions=await callJson(port,meter,req,raw=>{const rows=(raw as any)?.results;if(!Array.isArray(rows)||rows.length!==c.items.length)throw Error('MISSING_ITEM');const out:Record<number,unknown>={};for(const r of rows){if(!Number.isInteger(r.i)||r.i<0||r.i>=c.items.length||out[r.i]||!['ok','fix','drop','redundant'].includes(r.verdict)||r.issues!==undefined&&(!Array.isArray(r.issues)||r.issues.some((x:unknown)=>typeof x!=='string')))throw Error('INVALID_DECISION');out[r.i]=r}return out});
    }

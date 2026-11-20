@@ -11,6 +11,12 @@ export interface Article {
 }
 
 export interface FeedSpec {
+  /** Lossless structured-request schema sharing; absent on historical snapshots. */
+  schemaSharingPolicy?:'shared-definitions-v1'|'source-definitions-v1';
+  /** Semantically identical fact/citation response schema with shared definitions. */
+  verificationSchemaPolicy?:'shared-facet-definitions-v1';
+  /** Experimental source-only contract/routing, frozen separately from factual verification. */
+  sourceInventoryPolicy?:'literal-v1'|'literal-mini-v1'|'literal-v2'|'literal-mini-v2'|'indexed-mini-v1';
   /** Opt-in wire deduplication; frozen inputs without this retain original requests. */
   verificationInputPolicy?:'reader-unit-context-v1'|'reader-unit-context-v2';
   /** Versioned proof-size batching; never removes reader items or evidence. */

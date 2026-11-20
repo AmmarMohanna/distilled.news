@@ -1,3 +1,4 @@
+import {withSharedSchemas} from './schema-sharing';
 import {editorAccountingSchema,normalizeEditorAccounting,STRUCTURED_ACCOUNTING_CONTRACT} from './structured-accounting';
 import {BriefingOutputError} from './types';
 import {arabicIdentityIssues} from './identity-fidelity';
@@ -412,7 +413,7 @@ async function verify(
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
       if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||independentBindingPolicy(input.feed.identityFidelityPolicy)){
         const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
-          items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
+          items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,sourceInventoryPolicy:input.feed.sourceInventoryPolicy,sourceSchemaSharing:input.feed.schemaSharingPolicy==='source-definitions-v1',verificationSchemaPolicy:input.feed.verificationSchemaPolicy,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
           context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
         for(const [local,decision]of verified)results.set(batch[local],decision);
         return;
@@ -567,6 +568,7 @@ export async function generateBriefing(
   models: BriefingModels,
   overrides: Partial<EngineOptions> = {}
 ): Promise<BriefingResult> {
+  if(input.feed.schemaSharingPolicy==='shared-definitions-v1')port=withSharedSchemas(port);
   if ('v7Experiment' in overrides && overrides.v7Experiment !== undefined) throw new Error('UNSUPPORTED_V7_EXPERIMENT');
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
   if(input.feed.topicSelectionPolicy&&options.architecture)throw Error('TOPIC_SELECTION_ARCHITECTURE_UNQUALIFIED');
