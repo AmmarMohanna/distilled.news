@@ -11,6 +11,12 @@ export interface Article {
 }
 
 export interface FeedSpec {
+  /** Reader-only named-person scope; full-source factual review remains mandatory. */
+  sourcePeoplePolicy?:'reader-names-v1';
+  /** Reuse only validated identical source-only work within this generation. */
+  sourceIdentityReusePolicy?:'within-briefing-v1';
+  /** Versioned lossless proof response encoding; all existing checks still run. */
+  verificationProofPolicy?:'compact-proofs-v1';
   /** Research-only lossless source schema; not emitted by product preparation. */
   schemaSharingPolicy?:'source-definitions-v1';
   /** Opt-in wire deduplication; frozen inputs without this retain original requests. */

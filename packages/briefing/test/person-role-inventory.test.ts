@@ -1,0 +1,3 @@
+﻿import{expect,it}from'vitest';import{decodeInventory}from'../src/source-bound-claims';
+it.each(['The president approved.','الرئيس اللبناني أعلن القرار.','Le président a approuvé.'])('corrects overlapping person/role spans: %s',text=>{const raw={units:{'I0.H':[{personTokens:{start:'T0',end:'T1'},roleTokens:{start:'T0',end:'T1'}}]}};expect(()=>decodeInventory(raw,[{headline:text,body:'',refs:['S1']}],false,true)).toThrow('PERSON_ROLE_INVENTORY_OVERLAP');});
+it('preserves distinct name and title spans',()=>{const f=decodeInventory({units:{'I0.H':[{personTokens:{start:'T1',end:'T2'},roleTokens:{start:'T0',end:'T0'}}]}},[{headline:'President Jane Doe approved.',body:'',refs:['S1']}],false,true);expect(f.some(f=>f.personName==='Jane Doe')).toBe(true)});
