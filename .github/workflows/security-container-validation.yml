@@ -1,0 +1,146 @@
+name: Security - Browser container build and startup
+on:
+  pull_request:
+    paths:
+      - apps/worker/browser-container.Dockerfile
+      - packages/browser-bridge/**
+      - packages/agent-runtime/**
+      - 'apps/*/package.json'
+      - 'packages/*/package.json'
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - patches/**
+      - tsconfig.base.json
+      - .dockerignore
+      - .github/workflows/security-container-validation.yml
+  push:
+    branches: [main, ghada/DevSecOps, ghada/devsecops-security-automation]
+    paths:
+      - apps/worker/browser-container.Dockerfile
+      - packages/browser-bridge/**
+      - packages/agent-runtime/**
+      - 'apps/*/package.json'
+      - 'packages/*/package.json'
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - patches/**
+      - tsconfig.base.json
+      - .dockerignore
+      - .github/workflows/security-container-validation.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: security-browser-image-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build the actual browser image locally
+        run: docker build -f apps/worker/browser-container.Dockerfile -t distilled-browser-security:ci .
+      - name: Verify non-root account and package-manager-free runtime
+        run: |
+          docker run --rm --entrypoint sh distilled-browser-security:ci -c 'test "$(id -u)" -eq 1001 && test "$(id -g)" -eq 1001 && test ! -d /opt/corepack/v1/pnpm && test ! -d /usr/lib/node_modules/npm && node --import tsx --eval "console.log(\"TSX_LOADER_OK\")" | grep -Fx TSX_LOADER_OK'
+      - name: Verify Chromium and Python runtime dependencies offline
+        run: |
+          set -euo pipefail
+          docker run --rm -i --network none --entrypoint node distilled-browser-security:ci --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { chromium } from '@playwright/test';
+          for (const launchOptions of [{}, { executablePath: process.env.DISTILLED_BROWSER_USE_CHROMIUM }]) {
+            const browser = await chromium.launch(launchOptions);
+            try {
+              const page = await browser.newPage();
+              await page.setContent('<title>Browser image smoke test</title>');
+              assert.equal(await page.title(), 'Browser image smoke test');
+              assert.ok((await page.screenshot()).length > 0);
+            } finally {
+              await browser.close();
+            }
+          }
+          JS
+          docker run --rm -i --network none --entrypoint /opt/distilled-browser-use/bin/python distilled-browser-security:ci - <<'PY'
+          from importlib.metadata import version
+          from io import BytesIO
+          import anyio
+          from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult
+          from browser_use.mcp import client
+          from PIL import Image
+          from pypdf import PdfReader, PdfWriter
+
+          assert version("anyio") == "4.14.2"
+          assert version("mcp") == "2.2.0"
+          assert version("pillow") == "13.0.0"
+          assert version("pypdf") == "6.21.4"
+          anyio.run(anyio.sleep, 0)
+          image = BytesIO()
+          Image.new("RGB", (2, 2), "red").save(image, format="PNG")
+          image.seek(0)
+          assert Image.open(image).getpixel((0, 0)) == (255, 0, 0)
+          pdf = BytesIO()
+          writer = PdfWriter()
+          writer.add_blank_page(width=72, height=72)
+          writer.write(pdf)
+          pdf.seek(0)
+          assert len(PdfReader(pdf).pages) == 1
+          PY
+      - name: Launch local bridge and check health (no outside traffic)
+        run: |
+          set -euo pipefail
+          id="$(docker run -d -p 127.0.0.1:18789:8789 -e BROWSER_BRIDGE_INTERNAL_TRANSPORT=true -e BROWSER_BRIDGE_HOST=0.0.0.0 -e BROWSER_BRIDGE_TLS_TERMINATED=true distilled-browser-security:ci)"
+          trap 'docker rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18789/health >/dev/null 2>&1; then exit 0; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' "$id")" != "true" ]; then
+              echo "::error::Browser bridge exited before health check"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::Browser bridge did not become healthy in bounded smoke test"
+          exit 1
+      - name: Report full image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: distilled-browser-security:ci
+          scan-type: image
+          version: v0.76.2
+          scanners: vuln,misconfig
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          format: sarif
+          output: browser-image.sarif
+          exit-code: '0'
+      - name: Publish image code scanning results
+        if: ${{ always() && hashFiles('browser-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: browser-image.sarif
+          category: trivy-browser-image
+      - name: Retain non-secret findings
+        if: ${{ always() && hashFiles('browser-image.sarif') != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-container-sarif
+          path: browser-image.sarif
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Fail on high/critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: distilled-browser-security:ci
+          scan-type: image
+          version: v0.76.2
+          scanners: vuln,misconfig
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: '1'

@@ -9,7 +9,7 @@ import html
 import json
 from pathlib import Path
 import sys
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from bench.processing import normalize
