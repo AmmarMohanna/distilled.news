@@ -771,16 +771,21 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
         <button type="button" className="button-link" onClick={()=>{setAuthStep("code");setError("");setMessage("");}}>{t("Enter verification code")}</button>}
       {authStep==="code" && <button type="button" className="button-link" onClick={()=>{setAuthStep("email");setMode("login");clearVerificationRecovery();setEmailCode("");setError("");setMessage("");resetTurnstile();}}>{t("Back")}</button>}
       {!props.setupRequired&&mode==="register"&&authStep!=="email"&&verificationRecoveryEmail&&verificationRecoveryEmail===email.trim().toLowerCase()?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
+        const requestedFlow=verificationFlow.current;
         setError("");setMessage("");setSubmitting(true);
         try{
-          if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");return;}
+          if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");resetTurnstile();return;}
           await resendVerification(email,turnstileToken);
+          if(requestedFlow!==verificationFlow.current)return;
           setMessage("If this account needs verification, an email was requested. Check your inbox and spam folder. If it still does not arrive, contact support.");
+          resetTurnstile();
         }catch(cause){
+          if(requestedFlow!==verificationFlow.current)return;
           if(cause instanceof ApiError&&cause.id==="AUTH_EMAIL_ALREADY_VERIFIED")clearVerificationRecovery();
           setError(toUiError(cause));
+          resetTurnstile();
         }
-        finally{resetTurnstile();setSubmitting(false);}
+        finally{setSubmitting(false);}
       }}>{t("Resend verification email")}</button>:null}
       </div>
       {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); clearVerificationRecovery(); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}

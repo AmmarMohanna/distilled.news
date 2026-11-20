@@ -157,3 +157,25 @@ it('shows clickable recovery links and no verification actions immediately after
     expect(resendVerification).not.toHaveBeenCalled();
   } finally { await ui.close(); }
 });
+for(const outcome of ['success','error'] as const)it.each(['email','login'] as const)(`ignores a late resend ${outcome} after changing %s`,async navigation=>{
+  const ui=await mount(true);
+  try{
+    const changeEmail=async(value:string)=>act(async()=>{
+      const input=ui.host.querySelector<HTMLInputElement>('input[type="email"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(input,value);
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await changeEmail('previous@example.invalid');
+    vi.mocked(register).mockRejectedValueOnce(new ApiError('AUTH_EMAIL_REGISTERED'));await ui.submit();
+    let finish!:()=>void,fail!:(error:unknown)=>void;
+    vi.mocked(resendVerification).mockImplementationOnce(()=>new Promise<void>((resolve,reject)=>{finish=resolve;fail=reject;}));
+    await ui.click('Resend verification email');
+    if(navigation==='email')await changeEmail('current@example.invalid');else await ui.click('Sign in');
+    await act(async()=>{if(outcome==='success')finish();else fail(new ApiError('AUTH_EMAIL_ALREADY_VERIFIED'));});
+    expect(ui.host.textContent).not.toContain('Email is already verified.');
+    expect(ui.host.querySelector('.auth-message')).toBeNull();expect(ui.actions()).toEqual([]);
+    expect(ui.host.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+    if(navigation==='email')expect(ui.host.querySelector<HTMLInputElement>('input[type="email"]')?.value).toBe('current@example.invalid');
+    else expect(ui.host.querySelector('h2')?.textContent).toBe('Welcome back');
+  }finally{await ui.close();}
+});
