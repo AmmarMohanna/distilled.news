@@ -74,10 +74,12 @@ jobs:
           from io import BytesIO
           import anyio
           from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult
+          from browser_use.mcp import client
           from PIL import Image
           from pypdf import PdfReader, PdfWriter
 
           assert version("anyio") == "4.14.2"
+          assert version("mcp") == "2.2.0"
           assert version("pillow") == "13.0.0"
           assert version("pypdf") == "6.21.4"
           anyio.run(anyio.sleep, 0)

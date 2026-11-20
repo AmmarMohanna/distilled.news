@@ -2,23 +2,38 @@
 
 import hashlib
 import io
+import shutil
 import sys
 import tarfile
 from pathlib import Path
 from urllib.request import urlopen
 
 
-def prepare(directory: Path, source: str, version: str, url: str, digest: str, pins: dict[str, str]) -> None:
+def prepare(
+    directory: Path, source: str, version: str, url: str, digest: str, pins: dict[str, str], revision: int = 1
+) -> None:
     with urlopen(url, timeout=60) as response:
         archive = response.read()
     if hashlib.sha256(archive).hexdigest() != digest:
         raise ValueError(f"Unexpected source digest for {source} {version}")
+    source_directory = (directory / f"{source}-{version}").resolve()
+    source_directory.mkdir(parents=True)
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as package:
-        package.extractall(directory, filter="data")
+        for member in package:
+            target = (directory / member.name).resolve()
+            if not target.is_relative_to(source_directory):
+                raise ValueError(f"Source archive member is outside {source_directory.name}")
+            if member.isdir():
+                continue
+            if not member.isfile():
+                raise ValueError(f"Unexpected source archive member type: {member.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with package.extractfile(member) as data, target.open("xb") as output:
+                shutil.copyfileobj(data, output)
 
-    manifest = directory / f"{source}-{version}" / "pyproject.toml"
+    manifest = source_directory / "pyproject.toml"
     content = manifest.read_text(encoding="utf-8")
-    for old, new in {f'version = "{version}"': f'version = "{version}+distilled.1"', **pins}.items():
+    for old, new in {f'version = "{version}"': f'version = "{version}+distilled.{revision}"', **pins}.items():
         if old not in content:
             raise ValueError(f"Expected pin is missing from {manifest}: {old}")
         content = content.replace(old, new)
@@ -44,7 +59,9 @@ if __name__ == "__main__":
         {
             "browser-harness==0.1.13": "browser-harness==0.1.13+distilled.1",
             "anyio==4.12.1": "anyio==4.14.2",
+            "mcp==2.1.1": "mcp==2.2.0",
             "pillow==12.3.0": "pillow==13.0.0",
             "pypdf==6.16.2": "pypdf==6.21.4",
         },
+        revision=2,
     )

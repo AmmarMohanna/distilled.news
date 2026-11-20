@@ -14,7 +14,7 @@ RUN python3.12 -m venv /opt/distilled-browser-use \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir \
         /tmp/browser-use-sources/browser_harness-0.1.13 /tmp/browser-use-sources/browser_use-0.13.14 \
     && /opt/distilled-browser-use/bin/pip check \
-    && /opt/distilled-browser-use/bin/python -c "from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult; from browser_use.browser.profile import BrowserProfile; from importlib.metadata import version; assert version('browser-use') == '0.13.14+distilled.1'"
+    && /opt/distilled-browser-use/bin/python -c "from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult; from browser_use.browser.profile import BrowserProfile; from importlib.metadata import version; assert version('browser-use') == '0.13.14+distilled.2'"
 # Cloudflare's registry proxy has repeatedly closed the connection on a single
 # 319 MB venv layer. Partition site-packages into smaller, reproducible layers.
 # The Google API static discovery documents are unused by ChatOpenAI and add
