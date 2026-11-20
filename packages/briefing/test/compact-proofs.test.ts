@@ -1,5 +1,5 @@
 import {expect,it}from'vitest';
-import{compactProofSchema,expandCompactProofs}from'../src/compact-proofs';
+import{compactProofSchema,expandCompactProofs,compactAdverseItems}from'../src/compact-proofs';
 const passages=[{id:'S1:P0',source:'S1',quote:'A supported fact.'},{id:'S2:P0',source:'S2',quote:'Another fact.'}];
 it('restores every proof and explanation including uncertain and contradictory findings',()=>{
  const raw={results:{'0':{inventory:'complete',verdict:'fix',issues:['A contradiction.'],priorIds:[],citationChecks:{S1:{s:'supported',q:'S1:P0',x:'Source supports the first claim.'}},facets:{F1:{s:'supported',p:['S1:P0'],x:'Supported first fact.'},F2:{s:'contradicted',p:['S2:P0'],x:'The number differs.'},F3:{s:'uncertain',p:[],x:'Evidence insufficient.'}}}}};
@@ -13,3 +13,5 @@ it('preserves every output obligation and allowed passage while shortening the s
 });
 
 it('isolates malformed item encoding without approving it or discarding a valid sibling',()=>{const good={inventory:'complete',verdict:'ok',issues:[],priorIds:[],citationChecks:{S1:{s:'supported',q:'S1:P0',x:'Supported.'}},facets:{F:{s:'supported',p:['S1:P0'],x:'Supported.'}}};const raw={results:{'0':good,'1':{...good,facets:{F:{s:'supported',p:['invented'],x:'Invalid.'}}}}};const result:any=expandCompactProofs(raw,passages,true);expect(Object.keys(result.results)).toEqual(['0']);expect(result.results['0'].verdict).toBe('ok');expect(()=>expandCompactProofs(raw,passages)).toThrow();});
+
+it('retains negative findings even when their proof encoding is malformed',()=>{expect(compactAdverseItems({results:{'0':{inventory:'complete',verdict:'ok',issues:[],facets:{F:{s:'contradicted',p:['invented']}},citationChecks:{}},'1':{inventory:'uncertain',verdict:'ok',issues:[],facets:{},citationChecks:{}}}})).toEqual(['0','1']);});

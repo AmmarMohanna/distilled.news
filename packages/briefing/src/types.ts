@@ -11,8 +11,6 @@ export interface Article {
 }
 
 export interface FeedSpec {
-  /** Reader-only named-person scope; full-source factual review remains mandatory. */
-  sourcePeoplePolicy?:'reader-names-v1';
   /** Reuse only validated identical source-only work within this generation. */
   sourceIdentityReusePolicy?:'within-briefing-v1';
   /** Versioned lossless proof response encoding; all existing checks still run. */

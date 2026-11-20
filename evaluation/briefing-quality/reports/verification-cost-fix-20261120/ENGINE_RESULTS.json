@@ -1,0 +1,38 @@
+[
+  {
+    "phase": "g2",
+    "id": "lebanon-current",
+    "calls": 7,
+    "inputTokens": 119486,
+    "outputTokens": 10445,
+    "costUsd": 0.072394,
+    "reconstructedUsd": 0.32253200000000004,
+    "normalizedUsd": 0.322532,
+    "unchangedReaderItems": true,
+    "observedReplayMs": 23579,
+    "paidUsage": {
+      "calls": 1,
+      "inputTokens": 21633,
+      "outputTokens": 3641,
+      "costUsd": 0.072394
+    }
+  },
+  {
+    "phase": "g2",
+    "id": "ai-current",
+    "calls": 14,
+    "inputTokens": 256358,
+    "outputTokens": 22526,
+    "costUsd": 0.26954,
+    "reconstructedUsd": 0.6929240000000001,
+    "normalizedUsd": 0.6929239999999999,
+    "unchangedReaderItems": true,
+    "observedReplayMs": 82178,
+    "paidUsage": {
+      "calls": 3,
+      "inputTokens": 81350,
+      "outputTokens": 13355,
+      "costUsd": 0.26954
+    }
+  }
+]

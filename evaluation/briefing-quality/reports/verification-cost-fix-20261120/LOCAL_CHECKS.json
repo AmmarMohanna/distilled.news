@@ -1,0 +1,17 @@
+{
+  "engine": {
+    "passed": 561,
+    "files": 80
+  },
+  "workerSubsets": [
+    {
+      "passed": 4,
+      "scope": "gating, prior default and redelivery"
+    },
+    {
+      "passed": 7,
+      "scope": "gating, independent frozen fields and actual stale recovery"
+    }
+  ],
+  "note": "One gate test appears in both subsets. Local checks are not a remote CI pass."
+}

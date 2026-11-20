@@ -413,7 +413,7 @@ async function verify(
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
       if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||independentBindingPolicy(input.feed.identityFidelityPolicy)){
         const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
-          items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,sourceSchemaSharing:input.feed.schemaSharingPolicy==='source-definitions-v1',compactProofs:input.feed.verificationProofPolicy==='compact-proofs-v1',sourcePeoplePolicy:input.feed.sourcePeoplePolicy,sourceIdentityMemo,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
+          items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,sourceSchemaSharing:input.feed.schemaSharingPolicy==='source-definitions-v1',compactProofs:input.feed.verificationProofPolicy==='compact-proofs-v1',sourceIdentityMemo,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
           context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
         for(const [local,decision]of verified)results.set(batch[local],decision);
         return;

@@ -13,7 +13,7 @@ import {feedFixture,acceptEvidence} from './test-utils';
 import {V1FeedStore,feedTransact,FeedTransaction} from './store';
 import {dispatchV1Intelligence,processV1Briefing,processV1Reassessment,windowIdentity} from './runtime';
 import {publicV1Edition} from './public-read';
-import {prepareV3Window,publishProductV3Window,productV3PromptVersion,productV3VerificationInputPolicy} from './v3-window';
+import {prepareV3Window,publishProductV3Window,productV3PromptVersion,productV3VerificationInputPolicy,productV3VerificationWorkPolicy} from './v3-window';
 import {supersedeUnstartedV3Windows} from './window-catchup';
 import {isAutomaticReportingWindow} from './runtime';
 import {livePublicationWindow} from './schedule';
@@ -1196,3 +1196,14 @@ it.each([
  await expect(publishProductV3Window(env,'feed-1',window,id,()=>window.end,send)).resolves.toBeUndefined();expect(send).not.toHaveBeenCalled();
  expect(await store.read('feed-1','v3_window_results',id)).toEqual(saved);
 });
+
+it('freezes cost work policy only with strong source bindings and preserves source evidence',async()=>{
+ expect(productV3VerificationWorkPolicy({})).toBeUndefined();
+ expect(productV3VerificationWorkPolicy({BRIEFING_VERIFICATION_COST_ENABLED:'true'})).toBeUndefined();
+ expect(productV3VerificationWorkPolicy({BRIEFING_VERIFICATION_COST_ENABLED:'true',BRIEFING_SOURCE_BINDINGS_ENABLED:'true'})).toBe('proofs-and-source-reuse-v1');
+ await article();const old=await prepareV3Window(store,'feed-1',window,testPolicy.now());
+ const next=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,'source-bound-claims-v3',undefined,undefined,'proofs-and-source-reuse-v1');
+ expect(old.input.feed).not.toHaveProperty('verificationProofPolicy');expect(next.input.feed.verificationProofPolicy).toBe('compact-proofs-v1');expect(next.input.feed.sourceIdentityReusePolicy).toBe('within-briefing-v1');expect(next.input.feed).not.toHaveProperty('sourcePeoplePolicy');expect(next.input.articles).toEqual(old.input.articles);expect(next.fingerprint).not.toBe(old.fingerprint);
+});
+
+it.each([{verificationProofPolicy:'compact-proofs-v1' as const},{sourceIdentityReusePolicy:'within-briefing-v1' as const},{}])('preserves independently frozen cost work fields %j',async policy=>{await article();const value=await prepareV3Window(store,'feed-1',window,testPolicy.now(),undefined,4,undefined,false,undefined,undefined,undefined,'source-bound-claims-v3',undefined,undefined,policy);expect(value.input.feed.verificationProofPolicy).toBe(policy.verificationProofPolicy);expect(value.input.feed.sourceIdentityReusePolicy).toBe(policy.sourceIdentityReusePolicy);});

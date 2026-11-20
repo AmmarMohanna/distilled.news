@@ -52,4 +52,20 @@ export function expandCompactProofs(raw: unknown, passages: Array<{ id: string; 
   })) };
 }
 
+/** Preserve received adverse judgments before attempting proof decoding. */
+export function compactAdverseItems(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const results = (raw as Row).results;
+  if (!results || typeof results !== 'object' || Array.isArray(results)) return [];
+  return Object.entries(results).filter(([, v]) => {
+    if (!v || typeof v !== 'object') return false;
+    const r = v as Row;
+    const values = (x: unknown): Row[] => x && typeof x === 'object' ? Object.values(x).filter(v => v && typeof v === 'object') as Row[] : [];
+    return ['fix', 'drop'].includes(r.verdict) || ['incomplete', 'uncertain'].includes(r.inventory) ||
+      Array.isArray(r.issues) && r.issues.length > 0 ||
+      values(r.facets).some(f => ['contradicted', 'unsupported', 'uncertain'].includes(f.s)) ||
+      values(r.citationChecks).some(c => ['unsupported', 'uncertain'].includes(c.s));
+  }).map(([id]) => id);
+}
+
 export const COMPACT_PROOF_WIRE = '\nRESPONSE ENCODING ONLY: use the supplied compact response schema. In citationChecks, s=support, q=evidencePassages ID, x=full explanation. In EVERY facet, s=support, p=array of evidencePassages IDs, x=full explanation. Each passage ID uniquely binds its source; do not return a separate source field. Preserve ALL facet decisions, FULL_READER obligations, citation checks, adverse findings, uncertainty and explanatory reasoning. Inventory, verdict, issues and priorIds keep their original meanings. This encoding overrides earlier response-shape examples only, never the verification requirements.';
