@@ -9,7 +9,6 @@ import {groundedReviewRequest,groundedReview,groundedMetrics} from './worker/src
 import {groundedReviewSchema,claimInventoryAuditSchema} from './worker/src/schema';
 import {assessClaimInventory} from './worker/src/claim-inventory';
 import {verifySourceBoundClaims} from '../../packages/briefing/src/source-bound-claims';
-import {withSharedSchemas} from '../../packages/briefing/src/schema-sharing';
 import {VERIFY_SYSTEM} from '../../packages/briefing/src/prompts';
 import {generateBriefing} from '../../packages/briefing/src/engine';
 import {auditRepairCoverage} from '../../packages/briefing/src/verification-recovery';
@@ -108,7 +107,7 @@ if(mode==='reconcile-refusals'){
   runs.push({run:path.basename(runDir),plan:{...plan,priorDir:plan.priorDir?path.basename(plan.priorDir):undefined},totals,originalTotals,
    inputFileHash:hash(cases),ledgerFileHash:hash(fs.readFileSync(path.join(runDir,'ledger.jsonl'),'utf8')),
    cases:cases.map(c=>({id:c.id,kind:c.kind,language:c.language,expected:c.expected,rationale:c.rationale,itemsHash:hash(c.items),sourcesHash:hash(c.sources),priorHash:hash(c.prior),engineSnapshotHash:c.engineSnapshot?hash(c.engineSnapshot):undefined})),
-   controlledCases:cases.filter(c=>c.kind==='constructed-control'),outcomes,
+   controlledCases:cases.filter(c=>c.kind==='constructed-control').map(c=>({id:c.id,kind:c.kind,language:c.language,expected:c.expected,rationale:c.rationale,itemsHash:hash(c.items),sourcesHash:hash(c.sources),priorHash:hash(c.prior)})),outcomes,
    operations:reservations.map(r=>({...r,receipt:receipts.find(v=>v.id===r.id),refusal:ledger.find(e=>e.id===r.id&&['REFUSED','REFUSAL_RECONCILED'].includes(e.state)),responseHash:fs.existsSync(path.join(runDir,r.id+'.response.json'))?hash(read(r.id+'.response.json')):null})),reuses:ledger.filter(e=>['REUSED','HISTORICAL_REUSE'].includes(e.state))});
  }
  write(path.join(dir,'measurements.json'),{scope:'Development qualification only. Exact request/response payloads retained privately; immutable hashes and provider receipts below. Hashes use SHA256(JSON.stringify(parsed JSON)); ledger hashes use SHA256(JSON.stringify(raw UTF8 text)). Failed inventories are NOT true-positive factual detections.',runs});
@@ -157,6 +156,7 @@ if(mode==='reconcile-refusals'){
 }else if(mode==='run'){
  const plan=JSON.parse(fs.readFileSync(path.join(dir,'plan.json'),'utf8')),cases=JSON.parse(fs.readFileSync(path.join(dir,'cases.json'),'utf8')) as Case[];
  if(![2,5,5.5].includes(plan.ceilingUsd)||hash(cases)!==plan.casesHash)throw Error('FROZEN_PLAN_CHANGED');
+ if(cases.some(c=>c.sourceInventoryPolicy||c.verificationSchemaPolicy||c.schemaSharingPolicy==='shared-definitions-v1'||c.engineSnapshot?.input?.feed?.sourceInventoryPolicy||c.engineSnapshot?.input?.feed?.verificationSchemaPolicy||c.engineSnapshot?.input?.feed?.schemaSharingPolicy==='shared-definitions-v1'))throw Error('REJECTED_RESEARCH_ARM_USE_IMMUTABLE_CHECKPOINT_08d770bf');
  const journal=path.join(dir,'ledger.jsonl');
  // Single-process, append-only campaign. A restart never resends anything.
  const lock=fs.openSync(path.join(dir,'run.lock'),'wx');fs.closeSync(lock);
@@ -225,7 +225,7 @@ if(mode==='reconcile-refusals'){
    }else if(system==='engine'){
     const frozen=c.engineSnapshot;if(!frozen)throw Error('ENGINE_SNAPSHOT_REQUIRED');
     engineResult=await generateBriefing({...frozen.input,feed:{...frozen.input.feed,...(plan.verificationOutputPolicy?{verificationOutputPolicy:plan.verificationOutputPolicy}:{}),identityFidelityPolicy:plan.preserveFrozenInput?frozen.input.feed.identityFidelityPolicy:plan.atomicReaderAssertions?'source-bound-claims-v3':'source-bound-claims-v2'}},port,{...frozen.models,verifier:plan.model},{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,...(plan.engineOptions??{}),...((c as any).engineOptions??{}),citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(frozen.input.windowEnd),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}});
-   }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(c.schemaSharingPolicy==='shared-definitions-v1'?withSharedSchemas(port):port,meter,{model:plan.model,independentSourceBindings:true,atomicReaderAssertions:plan.atomicReaderAssertions===true,verificationInputPolicy:c.verificationInputPolicy,sourceInventoryPolicy:c.sourceInventoryPolicy,sourceSchemaSharing:c.schemaSharingPolicy==='source-definitions-v1',verificationSchemaPolicy:c.verificationSchemaPolicy,language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
+   }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(port,meter,{model:plan.model,independentSourceBindings:true,atomicReaderAssertions:plan.atomicReaderAssertions===true,verificationInputPolicy:c.verificationInputPolicy,sourceSchemaSharing:c.schemaSharingPolicy==='source-definitions-v1',language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
    else{const req=c.original??{model:plan.model,system:VERIFY_SYSTEM,user:JSON.stringify({language:c.language,items:c.items.map((i,index)=>({...i,i:index})),sources:c.sources,prior:c.prior,context:c.context}),maxTokens:3000};
     decisions=await callJson(port,meter,req,raw=>{const rows=(raw as any)?.results;if(!Array.isArray(rows)||rows.length!==c.items.length)throw Error('MISSING_ITEM');const out:Record<number,unknown>={};for(const r of rows){if(!Number.isInteger(r.i)||r.i<0||r.i>=c.items.length||out[r.i]||!['ok','fix','drop','redundant'].includes(r.verdict)||r.issues!==undefined&&(!Array.isArray(r.issues)||r.issues.some((x:unknown)=>typeof x!=='string')))throw Error('INVALID_DECISION');out[r.i]=r}return out});
    }

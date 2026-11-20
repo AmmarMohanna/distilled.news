@@ -1,5 +1,3 @@
-import type { ModelPort } from './model';
-
 /** Lossless wire optimization. Parsed output and every schema constraint stay unchanged. */
 export function shareSchemaDefinitions(schema: Record<string, any>): Record<string, any> {
   if (schema.$defs) return schema;
@@ -50,12 +48,4 @@ export function shareSchemaDefinitions(schema: Record<string, any>): Record<stri
   const before = JSON.stringify(schema), after = JSON.stringify(result);
   return after.length < before.length && new TextEncoder().encode(after).length < new TextEncoder().encode(before).length
     ? result : schema;
-}
-
-export function withSharedSchemas(port: ModelPort): ModelPort {
-  return { complete(request) {
-    if (!request.responseSchema) return port.complete(request);
-    const responseSchema = shareSchemaDefinitions(request.responseSchema);
-    return port.complete(responseSchema === request.responseSchema ? request : { ...request, responseSchema });
-  } };
 }
