@@ -57,6 +57,20 @@ it('rejects another verification request for a verified address without sending 
  expect(response.headers.get('set-cookie')).toBeNull();expect(x.messages).toHaveLength(0);
  expect(await x.repo.getAccountById(account.id)).toEqual(account);
 });
+it('recognizes verified addresses immediately on registration without changing the account or sending mail',async()=>{
+ const x=fixture(),account=await x.add('verified@example.invalid',true);
+ const response=await x.post('/api/auth/register',{email:'VERIFIED@EXAMPLE.INVALID',username:'another-name',password:'another-password'});
+ expect(response.status).toBe(409);
+ expect(await response.json()).toEqual({error:'Email is already verified. Please sign in or reset your password.'});
+ expect(response.headers.get('set-cookie')).toBeNull();expect(x.messages).toHaveLength(0);
+ expect(await x.repo.getAccountById(account.id)).toEqual(account);
+});
+it('keeps pending accounts eligible for verification recovery after registration is rejected',async()=>{
+ const x=fixture(),account=await x.add();
+ const response=await x.post('/api/auth/register',{email:account.email,username:'another-name',password:'another-password'});
+ expect(response.status).toBe(409);expect(await response.json()).toEqual({error:'email is already registered'});
+ expect(x.messages).toHaveLength(0);expect(await x.repo.getAccountById(account.id)).toEqual(account);
+});
 it('shares verification resend throttling with password recovery and never bypasses it by changing route',async()=>{
  const x=fixture(),a=await x.add();for(let i=0;i<5;i++)expect((await x.post(i%2?'/api/auth/password/forgot':'/api/auth/verification/resend',{email:a.email})).status).toBe(200);
  expect(x.messages).toHaveLength(5);expect((await x.post('/api/auth/verification/resend',{email:a.email})).status).toBe(429);expect(x.messages).toHaveLength(5);

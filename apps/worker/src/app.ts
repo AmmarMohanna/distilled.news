@@ -1818,7 +1818,11 @@ async function createAccountOrError(
 ): Promise<AccountRecord> {
   const email = normalizeEmail(input.email);
   const username = normalizeUsername(input.username);
-  if (await repo.getAccountByEmail(email)) throw new Error("email is already registered");
+  const existing = await repo.getAccountByEmail(email);
+  if (existing) {
+    if (!input.verified && existing.emailVerifiedAt && !existing.disabledAt) throw new Error("Email is already verified. Please sign in or reset your password.");
+    throw new Error("email is already registered");
+  }
   await assertUsernameAvailable(repo, username);
   return repo.createAccount({
     email,
