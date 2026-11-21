@@ -199,7 +199,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
       family==='google_news'?['google_rss',...(budgets.google_apify>0&&ceilings.apify>0?['google_apify']:[])]:
       family==='website'?['website_http','website_playwright',...(budgets.zyte>0&&ceilings.zyte>0&&
         !await hasUncertainSourcePayment(env.DB,row.briefing_id,id,['zyte'],true)?['website_zyte']:[])]:
-      family.startsWith('linkedin_')?['linkedin_apify']:
+      family.startsWith('linkedin_')?DEFAULT_SOURCE_ORDER[family]:
       ['x_twitterapi_io','x_apify'].filter(provider=>provider==='x_twitterapi_io'?budgets.x_twitterapi_io>0&&ceilings.twitterApiIo>0:budgets.x_apify>0&&ceilings.apify>0);
     await scheduleProviderWindow(env.DB,backend.scheduler,request,now,order);
     if(family==='telegram')await scheduleRecentTelegramRecheck(env.DB,backend.scheduler,request,now,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?intervalMs:86400000);

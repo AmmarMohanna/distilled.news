@@ -1,8 +1,8 @@
 import type { FetchRun } from './ports';
 import type { SourceProvider, SourceFetchRequest, ProviderPage, SourceFamily } from './provider-types';
-import { SourceProviderError } from './provider-types';
+import { INNOLABS_LINKEDIN_ACTOR, LINKEDIN_INNOLABS_PROVIDER, providerBillingId, SourceProviderError } from './provider-types';
 import { requireProviderSuccess, type ProviderHttpPort } from './provider-http';
-import { normalizeProviderRecords, record, string } from './provider-normalize';
+import { articleUrl, normalizeProviderRecords, record, string, timestamp } from './provider-normalize';
 
 export type SecretResolver=(providerId:string)=>Promise<string|undefined>;
 const validateAccount=(value:string)=>{const v=value.replace(/^@/,'');if(!/^[A-Za-z0-9_]{1,32}$/.test(v))throw new Error('INVALID_ACCOUNT');return v;};
@@ -46,6 +46,41 @@ export class TwitterApiIoProvider implements SourceProvider {
 export const TESTED_ACTORS={google_news:'groupoject/google-news-scraper',x:'kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest',
   linkedin_company:'harvestapi/linkedin-company-posts',linkedin_profile:'harvestapi/linkedin-profile-posts'} as const;
 
+function linkedinCompanyPath(value: unknown): string | undefined {
+  const url = articleUrl(value);
+  if(!url)return undefined;
+  const parsed = new URL(url);
+  if(parsed.protocol==='https:'&&/(^|\.)linkedin\.com$/.test(parsed.hostname)){
+    return parsed.pathname.match(/^\/company\/([\w.-]+)\/?$/i)?.[1].toLowerCase();
+  }
+}
+
+function innolabsCompanyPosts(rows: unknown[], locator: string) {
+  const company = linkedinCompanyPath(locator);
+  const posts: Record<string, unknown>[] = [];
+  for(const raw of rows){
+    const row = record(raw);
+    if(row.type === 'SUMMARY' || row.type === 'summary')continue;
+    const url = articleUrl(row.postUrl);
+    const activity = string(row.activityUrn);
+    const postId = string(row.postId);
+    // Use the HarvestAPI activity URN key so an actor change does not create a new item.
+    const urn = activity ?? (postId && /^\d+$/.test(postId) ? 'urn:li:activity:' + postId : undefined);
+    const postUrl = url ? new URL(url) : undefined;
+    const linkedActivityId = postUrl?.pathname.match(/activity[-:](\d+)/)?.[1];
+    const sourceCompany = linkedinCompanyPath(row.sourceCompanyUrl);
+    if(row.type!=='post'||!urn||!/^urn:li:activity:\d+$/.test(urn)||
+      !postUrl||postUrl.protocol!=='https:'||!/(^|\.)linkedin\.com$/.test(postUrl.hostname)||
+      !/^\/(?:posts|feed\/update)\//.test(postUrl.pathname)||!timestamp(row.postedAt)||
+      (linkedActivityId&&urn!=='urn:li:activity:'+linkedActivityId)||
+      (row.sourceCompanyUrl!=null&&(!company||sourceCompany!==company))){
+      throw new SourceProviderError('MALFORMED',undefined,{detail:'INNOLABS_DATASET_INVALID'});
+    }
+    posts.push({id:urn,url,text:row.text,postedAt:row.postedAt,author:row.author});
+  }
+  return normalizeProviderRecords(posts,'linkedin_company');
+}
+
 export class ApifySourceProvider implements SourceProvider {
   constructor(readonly id:string,readonly families:SourceFamily[],private readonly http:ProviderHttpPort,
     private readonly secrets:SecretResolver,private readonly ceilingUsd:number,private readonly actorOverride?:string){}
@@ -53,7 +88,9 @@ export class ApifySourceProvider implements SourceProvider {
     if(input.recheckItemKeys)throw new SourceProviderError('UNAVAILABLE');
     const token=await this.secrets('apify');if(!token)throw new SourceProviderError('UNAVAILABLE');
     const start=Date.now(),headers={authorization:`Bearer ${token}`,'content-type':'application/json'};
-    const actor=this.actorOverride??(input.source.family==='x_profile'||input.source.family==='x_search'?TESTED_ACTORS.x:
+    const innolabs = this.id === LINKEDIN_INNOLABS_PROVIDER;
+    const billingId = providerBillingId(this.id);
+    const actor=this.actorOverride??(innolabs?INNOLABS_LINKEDIN_ACTOR:input.source.family==='x_profile'||input.source.family==='x_search'?TESTED_ACTORS.x:
       input.source.family==='google_news'?TESTED_ACTORS.google_news:input.source.family==='linkedin_company'?TESTED_ACTORS.linkedin_company:
         input.source.family==='linkedin_profile'?TESTED_ACTORS.linkedin_profile:input.source.actorId);
     if(!actor||!/^[-\w]+\/[-\w]+$/.test(actor))throw new SourceProviderError('UNAVAILABLE');
@@ -66,7 +103,7 @@ export class ApifySourceProvider implements SourceProvider {
     if(!actorRun){
       const url=new URL(`https://api.apify.com/v2/actors/${actor.replace('/','~')}/runs`);
       url.searchParams.set('maxTotalChargeUsd',String(this.ceilingUsd));url.searchParams.set('timeout','60');url.searchParams.set('waitForFinish','1');
-      const response=await this.http.request(input.scope,run.id+':start',this.id,this.ceilingUsd,url.href,
+      const response=await this.http.request(input.scope,run.id+':start',billingId,this.ceilingUsd,url.href,
         {method:'POST',headers,body:JSON.stringify(this.actorInput(input))});requests++;requireProviderSuccess(response);
       actorRun=string(record(record(response.json).data).id);
       if(!actorRun)throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
@@ -75,19 +112,24 @@ export class ApifySourceProvider implements SourceProvider {
       return {items:[],raw:response.bytes,continuationToken:JSON.stringify({actor,runId:actorRun,offset}),
         requests,latencyMs:Date.now()-start,providerCostUsd:null};
     }
-    const status=await this.http.request(input.scope,run.id+':status',this.id,0.000001,`https://api.apify.com/v2/actor-runs/${actorRun}`,{headers});
+    const status=await this.http.request(input.scope,run.id+':status',billingId,0.000001,`https://api.apify.com/v2/actor-runs/${actorRun}`,{headers});
     requests++;requireProviderSuccess(status);const data=record(record(status.json).data);
     const next=()=>JSON.stringify({actor,runId:actorRun,offset});
-    if(['RUNNING','READY'].includes(data.status))return {items:[],raw:status.bytes,continuationToken:next(),requests,latencyMs:Date.now()-start,providerCostUsd:null};
+    if(innolabs&&data.id!==actorRun)throw new SourceProviderError('MALFORMED');
+    if(['RUNNING','READY'].includes(data.status)||(innolabs&&['ABORTING','TIMING-OUT'].includes(data.status)))return {items:[],raw:status.bytes,continuationToken:next(),requests,latencyMs:Date.now()-start,providerCostUsd:null};
+    if(innolabs&&['FAILED','TIMED-OUT','ABORTED'].includes(data.status)){
+      throw new SourceProviderError('TRANSIENT',undefined,{detail:'INNOLABS_RUN_FAILED'});
+    }
     if(data.status!=='SUCCEEDED')throw new SourceProviderError('TRANSIENT');
-    dataset=string(data.defaultDatasetId);if(!dataset||!/^\w+$/.test(dataset))throw new SourceProviderError('MALFORMED');
+    dataset=string(data.defaultDatasetId);
+    if(!dataset||!/^\w+$/.test(dataset))throw new SourceProviderError('MALFORMED',undefined,innolabs?{detail:'INNOLABS_DATASET_INVALID'}:undefined);
     const url=new URL(`https://api.apify.com/v2/datasets/${dataset}/items`);url.searchParams.set('format','json');url.searchParams.set('clean','false');
     url.searchParams.set('offset',String(offset));url.searchParams.set('limit',String(input.limit));
-    const response=await this.http.request(input.scope,run.id+':dataset',this.id,0.000001,url.href,{headers});requests++;requireProviderSuccess(response);
-    if(!Array.isArray(response.json))throw new SourceProviderError('MALFORMED');
+    const response=await this.http.request(input.scope,run.id+':dataset',billingId,0.000001,url.href,{headers});requests++;requireProviderSuccess(response);
+    if(!Array.isArray(response.json))throw new SourceProviderError('MALFORMED',undefined,innolabs?{detail:'INNOLABS_DATASET_INVALID'}:undefined);
     offset+=response.json.length;
     // An extra bounded empty page may be required; dataset exhaustion is not source recall proof.
-    const items=normalizeProviderRecords(response.json,input.source.family);
+    const items=innolabs?innolabsCompanyPosts(response.json,input.source.locator):normalizeProviderRecords(response.json,input.source.family);
     if(['x_profile','x_search'].includes(input.source.family))verifyXWindow(input,items);
     return {items,raw:response.bytes,
       continuationToken:response.json.length===input.limit?next():undefined,requests,latencyMs:Date.now()-start,
@@ -95,6 +137,10 @@ export class ApifySourceProvider implements SourceProvider {
       providerCostUsd:null};
   }
   private actorInput(input:SourceFetchRequest):Record<string,unknown>{
+    if(this.id===LINKEDIN_INNOLABS_PROVIDER){
+      const limit = Math.min(input.limit,70);
+      return {companyUrls:[input.source.locator],maxPostsPerCompany:limit,maxItems:limit,includeComments:false};
+    }
     if(input.source.family==='google_news')return {queries:[input.source.locator],geo:input.source.region??'US',language:input.source.language??'en',maxItemsPerQuery:input.limit,maxQueries:1,dedupe:true,enableAnalysis:false,monitoringMode:false,
       publishedFrom:input.requestedBounds.startTime,publishedThrough:input.requestedBounds.endTime};
     if(['x_profile','x_search'].includes(input.source.family)){
