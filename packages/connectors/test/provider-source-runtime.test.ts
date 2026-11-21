@@ -5,7 +5,7 @@ import { SOURCE_STORAGE_SCHEMA,R2SourcePayloadStore,type SqlDatabase,type SqlSta
 import { PROVIDER_SOURCE_SCHEMA,D1ProviderSourceRepository } from '../src/source-runtime/provider-storage';
 import { FallbackSourceCollector } from '../src/source-runtime/provider-collector';
 import { DurableProviderHttp,PROVIDER_BUDGET_SCHEMA,collectorBudgetDay } from '../src/source-runtime/provider-http';
-import { DEFAULT_SOURCE_ORDER,SourceProviderError,type SourceProvider,type SourceFetchRequest,type ProviderPage } from '../src/source-runtime/provider-types';
+import { DEFAULT_SOURCE_ORDER,LINKEDIN_INNOLABS_PROVIDER,SourceProviderError,type SourceProvider,type SourceFetchRequest,type ProviderPage } from '../src/source-runtime/provider-types';
 import { FeedSourceProvider,TelegramSourceProvider } from '../src/source-runtime/platform-providers';
 import { TwitterApiIoProvider,ApifySourceProvider } from '../src/source-runtime/social-providers';
 import { WebsiteSourceProvider } from '../src/source-runtime/website-providers';
@@ -334,14 +334,73 @@ describe('fallback policy and durable handoff',()=>{
     const collected:string[][]=[];
     for(let window=1;window<=3;window++){
       const input={...request,runId:'window'+window,source:{family,locator:'https://www.linkedin.com/company/example'},limit:3};
-      const start=await collector.collect(input);
+      const start=await collector.collect(input,['linkedin_apify']);
       if(start.state!=='HANDED_OFF')throw Error('NO_START');
-      const result=await collector.collect({...input,runId:input.runId+':page',continuation:start.continuation});
+      const result=await collector.collect({...input,runId:input.runId+':page',continuation:start.continuation},['linkedin_apify']);
       if(result.state!=='HANDED_OFF')throw Error('NO_RESULT');
       collected.push(result.request.observations.map(o=>o.sourceItemKey));
     }
     expect(collected).toEqual([['linkedin:urn:li:activity:1'],['linkedin:urn:li:activity:2'],[]]);
     expect(actor).toBe(3);
+  });
+
+  it.each(['success','failed actor','invalid dataset','wrong company','monthly limit','unconfirmed start'] as const)(
+    'routes LinkedIn company posts through the shared Apify ledger for %s',async scenario=>{
+    const s=setup([]);
+    const companyUrl='https://www.linkedin.com/company/example';
+    const post={type:'post',activityUrn:'urn:li:activity:42',postId:'42',postUrl:'https://www.linkedin.com/posts/example_activity-42-example',text:'Company update',postedAt:time,sourceCompanyUrl:companyUrl};
+    const dispatch=vi.fn(async(url:string,init?:RequestInit)=>{
+      if(url.includes('innolabs~')){
+        expect(JSON.parse(String(init?.body))).toEqual({companyUrls:[companyUrl],maxPostsPerCompany:2,maxItems:2,includeComments:false});
+        if(scenario==='monthly limit')return Response.json({error:{type:'platform-feature-disabled',message:'Monthly usage hard limit exceeded'}},{status:403});
+        if(scenario==='unconfirmed start')return Response.json({error:'gateway unavailable'},{status:502});
+        return Response.json({data:{id:'innolabsRun'}});
+      }
+      if(url.includes('harvestapi~'))return Response.json({data:{id:'harvestRun'}});
+      if(url.includes('/actor-runs/innolabsRun'))return Response.json({data:scenario==='failed actor'?{id:'innolabsRun',status:'FAILED'}:{id:'innolabsRun',status:'SUCCEEDED',defaultDatasetId:'innolabsData'}});
+      if(url.includes('/datasets/innolabsData/')){
+        if(scenario==='invalid dataset')return Response.json([{type:'post',text:'Unidentified'}]);
+        if(scenario==='wrong company')return Response.json([{...post,sourceCompanyUrl:'https://www.linkedin.com/company/unrelated'}]);
+        return Response.json([post,{type:'SUMMARY'}]);
+      }
+      if(url.includes('/actor-runs/harvestRun'))return Response.json({data:{status:'SUCCEEDED',defaultDatasetId:'harvestData'}});
+      if(url.includes('/datasets/harvestData/'))return Response.json([{urn:post.activityUrn,url:post.postUrl,text:post.text,postedAt:{date:time}}]);
+      throw Error('UNEXPECTED_REQUEST');
+    });
+    const http=new DurableProviderHttp(s.db,s.payloads,dispatch);
+    await http.configureLimit('linkedin_apify',1);
+    const collectors=[new ApifySourceProvider(LINKEDIN_INNOLABS_PROVIDER,['linkedin_company'],http,async()=> 'fixture-token',.1),
+      new ApifySourceProvider('linkedin_apify',['linkedin_company'],http,async()=> 'fixture-token',.1)];
+    const collector=new FallbackSourceCollector(s.repository,s.payloads,s.intake,collectors,()=>time);
+    const input:SourceFetchRequest={...request,source:{family:'linkedin_company',locator:companyUrl}};
+    if(scenario==='unconfirmed start'){
+      await expect(collector.collect(input)).rejects.toMatchObject({code:'UNCERTAIN_PAID_SUBMISSION'});
+      expect(s.db.db.prepare('SELECT provider_id,payload_ref FROM connector_provider_operations').all()).toEqual([{provider_id:'linkedin_apify',payload_ref:null}]);
+      expect(dispatch).toHaveBeenCalledTimes(1);
+      return;
+    }
+    const first=await collector.collect(input);
+    if(scenario==='monthly limit'){
+      expect(first).toMatchObject({state:'FETCH_FAILED',attempts:[{providerId:LINKEDIN_INNOLABS_PROVIDER,failure:'BUDGET_EXCEEDED',diagnostic:{detail:'PROVIDER_MONTHLY_USAGE_LIMIT'}}]});
+      await collector.collect(input);
+      expect(dispatch).toHaveBeenCalledTimes(1);
+      return;
+    }
+    expect(first).toMatchObject({state:'HANDED_OFF',providerId:LINKEDIN_INNOLABS_PROVIDER});
+    if(first.state!=='HANDED_OFF')throw Error('NO_START');
+    const next={...input,runId:'actor-result',continuation:first.continuation};
+    const result=await collector.collect(next);
+    if(scenario==='success'){
+      expect(result).toMatchObject({state:'HANDED_OFF',providerId:LINKEDIN_INNOLABS_PROVIDER,request:{observations:[{sourceItemKey:'linkedin:urn:li:activity:42',publishedAtHint:time}]}});
+      expect(dispatch.mock.calls.some(([url])=>url.includes('harvestapi~'))).toBe(false);
+    }else{
+      expect(result).toMatchObject({state:'HANDED_OFF',providerId:'linkedin_apify',continuation:{providerId:'linkedin_apify'}});
+      expect(dispatch.mock.calls.filter(([url])=>url.includes('harvestapi~'))).toHaveLength(1);
+    }
+    const calls=dispatch.mock.calls.length;
+    await collector.collect(next);
+    expect(dispatch).toHaveBeenCalledTimes(calls);
+    expect(s.db.db.prepare('SELECT DISTINCT provider_id FROM connector_provider_operations').all()).toEqual([{provider_id:'linkedin_apify'}]);
   });
 
   it('durably suppresses a replayed authoritative Telegram delete across collection windows',async()=>{

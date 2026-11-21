@@ -169,6 +169,8 @@ it('spaces new LinkedIn windows after a confirmed monthly provider cap',async()=
  const queued={...env,V1_DOWNSTREAM_FEED_SOURCE_IDS:'linkedin-source',APIFY_API_TOKEN:'fixture',SOURCE_QUEUE_SCHEDULING_ENABLED:'true',SOURCE_PROVIDER_BUDGETS_JSON:'{"linkedin_apify":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"apify":0.25}'};
  const schedule=(time:string)=>runConnectorMaintenance(queued,new Date(time),{scheduleOnly:true});
  await schedule('2026-10-03T12:00:00Z');
+ const poll=await ctx.db.prepare('SELECT provider_order FROM connector_provider_poll_jobs').first<{provider_order:string}>();
+ expect(JSON.parse(poll!.provider_order)).toEqual(['linkedin_innolabs_apify','linkedin_apify']);
  const result=JSON.stringify({state:'FETCH_FAILED',attempts:[{failure:'BUDGET_EXCEEDED',diagnostic:{detail:'PROVIDER_MONTHLY_USAGE_LIMIT'}}]});
  await ctx.db.prepare("UPDATE connector_provider_poll_jobs SET state='BLOCKED',last_error='BUDGET_EXCEEDED',result=?").bind(result).run();
  expect((await schedule('2026-10-03T12:05:00Z'))?.scheduled).toHaveLength(0);

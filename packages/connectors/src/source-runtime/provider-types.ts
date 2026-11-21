@@ -65,9 +65,22 @@ export type ProviderFailure='TRANSIENT'|'BACKPRESSURE'|'RATE_LIMIT'|'AUTH_REQUIR
 export class SourceProviderError extends Error {
   constructor(readonly code:ProviderFailure,readonly retryNotBefore?:string,readonly diagnostic?:{detail:string;httpStatus?:number}) {super(code);}
 }
+export const INNOLABS_LINKEDIN_ACTOR = 'innolabs/linkedin-posts-scraper';
+export const LINKEDIN_INNOLABS_PROVIDER = 'linkedin_innolabs_apify';
+export const LINKEDIN_HARVEST_PROVIDER = 'linkedin_apify';
+
+// Both actors use the same Apify account and the existing LinkedIn budget ledger.
+export function providerBillingId(id: string): string {
+  return id === LINKEDIN_INNOLABS_PROVIDER ? LINKEDIN_HARVEST_PROVIDER : id;
+}
+
+export function isApifyPollingProvider(id: unknown): id is string {
+  return id === LINKEDIN_INNOLABS_PROVIDER || id === LINKEDIN_HARVEST_PROVIDER || id === 'x_apify' || id === 'google_apify';
+}
+
 export const DEFAULT_SOURCE_ORDER:Record<SourceFamily,readonly string[]>={
   rss:['rss_native','rss_feedparser'],google_news:['google_rss','google_apify'],
   telegram:['telegram_telethon','telegram_public'],x_profile:['x_twitterapi_io','x_apify'],x_search:['x_twitterapi_io','x_apify'],
-  linkedin_company:['linkedin_apify'],linkedin_profile:['linkedin_apify'],website:['website_http','website_playwright','website_zyte'],apify:['apify_actor']
+  linkedin_company:[LINKEDIN_INNOLABS_PROVIDER,LINKEDIN_HARVEST_PROVIDER],linkedin_profile:['linkedin_apify'],website:['website_http','website_playwright','website_zyte'],apify:['apify_actor']
 };
 export interface ProviderAttempt {providerId:string;runId:string;sequence:number;failure?:ProviderFailure;retryNotBefore?:string;diagnostic?:{detail:string;httpStatus?:number}}

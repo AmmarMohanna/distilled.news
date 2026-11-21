@@ -14,6 +14,9 @@ export type ProcessingJobState = "queued" | "completed" | "failed";
 export type SourceRunState = "queued" | "running" | "succeeded" | "failed";
 export type AccountRole = "admin" | "user";
 export type AuthTokenPurpose = "email_verification" | "password_reset";
+export type AccountAuthAction =
+  | { purpose: "email_verification"; email?: string }
+  | { purpose: "password_reset"; passwordHash: string };
 
 export interface AccountRecord {
   id: string;
@@ -396,7 +399,7 @@ export interface Repository {
     expiresAt: string;
   }, now?: Date): Promise<AuthTokenRecord>;
   getAuthToken(tokenHash: string, purpose: AuthTokenPurpose): Promise<AuthTokenRecord | null>;
-  consumeAuthToken(id: string, now?: Date): Promise<boolean>;
+  completeAccountAuthWithToken(tokenHash: string, now: Date, action: AccountAuthAction): Promise<AccountRecord | null>;
   countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number>;
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;

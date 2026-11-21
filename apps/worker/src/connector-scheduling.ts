@@ -1,4 +1,5 @@
 import {unpaidSourceRecoveryEnv,unpaidPollRecoveryId} from './unpaid-source-recovery';
+import {isApifyPollingProvider} from '@distilled/connectors';
 import {sha256,HandoffError} from '@distilled/contracts';
 import type {Env,DistilledQueueMessage} from './types';
 import {createConnectorRuntime,runConnectorMaintenance} from './connector-runtime';
@@ -336,7 +337,7 @@ export async function recoverConnectorPoll(env:Env,kind:'rss'|'provider',jobId:s
  let readRecovered=false;
  if(row.last_error==='UNCERTAIN_PAID_SUBMISSION'){
   const providerId=request.continuation?.providerId;
-  if(kind==='provider'&&['x_apify','google_apify','linkedin_apify'].includes(providerId)){
+  if(kind==='provider'&&isApifyPollingProvider(providerId)){
    const {D1ProviderSourceRepository,sourceSqlFromD1}=await import('@distilled/connectors');
    readRecovered=await new D1ProviderSourceRepository(sourceSqlFromD1(env.DB)).hasReadRecovery(request.scope,await sha256(JSON.stringify([request.scope,request.runId,providerId])),providerId)
     &&!await env.DB.prepare('SELECT 1 FROM connector_provider_operations WHERE feed_id=? AND feed_source_id=? AND payload_ref IS NULL LIMIT 1').bind(request.scope.feedId,request.scope.feedSourceId).first();

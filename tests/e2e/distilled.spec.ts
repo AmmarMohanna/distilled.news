@@ -205,10 +205,10 @@ test("email verification waits for an explicit user action", async ({ page }) =>
 
   await page.goto("/verify-email?token=test-token");
 
-  await expect(page.getByRole("button", { name: "verify email" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Verify my email", exact: true })).toBeVisible();
   expect(verifyCalls).toBe(0);
 
-  await page.getByRole("button", { name: "verify email" }).click();
+  await page.getByRole("button", { name: "Verify my email", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.locator('.auth-dialog')).toBeVisible();
   expect(verifyCalls).toBe(1);

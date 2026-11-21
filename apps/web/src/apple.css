@@ -1,19 +1,49 @@
-/* Standalone email confirmation matches the focused email sign-in layout. */
-.email-verification-page { min-height: 100svh; display: grid; place-items: center; padding: 48px 24px; background: var(--page); color: var(--text); }
-.email-verification-panel { width: 100%; max-width: 560px; display: grid; justify-items: center; text-align: center; }
-.email-verification-brand { width: 80px; height: 80px; margin-bottom: 32px; }
-.email-verification-brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.email-verification-panel h1 { margin: 0; font-size: clamp(36px, 6vw, 50px); line-height: 1.15; font-weight: 700; letter-spacing: -0.035em; }
-.email-verification-description { margin: 12px 0 40px; color: var(--muted); font-size: 20px; line-height: 1.5; }
-.email-verification-status { margin: 0 0 24px; color: var(--text); overflow-wrap: anywhere; }
-.email-verification-actions { display: grid; justify-items: center; gap: 30px; width: 100%; }
-.email-verification-submit { width: 100%; min-height: 58px; padding: 16px 24px; border: 0; border-radius: 999px; background: #5e5ce6; color: #fff; font: inherit; font-size: 18px; font-weight: 600; cursor: pointer; }
-.email-verification-submit:hover:not(:disabled) { background: #504ed3; }
+.email-verification-page {
+  --auth-brand-gap: clamp(14px, calc(5dvh - 8px), 36px);
+  --auth-description-gap: clamp(8px, calc(2dvh - 1px), 16px);
+  --auth-action-gap: clamp(14px, calc(4dvh - 3px), 32px);
+  --auth-control-gap: clamp(8px, calc(3dvh - 3px), 20px);
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: clamp(8px, calc(4dvh - 10px), 18px) 18px;
+  background: var(--page);
+  color: var(--text);
+  font-family: var(--app-font);
+}
+.email-verification-panel { width: 100%; max-width: 884px; display: grid; justify-items: center; padding: clamp(8px, calc(5dvh - 15px), 28px) 19px; text-align: center; }
+.email-verification-brand { margin-block-end: var(--auth-brand-gap); }
+.email-verification-brand .distilled-logo { display: inline-flex; align-items: center; gap: 6px; }
+.email-verification-brand .distilled-logo-wordmark { display: inline; font-size: 22px; font-weight: 700; letter-spacing: -.025em; }
+.email-verification-brand .distilled-logo-symbol { display: block; width: 32px; }
+.email-verification-panel h1 { margin: 0; font-size: clamp(26px, 4vw, 30px); line-height: 1.2; font-weight: 650; }
+.email-verification-description { max-inline-size: 52ch; margin-block: var(--auth-description-gap) var(--auth-action-gap); color: var(--muted); font-size: 18px; line-height: 1.5; }
+.email-verification-actions { display: grid; justify-items: center; width: 100%; }
+.email-verification-panel .auth-error { margin: 12px 0 0; font-size: 1rem; line-height: 1.45; text-align: center; overflow-wrap: anywhere; }
+:root.apple-ui.apple-ui .email-verification-page button.email-verification-submit { display: flex; align-items: center; justify-content: center; gap: 10px; width: min(100%, 288px); min-height: 52px; padding: 12px 20px; border: 0; border-radius: 14px; background: var(--accent-fill); color: #fff; font: inherit; font-size: 18px; font-weight: 650; cursor: pointer; }
+:root.apple-ui.apple-ui .email-verification-page button.email-verification-submit:is(:hover,:active):not(:disabled) { background: var(--accent-fill); color: #fff; filter: brightness(.92); }
 .email-verification-submit:disabled { opacity: .55; cursor: default; }
-.email-verification-create { color: var(--accent); font-size: 18px; font-weight: 600; text-decoration: none; }
+.email-verification-page[dir="rtl"] .email-verification-submit svg { transform: scaleX(-1); }
+.email-verification-create { display: inline-grid; place-items: center; min-height: 44px; margin-block-start: var(--auth-control-gap); padding-inline: 8px; color: var(--accent); font-size: 18px; font-weight: 600; text-decoration: none; }
 .email-verification-create:hover { text-decoration: underline; }
-.email-verification-actions :is(button,a):focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
-@media (max-width: 600px) { .email-verification-page { padding: 40px 24px; } .email-verification-description { font-size: 18px; } }
+.email-verification-panel :is(.email-verification-submit,.email-verification-create):focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 600px) {
+  .email-verification-page { padding-inline: 14px; }
+  .email-verification-panel { padding-inline: 16px; }
+  .email-verification-description { font-size: 16px; }
+}
+@media (max-height: 450px), (max-width: 600px) and (max-height: 520px) {
+  .email-verification-page {
+    --auth-brand-gap: 8px;
+    --auth-description-gap: 6px;
+    --auth-action-gap: 8px;
+    --auth-control-gap: 6px;
+    padding-block: 4px;
+  }
+  .email-verification-panel { padding-block: 0; }
+  .email-verification-description { font-size: 16px; line-height: 1.4; }
+  :root.apple-ui.apple-ui .email-verification-page button.email-verification-submit { min-height: 48px; padding: 10px 16px; font-size: 16px; line-height: 1.25; }
+}
 
 /* Apple-inspired foundations. Content stays solid; only navigation uses material.
    Keep this after the legacy styles so every route shares one visual system. */
@@ -1505,6 +1535,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   overflow: visible; align-content: start;
 }
 :root.apple-ui.apple-ui .app-pages > .screen-page-viewport { scrollbar-width: auto; scrollbar-gutter: stable; }
+:root.apple-ui.apple-ui .app-pages > .screen-page-viewport:has(> .screen-page-content > .email-verification-page) { scrollbar-gutter: auto; scroll-padding-block: 0; scroll-snap-type: none; }
+.apple-ui .screen-page-content:has(> .email-verification-page) { padding-bottom: 0; }
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card { height: var(--feed-row-height, auto); min-height: 0; box-sizing: border-box; }
 /* Keep cards steady when hovered or pressed. */
 :root.apple-ui.apple-ui .experience .adaptive-feed-grid.adaptive-feed-grid > .topic-card:is(:hover, :active) { transform: none; }
@@ -2773,25 +2805,14 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (min-width: 701px) {
  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:has(.feed-check-status):has(.unread-summary) { grid-template-columns: minmax(0,440px) max-content max-content; justify-content: center; gap: 16px; }
 }
-/* Password recovery uses the landing header unchanged and normal form sizing. */
-:root.apple-ui.apple-ui .reset-password-content { width: min(100%,640px); margin: 48px auto 32px; }
-:root.apple-ui.apple-ui .reset-password-heading { text-align: center; margin-bottom: 28px; }
-:root.apple-ui.apple-ui .reset-password-heading h1 { font-size: 32px; line-height: 1.2; font-weight: 700; letter-spacing: -.035em; margin: 0 0 10px; }
-:root.apple-ui.apple-ui .reset-password-heading > p { font-size: 16px !important; color: var(--muted); margin: 0; }
-:root.apple-ui.apple-ui .reset-password-form { display: grid; width: 100%; gap: 20px; padding: 24px; border: 1px solid color-mix(in srgb,var(--accent) 20%,var(--surface)); border-radius: 18px; background: var(--surface); }
-:root.apple-ui.apple-ui .reset-password-form > label { display: grid; gap: 10px; font-size: 16px; color: var(--text); }
+/* Password entry uses the same standalone layout as email verification. */
+:root.apple-ui.apple-ui .reset-password-form { display: grid; justify-items: center; width: min(100%, 400px); }
+:root.apple-ui.apple-ui .reset-password-form > label { display: grid; width: 100%; gap: 6px; font: inherit; font-size: 16px; color: var(--text); text-align: start; }
+:root.apple-ui.apple-ui .reset-password-form > .email-verification-submit { margin-block-start: var(--auth-control-gap); }
 :root.apple-ui.apple-ui .reset-password-input { display: flex; align-items: center; min-width: 0; border: 1px solid color-mix(in srgb,var(--accent) 20%,var(--surface)); border-radius: 12px; background: color-mix(in srgb,var(--accent) 4%,var(--surface)); }
 :root.apple-ui.apple-ui .reset-password-input:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 :root.apple-ui.apple-ui .reset-password-input input { width: 0; flex: 1; min-width: 0; min-height: 48px; padding: 12px 14px; font: inherit; color: var(--text); background: transparent; border: 0; outline: 0; box-shadow: none; }
 :root.apple-ui.apple-ui .reset-password-input > button { flex: 0 0 44px; min-width: 44px; min-height: 44px; margin-inline-end: 4px; padding: 8px; border: 0; background: transparent; color: var(--muted); box-shadow: none; }
-:root.apple-ui.apple-ui .reset-password-form > .reset-password-save { justify-self: center; font-size: 18px; font-weight: 500; border: 0; border-radius: 8px; padding: 8px 20px; min-height: 44px; background: transparent !important; color: var(--accent) !important; box-shadow: none; }
-:root.apple-ui.apple-ui .reset-password-form > [role] { margin: 0; text-align: center; }
-:root.apple-ui.apple-ui .app-pages > .screen-page-viewport:has(.reset-password-page) { overflow-y: auto; overflow-x: hidden; scroll-snap-type: none; }
-@media(max-width:600px) {
- :root.apple-ui.apple-ui .reset-password-content { margin-top: 32px; }
- :root.apple-ui.apple-ui .reset-password-heading h1 { font-size: 26px; }
- :root.apple-ui.apple-ui .reset-password-form { padding: 20px; }
-}
 /* Shrink the card contents together when the available height calls for it. */
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid.adaptive-feed-grid[data-layout="list"][data-fit="compact"] > .topic-card { padding: 6px 8px !important; column-gap: 6px; row-gap: 2px; border-radius: 20px; }
 :root.apple-ui.apple-ui .experience.product-refresh .adaptive-feed-grid[data-fit="compact"] { --widget-title-size: .9375rem; --widget-owner-size: .8125rem; }
@@ -2873,7 +2894,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger { border-color: var(--line); }
 :root.apple-ui.apple-ui .users-role-filter .feed-settings-trigger > svg:last-child { color: var(--muted); }
 /* Center recovery headings explicitly without changing RTL form text. */
-:root.apple-ui.apple-ui .reset-password-page .reset-password-heading > :is(h1,p) { text-align: center; }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui[dir="rtl"] .bottom-navigation { direction: rtl; }
 }
@@ -3165,15 +3185,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 
 :root.apple-ui.apple-ui .feed-shell .citation-reference > .briefing-reference:is(:hover,:active,:focus) { background: transparent; }
 
-/* Verification codes retain their four groups while each character has a box. */
-:root.apple-ui.apple-ui .verification-code-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: clamp(8px,2vw,18px); min-width: 0; width: 100%; direction: ltr; }
-:root.apple-ui.apple-ui .verification-code-group { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; min-width: 0; }
-:root.apple-ui.apple-ui .verification-code-grid .verification-code-cell { box-sizing: border-box; width: 100%; min-width: 0; height: clamp(36px,6vw,48px); min-height: 36px; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font-size: clamp(14px,2vw,20px); font-weight: 500; line-height: 1; text-align: center; direction: ltr; caret-color: var(--accent); box-shadow: 0 1px 3px rgb(0 0 0 / 4%); }
-:root.apple-ui.apple-ui .verification-code-grid .verification-code-cell:focus { outline: none; border-color: transparent; background: linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(145deg,#6562ff,#e879df) border-box; box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 15%,transparent); }
-@media (max-width: 480px) {
-  :root.apple-ui.apple-ui .verification-code-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 18px; }
-  :root.apple-ui.apple-ui .verification-code-grid .verification-code-cell { height: 44px; font-size: 18px; }
-}
 :root.apple-ui.apple-ui .auth-verified-email .auth-email-address { flex: 1; min-width: 0; padding-block: 8px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; user-select: text; cursor: text; }
 :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .feed-nav-back { gap: 0; }
 :root.apple-ui.apple-ui .citation-publisher[data-placement="above"]::before { inset-block-start: 100%; inset-block-end: auto; }

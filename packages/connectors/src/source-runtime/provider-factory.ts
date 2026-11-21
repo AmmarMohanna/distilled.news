@@ -6,6 +6,7 @@ import type {WebsiteLinkSelector} from './website-discovery';
 import { WebsiteSourceProvider } from './website-providers';
 import type { ProviderHttpPort } from './provider-http';
 import { D1ProviderSourceRepository } from './provider-storage';
+import { LINKEDIN_INNOLABS_PROVIDER } from './provider-types';
 import { FallbackSourceCollector } from './provider-collector';
 
 /** Opt-in backend composition. Deployment supplies authorized HTTP, private runtime,
@@ -26,6 +27,7 @@ export function createSourceCollector(bindings:{
     new TwitterApiIoProvider(paidHttp,secrets,ceilings.twitterApiIo),
     new ApifySourceProvider('google_apify',['google_news'],paidHttp,secrets,ceilings.apify),
     new ApifySourceProvider('x_apify',['x_profile','x_search'],paidHttp,secrets,ceilings.apify),
+    new ApifySourceProvider(LINKEDIN_INNOLABS_PROVIDER,['linkedin_company'],paidHttp,secrets,ceilings.apify),
     new ApifySourceProvider('linkedin_apify',['linkedin_company','linkedin_profile'],paidHttp,secrets,ceilings.apify),
     new ApifySourceProvider('apify_actor',['apify'],paidHttp,secrets,ceilings.apify),
     new WebsiteSourceProvider('website_http',http,execution,undefined,undefined,undefined,bindings.selectWebsiteLinks),new WebsiteSourceProvider('website_playwright',http,execution),

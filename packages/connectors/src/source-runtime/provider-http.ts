@@ -1,7 +1,7 @@
 import { sha256 } from '@distilled/contracts';
 import type { SqlDatabase } from './storage';
 import type { ImmutablePayloadStore, SourceScope } from './ports';
-import { SourceProviderError } from './provider-types';
+import { INNOLABS_LINKEDIN_ACTOR, SourceProviderError } from './provider-types';
 
 export const PROVIDER_BUDGET_SCHEMA=`
 CREATE TABLE IF NOT EXISTS connector_daily_provider_budgets(day TEXT PRIMARY KEY,limit_usd REAL NOT NULL CHECK(limit_usd>=0),reserved_usd REAL NOT NULL DEFAULT 0 CHECK(reserved_usd>=0));
@@ -204,6 +204,14 @@ export class DurableProviderHttp implements ProviderHttpPort {
     catch {void reader?.cancel().catch(()=>{});return uncertain('RESPONSE_BODY',size>this.maxBytes?'BODY_TOO_LARGE':abort.signal.aborted?'TIMEOUT':'TRANSPORT',response);}
     finally {clearTimeout(timer!);reader?.releaseLock();}
     const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
+    if(init.method==='POST'&&new URL(url).pathname===`/v2/actors/${INNOLABS_LINKEDIN_ACTOR.replace('/','~')}/runs`){
+      if(response.status>=500)return uncertain('RESPONSE_HEADERS','ACTOR_START_UNCONFIRMED',response);
+      if(response.ok){
+        const body=this.decode(response.status,{},bytes).json as {data?:{id?:unknown}}|undefined;
+        const id=body?.data?.id;
+        if(typeof id!=='string'||!/^\w+$/.test(id))return uncertain('RESPONSE_BODY','ACTOR_START_ID_MISSING',response);
+      }
+    }
     // Retry storage of the already downloaded bytes, never the billed HTTP request.
     const persist=async<T>(write:()=>Promise<T>):Promise<T>=>{for(let attempt=0;;attempt++){try{return await write()}catch(error){if(attempt>=2)throw error;await new Promise(resolve=>setTimeout(resolve,200*(attempt+1)));}}};
     const payload=await persist(()=>this.payloads.put(scope,bytes,'application/json'));
