@@ -1,7 +1,11 @@
 import type { AccountRecord, Env } from "./types";
+import { verificationLogoBase64 } from "./verification-logo";
 
 type EmailAddressInput = string | { email: string; name: string };
 type MailLanguage = 'en' | 'fr' | 'ar';
+const authBrandPurple = '#5B55EB';
+const authWordmarkFont = "bold 25px/32px Georgia,'Times New Roman',serif";
+const authWordmark = `Distilled<span style="color:${authBrandPurple};">.</span>News`;
 const mailCopy = {
   en: {
     verifySubject: 'Verify your email for Distilled.News', verifyAction: 'Verify email',
@@ -37,36 +41,115 @@ export async function sendVerificationEmail(env: Env, account: AccountRecord, to
   const transport=env.VERIFICATION_MAIL_TRANSPORT??env.MAIL_TRANSPORT;
   const sender=transport==='GMAIL_API'?env.GMAIL_FROM:env.EMAIL_FROM;
   if(!sender)throw new Error('Verification sender is not configured');
-  const verification=verificationCodeCopy[language];
-  await deliverAuthEmail(env,transport,{
-    to:account.email,from:parseEmailAddress(sender),subject:verification.subject,
-    text:['Distilled.News','',verification.heading,'',verification.instructions,'',token,'',verification.expires,'',verification.footer].join("\n")
-  });
+  const verification = verificationLinkCopy[language];
+  const url = new URL('/verify-email', env.PUBLIC_WEB_BASE_URL || 'https://distilled.news');
+  url.searchParams.set('token', token);
+  url.searchParams.set('lang', language);
+  const message = {
+    to: account.email, from: parseEmailAddress(sender), subject: copy.verifySubject,
+    text: ['Distilled.News', '', verification.heading, '', verification.instructions, '',
+      `${copy.verifyAction}: ${url}`, '', verification.expires, '', copy.footer].join("\n")
+  };
+  if (transport !== "OUTLOOK_GRAPH" && transport !== "GMAIL_API") {
+    const logoId = "distilled-verification-logo";
+    await deliverAuthEmail(env, transport, {
+      ...message,
+      html: renderVerificationEmail(language, url.toString(), logoId),
+      attachments: [{
+        filename: "email-logo.png",
+        content: decodeBase64(verificationLogoBase64).buffer,
+        type: "image/png",
+        disposition: "inline",
+        contentId: logoId
+      }]
+    });
+    return;
+  }
+  await deliverAuthEmail(env, transport, message);
 }
 
-const verificationCodeCopy={
+const verificationLinkCopy = {
   en:{
-    subject:'Your Distilled.News verification code',
-    heading:'Verify your email address',
-    instructions:'To complete your sign-up or sign-in, enter the verification code below.',
-    expires:'Valid for 24 hours',
-    footer:"If you didn't request this email, you can safely ignore it."
+    heading:'Verify your email',
+    instructions:'Confirm your email address to complete your sign-up and get started with Distilled.News.',
+    expires:'Valid for 24 hours'
   },
   fr:{
-    subject:'Votre code de vérification Distilled.News',
     heading:'Vérifiez votre adresse e-mail',
-    instructions:'Pour terminer votre inscription ou votre connexion, saisissez le code de vérification ci-dessous.',
-    expires:'Valable pendant 24 heures',
-    footer:'Si vous n’avez pas demandé cet e-mail, vous pouvez l’ignorer.'
+    instructions:'Pour terminer la création de votre compte, ouvrez le lien ci-dessous et confirmez votre adresse e-mail.',
+    expires:'Valable pendant 24 heures'
   },
   ar:{
-    subject:'رمز التحقق لحساب Distilled.News',
     heading:'أكّد بريدك الإلكتروني',
-    instructions:'لإكمال التسجيل أو تسجيل الدخول، أدخل هذا الرمز أدناه.',
-    expires:'صالح لمدة ٢٤ ساعة',
-    footer:'إذا لم تطلب هذه الرسالة، يمكنك تجاهلها.'
+    instructions:'لإكمال إنشاء حسابك، افتح الرابط أدناه وأكّد بريدك الإلكتروني.',
+    expires:'صالح لمدة ٢٤ ساعة'
   }
 };
+
+function renderVerificationEmail(language: MailLanguage, url: string, logoId: string): string {
+  const copy = verificationLinkCopy[language];
+  const { verifyAction, footer } = mailCopy[language];
+  const rtl = language === 'ar';
+  const purple = authBrandPurple;
+  const escapedUrl = escapeHtml(url);
+  return `<!doctype html>
+<html lang="${language}">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<style>
+@media screen and (min-width:481px) {
+  .dn-frame { padding-top:24px !important; }
+  .dn-content { padding:16px 8px 20px !important; }
+  .dn-heading { margin-top:24px !important; font-size:34px !important; line-height:42px !important; }
+  .dn-description { margin-bottom:22px !important; }
+}
+@media screen and (max-width:480px) {
+  .dn-frame { padding:8px 16px 16px !important; }
+  .dn-content { padding:4px 0 8px !important; }
+  .dn-logo { width:36px !important; height:18px !important; }
+  .dn-wordmark { font-size:23px !important; line-height:29px !important; }
+  .dn-heading { margin:16px 0 8px !important; font-size:27px !important; line-height:34px !important; }
+  .dn-description { margin-bottom:16px !important; font-size:15px !important; line-height:22px !important; }
+  .dn-button-label { padding:11px 14px !important; font-size:17px !important; line-height:24px !important; }
+  .dn-expiry { margin:10px 0 14px !important; }
+  .dn-footer { margin-top:12px !important; }
+}
+@media screen and (max-width:280px) {
+  .dn-frame { padding-left:12px !important; padding-right:12px !important; }
+  .dn-wordmark { font-size:20px !important; line-height:26px !important; }
+}
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="color:inherit;">
+<tr><td class="dn-frame" align="center" style="padding:14px 16px 24px;">
+<!--[if mso]><table role="presentation" width="560" align="center" cellspacing="0" cellpadding="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" align="center" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;">
+<tr><td class="dn-content" lang="${language}" dir="${rtl ? 'rtl' : 'ltr'}" align="center" style="padding:8px 4px 20px;font-family:Arial,Helvetica,sans-serif;color:inherit;text-align:center;">
+<table role="presentation" dir="ltr" align="center" cellspacing="0" cellpadding="0"><tr>
+<td valign="middle" style="padding-right:8px;"><img class="dn-logo" src="cid:${logoId}" width="44" height="22" alt="" style="display:block;border:0;"></td>
+<td class="dn-wordmark" valign="middle" style="font:${authWordmarkFont};">${authWordmark}</td>
+</tr></table>
+<h1 class="dn-heading" style="margin:22px 0 10px;font-size:32px;line-height:40px;">${escapeHtml(copy.heading)}</h1>
+<p class="dn-description" style="margin:0 auto 20px;max-width:410px;font-size:16px;line-height:24px;">${escapeHtml(copy.instructions)}</p>
+<!--[if mso]><table role="presentation" width="288" align="center" cellspacing="0" cellpadding="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" align="center" cellspacing="0" cellpadding="0" style="width:100%;max-width:288px;"><tr>
+<td class="dn-button" align="center" bgcolor="${purple}" style="background-color:${purple};border-radius:14px;mso-padding-alt:14px 18px;"><a class="dn-button-label" href="${escapedUrl}" style="display:block;padding:14px 18px;mso-padding-alt:0;color:#FFFFFF;font:bold 18px/24px Arial,Helvetica,sans-serif;text-decoration:none;">${escapeHtml(verifyAction)}&nbsp; <span aria-hidden="true">${rtl ? '←' : '→'}</span></a></td>
+</tr></table>
+<!--[if mso]></td></tr></table><![endif]-->
+<p dir="ltr" style="margin:12px 0 0;font-size:14px;line-height:21px;word-break:break-all;"><a href="${escapedUrl}">${escapedUrl}</a></p>
+<p class="dn-expiry" style="margin:12px 0 18px;font-size:14px;line-height:21px;">${escapeHtml(copy.expires)}</p>
+<table class="dn-divider" role="presentation" width="75%" align="center" cellspacing="0" cellpadding="0" aria-hidden="true" style="width:75%;max-width:376px;"><tr>
+<td height="1" style="border-top:1px solid ${purple};font-size:1px;line-height:1px;mso-line-height-rule:exactly;">&nbsp;</td>
+</tr></table>
+<p class="dn-footer" style="margin:14px 0 0;font-size:13px;line-height:20px;">${escapeHtml(footer)}</p>
+</td></tr></table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr></table>
+</body></html>`;
+}
 
 export async function sendPasswordResetEmail(env: Env, account: AccountRecord, token: string, language: MailLanguage = 'en'): Promise<void> {
   const copy = mailCopy[language];
@@ -117,7 +200,7 @@ async function sendAuthEmail(
     ].join("\n"),
     html: input.verification ? undefined : [
       `<div lang="${input.language}" dir="${input.language === 'ar' ? 'rtl' : 'ltr'}" style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #202124; font-size: 16px;">`,
-      `<table role="presentation" dir="ltr" cellpadding="0" cellspacing="0" style="margin-bottom:24px;direction:ltr;"><tr><td><img src="${escapeHtml(logoUrl)}" alt="" width="80" height="40" style="display:block;border:0;" /></td><td style="padding-left:12px;font-size:24px;font-weight:700;">Distilled.News</td></tr></table>`,
+      `<table role="presentation" dir="ltr" cellpadding="0" cellspacing="0" style="margin-bottom:24px;direction:ltr;"><tr><td><img src="${escapeHtml(logoUrl)}" alt="" width="80" height="40" style="display:block;border:0;" /></td><td style="padding-left:12px;font:${authWordmarkFont};">${authWordmark}</td></tr></table>`,
       `<p>${escapeHtml(input.text)}</p>`,
       `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;"><tr><td bgcolor="#5e5ce6" style="border-radius:999px;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 24px;border:1px solid #5e5ce6;border-radius:999px;background-color:#5e5ce6;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:600;text-decoration:none;">${escapeHtml(input.action)}</a></td></tr></table>`,
       `<p dir="ltr" style="word-break: break-all;"><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`,
@@ -129,7 +212,20 @@ async function sendAuthEmail(
   await deliverAuthEmail(env,transport,message);
 }
 
-type AuthMessage={to:string;from:EmailAddressInput;subject:string;text:string;html?:string};
+type AuthMessage = {
+  to: string;
+  from: EmailAddressInput;
+  subject: string;
+  text: string;
+  html?: string;
+  attachments?: Array<{
+    filename: string;
+    content: ArrayBuffer;
+    type: string;
+    disposition: "inline";
+    contentId: string;
+  }>;
+};
 async function deliverAuthEmail(env:Env,transport:Env['VERIFICATION_MAIL_TRANSPORT'],message:AuthMessage){
   if (transport === "GMAIL_API") {
     await sendGmailEmail(env, message);

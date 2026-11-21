@@ -654,13 +654,11 @@ export function createApp(options: AppOptions = {}) {
     const repo = repoFor(c);
     const input = tokenInputSchema.parse(await c.req.json().catch(() => ({})));
     if (!c.env.ADMIN_SESSION_SECRET) return c.json({ error: "ADMIN_SESSION_SECRET is not configured" }, 500);
-    const result = await consumeEmailVerificationTokenOrNull(repo,
-      "code" in input ? "code-v1:"+input.code : input.token, new Date(),
-      "code" in input ? normalizeEmail(input.email) : undefined);
-    if (!result) return c.json({ error: "code" in input ? "Invalid or expired verification code." : "invalid or expired token" }, 400);
-    const verified = result.account.emailVerifiedAt
-      ? result.account
-      : await repo.updateAccount({ id: result.account.id, emailVerifiedAt: new Date().toISOString() });
+    const token = "code" in input ? "code-v1:" + input.code : input.token;
+    const verified = await repo.completeAccountAuthWithToken(await hashToken(token), new Date(), {
+      purpose: "email_verification", email: "code" in input ? normalizeEmail(input.email) : undefined
+    });
+    if (!verified) return c.json({ error: "code" in input ? "Invalid or expired verification code." : "invalid or expired token" }, 400);
     // Verification confirms the address; signing in still requires credentials.
     return c.json({ account: publicAccount(verified) });
   });
@@ -689,7 +687,7 @@ export function createApp(options: AppOptions = {}) {
 
   app.post('/api/auth/verification/resend', async c => {
     const repo=repoFor(c),input=passwordResetRequestSchema.parse(await c.req.json().catch(()=>({}))),email=normalizeEmail(input.email);
-    // Share the send allowance with forgot-password verification recovery.
+    // Share the send allowance with password recovery for pending accounts.
     await assertRateLimit(repo,`verification:${email}`,'verification_recovery',5,60*60*1000);
     if(!await verifyTurnstileIfConfigured(c,input.turnstileToken))return c.json({ok:true});
     const account=await repo.getAccountByEmail(email);
@@ -712,10 +710,9 @@ export function createApp(options: AppOptions = {}) {
     if (account && !account.disabledAt) {
       if(!account.emailVerifiedAt)await assertRateLimit(repo,`verification:${email}`,'verification_recovery',5,60*60*1000);
       try {
-        if(account.emailVerifiedAt)await sendPasswordResetToken(repo, c.env, account, input.language);
-        else await sendVerificationToken(repo,c.env,account,input.language);
+        await sendPasswordResetToken(repo, c.env, account, input.language);
       } catch (error) {
-        logAuthEmailFailure(account.emailVerifiedAt?'password reset':'verification recovery', account, c.env, error);
+        logAuthEmailFailure('password reset', account, c.env, error);
       }
     }
     return c.json({ ok: true });
@@ -724,9 +721,14 @@ export function createApp(options: AppOptions = {}) {
   app.post("/api/auth/password/reset", async (c) => {
     const repo = repoFor(c);
     const input = passwordResetSchema.parse(await c.req.json().catch(() => ({})));
-    const account = await consumeTokenOrNull(repo, input.token, "password_reset", new Date());
+    const tokenHash = await hashToken(input.token);
+    const record = await repo.getAuthToken(tokenHash, "password_reset");
+    if (!record || record.consumedAt || Date.parse(record.expiresAt) <= Date.now()) {
+      return c.json({ error: "invalid or expired token" }, 400);
+    }
+    const passwordHash = await hashPassword(input.password);
+    const account = await repo.completeAccountAuthWithToken(tokenHash, new Date(), { purpose: "password_reset", passwordHash });
     if (!account) return c.json({ error: "invalid or expired token" }, 400);
-    await repo.updateAccount({ id: account.id, passwordHash: await hashPassword(input.password) });
     return c.json({ ok: true });
   });
 
@@ -1834,10 +1836,7 @@ async function createAccountOrError(
 }
 
 async function sendVerificationToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
-  const alphabet='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const code=Array.from(crypto.getRandomValues(new Uint8Array(16)),byte=>alphabet[byte&31]).join('');
-  const campaign=env.ENVIRONMENT==='staging'&&env.AGENTOPS_CAMPAIGN_ENABLED==='true'&&env.AGENTOPS_CAMPAIGN_ISOLATED==='true';
-  const token=campaign?randomToken():'code-v1:'+code;
+  const token = randomToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   await repo.createAuthToken({
     accountId: account.id,
@@ -1845,7 +1844,7 @@ async function sendVerificationToken(repo: Repository, env: Env, account: Accoun
     tokenHash: await hashToken(token),
     expiresAt
   });
-  await sendVerificationEmail(env, account, campaign?token:code.match(/.{4}/g)!.join("-"), language);
+  await sendVerificationEmail(env, account, token, language);
 }
 
 async function sendPasswordResetToken(repo: Repository, env: Env, account: AccountRecord, language: 'en' | 'fr' | 'ar' = 'en'): Promise<void> {
@@ -1858,50 +1857,6 @@ async function sendPasswordResetToken(repo: Repository, env: Env, account: Accou
     expiresAt
   });
   await sendPasswordResetEmail(env, account, token, language);
-}
-
-async function consumeToken(
-  repo: Repository,
-  token: string,
-  purpose: "email_verification" | "password_reset",
-  now: Date
-): Promise<AccountRecord> {
-  const record = await repo.getAuthToken(await hashToken(token), purpose);
-  if (!record || record.consumedAt || new Date(record.expiresAt).getTime() <= now.getTime()) {
-    throw new Error("invalid or expired token");
-  }
-  const account = await repo.getAccountById(record.accountId);
-  if (!account || account.disabledAt) throw new Error("invalid or expired token");
-  await repo.consumeAuthToken(record.id, now);
-  return account;
-}
-
-async function consumeEmailVerificationTokenOrNull(
-  repo: Repository,
-  token: string,
-  now: Date,
-  email?:string
-): Promise<{ account: AccountRecord; newlyConsumed: boolean } | null> {
-  const record = await repo.getAuthToken(await hashToken(token), "email_verification");
-  if (!record || new Date(record.expiresAt).getTime() <= now.getTime()) return null;
-  const account = await repo.getAccountById(record.accountId);
-  if (!account || account.disabledAt || (email && normalizeEmail(account.email)!==email)) return null;
-  if (record.consumedAt) return !email && account.emailVerifiedAt ? { account, newlyConsumed: false } : null;
-  if(!await repo.consumeAuthToken(record.id, now))return null;
-  return { account, newlyConsumed: true };
-}
-
-async function consumeTokenOrNull(
-  repo: Repository,
-  token: string,
-  purpose: "email_verification" | "password_reset",
-  now: Date
-): Promise<AccountRecord | null> {
-  try {
-    return await consumeToken(repo, token, purpose, now);
-  } catch {
-    return null;
-  }
 }
 
 async function assertUsernameAvailable(repo: Repository, username: string, accountId?: string): Promise<void> {

@@ -26,8 +26,8 @@
     "DISTILLED_NEWS_PIPELINE_EVALUATION": "false",
     "DISTILLED_WEB_OPERATOR_ENABLED": "false",
     "EDITION_ARTIFACTS_ENABLED": "true",
-    "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
-    "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
+    "EMAIL_FROM": "Distilled.News <accounts@distilled.news>",
+    "MAIL_TRANSPORT": "CLOUDFLARE",
     "PRODUCT_FEEDS_ENABLED": "true",
     "PUBLIC_API_BASE_URL": "https://distilled.news",
     "PUBLIC_WEB_BASE_URL": "https://distilled.news",
@@ -72,6 +72,12 @@
     "SOURCE_RECOMMENDATIONS_WEB_SEARCH": "true",
     "SOURCE_RECOMMENDATIONS_WEB_HTML": "true"
   },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": ["accounts@distilled.news"]
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
