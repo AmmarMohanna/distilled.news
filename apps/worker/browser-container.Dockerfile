@@ -7,16 +7,20 @@ RUN corepack enable
 # and its OS dependencies; Noble supplies Python 3.12.
 RUN apt-get update && apt-get install -y --no-install-recommends python3.12 python3.12-venv ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+COPY packages/browser-bridge/prepare_browser_use.py /tmp/prepare_browser_use.py
 RUN python3.12 -m venv /opt/distilled-browser-use \
     && /opt/distilled-browser-use/bin/pip install --no-cache-dir --upgrade pip==25.2 \
-    && /opt/distilled-browser-use/bin/pip install --no-cache-dir browser-use==0.13.10 \
-    && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'; print('browser-use', version('browser-use'))"
+    && python3.12 /tmp/prepare_browser_use.py /tmp/browser-use-sources \
+    && /opt/distilled-browser-use/bin/pip install --no-cache-dir \
+        /tmp/browser-use-sources/browser_harness-0.1.13 /tmp/browser-use-sources/browser_use-0.13.14 \
+    && /opt/distilled-browser-use/bin/pip check \
+    && /opt/distilled-browser-use/bin/python -c "from browser_use import Agent, Browser, ChatOpenAI, Tools, ActionResult; from browser_use.browser.profile import BrowserProfile; from importlib.metadata import version; assert version('browser-use') == '0.13.14+distilled.2'"
 # Cloudflare's registry proxy has repeatedly closed the connection on a single
 # 319 MB venv layer. Partition site-packages into smaller, reproducible layers.
 # The Google API static discovery documents are unused by ChatOpenAI and add
 # roughly 93 MB to the runtime image; keep the library itself available.
 RUN rm -rf /opt/distilled-browser-use/lib/python3.12/site-packages/googleapiclient/discovery_cache/documents \
-    && /opt/distilled-browser-use/bin/python -c "import browser_use; import googleapiclient.discovery; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
+    && /opt/distilled-browser-use/bin/python -c "import browser_use; import googleapiclient.discovery"
 RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
     mkdir -p /opt/browser-use-packages/ac /opt/browser-use-packages/df /opt/browser-use-packages/g /opt/browser-use-packages/hl /opt/browser-use-packages/im /opt/browser-use-packages/no /opt/browser-use-packages/pa_pi /opt/browser-use-packages/pj_pz /opt/browser-use-packages/qs /opt/browser-use-packages/tz /opt/browser-use-packages/other; \
     for item in "$packages"/* "$packages"/.[!.]*; do \
@@ -28,20 +32,37 @@ RUN set -eu; packages=/opt/distilled-browser-use/lib/python3.12/site-packages; \
 # Preserve the deployed Node dependency layer; Python is copied in separately.
 FROM mcr.microsoft.com/playwright:v1.61.0-noble
 WORKDIR /app
-RUN corepack enable
+# Only the build needs Corepack/pnpm. Remove them before creating runtime layers.
+ENV COREPACK_HOME=/opt/corepack
+RUN mkdir -p /opt/corepack && corepack enable
+# Apply available Ubuntu security updates without changing Playwright/Chromium.
+# The bridge uses Chromium only, so remove the unpatched WebKit media packages.
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade \
+    apt libapt-pkg6.0t64 libbrotli1 libssl3t64 \
+    && apt-get purge -y gstreamer1.0-plugins-bad libgstreamer-plugins-bad1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY patches ./patches
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/worker/package.json ./apps/worker/package.json
 COPY packages/agent-runtime/package.json ./packages/agent-runtime/package.json
+COPY packages/briefing/package.json ./packages/briefing/package.json
 COPY packages/browser-bridge/package.json ./packages/browser-bridge/package.json
 COPY packages/connectors/package.json ./packages/connectors/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/core/package.json ./packages/core/package.json
 
 # The bridge runs directly from the reviewed TypeScript source using the
 # workspace's pinned tsx/Playwright versions. No browser state is copied into
 # or written by the image.
-RUN pnpm install --filter @distilled/browser-bridge... --prod --frozen-lockfile
+# npm/corepack/pnpm are build-time tooling; the server starts with Node directly.
+# The Playwright base bundles /usr/lib/node_modules/npm and old transitive
+# packages that the runtime never needs. Remove them from the final image.
+RUN pnpm install --filter @distilled/browser-bridge... --prod --frozen-lockfile \
+    && corepack disable \
+    && rm -rf /opt/corepack /usr/lib/node_modules/npm \
+    && rm -f /usr/bin/npm /usr/bin/npx
 
 # Keep expensive Python layers stable across TypeScript and fixture edits.
 COPY --from=browser_use_python /opt/distilled-browser-use /opt/distilled-browser-use
@@ -60,7 +81,8 @@ COPY apps ./apps
 COPY packages ./packages
 RUN chromium_path="$(find /ms-playwright -type f -path '*/chrome-linux64/chrome' -print -quit)" \
     && test -n "$chromium_path" && ln -s "$chromium_path" /usr/local/bin/distilled-chromium \
-    && /opt/distilled-browser-use/bin/python -c "import browser_use; from importlib.metadata import version; assert version('browser-use') == '0.13.10'"
+    && /opt/distilled-browser-use/bin/pip check \
+    && /opt/distilled-browser-use/bin/python -c "import browser_use"
 
 ENV DISTILLED_BROWSER_USE_PYTHON=/opt/distilled-browser-use/bin/python
 ENV DISTILLED_BROWSER_USE_CHROMIUM=/usr/local/bin/distilled-chromium
@@ -70,5 +92,12 @@ ENV DISTILLED_BROWSER_USE_HOME=/home/pwuser
 ENV ANONYMIZED_TELEMETRY=false
 ENV BROWSER_USE_CLOUD_SYNC=false
 ENV NODE_ENV=production
+# The Playwright noble base includes pwuser (UID 1001), matching the isolated
+# browser child UID/GID. No permission escalation is needed at runtime.
+USER pwuser
+# Execute the existing TypeScript bridge from its own workspace package.
+# The package declares tsx as a direct production dependency; no package
+# manager or registry access is needed after image construction.
+WORKDIR /app/packages/browser-bridge
 EXPOSE 8080
-CMD ["pnpm", "--filter", "@distilled/browser-bridge", "exec", "tsx", "src/server.ts"]
+CMD ["node", "--import", "tsx", "src/server.ts"]

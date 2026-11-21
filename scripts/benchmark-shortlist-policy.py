@@ -29,8 +29,10 @@ with sqlite3.connect(args.database.resolve().as_uri() + '?mode=ro', uri=True) as
         values = {}
         for mode in (['metadata', 'full'] if sample % 2 else ['full', 'metadata']):
             started = time.perf_counter()
-            columns = 'id,feed_id,json' if mode == 'full' else "id,feed_id,json_extract(json,'$.policyVersion')"
-            row = db.execute("SELECT " + columns + " FROM v1_feed_documents WHERE kind='shortlists' AND id=?", (identity,)).fetchone()
+            query = ("SELECT id,feed_id,json FROM v1_feed_documents WHERE kind='shortlists' AND id=?"
+                     if mode == 'full'
+                     else "SELECT id,feed_id,json_extract(json,'$.policyVersion') FROM v1_feed_documents WHERE kind='shortlists' AND id=?")
+            row = db.execute(query, (identity,)).fetchone()
             if not row:
                 raise RuntimeError('SHORTLIST_NOT_FOUND')
             policy = json.loads(row[2]).get('policyVersion') if mode == 'full' else row[2]

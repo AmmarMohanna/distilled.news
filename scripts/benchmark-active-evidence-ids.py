@@ -14,7 +14,12 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('database', type=pathlib.Path)
 args = parser.parse_args()
 db = sqlite3.connect(args.database.resolve().as_uri() + '?mode=ro', uri=True)
-join = """FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id
+# Only the selected projection differs; both queries are static and parameterized.
+QUERY_FULL = """SELECT e.json,r.json FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id
+JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId')
+WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE'
+AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL"""
+QUERY_IDS = """SELECT r.id FROM v1_evidence e JOIN v1_intake_scopes s ON s.id=e.feed_source_id
 JOIN v1_revisions r ON r.id=json_extract(e.json,'$.currentRevisionId')
 WHERE s.feed_id=? AND json_extract(e.json,'$.state')='ACTIVE'
 AND json_extract(s.json,'$.enabled')=1 AND json_extract(s.json,'$.deletedAt') IS NULL"""
@@ -24,11 +29,11 @@ for feed in feeds:
     baseline, optimized = [], []
     for _ in range(7):
         start = time.perf_counter()
-        rows = list(db.execute('SELECT e.json,r.json ' + join, (feed,)))
+        rows = list(db.execute(QUERY_FULL, (feed,)))
         old_ids = {json.loads(revision)['id'] for _, revision in rows}
         baseline.append((time.perf_counter() - start) * 1000)
         start = time.perf_counter()
-        new_ids = {row[0] for row in db.execute('SELECT r.id ' + join, (feed,))}
+        new_ids = {row[0] for row in db.execute(QUERY_IDS, (feed,))}
         optimized.append((time.perf_counter() - start) * 1000)
         if old_ids != new_ids:
             raise RuntimeError('ACTIVE_REVISION_ID_COVERAGE_MISMATCH')

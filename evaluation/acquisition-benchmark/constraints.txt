@@ -38,3 +38,4 @@ tzdata==2026.4
 tzlocal==5.4.4
 urllib3==2.7.0
 zstandard==0.25.0
+defusedxml==0.7.1

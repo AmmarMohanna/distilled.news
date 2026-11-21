@@ -113,10 +113,89 @@ def apply(db, migrations):
     return pending
 
 
+FIXTURE_INSERTS = {
+    "accounts": """INSERT INTO accounts
+        (id, email, normalized_email, username, role, password_hash, created_at, updated_at)
+        VALUES (:id, :email, :normalized_email, :username, :role, :password_hash, :created_at,
+        :updated_at)""",
+    "briefings": """INSERT INTO briefings
+        (id, owner_account_id, slug, title, interest_profile, public_feed_enabled,
+        explore_featured, created_at, updated_at)
+        VALUES (:id, :owner_account_id, :slug, :title, :interest_profile, :public_feed_enabled,
+        :explore_featured, :created_at, :updated_at)""",
+    "sources": """INSERT INTO sources
+        (id, briefing_id, title, type, enabled, last_seen_at, created_at, updated_at, provider,
+        kind, source_url, collection_owner)
+        VALUES (:id, :briefing_id, :title, :type, :enabled, :last_seen_at, :created_at,
+        :updated_at, :provider, :kind, :source_url, :collection_owner)""",
+    "v1_intake_scopes": """INSERT INTO v1_intake_scopes
+        (id, feed_id, source_id, json)
+        VALUES (:id, :feed_id, :source_id, :json)""",
+    "v1_feeds": """INSERT INTO v1_feeds
+        (id, json)
+        VALUES (:id, :json)""",
+    "v1_evidence": """INSERT INTO v1_evidence
+        (id, feed_source_id, item_key, json)
+        VALUES (:id, :feed_source_id, :item_key, :json)""",
+    "v1_revisions": """INSERT INTO v1_revisions
+        (id, feed_source_id, item_key, json)
+        VALUES (:id, :feed_source_id, :item_key, :json)""",
+    "v1_acquired": """INSERT INTO v1_acquired
+        (id, feed_source_id, item_key, json)
+        VALUES (:id, :feed_source_id, :item_key, :json)""",
+    "v1_acquisition_results": """INSERT INTO v1_acquisition_results
+        (id, feed_source_id, item_key, json)
+        VALUES (:id, :feed_source_id, :item_key, :json)""",
+    "v1_jobs": """INSERT INTO v1_jobs
+        (id, feed_source_id, item_key, json)
+        VALUES (:id, :feed_source_id, :item_key, :json)""",
+    "connector_item_fingerprints": """INSERT INTO connector_item_fingerprints
+        (feed_id, feed_source_id, source_id, source_item_key, configuration_revision,
+        fingerprint, fetch_sequence)
+        VALUES (:feed_id, :feed_source_id, :source_id, :source_item_key,
+        :configuration_revision, :fingerprint, :fetch_sequence)""",
+    "connector_provider_budgets": """INSERT INTO connector_provider_budgets
+        (provider_id, limit_usd, reserved_usd)
+        VALUES (:provider_id, :limit_usd, :reserved_usd)""",
+    "connector_provider_operations": """INSERT INTO connector_provider_operations
+        (provider_id, operation_id, request_hash, ceiling_usd, payload_ref, status, headers)
+        VALUES (:provider_id, :operation_id, :request_hash, :ceiling_usd, :payload_ref, :status,
+        :headers)""",
+    "connector_provider_poll_jobs": """INSERT INTO connector_provider_poll_jobs
+        (job_id, request, initial_hash, provider_order, due_at, state, last_error, attempts)
+        VALUES (:job_id, :request, :initial_hash, :provider_order, :due_at, :state, :last_error,
+        :attempts)""",
+    "connector_rss_poll_jobs": """INSERT INTO connector_rss_poll_jobs
+        (job_id, request, request_hash, due_at, state, offset)
+        VALUES (:job_id, :request, :request_hash, :due_at, :state, :offset)""",
+    "v1_model_spending_authorizations": """INSERT INTO v1_model_spending_authorizations
+        (id, account_id, valid_from, valid_until, json)
+        VALUES (:id, :account_id, :valid_from, :valid_until, :json)""",
+    "v1_model_spending_reservations": """INSERT INTO v1_model_spending_reservations
+        (id, account_id, authorization_id, token, model, feed_id, reserved_cost_usd,
+        lease_until, created_at, json)
+        VALUES (:id, :account_id, :authorization_id, :token, :model, :feed_id,
+        :reserved_cost_usd, :lease_until, :created_at, :json)""",
+    "v1_model_spending_settlements": """INSERT INTO v1_model_spending_settlements
+        (id, token, cost_usd, reported)
+        VALUES (:id, :token, :cost_usd, :reported)""",
+    "v1_feed_documents": """INSERT INTO v1_feed_documents
+        (kind, id, feed_id, json)
+        VALUES (:kind, :id, :feed_id, :json)""",
+    "v1_model_spending_concurrency_amendments": """INSERT INTO v1_model_spending_concurrency_amendments
+        (id, authorization_id, sequence, max_concurrent_operations, json)
+        VALUES (:id, :authorization_id, :sequence, :max_concurrent_operations, :json)""",
+    "mail_oauth_tokens": """INSERT INTO mail_oauth_tokens
+        (provider, version, iv, ciphertext, updated_at)
+        VALUES (:provider, :version, :iv, :ciphertext, :updated_at)""",
+    "push_subscriptions": """INSERT INTO push_subscriptions
+        (endpoint, account_id, subscription_json, last_notified_at, created_at)
+        VALUES (:endpoint, :account_id, :subscription_json, :last_notified_at, :created_at)""",
+}
+
+
 def insert(db, table, values):
-    columns = ",".join(values)
-    slots = ",".join("?" for _ in values)
-    db.execute(f"INSERT INTO {table}({columns}) VALUES({slots})", tuple(values.values()))
+    db.execute(FIXTURE_INSERTS[table], values)
 
 
 def json_text(value):
@@ -214,29 +293,48 @@ def table_exists(db, name):
     return db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone()
 
 
-PRESERVE = (
-    "accounts", "briefings", "sources", "v1_intake_scopes", "v1_feeds",
-    "v1_evidence", "v1_revisions", "v1_acquired", "v1_acquisition_results", "v1_jobs",
-    "v1_feed_documents", "connector_item_fingerprints", "connector_provider_budgets",
-    "connector_provider_operations", "connector_provider_poll_jobs", "connector_rss_poll_jobs",
-    "v1_model_spending_authorizations", "v1_model_spending_reservations",
-    "v1_model_spending_settlements", "v1_model_spending_concurrency_amendments",
-    "mail_oauth_tokens", "push_subscriptions",
-)
+PRESERVE_QUERIES = {
+    "accounts": "SELECT * FROM accounts ORDER BY rowid",
+    "briefings": "SELECT * FROM briefings ORDER BY rowid",
+    "sources": "SELECT * FROM sources ORDER BY rowid",
+    "v1_intake_scopes": "SELECT * FROM v1_intake_scopes ORDER BY rowid",
+    "v1_feeds": "SELECT * FROM v1_feeds ORDER BY rowid",
+    "v1_evidence": "SELECT * FROM v1_evidence ORDER BY rowid",
+    "v1_revisions": "SELECT * FROM v1_revisions ORDER BY rowid",
+    "v1_acquired": "SELECT * FROM v1_acquired ORDER BY rowid",
+    "v1_acquisition_results": "SELECT * FROM v1_acquisition_results ORDER BY rowid",
+    "v1_jobs": "SELECT * FROM v1_jobs ORDER BY rowid",
+    "v1_feed_documents": "SELECT * FROM v1_feed_documents ORDER BY rowid",
+    "connector_item_fingerprints": "SELECT * FROM connector_item_fingerprints ORDER BY rowid",
+    "connector_provider_budgets": "SELECT * FROM connector_provider_budgets ORDER BY rowid",
+    "connector_provider_operations": "SELECT * FROM connector_provider_operations ORDER BY rowid",
+    "connector_provider_poll_jobs": "SELECT * FROM connector_provider_poll_jobs ORDER BY rowid",
+    "connector_rss_poll_jobs": "SELECT * FROM connector_rss_poll_jobs ORDER BY rowid",
+    "v1_model_spending_authorizations": "SELECT * FROM v1_model_spending_authorizations ORDER BY rowid",
+    "v1_model_spending_reservations": "SELECT * FROM v1_model_spending_reservations ORDER BY rowid",
+    "v1_model_spending_settlements": "SELECT * FROM v1_model_spending_settlements ORDER BY rowid",
+    "v1_model_spending_concurrency_amendments": "SELECT * FROM v1_model_spending_concurrency_amendments ORDER BY rowid",
+    "mail_oauth_tokens": "SELECT * FROM mail_oauth_tokens ORDER BY rowid",
+    "push_subscriptions": "SELECT * FROM push_subscriptions ORDER BY rowid",
+}
 
 
 def snapshot(db):
     result = {}
-    for table in PRESERVE:
+    for table, query in PRESERVE_QUERIES.items():
         if table_exists(db, table):
-            columns = [row[1] for row in db.execute(f"PRAGMA table_info({table})")]
-            result[table] = (columns, db.execute(f"SELECT {','.join(columns)} FROM {table} ORDER BY rowid").fetchall())
+            cursor = db.execute(query)
+            columns = [column[0] for column in cursor.description]
+            result[table] = (columns, cursor.fetchall())
     return result
 
 
 def verify_preserved(db, before):
     for table, (columns, rows) in before.items():
-        current = db.execute(f"SELECT {','.join(columns)} FROM {table} ORDER BY rowid").fetchall()
+        cursor = db.execute(PRESERVE_QUERIES[table])
+        current_columns = [column[0] for column in cursor.description]
+        positions = [current_columns.index(column) for column in columns]
+        current = [tuple(row[position] for position in positions) for row in cursor]
         require(current == rows, f"Upgrade changed existing {table} data")
     expected_amendments = len(before.get("v1_model_spending_concurrency_amendments", ([], []))[1])
     require(db.execute("SELECT COUNT(*) FROM v1_model_spending_authorizations").fetchone() == (1,),
@@ -283,10 +381,17 @@ def scenario(label, initial, candidate):
         if initial:
             verify_preserved(db, before)
         else:
-            for table in ("v1_model_spending_authorizations", "v1_model_spending_reservations",
-                          "v1_model_spending_settlements", "v1_model_spending_concurrency_amendments",
-                          "connector_provider_operations", "connector_provider_budgets"):
-                require(db.execute(f"SELECT COUNT(*) FROM {table}").fetchone() == (0,),
+            # Closed set of literal SQL statements: no dynamic identifiers or values.
+            empty_financial_queries = {
+                "v1_model_spending_authorizations": "SELECT COUNT(*) FROM v1_model_spending_authorizations",
+                "v1_model_spending_reservations": "SELECT COUNT(*) FROM v1_model_spending_reservations",
+                "v1_model_spending_settlements": "SELECT COUNT(*) FROM v1_model_spending_settlements",
+                "v1_model_spending_concurrency_amendments": "SELECT COUNT(*) FROM v1_model_spending_concurrency_amendments",
+                "connector_provider_operations": "SELECT COUNT(*) FROM connector_provider_operations",
+                "connector_provider_budgets": "SELECT COUNT(*) FROM connector_provider_budgets",
+            }
+            for table, query in empty_financial_queries.items():
+                require(db.execute(query).fetchone() == (0,),
                         f"Fresh migration created financial authority/data: {table}")
         require(apply(db, candidate) == [], f"{label}: migration replay was not a no-op")
         require(db.execute("SELECT name FROM d1_migrations ORDER BY id").fetchall() == tracked,
