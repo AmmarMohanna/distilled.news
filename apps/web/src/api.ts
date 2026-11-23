@@ -144,7 +144,7 @@ export async function resetPassword(token: string, password: string): Promise<vo
   });
 }
 
-export async function uploadAccountAvatar(file: File, onPublicChannel = false): Promise<void> {
+export async function uploadAccountAvatar(file: File): Promise<void> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
     throw new Error("Choose a JPEG, PNG, or WebP image");
   }
@@ -163,7 +163,7 @@ export async function uploadAccountAvatar(file: File, onPublicChannel = false): 
     const image = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
       blob => blob ? resolve(blob) : reject(new Error("Unable to read this image")), "image/jpeg", 0.88
     ));
-    await requestJson(onPublicChannel ? "/api/me/avatar?channel=1" : "/api/me/avatar", { method: "PUT", headers: { "content-type": "image/jpeg" }, body: image });
+    await requestJson("/api/me/avatar?channel=1", { method: "PUT", headers: { "content-type": "image/jpeg" }, body: image });
   } finally {
     photo.close();
   }

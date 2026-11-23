@@ -640,7 +640,7 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
   const [error, setError] = useState<UiMessage>("");
   const awaitingVerification = authStep === "link";
   const copy = awaitingVerification
-    ? { title: "Verify your email", description: "Open the verification link sent to your email." }
+    ? { title: "Check your email", description: "Open the verification link sent to your email." }
     : authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
   const submitLabel = authStep === "link" ? "Sign in" : authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
@@ -711,6 +711,7 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
       }}
     >
       {authStep === "email" ? <div className="auth-brand-mark" aria-hidden="true"><img src="/favicon.svg" alt="" /></div> : null}
+      {awaitingVerification && <span className="verification-mail-icon" aria-hidden="true"><Mail size={56} strokeWidth={1.55}/></span>}
       <div className="auth-copy">
         <h2>{t(copy.title)}</h2>
         <p>{t(copy.description)}</p>
@@ -722,7 +723,7 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
         </label>
       ) : null}
       {awaitingVerification ? <div className="auth-input auth-verified-email" role="group" aria-label={t("email")}>
-        <Mail size={21} aria-hidden/><span className="auth-email-address" dir="auto">{email}</span>
+        <span className="auth-email-address" dir="auto">{email}</span>
       </div> : <label className="auth-input">
         <span className="sr-only">{t("email")}</span><Mail size={21} aria-hidden/>
         <input type="email" required placeholder={t("Email address")} autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); clearVerificationRecovery(); }} />
@@ -1236,7 +1237,6 @@ function AccountDialog(props: {
   const [busy, setBusy] = useState<"username" | "password" | "logout" | "avatar" | null>(null);
   const usernameFieldRef = useRef<HTMLInputElement | null>(null);
   const pictureFieldRef = useRef<HTMLInputElement | null>(null);
-  const [showOnChannel, setShowOnChannel] = useState(false);
 
   useEffect(() => {
     setUsername(props.account.username);
@@ -1274,7 +1274,7 @@ function AccountDialog(props: {
           }
         }}
       >
-        <div className="profile-card-heading"><div><label htmlFor="profile-username">{t("Username")}</label><p>{t("Your account username")}</p></div></div>
+        <div className="profile-card-heading"><label htmlFor="profile-username">{t("Username")}</label></div>
         <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
         <button hidden={!editingUsername} type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "username"}>
           {t("Save")}
@@ -1339,7 +1339,7 @@ function AccountDialog(props: {
           setMessage("");
           setError("");
           try {
-            await uploadAccountAvatar(picture, showOnChannel);
+            await uploadAccountAvatar(picture);
             window.dispatchEvent(new CustomEvent(ACCOUNT_AVATAR_UPDATED, { detail: props.account.id }));
             setMessage("Profile picture saved");
           } catch (cause) {
@@ -1350,13 +1350,11 @@ function AccountDialog(props: {
         }}/>
         <div className="profile-picture-frame">
           <AccountAvatar account={props.account} className="profile-avatar"/>
-          <button type="button" className="profile-picture-upload" aria-label={t(busy === "avatar" ? "Uploading picture?" : "Upload profile picture")} disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
-            <Pencil size={16} aria-hidden/> {t(busy === "avatar" ? "Uploading picture?" : "Edit picture")}
+          <button type="button" className="profile-picture-upload" aria-label={t(busy === "avatar" ? "Uploading picture…" : "Upload profile picture")} disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
+            <Pencil size={14} aria-hidden/> {t(busy === "avatar" ? "Uploading picture…" : "Edit")}
           </button>
         </div>
-        <label className="profile-picture-visibility"><input type="checkbox" checked={showOnChannel} disabled={busy !== null} onChange={event => setShowOnChannel(event.currentTarget.checked)}/>
-          {t("Show this picture on my public channel")}
-        </label>
+        <small className="profile-photo-note">{t("New photos appear on your public channel.")}</small>
       </div>
 
       <div className="account-actions">
