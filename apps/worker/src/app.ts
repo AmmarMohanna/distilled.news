@@ -24,6 +24,7 @@ import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion
 import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
 import { bodyLimit } from 'hono/body-limit';
+import { briefingPublisherPhoto } from "./briefing-photo";
 import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
@@ -1408,6 +1409,25 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ channels: await ranking.entries });
   });
 
+  app.get("/api/explore/highlights", async (c) => {
+    c.header("Cache-Control", "private, no-store");
+    c.header("Vary", "Cookie");
+    const repo = repoFor(c);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const ownerId = viewer && !viewer.disabledAt ? viewer.id : undefined;
+    const voterId = await getVoterId(c) ?? undefined;
+    const now = nowFor().getTime();
+    const [trending, newest] = await Promise.all([
+      repo.listExploreHighlights("trending", new Date(now - 7 * 86_400_000).toISOString(), 8, voterId, ownerId),
+      repo.listExploreHighlights("new", new Date(now - 30 * 86_400_000).toISOString(), 8, voterId, ownerId)
+    ]);
+    const card = (feed: typeof trending[number]) => ({
+      ...publicBriefing(feed), viewerHasStarred: feed.viewerHasStarred, latestUpdatedAt: feed.latestUpdatedAt, latestEditionId: feed.latestEditionId
+    });
+    return c.json({ trending: trending.map(card), newest: newest.map(card) });
+  });
+
   async function channelOwner(repo: Repository, username: string) {
     const owner = await repo.getAccountByUsername(username) ?? (await repo.resolveUsernameAlias(username))?.account;
     return owner?.disabledAt ? undefined : owner;
@@ -1556,7 +1576,13 @@ export function createApp(options: AppOptions = {}) {
     if (!edition) return c.json({ error: "edition not found" }, 404);
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
-    return c.json({ edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
+    if (c.req.query("photo") === "1") {
+      if (!briefing.publicFeedEnabled) return c.json({ photo: null });
+      const photo = await briefingPublisherPhoto(edition, fetcher);
+      const current = photo ? await repo.getBriefingById(briefing.id) : null;
+      return c.json({ photo: current?.publicFeedEnabled ? photo : null });
+    }
+    return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
   });
 
   app.get("/api/feed/:username/:briefingSlug/items/:itemId/evidence", async (c) => {

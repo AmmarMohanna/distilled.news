@@ -27,6 +27,12 @@ it('lists public card metadata with indexed timestamps and voter isolation, with
   expect(await repo.listBriefings('other-account','voter-a')).toEqual([]);
   const plan=await local.db.prepare("EXPLAIN QUERY PLAN SELECT json_extract(json,'$.publishedAt') FROM v1_feed_documents WHERE feed_id=? AND kind='publication_status' AND json_extract(json,'$.status')='PUBLISHED' ORDER BY json_extract(json,'$.publishedAt') DESC LIMIT 1").bind('public-card').all<{detail:string}>();
   expect(plan.results.map(row=>row.detail).join(' ')).toContain('v1_explore_publication_time');
+  const yearAgo = new Date(Date.now() - 365 * 86_400_000).toISOString();
+  expect(await repo.listExploreHighlights("trending", yearAgo, 8, "voter-a")).toMatchObject([
+    { id: "public-card", latestEditionId: "live", viewerHasStarred: true }
+  ]);
+  expect((await repo.listExploreHighlights("new", yearAgo, 8)).map(item => item.id)).toEqual(["public-card"]);
+  expect(await repo.listExploreHighlights("trending", "2099-01-01T00:00:00.000Z", 8)).toEqual([]);
   await repo.upsertBriefing(make('second-public-card'));
   await repo.setBriefingStar('second-public-card','voter-a',true);
   await repo.setBriefingStar('private-card','private-voter',true);

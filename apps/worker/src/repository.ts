@@ -506,6 +506,31 @@ export class D1Repository implements Repository {
     ).bind(...(ownerId === undefined ? [limit] : [ownerId, limit])));
   }
 
+  async listExploreHighlights(kind: "trending" | "new", since: string, limit: number, voterId?: string, excludeOwnerId?: string) {
+    const ranked = kind === "trending";
+    const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null; latest_edition_id: string | null}>(this.db.prepare(
+      `WITH selected AS (
+        SELECT briefings.id FROM briefings JOIN accounts ON accounts.id = briefings.owner_account_id
+        ${ranked ? "JOIN briefing_stars ON briefing_stars.briefing_id = briefings.id AND briefing_stars.created_at >= ?" : ""}
+        WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
+          AND (? IS NULL OR briefings.owner_account_id != ?)
+          ${ranked ? "GROUP BY briefings.id" : "AND briefings.created_at >= ?"}
+        ORDER BY ${ranked ? "COUNT(briefing_stars.voter_id) DESC," : ""} briefings.created_at DESC, briefings.id ASC
+        LIMIT ?
+      )
+      SELECT briefings.*, accounts.username AS owner_username, ${BRIEFING_CARD_FIELDS},
+        COALESCE(
+          (SELECT p.id FROM v1_feed_documents p WHERE p.feed_id=briefings.id AND p.kind='publication_status' AND json_extract(p.json,'$.status')='PUBLISHED' ORDER BY json_extract(p.json,'$.publishedAt') DESC LIMIT 1),
+          (SELECT e.id FROM briefing_editions e WHERE e.briefing_id=briefings.id AND e.status='published' ORDER BY e.published_at DESC LIMIT 1)
+        ) AS latest_edition_id
+      FROM selected JOIN briefings ON briefings.id = selected.id JOIN accounts ON accounts.id = briefings.owner_account_id
+      ORDER BY ${ranked ? "(SELECT COUNT(*) FROM briefing_stars WHERE briefing_id=briefings.id AND created_at>=?) DESC," : ""}
+        briefings.created_at DESC, briefings.id ASC`
+    ).bind(...(ranked ? [since] : []), excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ranked ? [] : [since]),
+      limit, voterId ?? null, ...(ranked ? [since] : [])));
+    return rows.map(row => ({ ...rowToBriefingCard(row), latestEditionId: row.latest_edition_id ?? undefined }));
+  }
+
   async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
     if (limit <= 0) return [];
     const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null}>(
@@ -1810,6 +1835,7 @@ export class InMemoryRepository implements Repository {
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   editionsByBriefing = new Map<string, Map<string, BriefingEdition>>();
   starsByBriefing = new Map<string, Set<string>>();
+  private starDatesByBriefing = new Map<string, Map<string, string>>();
   jobs = new Map<string, ProcessingJobRecord>();
   settings = new Map<string, string>();
 
@@ -2019,6 +2045,17 @@ export class InMemoryRepository implements Repository {
     return {...feed,viewerHasStarred:voterId?this.starsByBriefing.get(feed.id)?.has(voterId)??false:false,latestUpdatedAt:latest?.updatedAt??latest?.publishedAt};
   }
 
+  async listExploreHighlights(kind: "trending" | "new", since: string, limit: number, voterId?: string, excludeOwnerId?: string) {
+    const feeds = await this.listExploreBriefings(this.briefings.size, 0, excludeOwnerId, voterId);
+    return feeds.map(feed => ({
+      feed,
+      createdAt: this.briefingCreatedAt.get(feed.id) ?? "",
+      recentStars: Array.from(this.starDatesByBriefing.get(feed.id)?.values() ?? []).filter(date => date >= since).length
+    })).filter(item => kind === "trending" ? item.recentStars > 0 : item.createdAt >= since)
+      .sort((a,b) => (kind === "trending" ? b.recentStars - a.recentStars : 0) || b.createdAt.localeCompare(a.createdAt) || a.feed.id.localeCompare(b.feed.id))
+      .slice(0,limit).map(item => item.feed);
+  }
+
   async setExploreFeatured(briefingId: string, featured: boolean): Promise<void> {
     const briefing = this.briefings.get(briefingId);
     if (briefing) this.briefings.set(briefingId, { ...briefing, exploreFeatured: featured });
@@ -2040,8 +2077,12 @@ export class InMemoryRepository implements Repository {
     return this.starsByBriefing.get(briefingId)?.has(voterId) ?? false;
   }
 
-  async setBriefingStar(briefingId: string, voterId: string, starred: boolean): Promise<number> {
+  async setBriefingStar(briefingId: string, voterId: string, starred: boolean, now = new Date()): Promise<number> {
     const votes = this.starsByBriefing.get(briefingId) ?? new Set<string>();
+    const dates = this.starDatesByBriefing.get(briefingId) ?? new Map<string, string>();
+    if (starred && !votes.has(voterId)) dates.set(voterId, now.toISOString());
+    if (!starred) dates.delete(voterId);
+    this.starDatesByBriefing.set(briefingId, dates);
     if (starred) votes.add(voterId);
     else votes.delete(voterId);
     this.starsByBriefing.set(briefingId, votes);
@@ -2105,6 +2146,7 @@ export class InMemoryRepository implements Repository {
     this.itemsByBriefing.delete(id);
     this.editionsByBriefing.delete(id);
     this.starsByBriefing.delete(id);
+    this.starDatesByBriefing.delete(id);
 
     for (const [jobId, job] of this.jobs) {
       if (job.briefingId === id) this.jobs.delete(jobId);
