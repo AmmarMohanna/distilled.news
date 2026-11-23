@@ -302,7 +302,7 @@ function FeedTile({ feed, owner = false, onError, onStarChange }: {
   return <article className="feed-tile">
     <div className="feed-tile-cover">
       <a className="feed-tile-artwork" href={href} aria-label={`${t("Open feed")}: ${feed.title}`} tabIndex={-1}>
-        <FeedArt feed={feed}/>
+        <FeedArt feed={feed} centered/>
       </a>
       <div className="feed-tile-controls">
         {feed.publicFeedEnabled && <button type="button" className="feed-tile-star" aria-label={`${t(starred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={starred} disabled={busy || !canStar} onClick={() => void toggleStar()}>

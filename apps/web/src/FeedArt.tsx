@@ -28,7 +28,7 @@ function rememberSketch(key: string, blob: Blob) {
   }
 }
 
-export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string; publicFeedEnabled?: boolean } }) {
+export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string; publicFeedEnabled?: boolean } }) {
   const [image, setImage] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [failure, setFailure] = useState("");
@@ -45,8 +45,9 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
     const refreshArtwork = new URLSearchParams(window.location.search).get('refresh-artwork') === feed.id;
     let checkedStorage = refreshArtwork;
     const sketchUrl = `/api/feed/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/sketch`;
+    const cacheKey = centered ? sketchUrl + "?artwork=centered-v1" : sketchUrl;
     const cacheable = feed.publicFeedEnabled === true;
-    const saved = cacheable && !refreshArtwork ? cachedSketch(sketchUrl) : undefined;
+    const saved = cacheable && !refreshArtwork ? cachedSketch(cacheKey) : undefined;
     if (saved) {
       objectUrl = URL.createObjectURL(saved);
       setImage(objectUrl);
@@ -63,10 +64,10 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
       try {
         if (cacheable && !checkedStorage) {
           checkedStorage = true;
-          const stored = await readSavedSketch(sketchUrl);
+          const stored = await readSavedSketch(cacheKey);
           if (controller.signal.aborted) return;
           if (stored) {
-            rememberSketch(sketchUrl, stored);
+            rememberSketch(cacheKey, stored);
             objectUrl = URL.createObjectURL(stored);
             setImage(objectUrl);
             return;
@@ -74,27 +75,27 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
         }
         const load = async () => {
           const response = await fetch(sketchUrl, { ...(cacheable ? {} : {signal:controller.signal}), cache: cacheable ? refreshArtwork ? "reload" : "default" : "no-store" });
-          if (response.ok && response.headers.get("content-type")?.startsWith("image/")) return {blob:await transparentSketch(await response.blob()),pending:false};
+          if (response.ok && response.headers.get("content-type")?.startsWith("image/")) return {blob:await transparentSketch(await response.blob(), centered),pending:false};
           // A missing job cannot become ready merely by repeatedly reading its URL.
           return {pending:response.status === 404 && Boolean(response.headers?.get("Retry-After"))};
         };
-        let request = cacheable && !refreshArtwork ? sketchRequests.get(sketchUrl) : undefined;
+        let request = cacheable && !refreshArtwork ? sketchRequests.get(cacheKey) : undefined;
         if (!request) {
           request = load();
           if (cacheable) {
-            sketchRequests.set(sketchUrl, request);
-            void request.then(() => sketchRequests.delete(sketchUrl), () => sketchRequests.delete(sketchUrl));
+            sketchRequests.set(cacheKey, request);
+            void request.then(() => sketchRequests.delete(cacheKey), () => sketchRequests.delete(cacheKey));
           }
         }
         const {blob,pending} = await request;
         if (pending && retries++ < 20 && !controller.signal.aborted) schedule(Math.min(30_000, 3000 * 2 ** Math.min(4, retries - 1)));
         if (blob) {
           if (controller.signal.aborted) return;
-          if (cacheable) rememberSketch(sketchUrl, blob);
+          if (cacheable) rememberSketch(cacheKey, blob);
           clearTimeout(timer);
           objectUrl = URL.createObjectURL(blob);
           setImage(objectUrl);
-          if (cacheable) void saveSketch(sketchUrl, blob);
+          if (cacheable) void saveSketch(cacheKey, blob);
           if (refreshArtwork) {
             const url = new URL(window.location.href);
             if (url.searchParams.get('refresh-artwork') === feed.id) {
@@ -116,7 +117,7 @@ export function FeedArt({ feed }: { kind?: string; feed?: { id?: string; title: 
     window.addEventListener("feed-sketch-updated", refresh);
     void check();
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [feed?.ownerUsername, feed?.slug, feed?.id, feed?.publicFeedEnabled]);
+  }, [feed?.ownerUsername, feed?.slug, feed?.id, feed?.publicFeedEnabled, centered]);
   return <span className="topic-art pencil-art" title={failure || undefined} aria-hidden="true">
 
     {image && <img src={image} alt="" style={{ visibility: loaded ? "visible" : "hidden" }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); }}/>}

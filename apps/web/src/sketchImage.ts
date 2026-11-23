@@ -11,7 +11,7 @@ export function violetStrokeAlpha(red: number, green: number, blue?: number, pap
   return Math.min(255, Math.round(ink * 255 / 163));
 }
 
-export async function transparentSketch(blob: Blob): Promise<Blob> {
+export async function transparentSketch(blob: Blob, centered = false): Promise<Blob> {
   const bitmap = await createImageBitmap(blob);
   try {
     const canvas = document.createElement("canvas");
@@ -31,6 +31,7 @@ export async function transparentSketch(blob: Blob): Promise<Blob> {
     }
     const paper = channels.map(values => values.sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 255);
     let hasDrawing = false;
+    let left = canvas.width, right = -1, top = canvas.height, bottom = -1;
     for (let i = 0; i < pixels.data.length; i += 4) {
       const alpha = violetStrokeAlpha(pixels.data[i], pixels.data[i + 1], pixels.data[i + 2], paper);
       pixels.data[i] = 94;
@@ -38,9 +39,22 @@ export async function transparentSketch(blob: Blob): Promise<Blob> {
       pixels.data[i + 2] = 230;
       pixels.data[i + 3] = alpha;
       if (alpha > 12) hasDrawing = true;
+      if (centered && alpha > 0) {
+        const x = (i / 4) % canvas.width;
+        const y = Math.floor(i / 4 / canvas.width);
+        left = Math.min(left, x); right = Math.max(right, x);
+        top = Math.min(top, y); bottom = Math.max(bottom, y);
+      }
     }
     if (!hasDrawing) throw new Error("Empty illustration");
-    ctx.putImageData(pixels, 0, 0);
+    if (centered) {
+      const x = Math.floor((canvas.width - 1 - left - right) / 2);
+      const y = Math.floor((canvas.height - 1 - top - bottom) / 2);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.putImageData(pixels, x, y, left, top, right - left + 1, bottom - top + 1);
+    } else {
+      ctx.putImageData(pixels, 0, 0);
+    }
     // Preserve the model's square composition and whitespace instead of
     // tightly cropping and enlarging delicate marks.
     return await new Promise<Blob>((resolve, reject) =>
