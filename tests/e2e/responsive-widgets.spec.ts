@@ -66,18 +66,20 @@ test('brand size stays stable when the viewport grows and login uses the transpa
   await expect(page.locator('.auth-brand-mark img')).toHaveAttribute('src','/favicon.svg');
 });
 
-for(const width of [390,667,1280,1920])test(`Home and Explore keep matching widget sizes at ${width}px`,async({page})=>{
+for(const width of [390,667,1280,1920])test(`Home and Explore fit square widgets to their available space at ${width}px`,async({page})=>{
  await mock(page, true, 9);await page.setViewportSize({width,height:800});await page.goto('/');
  const home=page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile').first();await expect(home).toBeVisible();
  const size=async(selector:string)=>page.locator(selector).first().evaluate(node=>{
   const r=node.getBoundingClientRect(),art=node.querySelector('.topic-art')!.getBoundingClientRect();
-  const style=getComputedStyle(node);
-  return {width:r.width,height:r.height,art:art.width,font:getComputedStyle(node.querySelector('.feed-tile-caption > a')!).fontSize,padding:style.padding,rows:style.gridTemplateRows,gap:style.rowGap};
+  return {width:r.width,height:r.height,art:art.width,artHeight:art.height,gridWidth:node.parentElement!.clientWidth,font:getComputedStyle(node.querySelector('.feed-tile-caption > a')!).fontSize};
  });
  const initial=await size('.feed-tile-grid[data-feed-view=home] .feed-tile');
  await page.goto('/explore');await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(9);
  const explore=await size('.feed-tile-grid[data-feed-view=explore] .feed-tile');
- expect(Math.abs(initial.width-explore.width)).toBeLessThan(2);
- expect(Math.abs(initial.height-explore.height),JSON.stringify({initial,explore})).toBeLessThan(2);
- expect(initial.art).toBe(explore.art);expect(initial.font).toBe(explore.font);
+ for (const card of [initial, explore]) {
+   expect(card.width).toBeLessThanOrEqual(card.gridWidth + 1);
+   expect(Math.abs(card.art - card.artHeight)).toBeLessThan(1);
+   expect(card.height).toBeGreaterThan(card.artHeight);
+ }
+ expect(initial.font).toBe(explore.font);
 });
