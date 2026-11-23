@@ -2,10 +2,10 @@ import {ApiError,toUiError, type UiMessage} from './api-errors';
 import React, { useEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
-import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, ChevronRight, HelpCircle, Home, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, ChevronRight, HelpCircle, Home, MessageSquareWarning, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
-import type { AccountRecord, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
-import { getExploreFeeds, setFeedStar, type FeedStarResult } from "./api";
+import type { AccountRecord, ExploreChannel, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
+import { getExploreChannel, getExploreChannels, getExploreFeeds, setFeedStar, type FeedStarResult } from "./api";
 import type {ExploreChangeDetail} from './explore-events';
 import { ThemeToggle, useTheme } from "./ThemeToggle";
 import { LanguageControl, languageNames, setWebsiteLanguage, useLanguage } from "./LanguageControl";
@@ -24,6 +24,7 @@ function tabFromLocation():ExperienceTab {
   return /^\/explore\/?$/.test(window.location.pathname)?'explore':'home';
 }
 const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
+export const channelUrl = (username: string) => `/explore?channel=${encodeURIComponent(username)}`;
 export function BrandMark() { return <span className="distilled-logo" aria-hidden="true"><span className="distilled-logo-symbol"/><span className="distilled-logo-wordmark">Distilled<span className="distilled-logo-dot">.</span>News</span></span>; }
 export function AppHeader({ account, onAccount, leading, actions, contextual, loading = false }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode; contextual?: boolean; loading?: boolean }) {
   const { t } = useLanguage();
@@ -47,6 +48,10 @@ export function AppExperience(props: {
 }) {
   const [tab, setTab] = useState<ExperienceTab>(() => props.initialTab ?? tabFromLocation());
   const [query, setQuery] = useState("");
+  const [channelName, setChannelName] = useState(() => new URLSearchParams(window.location.search).get("channel") ?? "");
+  const [channels, setChannels] = useState<ExploreChannel[]>([]);
+  const [channel, setChannel] = useState<ExploreChannel>();
+  const [channelFailed, setChannelFailed] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [resumingFeed, setResumingFeed] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<UiMessage>("");
@@ -71,6 +76,29 @@ export function AppExperience(props: {
   const [installError, setInstallError] = useState("");
   const { language, t } = useLanguage();
   const { theme, setTheme } = useTheme();
+  useEffect(() => {
+    if (tab !== "explore") return;
+    let active: AbortController | undefined;
+    const loadChannel = () => {
+      active?.abort();
+      const request = new AbortController();
+      active = request;
+      if (channelName) {
+        void getExploreChannel(channelName, request.signal)
+          .then(value => { if (!request.signal.aborted) { setChannel(value); setChannelFailed(!value); } })
+          .catch(() => { if (!request.signal.aborted) setChannelFailed(true); });
+      } else {
+        void getExploreChannels(request.signal)
+          .then(value => { if (!request.signal.aborted) setChannels(value); })
+          .catch(() => { /* Feed discovery remains usable when channel rankings are unavailable. */ });
+      }
+    };
+    setChannel(undefined);
+    setChannelFailed(false);
+    loadChannel();
+    window.addEventListener(EXPLORE_CHANGED_EVENT, loadChannel);
+    return () => { active?.abort(); window.removeEventListener(EXPLORE_CHANGED_EVENT, loadChannel); };
+  }, [tab, channelName]);
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."; }, [tab, language, props.account]);
   useEffect(() => {
     let active = true;
@@ -86,7 +114,9 @@ export function AppExperience(props: {
       failedOffset.current = offset;
       setLoading(true); setExploreError("");
       try {
-        const result = await getExploreFeeds(offset,offset>0?listingRevision:undefined);
+        const result = channelName
+          ? await getExploreFeeds(offset, offset > 0 ? listingRevision : undefined, channelName)
+          : await getExploreFeeds(offset, offset > 0 ? listingRevision : undefined);
         if (!active || version !== request) return;
         if(offset>0&&listingRevision!==undefined&&result.revision!==listingRevision){refreshRequested=true;setNextOffset(null);return;}
         if(offset>0&&result.feeds.some(feed=>loadedIds.has(feed.id))){
@@ -129,25 +159,29 @@ export function AppExperience(props: {
       version++;setNextOffset(null);
       if(inFlight)refreshRequested=true;else void load();
     };
+    setFeeds([]);
+    setNextOffset(null);
     void load();
     window.addEventListener(EXPLORE_CHANGED_EVENT, changed);
     return () => { active = false; window.removeEventListener(EXPLORE_CHANGED_EVENT, changed); };
-  }, []);
+  }, [channelName]);
   const matching = (title: string) => (!query || title.toLowerCase().includes(query.toLowerCase()));
   const ownListReady = !props.briefingsState || props.briefingsState === 'ready';
   const activeFeeds = props.briefings.filter(feed => !feed.paused);
   const archivedFeeds = props.briefings.filter(feed => feed.paused);
   const ownFeeds = activeFeeds.filter(feed => matching(feed.title));
   const owns = (feed: PublicBriefing) => Boolean(props.account && ((Boolean(props.account.id) && feed.ownerAccountId === props.account.id) || feed.ownerUsername === props.account.username));
-  const visibleFeeds = feeds.filter(feed => !feed.paused && !owns(feed) && matching(`${feed.title} ${feed.ownerUsername}`));
+  const visibleFeeds = feeds.filter(feed => !feed.paused && (channelName ? feed.publicFeedEnabled && feed.ownerUsername === channel?.username : !owns(feed)) && matching(`${feed.title} ${feed.ownerUsername}`));
+  const recentFeeds = channel && !query ? visibleFeeds.filter(feed => feed.latestUpdatedAt)
+    .sort((a, b) => b.latestUpdatedAt!.localeCompare(a.latestUpdatedAt!)).slice(0, 6) : [];
   const setting = (icon: React.ReactNode, label: string, action: () => void) => <button type="button" className="setting-row" onClick={action}>{icon}<span>{t(label)}</span><ChevronRight size={17}/></button>;
   function changeTab(next: typeof tab) {
     const url = next === "home" ? "/" : next === "explore" ? "/explore" : "/?view=settings";
     if(window.location.pathname + window.location.search !== url) window.history.pushState(null, "", url);
-    setTab(next); setArchiveOpen(false); setSettingsDialog(null); window.scrollTo({ top: 0 });
+    setTab(next); setChannelName(""); setArchiveOpen(false); setSettingsDialog(null); window.scrollTo({ top: 0 });
   }
   useEffect(() => {
-    const restore = () => { setTab(tabFromLocation()); setArchiveOpen(false); setSettingsDialog(null); };
+    const restore = () => { setTab(tabFromLocation()); setChannelName(new URLSearchParams(window.location.search).get("channel") ?? ""); setArchiveOpen(false); setSettingsDialog(null); };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
   }, []);
@@ -184,7 +218,10 @@ export function AppExperience(props: {
       <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>{!ownListReady && !props.briefings.length && <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/> }<AdaptiveFeedGrid view="home">{ownFeeds.map(feed => <FeedTile key={feed.id} feed={feed} owner onError={setError}/>)}</AdaptiveFeedGrid>{ownListReady && ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(query.trim() ? "No feeds match your search." : archivedFeeds.length ? "Your feeds are paused. Find them in the archive." : "You haven’t created any feeds yet.")}</p> : null}{ownListReady && !props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
     </div>}
     <section className="explore-view" aria-busy={loading} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
-      {props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
+      {channelName ? <div className="channel-heading">
+        <a className="channel-back" href="/explore">{t("Back to Explore")}</a>
+        {channel ? <ChannelHeader channel={channel} onError={setError} onReport={props.onHelp}/> : <p role="status">{t(channelFailed ? "Channel not available" : "Loading channel…")}</p>}
+      </div> : props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
@@ -192,7 +229,16 @@ export function AppExperience(props: {
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
       </div>
+      {!channelName && tab === "explore" && !query && channels.length > 0 && <section className="channel-discovery" aria-labelledby="top-channels-heading">
+        <h2 id="top-channels-heading">{t("Top channels")}</h2>
+        <div className="channel-grid">{channels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
+          <ChannelAvatar username={item.username}/>
+          <strong><bdi>@{item.username}</bdi></strong>
+          <ChannelCounts channel={item}/>
+        </a>)}</div>
+      </section>}
       <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")}>
+        {channel && <h2 className="channel-section-title">{t("Public feeds")}</h2>}
         {exploreError && <div role="alert">
           {feeds.length > 0 && <p>{t("Some feeds could not be loaded. Previously loaded feeds are still available.")}</p>}
           <p className="error">{t(exploreError)}</p>
@@ -202,11 +248,19 @@ export function AppExperience(props: {
         {visibleFeeds.length ? <AdaptiveFeedGrid view="explore">{visibleFeeds.map(feed => <FeedTile
           key={feed.id}
           feed={feed}
+          owner={owns(feed)}
           onError={setError}
           onStarChange={result => setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item))}
         />)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim()||nextOffset===null) ? <p className="empty-copy" role="status">{t(query.trim()?(nextOffset!==null?"No matches in loaded feeds. Load more feeds to continue searching.":"No feeds match your search."):"No community feeds are available yet.")}</p> : null}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>
+      {recentFeeds.length > 0 && <section className="channel-recent" aria-labelledby="channel-recent-heading">
+        <h2 id="channel-recent-heading">{t("Recently updated")}</h2>
+        <ul>{recentFeeds.map(feed => <li key={feed.id}><a href={feedUrl(feed)}>
+          <span className="channel-recent-art"><FeedArt feed={feed} centered/></span>
+          <span><strong><bdi>{feed.title}</bdi></strong><FeedUpdatedAt value={feed.latestUpdatedAt}/></span>
+        </a></li>)}</ul>
+      </section>}
     </section>
     {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label settings-account-label">{t("Account")}</p><div className="settings-group settings-account-group">{setting(<User/>, "Profile", props.onAccount)}<button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Notifications")} aria-checked={notificationEnabled ?? false} disabled={notificationBusy || notificationEnabled === undefined} onClick={() => void toggleNotifications()}><Bell/><span>{t("Notifications")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div>{notificationError && <p className="error" role="alert">{t(notificationError)}</p>}<p className="settings-group-label settings-preferences-label">{t("Preferences")}</p><div className="settings-group settings-preferences-group"><div className="setting-row setting-language" role="group" aria-label={t("Language")}><Globe/><span>{t("Language")}</span><span className="language-segments">{(["en", "fr", "ar"] as const).map(code => <button key={code} type="button" lang={code} aria-pressed={language === code} onClick={() => setWebsiteLanguage(code)} aria-label={languageNames[code]}><span className="language-name">{languageNames[code]}</span><span className="language-code" aria-hidden="true">{code.toUpperCase()}</span></button>)}</span></div><button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Dark mode")} aria-checked={theme === "dark"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><Moon/><span>{t("Dark mode")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div><p className="settings-group-label settings-app-label">{t("App")}</p><div className="settings-group settings-app-group">{setting(<Smartphone/>, "Install app", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
     {props.account && archiveOpen && <Dialog label={t("Archived feeds")} className="feed-archive-dialog" onClose={() => setArchiveOpen(false)}>
@@ -238,6 +292,65 @@ export function accountInitials(username: string) {
   const initials = Array.from((parts.slice(0, 2).map(part => Array.from(part)[0]).join("") || "?").toLocaleUpperCase()).slice(0, 2);
   // Prevent Arabic initials from joining while retaining the two-letter limit.
   return initials.join(initials.some(letter => /\p{Script=Arabic}/u.test(letter)) ? "\u200c" : "");
+}
+
+function ChannelAvatar({ username }: { username: string }) {
+  return <span className="channel-avatar" aria-hidden="true">
+    {accountInitials(username)}
+    <img className="account-avatar-image" src={`/api/explore/channels/${encodeURIComponent(username)}/avatar`} alt="" style={{ visibility: "hidden" }}
+      onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
+  </span>;
+}
+
+function ChannelCounts({ channel }: { channel: ExploreChannel }) {
+  const { language, t } = useLanguage();
+  const format = new Intl.NumberFormat(language);
+  return <span className="channel-counts">
+    <span>{t(channel.publicFeedCount === 1 ? "{count} public feed" : "{count} public feeds", { count: format.format(channel.publicFeedCount) })}</span>
+    <span>{t(channel.followerCount === 1 ? "{count} follower" : "{count} followers", { count: format.format(channel.followerCount) })}</span>
+  </span>;
+}
+
+function ChannelHeader({ channel, onError, onReport }: { channel: ExploreChannel; onError: (message: UiMessage) => void; onReport: () => void }) {
+  const { t } = useLanguage();
+  const menu = useRef<HTMLDetailsElement>(null);
+  const [copied, setCopied] = useState(false);
+  useVisibleFeedMenu(menu);
+  const close = () => {
+    if (!menu.current) return;
+    menu.current.open = false;
+    menu.current.querySelector("summary")?.focus();
+  };
+  const share = async (copy: boolean) => {
+    const url = new URL(channelUrl(channel.username), window.location.origin).href;
+    try {
+      if (!copy && navigator.share) {
+        await navigator.share({ title: `@${channel.username}`, url });
+        close();
+      } else {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+      }
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError")) onError(toUiError(error));
+    }
+  };
+  return <div className="channel-hero">
+    <ChannelAvatar username={channel.username}/>
+    <h1><bdi>@{channel.username}</bdi></h1>
+    <ChannelCounts channel={channel}/>
+    <details ref={menu} className="feed-options feed-tile-options channel-options"
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) event.currentTarget.open = false; }}
+      onToggle={event => { if (!event.currentTarget.open) setCopied(false); }}
+      onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); close(); } }}>
+      <summary aria-label={t("Channel options")}><Ellipsis size={20} aria-hidden/></summary>
+      <div className="feed-options-popover">
+        <button type="button" onClick={() => void share(false)}>{t("Share")}<Share size={16} aria-hidden/></button>
+        <button type="button" onClick={() => void share(true)}><span aria-live="polite">{t(copied ? "Copied" : "Copy link")}</span><Copy size={16} aria-hidden/></button>
+        <button type="button" onClick={() => { close(); onReport(); }}>{t("Report a concern")}<MessageSquareWarning size={16} aria-hidden/></button>
+      </div>
+    </details>
+  </div>;
 }
 
 export const ACCOUNT_AVATAR_UPDATED = "account-avatar-updated";

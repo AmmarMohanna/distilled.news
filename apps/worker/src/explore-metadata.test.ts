@@ -27,5 +27,13 @@ it('lists public card metadata with indexed timestamps and voter isolation, with
   expect(await repo.listBriefings('other-account','voter-a')).toEqual([]);
   const plan=await local.db.prepare("EXPLAIN QUERY PLAN SELECT json_extract(json,'$.publishedAt') FROM v1_feed_documents WHERE feed_id=? AND kind='publication_status' AND json_extract(json,'$.status')='PUBLISHED' ORDER BY json_extract(json,'$.publishedAt') DESC LIMIT 1").bind('public-card').all<{detail:string}>();
   expect(plan.results.map(row=>row.detail).join(' ')).toContain('v1_explore_publication_time');
+  await repo.upsertBriefing(make('second-public-card'));
+  await repo.setBriefingStar('second-public-card','voter-a',true);
+  await repo.setBriefingStar('private-card','private-voter',true);
+  await repo.setBriefingStar('paused-card','paused-voter',true);
+  const channel = { username: owner.username, publicFeedCount: 2, followerCount: 1 };
+  expect(await repo.listExploreChannels(8)).toEqual([channel]);
+  expect(await repo.listExploreChannels(1, owner.id)).toEqual([channel]);
+  expect(await repo.listExploreChannels(1, 'missing-owner')).toEqual([]);
  }finally{await local.dispose()}
 },30000);

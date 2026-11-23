@@ -14,6 +14,11 @@ export type ProcessingJobState = "queued" | "completed" | "failed";
 export type SourceRunState = "queued" | "running" | "succeeded" | "failed";
 export type AccountRole = "admin" | "user";
 export type AuthTokenPurpose = "email_verification" | "password_reset";
+export interface ExploreChannel {
+  username: string;
+  publicFeedCount: number;
+  followerCount: number;
+}
 export type AccountAuthAction =
   | { purpose: "email_verification"; email?: string }
   | { purpose: "password_reset"; passwordHash: string };
@@ -404,7 +409,8 @@ export interface Repository {
   recordAuthAttempt(input: { key: string; action: string }, now?: Date): Promise<void>;
   ensureDefaultBriefing(account: AccountRecord, now?: Date): Promise<BriefingConfig>;
   listBriefings(accountId?: string, voterId?: string): Promise<BriefingConfig[]>;
-  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>>;
+  listExploreChannels(limit: number, ownerId?: string): Promise<ExploreChannel[]>;
+  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string, ownerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>>;
   getExploreRevision(): Promise<string>;
   setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;

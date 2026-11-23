@@ -112,7 +112,7 @@ import { normalizeUsername } from "@distilled/core";
 import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { accountInitials, AccountAvatar, ACCOUNT_AVATAR_UPDATED, AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
+import { accountInitials, AccountAvatar, ACCOUNT_AVATAR_UPDATED, AppExperience, AppHeader, BrandMark, channelUrl, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage, languageNames, setWebsiteLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
 import {FeedSettingsSelect} from './FeedLanguageSelect';
@@ -471,7 +471,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
     return (
       <>
         <AppExperience account={null} briefings={[]} initialTab="explore"
-          onAccount={() => setAuthOpen(true)} onHelp={() => {}}
+          onAccount={() => setAuthOpen(true)} onHelp={() => setHelpOpen(true)}
           onCreate={() => { setCreateAfterLogin(true); setAuthOpen(true); }}
           error={error ? "We couldn’t load your session. Please refresh and try again." : undefined}/>
         {authOpen && (session || error) && <Dialog label={t(!session && error ? "Sign-in Unavailable" : "Login or sign up")} className={`auth-dialog${!session && error ? ' auth-unavailable-dialog' : ''}`} onClose={() => { setAuthOpen(false); setCreateAfterLogin(false); }}>
@@ -497,6 +497,7 @@ function AdminPage(props: { initialTab?: "home" | "explore" }) {
             </section> : null}
           </div>
         </Dialog>}
+        {helpOpen && <FeedHelpSheet onClose={() => setHelpOpen(false)}/>}
       </>
     );
   }
@@ -1066,11 +1067,13 @@ function FeedSettingsSheet(props: {
 
 function FeedHelpSheet(props: { onClose: () => void }) {
   const { t } = useLanguage();
+  const channel = new URLSearchParams(window.location.search).get("channel");
+  const subject = channel ? `?subject=${encodeURIComponent(t("Report a concern"))}&body=${encodeURIComponent(new URL(channelUrl(channel), window.location.origin).href + "\n\n")}` : "";
   return (
     <Dialog label={t("Help & Support")} className="support-dialog" onClose={props.onClose}><section className="dialog-inner"><button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={props.onClose}><X size={22}/></button><h2>{t("Help & Support")}</h2>
       <p>{t("Email us for help and support.")}</p>
-      <p><a href="mailto:distillednews.platform@gmail.com">distillednews.platform@gmail.com</a></p>
-      <p><a href="mailto:distilled.news@outlook.com">distilled.news@outlook.com</a></p>
+      <p><a href={`mailto:distillednews.platform@gmail.com${subject}`}>distillednews.platform@gmail.com</a></p>
+      <p><a href={`mailto:distilled.news@outlook.com${subject}`}>distilled.news@outlook.com</a></p>
     </section></Dialog>
   );
 }
@@ -1233,6 +1236,7 @@ function AccountDialog(props: {
   const [busy, setBusy] = useState<"username" | "password" | "logout" | "avatar" | null>(null);
   const usernameFieldRef = useRef<HTMLInputElement | null>(null);
   const pictureFieldRef = useRef<HTMLInputElement | null>(null);
+  const [showOnChannel, setShowOnChannel] = useState(false);
 
   useEffect(() => {
     setUsername(props.account.username);
@@ -1256,7 +1260,7 @@ function AccountDialog(props: {
           setMessage("");
           setError("");
           try {
-            await uploadAccountAvatar(picture);
+            await uploadAccountAvatar(picture, showOnChannel);
             window.dispatchEvent(new CustomEvent(ACCOUNT_AVATAR_UPDATED, { detail: props.account.id }));
             setMessage("Profile picture saved");
           } catch (cause) {
@@ -1268,6 +1272,9 @@ function AccountDialog(props: {
         <button type="button" className="profile-picture-upload" disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
           {t(busy === "avatar" ? "Uploading picture…" : "Upload profile picture")}
         </button>
+        <label className="profile-picture-visibility"><input type="checkbox" checked={showOnChannel} disabled={busy !== null} onChange={event => setShowOnChannel(event.currentTarget.checked)}/>
+          {t("Show this picture on my public channel")}
+        </label>
         <span className="profile-email">{props.account.email}</span>
         <span className="profile-role">{t(props.account.role === "admin" ? "Admin" : "User")}</span>
       </div>

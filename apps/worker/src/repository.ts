@@ -25,6 +25,7 @@ import type {
   AccountWithStats,
   AuthTokenPurpose,
   AuthTokenRecord,
+  ExploreChannel,
   HealthStatus,
   ProcessingJobRecord,
   ProcessingJobState,
@@ -493,7 +494,19 @@ export class D1Repository implements Repository {
     return String(row.revision);
   }
 
-  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
+  async listExploreChannels(limit: number, ownerId?: string): Promise<ExploreChannel[]> {
+    return all<ExploreChannel>(this.db.prepare(
+      `SELECT accounts.username, COUNT(DISTINCT briefings.id) AS publicFeedCount,
+        COUNT(DISTINCT briefing_stars.voter_id) AS followerCount
+       FROM briefings JOIN accounts ON accounts.id = briefings.owner_account_id
+       LEFT JOIN briefing_stars ON briefing_stars.briefing_id = briefings.id
+       WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
+       ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
+       GROUP BY accounts.id ORDER BY followerCount DESC, publicFeedCount DESC, accounts.username ASC LIMIT ?`
+    ).bind(...(ownerId === undefined ? [limit] : [ownerId, limit])));
+  }
+
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
     if (limit <= 0) return [];
     const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null}>(
       this.db
@@ -504,10 +517,11 @@ export class D1Repository implements Repository {
           JOIN accounts ON accounts.id = briefings.owner_account_id
           WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
           AND (? IS NULL OR briefings.owner_account_id != ?)
+          ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ? OFFSET ?`
         )
-        .bind(voterId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, limit, offset)
+        .bind(voterId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), limit, offset)
     );
     return rows.map(rowToBriefingCard);
   }
@@ -1974,10 +1988,26 @@ export class InMemoryRepository implements Repository {
       .map(feed=>[feed.id,feed.ownerAccountId,this.accounts.get(feed.ownerAccountId)?.username,feed.slug,feed.title,feed.stars,this.briefingCreatedAt.get(feed.id)]));
   }
 
-  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
+  async listExploreChannels(limit: number, ownerId?: string): Promise<ExploreChannel[]> {
+    const channels = new Map<string, { username: string; publicFeedCount: number; followers: Set<string> }>();
+    for (const feed of this.briefings.values()) {
+      if (!feed.publicFeedEnabled || feed.paused || (ownerId !== undefined && feed.ownerAccountId !== ownerId)) continue;
+      const account = this.accounts.get(feed.ownerAccountId);
+      if (!account || account.disabledAt) continue;
+      const channel = channels.get(account.id) ?? { username: account.username, publicFeedCount: 0, followers: new Set<string>() };
+      channel.publicFeedCount++;
+      for (const voter of this.starsByBriefing.get(feed.id) ?? []) channel.followers.add(voter);
+      channels.set(account.id, channel);
+    }
+    return Array.from(channels.values(), ({ username, publicFeedCount, followers }) => ({ username, publicFeedCount, followerCount: followers.size }))
+      .sort((a, b) => b.followerCount - a.followerCount || b.publicFeedCount - a.publicFeedCount || (a.username < b.username ? -1 : Number(a.username > b.username)))
+      .slice(0, limit);
+  }
+
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
-      .filter((briefing) => briefing.publicFeedEnabled && !briefing.paused && briefing.ownerAccountId !== excludeOwnerId && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter((briefing) => briefing.publicFeedEnabled && !briefing.paused && briefing.ownerAccountId !== excludeOwnerId && (ownerId === undefined || briefing.ownerAccountId === ownerId) && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .slice(offset, offset + limit)

@@ -84,7 +84,7 @@ import { sendPasswordResetEmail, sendVerificationEmail } from "./mailer";
 import { D1Repository, FeedConfigurationConflict } from "./repository";
 import { runRetentionCleanup } from "./retention";
 import { addSourceFromInput, refreshEnabledSources } from "./sources";
-import type { AccountRecord, AccountRole, Env, ProcessingJobMessage, Repository } from "./types";
+import type { AccountRecord, AccountRole, Env, ExploreChannel, ProcessingJobMessage, Repository } from "./types";
 import { createWorkerPublicSourceAcquisitionService, createWorkerWebOperatorRuntimeHandler } from "./web-operator-runtime";
 import { D1UpstreamResourceStore } from "./upstream-resource-store";
 import { discoverAndPromotePublicSourceWorkflow } from "./public-source-discovery";
@@ -315,6 +315,7 @@ export function createApp(options: AppOptions = {}) {
   });
 
   const repoFor = (c: { env: Env }): Repository => options.repository ?? new D1Repository(c.env.DB);
+  const channelRankings = new WeakMap<object, { revision: string; entries: Promise<ExploreChannel[]> }>();
   const bucketFor = (c: { env: Env }) => options.bucket ?? c.env.RAW_ARCHIVE;
   const queueFor = (c: { env: Env }) => options.queue ?? c.env.PROCESSING_QUEUE;
   const fetcher = options.fetcher ?? fetch;
@@ -879,7 +880,10 @@ export function createApp(options: AppOptions = {}) {
         data[data.length - 2] !== 0xff || data[data.length - 1] !== 0xd9) {
       return c.json({ error: "Choose a JPEG, PNG, or WebP image" }, 415);
     }
-    await bucket.put(accountAvatarKey(account.id), data, { httpMetadata: { contentType: "image/jpeg" } });
+    await bucket.put(accountAvatarKey(account.id), data, {
+      httpMetadata: { contentType: "image/jpeg" },
+      customMetadata: { channel: c.req.query("channel") === "1" ? "public" : "private" }
+    });
     return c.json({ ok: true });
   });
 
@@ -1387,6 +1391,50 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ briefings: await repo.listBriefings(), accounts: await repo.listAccounts() });
   });
 
+  app.get("/api/explore/channels", async (c) => {
+    c.header("Cache-Control", "no-store");
+    const repo = repoFor(c);
+    const scope = options.repository ?? c.env.DB;
+    const revision = await repo.getExploreRevision();
+    let ranking = channelRankings.get(scope);
+    if (ranking?.revision !== revision) {
+      const entries = repo.listExploreChannels(8).catch(error => {
+        if (channelRankings.get(scope)?.entries === entries) channelRankings.delete(scope);
+        throw error;
+      });
+      ranking = { revision, entries };
+      channelRankings.set(scope, ranking);
+    }
+    return c.json({ channels: await ranking.entries });
+  });
+
+  async function channelOwner(repo: Repository, username: string) {
+    const owner = await repo.getAccountByUsername(username) ?? (await repo.resolveUsernameAlias(username))?.account;
+    return owner?.disabledAt ? undefined : owner;
+  }
+
+  app.get("/api/explore/channels/:username", async (c) => {
+    c.header("Cache-Control", "no-store");
+    const repo = repoFor(c);
+    const owner = await channelOwner(repo, c.req.param("username"));
+    const channel = owner && (await repo.listExploreChannels(1, owner.id))[0];
+    return channel ? c.json({ channel }) : c.json({ error: "Channel not found" }, 404);
+  });
+
+  app.get("/api/explore/channels/:username/avatar", async (c) => {
+    c.header("Cache-Control", "no-store");
+    const repo = repoFor(c);
+    const owner = await channelOwner(repo, c.req.param("username"));
+    if (!owner || !(await repo.listExploreBriefings(1, 0, undefined, undefined, owner.id)).length) return c.body(null, 404);
+    const avatar = await c.env.RAW_ARCHIVE?.get(accountAvatarKey(owner.id));
+    if (avatar?.customMetadata?.channel !== "public") return c.body(null, 404);
+    return c.body(avatar.body, 200, {
+      "Content-Type": "image/jpeg",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox"
+    });
+  });
+
   app.get("/api/explore/feeds", async (c) => {
     c.header('Cache-Control','private, no-store');
     c.header('Vary','Cookie');
@@ -1395,12 +1443,15 @@ export function createApp(options: AppOptions = {}) {
     const expected=z.string().max(128).optional().parse(c.req.query('revision'));
     const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
     const viewer = claims ? await repo.getAccountById(claims.sub) : null;
-    const excludedOwner=viewer&&!viewer.disabledAt?viewer.id:undefined;
+    const channel = z.string().max(200).optional().parse(c.req.query("channel"));
+    const owner = channel ? await channelOwner(repo, channel) : undefined;
+    if (channel && !owner) return c.json({ feeds: [], nextOffset: null });
+    const excludedOwner=!owner&&viewer&&!viewer.disabledAt?viewer.id:undefined;
     const before=await repo.getExploreRevision();
-    const revision=await hashToken(JSON.stringify([before,excludedOwner??null]));
+    const revision=await hashToken(JSON.stringify([before,excludedOwner??null,owner?.id??null]));
     const changed=()=>c.json({error:'Community feed listing changed. Reload it.',code:'EXPLORE_CHANGED'},409);
     if(offset>0&&expected!==undefined&&expected!==revision)return changed();
-    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined);
+    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined, owner?.id);
     // The revision bookends the query, so a page cannot be labelled with a
     // revision from before or after a concurrent membership/ranking change.
     if(await repo.getExploreRevision()!==before)return changed();

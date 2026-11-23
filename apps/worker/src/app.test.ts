@@ -107,6 +107,35 @@ describe("worker app accounts", () => {
     expect((await app.request(path, {}, runtime)).status).toBe(401);
   });
 
+  it("ranks channels by unique followers and exposes only active public feeds and opted-in photos", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "channel@example.invalid", "Channel Owner");
+    const original = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...original, publicFeedEnabled: true, paused: false });
+    await repo.upsertBriefing({ ...original, id: "another-public", slug: "another", publicFeedEnabled: true, paused: false });
+    await repo.upsertBriefing({ ...original, id: "private", slug: "private", publicFeedEnabled: false, paused: false });
+    await repo.upsertBriefing({ ...original, id: "paused", slug: "paused", publicFeedEnabled: true, paused: true });
+    await repo.setBriefingStar(original.id, "same-reader", true);
+    await repo.setBriefingStar("another-public", "same-reader", true);
+    await repo.setBriefingStar("private", "private-reader", true);
+    await repo.setBriefingStar("paused", "paused-reader", true);
+    const prefix = "/api/explore/channels";
+    const channel = { username: owner.account.username, publicFeedCount: 2, followerCount: 1 };
+    expect(await (await app.request(prefix, {}, env())).json()).toEqual({ channels: [channel] });
+    const filtered = await (await app.request(`/api/explore/feeds?channel=${owner.account.username}`, { headers: { cookie: owner.cookie } }, env())).json() as { feeds: Array<{ slug: string }> };
+    expect(filtered.feeds.map(feed => feed.slug).sort()).toEqual(["another", "personal"]);
+    let visibility = "private";
+    const avatarRuntime = { ...env(), RAW_ARCHIVE: { get: async () => ({ body: new Response("picture").body, customMetadata: { channel: visibility } }) } } as unknown as Env;
+    const avatarPath = `${prefix}/${owner.account.username}/avatar`;
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(404);
+    visibility = "public";
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(200);
+    await repo.updateAccount({ id: owner.account.id, disabled: true });
+    expect((await app.request(avatarPath, {}, avatarRuntime)).status).toBe(404);
+    expect(await (await app.request(prefix, {}, env())).json()).toEqual({ channels: [] });
+  });
+
   it.each([1,50,75])('marks whether the legacy feed snapshot covers searchable history (%s editions)',async(count)=>{
     const repo=new InMemoryRepository(),app=createApp({repository:repo});
     const user=await createVerifiedUser(app,repo,'history@example.invalid','History Owner');

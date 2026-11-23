@@ -8,6 +8,7 @@ import { getExploreFeeds, getFeed } from './api';
 afterEach(() => window.history.replaceState(null, '', '/'));
 
 vi.mock('./api', () => ({
+  getExploreChannels: vi.fn(async () => []),
   getExploreFeeds: vi.fn(async () => ({feeds: [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', stars: 0, viewerHasStarred: false }], nextOffset: null})),
   getFeed: vi.fn(async () => ({ editions: [], viewerHasStarred: false })),
   setFeedStar: vi.fn()

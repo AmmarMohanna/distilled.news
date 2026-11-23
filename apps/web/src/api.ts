@@ -2,7 +2,7 @@ import type { BriefingConfig, BriefingEdition } from "@distilled/core";
 import {EXPLORE_CHANGED_EVENT} from './explore-events';
 import { preferredLanguage } from './LanguageControl';
 import {ApiError, apiError} from './api-errors';
-import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
+import type { AccountRecord, AccountWithStats, ExploreChannel, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 
 export interface SourceIngestResult {
   sourceId: string;
@@ -144,7 +144,7 @@ export async function resetPassword(token: string, password: string): Promise<vo
   });
 }
 
-export async function uploadAccountAvatar(file: File): Promise<void> {
+export async function uploadAccountAvatar(file: File, onPublicChannel = false): Promise<void> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
     throw new Error("Choose a JPEG, PNG, or WebP image");
   }
@@ -163,7 +163,7 @@ export async function uploadAccountAvatar(file: File): Promise<void> {
     const image = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
       blob => blob ? resolve(blob) : reject(new Error("Unable to read this image")), "image/jpeg", 0.88
     ));
-    await requestJson("/api/me/avatar", { method: "PUT", headers: { "content-type": "image/jpeg" }, body: image });
+    await requestJson(onPublicChannel ? "/api/me/avatar?channel=1" : "/api/me/avatar", { method: "PUT", headers: { "content-type": "image/jpeg" }, body: image });
   } finally {
     photo.close();
   }
@@ -375,9 +375,19 @@ export interface ExplorePage {
   nextOffset: number | null;
 }
 /** One bounded page. The caller retains earlier pages if a subsequent read fails. */
-export async function getExploreFeeds(offset = 0, revision?:string): Promise<ExplorePage> {
-  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}${revision?'&revision='+encodeURIComponent(revision):''}`);
+export async function getExploreFeeds(offset = 0, revision?:string, channel?: string): Promise<ExplorePage> {
+  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}${revision?'&revision='+encodeURIComponent(revision):''}${channel?'&channel='+encodeURIComponent(channel):''}`);
   return { ...payload, nextOffset: payload.nextOffset ?? null };
+}
+
+export async function getExploreChannels(signal: AbortSignal): Promise<ExploreChannel[]> {
+  const result = await requestJson<{ channels: ExploreChannel[] }>("/api/explore/channels", { signal });
+  return result.channels ?? [];
+}
+
+export async function getExploreChannel(username: string, signal: AbortSignal): Promise<ExploreChannel> {
+  const result = await requestJson<{ channel: ExploreChannel }>(`/api/explore/channels/${encodeURIComponent(username)}`, { signal });
+  return result.channel;
 }
 
 export async function searchFeed(username: string, slug: string, query: string): Promise<FeedPayload["editions"]> {

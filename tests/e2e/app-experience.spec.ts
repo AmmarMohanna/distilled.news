@@ -68,6 +68,29 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   await page.reload();
   await expect(avatar.locator('.account-avatar-image')).toBeVisible();
 });
+test('opens a top channel with its public feeds, recent updates and report menu', async ({ page }) => {
+  const channel = { username: 'joud', publicFeedCount: 2, followerCount: 7 };
+  await mock(page, false);
+  await page.route('**/api/explore/channels**', route => {
+    const path = new URL(route.request().url()).pathname;
+    return path.endsWith('/avatar') ? route.fulfill({ status: 404 })
+      : route.fulfill({ json: path.endsWith('/channels') ? { channels: [channel] } : { channel } });
+  });
+  await page.route('**/api/explore/feeds?*', route => {
+    const filtered = new URL(route.request().url()).searchParams.get('channel');
+    return route.fulfill({ json: { feeds: filtered ? [{ ...feed, latestUpdatedAt: '2026-11-22T12:00:00Z' }] : [], nextOffset: null } });
+  });
+  await page.goto('/explore');
+  await expect(page.getByRole('heading', { name: 'Top channels' })).toBeVisible();
+  await page.getByRole('link', { name: /@joud.*2 public feeds.*7 followers/ }).click();
+  await expect(page.getByRole('heading', { name: '@joud' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Public feeds' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recently updated' })).toBeVisible();
+  await page.locator('.channel-options summary').click();
+  await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
+  await page.getByRole('button', { name: 'Report a concern' }).click();
+  await expect(page.getByRole('dialog', { name: 'Help & Support' }).locator('a').first()).toHaveAttribute('href', /channel%3Djoud/);
+});
 test('guests can explore and star feeds',async({page})=>{
  await mock(page,false); await page.goto('/explore');
  await expect(page.getByRole('heading',{name:'Featured feeds',level:2})).toHaveCount(0);
