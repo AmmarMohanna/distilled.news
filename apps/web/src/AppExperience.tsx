@@ -2,7 +2,7 @@ import {ApiError,toUiError, type UiMessage} from './api-errors';
 import React, { useEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
-import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, ArrowRight, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
 import { getExploreFeeds, setFeedStar, type FeedStarResult } from "./api";
@@ -23,14 +23,6 @@ function tabFromLocation():ExperienceTab {
   if(new URLSearchParams(window.location.search).get('view')==='settings')return 'settings';
   return /^\/explore\/?$/.test(window.location.pathname)?'explore':'home';
 }
-const topics = [
-  { name: "Lebanon", category: "Lebanon", art: "coast", pattern: /lebanon|lebanese|beirut/i },
-  { name: "Global Affairs", category: "World", art: "world", pattern: /world|global|international/i },
-  { name: "AI & Technology", category: "Tech", art: "tech", pattern: /\bai\b|tech|artificial intelligence/i },
-  { name: "Business & Markets", category: "Business", art: "city", pattern: /business|market|finance|econom/i },
-  { name: "Health & Science", category: "Science", art: "science", pattern: /health|science|medical/i },
-  { name: "Culture & Media", category: "Culture", art: "culture", pattern: /culture|media|arts|film/i }
-];
 const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
 export function BrandMark() { return <span className="distilled-logo" aria-hidden="true"><span className="distilled-logo-symbol"/><span className="distilled-logo-wordmark">Distilled<span className="distilled-logo-dot">.</span>News</span></span>; }
 export function AppHeader({ account, onAccount, leading, actions, contextual, loading = false }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode; contextual?: boolean; loading?: boolean }) {
@@ -71,7 +63,6 @@ export function AppExperience(props: {
   const failedOffset = useRef(0);
   const [error, setError] = useState<UiMessage>("");
   const [exploreError, setExploreError] = useState<UiMessage>("");
-  const [starBusy, setStarBusy] = useState<string | null>(null);
   const [settingsDialog, setSettingsDialog] = useState<"install" | null>(null);
   const [notificationEnabled, setNotificationEnabled] = useState<boolean>();
   const [notificationBusy, setNotificationBusy] = useState(false);
@@ -190,7 +181,7 @@ export function AppExperience(props: {
     {props.account && <div className="home-view" style={tab !== "home" ? { display: "none" } : undefined}>
       <section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
       <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button type="button" className="home-archive-button" aria-label={t("Archived feeds")} title={t("Archived feeds")} aria-haspopup="dialog" onClick={() => { setArchiveError(""); setArchiveStatus(""); setArchiveOpen(true); }}><Archive size={20} aria-hidden/>{archivedFeeds.length > 0 && <span className="archive-count" aria-hidden="true">{archivedFeeds.length}</span>}</button><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button></div>
-      <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>{!ownListReady && !props.briefings.length && <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/> }<AdaptiveFeedGrid count={ownFeeds.length} className="personal-feed-grid">{ownFeeds.map(feed => <article className="topic-card" key={feed.id}><a href={feedUrl(feed)}><FeedArt feed={feed} kind={topics.find(topic => topic.pattern.test(feed.title))?.art}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span>{feed.paused && <span className="feed-card-status paused">{t("Paused")}</span>}</a><FeedCardActions feed={feed} owner onError={setError}/></article>)}</AdaptiveFeedGrid>{ownListReady && ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(query.trim() ? "No feeds match your search." : archivedFeeds.length ? "Your feeds are paused. Find them in the archive." : "You haven’t created any feeds yet.")}</p> : null}{ownListReady && !props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
+      <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>{!ownListReady && !props.briefings.length && <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/> }<AdaptiveFeedGrid view="home">{ownFeeds.map(feed => <FeedTile key={feed.id} feed={feed} owner onError={setError}/>)}</AdaptiveFeedGrid>{ownListReady && ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(query.trim() ? "No feeds match your search." : archivedFeeds.length ? "Your feeds are paused. Find them in the archive." : "You haven’t created any feeds yet.")}</p> : null}{ownListReady && !props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
     </div>}
     <section className="explore-view" aria-busy={loading} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
@@ -208,12 +199,12 @@ export function AppExperience(props: {
           <button type="button" className="feed-state-retry" onClick={() => void exploreLoader.current(failedOffset.current)}>{t("Try Again")}</button>
         </div>}
 
-        {visibleFeeds.length ? <AdaptiveFeedGrid count={visibleFeeds.length} className="topic-grid curated-feed-grid">{visibleFeeds.map(feed => <article className="topic-card" key={feed.id}>
-          <a href={feedUrl(feed)}><FeedArt feed={props.briefings.find(owned => owned.id === feed.id) ?? feed}/><span className="topic-name"><span className="feed-card-identity"><strong dir="auto" title={feed.title}>{feed.title}</strong><small dir="ltr" title={`@${feed.ownerUsername}`}>@{feed.ownerUsername}</small></span>{props.account && <ArrowRight size={14}/>}</span>{feed.paused && <span className="feed-card-status paused">{t("Paused")}</span>}</a>
-          <FeedCardActions feed={feed} owner={props.account?.username === feed.ownerUsername} onError={setError} hideStar latestUpdatedAt={feed.latestUpdatedAt}>
-            <button type="button" className={feed.viewerHasStarred ? "star-vote is-starred" : "star-vote"} aria-label={`${t(feed.viewerHasStarred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={feed.viewerHasStarred ?? false} disabled={starBusy === feed.id || feed.viewerHasStarred === undefined} onClick={async () => { setStarBusy(feed.id); setError(""); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !feed.viewerHasStarred); setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item)); } catch (cause) { setError(toUiError(cause)); } finally { setStarBusy(null); } }}><Star size={16}/><span className="feed-star-count">{feed.stars}</span></button>
-          </FeedCardActions>
-        </article>)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim()||nextOffset===null) ? <p className="empty-copy" role="status">{t(query.trim()?(nextOffset!==null?"No matches in loaded feeds. Load more feeds to continue searching.":"No feeds match your search."):"No community feeds are available yet.")}</p> : null}
+        {visibleFeeds.length ? <AdaptiveFeedGrid view="explore">{visibleFeeds.map(feed => <FeedTile
+          key={feed.id}
+          feed={feed}
+          onError={setError}
+          onStarChange={result => setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item))}
+        />)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim()||nextOffset===null) ? <p className="empty-copy" role="status">{t(query.trim()?(nextOffset!==null?"No matches in loaded feeds. Load more feeds to continue searching.":"No feeds match your search."):"No community feeds are available yet.")}</p> : null}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>
     </section>
@@ -249,35 +240,94 @@ export function accountInitials(username: string) {
   return initials.join(initials.some(letter => /\p{Script=Arabic}/u.test(letter)) ? "\u200c" : "");
 }
 
-function FeedCardActions({ feed, owner, onError, hideStar = false, children, latestUpdatedAt }: { feed: Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled"> & FeedCardMetadata; owner: boolean; onError: (message: UiMessage) => void; hideStar?: boolean; children?: React.ReactNode; latestUpdatedAt?: string }) {
+type FeedTileData = Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled" | "paused"> & FeedCardMetadata;
+
+function FeedTile({ feed, owner = false, onError, onStarChange }: {
+  feed: FeedTileData;
+  owner?: boolean;
+  onError: (message: UiMessage) => void;
+  onStarChange?: (result: FeedStarResult) => void;
+}) {
   const { t } = useLanguage();
   const menu = useRef<HTMLDetailsElement>(null);
   useVisibleFeedMenu(menu);
   useEffect(() => {
-    const close = (event: PointerEvent) => { if (!menu.current?.contains(event.target as Node) && menu.current) menu.current.open = false; };
+    const close = (event: PointerEvent) => { if (menu.current && !menu.current.contains(event.target as Node)) menu.current.open = false; };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, []);
-  const [starred, setStarred] = useState(feed.viewerHasStarred ?? false);
-  const [stars, setStars] = useState(feed.stars);
+
+  const [vote, setVote] = useState<FeedStarResult>();
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    setStarred(feed.viewerHasStarred ?? false); setStars(feed.stars);
-  }, [feed.id, feed.stars, feed.viewerHasStarred]);
-  const url = () => window.location.origin + feedUrl(feed);
-  return <div className="feed-card-actions">
-    <div className="feed-card-meta">{children}
-    {!hideStar && <button type="button" aria-label={t(starred ? "Unstar" : "Star")} aria-pressed={starred} disabled={busy} onClick={async () => { setBusy(true); try { const result = await setFeedStar(feed.ownerUsername, feed.slug, !starred); setStarred(result.viewerHasStarred); setStars(result.stars); } catch (cause) { onError(toUiError(cause)); } finally { setBusy(false); } }}><Star size={16} fill={starred ? "currentColor" : "none"}/><span className="feed-star-count">{stars}</span></button>}
-    <FeedUpdatedAt value={hideStar ? latestUpdatedAt : feed.latestUpdatedAt}/></div>
-    <a className="feed-card-open" href={feedUrl(feed)} aria-label={`${t("Open feed")}: ${feed.title}`}><ArrowRight size={20}/></a>
-    {(owner || feed.publicFeedEnabled) && <details ref={menu} className="feed-options" onKeyDown={event => { if (event.key === "Escape" && menu.current) { menu.current.open = false; menu.current.querySelector("summary")?.focus(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
-      <summary aria-label={t("Feed options")}><Ellipsis size={18}/></summary>
-      <div className="feed-options-popover">
-        {owner && <a href={`${feedUrl(feed)}?edit=1`}><Pencil size={16}/>{t("Edit feed settings")}</a>}
-        {feed.publicFeedEnabled && <button type="button" onClick={() => { if (menu.current) menu.current.open = false; void (navigator.share ? navigator.share({ title: feed.title, url: url() }) : navigator.clipboard.writeText(url())).catch(cause => { if (cause instanceof Error && cause.name === "AbortError") return; onError(toUiError(cause)); }); }}><Share size={16}/>{t("Share")}</button>}
+  useEffect(() => { setVote(undefined); }, [feed.stars, feed.viewerHasStarred]);
+  const starred = vote?.viewerHasStarred ?? feed.viewerHasStarred ?? false;
+  const stars = vote?.stars ?? feed.stars;
+  const canStar = Boolean(feed.publicFeedEnabled && (owner || feed.viewerHasStarred !== undefined));
+  const href = feedUrl(feed);
+  const closeMenu = () => {
+    if (!menu.current) return;
+    menu.current.open = false;
+    menu.current.querySelector("summary")?.focus();
+  };
+  const toggleStar = async () => {
+    if (busy || !canStar) return;
+    setBusy(true);
+    onError("");
+    try {
+      const result = await setFeedStar(feed.ownerUsername, feed.slug, !starred);
+      setVote(result);
+      onStarChange?.(result);
+    } catch (cause) {
+      onError(toUiError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const share = async () => {
+    const url = window.location.origin + href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: feed.title, url });
+        closeMenu();
+      } else {
+        await navigator.clipboard.writeText(url);
+        closeMenu();
+      }
+    } catch (cause) {
+      if (!(cause instanceof Error && cause.name === "AbortError")) onError(toUiError(cause));
+    }
+  };
+
+  return <article className="feed-tile">
+    <div className="feed-tile-cover">
+      <a className="feed-tile-artwork" href={href} aria-label={`${t("Open feed")}: ${feed.title}`} tabIndex={-1}>
+        <FeedArt feed={feed}/>
+      </a>
+      <div className="feed-tile-controls">
+        {feed.publicFeedEnabled && <button type="button" className="feed-tile-star" aria-label={`${t(starred ? "Unstar" : "Star")} ${feed.title}`} aria-pressed={starred} disabled={busy || !canStar} onClick={() => void toggleStar()}>
+          <Star size={19} fill={starred ? "currentColor" : "none"} aria-hidden/>
+          <span>{stars}</span>
+        </button>}
+        <details ref={menu} className="feed-options feed-tile-options" onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); closeMenu(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
+          <summary aria-label={`${t("Feed options")}: ${feed.title}`}><Ellipsis size={21} aria-hidden/></summary>
+          <div className="feed-options-popover">
+            {canStar && !owner && <button type="button" aria-disabled={busy} onClick={() => { if (!busy) { closeMenu(); void toggleStar(); } }}><span>{t(starred ? "Unfollow feed" : "Follow feed")}</span><Star size={16} fill={starred ? "currentColor" : "none"} aria-hidden/></button>}
+            {feed.publicFeedEnabled && <>
+              <button type="button" onClick={() => void share()}><span>{t("Share")}</span><Share size={16} aria-hidden/></button>
+              <button type="button" onClick={() => void share(true)}><span aria-live="polite">{t(copied ? "Copied" : "Copy link")}</span><Copy size={16} aria-hidden/></button>
+            </>}
+            {owner && <a href={`${href}?edit=1`}><span>{t("Edit feed settings")}</span><Pencil size={16} aria-hidden/></a>}
+          </div>
+        </details>
       </div>
-    </details>}
-  </div>;
+    </div>
+    <div className="feed-tile-caption">
+      <a href={href}><bdi>{feed.title}</bdi></a>
+      <small><bdi>@{feed.ownerUsername}</bdi></small>
+      <FeedUpdatedAt value={feed.latestUpdatedAt}/>
+      {feed.paused && <small>{t("Paused")}</small>}
+    </div>
+  </article>;
 }
 
 function FeedUpdatedAt({ value }: { value?: string }) {

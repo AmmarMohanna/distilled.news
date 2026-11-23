@@ -44,7 +44,7 @@ it('keeps an Explore loading failure off Home and retries from Explore', async (
     const explore = host.querySelector<HTMLElement>('.explore-view')!;
     expect(explore.style.display).toBe('none');
     expect(host.querySelector('main > [role="alert"]')).toBeNull();
-    expect(host.querySelector('.personal-feed-grid a')).not.toBeNull();
+    expect(host.querySelector('.feed-tile-grid[data-feed-view=home] a')).not.toBeNull();
     await act(async () => host.querySelector<HTMLButtonElement>('nav button[aria-label="Explore"]')!.click());
     expect(explore.querySelector('[role="alert"]')?.textContent).toContain('Could not load community feeds');
     await act(async () => explore.querySelector<HTMLButtonElement>('.feed-state-retry')!.click());
@@ -97,8 +97,8 @@ it('keeps paused feeds in the archive and resumes them only after a successful s
   function Harness(){const [feeds,setFeeds]=React.useState([active,paused]);return <AppExperience account={{id:'reader',username:'reader'} as Parameters<typeof AppExperience>[0]['account']} briefings={feeds} onAccount={()=>{}} onHelp={()=>{}} onResumeFeed={async feed=>{await save();setFeeds(current=>current.map(f=>f.id===feed.id?{...f,paused:false}:f));}}/>;}
   try{
     await act(async()=>root.render(<Harness/>));
-    expect(host.querySelector('.personal-feed-grid')?.textContent).toContain('Active feed');
-    expect(host.querySelector('.personal-feed-grid')?.textContent).not.toContain('Paused feed');
+    expect(host.querySelector('.feed-tile-grid[data-feed-view=home]')?.textContent).toContain('Active feed');
+    expect(host.querySelector('.feed-tile-grid[data-feed-view=home]')?.textContent).not.toContain('Paused feed');
     await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Archived feeds"]')!.click());
     expect(host.querySelector('[role="dialog"]')?.textContent).toContain('Paused feed');
     await act(async()=>host.querySelector<HTMLButtonElement>('.archive-resume-button')!.click());
@@ -107,7 +107,7 @@ it('keeps paused feeds in the archive and resumes them only after a successful s
     fail=false;
     await act(async()=>host.querySelector<HTMLButtonElement>('.archive-resume-button')!.click());
     expect(host.querySelector('.archive-status')?.textContent).toBe('Feed resumed.');
-    expect(host.querySelector('.personal-feed-grid')?.textContent).toContain('Paused feed');
+    expect(host.querySelector('.feed-tile-grid[data-feed-view=home]')?.textContent).toContain('Paused feed');
     expect(host.querySelector('.archived-feed-list')).toBeNull();
     expect(save).toHaveBeenCalledTimes(2);
   }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
@@ -128,8 +128,8 @@ it('retains cards during refresh and waits for archive data before claiming it i
  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);vi.stubGlobal('ResizeObserver',class{observe(){}disconnect(){}});vi.stubGlobal('matchMedia',()=>({matches:false,addEventListener(){},removeEventListener(){}}));vi.stubGlobal('scrollTo',vi.fn());
  const host=document.createElement('div'),root=createRoot(host),account={id:'reader',username:'reader'} as Parameters<typeof AppExperience>[0]['account'],feed={...personalNewsBriefing,id:'existing',title:'Existing feed',paused:false};
  try{
-  await act(async()=>root.render(<AppExperience account={account} briefings={[feed]} briefingsState="ready" onAccount={()=>{}} onHelp={()=>{}}/>));const card=host.querySelector('.personal-feed-grid .topic-card');
-  await act(async()=>root.render(<AppExperience account={account} briefings={[feed]} briefingsState="loading" onAccount={()=>{}} onHelp={()=>{}}/>));expect(host.querySelector('.personal-feed-grid .topic-card')).toBe(card);expect(host.textContent).not.toContain('Loading feeds');
+  await act(async()=>root.render(<AppExperience account={account} briefings={[feed]} briefingsState="ready" onAccount={()=>{}} onHelp={()=>{}}/>));const card=host.querySelector('.feed-tile-grid[data-feed-view=home] .feed-tile');
+  await act(async()=>root.render(<AppExperience account={account} briefings={[feed]} briefingsState="loading" onAccount={()=>{}} onHelp={()=>{}}/>));expect(host.querySelector('.feed-tile-grid[data-feed-view=home] .feed-tile')).toBe(card);expect(host.textContent).not.toContain('Loading feeds');
   await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="loading" onAccount={()=>{}} onHelp={()=>{}}/>));await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Archived feeds"]')!.click());expect(host.querySelector('.archive-empty')).toBeNull();expect(host.querySelector('[role="dialog"]')?.textContent).toContain('Loading feeds');
   await act(async()=>root.render(<AppExperience account={account} briefings={[]} briefingsState="ready" onAccount={()=>{}} onHelp={()=>{}}/>));expect(host.querySelector('.archive-empty')?.textContent).toContain('No archived feeds');
  }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
@@ -142,7 +142,7 @@ it('loads one Explore page without feed fan-out, keeps cards on page failure and
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
   vi.stubGlobal('scrollTo', vi.fn());
   vi.mocked(getExploreFeeds).mockClear(); vi.mocked(getFeed).mockClear();
-  const first = {id:'first',title:'First science',ownerUsername:'other',slug:'first',stars:2,viewerHasStarred:true,latestUpdatedAt:new Date().toISOString()} as any;
+  const first = {id:'first',title:'First science',ownerUsername:'other',slug:'first',stars:2,publicFeedEnabled:true,viewerHasStarred:true,latestUpdatedAt:new Date().toISOString()} as any;
   const second = {...first,id:'second',title:'Second science',slug:'second'};
   vi.mocked(getExploreFeeds).mockResolvedValueOnce({feeds:[first],nextOffset:100})
     .mockRejectedValueOnce(new Error('Temporary page failure'))
@@ -159,7 +159,7 @@ it('loads one Explore page without feed fan-out, keeps cards on page failure and
     expect(explore.textContent).toContain('First science');expect(explore.querySelector('[role="alert"]')).not.toBeNull();
     await act(async()=>explore.querySelector<HTMLButtonElement>('[role="alert"] button')!.click());
     expect(vi.mocked(getExploreFeeds).mock.calls.map(args=>args[0])).toEqual([0,100,100]);
-    expect(explore.querySelectorAll('.topic-card')).toHaveLength(2);
+    expect(explore.querySelectorAll('.feed-tile')).toHaveLength(2);
     expect(explore.querySelector('[role="alert"]')).toBeNull();expect(getFeed).not.toHaveBeenCalled();
   } finally {await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
@@ -170,9 +170,9 @@ it('renders thirty personal cards from listing metadata without detail requests'
  const feeds=Array.from({length:30},(_,i)=>({...personalNewsBriefing,id:'own-'+i,title:'Own '+i,ownerUsername:'reader',slug:'own-'+i,latestUpdatedAt:'2026-11-16T12:00:00Z',viewerHasStarred:i===0}));
  const host=document.createElement('div'),root=createRoot(host);
  try{await act(async()=>root.render(<AppExperience account={{username:'reader'} as any} briefings={feeds} onAccount={()=>{}} onHelp={()=>{}}/>));
-  expect(host.querySelectorAll('.personal-feed-grid .topic-card')).toHaveLength(30);
-  expect(host.querySelectorAll('.personal-feed-grid time')).toHaveLength(30);
-  expect(host.querySelector('.personal-feed-grid button[aria-label="Unstar"]')?.getAttribute('aria-pressed')).toBe('true');
+  expect(host.querySelectorAll('.feed-tile-grid[data-feed-view=home] .feed-tile')).toHaveLength(30);
+  expect(host.querySelectorAll('.feed-tile-grid[data-feed-view=home] time')).toHaveLength(30);
+  expect(host.querySelector('.feed-tile-grid[data-feed-view=home] button[aria-label^="Unstar "]')?.getAttribute('aria-pressed')).toBe('true');
   expect(getFeed).not.toHaveBeenCalled();
  }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
