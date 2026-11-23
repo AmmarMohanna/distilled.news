@@ -210,10 +210,9 @@ function stripBoilerplateLines(text: string): string {
 function isBoilerplateLine(line: string): boolean {
   const cleaned = line.replace(/[\sـ_\-–—]+/gu, " ").trim();
   if (!cleaned) return true;
-  // Source labels contain a publisher name; reporting clauses must survive,
-  // including title-cased headlines such as "Source: Reuters Confirmed Closure".
-  const sourceLabel = cleaned.match(/^[Ss][Oo][Uu][Rr][Cc][Ee]:\s*(\p{Lu}[\p{L}\p{N}&.'\u2019-]*(?:\s+(?:\p{Lu}[\p{L}\p{N}&.'\u2019-]*|of|the|and)){0,7})(?:\s+https?:\/\/\S+)?\s*$/u);
-  if (sourceLabel && !INFORMATION_SIGNAL_PATTERNS.some((pattern) => pattern.test(sourceLabel[1]))) return true;
+  // Capitalization and the absence of reporting verbs cannot distinguish a
+  // publisher name from a factual headline. Preserve text-bearing source lines;
+  // the whole-line matcher below removes only bare or URL-only source labels.
   return [
     /^[ـ_\-–—\s]{4,}$/u,
     /^(?:قناة\s+)?موقع\s+بنت\s+جبيل\s+على\s+واتساب/u,
