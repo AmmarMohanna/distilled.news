@@ -210,11 +210,15 @@ function stripBoilerplateLines(text: string): string {
 function isBoilerplateLine(line: string): boolean {
   const cleaned = line.replace(/[\sـ_\-–—]+/gu, " ").trim();
   if (!cleaned) return true;
+  // Source labels contain a publisher name; reporting clauses must survive,
+  // including title-cased headlines such as "Source: Reuters Confirmed Closure".
+  const sourceLabel = cleaned.match(/^[Ss][Oo][Uu][Rr][Cc][Ee]:\s*(\p{Lu}[\p{L}\p{N}&.'\u2019-]*(?:\s+(?:\p{Lu}[\p{L}\p{N}&.'\u2019-]*|of|the|and)){0,7})(?:\s+https?:\/\/\S+)?\s*$/u);
+  if (sourceLabel && !INFORMATION_SIGNAL_PATTERNS.some((pattern) => pattern.test(sourceLabel[1]))) return true;
   return [
     /^[ـ_\-–—\s]{4,}$/u,
     /^(?:قناة\s+)?موقع\s+بنت\s+جبيل\s+على\s+واتساب/u,
     // Match whole CTA/link labels, not vocabulary inside factual reporting.
-    /^(?:download telegram|view in telegram|join channel|subscribe|read more|source|watch(?:\s+(?:now|here|live|(?:the\s+)?video))?)[\s:：.!|>»›-]*(?:(?:https?:\/\/|www\.)\S+)?\s*$/i,
+    /^(?:download telegram|view in telegram|join channel|subscribe(?:\s+to\s+(?:(?:our|the)\s+)?(?:newsletter|channel))?|read more(?:\s+here)?|source|watch(?:\s+(?:now|here|live|(?:the\s+)?video|on\s+(?:YouTube|Facebook|Instagram|TikTok)))?)[\s:：.!|>»›-]*(?:(?:https?:\/\/|www\.)\S+)?\s*$/i,
     /^(?:انضم|تابعونا|لمتابعة|للمزيد|للتفاصيل)(?:\s|$)/u
   ].some((pattern) => pattern.test(line) || pattern.test(cleaned));
 }
