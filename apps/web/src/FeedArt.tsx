@@ -52,7 +52,7 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
     const refreshArtwork = new URLSearchParams(window.location.search).get('refresh-artwork') === feed.id;
     let checkedStorage = refreshArtwork;
     const sketchUrl = `/api/feed/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/sketch`;
-    const cacheKey = centered ? sketchUrl + "?artwork=centered-v1" : sketchUrl;
+    const cacheKey = centered ? sketchUrl + "?artwork=centered-v2" : sketchUrl;
     const cacheable = feed.publicFeedEnabled === true;
     const show = (blob: Blob) => {
       objectUrl = URL.createObjectURL(blob);

@@ -47,17 +47,23 @@ export async function transparentSketch(blob: Blob, centered = false): Promise<B
       }
     }
     if (!hasDrawing) throw new Error("Empty illustration");
+    ctx.putImageData(pixels, 0, 0);
+    let output = canvas;
     if (centered) {
-      const x = Math.floor((canvas.width - 1 - left - right) / 2);
-      const y = Math.floor((canvas.height - 1 - top - bottom) / 2);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.putImageData(pixels, x, y, left, top, right - left + 1, bottom - top + 1);
-    } else {
-      ctx.putImageData(pixels, 0, 0);
+      const width = right - left + 1;
+      const height = bottom - top + 1;
+      const size = Math.max(canvas.width, canvas.height);
+      const fit = size * 0.88 / Math.max(width, height);
+      const drawWidth = width * fit;
+      const drawHeight = height * fit;
+      output = document.createElement("canvas");
+      output.width = output.height = size;
+      const drawing = output.getContext("2d");
+      if (!drawing) throw new Error("Canvas unavailable");
+      drawing.imageSmoothingQuality = "high";
+      drawing.drawImage(canvas, left, top, width, height, (size - drawWidth) / 2, (size - drawHeight) / 2, drawWidth, drawHeight);
     }
-    // Preserve the model's square composition and whitespace instead of
-    // tightly cropping and enlarging delicate marks.
     return await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(value => value ? resolve(value) : reject(new Error("Image conversion failed")), "image/png"));
+      output.toBlob(value => value ? resolve(value) : reject(new Error("Image conversion failed")), "image/png"));
   } finally { bitmap.close(); }
 }
