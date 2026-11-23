@@ -4,6 +4,21 @@
 
 Distilled.news has demonstrated evidence-linked multilingual publication, a short headline layer with details available on demand, and specific improvements in source handling and recovery. The team also tested where the pipeline and its judges fail. The available pairs against Single LLM are mixed and frequently fail the common output contract. The evidence supports specific comparisons and engineering results. Population-wide factual accuracy, reader benefit and overall superiority remain unmeasured.
 
+[Rubric alignment](#rubric-alignment-agent-performance--evaluation-20) · [Public evidence appendix](#public-evidence-appendix)
+
+## Rubric Alignment: Agent Performance / Evaluation (20%)
+
+The **EECE 503N/798S Project Announcement: Agentic Systems (Fall 2026)** gives the evaluation expectations on page 4 and a suggested **20%** final weight on page 5. The table maps the course criteria to the submitted evidence.
+
+| Rubric expectation | Implemented work | Evidence and result | Limitations |
+| --- | --- | --- | --- |
+| Appropriate baselines and meaningful success metrics | All-headlines and lexical controls, GPT-4.1 Single LLM, and within-pipeline baselines. Separate content, output validity and operational metrics. | [October baselines](../evaluation/briefing-quality/reports/FINAL_REPORT.md) and [Single LLM archive and controlled runs](#private-records) show measurable tradeoffs in selection, qualification retention, words, calls and latency. | Small valid-pair counts and differing contracts limit aggregation. A failed baseline confers no editorial win. |
+| Evaluation datasets and held-out testing where applicable | Time-bounded snapshots, checksums, feed/track separation, exact overlap screens and pre-output checklists. Freeze input and scope before looking at generated output. | [Dataset audit](../evaluation/briefing-quality/reports/dataset-audit.json), [replay boundary tests](../evaluation/briefing-quality/replay-boundaries.test.ts) and the executed fresh pilot in [A3](#private-records). | The original held-out split is provisional and has zero French test windows. Two fresh exploratory windows are insufficient for an independent superiority test. A planned 36-window cohort could not be filled and did not run. |
+| Adversarial and failure testing | Synthetic missing-date, oversized-input, prompt-injection, revision, conflict, repetition and incomplete-evidence cases, plus live judge corruption controls. | [Challenge definitions](../evaluation/briefing-quality/challenges.py), [Worker tests](../evaluation/briefing-quality/worker.test.ts) and [qualification records, A5](#private-records). Both accepted and rejected cases are retained. | Some tests drive known responses and target individual failure mechanisms. General resistance to adversarial inputs and broad judge reliability remain unmeasured. |
+| Convert failures into regression tests | Replayed source binding, completeness, history, false approvals, attribution and accounting defects. Recorded correct counterparts and checkable failure receipts. | [Production identity controls](../evaluation/briefing-quality/production-identity-replay.test.ts), [review consistency](../evaluation/briefing-quality/review-consistency.test.ts), [recorded briefing failures](BRIEFING_QUALITY_FIXES_2026-11-19.md), and [archive controls, A5](#private-records). | Current scheduled CI exposes a failing prior-history regression. Some private semantic defects have scoped archive controls only. |
+| Reproducibility and supported conclusions | Offline runner, versioned protocols, immutable evidence IDs and manifests, staged receipts and failure-preserving comparisons. | [Offline CI](../.github/workflows/briefing-evaluation.yml), [release-engine fingerprints](../evaluation/briefing-quality/reports/live-fixes-20261119/GO_EXECUTION_HASHES.json) and [tiered reproduction instructions](#reproducibility-and-current-checks). | Private article, output and receipt access is required to reconstruct the live studies. Provider-dependent results can vary across runs. |
+| Architectural tradeoffs and limitations | Compared the pipeline against one call and against changes to selection, evidence representation and verification. Retained unsuccessful candidates and measured overhead. | [V4 release boundary](v4-final-release-2026-11-09.md), [compact-verification limits](../evaluation/briefing-quality/reports/cost-reduction-20261119/PAID_VALIDATION.md), and [v6 and retention outcomes, A5–A6](#private-records). | Additional stages can catch errors and add cost or reject valid content. Present tradeoffs per tested task. Human-calibrated accuracy and product-wide improvement remain open. |
+
 ## What was evaluated
 
 | Contribution | Unit and method | Success measures and boundaries |
@@ -54,19 +69,6 @@ For the fresh comparison, the four arms used **14 requests / $0.520890** settled
 | **Rewritten repetition and a missed update relationship.** An archived French expansion restated a schedule overrun in different wording. In the production audit, a later prison warning added a material detail but the monitor labeled it wholly novel despite related prior reader text. | Exact repeat versus verified new detail, shared headline with changed body, correction target binding, missing history and future-history rejection. A compact duplicate control tests whether removal preserves the protected sentence. [Omission/history tests](../evaluation/briefing-quality/omission-history.test.ts) · [Recombined-prior regression](../packages/briefing/test/recombined-prior.test.ts) · [A2, A4–A5](#private-records) | Literal matching missed the rephrased recap. Overlapping removal spans or unmatched history evidence made the saved model concision controls unusable. A zero verbatim repeat count leaves semantic repetition unresolved. |
 | **Partial accounting, malformed outputs and failed recovery.** One archived execution deferred **91** source revisions after a missing decision. Validation also rejected unbound findings, missing item judgments and inconsistent citation/history labels. | Recorded-response replay reproduced the failure, then carried valid candidates forward and stopped when it reached an unrecorded request. Worker checks cover malformed response, partial evidence, future reader history and cross-feed source scope. Recovery isolates unresolved charges and retains failed outcomes. [Recorded-response replay](BRIEFING_QUALITY_FIXES_2026-11-19.md) · [Worker tests](../evaluation/briefing-quality/worker.test.ts) · [Recovery and Grafana](evaluator-grafana-repair-2026-11-11.md) | Recovering a candidate is a stage-level result. A rejected output or a technical failure cannot be counted as a quiet editorial decision. |
 
-## Rubric Alignment: Agent Performance / Evaluation (20%)
-
-The **EECE 503N/798S Project Announcement: Agentic Systems (Fall 2026)** gives the evaluation expectations on page 4 and a suggested **20%** final weight on page 5. The table maps the course criteria to the submitted evidence.
-
-| Rubric expectation | Implemented work | Evidence and result | Limitations |
-| --- | --- | --- | --- |
-| Appropriate baselines and meaningful success metrics | All-headlines and lexical controls, GPT-4.1 Single LLM, and within-pipeline baselines. Separate content, output validity and operational metrics. | [October baselines](../evaluation/briefing-quality/reports/FINAL_REPORT.md) and [Single LLM archive and controlled runs](#private-records) show measurable tradeoffs in selection, qualification retention, words, calls and latency. | Small valid-pair counts and differing contracts limit aggregation. A failed baseline confers no editorial win. |
-| Evaluation datasets and held-out testing where applicable | Time-bounded snapshots, checksums, feed/track separation, exact overlap screens and pre-output checklists. Freeze input and scope before looking at generated output. | [Dataset audit](../evaluation/briefing-quality/reports/dataset-audit.json), [replay boundary tests](../evaluation/briefing-quality/replay-boundaries.test.ts) and the executed fresh pilot in [A3](#private-records). | The original held-out split is provisional and has zero French test windows. Two fresh exploratory windows are insufficient for an independent superiority test. A planned 36-window cohort could not be filled and did not run. |
-| Adversarial and failure testing | Synthetic missing-date, oversized-input, prompt-injection, revision, conflict, repetition and incomplete-evidence cases, plus live judge corruption controls. | [Challenge definitions](../evaluation/briefing-quality/challenges.py), [Worker tests](../evaluation/briefing-quality/worker.test.ts) and [qualification records, A5](#private-records). Both accepted and rejected cases are retained. | Some tests drive known responses and target individual failure mechanisms. General resistance to adversarial inputs and broad judge reliability remain unmeasured. |
-| Convert failures into regression tests | Replayed source binding, completeness, history, false approvals, attribution and accounting defects. Recorded correct counterparts and checkable failure receipts. | [Production identity controls](../evaluation/briefing-quality/production-identity-replay.test.ts), [review consistency](../evaluation/briefing-quality/review-consistency.test.ts), [recorded briefing failures](BRIEFING_QUALITY_FIXES_2026-11-19.md), and [archive controls, A5](#private-records). | Current scheduled CI exposes a failing prior-history regression. Some private semantic defects have scoped archive controls only. |
-| Reproducibility and supported conclusions | Offline runner, versioned protocols, immutable evidence IDs and manifests, staged receipts and failure-preserving comparisons. | [Offline CI](../.github/workflows/briefing-evaluation.yml), [release-engine fingerprints](../evaluation/briefing-quality/reports/live-fixes-20261119/GO_EXECUTION_HASHES.json) and [tiered reproduction instructions](#reproducibility-and-current-checks). | Private article, output and receipt access is required to reconstruct the live studies. Provider-dependent results can vary across runs. |
-| Architectural tradeoffs and limitations | Compared the pipeline against one call and against changes to selection, evidence representation and verification. Retained unsuccessful candidates and measured overhead. | [V4 release boundary](v4-final-release-2026-11-09.md), [compact-verification limits](../evaluation/briefing-quality/reports/cost-reduction-20261119/PAID_VALIDATION.md), and [v6 and retention outcomes, A5–A6](#private-records). | Additional stages can catch errors and add cost or reject valid content. Present tradeoffs per tested task. Human-calibrated accuracy and product-wide improvement remain open. |
-
 ## Reproducibility and current checks
 
 **Public and offline.** The [workflow](../.github/workflows/briefing-evaluation.yml) uses Python 3.11, Node 24 and pnpm 10.12.1. With locked dependencies installed, the runner uses fixtures and provider doubles, with no API key or paid inference. It runs Python, replay/Worker and briefing-engine tests, dataset-exporter tests, and TypeScript checks. The smaller commands can be checked separately.
@@ -84,7 +86,84 @@ The documentation review reran the last two commands on `e5f4ffb2`: **68 Python 
 
 **Private and paid.** Source snapshots, raw responses, prior editions, per-case blind reviews and financial ledgers stay in the access-controlled research archive. The index below identifies the receipts used for the sanitized aggregates above. Public code can rerun fixture checks. Replaying recorded live outputs offline requires the retained private inputs, and repeating live inference also requires a compatible provider, authorized use of the sources and a separately approved budget. The deployed [Worker](../evaluation/briefing-quality/worker/README.md) and [dashboard definition](../evaluation/briefing-quality/worker/observability/dashboard.json) expose job outcomes, evidence scope and protocol provenance. Grafana transport and the review queue are operational evidence. The November 23 read-only check joined the latest publication IDs to saved job, snapshot and report records. A separate evaluator heartbeat and Grafana export receipt were recorded at 17:35 Beirut time. It was an operational snapshot with no new inference or editorial scoring.
 
-### Private records
+## Public evidence appendix
+
+These case summaries and counts are transcribed from the retained records below. They let a public reviewer check the reported denominators, identify exclusions and follow the decision for each control. A receipt hash identifies the archived record. Verifying a judgment against the original passage still requires access to the source. Instructors can cite an A1–A6 record and case in the course submission channel to request read-only inspection from the team, subject to permission to share that record.
+
+### A1: V4 amendment
+
+The six paid Arabic pairs included three news windows, two correction/history controls and a quiet-selection diagnostic. Both arms omitted the fuel movements after repeated repair, and both missed two distinct accidents. V4 retained a newly reported access restriction while the candidate classified the source as repetition. Both linked the correction when the constructed reader history contained the old count and stayed quiet when the corrected count was already in that history. The quiet-selection diagnostic had no independently established quiet label.
+
+V4 and the candidate cost **$0.0523516** and **$0.0531128** respectively. In the five uninterrupted pairs, summed complete-window time was **28,218 ms** and **33,721 ms**, a **19.5%** increase. One interrupted pair remains in the editorial comparison and cost totals. The experiment kept V4 and rejected the amendment.
+
+### A2: Archived comparison
+
+Nine saved Distilled.news editions yielded eight Single LLM attempts and six readable pairs. Two baseline drafts failed citation validation, and one later Arabic attempt was skipped after a failure. Reader words below include headline and body. Findings are source inspections with the original run's unequal reading budgets.
+
+| Pair | Distilled.news words | Single LLM words | Checked difference |
+| --- | ---: | ---: | --- |
+| English AI 1 | 191 | 126 | Both retained the principal Meta FAIR comparison, the separate codebase gain and the separate distillation gain. Distilled.news also covered an applied AI development. |
+| English AI 2 | 443 | 420 | Distilled.news retained gated voice cloning and a practical limit of a research announcement. Single LLM included an API shutdown deadline and the condition that can reverse Gemini's cost result. |
+| Arabic Lebanon 1 | 192 | 82 | Distilled.news retained investment conditions. Single LLM included a second shelling location and kept the incidents distinct. |
+| French business QA 1 | 62 | 56 | Both retained the main climate-talks update. Distilled.news repeated the schedule overrun in different words. |
+| French business QA 2 | 31 | 103 | Both covered the tax proposal and protests. Distilled.news stayed with the feed-relevant development. |
+| French business QA 3 | 127 | 76 | Distilled.news distinguished two deals said to have closed from ten expected. Single LLM retained the expected deals. |
+| **Total** | **1,046** | **863** | Unequal story coverage limits any comparison of aggregate information density. |
+
+### A3: Matched-budget attempts
+
+The first 150-word run rejected the Arabic Single LLM citation ID and both English drafts on length (**189 and 345 words**, Distilled.news and Single LLM respectively). The corrected contract admitted the Arabic pair (**32 and 42 words**, both retaining **2/2** essentials) and again rejected both English drafts (**249 and 341 words**). These runs used the same development windows.
+
+The fresh 75-word run used shared frozen inputs and a pre-output fact checklist. The reviewer locked the anonymous record before learning which arm produced each briefing.
+
+| Window and arm | Final words and admission | Essential facts fully retained | Useful facts fully retained | Requests | Elapsed | Settled USD |
+| --- | --- | --- | --- | ---: | ---: | ---: |
+| Arabic, Distilled.news | 58, valid | N/A | 0/1 | 5 | 24.56 s | $0.099564 |
+| Arabic, Single LLM | 62, valid | N/A | 0/1 | 1 | 2.96 s | $0.029714 |
+| English, Distilled.news | 44, valid | 0/3 | 0/3 | 7 | 24.79 s | $0.305366 |
+| English, Single LLM | 99, over cap | 1/3, descriptive only | 0/3 | 1 | 5.15 s | $0.086246 |
+| **Total** | **1 valid pair / 2 windows** | | | **14** | | **$0.520890** |
+
+The Arabic checklist assigned zero essential facts. The evidence supported a narrowly attributed new allegation. Quiet and a carefully attributed short item were both defensible. Each generated item overstated a different part of the evidence. The English checklist required the voice release's API access and full-duplex multilingual operation, both scoped WebRTC rates, and the comparison population for the Astra milestone. Distilled.news selected both developments with incomplete qualifications. Single LLM preserved the first essential fact in a draft that exceeded the cap. English has no paired editorial verdict.
+
+### A4: Published-edition audit
+
+| Language | Editions | Headline words | Expansion words | Citation IDs / excerpts matched | Prior story occurrences matched |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Arabic | 7 | 177 | 358 | 17/17 and 17/17 | 413/413 |
+| English | 7 | 255 | 1,095 | 17/17 and 17/17 | 175/175 |
+| **Total** | **14** | **432** | **1,453** | **34/34 and 34/34** | **588/588** |
+
+Three findings illustrate different failure types. In one Arabic edition, the expansion called an interviewee army commander while its cited interview identified the same person as president. In one English edition, the monitor approved a claim that AI was used to analyze sequencing data, although the cited transcript described the analysis and separately discussed AI. The retained source leaves that relationship unestablished. In a third edition, a new prison warning followed an earlier report on the same events. The monitor recognized new information but missed its relationship to prior reader history.
+
+### A5: Reliability controls
+
+The offline archive checks separated each of four pairs in both orders: useful detail versus exact duplication, optional versus essential deletion, correct versus incorrect attribution of a role, and a material update versus verbatim recycling. They abstained in all five uncertainty controls: a paraphrase without an exact witness, an incorrect citation for the asserted meaning, two deletions under one obligation, matching wording without verified prior history, and new wording without a bound factual change.
+
+For the live v6 diagnostics, each paired control below ran in both orders. The two priority probes counted once each.
+
+| Control | GPT-4.1 | Claude Sonnet 4.6 |
+| --- | --- | --- |
+| Valid paraphrase and missing qualification | 0/2, false rejection and false approval | 0/2, false rejection |
+| Missing second benchmark | 2/2 | 0/2, structural failure on the positive control |
+| Incorrect citation | 2/2 | 2/2 |
+| Unsupported single-incident relationship | 0/2, credited the link | 0/2, withheld support but used the wrong uncertainty label |
+| Valid versus reversed chronology | 2/2 | 2/2 |
+| Quiet versus recycled news | 2/2 | 0/2, repetition judgment |
+| Removable repetition | 0/2, overlapping removal spans | 0/2, unbound prior quote |
+| Two feed-priority probes | 2/2 | 2/2 |
+| **Total** | **10/16** | **6/16** |
+
+### A6: Focused material-retention validation
+
+| Window | Deployed baseline | Opt-in candidate |
+| --- | --- | --- |
+| English, 75-word cap | Valid at 44 words, 0/3 essentials, 7 requests, 43.30 s, $0.302996 | Valid at 68 words, 1/3 essentials, 9 requests, 108.04 s, $0.481252 |
+| Arabic, 75-word cap | Valid at 54 words with misleading attribution, 5 requests, 21.13 s, $0.095438 | Rejected after two factual repairs, 15 requests, 102.90 s, $0.238504 |
+
+The English candidate improved voice-release detail but omitted a required price qualification and did not preserve the scope of the Astra claim. The Arabic rejection was a verification outcome. An editorial quiet edition was never produced. All **36 requests** settled for **$1.118190**. Neither anchor met the editorial gate, so the unrelated French control did not run.
+
+## Private records
 
 Filenames below refer to the retained private archive, with no public download. SHA-256 values pin selected receipts. The archive also holds the publication snapshot records, data preparation logs, evaluation inputs, usage receipts and blind-review locks.
 
