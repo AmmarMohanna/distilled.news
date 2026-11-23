@@ -5,7 +5,7 @@ export function metricsPayload(m,s,now=Date.now(),traffic=null){
  const extra=s?{observation_timestamp_seconds:now/1000,configured_users:m.users,configured_feeds:m.users*m.feedsPerUser,configured_max_vus:m.maxVus}:{};
  // These count due briefing windows grouped by recorded intake coverage.
  // They describe the handoff to briefing generation, not collector recall.
- for(const state of ['complete','pending','incomplete','unknown']){
+ for(const state of ['complete','pending','incomplete','awaiting','unknown']){
   extra['intake_coverage_windows_'+state]=s?.intakeCoverage?.[state];
  }
  if(traffic?.metrics){
@@ -29,4 +29,18 @@ export async function exportMetrics(m,s,env,{traffic=null,fetcher=fetch}={}){
  const r=await fetcher(url,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(10000),headers:{authorization:env.CAMPAIGN_GRAFANA_AUTH,'content-type':'application/json'},body:JSON.stringify(metricsPayload(m,s,Date.now(),traffic))});
  if(!r.ok)throw Error('GRAFANA_METRIC_EXPORT_FAILED');
  const body=await r.text();if(body&&JSON.parse(body).partialSuccess?.rejectedDataPoints>0)throw Error('GRAFANA_METRICS_PARTIAL_REJECTION');
+}
+
+// A threshold stop still has useful HTTP observations. Keep its exit result
+// authoritative even when the current invocation did not write a usable summary.
+export async function completeK6Traffic(code,readSummary,publishFinalTraffic){
+ if(code===99){
+  let summary;
+  try{summary=readSummary();}catch{ /* The private artifact is retained for diagnosis. */ }
+  if(summary?.metrics)await publishFinalTraffic(summary);
+ }
+ if(code!==0)throw Error('K6_FAILED_'+code);
+ const summary=readSummary();
+ if(!summary?.metrics)throw Error('K6_SUMMARY_MISSING');
+ return summary;
 }

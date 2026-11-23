@@ -47,13 +47,16 @@ export class CampaignObservation{
   });
   const byDeadline=deadlineStates.filter(x=>x==='BY_DEADLINE'),deadlineUnknown=deadlineStates.filter(x=>x==='UNKNOWN');
   const latency=due.flatMap(o=>{const at=this.visibility.get(o.id)?.firstPositive;return at?[Date.parse(at)-Date.parse(o.window.scheduledFor??o.window.end)]:[];});
-  const intakeCoverage={complete:0,pending:0,incomplete:0,unknown:0};
+  const intakeCoverage={complete:0,pending:0,incomplete:0,awaiting:0,unknown:0};
   for(const opportunity of due){
-   switch(this.items.get(opportunity.id)?.coverage){
+   const item=this.items.get(opportunity.id);
+   switch(item?.coverage){
     case 'COMPLETE': intakeCoverage.complete++; break;
     case 'PENDING': intakeCoverage.pending++; break;
     case 'INCOMPLETE': intakeCoverage.incomplete++; break;
-    default: intakeCoverage.unknown++;
+    default:
+     if(item?.state==='NOT_CREATED')intakeCoverage.awaiting++;
+     else intakeCoverage.unknown++;
    }
   }
   const knownAge=[...this.feeds.values()].filter(f=>f.oldestPendingAt).map(f=>Math.max(0,now-Date.parse(f.oldestPendingAt)));
