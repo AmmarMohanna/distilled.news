@@ -3619,3 +3619,45 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   text-align: center;
   justify-content: center;
 }
+
+:root.apple-ui.apple-ui .catalog-shelf {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-block: 12px 18px;
+  text-align: start;
+}
+:root.apple-ui.apple-ui .catalog-shelf-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-block-end: 6px; }
+:root.apple-ui.apple-ui .catalog-shelf-header h2 { font-size: 1.25rem; margin: 0; }
+:root.apple-ui.apple-ui .catalog-shelf-controls { display: flex; gap: 4px; }
+:root.apple-ui.apple-ui .catalog-shelf-controls button {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  border: 1px solid var(--line); border-radius: 50%; background: var(--surface-quiet); color: var(--text);
+}
+:root.apple-ui.apple-ui .catalog-shelf-controls button:first-child svg,
+:root.apple-ui.apple-ui[dir="rtl"] .catalog-shelf-controls button:last-child svg { transform: scaleX(-1); }
+:root.apple-ui.apple-ui[dir="rtl"] .catalog-shelf-controls button:first-child svg { transform: none; }
+:root.apple-ui.apple-ui .catalog-shelf-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: clamp(140px, 20vw, 230px);
+  gap: clamp(12px, 1.6vw, 24px);
+  overflow-x: auto;
+  scroll-snap-type: inline proximity;
+  padding: 4px 4px 10px;
+  scrollbar-width: thin;
+}
+:root.apple-ui.apple-ui .catalog-shelf-track > * { scroll-snap-align: start; min-width: 0; }
+:root.apple-ui.apple-ui .channel-shelf .catalog-shelf-track { grid-auto-columns: clamp(126px, 15vw, 170px); }
+:root.apple-ui.apple-ui .experience .catalog-shelf-track .feed-tile-cover .feed-tile-artwork > .topic-art { height: 100%; max-height: none; }
+:root.apple-ui.apple-ui .channel-hero { padding: 0 0 18px; background: var(--surface); color: var(--text); gap: 9px; }
+:root.apple-ui.apple-ui .channel-banner {
+  position: relative;
+  width: 100%;
+  height: clamp(140px, 26vw, 230px);
+  overflow: hidden;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(120deg, #211c3e, #40345f);
+}
+:root.apple-ui.apple-ui .channel-banner img { width: 100%; height: 100%; object-fit: cover; filter: blur(26px) brightness(.75); transform: scale(1.22); }
+:root.apple-ui.apple-ui .channel-hero .channel-avatar { margin-block-start: -52px; border: 4px solid var(--surface); z-index: 1; }
+:root.apple-ui.apple-ui .channel-hero .channel-counts { color: var(--muted); }

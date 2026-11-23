@@ -9,6 +9,7 @@ afterEach(() => window.history.replaceState(null, '', '/'));
 
 vi.mock('./api', () => ({
   getExploreChannels: vi.fn(async () => []),
+  getExploreHighlights: vi.fn(async () => ({ trending: [], newest: [] })),
   getExploreFeeds: vi.fn(async () => ({feeds: [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', stars: 0, viewerHasStarred: false }], nextOffset: null})),
   getFeed: vi.fn(async () => ({ editions: [], viewerHasStarred: false })),
   setFeedStar: vi.fn()
@@ -69,15 +70,15 @@ it('prepares Explore artwork on Home and preserves image elements through tab sw
       account={{ username: 'reader' } as Parameters<typeof AppExperience>[0]['account']}
       briefings={[]} onAccount={() => {}} onHelp={() => {}}/>));
     const explore = host.querySelector<HTMLElement>('.explore-view')!;
-    const image = explore.querySelector('img');
+    const image = explore.querySelector('.feed-tile-grid img');
     expect(image).not.toBeNull();
     expect(explore.style.display).toBe('none');
     await act(async () => host.querySelector<HTMLButtonElement>('nav button[aria-label="Explore"]')!.click());
     expect(explore.style.display).toBe('');
-    expect(explore.querySelector('img')).toBe(image);
+    expect(explore.querySelector('.feed-tile-grid img')).toBe(image);
     await act(async () => host.querySelector<HTMLButtonElement>('nav button[aria-label="Home"]')!.click());
     expect(explore.style.display).toBe('none');
-    expect(explore.querySelector('img')).toBe(image);
+    expect(explore.querySelector('.feed-tile-grid img')).toBe(image);
   } finally {
     await act(async () => root.unmount());
     vi.unstubAllGlobals();
@@ -160,7 +161,7 @@ it('loads one Explore page without feed fan-out, keeps cards on page failure and
     expect(explore.textContent).toContain('First science');expect(explore.querySelector('[role="alert"]')).not.toBeNull();
     await act(async()=>explore.querySelector<HTMLButtonElement>('[role="alert"] button')!.click());
     expect(vi.mocked(getExploreFeeds).mock.calls.map(args=>args[0])).toEqual([0,100,100]);
-    expect(explore.querySelectorAll('.feed-tile')).toHaveLength(2);
+    expect(explore.querySelectorAll('.feed-tile-grid .feed-tile')).toHaveLength(2);
     expect(explore.querySelector('[role="alert"]')).toBeNull();expect(getFeed).not.toHaveBeenCalled();
   } finally {await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });

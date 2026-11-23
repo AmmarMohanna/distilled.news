@@ -5,7 +5,7 @@ import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, ChevronRight, HelpCircle, Home, MessageSquareWarning, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, ExploreChannel, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
-import { getExploreChannel, getExploreChannels, getExploreFeeds, setFeedStar, type FeedStarResult } from "./api";
+import { getExploreChannel, getExploreChannels, getExploreFeeds, getExploreHighlights, setFeedStar, type ExploreHighlight, type FeedStarResult } from "./api";
 import type {ExploreChangeDetail} from './explore-events';
 import { ThemeToggle, useTheme } from "./ThemeToggle";
 import { LanguageControl, languageNames, setWebsiteLanguage, useLanguage } from "./LanguageControl";
@@ -25,6 +25,7 @@ function tabFromLocation():ExperienceTab {
 }
 const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
 export const channelUrl = (username: string) => `/explore?channel=${encodeURIComponent(username)}`;
+export const editionUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">, editionId: string) => `${feedUrl(feed)}briefing/${encodeURIComponent(editionId)}/`;
 export function BrandMark() { return <span className="distilled-logo" aria-hidden="true"><span className="distilled-logo-symbol"/><span className="distilled-logo-wordmark">Distilled<span className="distilled-logo-dot">.</span>News</span></span>; }
 export function AppHeader({ account, onAccount, leading, actions, contextual, loading = false }: { account: AccountRecord | null; onAccount: () => void; leading?: React.ReactNode; actions?: React.ReactNode; contextual?: boolean; loading?: boolean }) {
   const { t } = useLanguage();
@@ -50,6 +51,7 @@ export function AppExperience(props: {
   const [query, setQuery] = useState("");
   const [channelName, setChannelName] = useState(() => new URLSearchParams(window.location.search).get("channel") ?? "");
   const [channels, setChannels] = useState<ExploreChannel[]>([]);
+  const [highlights, setHighlights] = useState<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }>({ trending: [], newest: [] });
   const [channel, setChannel] = useState<ExploreChannel>();
   const [channelFailed, setChannelFailed] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -91,6 +93,9 @@ export function AppExperience(props: {
         void getExploreChannels(request.signal)
           .then(value => { if (!request.signal.aborted) setChannels(value); })
           .catch(() => { /* Feed discovery remains usable when channel rankings are unavailable. */ });
+        void getExploreHighlights(request.signal)
+          .then(value => { if (!request.signal.aborted) setHighlights({ trending: value.trending ?? [], newest: value.newest ?? [] }); })
+          .catch(() => { /* The main public feed catalog remains available. */ });
       }
     };
     setChannel(undefined);
@@ -220,7 +225,7 @@ export function AppExperience(props: {
       <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>
         {!ownListReady && !props.briefings.length && <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/>}
         {emptyLibrary ? <div className="feed-library-empty">
-          <h1>{t("You haven?t created any feeds yet.")}</h1>
+          <h1>{t("You haven’t created any feeds yet.")}</h1>
           <p>{t("Create your first feed to start following what matters to you.")}</p>
           <button type="button" className="primary-button" onClick={props.onCreate}>{t("Create feed")}</button>
         </div> : <>
@@ -243,16 +248,30 @@ export function AppExperience(props: {
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
       </div>
-      {!channelName && tab === "explore" && !query && channels.length > 0 && <section className="channel-discovery" aria-labelledby="top-channels-heading">
-        <h2 id="top-channels-heading">{t("Top channels")}</h2>
-        <div className="channel-grid">{channels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
+      {!channelName && tab === "explore" && !query && <>
+        {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")}>
+          {visibleFeeds.slice(0, 8).map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
+        </CatalogShelf>}
+        {highlights.trending.length > 0 && <CatalogShelf title={t("Trending topics")}>
+          {highlights.trending.map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
+        </CatalogShelf>}
+        {highlights.trending.some(feed => feed.latestEditionId) && <CatalogShelf title={t("Trending briefings")}>
+          {highlights.trending.filter(feed => feed.latestEditionId).map(feed => <FeedTile key={feed.id} feed={feed} destination={editionUrl(feed, feed.latestEditionId!)} onError={setError}/>)}
+        </CatalogShelf>}
+        {highlights.newest.length > 0 && <CatalogShelf title={t("New feeds")}>
+          {highlights.newest.map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
+        </CatalogShelf>}
+        {channels.length > 0 && <CatalogShelf title={t("Top channels")} className="channel-shelf">
+          {channels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
           <ChannelAvatar username={item.username}/>
           <strong><bdi>@{item.username}</bdi></strong>
           <ChannelCounts channel={item}/>
-        </a>)}</div>
-      </section>}
+          </a>)}
+        </CatalogShelf>}
+      </>}
       <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")}>
         {channel && <h2 className="channel-section-title">{t("Public feeds")}</h2>}
+        {!channelName && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {exploreError && <div role="alert">
           {feeds.length > 0 && <p>{t("Some feeds could not be loaded. Previously loaded feeds are still available.")}</p>}
           <p className="error">{t(exploreError)}</p>
@@ -316,6 +335,23 @@ function ChannelAvatar({ username }: { username: string }) {
   </span>;
 }
 
+function CatalogShelf({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
+  const track = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
+  const scroll = (direction: number) => {
+    const node = track.current!;
+    const sign = getComputedStyle(node).direction === "rtl" ? -1 : 1;
+    node.scrollBy({ left: direction * sign * node.clientWidth, behavior: "smooth" });
+  };
+  return <section className={`catalog-shelf ${className}`} aria-label={title}>
+    <div className="catalog-shelf-header"><h2>{title}</h2><div className="catalog-shelf-controls">
+      <button type="button" onClick={() => scroll(-1)} aria-label={t("Scroll backward")}><ChevronRight size={17} aria-hidden/></button>
+      <button type="button" onClick={() => scroll(1)} aria-label={t("Scroll forward")}><ChevronRight size={17} aria-hidden/></button>
+    </div></div>
+    <div className="catalog-shelf-track" ref={track} tabIndex={0} role="region" aria-label={title}>{children}</div>
+  </section>;
+}
+
 function ChannelCounts({ channel }: { channel: ExploreChannel }) {
   const { language, t } = useLanguage();
   const format = new Intl.NumberFormat(language);
@@ -350,6 +386,9 @@ function ChannelHeader({ channel, onError, onReport }: { channel: ExploreChannel
     }
   };
   return <div className="channel-hero">
+    <div className="channel-banner" aria-hidden="true">
+      <img src={`/api/explore/channels/${encodeURIComponent(channel.username)}/avatar`} alt="" style={{ visibility: "hidden" }} onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
+    </div>
     <ChannelAvatar username={channel.username}/>
     <h1><bdi>@{channel.username}</bdi></h1>
     <ChannelCounts channel={channel}/>
@@ -388,11 +427,12 @@ export function AccountAvatar({ account, className }: { account: AccountRecord; 
 
 type FeedTileData = Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled" | "paused"> & FeedCardMetadata;
 
-function FeedTile({ feed, owner = false, onError, onStarChange }: {
+function FeedTile({ feed, owner = false, onError, onStarChange, destination }: {
   feed: FeedTileData;
   owner?: boolean;
   onError: (message: UiMessage) => void;
   onStarChange?: (result: FeedStarResult) => void;
+  destination?: string;
 }) {
   const { t } = useLanguage();
   const menu = useRef<HTMLDetailsElement>(null);
@@ -447,7 +487,7 @@ function FeedTile({ feed, owner = false, onError, onStarChange }: {
 
   return <article className="feed-tile">
     <div className="feed-tile-cover">
-      <a className="feed-tile-artwork" href={href} aria-label={`${t("Open feed")}: ${feed.title}`} tabIndex={-1}>
+      <a className="feed-tile-artwork" href={destination ?? href} aria-label={`${t(destination ? "Open briefing" : "Open feed")}: ${feed.title}`} tabIndex={-1}>
         <FeedArt feed={feed} centered/>
       </a>
       <div className="feed-tile-controls">
@@ -470,7 +510,7 @@ function FeedTile({ feed, owner = false, onError, onStarChange }: {
       </div>
     </div>
     <div className="feed-tile-caption">
-      <a href={href}><bdi>{feed.title}</bdi></a>
+      <a href={destination ?? href}><bdi>{feed.title}</bdi></a>
       <small><bdi>@{feed.ownerUsername}</bdi></small>
       <FeedUpdatedAt value={feed.latestUpdatedAt}/>
       {feed.paused && <small>{t("Paused")}</small>}

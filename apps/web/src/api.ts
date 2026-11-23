@@ -369,6 +369,14 @@ export async function getFeedEdition(username: string, slug: string, editionId: 
   return payload.edition;
 }
 
+export function getBriefingPage(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ briefing: PublicBriefing; edition: BriefingEdition }> {
+  return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}`, { signal });
+}
+
+export function getBriefingPhoto(username: string, slug: string, editionId: string, signal: AbortSignal): Promise<{ photo: { url: string; source: string } | null }> {
+  return requestJson(`/api/feed/${encodeURIComponent(username)}/${encodeURIComponent(slug)}/editions/${encodeURIComponent(editionId)}?photo=1`, { signal });
+}
+
 export interface ExplorePage {
   revision?: string;
   feeds: Array<PublicBriefing & { viewerHasStarred: boolean; latestUpdatedAt?: string }>;
@@ -383,6 +391,12 @@ export async function getExploreFeeds(offset = 0, revision?:string, channel?: st
 export async function getExploreChannels(signal: AbortSignal): Promise<ExploreChannel[]> {
   const result = await requestJson<{ channels: ExploreChannel[] }>("/api/explore/channels", { signal });
   return result.channels ?? [];
+}
+
+export type ExploreHighlight = PublicBriefing & { viewerHasStarred?: boolean; latestUpdatedAt?: string; latestEditionId?: string };
+
+export function getExploreHighlights(signal: AbortSignal): Promise<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }> {
+  return requestJson("/api/explore/highlights", { signal });
 }
 
 export async function getExploreChannel(username: string, signal: AbortSignal): Promise<ExploreChannel> {
