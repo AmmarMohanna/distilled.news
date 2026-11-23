@@ -21,7 +21,7 @@ Start with the [project README](../README.md) for the product, local setup and a
 
 | Need | Start here |
 | --- | --- |
-| Course report and grading evidence | [Technical report source and preview](report/README.md) · [Evaluation evidence PR #43](https://github.com/AmmarMohanna/distilled.news/pull/43) |
+| Course evaluation and grading evidence | [Agent performance and evidence appendix](AGENT_PERFORMANCE_EVALUATION.md) |
 | Product quality, baselines and limitations | [Evaluation suite](../evaluation/briefing-quality/README.md) · [October baselines and split limits](../evaluation/briefing-quality/reports/FINAL_REPORT.md) · [V4 integration and excluded candidates](v4-final-release-2026-11-09.md) |
 | Factuality, novelty and recovery regression evidence | [Source-bound verification](SOURCE_BOUND_CLAIMS.md) · [Failed production identity cases](PRODUCTION_IDENTITY_REVIEW.md) · [Recorded failures and repairs](BRIEFING_QUALITY_FIXES_2026-11-19.md) · [Live-model qualification](../evaluation/briefing-quality/reports/live-fixes-20261119/GO_RESULT.md) |
 | Cost, capacity and valid publication | [Cost comparison](../evaluation/briefing-quality/reports/cost-reduction-20261119/PAID_VALIDATION.md) · [Synthetic 1,000-feed preparation](v3-thousand-feed-capacity.md) · [Real publication pilot](observability/REAL_PUBLICATION_PILOT_2026-11-02.md) · [Staging qualification and CI](release/STAGING_LIVE_QUALIFICATION_20261119.md) |
@@ -39,7 +39,7 @@ The [acquisition and legacy contract index](../documentation/README.md) leads to
 | --- | --- |
 | `apps/` | Reader, Worker API/runtime and AgentOps collector |
 | `packages/` | Briefing, acquisition connectors, browser runtime/bridge and shared contracts |
-| `docs/` | Current architecture, operations, research reports and technical report |
+| `docs/` | Current architecture, operations, evaluation evidence and research reports |
 | `documentation/` | Acquisition methodology, verified historical reports and legacy compatibility contracts |
 | `evaluation/`, `benchmarks/` | Experiment harnesses, fixtures, machine results and reproducibility |
 | `ops/`, `scripts/`, `.github/workflows/` | Operator tooling, automation and CI |

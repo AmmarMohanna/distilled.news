@@ -2,7 +2,7 @@
 
 Distilled.news turns recurring streams of news into short, source-linked briefings about a reader's interests. The goal is to keep material facts, qualifications and updates visible without making readers scan every post or reread the same story.
 
-[Live site](https://distilled.news) · [Documentation](docs/README.md) · [FYP report sources](docs/report/README.md) · [Course evaluation evidence](https://github.com/AmmarMohanna/distilled.news/pull/43)
+[Live site](https://distilled.news) · [Documentation](docs/README.md) · [Course evaluation evidence](docs/AGENT_PERFORMANCE_EVALUATION.md)
 
 ## What readers can do
 
@@ -59,8 +59,8 @@ The workspace build uses a Wrangler dry run for the Worker. The continuous evalu
 
 | Area | Start here |
 | --- | --- |
-| Problem, design alternatives and agentic justification | [FYP technical report sources and chapter preview](docs/report/README.md) · [Current architecture](docs/ARCHITECTURE.md) |
-| Agent performance | [Course evidence index and sanitized appendix (PR #43)](https://github.com/AmmarMohanna/distilled.news/pull/43) · [Briefing evaluation suite](evaluation/briefing-quality/README.md) · [Recorded release qualification](evaluation/briefing-quality/reports/live-fixes-20261119/GO_RESULT.md) |
+| Problem, design alternatives and agentic justification | [Project problem and validation design](docs/planning/v1.5/PROJECT_PROBLEM_AND_VALIDATION_v1.5.md) · [Current architecture](docs/ARCHITECTURE.md) |
+| Agent performance | [Course evidence index and sanitized appendix](docs/AGENT_PERFORMANCE_EVALUATION.md) · [Briefing evaluation suite](evaluation/briefing-quality/README.md) · [Recorded release qualification](evaluation/briefing-quality/reports/live-fixes-20261119/GO_RESULT.md) |
 | AgentOps and professional engineering | [Observability and real publication pilot](docs/README.md#evaluation-and-evidence) · [k6 and performance fixtures](evaluation/performance-reliability/README.md) · [Security workflows and evidence](docs/security/DEVSECOPS.md) |
 | Reliability, privacy and QA | [Source-bound claims](docs/SOURCE_BOUND_CLAIMS.md) · [Transactional recovery](docs/transactional-briefing-recovery-staging-2026-11-13.md) · [CI checks](.github/workflows/project-checks.yml) |
 | Setup and reproducibility | [Documentation index](docs/README.md) · [Acquisition benchmark](evaluation/acquisition-benchmark/README.md) · [Monitor protocol and reporting](evaluation/briefing-quality/worker/README.md) |
