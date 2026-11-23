@@ -37,10 +37,10 @@ test('removing an earlier feed invalidates the next page even without overlap',a
   }
   return route.fulfill({json:{briefings:[]}});
  });
- await page.goto('/explore');await expect(page.locator('.explore-view .topic-card')).toHaveCount(100);
+ await page.goto('/explore');await expect(page.locator('.explore-view .feed-tile')).toHaveCount(100);
  await page.getByRole('button',{name:'Load more feeds',exact:true}).click();await expect.poll(()=>offsets).toEqual([0,100,0]);
- await expect(page.locator('.topic-name').filter({hasText:'Hidden astronomy'})).toBeVisible();await page.getByRole('button',{name:'Load more feeds',exact:true}).click();
- await expect(page.locator('.explore-view .topic-card')).toHaveCount(101);expect(offsets).toEqual([0,100,0,100]);
+ await expect(page.locator('.feed-tile-caption').filter({hasText:'Hidden astronomy'})).toBeVisible();await page.getByRole('button',{name:'Load more feeds',exact:true}).click();
+ await expect(page.locator('.explore-view .feed-tile')).toHaveCount(101);expect(offsets).toEqual([0,100,0,100]);
 });
 test('a star change restarts ranked pagination so the feed moving into page one is not skipped',async({page})=>{
  const records=feeds(),offsets:number[]=[];
@@ -55,10 +55,10 @@ test('a star change restarts ranked pagination so the feed moving into page one 
   if(u.pathname.endsWith('/star')){records[99].stars=0;records[99].viewerHasStarred=false;return route.fulfill({json:{stars:0,viewerHasStarred:false}});}
   return route.fulfill({json:{briefings:[]}});
  });
- await page.goto('/explore');await expect(page.locator('.explore-view .topic-card')).toHaveCount(100);
+ await page.goto('/explore');await expect(page.locator('.explore-view .feed-tile')).toHaveCount(100);
  await page.getByRole('button',{name:'Unstar Science 99',exact:true}).click();
- await expect.poll(()=>offsets).toEqual([0,0]);await expect(page.locator('.topic-name').filter({hasText:'Hidden astronomy'})).toBeVisible();
- await page.getByRole('button',{name:'Load more feeds',exact:true}).click();await expect(page.locator('.explore-view .topic-card')).toHaveCount(101);
+ await expect.poll(()=>offsets).toEqual([0,0]);await expect(page.locator('.feed-tile-caption').filter({hasText:'Hidden astronomy'})).toBeVisible();
+ await page.getByRole('button',{name:'Load more feeds',exact:true}).click();await expect(page.locator('.explore-view .feed-tile')).toHaveCount(101);
  expect(offsets).toEqual([0,0,100]);
 });
 
@@ -70,10 +70,10 @@ test('a partial Explore search explains its scope and finds a match after loadin
   if(u.pathname==='/api/explore/feeds'){const offset=Number(u.searchParams.get('offset')??0);return route.fulfill({json:{feeds:records.slice(offset,offset+100),nextOffset:offset===0?100:null}});}
   return route.fulfill({json:{briefings:[]}});
  });
- await page.goto('/explore');await expect(page.locator('.explore-view .topic-card')).toHaveCount(100);
+ await page.goto('/explore');await expect(page.locator('.explore-view .feed-tile')).toHaveCount(100);
  await page.getByRole('searchbox',{name:'Search feeds',exact:true}).fill('astronomy');
  await expect(page.locator('.explore-view [role="status"]')).toHaveText('No matches in loaded feeds. Load more feeds to continue searching.');
- await page.getByRole('button',{name:'Load more feeds',exact:true}).click();await expect(page.locator('.explore-view .topic-card')).toHaveCount(1);await expect(page.locator('.topic-name')).toContainText('Hidden astronomy');
+ await page.getByRole('button',{name:'Load more feeds',exact:true}).click();await expect(page.locator('.explore-view .feed-tile')).toHaveCount(1);await expect(page.locator('.feed-tile-caption')).toContainText('Hidden astronomy');
  await page.getByRole('searchbox',{name:'Search feeds',exact:true}).fill('missing');await expect(page.locator('.explore-view [role="status"]')).toHaveText('No feeds match your search.');
 });
 
@@ -91,8 +91,8 @@ test('a ranking change by another reader restarts an overlapping page instead of
   }
   return route.fulfill({json:{briefings:[]}});
  });
- await page.goto('/explore');await expect(page.locator('.explore-view .topic-card')).toHaveCount(100);
+ await page.goto('/explore');await expect(page.locator('.explore-view .feed-tile')).toHaveCount(100);
  await page.getByRole('button',{name:'Load more feeds',exact:true}).click();
- await expect.poll(()=>offsets).toEqual([0,100,0]);await expect(page.locator('.topic-name').filter({hasText:'Hidden astronomy'})).toBeVisible();
- await page.getByRole('button',{name:'Load more feeds',exact:true}).click();await expect(page.locator('.explore-view .topic-card')).toHaveCount(101);expect(offsets).toEqual([0,100,0,100]);
+ await expect.poll(()=>offsets).toEqual([0,100,0]);await expect(page.locator('.feed-tile-caption').filter({hasText:'Hidden astronomy'})).toBeVisible();
+ await page.getByRole('button',{name:'Load more feeds',exact:true}).click();await expect(page.locator('.explore-view .feed-tile')).toHaveCount(101);expect(offsets).toEqual([0,100,0,100]);
 });

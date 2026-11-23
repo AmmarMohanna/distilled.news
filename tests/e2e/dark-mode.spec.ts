@@ -37,10 +37,10 @@ test('dark Home, Explore and creation controls retain readable contrast',async({
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   expect(await contrast(page.locator('.welcome-copy h1'))).toBeGreaterThanOrEqual(7);
   expect(await contrast(page.locator('.home-add-feed'))).toBeGreaterThanOrEqual(4.5);
-  expect(await contrast(page.locator('.personal-feed-grid .topic-name strong'))).toBeGreaterThanOrEqual(7);
+  expect(await contrast(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile-caption > a'))).toBeGreaterThanOrEqual(7);
   await page.getByRole('button',{name:'Explore',exact:true}).click();
-  await expect(page.locator('.curated-feed-grid .topic-card')).toHaveCount(1);
-  expect(await contrast(page.locator('.curated-feed-grid .topic-name strong'))).toBeGreaterThanOrEqual(7);
+  await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(1);
+  expect(await contrast(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile-caption > a'))).toBeGreaterThanOrEqual(7);
   await page.screenshot({path:`.local-reports/dark-mode/${info.project.name}-explore.png`});
   await page.getByRole('button',{name:'Create feed',exact:true}).click();
   const dialog=page.getByRole('dialog');

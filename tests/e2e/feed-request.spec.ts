@@ -12,9 +12,9 @@ test("requested feed layout and language controls", async ({ page }) => {
     return route.fulfill({ json: data });
   });
   await page.goto("/");
-  const card = page.locator(".personal-feed-grid .topic-card");
-  await expect(card.locator(".feed-card-identity strong")).toHaveText("Personal Briefing");
-  await expect(card.locator(".feed-card-identity small")).toHaveText("@admin");
+  const card = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile");
+  await expect(card.locator(".feed-tile-caption > a")).toHaveText("Personal Briefing");
+  await expect(card.locator(".feed-tile-caption > small")).toHaveText("@admin");
   await expect(card.locator(".feed-card-status")).toHaveCount(0);
   await expect(card.getByRole('link').first()).toHaveAttribute('href','/admin/personal/');
   await expect(card.locator("time")).toContainText("Updated");

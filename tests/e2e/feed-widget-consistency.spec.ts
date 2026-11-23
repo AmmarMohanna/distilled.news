@@ -12,7 +12,7 @@ for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable
       : path === '/api/explore/feeds' ? { feeds: [{...feed,id:'community-science',ownerAccountId:'community',ownerUsername:'community'}] } : { sources: [] } });
   });
   await page.goto('/');
-  const home = page.locator('.home-view .topic-card');
+  const home = page.locator('.home-view .feed-tile');
   await expect(home).toHaveCount(1);
   await expect(home.locator('.feed-updated-at')).toBeVisible();
   const contained = async (card: import('@playwright/test').Locator) => card.evaluate(node => {
@@ -20,17 +20,17 @@ for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable
     return r.width > 100 && r.height >= 64 && r.left >= grid.left - 1 && r.right <= grid.right + 1 && r.top >= 0 && r.bottom <= innerHeight;
   });
   await expect.poll(() => contained(home)).toBe(true);
-  await expect(home.locator('.topic-name')).toBeVisible();
+  await expect(home.locator('.feed-tile-caption')).toBeVisible();
   await expect(home.locator('.topic-art')).toBeVisible();
   const create = page.locator('.home-add-feed');
   expect(await create.evaluate(el => getComputedStyle(el).whiteSpace)).toBe('nowrap');
   await page.getByRole('button', { name: 'Explore', exact: true }).click();
-  const explore = page.locator('.explore-view .topic-card');
+  const explore = page.locator('.explore-view .feed-tile');
   await expect(explore).toHaveCount(1);
 
   await expect.poll(() => contained(explore)).toBe(true);
   // Each view has its own available height; both cards must remain readable and fully on screen.
-  await expect(explore.locator('.topic-name')).toBeVisible();
+  await expect(explore.locator('.feed-tile-caption')).toBeVisible();
   await expect(explore.locator('.topic-art')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -93,39 +93,38 @@ test("all feed cards scroll with the page without paging controls", async ({ pag
   await page.setViewportSize({ width: 390, height: 664 });
   await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: Array.from({ length: 20 }, (_, i) => ({ id: `feed-${i}`, ownerUsername: "test", slug: `feed-${i}`, title: `Feed ${i + 1}` })) } }));
   await page.goto("/");
-  await expect(page.locator('.personal-feed-grid .topic-card')).toHaveCount(20);
+  await expect(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile')).toHaveCount(20);
   await expect(page.locator('.feed-pagination')).toHaveCount(0);
-  await expect(page.locator('.personal-feed-grid')).toHaveCSS('overflow-y', 'visible');
+  await expect(page.locator('.feed-tile-grid[data-feed-view=home]')).toHaveCSS('overflow-y', 'visible');
   const viewport = page.locator('.app-pages > .screen-page-viewport');
   await expect.poll(() => viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
   await viewport.evaluate(node => { node.scrollTop = node.scrollHeight; });
-  const card = await page.locator('.personal-feed-grid .topic-card').last().boundingBox();
+  const card = await page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile').last().boundingBox();
   const navigation = await page.locator('.bottom-navigation').boundingBox();
   expect(card!.y + card!.height).toBeLessThanOrEqual(navigation!.y);
 });
 
 for (const size of [{ width: 320, height: 568 }, { width: 390, height: 664 }, { width: 390, height: 844 }, { width: 667, height: 375 }, { width: 1280, height: 720 }, { width: 1440, height: 1000 }]) {
-  test(`feed rows stay compact and evenly spaced at ${size.width}x${size.height}`, async ({ page }) => {
+  test(`square feed tiles stay readable and evenly spaced at ${size.width}x${size.height}`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: Array.from({ length: 20 }, (_, i) => ({ id: `feed-${i}`, ownerUsername: "test", slug: `feed-${i}`, title: `Feed ${i + 1}` })) } }));
     await page.goto("/");
-    await expect(page.locator('.personal-feed-grid .topic-card').first()).toBeVisible();
-    const firstCard = page.locator('.personal-feed-grid .topic-card').first();
+    await expect(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile').first()).toBeVisible();
+    const firstCard = page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile').first();
     await expect.poll(() => firstCard.evaluate(node => {
-      const grid = node.closest<HTMLElement>('.adaptive-feed-grid')!;
-      const minimum = grid.dataset.layout === 'large' ? 160 : 64;
-      const height = node.getBoundingClientRect().height;
-      return height >= minimum - 1 && height <= 240 && node.scrollHeight <= node.clientHeight + 1;
+      const cover = node.querySelector('.feed-tile-cover')!.getBoundingClientRect();
+      return Math.abs(cover.width - cover.height) < 1 && node.scrollHeight <= node.clientHeight + 1;
     })).toBe(true);
     await expect.poll(() => page.evaluate(() => {
-      const cards = [...document.querySelectorAll('.personal-feed-grid .topic-card')].map(node => node.getBoundingClientRect());
+      const cards = [...document.querySelectorAll('.feed-tile-grid[data-feed-view=home] .feed-tile')].map(node => node.getBoundingClientRect());
       const rows = cards.filter((card, index) => !index || Math.abs(card.top - cards[index - 1].top) > 1);
-      const gap = innerWidth >= 900 ? 16 : 10;
+      const grid = document.querySelector(".feed-tile-grid[data-feed-view=home]")!;
+      const gap = parseFloat(getComputedStyle(grid).rowGap);
       return rows.slice(1).every((row, index) => Math.abs(row.top - rows[index].bottom - gap) < 1);
     })).toBe(true);
-    await expect(page.locator('.personal-feed-grid')).toHaveCSS('margin-top', '8px');
+    await expect(page.locator('.feed-tile-grid[data-feed-view=home]')).toHaveCSS('margin-top', '8px');
     // Rows scroll continuously across the fold; the final row must remain reachable.
-    const lastCard=page.locator('.personal-feed-grid .topic-card').last();
+    const lastCard=page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile').last();
     await lastCard.scrollIntoViewIfNeeded();
     await expect(lastCard).toBeInViewport();
     await expect.poll(()=>lastCard.evaluate(node=>{
@@ -177,7 +176,7 @@ test("language changes keep navigation in place and localize empty Explore", asy
     expect((await page.locator('.explore-search:visible').boundingBox())!.y).toBeCloseTo(searchBefore!.y, 0);
   }
   await expect(page.getByRole('heading', { name: 'استكشف', exact: true })).toBeVisible();
-  await expect(page.locator('.topic-card')).toHaveCount(0);
+  await expect(page.locator('.feed-tile')).toHaveCount(0);
   await expect(page.locator('.category-chips')).toHaveCount(0);
 });
 

@@ -24,7 +24,7 @@ test('successful login survives a feed-list outage and retry needs no second log
  await expect(page.getByRole('button',{name:'Account profile'})).toBeVisible();await expect(page.locator('.auth-dialog')).toHaveCount(0);
  await expect(page.locator('.home-view .feed-list-state')).toHaveAttribute('role','alert');
  await page.locator('.home-view .feed-list-state').getByRole('button',{name:'Try Again'}).click();
- await expect(page.locator('.personal-feed-grid')).toContainText('Science');expect(logins).toBe(1);expect(reads).toBe(2);
+ await expect(page.locator('.feed-tile-grid[data-feed-view=home]')).toContainText('Science');expect(logins).toBe(1);expect(reads).toBe(2);
 });
 
 test('tabs survive refresh and follow browser Back and Forward',async({page})=>{
@@ -45,8 +45,8 @@ test('thirty Home cards render current listing metadata without feed-detail read
   if(path.startsWith('/api/feed/')){if(path.endsWith('/sketch'))return route.fulfill({status:404});detailReads++;return route.fulfill({json:{briefing:feed,editions:[]}});}
   return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:account()}:path==='/api/me/briefings'?{briefings:Array.from({length:30},(_,i)=>({...feed,id:'own-'+i,slug:'own-'+i,ownerAccountId:'reader',ownerUsername:'reader'}))}:path==='/api/explore/feeds'?{feeds:[],nextOffset:null}:{}});
  });
- await page.goto('/');await expect(page.locator('.personal-feed-grid .topic-card')).toHaveCount(30);
- await expect(page.locator('.personal-feed-grid time')).toHaveCount(30);await expect(page.locator('.personal-feed-grid button[aria-pressed="true"]')).toHaveCount(30);
+ await page.goto('/');await expect(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile')).toHaveCount(30);
+ await expect(page.locator('.feed-tile-grid[data-feed-view=home] time')).toHaveCount(30);await expect(page.locator('.feed-tile-grid[data-feed-view=home] button[aria-pressed="true"]')).toHaveCount(30);
  expect(detailReads).toBe(0);
 });
 

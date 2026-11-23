@@ -38,7 +38,7 @@ test.beforeEach(async ({ page }, info) => {
 test("feed menus do not expose manual Explore publishing", async ({ page }) => {
   await mock(page);
   await page.goto("/");
-  await page.locator(".home-view .topic-card .feed-options summary").click();
+  await page.locator(".home-view .feed-tile .feed-options summary").click();
   await expect(page.getByRole("button", { name: "Publish to Explore", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Edit feed settings", exact: true })).toBeVisible();
 });

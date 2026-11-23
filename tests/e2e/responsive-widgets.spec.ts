@@ -21,7 +21,7 @@ for (const language of ['en','fr','ar']) for (const size of [
     await page.addInitScript(language => localStorage.setItem('dn_language', language), language);
     await mock(page);
     await page.goto('/');
-    const card = page.locator('.personal-feed-grid .topic-card');
+    const card = page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile');
     await expect(card).toBeVisible();
     await card.scrollIntoViewIfNeeded();
     const fit = await card.evaluate(node => ({width:node.clientWidth, contentWidth:node.scrollWidth, height:node.clientHeight, contentHeight:node.scrollHeight}));
@@ -68,15 +68,15 @@ test('brand size stays stable when the viewport grows and login uses the transpa
 
 for(const width of [390,667,1280,1920])test(`Home and Explore keep matching widget sizes at ${width}px`,async({page})=>{
  await mock(page);await page.setViewportSize({width,height:800});await page.goto('/');
- const home=page.locator('.personal-feed-grid .topic-card').first();await expect(home).toBeVisible();
+ const home=page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile').first();await expect(home).toBeVisible();
  const size=async(selector:string)=>page.locator(selector).first().evaluate(node=>{
   const r=node.getBoundingClientRect(),art=node.querySelector('.topic-art')!.getBoundingClientRect();
   const style=getComputedStyle(node);
-  return {width:r.width,height:r.height,art:art.width,font:getComputedStyle(node.querySelector('strong')!).fontSize,padding:style.padding,rows:style.gridTemplateRows,gap:style.rowGap};
+  return {width:r.width,height:r.height,art:art.width,font:getComputedStyle(node.querySelector('.feed-tile-caption > a')!).fontSize,padding:style.padding,rows:style.gridTemplateRows,gap:style.rowGap};
  });
- const initial=await size('.personal-feed-grid .topic-card');
- await page.goto('/explore');await expect(page.locator('.curated-feed-grid .topic-card')).toHaveCount(9);
- const explore=await size('.curated-feed-grid .topic-card');
+ const initial=await size('.feed-tile-grid[data-feed-view=home] .feed-tile');
+ await page.goto('/explore');await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(9);
+ const explore=await size('.feed-tile-grid[data-feed-view=explore] .feed-tile');
  expect(Math.abs(initial.width-explore.width)).toBeLessThan(2);
  expect(Math.abs(initial.height-explore.height),JSON.stringify({initial,explore})).toBeLessThan(2);
  expect(initial.art).toBe(explore.art);expect(initial.font).toBe(explore.font);

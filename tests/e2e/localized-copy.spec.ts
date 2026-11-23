@@ -13,7 +13,7 @@ for(const language of ['fr','ar'] as const)test(`natural ${language} copy across
  });
  await page.goto('/');
  await expect(page.locator('html')).toHaveAttribute('dir',language==='ar'?'rtl':'ltr');
- await expect(page.locator('.home-view .topic-card .feed-card-identity strong').first()).toHaveText('Science');
+ await expect(page.locator('.home-view .feed-tile .feed-tile-caption > a').first()).toHaveText('Science');
  await page.getByRole('navigation').getByRole('button',{name:language==='fr'?'Explorer':'استكشف',exact:true}).click();
  await expect(page.locator('.explore-view')).toBeVisible();
  await page.locator('.navigation-settings').click();

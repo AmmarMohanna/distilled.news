@@ -72,7 +72,7 @@ test('a signed-in feed keeps feed actions and an accessible account profile',asy
 });
 test('admin username feed card opens its feed and settings',async({page})=>{
  await mock(page,true,'admin'); await page.goto('/');
- await page.locator('.personal-feed-grid .topic-card > a .topic-name').click();
+ await page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile-caption > a').click();
  await expect(page).toHaveURL(/\/admin\/lebanon\/$/);
  await openEditSettings(page);
  await expect(page.getByRole('dialog').getByLabel('Feed name')).toHaveValue('Lebanon');
@@ -129,13 +129,13 @@ test('normal users never see admin account management',async({page})=>{
 
 test('guest search filters illustrated public feeds inline',async({page})=>{
  await mock(page,false); await page.goto('/');
- await expect(page.locator('.curated-feed-grid .topic-art')).toBeVisible();
+ await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .topic-art')).toBeVisible();
  await expect(page.getByRole('searchbox',{name:'Search feeds'})).toBeVisible();
- await expect(page.locator('.topic-grid .topic-card')).toHaveCount(1);
+ await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(1);
  await page.getByRole('searchbox').fill('technology');
- await expect(page.locator('.curated-feed-grid .topic-card')).toHaveCount(0);
+ await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(0);
  await page.getByRole('searchbox').fill('Lebanon');
- await expect(page.locator('.curated-feed-grid .topic-card')).toHaveCount(1);
+ await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(1);
 });
 
 test('feed language and advanced settings persist independently of website language',async({page})=>{

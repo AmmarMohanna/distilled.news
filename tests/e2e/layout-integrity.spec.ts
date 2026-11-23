@@ -41,6 +41,10 @@ const CHECK = (): string[] => {
   const related = (a: Element, b: Element) => a.contains(b) || b.contains(a) || (a.closest("label") && a.closest("label") === b.closest("label"));
   for (let i = 0; i < controls.length; i++) for (let j = i + 1; j < controls.length; j++) {
     const a = controls[i], b = controls[j]; if (related(a, b)) continue;
+    const artworkOverlay = (art: Element, control: Element) => art.matches(".feed-tile-artwork")
+      && Boolean(control.closest(".feed-tile-controls"))
+      && art.closest(".feed-tile-cover") === control.closest(".feed-tile-cover");
+    if (artworkOverlay(a, b) || artworkOverlay(b, a)) continue;
     const chrome = (n: Element) => { for (let e: Element | null = n; e && e !== document.body; e = e.parentElement) { const pos = getComputedStyle(e).position; if (pos === "fixed" || pos === "sticky") return true; } return false; };
     if (chrome(a) !== chrome(b)) continue;
     if (!!overlay(a) !== !!overlay(b)) continue;
@@ -72,7 +76,7 @@ const scenes: { name: string; role: "user" | "admin" | null; url: string; act?: 
   { name: "guest landing", role: null, url: "/" },
   { name: "guest feed with read-only actions", role: null, url: "/joud/lebanon/", act: async page => { await expect(page.locator(".feed-more")).toHaveCount(0); } },
   { name: "home", role: "user", url: "/" },
-  { name: "home with a card menu open", role: "admin", url: "/", act: async page => { await page.locator(".personal-feed-grid .topic-card").nth(1).locator(".feed-options > summary").click(); } },
+  { name: "home with a card menu open", role: "admin", url: "/", act: async page => { await page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").nth(1).locator(".feed-options > summary").click(); } },
   { name: "explore", role: "user", url: "/explore" },
   { name: "settings", role: "admin", url: "/", act: async page => { await page.locator(".bottom-navigation .navigation-settings").click(); } },
   { name: "feed", role: "user", url: "/joud/lebanon/" },

@@ -194,12 +194,12 @@ test("a feed card's menu is never covered by the next card", async ({ page }) =>
   for (const size of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
     await page.setViewportSize(size);
     await page.goto("/");
-    await page.locator(".personal-feed-grid .topic-card").first().locator(".feed-options > summary").click();
-    const popover = page.locator(".personal-feed-grid .topic-card").first().locator(".feed-options-popover");
+    await page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").first().locator(".feed-options > summary").click();
+    const popover = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").first().locator(".feed-options-popover");
     await expect(popover).toBeVisible();
     const box = (await popover.boundingBox())!;
     const covered = await page.evaluate(({ x, y, width, height }) => {
-      const popover = document.querySelector(".personal-feed-grid .topic-card .feed-options-popover")!;
+      const popover = document.querySelector(".feed-tile-grid[data-feed-view=home] .feed-tile .feed-options-popover")!;
       const points = [[0.1, 0.1], [0.5, 0.2], [0.9, 0.2], [0.1, 0.5], [0.5, 0.5], [0.9, 0.5], [0.1, 0.9], [0.5, 0.9], [0.9, 0.9]];
       return points.filter(([px, py]) => !popover.contains(document.elementFromPoint(x + width * px, y + height * py))).length;
     }, box);
@@ -244,20 +244,19 @@ test("Add feed microphones align and preferences are a single-column list", asyn
   expect(new Set(tops).size).toBe(tops.length);
 });
 
-test("a few feeds retain bounded compact cards on laptops and phones", async ({ page }) => {
+test("a few feeds retain bounded square tiles on laptops and phones", async ({ page }) => {
   await mock(page, true);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const card = page.locator(".personal-feed-grid .topic-card").first();
+  const card = page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").first();
   await expect(card).toBeVisible();
-  const large = await card.boundingBox();
-  await expect(page.locator('.personal-feed-grid')).toHaveAttribute('data-size','compact');
-  expect(large!.height).toBeGreaterThanOrEqual(88);
-  expect(large!.height).toBeLessThanOrEqual(144);
-  expect(large!.width).toBeLessThanOrEqual(440);
+  const cover = card.locator(".feed-tile-cover");
+  const large = (await cover.boundingBox())!;
+  expect(large.height).toBeCloseTo(large.width, 0);
+  expect(large.width).toBeLessThanOrEqual(256);
   expect(await card.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(async () => (await card.boundingBox())!.height).toBeLessThan(140);
+  await expect.poll(async () => (await cover.boundingBox())!.width).toBeLessThan(large.width);
 });
 
 test("a feed retains per-edition read controls in one reading column", async ({ page }) => {
@@ -275,7 +274,7 @@ test("a feed retains per-edition read controls in one reading column", async ({ 
   expect(width).toBeLessThanOrEqual(1440);
 });
 
-test("the guest landing page retains bounded compact cards for a few feeds", async ({ page }) => {
+test("the guest landing page retains bounded square tiles for a few feeds", async ({ page }) => {
   const feeds = ["Lebanon", "Technology"].map((title, index) => ({ ...feed, id: `g${index}`, slug: title.toLowerCase(), title, stars: index }));
   await page.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
@@ -285,13 +284,11 @@ test("the guest landing page retains bounded compact cards for a few feeds", asy
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const card = page.locator(".curated-feed-grid .topic-card").first();
+  const card = page.locator(".feed-tile-grid[data-feed-view=explore] .feed-tile").first();
   await expect(card).toBeVisible();
-  await expect(page.locator('.curated-feed-grid')).toHaveAttribute('data-size','compact');
-  const bounds=(await card.boundingBox())!;
-  expect(bounds.height).toBeGreaterThanOrEqual(88);
-  expect(bounds.height).toBeLessThanOrEqual(144);
-  expect(bounds.width).toBeLessThanOrEqual(440);
+  const bounds = (await card.locator(".feed-tile-cover").boundingBox())!;
+  expect(bounds.height).toBeCloseTo(bounds.width, 0);
+  expect(bounds.width).toBeLessThanOrEqual(256);
   expect(await card.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
 });
