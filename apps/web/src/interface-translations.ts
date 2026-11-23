@@ -120,6 +120,7 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Loading channel…': ['Chargement de la chaîne…', 'جارٍ تحميل القناة…'],
   'Public feeds': ['Fils publics', 'الخلاصات العامة'],
   'Recently updated': ['Mis à jour récemment', 'تحديثات حديثة'],
+  'Read briefings': ['Lire les bulletins', 'قراءة الموجزات'],
   'Channel options': ['Options de la chaîne', 'خيارات القناة'],
   'Report a concern': ['Signaler un problème', 'الإبلاغ عن مشكلة'],
   'Show this picture on my public channel': ['Afficher cette photo sur ma chaîne publique', 'إظهار هذه الصورة على قناتي العامة'],

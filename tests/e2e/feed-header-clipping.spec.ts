@@ -30,10 +30,13 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     expect(art.height).toBeGreaterThanOrEqual(96);
     if(width<900){
       const title=(await page.locator('.page-title-row').boundingBox())!;
-      expect(container.y-header.y-header.height).toBeLessThanOrEqual(4);
-      expect(title.y-container.y-container.height).toBeLessThanOrEqual(2);
+      expect(title.y).toBeGreaterThanOrEqual(container.y + container.height - 1);
       await expect(page.locator('.feed-hero-art .topic-art')).toHaveCSS('transform','none');
-      await expect(page.locator('.feed-hero-art')).toHaveCSS('overflow','visible');
+    } else {
+      const title = (await page.locator('.page-title-row').boundingBox())!;
+      if (language === 'ar') expect(title.x + title.width).toBeLessThan(container.x);
+      else expect(title.x).toBeGreaterThan(container.x + container.width);
     }
+    expect(Math.abs(container.width - container.height)).toBeLessThan(1);
   });
 }

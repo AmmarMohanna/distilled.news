@@ -3423,3 +3423,62 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .channel-recent .feed-updated-at { display: block; margin: 4px 0 0; padding: 0; white-space: normal; }
 :root.apple-ui.apple-ui .profile-picture-visibility { display: inline-flex; align-items: baseline; gap: 8px; font-size: .875rem; text-align: start; }
 :root.apple-ui.apple-ui .profile-picture-visibility input { flex: none; }
+
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+  border-radius: 22px;
+  padding: 18px 20px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-art {
+  position: relative;
+  width: clamp(96px, 18vw, 168px);
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-quiet));
+}
+:root.apple-ui.apple-ui .feed-owner-channel { color: var(--accent-ink); text-underline-offset: 3px; }
+:root.apple-ui.apple-ui .feed-hero-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+:root.apple-ui.apple-ui .feed-read-briefings {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: 14px;
+  min-height: 44px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  text-decoration: none;
+  font-weight: 650;
+}
+:root.apple-ui.apple-ui .feed-read-briefings:hover { text-decoration: underline; }
+:root.apple-ui.apple-ui #feed-briefings { scroll-margin-block-start: 16px; }
+@media (min-width: 900px) {
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) {
+    display: grid !important;
+    grid-template-columns: clamp(156px, 20vw, 240px) minmax(0, 1fr);
+    grid-template-rows: 1fr auto auto auto 1fr;
+    gap: 8px clamp(20px, 4vw, 44px);
+    padding: clamp(20px, 3.5vw, 40px);
+    text-align: start;
+  }
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-art {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    width: 100%;
+  }
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > :is(.page-title-row, p, .feed-hero-controls, .feed-page-description) {
+    grid-column: 2;
+    align-self: center;
+    justify-self: start;
+    text-align: start;
+  }
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .page-title-row { grid-row: 2; min-width: 0; }
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > p { grid-row: 3; }
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-controls { grid-row: 4; justify-content: flex-start; }
+  :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-page-description { grid-row: 5; }
+}

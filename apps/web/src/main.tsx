@@ -1865,8 +1865,13 @@ function FeedPage(props: { username: string; slug: string }) {
       header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language} isOwnFeed={Boolean(ownedFeed || (account && account.id === payload?.briefing.ownerAccountId))}/>}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
-      meta={payload ? <>{bylineLabel(language)} <bdi>{payload.briefing.ownerUsername}</bdi></> : undefined}
-      headingFooter={feedActions}
+      meta={payload ? <>{bylineLabel(language)} {payload.briefing.publicFeedEnabled && !payload.briefing.paused
+        ? <a className="feed-owner-channel" href={channelUrl(payload.briefing.ownerUsername)}><bdi>{payload.briefing.ownerUsername}</bdi></a>
+        : <bdi>{payload.briefing.ownerUsername}</bdi>}</> : undefined}
+      headingFooter={<div className="feed-hero-controls">
+        {payload?.editions.length ? <a className="feed-read-briefings" href="#feed-briefings">{t("Read briefings")}</a> : null}
+        {feedActions}
+      </div>}
       headingLoading={readerLoading}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
@@ -1937,7 +1942,7 @@ function FeedPage(props: { username: string; slug: string }) {
       ) : null}
 
       {searchLoading && !error && !activeSearchError && currentEditions.length === 0 ? <FeedLoadingSkeleton label={loadingFeedLabel(language)}/> : null}
-      <div className="news-line">
+      <div className="news-line" id="feed-briefings">
         {groupEditionsByDay(visibleUnreadEditions, language, clock).map(group => (
           <section className="news-day-group" key={group.key}>
             <h2 className="news-day">{group.day}</h2>
@@ -2268,7 +2273,7 @@ function Shell(props: {
         </div>
       </header>}
       <div className="page-heading" aria-busy={props.headingLoading || undefined} style={props.headingLoading ? {visibility: 'hidden'} : undefined}>
-        {props.feed && <div className="feed-hero-art"><FeedArt feed={props.feed}/></div>}
+        {props.feed && <div className="feed-hero-art"><FeedArt feed={props.feed} centered/></div>}
         <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? (props.feed ? null : getPageMeta(titleText))}</p>
         {props.headingFooter}
