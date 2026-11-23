@@ -82,6 +82,8 @@ import {
   getExploreFeeds,
   getFeed,
   getFeedEdition,
+  getBriefingPage,
+  getBriefingPhoto,
   getHealth,
   getSession,
   getSources,
@@ -112,7 +114,7 @@ import { normalizeUsername } from "@distilled/core";
 import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { accountInitials, AccountAvatar, ACCOUNT_AVATAR_UPDATED, AppExperience, AppHeader, BrandMark, channelUrl, PublicNavigation } from "./AppExperience";
+import { accountInitials, AccountAvatar, ACCOUNT_AVATAR_UPDATED, AppExperience, AppHeader, BrandMark, channelUrl, editionUrl, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage, languageNames, setWebsiteLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
 import {FeedSettingsSelect} from './FeedLanguageSelect';
@@ -169,6 +171,8 @@ function App() {
   if (path === "/explore" || path === "/explore/") return <AdminPage initialTab="explore"/>;
   if (path === "/verify-email") return <VerifyEmailPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
   if (path === "/reset-password") return <ResetPasswordPage token={new URLSearchParams(window.location.search).get("token") ?? ""} />;
+  const editionMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/briefing\/([^/]+)\/?$/);
+  if (editionMatch) return <BriefingDetailPage username={decodeURIComponent(editionMatch[1])} slug={decodeURIComponent(editionMatch[2])} editionId={decodeURIComponent(editionMatch[3])}/>;
   const feedMatch = path.match(/^\/([^/.][^/]*)\/([^/]+)\/?$/);
   if (feedMatch && !["api", "auth", "feed"].includes(feedMatch[1])) {
     return <FeedPage username={decodeURIComponent(feedMatch[1])} slug={decodeURIComponent(feedMatch[2])} />;
@@ -1876,6 +1880,19 @@ function FeedPage(props: { username: string; slug: string }) {
         {payload?.editions.length ? <a className="feed-read-briefings" href="#feed-briefings">{t("Read briefings")}</a> : null}
         {feedActions}
       </div>}
+      headingAction={payload?.briefing.publicFeedEnabled ? <span className="feed-banner-menu">
+        <FeedMoreMenu label={t("Feed options")}>{close => <>
+          <button type="button" onClick={() => { close(); void shareFeed(); }}><Share size={16} aria-hidden/>{t("Share")}</button>
+          <button type="button" onClick={async () => {
+            close();
+            try { await navigator.clipboard.writeText(window.location.origin + window.location.pathname); setSummaryMessage(t("URL copied")); }
+            catch { setError("Could not copy URL"); }
+          }}><Copy size={16} aria-hidden/>{t("Copy link")}</button>
+          <a href={`mailto:distillednews.platform@gmail.com?subject=${encodeURIComponent(t("Report a concern"))}&body=${encodeURIComponent(window.location.href)}`}>
+            <Mail size={16} aria-hidden/>{t("Report a concern")}
+          </a>
+        </>}</FeedMoreMenu>
+      </span> : undefined}
       headingLoading={readerLoading}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
@@ -1955,6 +1972,8 @@ function FeedPage(props: { username: string; slug: string }) {
                 <FeedEditionRow
                   key={edition.id}
                   edition={edition}
+                  destination={editionUrl({ownerUsername:props.username,slug:props.slug}, edition.id)}
+                  photoFeed={payload?.briefing.publicFeedEnabled && visibleUnreadEditions.indexOf(edition) < 2 ? {username:props.username,slug:props.slug} : undefined}
                   detailEdition={editionDetails.get(edition.id)}
                   language={language}
                   contentLanguage={payload?.briefing.language ?? language}
@@ -2052,6 +2071,8 @@ function groupEditionsByDay(editions: BriefingEdition[], language: "en" | "ar" |
 
 function FeedEditionRow(props: {
   edition: BriefingEdition;
+  destination: string;
+  photoFeed?: { username: string; slug: string };
   detailEdition?: BriefingEdition;
   language: "en" | "ar" | "fr";
   contentLanguage: "en" | "ar" | "fr";
@@ -2073,25 +2094,32 @@ function FeedEditionRow(props: {
   const referenceCount = Math.max(edition.sections.length ? references.length : 0, highestReferenceNumber(edition.summary));
   const referenceNumbers = Array.from({length: referenceCount}, (_, index) => index + 1);
   const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
+  const retainedImage = briefingPhoto(props.detailEdition ?? edition);
+  const previewImage = usePublisherPhoto(retainedImage ? undefined : props.photoFeed?.username, props.photoFeed?.slug, edition.id);
+  const image = retainedImage ?? previewImage;
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
       <div className="news-head">
         {props.isRead ? null : <span className="news-unread" aria-hidden />}
         <time dateTime={editionDisplayTime(edition)}>{formatClock(editionDisplayTime(edition), language)}</time>
       </div>
+      {image && <a className="briefing-row-photo" href={props.destination} aria-label={`${stamp}: ${headline}`}>
+        <PublisherPhoto photo={image}/>
+      </a>}
       <BriefingText
         hideBody
         summary={edition.summary}
         fallbackHeadline={headline}
         fallbackSummary={summary}
+        renderHeadline={title => <a className="briefing-headline-link" href={props.destination}><bdi dir={textDir}>{title}</bdi></a>}
         sections={edition.sections}
         direction={textDir}
         renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <CitationReference
           key={number} number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}
         />)}
-        renderDetails={(body, sectionIndex) => <BriefingReadMore body={body} sectionIndex={sectionIndex} language={language} loadDetail={props.onLoadDetail}
+        renderDetails={(body, sectionIndex) => <>{body && <p className="briefing-row-excerpt" dir={textDir}>{body.replace(/\s*\[\d+\]/g, "")}</p>}<BriefingReadMore body={body} sectionIndex={sectionIndex} language={language} loadDetail={props.onLoadDetail}
           renderBody={text => <ReferenceParagraph className="news-summary" text={text} language={language} direction={textDir} referenceCount={referenceCount} onOpenReference={props.onOpenReport}
-            renderReference={number => <CitationReference number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}/>}/>}/>}
+            renderReference={number => <CitationReference number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}/>}/>}/></>}
         renderBody={text=><ReferenceParagraph
           className="news-summary"
           text={text}
@@ -2116,6 +2144,84 @@ function FeedEditionRow(props: {
       </div>
     </article>
   );
+}
+
+function briefingPhoto(edition: BriefingEdition) {
+  for (const section of edition.sections) for (const evidence of section.evidence) for (const media of evidence.media) {
+    if (media.type !== "photo" || !media.url) continue;
+    try {
+      const url = new URL(media.url);
+      if (url.protocol === "https:" && !url.username && !url.password) return { url: url.href, source: evidence.sourceTitle };
+    } catch { /* Ignore unavailable image references. */ }
+  }
+}
+
+function PublisherPhoto({photo}: {photo: NonNullable<ReturnType<typeof briefingPhoto>>}) {
+  return <img src={photo.url} referrerPolicy="no-referrer" loading="lazy" alt="" title={photo.source}
+    onError={event => { event.currentTarget.hidden = true; }}/>;
+}
+
+function usePublisherPhoto(username: string | undefined, slug: string | undefined, editionId: string) {
+  const [result, setResult] = useState<{key: string; photo: {url: string; source: string} | null}>();
+  const key = JSON.stringify([username, slug, editionId]);
+  useEffect(() => {
+    if (!username || !slug) return;
+    const request = new AbortController();
+    void getBriefingPhoto(username, slug, editionId, request.signal)
+      .then(result => { if (!request.signal.aborted) setResult({key, photo: result.photo}); })
+      .catch(() => { /* A preview is optional. */ });
+    return () => request.abort();
+  }, [username, slug, editionId, key]);
+  return username && result?.key === key ? result.photo ?? undefined : undefined;
+}
+
+function BriefingDetailPage(props: { username: string; slug: string; editionId: string }) {
+  const { t, language } = useLanguage();
+  const [result, setResult] = useState<Awaited<ReturnType<typeof getBriefingPage>>>();
+  const [error, setError] = useState<UiMessage>("");
+  const retainedPhoto = result && briefingPhoto(result.edition);
+  const previewPhoto = usePublisherPhoto(result?.briefing.publicFeedEnabled && !retainedPhoto ? props.username : undefined, props.slug, props.editionId);
+  useEffect(() => {
+    const request = new AbortController();
+    void getBriefingPage(props.username, props.slug, props.editionId, request.signal)
+      .then(value => { if (!request.signal.aborted) setResult(value); })
+      .catch(cause => { if (!request.signal.aborted) setError(toUiError(cause)); });
+    return () => request.abort();
+  }, [props.username, props.slug, props.editionId]);
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    document.title = result?.edition.title || t("Briefing");
+  }, [result, language, t]);
+  const href = `/${encodeURIComponent(props.username)}/${encodeURIComponent(props.slug)}/`;
+  if (!result) return <main className="briefing-detail-page">
+    <a className="channel-back" href={href}>{t("Back to feed")}</a>
+    {error ? <p role="alert">{t(error)}</p> : <FeedLoadingSkeleton label={loadingFeedLabel(language)}/>}
+  </main>;
+  const { briefing, edition } = result;
+  const direction = textDirection(briefing.language);
+  const photo = retainedPhoto ?? previewPhoto;
+  const references = briefingReferences(edition);
+  const renderReference = (number: number) => <CitationReference key={number} number={number} edition={edition} loadDetail={async () => edition} label={referenceButtonLabel(number, language)}/>;
+  const date = editionDisplayTime(edition);
+  return <main className="briefing-detail-page">
+    <a className="channel-back" href={href}>{t("Back to feed")}</a>
+    <header className="briefing-detail-hero">
+      <div className="briefing-detail-art">{photo ? <PublisherPhoto photo={photo}/> : <FeedArt feed={briefing} centered/>}</div>
+      <div>
+        <time dateTime={date}>{formatDayHeading(date, language)} · {formatClock(date, language)}</time>
+        <h1 dir="auto">{edition.title || briefing.title}</h1>
+        <a href={href} dir="auto">{briefing.title}</a>
+      </div>
+    </header>
+    {photo && <small className="briefing-photo-credit"><bdi>{photo.source}</bdi></small>}
+    <section className="briefing-detail-body" aria-label={t("Briefing")} lang={briefing.language} dir={direction}>
+      <BriefingText summary={edition.summary} sections={edition.sections} direction={direction}
+        renderReferences={section => references.filter(item => section === undefined || item.sectionIndex === section).map(item => renderReference(item.number))}
+        renderBody={text => text.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => <ReferenceParagraph key={index} className="news-summary" text={paragraph} language={language} direction={direction}
+          referenceCount={references.length} onOpenReference={() => {}} renderReference={renderReference}/>)}/>
+    </section>
+  </main>;
 }
 
 const trailingPunctuation = /^[.,;:!?)\]…،؛؟]+/u;

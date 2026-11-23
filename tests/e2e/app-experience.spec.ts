@@ -52,6 +52,8 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   const avatar = page.getByRole('button', { name: 'Account profile' });
   await avatar.click();
   const dialog = page.getByRole('dialog', { name: 'Account' });
+  await expect(dialog.getByText('Your account username')).toHaveCount(0);
+  await expect(dialog.getByRole('checkbox')).toHaveCount(0);
   await expect(dialog.getByRole('heading', { name: 'Profile settings' })).toBeVisible();
   await expect(dialog.getByText('joud@example.test')).toHaveCount(0);
   const portrait = (await dialog.getByRole('heading', { name: 'Profile picture' }).boundingBox())!;
@@ -100,6 +102,10 @@ test('opens a top channel with its public feeds, recent updates and report menu'
   await expect(page.getByRole('heading', { name: 'Top channels' })).toBeVisible();
   await page.getByRole('link', { name: /@joud.*2 public feeds.*7 followers/ }).click();
   await expect(page.getByRole('heading', { name: '@joud' })).toBeVisible();
+  const banner = (await page.locator('.channel-banner').boundingBox())!;
+  const avatar = (await page.locator('.channel-hero .channel-avatar').boundingBox())!;
+  expect(avatar.y).toBeLessThan(banner.y + banner.height);
+  expect(avatar.y + avatar.height).toBeGreaterThan(banner.y + banner.height);
   await expect(page.getByRole('heading', { name: 'Public feeds' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Recently updated' })).toBeVisible();
   await page.locator('.channel-options summary').click();
@@ -107,13 +113,34 @@ test('opens a top channel with its public feeds, recent updates and report menu'
   await page.getByRole('button', { name: 'Report a concern' }).click();
   await expect(page.getByRole('dialog', { name: 'Help & Support' }).locator('a').first()).toHaveAttribute('href', /channel%3Djoud/);
 });
+test('discovery shelves link to a dedicated briefing with its published body', async ({ page }) => {
+  await mock(page, false);
+  const edition = { id: 'evening', briefingId: feed.id, title: 'An evening film briefing',
+    summary: 'The festival announced its full programme and published the dates for its screenings.',
+    sections: [], publishedAt: '2026-11-22T12:00:00Z', updatedAt: '2026-11-22T12:00:00Z' };
+  await page.route('**/api/explore/highlights', route => route.fulfill({json:{trending:[{...feed,latestEditionId:edition.id}],newest:[feed]}}));
+  await page.route('**/api/feed/joud/lebanon/editions/evening*', route => {
+    const photo = new URL(route.request().url()).searchParams.has('photo');
+    return route.fulfill({json:photo ? {photo:null} : {briefing:feed,edition}});
+  });
+  await page.goto('/explore');
+  await expect(page.getByRole('heading', {name:'All public feeds'})).toBeVisible();
+  await expect(page.getByRole('heading', {name:'New feeds'})).toBeVisible();
+  const shelf = page.getByRole('region', {name:'Trending briefings',exact:true}).last();
+  await expect(shelf).toHaveCSS('overflow-x', 'auto');
+  await shelf.getByRole('link', {name:'Lebanon',exact:true}).click();
+  await expect(page).toHaveURL(/\/joud\/lebanon\/briefing\/evening\//);
+  await expect(page.getByRole('heading', {name:edition.title})).toBeVisible();
+  await expect(page.locator('.briefing-detail-body')).toContainText(edition.summary);
+  await expect(page.getByRole('link', {name:'Back to feed'})).toHaveAttribute('href','/joud/lebanon/');
+});
 test('guests can explore and star feeds',async({page})=>{
  await mock(page,false); await page.goto('/explore');
  await expect(page.getByRole('heading',{name:'Featured feeds',level:2})).toHaveCount(0);
- await page.getByRole('button',{name:'Star Lebanon',exact:true}).click();
- await expect(page.getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.locator('.feed-tile-grid').getByRole('button',{name:'Star Lebanon',exact:true}).click();
+ await expect(page.locator('.feed-tile-grid').getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
  await page.reload();
- await expect(page.getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(page.locator('.feed-tile-grid').getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(1);
  await expect(page.locator('.experience-brand a')).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

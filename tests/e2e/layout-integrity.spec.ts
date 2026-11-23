@@ -74,7 +74,7 @@ const CHECK = (): string[] => {
 
 const scenes: { name: string; role: "user" | "admin" | null; url: string; act?: (page: Page) => Promise<void> }[] = [
   { name: "guest landing", role: null, url: "/" },
-  { name: "guest feed with read-only actions", role: null, url: "/joud/lebanon/", act: async page => { await expect(page.locator(".feed-more")).toHaveCount(0); } },
+  { name: "guest feed with read-only actions", role: null, url: "/joud/lebanon/", act: async page => { await expect(page.locator(".feed-banner-menu .feed-more")).toBeVisible(); } },
   { name: "home", role: "user", url: "/" },
   { name: "home with a card menu open", role: "admin", url: "/", act: async page => { await page.locator(".feed-tile-grid[data-feed-view=home] .feed-tile").nth(1).locator(".feed-options > summary").click(); } },
   { name: "explore", role: "user", url: "/explore" },
