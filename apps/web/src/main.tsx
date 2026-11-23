@@ -1250,32 +1250,8 @@ function AccountDialog(props: {
     <Dialog label={t("account")} className="profile-dialog" onClose={props.onClose}>
       <section className="profile-dialog-content">
       <button type="button" className="dialog-close" aria-label={t("close account settings")} onClick={props.onClose}><X size={22}/></button>
-      <div className="profile-identity">
-        <AccountAvatar account={props.account} className="profile-avatar"/>
-        <input ref={pictureFieldRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async event => {
-          const picture = event.currentTarget.files?.[0];
-          event.currentTarget.value = "";
-          if (!picture || busy) return;
-          setBusy("avatar");
-          setMessage("");
-          setError("");
-          try {
-            await uploadAccountAvatar(picture, showOnChannel);
-            window.dispatchEvent(new CustomEvent(ACCOUNT_AVATAR_UPDATED, { detail: props.account.id }));
-            setMessage("Profile picture saved");
-          } catch (cause) {
-            setError(toUiError(cause));
-          } finally {
-            setBusy(null);
-          }
-        }}/>
-        <button type="button" className="profile-picture-upload" disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
-          {t(busy === "avatar" ? "Uploading picture…" : "Upload profile picture")}
-        </button>
-        <label className="profile-picture-visibility"><input type="checkbox" checked={showOnChannel} disabled={busy !== null} onChange={event => setShowOnChannel(event.currentTarget.checked)}/>
-          {t("Show this picture on my public channel")}
-        </label>
-        <span className="profile-email">{props.account.email}</span>
+      <div className="profile-settings-title">
+        <h2>{t("Profile settings")}</h2>
         <span className="profile-role">{t(props.account.role === "admin" ? "Admin" : "User")}</span>
       </div>
 
@@ -1298,14 +1274,14 @@ function AccountDialog(props: {
           }
         }}
       >
-        <div className="profile-card-heading"><span className="profile-card-icon" aria-hidden="true"><User size={28}/></span><div><label htmlFor="profile-username">{t("Username")}</label><p>{t("Your account username")}</p></div></div>
+        <div className="profile-card-heading"><div><label htmlFor="profile-username">{t("Username")}</label><p>{t("Your account username")}</p></div></div>
         <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
         <button hidden={!editingUsername} type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "username"}>
           {t("Save")}
         </button>
       </form>
 
-      <div className="profile-password-section"><button type="button" className="password-disclosure" aria-expanded={passwordOpen} aria-controls="change-password-form" onClick={() => setPasswordOpen(value => !value)}><span className="profile-card-icon" aria-hidden="true"><LockKeyhole size={28}/></span><span className="profile-security-copy"><strong>{t("Security")}</strong><small>{t("Update your account password")}</small></span><ChevronRight size={24}/></button>
+      <div className="profile-password-section"><button type="button" className="password-disclosure" aria-expanded={passwordOpen} aria-controls="change-password-form" onClick={() => setPasswordOpen(value => !value)}><span className="profile-security-copy"><strong>{t("Security")}</strong><small>{t("Update your account password")}</small></span><ChevronRight size={24}/></button>
       <form id="change-password-form" hidden={!passwordOpen}
         className="account-form"
         onSubmit={async (event) => {
@@ -1353,6 +1329,36 @@ function AccountDialog(props: {
         </button>
       </form>
       </div>
+      <div className="profile-identity">
+        <h3>{t("Profile picture")}</h3>
+        <input ref={pictureFieldRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async event => {
+          const picture = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (!picture || busy) return;
+          setBusy("avatar");
+          setMessage("");
+          setError("");
+          try {
+            await uploadAccountAvatar(picture, showOnChannel);
+            window.dispatchEvent(new CustomEvent(ACCOUNT_AVATAR_UPDATED, { detail: props.account.id }));
+            setMessage("Profile picture saved");
+          } catch (cause) {
+            setError(toUiError(cause));
+          } finally {
+            setBusy(null);
+          }
+        }}/>
+        <div className="profile-picture-frame">
+          <AccountAvatar account={props.account} className="profile-avatar"/>
+          <button type="button" className="profile-picture-upload" aria-label={t(busy === "avatar" ? "Uploading picture?" : "Upload profile picture")} disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
+            <Pencil size={16} aria-hidden/> {t(busy === "avatar" ? "Uploading picture?" : "Edit picture")}
+          </button>
+        </div>
+        <label className="profile-picture-visibility"><input type="checkbox" checked={showOnChannel} disabled={busy !== null} onChange={event => setShowOnChannel(event.currentTarget.checked)}/>
+          {t("Show this picture on my public channel")}
+        </label>
+      </div>
+
       <div className="account-actions">
         <button
           type="button"

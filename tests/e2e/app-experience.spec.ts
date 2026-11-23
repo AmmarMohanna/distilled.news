@@ -52,6 +52,15 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   const avatar = page.getByRole('button', { name: 'Account profile' });
   await avatar.click();
   const dialog = page.getByRole('dialog', { name: 'Account' });
+  await expect(dialog.getByRole('heading', { name: 'Profile settings' })).toBeVisible();
+  await expect(dialog.getByText('joud@example.test')).toHaveCount(0);
+  const portrait = (await dialog.getByRole('heading', { name: 'Profile picture' }).boundingBox())!;
+  const username = (await dialog.getByRole('textbox', { name: 'username' }).boundingBox())!;
+  if (await page.evaluate(() => matchMedia('(min-width: 621px)').matches)) {
+    expect(portrait.x).toBeGreaterThan(username.x + username.width);
+  } else {
+    expect(portrait.y).toBeGreaterThan(username.y + username.height);
+  }
   const file = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 30;
@@ -285,7 +294,7 @@ for(const size of [{width:320,height:568},{width:667,height:375}])test(`Arabic p
 test('account and help dialogs dismiss outside without dismissing on an inside click',async({page})=>{
  await mock(page); await page.goto('/');
  await page.getByRole('button',{name:'Account profile'}).click();
- await page.getByRole('dialog',{name:'account',exact:true}).locator('.profile-email').click();
+ await page.getByRole('dialog',{name:'account',exact:true}).getByRole('heading',{name:'Profile settings'}).click();
  await expect(page.getByRole('dialog',{name:'account',exact:true})).toBeVisible();
  await page.mouse.click(4,4);
  await expect(page.getByRole('dialog')).toHaveCount(0);
