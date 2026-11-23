@@ -14,7 +14,7 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
 
       const gap = parseFloat(getComputedStyle(grid).columnGap);
       const preferred = Math.max(135, Math.min(window.innerHeight * 0.17, 200));
-      const columns = Math.max(1, Math.floor((width + gap) / (preferred + gap)));
+      const columns = Math.max(1, Math.min(count, Math.floor((width + gap) / (preferred + gap))));
       const bounds = grid.getBoundingClientRect();
       const scale = bounds.width / width;
       const bottom = Math.min(window.innerHeight, viewport?.getBoundingClientRect().bottom ?? window.innerHeight);
@@ -23,17 +23,21 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
       for (const node of grid.querySelectorAll<HTMLElement>('.feed-tile-caption')) {
         caption = Math.max(caption, node.offsetHeight + 9);
       }
-      const naturalSize = Math.min((width + gap) / columns - gap, Math.max(170, Math.min(window.innerHeight * 0.34, 256)));
+      const naturalSize = Math.min((width + gap) / columns - gap, Math.max(170, Math.min(window.innerHeight * 0.39, 280)));
+      const oneRow = available - caption;
       const twoRows = (available - gap) / 2 - caption;
       let fittedColumns = '';
       let fittedSize = '';
-      if (window.innerWidth >= 900 && count > columns && twoRows < naturalSize) {
+      if (count > columns && twoRows < naturalSize) {
         const widthInOneRow = (width + gap) / count - gap;
         if (widthInOneRow >= 120 && widthInOneRow + caption <= available) {
           fittedColumns = String(count);
         } else if (twoRows >= 120) {
           fittedSize = Math.floor(twoRows) + 'px';
         }
+      }
+      if (!fittedColumns && !fittedSize && oneRow >= 120 && oneRow < naturalSize) {
+        fittedSize = Math.floor(oneRow) + 'px';
       }
       if (grid.style.getPropertyValue('--feed-fit-columns') !== fittedColumns) grid.style.setProperty('--feed-fit-columns', fittedColumns);
       if (grid.style.getPropertyValue('--feed-fit-size') !== fittedSize) grid.style.setProperty('--feed-fit-size', fittedSize);

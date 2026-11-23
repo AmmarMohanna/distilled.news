@@ -1,12 +1,12 @@
 import {expect, test, type Page} from '@playwright/test';
 
-async function mock(page: Page, authenticated = true) {
+async function mock(page: Page, authenticated = true, ownCount = 1) {
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     const feed = {id:'feed', ownerAccountId:'owner', ownerUsername:'owner', slug:'news', title:'A long monitoring topic with several important developments', interestProfile:'News', publicFeedEnabled:true, paused:false, stars:23, language:'en'};
     return route.fulfill({json:path === '/api/auth/session'
       ? {authenticated, setupRequired:false, account:authenticated ? {id:'owner',username:'joud-mail-check-long-name',email:'a.long.email.address.for.layout.checks@example.com',role:'user'} : undefined}
-      : path === '/api/me/briefings' ? {briefings:[feed]}
+      : path === '/api/me/briefings' ? {briefings:Array.from({length:ownCount}, (_, index) => ({...feed,id:index ? `feed-${index}` : feed.id}))}
       : path === '/api/explore/feeds' ? {feeds:Array.from({length:9},(_,i)=>({...feed,id:'community-'+i,ownerAccountId:'community',ownerUsername:'owner'}))}
       : path === '/api/me/sources' ? {sources:[]}
       : path.endsWith('/sketch') ? {} : {}});
@@ -67,7 +67,7 @@ test('brand size stays stable when the viewport grows and login uses the transpa
 });
 
 for(const width of [390,667,1280,1920])test(`Home and Explore keep matching widget sizes at ${width}px`,async({page})=>{
- await mock(page);await page.setViewportSize({width,height:800});await page.goto('/');
+ await mock(page, true, 9);await page.setViewportSize({width,height:800});await page.goto('/');
  const home=page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile').first();await expect(home).toBeVisible();
  const size=async(selector:string)=>page.locator(selector).first().evaluate(node=>{
   const r=node.getBoundingClientRect(),art=node.querySelector('.topic-art')!.getBoundingClientRect();

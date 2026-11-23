@@ -253,7 +253,7 @@ test("a few feeds retain bounded square tiles on laptops and phones", async ({ p
   const cover = card.locator(".feed-tile-cover");
   const large = (await cover.boundingBox())!;
   expect(large.height).toBeCloseTo(large.width, 0);
-  expect(large.width).toBeLessThanOrEqual(256);
+  expect(large.width).toBeLessThanOrEqual(280);
   expect(await card.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(async () => (await cover.boundingBox())!.width).toBeLessThan(large.width);
@@ -288,7 +288,7 @@ test("the guest landing page retains bounded square tiles for a few feeds", asyn
   await expect(card).toBeVisible();
   const bounds = (await card.locator(".feed-tile-cover").boundingBox())!;
   expect(bounds.height).toBeCloseTo(bounds.width, 0);
-  expect(bounds.width).toBeLessThanOrEqual(256);
+  expect(bounds.width).toBeLessThanOrEqual(280);
   expect(await card.evaluate(node=>node.scrollHeight<=node.clientHeight+1)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
 });

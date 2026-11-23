@@ -51,6 +51,23 @@ test('six tiles fit in a short pinned-sidebar window and off-center ink is cente
   expect(new Set(inks).size).toBeGreaterThan(1);
 });
 
+test('four feed tiles expand into unused columns and resize with the window', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 638 });
+  await page.addInitScript(() => localStorage.setItem('dn-sidebar-collapsed', 'false'));
+  await openFeeds(page, 4);
+  const grid = page.locator('.feed-tile-grid[data-feed-view=home]');
+  const cards = grid.locator('.feed-tile-cover');
+  const before = (await cards.first().boundingBox())!;
+  expect(Math.abs(before.width - before.height)).toBeLessThan(1);
+  const row = (await grid.boundingBox())!;
+  const last = (await cards.last().boundingBox())!;
+  expect(Math.abs(last.x + last.width - row.x - row.width)).toBeLessThan(2);
+  await page.setViewportSize({ width: 1040, height: 638 });
+  await expect.poll(async () => (await cards.first().boundingBox())!.width).toBeLessThan(before.width);
+  await page.setViewportSize({ width: 1280, height: 638 });
+  await expect.poll(async () => (await cards.first().boundingBox())!.width).toBeCloseTo(before.width, 0);
+});
+
 for (const view of ['Home', 'Explore'] as const) {
   const gridSelector = view === 'Home' ? '.feed-tile-grid[data-feed-view=home]' : '.feed-tile-grid[data-feed-view=explore]';
   test(`${view} keeps square tiles usable on short and tall laptops, then a phone`, async ({ page }) => {

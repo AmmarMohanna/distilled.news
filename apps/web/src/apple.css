@@ -3203,7 +3203,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .experience .feed-tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(135px, 17dvh, 200px)), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(135px, 17dvh, 200px)), 1fr));
   gap: clamp(16px, 2vw, 28px);
   width: 100%;
   max-width: 1440px;
@@ -3213,7 +3213,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .experience.guest-landing .feed-tile-grid { margin-block-start: 16px; }
 :root.apple-ui.apple-ui .experience .feed-tile-grid[style*="--feed-fit-columns"] { grid-template-columns: repeat(var(--feed-fit-columns), minmax(0, 1fr)); }
-:root.apple-ui.apple-ui .feed-tile { width: 100%; max-width: var(--feed-fit-size, clamp(170px, 34dvh, 256px)); min-width: 0; text-align: start; }
+:root.apple-ui.apple-ui .feed-tile { width: 100%; max-width: var(--feed-fit-size, clamp(170px, 39dvh, 280px)); min-width: 0; text-align: start; }
 :root.apple-ui.apple-ui .feed-tile-cover {
   position: relative;
   aspect-ratio: 1;
