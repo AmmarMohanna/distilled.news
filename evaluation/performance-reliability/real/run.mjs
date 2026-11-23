@@ -11,7 +11,7 @@ import {setup,reconcileSetup,archive} from './lifecycle.mjs';
 import {CampaignObservation,observeOnce} from './observer.mjs';
 import {renderReport} from './report.mjs';
 import {inspectResources} from './resources.mjs';
-import {exportMetrics} from './telemetry.mjs';
+import {exportMetrics,completeK6Traffic} from './telemetry.mjs';
 
 const [command,manifestPath,preflightPath,approvalPath]=process.argv.slice(2);
 const read=p=>JSON.parse(readFileSync(p,'utf8'));
@@ -68,10 +68,22 @@ try{
    let lastResourceAt=0,lastResources=null;
    const publishMetrics=async(summary,traffic=null)=>{
     if(process.env.CAMPAIGN_EXPORT_METRICS!=='true')return;
-    if(traffic!==null&&Date.parse(approval.expiresAt)-Date.now()<=cleanupDrainMs+10000)throw Error('SCOPE_ENDING_ARCHIVE_BEFORE_EXPIRY');
     admit(m,pf,approval,'telemetry');
     reserveControlPlane(m,dir,'grafana-write');
     await exportMetrics(m,summary,process.env,{traffic});
+   };
+   const publishFinalTraffic=async traffic=>{
+    if(process.env.CAMPAIGN_EXPORT_METRICS!=='true')return;
+    const recordSkip=reason=>{
+     try{journal(dir,{category:'grafana-final-traffic-skipped',reason});}
+     catch{console.warn('Final Grafana traffic export skipped: '+reason);}
+    };
+    if(Date.parse(approval.expiresAt)-Date.now()<=cleanupDrainMs+10000){
+     recordSkip('CLEANUP_TIME_RESERVED');
+     return;
+    }
+    try{await publishMetrics(null,traffic);}
+    catch{recordSkip('TELEMETRY_EXPORT_UNAVAILABLE');}
    };
    const observe=async()=>{
     if(Date.now()-lastResourceAt>=300000){const target=read(resolve(dir,'resources.private.json'));const resources=await observeResources(m,target,dir,process.env,plan.campaignStartedAt??plan.plannedAt,new Date().toISOString());writePrivate(dir,'resource-window.private.json',resources);lastResourceAt=Date.now();lastResources=resources;}
@@ -102,13 +114,12 @@ try{
     child.stderr.resume();
     return new Promise((resolveTraffic,reject)=>{
      child.once('error',()=>reject(Error('K6_START_FAILED')));
-     child.once('close',code=>{
+     child.once('close',async code=>{
       try {
        const hasSummary=existsSync(summaryPath);
        if(hasSummary)renameSync(summaryPath,reportPath);
-       if(code!==0)throw Error('K6_FAILED_'+code);
-       if(!hasSummary)throw Error('K6_SUMMARY_MISSING');
-       resolveTraffic(read(reportPath));
+       const summary=await completeK6Traffic(code,()=>hasSummary?read(reportPath):null,publishFinalTraffic);
+       resolveTraffic(summary);
       }catch(error){reject(error);}
      });
     });
@@ -143,7 +154,7 @@ try{
     if(!trafficStarted)throw Error('TRAFFIC_NEVER_REACHED_DUE_WINDOW');
     const trafficSummary=await traffic;
     // Publish the final traffic separately so it cannot refresh observer gauges.
-    await publishMetrics(null,trafficSummary);
+    await publishFinalTraffic(trafficSummary);
    }else throw Error('UNKNOWN_PHASE');
   }
  }

@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 import {validateManifest,preflight,admit,digest,budgetStop,PROFILES} from './manifest.mjs';
 import {ApplicationClient,bounded,lockRun} from './client.mjs';
 import {CampaignObservation,quantile} from './observer.mjs';
-import {exportMetrics,metricsPayload} from './telemetry.mjs';
+import {completeK6Traffic,exportMetrics,metricsPayload} from './telemetry.mjs';
 import {reconcileAccounting} from './accounting.mjs';
 import {renderReport} from './report.mjs';
 const manifest=()=>JSON.parse(readFileSync(new URL('./manifests/load.draft.json',import.meta.url),'utf8'));
@@ -135,25 +135,26 @@ test('Grafana HTTP metrics preserve both installed flat k6 summaries and nested 
 
 test('intake coverage counts only due briefing windows and keeps missing evidence unknown',()=>{
  const m=manifest(),window={start:'2026-10-01T00:00:00Z',end:'2026-10-01T00:25:00Z'};
- const due=['complete','pending','incomplete','unrecorded','missing'];
+ const due=['complete','pending','incomplete','awaiting','unrecorded','missing'];
  const opportunities=[
   ...due.map(id=>({id,feedId:'fixture-feed',window})),
   {id:'future',feedId:'fixture-feed',window:{...window,scheduledFor:'2026-10-01T02:00:00Z'}},
  ];
  const observation=new CampaignObservation(m,{opportunities});
  observation.accept({schemaVersion:'distilled-real-snapshot.v1',runId:m.runId,observedAt:window.end,items:opportunities.filter(o=>o.id!=='missing').map(o=>({
-  ...o,state:'PENDING',coverage:o.id==='unrecorded'?null:o.id==='future'?'COMPLETE':o.id.toUpperCase(),operations:[],
+  ...o,state:o.id==='awaiting'?'NOT_CREATED':o.id==='unrecorded'?'DONE':'PENDING',
+  coverage:['awaiting','unrecorded'].includes(o.id)?null:o.id==='future'?'COMPLETE':o.id.toUpperCase(),operations:[],
  })),feeds:[]});
 
  const summary=observation.summary(Date.parse('2026-10-01T01:00:00Z'));
- assert.equal(summary.offered,5);
- assert.deepEqual(summary.intakeCoverage,{complete:1,pending:1,incomplete:1,unknown:2});
+ assert.equal(summary.offered,6);
+ assert.deepEqual(summary.intakeCoverage,{complete:1,pending:1,incomplete:1,awaiting:1,unknown:2});
  assert.equal(summary.completed,0);
 });
 
 test('campaign exports final k6 independently of the intake coverage snapshot',async()=>{
  const m=manifest();
- const summary={offered:4,intakeCoverage:{complete:1,pending:0,incomplete:1,unknown:2}};
+ const summary={offered:5,intakeCoverage:{complete:1,pending:0,incomplete:1,awaiting:1,unknown:2}};
  const traffic={metrics:{
   http_req_duration:{'p(50)':100,'p(95)':200,'p(99)':300},
   http_reqs:{count:100,rate:5},
@@ -200,6 +201,24 @@ test('campaign exports final k6 independently of the intake coverage snapshot',a
   assert.ok(Object.hasOwn(values,metric),metric);
   assert.equal(selector,'environment="staging",profile="$profile",slot="isolated-campaign"}');
  }
+});
+
+test('k6 threshold exit publishes its summary once before preserving the failure',async()=>{
+ const summary={metrics:{http_reqs:{count:12}}};
+ const events=[];
+ await assert.rejects(completeK6Traffic(99,()=>summary,async traffic=>{
+  assert.equal(traffic,summary);
+  events.push('export started');
+  await Promise.resolve();
+  events.push('export finished');
+ }),/K6_FAILED_99/);
+ assert.deepEqual(events,['export started','export finished']);
+
+ const unexpectedExport=()=>assert.fail('Unexpected traffic export');
+ assert.equal(await completeK6Traffic(0,()=>summary,unexpectedExport),summary);
+ await assert.rejects(completeK6Traffic(99,()=>null,unexpectedExport),/K6_FAILED_99/);
+ await assert.rejects(completeK6Traffic(99,()=>{throw new SyntaxError('Partial artifact');},unexpectedExport),/K6_FAILED_99/);
+ await assert.rejects(completeK6Traffic(1,()=>assert.fail('Unexpected summary read'),unexpectedExport),/K6_FAILED_1/);
 });
 
 test('queue fallback is a conservative native upper bound, never unknown-as-zero',()=>{

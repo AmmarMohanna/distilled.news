@@ -2,7 +2,7 @@
   "uid": "distilled-real-campaigns-v1",
   "title": "Distilled staging real campaigns",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "editable": false,
   "tags": [
     "staging",
@@ -324,7 +324,7 @@
     {
       "id": 15,
       "title": "Source intake coverage by due briefing window",
-      "description": "Counts scheduled briefing windows by recorded intake coverage. Unknown includes missing requests and windows without coverage records. Complete describes the intake handoff, without estimating source recall.",
+      "description": "Counts scheduled briefing windows by recorded intake coverage. Awaiting means the observer confirmed no briefing request has been created yet. Unknown covers unobserved windows and requests without coverage records. Complete describes the intake handoff, without estimating source recall.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -362,6 +362,11 @@
           "refId": "D",
           "expr": "distilled_campaign_intake_coverage_windows_unknown{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
           "legendFormat": "Unknown"
+        },
+        {
+          "refId": "E",
+          "expr": "distilled_campaign_intake_coverage_windows_awaiting{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "Awaiting request"
         }
       ]
     },
@@ -410,7 +415,7 @@
     {
       "id": 17,
       "title": "k6 HTTP requests",
-      "description": "Total requests from the completed k6 traffic run. Before completion, no value is reported.",
+      "description": "Total requests from the final k6 summary, including available summaries from threshold stops.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
