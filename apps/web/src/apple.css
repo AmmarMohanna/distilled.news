@@ -3551,3 +3551,27 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   }
   :root.apple-ui.apple-ui .profile-picture-frame { width: min(100%, 110px); }
 }
+
+:root.apple-ui.apple-ui .experience .home-view .feed-library-empty {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 10px;
+  min-block-size: clamp(220px, 55dvh, 440px);
+  padding: 24px 12px;
+  text-align: center;
+}
+:root.apple-ui.apple-ui .feed-library-empty h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+:root.apple-ui.apple-ui .feed-library-empty p {
+  max-width: 36ch;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+:root.apple-ui.apple-ui .feed-library-empty .primary-button { min-height: 44px; margin-block-start: 12px; }

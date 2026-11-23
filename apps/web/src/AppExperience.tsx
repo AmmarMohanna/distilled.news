@@ -167,6 +167,7 @@ export function AppExperience(props: {
   }, [channelName]);
   const matching = (title: string) => (!query || title.toLowerCase().includes(query.toLowerCase()));
   const ownListReady = !props.briefingsState || props.briefingsState === 'ready';
+  const emptyLibrary = ownListReady && props.briefings.length === 0;
   const activeFeeds = props.briefings.filter(feed => !feed.paused);
   const archivedFeeds = props.briefings.filter(feed => feed.paused);
   const ownFeeds = activeFeeds.filter(feed => matching(feed.title));
@@ -213,9 +214,22 @@ export function AppExperience(props: {
     {/* Keep both feed views mounted so illustrations load ahead of navigation
         and their decoded images survive tab switches. */}
     {props.account && <div className="home-view" style={tab !== "home" ? { display: "none" } : undefined}>
-      <section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
+      {!emptyLibrary && <><section className="welcome-hero"><div className="welcome-copy"><h1>{t("Welcome back!")}</h1><p>{t("You choose what matters.")}</p></div></section>
       <div className="explore-controls home-controls"><div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div><button type="button" className="home-archive-button" aria-label={t("Archived feeds")} title={t("Archived feeds")} aria-haspopup="dialog" onClick={() => { setArchiveError(""); setArchiveStatus(""); setArchiveOpen(true); }}><Archive size={20} aria-hidden/>{archivedFeeds.length > 0 && <span className="archive-count" aria-hidden="true">{archivedFeeds.length}</span>}</button><button className="primary-button home-add-feed" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={20} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button></div>
-      <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>{!ownListReady && !props.briefings.length && <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/> }<AdaptiveFeedGrid view="home">{ownFeeds.map(feed => <FeedTile key={feed.id} feed={feed} owner onError={setError}/>)}</AdaptiveFeedGrid>{ownListReady && ownFeeds.length === 0 ? <p className="empty-copy" role="status">{t(query.trim() ? "No feeds match your search." : archivedFeeds.length ? "Your feeds are paused. Find them in the archive." : "You haven’t created any feeds yet.")}</p> : null}{ownListReady && !props.briefings.length && <p className="empty-copy">{t("Create your first feed to start following what matters to you.")}</p>}</section>
+      </>}
+      <section className="your-feeds" aria-label={t("Your feeds")} aria-busy={props.briefingsState === "loading"}>
+        {!ownListReady && !props.briefings.length && <FeedListState failed={props.briefingsState === "error"} onRetry={props.onRetryBriefings}/>}
+        {emptyLibrary ? <div className="feed-library-empty">
+          <h1>{t("You haven?t created any feeds yet.")}</h1>
+          <p>{t("Create your first feed to start following what matters to you.")}</p>
+          <button type="button" className="primary-button" onClick={props.onCreate}>{t("Create feed")}</button>
+        </div> : <>
+          <AdaptiveFeedGrid view="home">{ownFeeds.map(feed => <FeedTile key={feed.id} feed={feed} owner onError={setError}/>)}</AdaptiveFeedGrid>
+          {ownListReady && ownFeeds.length === 0 && <p className="empty-copy" role="status">
+            {t(query.trim() ? "No feeds match your search." : "Your feeds are paused. Find them in the archive.")}
+          </p>}
+        </>}
+      </section>
     </div>}
     <section className="explore-view" aria-busy={loading} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {channelName ? <div className="channel-heading">

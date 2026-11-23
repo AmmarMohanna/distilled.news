@@ -166,7 +166,12 @@ test("Home explains an empty search and an empty library", async ({ page }) => {
   await mock(page, true);
   await page.route("**/api/me/briefings", route => route.fulfill({ json: { briefings: [] } }));
   await page.goto("/");
-  await expect(page.getByText("You haven’t created any feeds yet.")).toBeVisible();
+  const empty = page.locator(".feed-library-empty");
+  await expect(empty.getByRole("heading", { name: "You haven’t created any feeds yet." })).toBeVisible();
+  await expect(page.locator(".home-view").getByRole("searchbox")).toHaveCount(0);
+  await expect(page.locator(".home-view").getByRole("button", { name: "Create feed" })).toHaveCount(1);
+  await empty.getByRole("button", { name: "Create feed" }).click();
+  await expect(page.getByRole("dialog", { name: "Add feed" })).toBeVisible();
 });
 
 test("language segments in Settings meet the 44pt target", async ({ page }) => {
