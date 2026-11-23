@@ -1,5 +1,7 @@
 # Stage 3: five-day monitoring started
 
+Paths shown as code identify private or local artifacts referenced in the original report. Their availability depends on the original archive. Linked reports and scripts are tracked here.
+
 Started **2026-09-27 06:49:22 UTC (09:49 Beirut)**. The final scheduled round is **2026-10-02 06:49:22 UTC (09:49 Beirut)**; processing finishes afterward. This page describes the free-route portion. The user subsequently authorized [paid Stage 3](STAGE3_PAID_STATUS.md), which started at 06:57:39 UTC with each source family's allowance below $20.
 
 | Source | Targets | Routes | Jobs per round |
@@ -17,7 +19,7 @@ The VPS user cron service is active. Two user-owned cron entries check every fiv
 
 VPS campaign directory: `~/work/distilled.news/evaluation/acquisition-benchmark/data/campaigns/stage3-free-20260927/`.
 
-Data directories: `data/stage3-free-20260927-core` and `data/stage3-free-20260927-telegram`. Reports are saved under each directory's `reports/` folder. Local [status snapshot](stage3-free-20260927/status.json) records actual anchors, job states and round start lateness. Refresh with `python documentation/testing-evidence/check-stage3-free.py` from this repository. Raw data stays on the VPS.
+Data directories: `data/stage3-free-20260927-core` and `data/stage3-free-20260927-telegram`. Reports are saved under each directory's `reports/` folder. Local status snapshot (`stage3-free-20260927/status.json`) records actual anchors, job states and round start lateness. Refresh with `python documentation/testing-evidence/check-stage3-free.py` from this repository. Raw data stays on the VPS.
 
 First round completed: all 12 Telegram jobs and all 48 core jobs produced reports. Website labels: 27 `AUTO_UNVERIFIED` and three `AUTO_FAIL` per extractor. RSS, Google and Telegram results are `SOURCE_UNVERIFIED`, not quality passes. No server-cost allocation is configured; provider budget for these schedules is zero.
 

@@ -1,1 +1,0 @@
-This folder contains the built output assets for the worker "distilled-news-joud" generated at 2026-10-23T10:11:33.625Z.

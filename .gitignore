@@ -1,5 +1,16 @@
 node_modules/
 dist/
+/apps/worker/dist-joud/
+/output/pdf/
+/docs/report/latex/*.aux
+/docs/report/latex/*.bbl
+/docs/report/latex/*.blg
+/docs/report/latex/*.out
+/docs/report/latex/*.toc
+/docs/report/latex/*.lof
+/docs/report/latex/*.lot
+/docs/report/latex/*.synctex.gz
+/docs/report/latex/0_MainDocument.pdf
 .wrangler/
 .review-tmp/
 .dev.vars

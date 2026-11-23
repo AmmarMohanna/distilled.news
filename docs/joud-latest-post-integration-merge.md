@@ -26,7 +26,7 @@ Eleven prior protected paths were checked unchanged against `6707c96`: schedulin
 
 Joud's D1, R2, VPC and dedicated queues remain scoped to her deployment. Her $10/day collector setting is retained there. Sources-QA's existing $15 configuration is unchanged. Package manifests and lockfile are unchanged. The merge does not transfer remote images, sessions, secrets or database state between deployments.
 
-The incoming `apps/worker/dist-joud/` build and source map are retained byte-for-byte as historical generated artifacts. Active Joud configuration points to `src/index.ts`; the merged source is rebuilt for validation rather than treating that older bundle as the merged runtime. Generated bundle comment whitespace was not rewritten, preserving its source-map relationship. Source whitespace checks exclude this retained generated directory.
+The merge originally retained a generated Joud bundle and its source map. They remain available at the [pre-cleanup revision](https://github.com/AmmarMohanna/distilled.news/tree/e5f4ffb2e72916d10d5aa53191dbbb112d5ead0e/apps/worker/dist-joud). The active [Joud configuration](../apps/worker/wrangler.joud.jsonc) points to `src/index.ts`, and the Worker build regenerates the bundle from source.
 
 Rejected warning-selection, reader-focused writing and AI-written notification experiments remain evidence only. Active briefing prompts and model routing are unchanged from the already-integrated final V3 branch. Deterministic published-headline notification previews and `redirect: "manual"` remain intact.
 

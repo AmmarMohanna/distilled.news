@@ -4,7 +4,7 @@
 
 **Status:** Evaluation runbook under architecture v1.2. It does not change any frozen contract.
 **Version:** 1.2
-**Depends on:** `ARCHITECTURE_BASELINE_v1.2.md`, `TECHNICAL_CONTRACTS_AND_SERVICE_BOUNDARIES_v1.2.md`, `IMPLEMENTATION_PLAN_v1.2.md`
+**Design context:** [The original v1.2 architecture, contracts and plan](https://github.com/AmmarMohanna/distilled.news/tree/e5f4ffb2e72916d10d5aa53191dbbb112d5ead0e/documentation). For current implementation and runnable evidence, use the [documentation index](../docs/README.md).
 **Owners:** Workstream B (Acquisition) with Workstream G (Evaluation)
 **Produces:** measured `AcquisitionRouteStats`, the Acquisition Router v1 routing policy, connector decisions for Telegram/X/RSS/GDELT, and raw captures that seed the M0 replay dataset.
 

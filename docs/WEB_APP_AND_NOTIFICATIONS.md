@@ -8,9 +8,7 @@ The service worker provides an offline explanation and retry action. It does not
 
 ## Local development
 
-The local migration and key generation have been applied in this workspace. Restart `node scripts/dev.mjs` to load the new keys, refresh, and enable notifications in Settings.
-
-For a new checkout:
+For a new checkout, generate the local notification keys and apply the local migration:
 
 ```powershell
 node scripts/setup-push.mjs
@@ -23,7 +21,7 @@ Local Wrangler does not automatically fire cron events. To test delivery locally
 
 ## Production deployment prerequisites
 
-Production has NOT been changed. Before deploying the new Worker:
+Use these prerequisites when enabling notifications on a target deployment:
 
 1. Apply migration `0011_web_push.sql` using your normal remote D1 migration process.
 2. Set Worker secrets `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` using Wrangler's interactive secret input. The subject is an operator contact URL or `mailto:` address. Store the private key only on the server.
@@ -37,3 +35,10 @@ References: [Browser installation](https://developer.mozilla.org/en-US/docs/Web/
 ## V3 headline previews
 
 V3 notifications reuse the first published story headline and, when space permits, show the number of other updates in that edition. This adds no inference call. Long, legacy or unavailable previews use the generic message. Coalesced catch-up delivery previews one eligible edition; it is not a summary of all pending feeds. The existing publication, ownership and public-feed eligibility checks still apply. Preview lookup failures do not block generic delivery. See docs/v3-reader-notification-evaluation.md for the rejected AI-message experiment and local validation; live deployment/device display must be verified separately.
+
+## Maintenance invariants
+
+- Preserve the existing responsive reader, feed editor and public/private controls. Keep Unicode usernames and aliases stable. Localize UI labels and accessibility text without translating readers' own names or feed titles. Arabic layouts mirror directional controls and retain the established action order.
+- Use the separate artwork for site branding, desktop installation, mobile installation, authentication email, and push icon/badge. The white Android launch background matches the mobile artwork. Existing installed metadata can outlive a deployment. [Branding record](joud-responsive-branding-2026-10-29.md) · [Android launch behavior](joud-android-launch-background-2026-10-29.md)
+- Keep the offline illustration and language strings self-contained. Use the saved website language before the browser fallback. Preserve retry and service-worker update behavior, and keep authenticated responses out of the cache. [Offline and language record](joud-reset-language-2026-10-29.md)
+- Keep provider readiness and scope checks separate from the reader experience. A failed source-health diagnostic must not expose private metadata or take down an otherwise readable edition. Preserve owner authorization for artwork and reader history. [Reader layout](joud-reader-layout-followup-2026-10-29.md) · [Operational regression](BRIEFING_QUALITY_FIXES_2026-11-19.md)
