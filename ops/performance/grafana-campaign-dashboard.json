@@ -2,7 +2,7 @@
   "uid": "distilled-real-campaigns-v1",
   "title": "Distilled staging real campaigns",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "tags": [
     "staging",
@@ -318,6 +318,156 @@
         {
           "refId": "A",
           "expr": "distilled_campaign_database_rows_written{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Source intake coverage by due briefing window",
+      "description": "Counts scheduled briefing windows by recorded intake coverage. Unknown includes missing requests and windows without coverage records. Complete describes the intake handoff, without estimating source recall.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_intake_coverage_windows_complete{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "Complete"
+        },
+        {
+          "refId": "B",
+          "expr": "distilled_campaign_intake_coverage_windows_pending{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "Pending"
+        },
+        {
+          "refId": "C",
+          "expr": "distilled_campaign_intake_coverage_windows_incomplete{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "Incomplete"
+        },
+        {
+          "refId": "D",
+          "expr": "distilled_campaign_intake_coverage_windows_unknown{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "Unknown"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "k6 HTTP latency",
+      "description": "Final k6 client-side request duration. The asynchronous briefing pipeline has its own outcome measurements.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "showPoints": "always"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_http_latency_50_ms{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "distilled_campaign_http_latency_95_ms{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "expr": "distilled_campaign_http_latency_99_ms{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "k6 HTTP requests",
+      "description": "Total requests from the completed k6 traffic run. Before completion, no value is reported.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "showPoints": "always"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_http_requests{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "Requests"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "k6 HTTP error ratio",
+      "description": "Share of k6 requests that failed per the workload's expected-status rules. Briefing and collection failures are tracked separately.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "grafanacloud-prom"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "showPoints": "always"
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "distilled_campaign_http_error_ratio{environment=\"staging\",profile=\"$profile\",slot=\"isolated-campaign\"}",
+          "legendFormat": "Error ratio"
         }
       ]
     }

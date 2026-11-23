@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 import {validateManifest,preflight,admit,digest,budgetStop,PROFILES} from './manifest.mjs';
 import {ApplicationClient,bounded,lockRun} from './client.mjs';
 import {CampaignObservation,quantile} from './observer.mjs';
-import {metricsPayload} from './telemetry.mjs';
+import {exportMetrics,metricsPayload} from './telemetry.mjs';
 import {reconcileAccounting} from './accounting.mjs';
 import {renderReport} from './report.mjs';
 const manifest=()=>JSON.parse(readFileSync(new URL('./manifests/load.draft.json',import.meta.url),'utf8'));
@@ -131,6 +131,75 @@ test('Grafana HTTP metrics preserve both installed flat k6 summaries and nested 
   assert.equal(values.distilled_campaign_http_latency_95_ms,500.490785);assert.equal(values.distilled_campaign_http_requests,102);assert.equal(values.distilled_campaign_http_error_ratio,0);
  }
  const empty=JSON.stringify(metricsPayload(manifest(),{},Date.now(),{metrics:{}}));assert.ok(!empty.includes('http_requests'));assert.ok(!empty.includes('http_error_ratio'));
+});
+
+test('intake coverage counts only due briefing windows and keeps missing evidence unknown',()=>{
+ const m=manifest(),window={start:'2026-10-01T00:00:00Z',end:'2026-10-01T00:25:00Z'};
+ const due=['complete','pending','incomplete','unrecorded','missing'];
+ const opportunities=[
+  ...due.map(id=>({id,feedId:'fixture-feed',window})),
+  {id:'future',feedId:'fixture-feed',window:{...window,scheduledFor:'2026-10-01T02:00:00Z'}},
+ ];
+ const observation=new CampaignObservation(m,{opportunities});
+ observation.accept({schemaVersion:'distilled-real-snapshot.v1',runId:m.runId,observedAt:window.end,items:opportunities.filter(o=>o.id!=='missing').map(o=>({
+  ...o,state:'PENDING',coverage:o.id==='unrecorded'?null:o.id==='future'?'COMPLETE':o.id.toUpperCase(),operations:[],
+ })),feeds:[]});
+
+ const summary=observation.summary(Date.parse('2026-10-01T01:00:00Z'));
+ assert.equal(summary.offered,5);
+ assert.deepEqual(summary.intakeCoverage,{complete:1,pending:1,incomplete:1,unknown:2});
+ assert.equal(summary.completed,0);
+});
+
+test('campaign exports final k6 independently of the intake coverage snapshot',async()=>{
+ const m=manifest();
+ const summary={offered:4,intakeCoverage:{complete:1,pending:0,incomplete:1,unknown:2}};
+ const traffic={metrics:{
+  http_req_duration:{'p(50)':100,'p(95)':200,'p(99)':300},
+  http_reqs:{count:100,rate:5},
+  http_req_failed:{value:0},
+  'private URL fixture':{p95:42},
+ }};
+ const env={CAMPAIGN_GRAFANA_OTLP_URL:'https://otlp-gateway-offline.grafana.net/otlp/v1/metrics',CAMPAIGN_GRAFANA_AUTH:'offline-only'};
+ let calls=0;
+ const values={};
+ const fetcher=async(url,options)=>{
+  calls++;
+  assert.equal(url.href,env.CAMPAIGN_GRAFANA_OTLP_URL);
+  assert.equal(options.redirect,'manual');
+  assert.equal(options.method,'POST');
+  assert.ok(!options.body.includes('private URL fixture'));
+  assert.ok(!options.body.includes(m.runId));
+  const metrics=JSON.parse(options.body).resourceMetrics[0].scopeMetrics[0].metrics;
+  const batch=Object.fromEntries(metrics.map(metric=>[metric.name,metric.gauge.dataPoints[0].asDouble]));
+  if(calls===1){
+   assert.ok(Object.hasOwn(batch,'distilled_campaign_observation_timestamp_seconds'));
+   assert.ok(!Object.hasOwn(batch,'distilled_campaign_http_requests'));
+  }else{
+   assert.ok(!Object.hasOwn(batch,'distilled_campaign_observation_timestamp_seconds'));
+   assert.ok(!Object.hasOwn(batch,'distilled_campaign_intake_coverage_windows_unknown'));
+  }
+  Object.assign(values,batch);
+  return new Response('{}');
+ };
+ await exportMetrics(m,summary,env,{fetcher});
+ await exportMetrics(m,null,env,{traffic,fetcher});
+ assert.equal(calls,2);
+
+ assert.equal(values.distilled_campaign_http_latency_95_ms,200);
+ assert.equal(values.distilled_campaign_http_requests,100);
+ assert.equal(values.distilled_campaign_http_error_ratio,0);
+ assert.equal(values.distilled_campaign_intake_coverage_windows_pending,0);
+ assert.equal(values.distilled_campaign_intake_coverage_windows_unknown,2);
+
+ const dashboard=JSON.parse(readFileSync(new URL('../../../ops/performance/grafana-campaign-dashboard.json',import.meta.url),'utf8'));
+ const panels=dashboard.panels.filter(panel=>panel.id>=15);
+ assert.equal(panels.length,4);
+ for(const panel of panels)for(const target of panel.targets){
+  const [metric,selector]=target.expr.split('{');
+  assert.ok(Object.hasOwn(values,metric),metric);
+  assert.equal(selector,'environment="staging",profile="$profile",slot="isolated-campaign"}');
+ }
 });
 
 test('queue fallback is a conservative native upper bound, never unknown-as-zero',()=>{

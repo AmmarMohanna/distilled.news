@@ -1,6 +1,7 @@
 import {reserveControlPlane} from './control-budget.mjs';
 import {observeResources,queueSafetyStops} from './resource-window.mjs';
-import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+import {readFileSync,writeFileSync,existsSync,renameSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {spawn,execFileSync} from 'node:child_process';
@@ -65,6 +66,13 @@ try{
    if(existsSync(resolve(dir,'observer.private.json')))observer.restore(read(resolve(dir,'observer.private.json')));
    if(plan.runId!==m.runId||!plan.opportunities.length)throw Error('NONEMPTY_BOUND_PLAN_REQUIRED');
    let lastResourceAt=0,lastResources=null;
+   const publishMetrics=async(summary,traffic=null)=>{
+    if(process.env.CAMPAIGN_EXPORT_METRICS!=='true')return;
+    if(traffic!==null&&Date.parse(approval.expiresAt)-Date.now()<=cleanupDrainMs+10000)throw Error('SCOPE_ENDING_ARCHIVE_BEFORE_EXPIRY');
+    admit(m,pf,approval,'telemetry');
+    reserveControlPlane(m,dir,'grafana-write');
+    await exportMetrics(m,summary,process.env,{traffic});
+   };
    const observe=async()=>{
     if(Date.now()-lastResourceAt>=300000){const target=read(resolve(dir,'resources.private.json'));const resources=await observeResources(m,target,dir,process.env,plan.campaignStartedAt??plan.plannedAt,new Date().toISOString());writePrivate(dir,'resource-window.private.json',resources);lastResourceAt=Date.now();lastResources=resources;}
 
@@ -72,7 +80,7 @@ try{
     const result=await observeOnce(m,client,dir,registry,observer,adminCookie,costs);
     if(lastResources){const r=lastResources;Object.assign(result.summary,{workerCpuMs:r.worker?.cpuTimeUs===undefined?null:r.worker.cpuTimeUs/1000,databaseRowsRead:r.database?.rowsRead??null,databaseRowsWritten:r.database?.rowsWritten??null,queueBacklog:r.queues.every(q=>q.backlog!==null)?r.queues.reduce((n,q)=>n+q.backlog,0):null});}
     if(lastResources)result.stop.push(...queueSafetyStops(lastResources,m.stop));
-    if(process.env.CAMPAIGN_EXPORT_METRICS==='true'){admit(m,pf,approval,'telemetry');reserveControlPlane(m,dir,'grafana-write');await exportMetrics(m,result.summary,process.env);}
+    await publishMetrics(result.summary);
     return result;
    };
    const startTraffic=()=>{
@@ -83,10 +91,27 @@ try{
     const trafficRegistry={runId:registry.runId,origin:registry.origin,users:registry.users.map(u=>({id:u.id,username:u.username,cookie:u.cookie,feeds:u.feeds.map(f=>({id:f.id,config:{slug:f.config.slug,publicFeedEnabled:f.config.publicFeedEnabled}}))}))};
     writePrivate(dir,'traffic-registry.private.json',trafficRegistry);
     writePrivate(dir,'k6.config.private.json',{});
-    child=spawn('k6',['run','--config',resolve(dir,'k6.config.private.json'),'--traces-output','none','--include-system-env-vars=false','-e','CAMPAIGN_MANIFEST='+resolve(manifestPath),'-e','CAMPAIGN_REGISTRY='+resolve(dir,'traffic-registry.private.json'),'--summary-export',resolve(dir,'traffic-summary.private.json'),'evaluation/performance-reliability/real/users.k6.js'],{env:{...env,CAMPAIGN_MANIFEST:resolve(manifestPath),CAMPAIGN_REGISTRY:resolve(dir,'traffic-registry.private.json'),K6_NO_USAGE_REPORT:'true'},stdio:['ignore','pipe','pipe']});
+    // Read only the summary produced by this invocation, including when the
+    // campaign directory already contains an artifact from an earlier attempt.
+    const summaryPath=resolve(dir,`traffic-summary-${randomUUID()}.private.json`);
+    const reportPath=resolve(dir,'traffic-summary.private.json');
+    child=spawn('k6',['run','--config',resolve(dir,'k6.config.private.json'),'--traces-output','none','--include-system-env-vars=false','-e','CAMPAIGN_MANIFEST='+resolve(manifestPath),'-e','CAMPAIGN_REGISTRY='+resolve(dir,'traffic-registry.private.json'),'--summary-export',summaryPath,'evaluation/performance-reliability/real/users.k6.js'],{env:{...env,CAMPAIGN_MANIFEST:resolve(manifestPath),CAMPAIGN_REGISTRY:resolve(dir,'traffic-registry.private.json'),K6_NO_USAGE_REPORT:'true'},stdio:['ignore','pipe','pipe']});
     // Avoid raw k6 logs containing URLs or errors reaching CI. Only exit status
     // and its bounded JSON summary are retained. Buffers are always drained.
-    child.stdout.resume();child.stderr.resume();return new Promise((resolve,reject)=>{child.once('error',()=>reject(Error('K6_START_FAILED')));child.once('exit',code=>code===0?resolve():reject(Error('K6_FAILED_'+code)));});
+    child.stdout.resume();
+    child.stderr.resume();
+    return new Promise((resolveTraffic,reject)=>{
+     child.once('error',()=>reject(Error('K6_START_FAILED')));
+     child.once('close',code=>{
+      try {
+       const hasSummary=existsSync(summaryPath);
+       if(hasSummary)renameSync(summaryPath,reportPath);
+       if(code!==0)throw Error('K6_FAILED_'+code);
+       if(!hasSummary)throw Error('K6_SUMMARY_MISSING');
+       resolveTraffic(read(reportPath));
+      }catch(error){reject(error);}
+     });
+    });
    };
    if(command==='traffic')await startTraffic();
    else if(command==='observe'){const r=await observe();if(r.stop.length)throw Error('SAFETY_STOP_'+r.stop.join('_'));}
@@ -115,7 +140,10 @@ try{
      const result=await observe();if(result.stop.length)throw Error('SAFETY_STOP_'+result.stop.join('_'));
      await new Promise(r=>setTimeout(r,m.pollSeconds*1000));
     }
-    if(!trafficStarted)throw Error('TRAFFIC_NEVER_REACHED_DUE_WINDOW');await traffic;
+    if(!trafficStarted)throw Error('TRAFFIC_NEVER_REACHED_DUE_WINDOW');
+    const trafficSummary=await traffic;
+    // Publish the final traffic separately so it cannot refresh observer gauges.
+    await publishMetrics(null,trafficSummary);
    }else throw Error('UNKNOWN_PHASE');
   }
  }
