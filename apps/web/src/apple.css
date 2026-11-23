@@ -3246,37 +3246,56 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .feed-tile-options { margin-inline-start: auto; }
 :root.apple-ui.apple-ui .feed-tile-controls :is(.feed-tile-star, .feed-tile-options > summary) {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
   min-width: 44px;
   min-height: 44px;
-  padding: 0 9px;
-  border: 1px solid var(--line);
+  padding: 0 7px;
+  border: 0;
   border-radius: 999px;
   color: var(--text);
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  box-shadow: var(--shadow-soft);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  box-shadow: none;
   pointer-events: auto;
+  font-size: .8125rem;
 }
+:root.apple-ui.apple-ui .feed-tile-controls :is(.feed-tile-star, .feed-tile-options > summary) svg { width: 16px; height: 16px; }
 :root.apple-ui.apple-ui .feed-tile-star[aria-pressed="true"] svg { color: var(--accent); }
 @media (hover: hover) and (pointer: fine) {
   :root.apple-ui.apple-ui .feed-tile:not(:hover):not(:focus-within):not(:has(.feed-tile-options[open])) .feed-tile-controls { opacity: 0; }
+  :root.apple-ui.apple-ui .feed-tile-controls :is(.feed-tile-star, .feed-tile-options > summary) { min-width: 32px; min-height: 32px; }
+  :root.apple-ui.apple-ui .feed-tile-controls :is(.feed-tile-star, .feed-tile-options > summary)::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
 }
 :root.apple-ui.apple-ui .feed-tile-options .feed-options-popover {
-  width: 15rem;
+  width: 12.5rem;
+  padding: 0;
+  border-radius: 8px;
   color: var(--text);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   pointer-events: auto;
 }
 :root.apple-ui.apple-ui .feed-tile-options .feed-options-popover > :is(a, button) {
-  min-height: 44px;
-  padding: 8px 10px;
+  min-height: 36px;
+  padding: 5px 10px;
   justify-content: space-between;
   color: var(--text);
+  font-weight: 500;
   border: 0;
+  border-radius: 0;
   box-shadow: none;
+}
+:root.apple-ui.apple-ui .feed-tile-options .feed-options-popover > :is(a, button) + :is(a, button) {
+  border-block-start: 1px solid var(--line);
+}
+@media (pointer: coarse) {
+  :root.apple-ui.apple-ui .feed-tile-options .feed-options-popover > :is(a, button) { min-height: 44px; }
 }
 :root.apple-ui.apple-ui .feed-tile-options .feed-options-popover svg { flex: none; }
 :root.apple-ui.apple-ui .feed-tile-caption {

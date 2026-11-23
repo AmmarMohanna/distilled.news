@@ -1,11 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function openFeeds(page: Page, count: number) {
-  const feeds = Array.from({ length: count }, (_, index) => ({ id: `adaptive-${index}`, ownerAccountId: 'owner', ownerUsername: 'owner', slug: `feed-${index}`, title: `Science ${index + 1}`, stars: 0, paused: false, publicFeedEnabled: true }));
+async function openFeeds(page: Page, count: number, artwork?: Buffer) {
+  const feeds = Array.from({ length: count }, (_, index) => ({ id: `adaptive-${index}`, ownerAccountId: 'owner', ownerUsername: 'owner', slug: `feed-${index}`, title: `Science ${index + 1}`, stars: 0, paused: false, publicFeedEnabled: true, latestUpdatedAt: '2026-11-22T12:00:00Z' }));
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/star')) return route.fulfill({ json: {viewerHasStarred: true, stars: 1} });
-    if (path.endsWith('/sketch')) return route.fulfill({ status: 404 });
+    if (path.endsWith('/sketch')) return artwork ? route.fulfill({ contentType: 'image/png', body: artwork }) : route.fulfill({ status: 404 });
     return route.fulfill({ json: path === '/api/auth/session' ? { authenticated: true, account: { id: 'owner', username: 'owner', role: 'user' } }
       : path === '/api/me/briefings' ? { briefings: feeds } : path === '/api/explore/feeds' ? { feeds: feeds.map(feed => ({...feed,id:`community-${feed.id}`,ownerAccountId:'community',ownerUsername:'community',viewerHasStarred:false})) }
       : path.startsWith('/api/feed/') ? { briefing: feeds[0], editions: [] } : { sources: [] } });
@@ -13,6 +13,40 @@ async function openFeeds(page: Page, count: number) {
   await page.goto('/');
   await expect(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile')).toHaveCount(count);
 }
+
+test('six tiles fit in a short pinned-sidebar window and off-center ink is centered', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 638 });
+  await page.addInitScript(() => localStorage.setItem('dn-sidebar-collapsed', 'false'));
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 90;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 90, 90);
+    ctx.fillStyle = '#5e5ce6';
+    ctx.fillRect(15, 8, 30, 20);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await openFeeds(page, 6, Buffer.from(png, 'base64'));
+  const cards = page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile');
+  if (await page.evaluate(() => matchMedia('(pointer: coarse)').matches)) await cards.last().scrollIntoViewIfNeeded();
+  await expect(cards.last()).toBeInViewport({ ratio: 1 });
+  const img = cards.first().locator('img');
+  await expect(img).toBeVisible();
+  const bounds = await img.evaluate((image: HTMLImageElement) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(image, 0, 0);
+    const alpha = ctx.getImageData(0, 0, 90, 90).data;
+    const ink = Array.from({ length: 90 * 90 }, (_, index) => index).filter(index => alpha[index * 4 + 3] > 0);
+    const x = ink.map(index => index % 90);
+    const y = ink.map(index => Math.floor(index / 90));
+    return { left: Math.min(...x), right: Math.max(...x), top: Math.min(...y), bottom: Math.max(...y) };
+  });
+  expect(bounds).toEqual({ left: 30, right: 59, top: 35, bottom: 54 });
+});
 
 for (const view of ['Home', 'Explore'] as const) {
   const gridSelector = view === 'Home' ? '.feed-tile-grid[data-feed-view=home]' : '.feed-tile-grid[data-feed-view=explore]';
@@ -62,6 +96,11 @@ for (const view of ['Home', 'Explore'] as const) {
     await expect(popover.getByRole('button', {name: 'Share', exact: true})).toBeVisible();
     await expect(popover.getByRole('button', {name: 'Copy link'})).toBeVisible();
     const menu = (await popover.boundingBox())!;
+    const finePointer = await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches);
+    const coarsePointer = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
+    await expect(summary).toHaveCSS('min-height', finePointer ? '32px' : '44px');
+    await expect(popover.getByRole('link', { name: 'Open feed' })).toHaveCSS('min-height', coarsePointer ? '44px' : '36px');
+    await expect(popover.getByRole('button', { name: 'Share', exact: true })).toHaveCSS('border-block-start-width', '1px');
     expect(menu.y + menu.height).toBeLessThanOrEqual(720);
     expect(menu.x).toBeGreaterThanOrEqual(0);
     expect(menu.x + menu.width).toBeLessThanOrEqual(1280);
