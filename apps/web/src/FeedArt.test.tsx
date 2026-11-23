@@ -25,6 +25,19 @@ afterEach(async()=>{for(const root of testRoots)await act(async()=>root.unmount(
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r});return {promise,resolve}}
 function renderHost(){vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const host=document.createElement('div'),root=createRoot(host);testRoots.add(root);return {host,root}}
 const sketch=()=>({ok:true,status:200,headers:new Headers({'content-type':'image/png'}),blob:async()=>new Blob(['sketch'],{type:'image/png'})});
+it('keeps the full cover background and original ink colors', async () => {
+  const cover = new Blob(['cover'], { type: 'image/jpeg' });
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(cover, {
+    headers: { 'content-type': 'image/jpeg', 'X-Feed-Artwork-Style': 'pencil-cover-v1' }
+  })));
+  const create = vi.fn(() => 'blob:full-cover');
+  vi.stubGlobal('URL', Object.assign(class {}, { createObjectURL: create, revokeObjectURL: vi.fn() }));
+  const { host, root } = renderHost();
+  await act(async () => root.render(<FeedArt centered feed={{ id: 'cover', publicFeedEnabled: false, title: 'Science', ownerUsername: 'owner', slug: 'cover' }}/>));
+  expect(host.querySelector('img')?.style.filter).toBe('none');
+  expect(create.mock.calls[0]).toHaveLength(1);
+  expect(transparentSketch).not.toHaveBeenCalled();
+});
 it('does not flash fallback artwork while a saved sketch is loading',async()=>{
  const pending=deferred<ReturnType<typeof sketch>>();vi.stubGlobal('fetch',vi.fn(()=>pending.promise));
  vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:()=> 'blob:stable-sketch',revokeObjectURL:vi.fn()}));

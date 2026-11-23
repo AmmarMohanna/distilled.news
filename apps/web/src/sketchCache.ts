@@ -23,7 +23,7 @@ export async function saveSketch(path: string, blob: Blob): Promise<void> {
     const cache = await caches.open(cacheName);
     await cache.delete(path);
     await cache.put(path, new Response(blob, { headers: {
-      'content-type': 'image/png', 'x-sketch-saved-at': String(Date.now())
+      'content-type': blob.type || 'image/png', 'x-sketch-saved-at': String(Date.now())
     } }));
     const keys = await cache.keys();
     await Promise.all(keys.slice(0, Math.max(0, keys.length - 32)).map(key => cache.delete(key)));

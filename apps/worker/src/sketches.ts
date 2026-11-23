@@ -2,6 +2,7 @@
 import type { Env } from "./types";
 
 const SKETCH_MODEL = "@cf/black-forest-labs/flux-2-klein-4b";
+export const PENCIL_COVER_STYLE = "pencil-cover-v1";
 
 export class SketchError extends Error {
   constructor(public readonly code: string, message: string) { super(message); }
@@ -34,11 +35,11 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
 
 export function sketchPrompt(briefing: Pick<BriefingConfig, "interestProfile">): string {
   return [
-    "Monochromatic colored-pencil sketch in #5E5CE6.",
-    `Choose one simple, immediately recognizable subject representing this news interest: ${JSON.stringify(briefing.interestProfile)}`,
-    "Natural, slightly irregular pencil strokes with visible fine-grained pigment and subtle pressure variation.",
-    "Thin-to-medium pencil lines, never thick marker outlines. Clearly visible drawing with light pencil hatching, using only #5E5CE6 pigment on white paper.",
-    "Center the complete subject in a square composition, suitable for a small news-feed thumbnail. No text, logos, signatures, borders, or drawing tools."
+    "Create a complete square editorial cover illustration in traditional colored pencil, on subtly textured paper.",
+    `The news interest is ${JSON.stringify(briefing.interestProfile)}. Choose one immediately recognizable subject and a setting that relates directly to that topic.`,
+    "Draw the setting as part of the illustration across the whole square, with layered perspective, faint background detail and crosshatching extending to the edges. Keep the subject fully inside the square and clearly readable at thumbnail size.",
+    "Use a carefully limited, muted palette, with separate tonal values for the subject and the setting. Show fine pencil grain and pressure variation. Use paper as a highlight and preserve a strong focal point.",
+    "No text, logos, signatures, borders, graphic templates, photorealism, or drawing tools."
   ].join("\n");
 }
 
@@ -77,7 +78,8 @@ export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'i
   if (stillCurrent && !await stillCurrent()) return false;
   if (await env.RAW_ARCHIVE.head(sketchKey(briefing))) return true;
   try { await env.RAW_ARCHIVE.put(sketchKey(briefing), bytes, {
-    httpMetadata: { contentType: "image/jpeg" }
+    httpMetadata: { contentType: "image/jpeg" },
+    customMetadata: { artworkStyle: PENCIL_COVER_STYLE }
   }); } catch { throw new SketchError("SKETCH_STORAGE_WRITE", "The image was generated, but saving it to R2 failed. Check the RAW_ARCHIVE binding."); }
   return true;
 }

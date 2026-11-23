@@ -61,7 +61,7 @@ import { Context, Hono } from "hono";
 import {stream} from 'hono/streaming';
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
-import { sketchKey } from "./sketches";
+import { PENCIL_COVER_STYLE, sketchKey } from "./sketches";
 import { queueInitialFeedSketch } from "./feed-sketch-jobs";
 import {
   accountAuth,
@@ -1468,8 +1468,10 @@ export function createApp(options: AppOptions = {}) {
     }
     // Resolve visibility before every network read. Never put private artwork in a shared cache.
     const headers = { "Content-Type": "image/jpeg", "Cache-Control": resolved.briefing.publicFeedEnabled ? "private, max-age=300" : "no-store", "X-Content-Type-Options": "nosniff", "Vary": "Cookie", ...(object.httpEtag ? {ETag:object.httpEtag} : {}) };
-    if (object.httpEtag && c.req.header('If-None-Match') === object.httpEtag) return new Response(null, {status:304,headers});
-    return new Response(object.body, { headers });
+    const responseHeaders = new Headers(headers);
+    if (object.customMetadata?.artworkStyle === PENCIL_COVER_STYLE) responseHeaders.set("X-Feed-Artwork-Style", PENCIL_COVER_STYLE);
+    if (object.httpEtag && c.req.header('If-None-Match') === object.httpEtag) return new Response(null, {status:304,headers: responseHeaders});
+    return new Response(object.body, { headers: responseHeaders });
   });
 
   app.get("/api/feed/:username/:briefingSlug", async (c) => {

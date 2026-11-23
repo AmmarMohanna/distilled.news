@@ -37,7 +37,10 @@ it("sends the interest to Klein 4B as multipart form data and saves the returned
   expect(fields.get("seed")).toBe("42");
   expect(fields.get("prompt")).toContain('"Parliament news"');
   expect(fields.get("prompt")).not.toContain("World politics");
-  expect(put).toHaveBeenCalledWith("feed-sketches/feed-1.jpg", new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), expect.objectContaining({ httpMetadata: { contentType: "image/jpeg" } }));
+  expect(put).toHaveBeenCalledWith("feed-sketches/feed-1.jpg", new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), expect.objectContaining({
+    httpMetadata: { contentType: "image/jpeg" },
+    customMetadata: { artworkStyle: "pencil-cover-v1" }
+  }));
 });
 
 it("uses only the interest for subject selection and preserves the full allowed interest text", () => {
@@ -47,9 +50,9 @@ it("uses only the interest for subject selection and preserves the full allowed 
   const prompt = sketchPrompt(first);
   expect(prompt).toBe(sketchPrompt(renamed));
   expect(prompt).toContain(JSON.stringify(interestProfile));
-  expect(prompt).toContain("Monochromatic colored-pencil sketch in #5E5CE6.");
-  expect(prompt).toContain("Natural, slightly irregular pencil strokes with visible fine-grained pigment and subtle pressure variation.");
-  expect(prompt).toContain("Thin-to-medium pencil lines, never thick marker outlines.");
+  expect(prompt).toContain("complete square editorial cover illustration in traditional colored pencil");
+  expect(prompt).toContain("crosshatching extending to the edges");
+  expect(prompt).toContain("separate tonal values for the subject and the setting");
 });
 
 it("does not save an image returned after the queue job has lost its lease", async () => {
