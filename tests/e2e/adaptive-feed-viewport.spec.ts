@@ -46,6 +46,9 @@ test('six tiles fit in a short pinned-sidebar window and off-center ink is cente
     return { left: Math.min(...x), right: Math.max(...x), top: Math.min(...y), bottom: Math.max(...y) };
   });
   expect(bounds).toEqual({ left: 30, right: 59, top: 35, bottom: 54 });
+  await expect(cards.locator('img')).toHaveCount(6);
+  const inks = await cards.locator('img').evaluateAll(images => images.map(image => getComputedStyle(image).filter));
+  expect(new Set(inks).size).toBeGreaterThan(1);
 });
 
 for (const view of ['Home', 'Explore'] as const) {

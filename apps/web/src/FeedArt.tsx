@@ -9,6 +9,13 @@ const cacheLifetime = 60 * 60 * 1000;
 // Home and Explore may mount the same public feed together. Share its network/conversion work.
 const sketchRequests = new Map<string, Promise<{blob?: Blob; pending: boolean}>>();
 const cacheByteLimit = 16 * 1024 * 1024;
+const inkRotations = [0, 34, 66, 128, 166, 205, 305];
+
+function inkRotation(feedKey: string) {
+  let hash = 2166136261;
+  for (const letter of feedKey) hash = Math.imul(hash ^ letter.codePointAt(0)!, 16777619);
+  return inkRotations[(hash >>> 0) % inkRotations.length];
+}
 function cachedSketch(key: string): Blob | undefined {
   const entry = sketchCache.get(key);
   if (!entry) return;
@@ -120,6 +127,9 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
   }, [feed?.ownerUsername, feed?.slug, feed?.id, feed?.publicFeedEnabled, centered]);
   return <span className="topic-art pencil-art" title={failure || undefined} aria-hidden="true">
 
-    {image && <img src={image} alt="" style={{ visibility: loaded ? "visible" : "hidden" }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); }}/>}
+    {image && <img src={image} alt="" style={{
+      visibility: loaded ? "visible" : "hidden",
+      filter: `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
+    }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); }}/>}
   </span>;
 }
