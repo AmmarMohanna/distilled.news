@@ -2,7 +2,7 @@ import {ApiError,toUiError, type UiMessage} from './api-errors';
 import React, { useEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
-import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Bell, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, ChevronRight, HelpCircle, Home, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
 import { getExploreFeeds, setFeedStar, type FeedStarResult } from "./api";
@@ -259,6 +259,7 @@ function FeedTile({ feed, owner = false, onError, onStarChange }: {
 
   const [vote, setVote] = useState<FeedStarResult>();
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   useEffect(() => { setVote(undefined); }, [feed.stars, feed.viewerHasStarred]);
   const starred = vote?.viewerHasStarred ?? feed.viewerHasStarred ?? false;
   const stars = vote?.stars ?? feed.stars;
@@ -283,15 +284,15 @@ function FeedTile({ feed, owner = false, onError, onStarChange }: {
       setBusy(false);
     }
   };
-  const share = async () => {
+  const share = async (copy: boolean) => {
     const url = window.location.origin + href;
     try {
-      if (navigator.share) {
+      if (!copy && navigator.share) {
         await navigator.share({ title: feed.title, url });
         closeMenu();
       } else {
         await navigator.clipboard.writeText(url);
-        closeMenu();
+        setCopied(true);
       }
     } catch (cause) {
       if (!(cause instanceof Error && cause.name === "AbortError")) onError(toUiError(cause));
@@ -308,12 +309,13 @@ function FeedTile({ feed, owner = false, onError, onStarChange }: {
           <Star size={19} fill={starred ? "currentColor" : "none"} aria-hidden/>
           <span>{stars}</span>
         </button>}
-        <details ref={menu} className="feed-options feed-tile-options" onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); closeMenu(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
+        <details ref={menu} className="feed-options feed-tile-options" onToggle={event => { if (!event.currentTarget.open) setCopied(false); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); closeMenu(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
           <summary aria-label={`${t("Feed options")}: ${feed.title}`}><Ellipsis size={21} aria-hidden/></summary>
           <div className="feed-options-popover">
+            <a href={href}><span>{t("Open feed")}</span><Newspaper size={16} aria-hidden/></a>
             {canStar && !owner && <button type="button" aria-disabled={busy} onClick={() => { if (!busy) { closeMenu(); void toggleStar(); } }}><span>{t(starred ? "Unfollow feed" : "Follow feed")}</span><Star size={16} fill={starred ? "currentColor" : "none"} aria-hidden/></button>}
             {feed.publicFeedEnabled && <>
-              <button type="button" onClick={() => void share()}><span>{t("Share")}</span><Share size={16} aria-hidden/></button>
+              <button type="button" onClick={() => void share(false)}><span>{t("Share")}</span><Share size={16} aria-hidden/></button>
               <button type="button" onClick={() => void share(true)}><span aria-live="polite">{t(copied ? "Copied" : "Copy link")}</span><Copy size={16} aria-hidden/></button>
             </>}
             {owner && <a href={`${href}?edit=1`}><span>{t("Edit feed settings")}</span><Pencil size={16} aria-hidden/></a>}

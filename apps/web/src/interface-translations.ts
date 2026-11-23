@@ -113,6 +113,8 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'copy feed url': ['Copier le lien du fil', 'نسخ رابط الخلاصة'],
   'copy url': ['Copier le lien', 'نسخ الرابط'],
   'open feed': ['Ouvrir le fil', 'فتح الخلاصة'],
+  'Follow feed': ['Suivre le fil', 'متابعة الخلاصة'],
+  'Unfollow feed': ['Ne plus suivre le fil', 'إلغاء متابعة الخلاصة'],
   'Open feed': ['Ouvrir le fil', 'فتح الخلاصة'],
   'Open GitHub repository': ['Ouvrir le dépôt GitHub', 'فتح مستودع GitHub'],
   'open GitHub repository': ['Ouvrir le dépôt GitHub', 'فتح مستودع GitHub'],
