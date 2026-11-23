@@ -24,6 +24,6 @@ was not deployed to the private execution service. No paid evaluation, manual
 maintenance trigger, feed creation, reader notification test or production
 deployment was performed. Normal QA Cron and queue triggers remain configured.
 
-The baseline test failures and full-suite limitations described in
-`joud-v3-source-integration.md` remain applicable. HTTP/persistence success does
-not establish factual accuracy.
+The baseline test failures and full-suite limitations are recorded in the
+[integration validation summary](README.md#historical-integration-validation).
+HTTP and persistence checks establish delivery behavior for the tested cases.

@@ -23,7 +23,7 @@
 
 Source baseline: [Actions run 41093732117](https://github.com/AmmarMohanna/distilled.news/actions/runs/41093732117), exactly the starting SHA. E2E: 538 passed, 55 failed, one existing skip. Local baseline: 537 passed, 56 failed, one existing skip. The local-only enlarged-text overflow and Arabic loading failure are additional investigation inputs, not silently added to the CI count.
 
-The current frontend is authoritative under AGENTS.md. Preservation evidence: `docs/aya-joud-frontend-integration-2026-10-28.md`, `docs/ghada-joud-aya-integration.md`, `docs/aya-ghada-preserved-integration-2026-10-30.md`, and `docs/aya-ghada-agentops-k6-preserved-integration-2026-10-30.md`. Older visual proposals do not override the final implementation.
+The current frontend is authoritative under AGENTS.md. The [integration validation summary](../../README.md#historical-integration-validation) links the original browser matrix. The other preservation records are `docs/aya-joud-frontend-integration-2026-10-28.md`, `docs/aya-ghada-preserved-integration-2026-10-30.md`, and `docs/aya-ghada-agentops-k6-preserved-integration-2026-10-30.md`.
 
 Read-only browser follow-up captured screenshots/traces for six unchanged original scenarios: three passed and three failed (Edge installation in both projects; enlarged-text Explore on mobile). The notification case passed both projects, so its CI failure remains an investigation rather than a presumed CSS defect. Representative overflow/install screenshots were viewed. Artifacts: `.local-reports/e2e-stabilization/baseline-browser/`.
 
