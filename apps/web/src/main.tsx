@@ -100,6 +100,7 @@ import {
   setSourceEnabled,
   setupAdmin,
   updateAccount,
+  uploadAccountAvatar,
   updateAdminAccount,
   updateAdminBriefing,
   verifyEmail,
@@ -111,7 +112,7 @@ import { normalizeUsername } from "@distilled/core";
 import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { accountInitials, AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
+import { accountInitials, AccountAvatar, ACCOUNT_AVATAR_UPDATED, AppExperience, AppHeader, BrandMark, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage, languageNames, setWebsiteLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
 import {FeedSettingsSelect} from './FeedLanguageSelect';
@@ -1229,8 +1230,9 @@ function AccountDialog(props: {
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<UiMessage>("");
-  const [busy, setBusy] = useState<"username" | "password" | "logout" | null>(null);
+  const [busy, setBusy] = useState<"username" | "password" | "logout" | "avatar" | null>(null);
   const usernameFieldRef = useRef<HTMLInputElement | null>(null);
+  const pictureFieldRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setUsername(props.account.username);
@@ -1245,7 +1247,27 @@ function AccountDialog(props: {
       <section className="profile-dialog-content">
       <button type="button" className="dialog-close" aria-label={t("close account settings")} onClick={props.onClose}><X size={22}/></button>
       <div className="profile-identity">
-        <span className="profile-avatar" aria-hidden="true">{accountInitials(props.account.username)}</span>
+        <AccountAvatar account={props.account} className="profile-avatar"/>
+        <input ref={pictureFieldRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async event => {
+          const picture = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (!picture || busy) return;
+          setBusy("avatar");
+          setMessage("");
+          setError("");
+          try {
+            await uploadAccountAvatar(picture);
+            window.dispatchEvent(new CustomEvent(ACCOUNT_AVATAR_UPDATED, { detail: props.account.id }));
+            setMessage("Profile picture saved");
+          } catch (cause) {
+            setError(toUiError(cause));
+          } finally {
+            setBusy(null);
+          }
+        }}/>
+        <button type="button" className="profile-picture-upload" disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
+          {t(busy === "avatar" ? "Uploading picture…" : "Upload profile picture")}
+        </button>
         <span className="profile-email">{props.account.email}</span>
         <span className="profile-role">{t(props.account.role === "admin" ? "Admin" : "User")}</span>
       </div>

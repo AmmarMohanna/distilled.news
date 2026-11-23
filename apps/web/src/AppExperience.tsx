@@ -33,7 +33,7 @@ export function AppHeader({ account, onAccount, leading, actions, contextual, lo
       {(!contextual || !account) && actions}
       <LanguageControl/><ThemeToggle/>
       {!account && !contextual && <AppearanceMenu/>}
-      {account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><span aria-hidden="true">{accountInitials(account.username)}</span></button> : <a className="button-link" href="/login">{t("Log in")}</a>}
+      {account ? <button type="button" className="avatar-button" aria-label={t("Account profile")} onClick={onAccount}><AccountAvatar account={account}/></button> : <a className="button-link" href="/login">{t("Log in")}</a>}
       {contextual && account && actions}
     </div>
   </header>;
@@ -238,6 +238,25 @@ export function accountInitials(username: string) {
   const initials = Array.from((parts.slice(0, 2).map(part => Array.from(part)[0]).join("") || "?").toLocaleUpperCase()).slice(0, 2);
   // Prevent Arabic initials from joining while retaining the two-letter limit.
   return initials.join(initials.some(letter => /\p{Script=Arabic}/u.test(letter)) ? "\u200c" : "");
+}
+
+export const ACCOUNT_AVATAR_UPDATED = "account-avatar-updated";
+
+export function AccountAvatar({ account, className }: { account: AccountRecord; className?: string }) {
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const updated = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === account.id) setRevision(Date.now());
+    };
+    window.addEventListener(ACCOUNT_AVATAR_UPDATED, updated);
+    return () => window.removeEventListener(ACCOUNT_AVATAR_UPDATED, updated);
+  }, [account.id]);
+  const src = `/api/me/avatar?account=${encodeURIComponent(account.id)}&v=${revision}`;
+  return <span className={className} aria-hidden="true">
+    {accountInitials(account.username)}
+    <img key={src} className="account-avatar-image" src={src} alt="" style={{ visibility: "hidden" }}
+      onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
+  </span>;
 }
 
 type FeedTileData = Pick<PublicBriefing, "id" | "title" | "ownerUsername" | "slug" | "stars" | "publicFeedEnabled" | "paused"> & FeedCardMetadata;

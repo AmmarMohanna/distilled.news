@@ -144,6 +144,31 @@ export async function resetPassword(token: string, password: string): Promise<vo
   });
 }
 
+export async function uploadAccountAvatar(file: File): Promise<void> {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Choose a JPEG, PNG, or WebP image");
+  }
+  if (file.size > 20 * 1024 * 1024) throw new Error("Choose an image under 20 MB");
+  const photo = await createImageBitmap(file).catch(() => { throw new Error("Unable to read this image"); });
+  try {
+    const canvas = document.createElement("canvas");
+    const crop = Math.min(photo.width, photo.height);
+    const size = Math.min(crop, 512);
+    canvas.width = canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Unable to read this image");
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, size, size);
+    context.drawImage(photo, (photo.width - crop) / 2, (photo.height - crop) / 2, crop, crop, 0, 0, size, size);
+    const image = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+      blob => blob ? resolve(blob) : reject(new Error("Unable to read this image")), "image/jpeg", 0.88
+    ));
+    await requestJson("/api/me/avatar", { method: "PUT", headers: { "content-type": "image/jpeg" }, body: image });
+  } finally {
+    photo.close();
+  }
+}
+
 export async function updateAccount(input: {
   username?: string;
   currentPassword?: string;

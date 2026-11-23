@@ -23,6 +23,7 @@ import {ProductSourceApprovalError,approveProductSource,configuredProductSource,
 import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion,fnv1a} from './feed-read-cache';
 import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
+import { bodyLimit } from 'hono/body-limit';
 import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
@@ -289,6 +290,8 @@ function buildManifestPayload(input: {
 function isDatabaseUnavailable(error: unknown): boolean {
   return error instanceof Error && /D1_(?:ERROR|EXEC_ERROR):.*(?:exceeded its CPU time limit|reset|overloaded|temporarily unavailable)/i.test(error.message);
 }
+
+const accountAvatarKey = (accountId: string) => `account-avatars/${encodeURIComponent(accountId)}.jpg`;
 
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -848,6 +851,38 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ account: publicAccount(updated), briefings: await repo.listBriefings(updated.id) });
   });
 
+  app.get("/api/me/avatar", async (c) => {
+    const avatar = await c.env.RAW_ARCHIVE?.get(accountAvatarKey(c.get("account")!.id));
+    if (!avatar) return c.body(null, 404, { "Cache-Control": "private, no-store" });
+    return c.body(avatar.body, 200, {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "private, no-store",
+      "Cross-Origin-Resource-Policy": "same-origin",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox"
+    });
+  });
+
+  app.put("/api/me/avatar", bodyLimit({
+    maxSize: 512 * 1024,
+    onError: c => c.json({ error: "Profile picture is too large" }, 413)
+  }), async (c) => {
+    const origin = c.req.header("origin");
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: "Invalid upload origin" }, 403);
+    const bucket = c.env.RAW_ARCHIVE;
+    if (!bucket) return c.json({ error: "Profile picture storage is unavailable" }, 503);
+    const account = c.get("account")!;
+    await assertRateLimit(c.get("repo"), `avatar:${account.id}`, "avatar_upload", 20, 60 * 60 * 1000);
+    const data = new Uint8Array(await c.req.arrayBuffer());
+    if (c.req.header("content-type") !== "image/jpeg" || data.length < 5 ||
+        data[0] !== 0xff || data[1] !== 0xd8 || data[2] !== 0xff ||
+        data[data.length - 2] !== 0xff || data[data.length - 1] !== 0xd9) {
+      return c.json({ error: "Choose a JPEG, PNG, or WebP image" }, 415);
+    }
+    await bucket.put(accountAvatarKey(account.id), data, { httpMetadata: { contentType: "image/jpeg" } });
+    return c.json({ ok: true });
+  });
+
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
@@ -1309,6 +1344,7 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: "keep at least one admin" }, 400);
     }
     await repo.deleteAccount(target.id);
+    if (c.env.RAW_ARCHIVE) await repo.queueArchiveDeletion(accountAvatarKey(target.id), nowFor());
     return c.json({ accounts: await repo.listAccounts(), briefings: await repo.listBriefings() });
   });
 

@@ -36,6 +36,38 @@ test('home has one creation entry and no decorative globe or briefing card',asyn
  await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+test('uploads a profile picture and restores it after a reload', async ({ page }) => {
+  await mock(page);
+  let picture: Buffer | null = null;
+  await page.route('**/api/me/avatar**', async route => {
+    if (route.request().method() === 'PUT') {
+      picture = route.request().postDataBuffer();
+      expect(route.request().headers()['content-type']).toBe('image/jpeg');
+      await route.fulfill({ json: { ok: true } });
+    } else {
+      await route.fulfill(picture ? { contentType: 'image/jpeg', body: picture } : { status: 404 });
+    }
+  });
+  await page.goto('/');
+  const avatar = page.getByRole('button', { name: 'Account profile' });
+  await avatar.click();
+  const dialog = page.getByRole('dialog', { name: 'Account' });
+  const file = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 30;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(0, 0, 30, 30);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const chooser = page.waitForEvent('filechooser');
+  await dialog.getByRole('button', { name: 'Upload profile picture' }).click();
+  await (await chooser).setFiles({ name: 'picture.png', mimeType: 'image/png', buffer: Buffer.from(file, 'base64') });
+  await expect(dialog.getByText('Profile picture saved')).toBeVisible();
+  await expect(dialog.locator('.account-avatar-image')).toBeVisible();
+  await page.reload();
+  await expect(avatar.locator('.account-avatar-image')).toBeVisible();
+});
 test('guests can explore and star feeds',async({page})=>{
  await mock(page,false); await page.goto('/explore');
  await expect(page.getByRole('heading',{name:'Featured feeds',level:2})).toHaveCount(0);

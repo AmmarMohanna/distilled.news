@@ -82,6 +82,31 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it("stores a replacement avatar privately for the signed-in account", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "avatar-owner@example.invalid", "Picture Owner");
+    const other = await createVerifiedUser(app, repo, "avatar-other@example.invalid", "Other Reader");
+    const objects = new Map<string, Uint8Array<ArrayBuffer>>();
+    const runtime = { ...env(), RAW_ARCHIVE: {
+      put: async (key: string, bytes: Uint8Array<ArrayBuffer>) => { objects.set(key, bytes); },
+      get: async (key: string) => objects.has(key) ? { body: new Response(objects.get(key)).body } : null
+    } } as unknown as Env;
+    const path = "/api/me/avatar";
+    const headers = { cookie: owner.cookie, "content-type": "image/jpeg" };
+    expect((await app.request(path, { method: "PUT", body: "not a JPEG", headers }, runtime)).status).toBe(415);
+    for (const byte of [0x01, 0x02]) {
+      const jpeg = new Uint8Array([0xff, 0xd8, 0xff, byte, 0xff, 0xd9]);
+      expect((await app.request(path, { method: "PUT", body: jpeg, headers }, runtime)).status).toBe(200);
+      const saved = await app.request(path, { headers }, runtime);
+      expect(saved.headers.get("cache-control")).toBe("private, no-store");
+      expect(new Uint8Array(await saved.arrayBuffer())).toEqual(jpeg);
+    }
+    expect(objects.size).toBe(1);
+    expect((await app.request(path, { headers: { cookie: other.cookie } }, runtime)).status).toBe(404);
+    expect((await app.request(path, {}, runtime)).status).toBe(401);
+  });
+
   it.each([1,50,75])('marks whether the legacy feed snapshot covers searchable history (%s editions)',async(count)=>{
     const repo=new InMemoryRepository(),app=createApp({repository:repo});
     const user=await createVerifiedUser(app,repo,'history@example.invalid','History Owner');

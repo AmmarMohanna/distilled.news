@@ -3319,3 +3319,21 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   padding: 0;
   white-space: normal;
 }
+
+:root.apple-ui.apple-ui :is(.avatar-button, .profile-avatar) { position: relative; }
+:root.apple-ui.apple-ui .account-avatar-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+:root.apple-ui.apple-ui .profile-dialog .profile-picture-upload {
+  min-height: 44px;
+  padding-inline: 12px;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
