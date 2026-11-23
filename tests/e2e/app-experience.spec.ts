@@ -66,7 +66,14 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   await expect(dialog.getByText('Profile picture saved')).toBeVisible();
   await expect(dialog.locator('.account-avatar-image')).toBeVisible();
   await page.reload();
-  await expect(avatar.locator('.account-avatar-image')).toBeVisible();
+  const image = avatar.locator('.account-avatar-image');
+  await expect(image).toBeVisible();
+  const button = (await avatar.boundingBox())!;
+  const photo = (await image.boundingBox())!;
+  expect(photo.width).toBeCloseTo(button.width, 0);
+  expect(photo.height).toBeCloseTo(button.height, 0);
+  expect(photo.x).toBeCloseTo(button.x, 0);
+  expect(photo.y).toBeCloseTo(button.y, 0);
 });
 test('opens a top channel with its public feeds, recent updates and report menu', async ({ page }) => {
   const channel = { username: 'joud', publicFeedCount: 2, followerCount: 7 };
