@@ -7,7 +7,7 @@ for(const entry of ['register','resend'] as const)for(const language of ['en','f
   await page.route('**/api/**',route=>{
    const path=new URL(route.request().url()).pathname;
    if(route.request().method()==='POST')requests.push({path,body:route.request().postDataJSON()});
-   if(path==='/api/auth/register')return route.fulfill(entry==='register'?{status:409,json:{error:'Email is already verified. Please sign in or reset your password.'}}:{json:{ok:true}});
+   if(path==='/api/auth/register')return route.fulfill(entry==='register'?{status:409,json:{error:'Email is already verified. Please sign in or reset your password.'}}:{json:{ok:true,verificationMethod:'code'}});
    if(path==='/api/auth/verification/resend')return route.fulfill({status:409,json:{error:'Email is already verified. Please sign in or reset your password.'}});
    return route.fulfill({json:path==='/api/auth/session'?{authenticated:false,setupRequired:false}:path.startsWith('/api/explore/')?{feeds:[]}:{ok:true}});
   });
@@ -42,7 +42,7 @@ for(const navigation of ['email','login'] as const)for(const outcome of ['succes
   let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve;});
   await page.route('**/api/**',async route=>{
    const path=new URL(route.request().url()).pathname;
-   if(path==='/api/auth/register')return route.fulfill({json:{ok:true}});
+   if(path==='/api/auth/register')return route.fulfill({json:{ok:true,verificationMethod:'code'}});
    if(path==='/api/auth/verification/resend'){await pending;return route.fulfill(outcome==='success'?{json:{ok:true}}:{status:409,json:{error:'Email is already verified. Please sign in or reset your password.'}});}
    return route.fulfill({json:path==='/api/auth/session'?{authenticated:false,setupRequired:false}:path.startsWith('/api/explore/')?{feeds:[]}:{ok:true}});
   });
@@ -52,7 +52,7 @@ for(const navigation of ['email','login'] as const)for(const outcome of ['succes
   await dialog.getByRole('button',{name:'Create an account',exact:true}).click();
   await dialog.locator('input[type="email"]').fill('previous@example.invalid');await dialog.locator('input[autocomplete="username"]').fill('pending');await dialog.locator('input[autocomplete="new-password"]').fill('fixture-password');await dialog.locator('button[type="submit"]').click();
   const requested=page.waitForRequest(request=>new URL(request.url()).pathname==='/api/auth/verification/resend');
-  await dialog.getByRole('button',{name:'Resend verification email',exact:true}).click();await requested;
+  await dialog.getByRole('button',{name:'Request a new code',exact:true}).click();await requested;
   // The pending-verification screen keeps the address read-only. Start a new
   // dialog while the response to the previous dialog is still pending.
   await dialog.getByRole('button',{name:'Close dialog',exact:true}).click();
