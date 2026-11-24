@@ -20,7 +20,7 @@ The new blank v2 template is supplied in the complete revision-2 bundle. Keep un
 
 The three inferred calendar dates and `320+` boundary remain unsettled on the saved evidence. T09 is additionally unresolved for an unsupported newspaper identification; keep its earlier positive fixture and the new disagreement separate. Case-specific positives do not certify entire stories or editions; preserve draft-specific failures before regression aggregation. S03 and S05 require separate essential and optional propositions within their shared source spans. The prior five owner-reviewed pairs remain a separate assisted subset. Existing investigator labels will not be renamed as human labels.
 
-The actual [SPECIFICATION](../docs/superpowers/specs/2026-10-18-publication-validation-contract-specification.md), separate [IMPLEMENTATION PLAN](../docs/superpowers/plans/2026-10-18-publication-validation-contract-implementation-plan.md) and [LABEL CONTRACT](../docs/superpowers/specs/publication-validation-label-contract-v2.md) address the original nine review requests and the later refinements:
+The actual [SPECIFICATION](../docs/superpowers/specs/2026-10-18-publication-validation-contract-specification.md), separate [IMPLEMENTATION PLAN](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/superpowers/plans/2026-10-18-publication-validation-contract-implementation-plan.md) and [LABEL CONTRACT](../docs/superpowers/specs/publication-validation-label-contract-v2.md) address the original nine review requests and the later refinements:
 
 | Request | Refinement |
 |---|---|

@@ -6,7 +6,7 @@ This pass preserves Joud's approved frontend. The only application change is the
 
 ## All 55 baseline CI failures
 
-The [baseline run](https://github.com/AmmarMohanna/distilled.news/actions/runs/41093732117) failed 55 of 594 E2E executions. The [approved plan](superpowers/plans/2026-10-30-playwright-stabilization.md) maps every named scenario and source location to the current contract and preservation evidence.
+The [baseline run](https://github.com/AmmarMohanna/distilled.news/actions/runs/41093732117) failed 55 of 594 E2E executions. The [approved plan at the historical revision](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/superpowers/plans/2026-10-30-playwright-stabilization.md) maps every named scenario and source location to the current contract and preservation evidence.
 
 | Root cause | Executions | Correction and retained coverage |
 | --- | ---: | --- |
@@ -35,7 +35,7 @@ The exact current contracts come from `AGENTS.md`, final frontend preservation r
 | `tests/e2e/requested-ui.spec.ts` | Responsive branding and transparent illustrations; retain timestamps/dark mode/menu behavior. |
 | `tests/e2e/review-fixes.spec.ts` | Approved bounded compact cards for owner and guest views. |
 | `tests/e2e/screen-fit.spec.ts` | Real language menus, explicit Public/Private default/selection and continuous-scroll reachability. |
-| `docs/superpowers/plans/2026-10-30-playwright-stabilization.md` | Approved scope and all 55 failure-to-contract mappings. |
+| [Historical Playwright plan](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/superpowers/plans/2026-10-30-playwright-stabilization.md) | Approved scope and all 55 failure-to-contract mappings. |
 | `docs/playwright-stabilization-2026-10-30.md` | Sanitized evidence and validation record. |
 
 ## Confirmed application defect: enlarged-text overflow

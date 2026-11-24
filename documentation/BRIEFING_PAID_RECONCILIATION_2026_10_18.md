@@ -162,5 +162,5 @@ did not settle or release any of its 44 unknown operations. The original grant
 period, all reported costs and $4.345092702 held exposure remain in admission.
 At 13:11 UTC three newly authorized GPT operations had reported charges of
 $0.219032 with no new unknown hold; two editorial results succeeded and one
-deferred on invalid context references. See [the approved amendment record](BRIEFING_BUDGET_TOPUP_PROPOSAL_2026_10_18.md)
+deferred on invalid context references. See [the approved amendment record](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/documentation/BRIEFING_BUDGET_TOPUP_PROPOSAL_2026_10_18.md)
 and [final validation](BRIEFING_FINAL_VALIDATION_2026_10_18.md) for later checkpoints.

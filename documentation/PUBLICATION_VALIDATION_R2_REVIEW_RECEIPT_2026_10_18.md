@@ -63,7 +63,7 @@ Control positives: **T01, T02, T05, T07, T10, T11, T12, T13, T18, T19, T21**. Ne
 
 ## Design refinements and remaining gates
 
-The [specification](../docs/superpowers/specs/2026-10-18-publication-validation-contract-specification.md), [label contract](../docs/superpowers/specs/publication-validation-label-contract-v2.md) and [implementation plan](../docs/superpowers/plans/2026-10-18-publication-validation-contract-implementation-plan.md) now require:
+The [specification](../docs/superpowers/specs/2026-10-18-publication-validation-contract-specification.md), [label contract](../docs/superpowers/specs/publication-validation-label-contract-v2.md) and [implementation plan](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/superpowers/plans/2026-10-18-publication-validation-contract-implementation-plan.md) now require:
 
 - Proposition-level requirements with parent fact/revision/span mappings. Mixed sentences cannot make S03's supported price or S05's supported dollar estimate appear omitted when only optional context is absent.
 - Separate case, draft and edition scopes; any-version-negative regression aggregation never substitutes for per-draft adjudication or whole-edition verification.
