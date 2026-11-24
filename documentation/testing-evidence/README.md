@@ -18,6 +18,8 @@ Only top-level summaries and Python review/automation scripts are versioned here
 
 - **Latest expanded results:** [Stage 2 status](STAGE2_STATUS.md). Playwright 30 attempts, X alternatives 100 evaluated records per provider, LinkedIn 35/40 requested records now collected and reviewed for field preservation. Apify controlled charges total $0.1727. Full suite 228 passed. Earlier pending-status notes below describe their historical checkpoints; use this status page for current state.
 
+The [campaign handoff at the original revision](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/documentation/testing-evidence/CAMPAIGN_HANDOFF.md) records the intermediate checkpoints. Use the status and measurement reports above for the corrected sample size and what actually ran.
+
 ## Stage 2 review continuation ? 2026-09-26
 
 - **Unwanted text:** both extractors retain two consent/adblock instruction paragraphs in France24 targets 2 and 3. Exact publisher-DOM matches are recorded in boilerplate review (`controlled-510-v1/web-boilerplate-review.json`). This is a confirmed cleanup failure, separate from paragraph completeness. Other inspected footer/navigation markers had no hits; that is not exhaustive contamination clearance.

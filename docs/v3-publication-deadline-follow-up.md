@@ -27,3 +27,9 @@ The new wake and pending-acquisition regression tests failed against the prior i
 No live timing improvement is claimed yet. A staging rollout followed by observation of a fresh, nonempty scheduled window is required to measure deadline-to-publication improvement. Model work finishing late, an actively held feed lock, provider recovery or queue backlog can still delay delivery. These changes remove demonstrated avoidable waits without promising instantaneous publication or changing financial limits, model routing, prompts, collection scheduling or frontend behavior.
 
 When integrating with a newer source QA branch, retain its additional collection-backpressure/unavailable-source coverage and V3 readiness changes; do not overwrite those files wholesale with this branch's older versions.
+
+## Later staging verification
+
+The [November 13 execution record](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/superpowers/plans/2026-11-13-timely-delivery.md) covers the later timing patch and isolated editor-chunk recovery. The 20:30 window had an empty editorial result and finalized at 20:32:46 Beirut time. After the subsequent change, the 21:00 window's canonical completion timestamp was 21:00:12.667 following four provider calls and $0.108264 reported cost. It had two candidates removed as repeats and finished `DONE/DEFERRED` with `INCOMPLETE_INTAKE_COVERAGE` and five pre-existing acquisition failures. The latest public edition in that observation was still the earlier 20:00 edition.
+
+The result measures timely finalization on the available evidence. It leaves timely publication of a new story, complete acquisition, and a production-wide latency guarantee unverified. The retained 19:00 replay reproduced the invalid prior ID followed by publisher IDs used as citations, which informed the editor-chunk isolation regression.
