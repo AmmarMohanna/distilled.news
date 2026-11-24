@@ -1365,10 +1365,7 @@ function AccountDialog(props: {
           <button type="button" className="profile-picture-upload" aria-label={t(busy === "avatar" ? "Uploading picture…" : "Upload profile picture")} disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
             <Camera size={17} aria-hidden/>
           </button>
-        </div>
-        <h3>{t("Profile picture")}</h3>
-        <small className="profile-photo-note">{t("New photos appear on your public channel.")}</small>
-        {hasPicture && <button type="button" className="profile-picture-remove" disabled={busy !== null} onClick={async () => {
+          {hasPicture && <button type="button" className="profile-picture-remove" aria-label={t("Remove profile picture")} title={t("Remove profile picture")} disabled={busy !== null} onClick={async () => {
           setBusy("avatar");
           setMessage("");
           setError("");
@@ -1382,7 +1379,10 @@ function AccountDialog(props: {
           } finally {
             setBusy(null);
           }
-        }}>{t("Remove profile picture")}</button>}
+          }}><Trash2 size={17} aria-hidden/></button>}
+        </div>
+        <h3>{t("Profile picture")}</h3>
+        <small className="profile-photo-note">{t("New photos appear on your public channel.")}</small>
         <a className="profile-preview-link" href={channelUrl(props.account.username)}>{t("Preview public profile")} <ExternalLink size={14} aria-hidden/></a>
       </div>
 
