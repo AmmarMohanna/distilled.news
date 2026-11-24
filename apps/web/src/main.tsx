@@ -1812,7 +1812,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const { theme, setTheme } = useTheme();
   const nextLanguage = ({ en: "fr", fr: "ar", ar: "en" } as const)[language];
   const feedActions = (
-    <div className="feed-header-actions">
+    <div className="feed-header-actions feed-banner-menu" role="group" aria-label={t("Feed actions")}>
       <button
         type="button"
         className={`star-vote${payload?.viewerHasStarred ? " is-starred" : ""}`}
@@ -1839,6 +1839,7 @@ function FeedPage(props: { username: string; slug: string }) {
         <span className="action-count">{payload?.briefing.stars ?? 0}</span>
       </button>
       {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={20} aria-hidden /></button> : null}
+      {payload?.briefing.publicFeedEnabled && <ReaderShareMenu title={payload.briefing.title} onError={() => setError("Could not copy URL")}/>}
     </div>
   );
 
@@ -1872,13 +1873,10 @@ function FeedPage(props: { username: string; slug: string }) {
       meta={payload ? <>{bylineLabel(language)} {payload.briefing.publicFeedEnabled && !payload.briefing.paused
         ? <a className="feed-owner-channel" href={channelUrl(payload.briefing.ownerUsername)}><bdi>{payload.briefing.ownerUsername}</bdi></a>
         : <bdi>{payload.briefing.ownerUsername}</bdi>}</> : undefined}
-      headingFooter={<div className="feed-hero-controls">
-        {payload?.editions.length ? <a className="feed-read-briefings" href="#feed-briefings">{t("Read briefings")}</a> : null}
-        {feedActions}
-      </div>}
-      headingAction={payload?.briefing.publicFeedEnabled ? <span className="feed-banner-menu">
-        <ReaderShareMenu title={payload.briefing.title} onError={() => setError("Could not copy URL")}/>
-      </span> : undefined}
+      headingFooter={payload?.editions.length ? <div className="feed-hero-controls">
+        <a className="feed-read-briefings" href="#feed-briefings">{t("Read briefings")}</a>
+      </div> : undefined}
+      headingAction={payload ? feedActions : undefined}
       headingLoading={readerLoading}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}

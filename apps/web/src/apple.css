@@ -3784,6 +3784,35 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   font-weight: 500;
 }
 :root.apple-ui.apple-ui .feed-banner-menu .feed-options-popover > :is(a,button) + :is(a,button) { border-block-start: 1px solid var(--line); }
+:root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  width: max-content;
+  margin: 0;
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: #f7f2fa;
+  color: #322742;
+}
+:root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu > button,
+:root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu .feed-more > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+}
+:root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu > button:disabled { opacity: .6; }
+:root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu > button:hover:not(:disabled),
+:root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu .feed-more > summary:hover { background: rgb(50 39 66 / 9%); }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .shell.feed-shell.feed-shell.feed-shell:has(> .page-heading .feed-hero-art) { --reader-header-height: 64px; }
 }

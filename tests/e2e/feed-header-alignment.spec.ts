@@ -40,9 +40,10 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
 
     const check=async(enlarged=false)=>{
       if(!enlarged) expect(await header.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
-      const author=(await heading.locator('p').boundingBox())!;
+      const title=(await heading.getByRole('heading', { level: 1 }).boundingBox())!;
+      const group=(await actions.boundingBox())!;
       const toolbar=(await page.locator('.feed-tools').boundingBox())!;
-      const boxes=await actions.locator('button').evaluateAll(buttons=>buttons.map(button=>{
+      const boxes=await actions.locator(':scope > button, :scope > details > summary').evaluateAll(buttons=>buttons.map(button=>{
         const {left,right,top,bottom,width,height}=button.getBoundingClientRect();
         return {left,right,top,bottom,width,height};
       }).sort((a,b)=>a.left-b.left));
@@ -53,7 +54,9 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         expect(box.left).toBeGreaterThanOrEqual(end-1);
         expect(box.right).toBeLessThanOrEqual(width+1);
         expect(Math.abs(box.top-boxes[0].top)).toBeLessThan(2);
-        expect(box.top).toBeGreaterThanOrEqual(author.y+author.height-1);
+        expect(box.top).toBeGreaterThanOrEqual(group.y);
+        expect(box.bottom).toBeLessThanOrEqual(group.y+group.height+1);
+        expect(box.bottom).toBeLessThanOrEqual(title.y+1);
         expect(box.bottom).toBeLessThanOrEqual(toolbar.y+1);
         end=box.right;
       }

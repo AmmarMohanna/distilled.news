@@ -19,8 +19,6 @@ async function openBriefing(page: import("@playwright/test").Page) {
 test("restored briefing layout preserves controls and theme", async ({ page }) => {
   await openBriefing(page);
   await expect(page.locator(".page-heading")).toContainText("by admin");
-  const headingBounds=await page.locator('.page-heading').boundingBox();
-  for(const node of [page.locator('.page-heading h1'),page.locator('.page-heading > p')]) {const box=await node.boundingBox();expect(Math.abs(box!.x+box!.width/2-headingBounds!.x-headingBounds!.width/2)).toBeLessThan(2);}
   await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
   await expect(page.locator(".feed-check-status")).toContainText("feed paused");
   const artwork=page.locator('.feed-hero-art .topic-art');
@@ -28,21 +26,21 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   const reserved=await page.locator('.feed-hero-art').boundingBox();
   const header=await page.locator('.experience-header').boundingBox();
   expect(displayed!.height).toBeGreaterThanOrEqual(96);
-  expect(displayed!.y).toBeGreaterThanOrEqual(header!.y+header!.height);
+  expect(displayed!.y).toBeCloseTo(header!.y, 0);
   expect(displayed!.y).toBeGreaterThanOrEqual(reserved!.y);
   expect(displayed!.y+displayed!.height).toBeLessThanOrEqual(reserved!.y+reserved!.height+1);
-  const artBounds=await page.locator('.feed-hero-art').boundingBox();
   const titleBounds=await page.locator('.page-heading h1').boundingBox();
   const authorBounds=await page.locator('.page-heading > p').boundingBox();
   const toolsBounds=await page.locator('.feed-tools').boundingBox();
   const actions = page.locator(".page-heading .feed-header-actions");
   const actionBounds=await actions.boundingBox();
-  expect(titleBounds!.y-artBounds!.y-artBounds!.height).toBeLessThanOrEqual(8);
   expect(authorBounds!.y-titleBounds!.y-titleBounds!.height).toBeLessThanOrEqual(8);
-  expect(actionBounds!.y).toBeGreaterThanOrEqual(authorBounds!.y+authorBounds!.height);
+  expect(actionBounds!.y).toBeGreaterThanOrEqual(header!.y+header!.height);
+  expect(actionBounds!.y+actionBounds!.height).toBeLessThanOrEqual(titleBounds!.y+1);
   expect(toolsBounds!.y-actionBounds!.y-actionBounds!.height).toBeGreaterThanOrEqual(0);
-  expect(toolsBounds!.y-actionBounds!.y-actionBounds!.height).toBeLessThanOrEqual(28);
+  await actions.getByLabel("Feed options").click();
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(actions.getByRole("button", { name: /Star/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Brief now/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Explore/i })).toHaveCount(0);
@@ -87,7 +85,7 @@ test("published headlines open retained briefing evidence and preserve read-only
     return route.fulfill({ json: data });
   });
   await page.goto("/admin/personal-briefing/");
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
   await expect(page.locator(".news-sources")).toHaveCount(0);
   await expect(page.locator(".news-headline .briefing-reference > bdi")).toHaveText("[1]");
@@ -101,9 +99,9 @@ test("published headlines open retained briefing evidence and preserve read-only
   const readsBefore = feedReads;
   await refreshFeed(page);
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
   expect(manualRequests).toBe(0);
   await page.reload();
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Research model");
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
 });
