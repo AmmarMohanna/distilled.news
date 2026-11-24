@@ -1,5 +1,5 @@
-// Version this cache when the transparency conversion changes.
-const cacheName = 'distilled-processed-sketches-v2';
+// Keep this version in sync with changes that invalidate stored artwork.
+const cacheName = 'distilled-processed-sketches-v3';
 const lifetime = 7 * 24 * 60 * 60 * 1000;
 
 export async function readSavedSketch(path: string): Promise<Blob | undefined> {
