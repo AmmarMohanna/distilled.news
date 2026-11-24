@@ -29,7 +29,7 @@ The current Cloudflare application remains the product baseline. A benchmark on 
 | [Acquisition runbook](ACQUISITION_BENCHMARK_RUNBOOK_v1.2.md) | Background experimental design and extended fault/connector scenarios. |
 | [VPS execution guide](DISTILLED_VPS_TO_ACQUISITION_BENCHMARK_FULL_GUIDE.md) | Server preparation and operations; verify its environment assumptions against the actual host. |
 | [Benchmark implementation notes](../implementation/ACQUISITION_BENCHMARK_IMPLEMENTATION.md) | Description of the initial code milestone and its limitations. |
-| [Implementation plan](IMPLEMENTATION_PLAN_v1.2.md) | Broader research milestones, including the separate news-intelligence replay corpus. |
+| [Historical implementation plan](https://github.com/AmmarMohanna/distilled.news/blob/e5f4ffb2e72916d10d5aa53191dbbb112d5ead0e/documentation/IMPLEMENTATION_PLAN_v1.2.md) | Broader research milestones, including the separate news-intelligence replay corpus. |
 | [Project instructions](../AGENTS.md) | Current product and runtime direction. |
 
 For this experiment, use the methodological rules below where the earlier runbook differs:

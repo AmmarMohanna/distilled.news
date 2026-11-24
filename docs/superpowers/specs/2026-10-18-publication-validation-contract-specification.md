@@ -1,12 +1,14 @@
 # Publication validation contract v2 — SPECIFICATION, revision 3
 
+Paths shown as code identify private or local artifacts referenced in the original report. Their availability depends on the original archive. Linked reports and scripts are tracked here.
+
 **Status: IMPLEMENTATION AUTHORIZED ON `backend-validation-contract`, DISABLED BY DEFAULT.** This file is the actual design specification, not the separate implementation plan. Revision 3 incorporates the subsequent AI-assisted revision-2 review, including proposition granularity and case-scoped acceptance. Work remains on `backend-validation-contract`, based on audit commit `de902aa07b9af523631434c6090a973fa718b3c8`. The subsequent explicit user instruction authorizes application changes on this branch and offline tests; inference spending, deployment and remote mutations remain outside this authorization.
 
 **Outcome:** accurate, useful prose can be accepted against justified material requirements; materially inaccurate prose and unresolved semantic conflicts cannot publish. Zero known false hard rejections and zero confirmed unsafe acceptances apply to the reviewed corpus, not to all production traffic. A reject-everything or defer-everything implementation does not satisfy the outcome.
 
 ## Evaluation before implementation
 
-An [unlabeled packet](../../../.local-reports/briefing-latency/validation-contract-review/REVIEW.md) contains all 25 distinct saved rejections and 24 positive/negative controls. Its appendices contain four complete saved drafts and 13 immutable source revisions. Proposed answers are omitted and case ordering does not expose positive/negative identifiers. Record whether the reviewer has already read the audit; that exposure prevents a claim of fully blinded review.
+An unlabeled packet (`../../../.local-reports/briefing-latency/validation-contract-review/REVIEW.md`) contains all 25 distinct saved rejections and 24 positive/negative controls. Its appendices contain four complete saved drafts and 13 immutable source revisions. Proposed answers are omitted and case ordering does not expose positive/negative identifiers. Record whether the reviewer has already read the audit; that exposure prevents a claim of fully blinded review.
 
 The first review was explicitly **AI-assisted, unblinded, without the source/draft appendices**. It reports 24 controlled labels (12 SUPPORTED / 12 ERROR under the old aggregate convention) and leaves all 25 saved S-cases null. The reported T-batch JSONs are not currently available in the workspace. Preserve that summary as review feedback; do not reconstruct or import per-case labels from totals. S-case triage is not an evidence-level label. The actual specification was not reviewed or approved in that delivery.
 

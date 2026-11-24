@@ -1,5 +1,7 @@
 node_modules/
 dist/
+/apps/worker/dist-joud/
+/output/pdf/
 .wrangler/
 .review-tmp/
 .dev.vars

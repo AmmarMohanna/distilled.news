@@ -97,10 +97,10 @@ export async function register(input: {
   });
 }
 
-export async function verifyEmail(token: string | {email:string;code:string}): Promise<AccountRecord> {
+export async function verifyEmail(token: string): Promise<AccountRecord> {
   const payload = await requestJson<{ account: AccountRecord }>("/api/auth/verify-email", {
     method: "POST",
-    body: JSON.stringify(typeof token === "string" ? { token } : token)
+    body: JSON.stringify({ token })
   });
   return payload.account;
 }

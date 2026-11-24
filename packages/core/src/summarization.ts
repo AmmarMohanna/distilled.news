@@ -114,7 +114,9 @@ export function sanitizeSummary(summary: string, language?: BriefingConfig["lang
 
   const uniqueSentences: string[] = [];
   const seen = new Set<string>();
-  const sentences = cleaned.match(/[^.!?؟]+[.!?؟]?/gu) ?? [cleaned];
+  // As in firstSentence, punctuation inside a token (such as 1.25%) is
+  // not a sentence boundary. Keep it intact before filtering and deduplication.
+  const sentences = cleaned.split(/(?<=[.!?؟])\s+/u);
 
   for (const sentence of sentences.map((entry) => entry.trim()).filter(Boolean)) {
     if (isArtifactSentence(sentence) || isLowInformationSummary(sentence)) continue;
@@ -208,11 +210,14 @@ function stripBoilerplateLines(text: string): string {
 function isBoilerplateLine(line: string): boolean {
   const cleaned = line.replace(/[\sـ_\-–—]+/gu, " ").trim();
   if (!cleaned) return true;
+  // Capitalization and the absence of reporting verbs cannot distinguish a
+  // publisher name from a factual headline. Preserve text-bearing source lines;
+  // the whole-line matcher below removes only bare or URL-only source labels.
   return [
     /^[ـ_\-–—\s]{4,}$/u,
     /^(?:قناة\s+)?موقع\s+بنت\s+جبيل\s+على\s+واتساب/u,
-    /\b(?:download telegram|view in telegram|join channel|subscribe)\b/i,
-    /\b(?:read more|source|watch)\b/i,
+    // Match whole CTA/link labels, not vocabulary inside factual reporting.
+    /^(?:download telegram|view in telegram|join channel|subscribe(?:\s+to\s+(?:(?:our|the)\s+)?(?:newsletter|channel))?|read more(?:\s+here)?|source|watch(?:\s+(?:now|here|live|(?:the\s+)?video|on\s+(?:YouTube|Facebook|Instagram|TikTok)))?)[\s:：.!|>»›-]*(?:(?:https?:\/\/|www\.)\S+)?\s*$/i,
     /^(?:انضم|تابعونا|لمتابعة|للمزيد|للتفاصيل)(?:\s|$)/u
   ].some((pattern) => pattern.test(line) || pattern.test(cleaned));
 }

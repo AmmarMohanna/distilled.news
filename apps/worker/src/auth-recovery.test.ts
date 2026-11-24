@@ -16,18 +16,33 @@ it('resends verification for a normalized pending account without changing its i
  const x=fixture(),before=await x.add();
  const r=await x.post('/api/auth/verification/resend',{email:' PENDING@EXAMPLE.INVALID ',language:'fr'});
  expect(r.status).toBe(200);expect(await r.json()).toEqual({ok:true});expect(r.headers.get('set-cookie')).toBeNull();
- expect(x.messages).toHaveLength(1);expect(x.messages[0].text).not.toMatch(/https?:/);
- const code=x.messages[0].text.match(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/m)![0];
+ expect(x.messages).toHaveLength(1);
+ const url = new URL(x.messages[0].text.match(/https:\/\/\S+/)![0]);
+ expect(url.pathname).toBe('/verify-email');
+ expect(url.searchParams.get('lang')).toBe('fr');
+ const token = url.searchParams.get('token')!;
+ const record = await x.repo.getAuthToken(await hashToken(token), 'email_verification');
+ expect(Date.parse(record!.expiresAt) - Date.parse(record!.createdAt)).toBeCloseTo(24 * 60 * 60 * 1000, -3);
  expect(await x.repo.getAccountById(before.id)).toEqual(before);
  const login=await x.post('/api/auth/login',{email:before.email,password:'original-password'});expect(login.status).toBe(403);expect(await login.json()).toEqual({error:'verify your email before logging in'});
- expect((await x.post('/api/auth/verify-email',{email:'other@example.invalid',code})).status).toBe(400);
- const first=await x.post('/api/auth/verify-email',{email:before.email,code:code.toLowerCase()});
+ await x.app.request(url.toString(), {}, x.config);
+ expect((await x.repo.getAccountById(before.id))?.emailVerifiedAt).toBeUndefined();
+ const first=await x.post('/api/auth/verify-email',{token});
  expect(first.status).toBe(200);expect(first.headers.get('set-cookie')).toBeNull();
  expect((await x.repo.getAccountById(before.id))?.emailVerifiedAt).toBeDefined();
  expect(await (await x.app.request('/api/auth/session',{},x.config)).json()).toMatchObject({authenticated:false});
- const replay=await x.post('/api/auth/verify-email',{email:before.email,code});
+ const replay=await x.post('/api/auth/verify-email',{token});
  expect(replay.status).toBe(400);expect(replay.headers.get('set-cookie')).toBeNull();
  expect((await x.post('/api/auth/login',{email:before.email,password:'original-password'})).status).toBe(200);
+});
+it('still accepts an already-issued code only for its associated address and only once', async () => {
+ const x = fixture(), account = await x.add(), code = 'ABCD-EFGH-JKLM-NPQR';
+ await x.repo.createAuthToken({accountId: account.id, purpose: 'email_verification', tokenHash: await hashToken('code-v1:ABCDEFGHJKLMNPQR'), expiresAt: new Date(Date.now() + 60_000).toISOString()});
+ expect((await x.post('/api/auth/verify-email', {email: 'other@example.invalid', code})).status).toBe(400);
+ const response = await x.post('/api/auth/verify-email', {email: account.email, code: code.toLowerCase()});
+ expect(response.status).toBe(200);
+ expect(response.headers.get('set-cookie')).toBeNull();
+ expect((await x.post('/api/auth/verify-email', {email: account.email, code})).status).toBe(400);
 });
 it('verifies legacy email links without creating a session',async()=>{
  const x=fixture(),account=await x.add(),token='retained-verification-token';
@@ -37,9 +52,25 @@ it('verifies legacy email links without creating a session',async()=>{
  expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeDefined();
  expect(await (await x.app.request('/api/auth/session',{},x.config)).json()).toMatchObject({authenticated:false});
 });
-it('routes password recovery to verification for an unverified account, never issues a reset token first',async()=>{
- const x=fixture(),account=await x.add();const r=await x.post('/api/auth/password/forgot',{email:account.email});
- expect(r.status).toBe(200);expect(x.messages).toHaveLength(1);expect(x.messages[0].text).toMatch(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/m);expect(x.messages[0].text).not.toContain('/reset-password?');expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeUndefined();
+it('sends a dedicated reset link to a pending account and verifies the mailbox only when the password is saved', async () => {
+ const x = fixture(), account = await x.add();
+ expect((await x.post('/api/auth/password/forgot', {email: account.email})).status).toBe(200);
+ expect(x.messages).toHaveLength(1);
+ const resetUrl = new URL(x.messages[0].text.match(/https:\/\/\S+/)![0]);
+ expect(resetUrl.pathname).toBe('/reset-password');
+ const token = resetUrl.searchParams.get('token')!;
+ await x.app.request(resetUrl.toString(), {}, x.config);
+ expect((await x.post('/api/auth/verify-email', {token})).status).toBe(400);
+ expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeUndefined();
+
+ const passwords = ['replacement-password', 'other-valid-password'];
+ const attempts = await Promise.all(passwords.map(password => x.post('/api/auth/password/reset', {token, password})));
+ expect(attempts.map(response => response.status).sort()).toEqual([200, 400]);
+ const accepted = attempts.findIndex(response => response.status === 200);
+ expect(attempts[accepted].headers.get('set-cookie')).toBeNull();
+ expect((await x.repo.getAccountById(account.id))?.emailVerifiedAt).toBeDefined();
+ expect((await x.post('/api/auth/login', {email: account.email, password: 'original-password'})).status).toBe(401);
+ expect((await x.post('/api/auth/login', {email: account.email, password: passwords[accepted]})).status).toBe(200);
 });
 it('preserves real password reset and keeps unknown/disabled resend responses generic',async()=>{
  const x=fixture(),verified=await x.add('verified@example.invalid',true),disabled=await x.add('disabled@example.invalid');await x.repo.updateAccount({id:disabled.id,disabled:true});
@@ -90,7 +121,7 @@ it('checks configured bot verification before sending recovery mail',async()=>{
 it('rejects malformed resend input before email submission',async()=>{
  const x=fixture();for(const body of [{email:'invalid'},{email:'pending@example.invalid',language:'unknown'}])expect((await x.post('/api/auth/verification/resend',body)).status).toBe(400);expect(x.messages).toHaveLength(0);
 });
-it('keeps password recovery generic when verification submission fails without deleting the account',async()=>{
+it('keeps password recovery generic when reset email submission fails without deleting the account',async()=>{
  const x=fixture(),before=await x.add(),spy=vi.spyOn(console,'error').mockImplementation(()=>{});x.config.EMAIL={send:async()=>{throw Error('Provider unavailable')}} as Env['EMAIL'];
- try{const r=await x.post('/api/auth/password/forgot',{email:before.email});expect(r.status).toBe(200);expect(await r.json()).toEqual({ok:true});expect(await x.repo.getAccountById(before.id)).toEqual(before);expect(r.headers.get('set-cookie')).toBeNull();expect(spy).toHaveBeenCalledWith('Could not send verification recovery email',expect.objectContaining({accountId:before.id,error:'Provider unavailable'}));}finally{spy.mockRestore()}
+ try{const r=await x.post('/api/auth/password/forgot',{email:before.email});expect(r.status).toBe(200);expect(await r.json()).toEqual({ok:true});expect(await x.repo.getAccountById(before.id)).toEqual(before);expect(r.headers.get('set-cookie')).toBeNull();expect(spy).toHaveBeenCalledWith('Could not send password reset email',expect.objectContaining({accountId:before.id,error:'Provider unavailable'}));}finally{spy.mockRestore()}
 });

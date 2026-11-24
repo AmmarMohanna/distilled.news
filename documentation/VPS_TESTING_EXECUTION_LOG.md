@@ -1,5 +1,7 @@
 # VPS testing execution log
 
+Paths shown as code identify private or local artifacts referenced in the original report. Their availability depends on the original archive. Linked reports and scripts are tracked here.
+
 Recorded: 2026-09-16. This records the user's interactive setup and results shared in this conversation, including subsequent Stage 1 progress. Individual command timestamps were not captured.
 
 **Current position: Stage 1 is in progress. Both extractors passed the checked reference for the first direct-HTTP article (Section 21). The remaining pilot articles and collection candidates are still pending.**
@@ -12,7 +14,7 @@ This is a historical log, not a script to rerun from the beginning. In particula
 - **Instructions supplied; output not captured** means the commands were given during setup but their terminal output was not pasted. Later successful checks support that the resulting environment works; they do not prove the exact installation command history.
 - Chat formatting introduced escaped underscores, escaped @ characters, HTML space entities, and Markdown links around URLs. Commands below use clean shell syntax rather than those display artifacts.
 - Passwords, tokens, and private keys are not included.
-- The final preflight, collection, processing, and Markdown report transcript is preserved unchanged in [the pasted evidence file](testing-evidence/VPS_OFFLINE_DEMO_2026-09-16.txt).
+- The final preflight, collection, processing, and Markdown report transcript is preserved unchanged in the pasted evidence file (`testing-evidence/VPS_OFFLINE_DEMO_2026-09-16.txt`).
 - This log was created in the local repository. It has not been copied to the VPS, committed, or pushed by this task.
 
 ## 1. Server and account
@@ -369,7 +371,7 @@ These exercised synthetic/mocked failures, not real provider outages. Both check
 
 ## 12. Completed the end-to-end offline demo
 
-All commands in this section were confirmed in the [pasted transcript](testing-evidence/VPS_OFFLINE_DEMO_2026-09-16.txt).
+All commands in this section were confirmed in the pasted transcript (`testing-evidence/VPS_OFFLINE_DEMO_2026-09-16.txt`).
 
 Working directory:
 
@@ -532,7 +534,7 @@ See [External Testing: A to Z](EXTERNAL_TESTING_A_TO_Z.md) for the full procedur
 
 The user chose to defer obtaining the VPS price and continue with the first pilot. A subsequent local change makes a missing server cost a WARNING in preflight and server-check instead of blocking live collection. Server-inclusive cost metrics remain unknown; paid-provider budgets and access requirements remain enforced.
 
-The change and updated tests/docs are packaged in [allow-unknown-vps-cost.patch](testing-evidence/allow-unknown-vps-cost.patch), against commit 4e52a9f. Eight targeted offline readiness, cost, and budget tests passed locally. The patch was checked against the local changes. It has not been committed, pushed, or applied on the VPS by the assistant.
+The change and updated tests/docs are packaged in allow-unknown-vps-cost.patch (`testing-evidence/allow-unknown-vps-cost.patch`), against commit 4e52a9f. Eight targeted offline readiness, cost, and budget tests passed locally. The patch was checked against the local changes. It has not been committed, pushed, or applied on the VPS by the assistant.
 
 Applying this patch will change the measured code hash. Record the patch and new preflight output with the first live run. The historical demo1 results above remain results of the original commit, not of this modified code.
 
@@ -671,7 +673,7 @@ With one attempt, the reported p95 values are single observations, not latency-d
 
 ## 19. Inspected the first live extraction outputs
 
-The user subsequently supplied the full fetch/process summaries, Markdown report, and extracted article JSON. These are preserved in [the first live run transcript](testing-evidence/FIRST_ARTICLE_001_2026-09-16.txt). This supplies the previously missing fetch/process terminal evidence from Section 18.
+The user subsequently supplied the full fetch/process summaries, Markdown report, and extracted article JSON. These are preserved in the first live run transcript (`testing-evidence/FIRST_ARTICLE_001_2026-09-16.txt`). This supplies the previously missing fetch/process terminal evidence from Section 18.
 
 Confirmed extraction-inspection command:
 

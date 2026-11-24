@@ -2,7 +2,7 @@ import { CONTRACT_VERSION, handoffConnectorBatch, hashContent, isIntakePrefixRes
 import type { CandidateIntakePort, CandidateProposal, SourceObservation } from '@distilled/contracts';
 import type { ImmutablePayloadStore,FetchRun } from './ports';
 import { D1ProviderSourceRepository, type StoredProviderBatch, type StoredProviderSnapshot } from './provider-storage';
-import { DEFAULT_SOURCE_ORDER, SourceProviderError, type SourceFetchRequest, type SourceProvider, type ProviderAttempt } from './provider-types';
+import { DEFAULT_SOURCE_ORDER, LINKEDIN_HARVEST_PROVIDER, LINKEDIN_INNOLABS_PROVIDER, isApifyPollingProvider, SourceProviderError, type SourceFetchRequest, type SourceProvider, type ProviderAttempt } from './provider-types';
 import {itemFingerprint} from './item-fingerprint';
 
 export class FallbackSourceCollector {
@@ -39,10 +39,13 @@ export class FallbackSourceCollector {
     }
     if(offset)throw new Error('SNAPSHOT_MISSING');
     const attempts:ProviderAttempt[]=[];
+    let allowHarvestFallback = false;
+    const requestsHarvestFallback = (id:string, detail?:string) =>
+      id===LINKEDIN_INNOLABS_PROVIDER && (detail==='INNOLABS_RUN_FAILED'||detail==='INNOLABS_DATASET_INVALID');
     for(const id of order) {
-      // A continuation belongs to one provider. Changing provider starts a new collection;
-      // it cannot quietly reinterpret the previous provider's cursor.
-      if(request.continuation&&request.continuation.providerId!==id)continue;
+      // Start HarvestAPI fresh only after Innolabs' known terminal outcome.
+      if(request.continuation&&request.continuation.providerId!==id&&
+        !(allowHarvestFallback&&id===LINKEDIN_HARVEST_PROVIDER))continue;
       const provider=this.providers.get(id);
       if(!provider) {attempts.push({providerId:id,runId:request.runId,sequence:0,failure:'UNAVAILABLE'});continue;}
       if(!provider.families.includes(request.source.family))throw new Error('PROVIDER_FAMILY_MISMATCH');
@@ -54,12 +57,14 @@ export class FallbackSourceCollector {
         if(existingRun.configurationKey!==configurationKey)throw Error('IDEMPOTENCY_CONFLICT');
         const failed=await this.repository.loadAttempt(request.scope,runId);
         if(failed)attempts.push(failed);
+        if(id===LINKEDIN_INNOLABS_PROVIDER&&failed?.diagnostic?.detail==='PROVIDER_MONTHLY_USAGE_LIMIT')break;
+        if(requestsHarvestFallback(id,failed?.diagnostic?.detail))allowHarvestFallback=true;
         if(failed?.failure==='POLICY_REFUSAL')throw new SourceProviderError(failed.failure);
         // A process can stop after reserving a read but before journaling its
         // failure. The same scoped reconciliation proof is required in both
         // cases; an absent journal alone never permits another provider call.
         if(!failed||failed.failure==='UNCERTAIN_PAID_SUBMISSION'){
-          if(!['x_apify','google_apify','linkedin_apify'].includes(id)||request.continuation?.providerId!==id||
+          if(!isApifyPollingProvider(id)||request.continuation?.providerId!==id||
             !await this.repository.hasReadRecovery(request.scope,runId,id))throw new SourceProviderError('UNCERTAIN_PAID_SUBMISSION');
           resumeBackpressure=true;
         }else if(failed.failure==='BACKPRESSURE')resumeBackpressure=true;else continue;
@@ -106,6 +111,8 @@ export class FallbackSourceCollector {
         const a={providerId:id,runId:run.id,sequence:run.sequence,failure:error.code,retryNotBefore:error.retryNotBefore,...(error.diagnostic?{diagnostic:error.diagnostic}:{})};
         attempts.push(a);await this.repository.attempt(request.scope,a);
         await this.failureCoverage(request,run,error.code);
+        if(id===LINKEDIN_INNOLABS_PROVIDER&&error.diagnostic?.detail==='PROVIDER_MONTHLY_USAGE_LIMIT')break;
+        if(requestsHarvestFallback(id,error.diagnostic?.detail))allowHarvestFallback=true;
         if(['POLICY_REFUSAL','UNCERTAIN_PAID_SUBMISSION','BACKPRESSURE'].includes(error.code))throw error;
         // A publisher's refusal applies to its URL, not just this transport.
         // An alternate browser/paid route must not bypass its login or cooldown.

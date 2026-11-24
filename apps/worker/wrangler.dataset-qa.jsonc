@@ -20,8 +20,8 @@
     "V3_BACKLOG_CATCHUP_ENABLED": "true",
     "PUBLIC_API_BASE_URL": "https://distilled-news-sources-qa.distillednews-platform.workers.dev",
     "PUBLIC_WEB_BASE_URL": "https://distilled-news-sources-qa.distillednews-platform.workers.dev",
-    "EMAIL_FROM": "Distilled.news <distilled.news@outlook.com>",
-    "MAIL_TRANSPORT": "OUTLOOK_GRAPH",
+    "EMAIL_FROM": "Distilled.News <noreply@distilled.news>",
+    "MAIL_TRANSPORT": "CLOUDFLARE",
     "SOURCE_CONNECTORS_ENABLED": "true",
     "SOURCE_QUEUE_SCHEDULING_ENABLED": "true",
     "SOURCE_SHARED_PUBLIC_FETCH_ENABLED": "true",
@@ -61,6 +61,12 @@
     "DISTILLED_LLM_API_GATEWAY": "openrouter",
     "CLOUDFLARE_IMAGE_ACCOUNT_ID": "e32b564514d4f9b9e383b7dd30dbb026"
   },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": ["noreply@distilled.news"]
+    }
+  ],
   "limits": {
     "cpu_ms": 300000
   },

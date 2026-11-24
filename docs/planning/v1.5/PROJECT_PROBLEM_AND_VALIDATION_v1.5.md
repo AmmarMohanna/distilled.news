@@ -116,4 +116,4 @@ Use anonymized IDs and store consent/private notes outside the public document p
 | Pre-pilot | Frozen metrics, thresholds, task protocol and system configuration | Planned / evidence not supplied |
 | Final evidence | Manual-vs-Distilled results, held-out metrics, failure evidence, costs, limitations | Planned / evidence not supplied |
 
-See [Implementation Plan](IMPLEMENTATION_PLAN_v1.5.md), [Failure Matrix and Threat Model](FAILURE_MATRIX_AND_THREAT_MODEL_v1.5.md), and [Acquisition Benchmark Runbook](ACQUISITION_BENCHMARK_RUNBOOK_v1.5.md). Track actual completion in evidence records, not by changing this plan into an unsupported success report.
+See the [historical implementation plan](https://github.com/AmmarMohanna/distilled.news/blob/e5f4ffb2e72916d10d5aa53191dbbb112d5ead0e/docs/planning/v1.5/IMPLEMENTATION_PLAN_v1.5.md), [failure matrix and threat model](FAILURE_MATRIX_AND_THREAT_MODEL_v1.5.md), and [acquisition benchmark runbook](ACQUISITION_BENCHMARK_RUNBOOK_v1.5.md). Completed work and limits are recorded in the [evidence index](../../README.md#evaluation-and-evidence).

@@ -37,7 +37,7 @@ The current implementation is the product direction unless the user gives newer 
 - Preserve the integrated frontend as implemented: responsive Home/Explore grids, feed reader layout and controls, custom menus, artwork, branding, translations, Arabic/RTL behavior, accessibility, Public/Private controls and archived/paused-feed behavior.
 - Preserve Unicode username normalization and aliases, localized authentication mail, PWA installation assets, inline offline SVG, saved offline language, foreground feed refresh and catch-up summary behavior.
 - Do not restore obsolete UI or change product behavior merely to satisfy outdated test expectations. Check the current implementation and applicable preservation evidence first.
-- Review the integration reports in `docs/` and preservation handoff/inventory documents in `documentation/` for additional context; older intermediate baselines do not override later integrated behavior or newer user instructions.
+- Start with the [current architecture](docs/ARCHITECTURE.md), [web app preservation notes](docs/WEB_APP_AND_NOTIFICATIONS.md#maintenance-invariants) and [documentation index](docs/README.md). Dated integration reports describe their recorded revisions. Follow the current source and applicable user instructions when those differ.
 - Resolve shared changes by feature and inspect automatic merges. Preserve source recovery, partial/listing evidence distinctions and uncertain-operation fences alongside frontend work.
 - Preserve unrelated uncommitted work. Do not overwrite another worktree or branch as part of an integration.
 

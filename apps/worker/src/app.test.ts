@@ -306,13 +306,13 @@ describe("worker app accounts", () => {
     );
     expect(rejectedLogin.status).toBe(403);
 
-    const verifyCode = codeFromMessage(email.messages[0].text);
+    const token = tokenFromMessage(email.messages[0].text);
     const verifyResponse = await app.request(
       "/api/auth/verify-email",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email:"user@test.com", code:verifyCode })
+        body: JSON.stringify({ token })
       },
       env(email)
     );
@@ -333,7 +333,7 @@ describe("worker app accounts", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email:"user@test.com", code:verifyCode })
+        body: JSON.stringify({ token })
       },
       env(email)
     );
@@ -381,10 +381,11 @@ describe("worker app accounts", () => {
     for(const purpose of ["email_verification","password_reset"] as const){
       const token="expired-"+purpose;await repo.createAuthToken({accountId:account.id,purpose,tokenHash:await hashToken(token),expiresAt:new Date(Date.now()-1000).toISOString()});
       const endpoint=purpose==="email_verification"?"/api/auth/verify-email":"/api/auth/password/reset";
-      expect((await app.request(endpoint,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token,password:"changed-pass123"})},config)).status).toBe(400);
+      const body = purpose === "email_verification" ? { token } : { token, password: "changed-pass123" };
+      expect((await app.request(endpoint,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)},config)).status).toBe(400);
     }
-    const verify=codeFromMessage(mail.messages[0].text);await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email,code:verify})},config);
-    const replay=await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email,code:verify})},config);expect(replay.status).toBe(400);expect(replay.headers.get("set-cookie")).toBeNull();
+    const verify=tokenFromMessage(mail.messages[0].text);await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);
+    const replay=await app.request("/api/auth/verify-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:verify})},config);expect(replay.status).toBe(400);expect(replay.headers.get("set-cookie")).toBeNull();
     await app.request("/api/auth/password/forgot",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:account.email})},config);
     const reset=tokenFromMessage(mail.messages[1].text),body=JSON.stringify({token:reset,password:"changed-pass123"});
     expect((await app.request("/api/auth/password/reset",{method:"POST",headers:{"content-type":"application/json"},body},config)).status).toBe(200);
@@ -2479,21 +2480,15 @@ it('uses each request language for signup and reset mail independently', async (
   const repo = new InMemoryRepository(), app = createApp({repository: repo}), mail = new FakeEmail(), config = env(mail);
   const post = (path: string, body: unknown) => app.request(path, {method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify(body)}, config);
   expect((await post('/api/auth/register', {email:'language@example.com',username:'Home',password:'local-fixture-123',language:'ar'})).status).toBe(200);
-  expect(mail.messages[0].subject).toBe('رمز التحقق لحساب Distilled.News');
-  expect(mail.messages[0].text).toContain('أدخل هذا الرمز');
+  expect(mail.messages[0].subject).toBe('تأكيد بريدك الإلكتروني لحساب Distilled.News');
+  expect(mail.messages[0].text).toContain('افتح الرابط');
   expect(mail.messages[0].html).toContain('lang="ar" dir="rtl"');
-  expect((await post('/api/auth/verify-email', {email:'language@example.com',code:codeFromMessage(mail.messages[0].text)})).status).toBe(200);
+  expect((await post('/api/auth/verify-email', {token:tokenFromMessage(mail.messages[0].text)})).status).toBe(200);
   expect((await post('/api/auth/password/forgot', {email:'language@example.com',language:'fr'})).status).toBe(200);
   expect(mail.messages[1].subject).toContain('Réinitialisez');
   expect(mail.messages[1].text).toContain('&lang=fr');
   expect((await post('/api/auth/password/reset', {token:tokenFromMessage(mail.messages[1].text),password:'another-local-fixture'})).status).toBe(200);
 });
-
-function codeFromMessage(text:string|undefined):string {
-  const code=text?.match(/^([A-Z2-9]{4}-){3}[A-Z2-9]{4}$/m)?.[0];
-  if(!code)throw new Error("verification code not found in email");
-  return code;
-}
 
 function tokenFromMessage(text: string | undefined): string {
   const token = text?.match(/token=([^&\s]+)/)?.[1];

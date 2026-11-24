@@ -2,7 +2,7 @@
 
 **Status:** Required engineering/FYP evidence artifact; target controls and test obligations, not a claim that every row currently passes  
 **Reviewed:** 2026-09-22  
-**Depends on:** `ARCHITECTURE_BASELINE_v1.5.md`, `TECHNICAL_CONTRACTS_AND_SERVICE_BOUNDARIES_v1.5.md`, `IMPLEMENTATION_PLAN_v1.5.md`, `DISTILLED_AGENT_RUNTIME_AND_WEB_OPERATOR_ARCHITECTURE_v1.5.md`
+**Historical design context:** [Original v1.5 plan set](https://github.com/AmmarMohanna/distilled.news/tree/e5f4ffb2e72916d10d5aa53191dbbb112d5ead0e/docs/planning/v1.5). See [current architecture and evidence](../../README.md) for implementation and operations.
 
 ## 1. Purpose
 

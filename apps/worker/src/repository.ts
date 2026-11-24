@@ -19,6 +19,7 @@ import {
   type SourceType
 } from "@distilled/core";
 import type {
+  AccountAuthAction,
   AccountRecord,
   AccountRole,
   AccountWithStats,
@@ -421,9 +422,25 @@ export class D1Repository implements Repository {
     return row ? rowToAuthToken(row) : null;
   }
 
-  async consumeAuthToken(id: string, now = new Date()): Promise<boolean> {
-    const result=await this.db.prepare("UPDATE auth_tokens SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL").bind(now.toISOString(),id).run();
-    return result.meta.changes===1;
+  async completeAccountAuthWithToken(tokenHash: string, now: Date, action: AccountAuthAction): Promise<AccountRecord | null> {
+    const timestamp = now.toISOString();
+    const email = action.purpose === "email_verification" ? action.email ?? null : null;
+    const passwordHash = action.purpose === "password_reset" ? action.passwordHash : null;
+    const validToken = "token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > ?";
+    const eligibleAccount = "disabled_at IS NULL AND (? IS NULL OR normalized_email = ?)";
+    const [completed] = await this.db.batch<AccountRow>([
+      this.db.prepare(`UPDATE accounts SET
+        updated_at = CASE WHEN email_verified_at IS NULL OR ? IS NOT NULL THEN ? ELSE updated_at END,
+        email_verified_at = COALESCE(email_verified_at, ?),
+        password_hash = COALESCE(?, password_hash)
+        WHERE id = (SELECT account_id FROM auth_tokens WHERE ${validToken}) AND ${eligibleAccount}
+        RETURNING *`).bind(passwordHash, timestamp, timestamp, passwordHash, tokenHash, action.purpose, timestamp, email, email),
+      this.db.prepare(`UPDATE auth_tokens SET consumed_at = ? WHERE ${validToken}
+        AND EXISTS (SELECT 1 FROM accounts WHERE accounts.id = auth_tokens.account_id AND ${eligibleAccount})`)
+        .bind(timestamp, tokenHash, action.purpose, timestamp, email, email)
+    ]);
+    const account = completed.results[0];
+    return account ? rowToAccount(account) : null;
   }
 
   async countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number> {
@@ -1905,11 +1922,18 @@ export class InMemoryRepository implements Repository {
     return token ? { ...token } : null;
   }
 
-  async consumeAuthToken(id: string, now = new Date()): Promise<boolean> {
-    const token = this.tokens.get(id);
-    if (!token || token.consumedAt) return false;
-    token.consumedAt = now.toISOString();
-    return true;
+  async completeAccountAuthWithToken(tokenHash: string, now: Date, action: AccountAuthAction): Promise<AccountRecord | null> {
+    const token = Array.from(this.tokens.values()).find(item => item.tokenHash === tokenHash && item.purpose === action.purpose);
+    const timestamp = now.toISOString();
+    if (!token || token.consumedAt || token.expiresAt <= timestamp) return null;
+    const account = this.accounts.get(token.accountId);
+    if (!account || account.disabledAt) return null;
+    if (action.purpose === "email_verification" && action.email && account.email !== action.email) return null;
+    token.consumedAt = timestamp;
+    if (action.purpose === "password_reset") account.passwordHash = action.passwordHash;
+    if (!account.emailVerifiedAt || action.purpose === "password_reset") account.updatedAt = timestamp;
+    account.emailVerifiedAt ??= timestamp;
+    return rowlessAccount(account);
   }
 
   async countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number> {

@@ -80,5 +80,5 @@ require separate live validation; a successful merge does not resolve them.
   These overlap the initial run and are not additional unique tests.
 - No browser screenshot/device matrix, complete repository CI or live provider
   acceptance was run. Frontend files remain byte-identical to Ghada's input.
-- The staged whitespace check reports one pre-existing extra EOF blank line in
-  Ghada's `docs/joud-operational-source-fixes.md`; its original bytes are retained.
+- The staged whitespace check reported one pre-existing extra EOF blank line in
+  the [original operational source corrections](https://github.com/AmmarMohanna/distilled.news/blob/da584b842e4fe637855b18e91e66c9294da94c5c/docs/joud-operational-source-fixes.md).
