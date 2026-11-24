@@ -51,13 +51,13 @@ it("uses the title and full interest text with the shared illustration palette",
   expect(prompt).not.toBe(sketchPrompt(renamed));
   expect(prompt).toContain(JSON.stringify(first.title));
   expect(prompt).toContain(JSON.stringify(interestProfile));
-  expect(prompt).toContain("hand-painted digital illustration");
-  expect(prompt).toContain("4:1 panoramic landscape format");
+  expect(prompt).toContain("Ultra-Detailed Duotone Pencil Engraving");
+  expect(prompt).toContain("fine cross-hatching");
   expect(prompt).toContain("one continuous edge-to-edge scene");
   expect(prompt).toContain("No inset artwork, picture frames, panels");
   expect(prompt).toContain("centered square crop");
   expect(prompt).toContain("Never draw words, letters, pseudo-writing");
-  for (const color of ["#5764B5", "#7779CB", "#9984D5", "#C58BD3", "#F0A4C1", "#FFC3A4"]) expect(prompt).toContain(color);
+  for (const color of ["#2448D8", "#303B9F", "#7852B5", "#DB4BA6", "#F4A6D7", "#FAF9FF"]) expect(prompt).toContain(color);
 });
 
 it("does not save an image returned after the queue job has lost its lease", async () => {

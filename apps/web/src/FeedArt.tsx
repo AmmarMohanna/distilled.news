@@ -35,6 +35,21 @@ function rememberSketch(key: string, blob: Blob) {
   }
 }
 
+function sampleHeroColors(image: HTMLImageElement) {
+  const hero = image.closest<HTMLElement>(".feed-hero-art");
+  if (!hero || !image.naturalWidth) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = 5; canvas.height = 1;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  try {
+    context.drawImage(image, 0, 0, 5, 1);
+    const pixels = context.getImageData(0, 0, 5, 1).data;
+    hero.style.setProperty("--cover-start", `rgb(${pixels[0]} ${pixels[1]} ${pixels[2]})`);
+    hero.style.setProperty("--cover-end", `rgb(${pixels[16]} ${pixels[17]} ${pixels[18]})`);
+  } catch { /* The hero gradient also works without sampled colors. */ }
+}
+
 export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string; publicFeedEnabled?: boolean } }) {
   const [image, setImage] = useState<{ url: string; fullCover: boolean }>();
   const [loadedAspect, setLoadedAspect] = useState(0);
@@ -134,6 +149,9 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
     {image && <img src={image.url} alt="" className={loadedAspect >= 3 ? "panoramic-cover-image" : undefined} style={{
       visibility: loadedAspect ? "visible" : "hidden",
       filter: image.fullCover ? undefined : `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
-    }} onLoad={({ currentTarget }) => setLoadedAspect(currentTarget.naturalHeight ? currentTarget.naturalWidth / currentTarget.naturalHeight : 1)} onError={() => setLoadedAspect(0)}/>}
+    }} onLoad={({ currentTarget }) => {
+      setLoadedAspect(currentTarget.naturalHeight ? currentTarget.naturalWidth / currentTarget.naturalHeight : 1);
+      if (image.fullCover) sampleHeroColors(currentTarget);
+    }} onError={() => setLoadedAspect(0)}/>}
   </span>;
 }

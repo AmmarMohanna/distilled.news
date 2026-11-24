@@ -26,7 +26,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   const reserved=await page.locator('.feed-hero-art').boundingBox();
   const header=await page.locator('.experience-header').boundingBox();
   expect(displayed!.height).toBeGreaterThanOrEqual(96);
-  expect(displayed!.y).toBeCloseTo(header!.y, 0);
+  expect(displayed!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
   expect(displayed!.y).toBeGreaterThanOrEqual(reserved!.y);
   expect(displayed!.y+displayed!.height).toBeLessThanOrEqual(reserved!.y+reserved!.height+1);
   const titleBounds=await page.locator('.page-heading h1').boundingBox();

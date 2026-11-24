@@ -34,14 +34,16 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
 }
 
 
+const EDITORIAL_ENGRAVING_STYLE = [
+  "Create an Ultra-Detailed Duotone Pencil Engraving for a premium news publication. Render master-level graphite textures, precise line weights, fine cross-hatching, controlled tonal shading, and convincing depth and perspective. Draw architecture, objects, and environments with the craftsmanship of a scientific illustration or architectural engraving.",
+  "Build a wide editorial composition with one dominant subject and detailed foreground and background. Keep the recognizable subject inside the middle quarter so a centered square crop remains meaningful. Use the entire canvas for one continuous edge-to-edge scene.",
+  "Use Electric Blue #2448D8 and Deep Indigo #303B9F strokes on the left, Violet #7852B5 through the transition, Magenta #DB4BA6 and Soft Pink #F4A6D7 on the right, and Off-White #FAF9FF in highlights and negative space. Build these colors from pencil strokes and tonal variations. Keep linework crisp and avoid flat tint overlays, blur, oversaturation, and muddy shading.",
+  "Output artwork only. Never draw words, letters, pseudo-writing, numbers, labels, logos, watermarks, buttons, or UI, including in the sky and on buildings or signage. No inset artwork, picture frames, panels, borders, stock photography, 3D renders, cartoons, anime, fantasy, flat vector art, or dreamy digital painting."
+].join("\n");
+
 export function sketchPrompt(briefing: Pick<BriefingConfig, "title" | "interestProfile">): string {
-  return [
-    "Create a premium cinematic editorial illustration in a 4:1 panoramic landscape format. Make it feel like a sophisticated hand-painted digital illustration with subtle pencil-like outlines, soft painterly shading, fine textures, and polished storybook lighting.",
-    `Feed title: ${JSON.stringify(briefing.title)}. Feed description: ${JSON.stringify(briefing.interestProfile)}. Draw the primary topic described by both, using immediately recognizable objects, environments, or architecture specific to it. Use an original composition suited to the subject.`,
-    "Build realistic depth through layered foreground details near the lower corners, a clear central or slightly right-of-center focal point, and softly lit atmospheric distance. In the middle quarter of the panorama, put the recognizable subject and context below the horizon so that a centered square crop communicates the topic by itself. Leave the upper-middle area visually calm.",
-    "Paint one continuous edge-to-edge scene with gentle left-to-right transitions: indigo #5764B5 and periwinkle #7779CB shadows on the left, lavender #9984D5 and soft orchid #C58BD3 through the middle, and pastel pink #F0A4C1 and warm peach #FFC3A4 where light reaches the scene on the right. Integrate the palette into the sky, shadows, light, and surfaces so local colors remain visible.",
-    "Use soft contrast. Avoid obvious graphite sketching, harsh crosshatching, neon, oversaturation, and flat monochromatic overlays. Output artwork only. The supplied title and description are topic context only. Never draw words, letters, pseudo-writing, numbers, typography, logos, or watermarks anywhere, including in the sky, on signage, or on buildings. No inset artwork, picture frames, panels, borders, UI elements, cartoons, anime, or photorealism."
-  ].join("\n");
+  const topic = `Feed title: ${JSON.stringify(briefing.title)}. Feed description: ${JSON.stringify(briefing.interestProfile)}. Use both as subject context only. Choose recognizable subjects, landmarks, objects, and settings specific to the primary topic, and compose the scene around them. Vary the viewpoint and environment by subject and avoid generic decoration.`;
+  return `${EDITORIAL_ENGRAVING_STYLE}\n${topic}`;
 }
 
 export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'id' | 'title' | 'interestProfile'>, stillCurrent?: () => Promise<boolean>): Promise<boolean> {
