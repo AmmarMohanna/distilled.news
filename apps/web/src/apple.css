@@ -2641,7 +2641,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .sidebar-top { inset-inline: var(--sidebar-inset); }
   :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .sidebar-brand .distilled-logo-wordmark { font-size: clamp(22px, 1.55vw, 26px); }
   :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .navigation-item { min-height: clamp(50px, 5.8vh, 60px); padding-inline: clamp(12px, 1vw, 18px); column-gap: clamp(14px, 1.2vw, 22px); }
-  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .navigation-item > span { font-size: .9375rem; font-weight: 400; text-align: start; }
+  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .navigation-item > span { font-size: .9375rem; text-align: start; }
 }
 
 /* A centered feed identity and one compact, responsive reader toolbar. */
@@ -3886,6 +3886,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   }
   :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-check-status { align-self: flex-start; }
 }
+:root.apple-ui.apple-ui .collapsible-navigation .navigation-item > span { font-weight: 650; }
+:root.apple-ui.apple-ui .experience :is(.welcome-copy, .experience-title) > h1 { font-weight: 750; }
 :root.apple-ui.apple-ui .feed-shell > .bottom-navigation { display: none; }
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .shell.feed-shell.feed-shell.feed-shell:has(> .page-heading .feed-hero-art) { --reader-header-height: 64px; }
