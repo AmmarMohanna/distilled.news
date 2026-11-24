@@ -3390,17 +3390,15 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   align-content: start;
   justify-items: center;
   gap: 8px;
-  padding: 12px 8px;
+  padding: 6px 4px 8px;
   min-width: 0;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface-quiet);
   color: var(--text);
   text-decoration: none;
   text-align: center;
   overflow-wrap: anywhere;
 }
-:root.apple-ui.apple-ui .channel-card:hover { background: var(--surface); border-color: var(--accent); }
+:root.apple-ui.apple-ui .channel-card > strong { font-weight: 600; }
+:root.apple-ui.apple-ui .channel-card:hover > strong { text-decoration: underline; text-underline-offset: 3px; }
 :root.apple-ui.apple-ui .channel-avatar {
   position: relative;
   display: grid;
@@ -3414,6 +3412,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   font-weight: 700;
 }
 :root.apple-ui.apple-ui .channel-hero .channel-avatar { width: min(100%, 104px); font-size: 2rem; }
+:root.apple-ui.apple-ui .channel-card .channel-avatar {
+  width: min(100%, clamp(88px, 11vw, 124px));
+  background: linear-gradient(155deg, #586eaa, #4c4c86);
+  color: white;
+  font-size: clamp(1.7rem, 3vw, 2.65rem);
+  box-shadow: var(--shadow-soft);
+}
 :root.apple-ui.apple-ui .channel-counts { display: grid; gap: 2px; font-size: .8125rem; color: var(--muted); }
 :root.apple-ui.apple-ui .channel-hero .channel-counts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; color: #ded9fa; font-size: .9375rem; }
 :root.apple-ui.apple-ui .channel-recent { margin-block: 24px; }

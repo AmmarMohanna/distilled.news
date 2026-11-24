@@ -103,7 +103,10 @@ test('opens a top channel with its public feeds, recent updates and report menu'
   });
   await page.goto('/explore');
   await expect(page.getByRole('heading', { name: 'Top channels' })).toBeVisible();
-  await page.getByRole('link', { name: /@joud.*2 public feeds.*7 followers/ }).click();
+  const channelCard = page.getByRole('link', { name: /@joud.*2 public feeds.*7 followers/ });
+  await expect(channelCard).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
+  await expect(channelCard.locator('.channel-avatar')).toHaveCSS('border-radius','50%');
+  await channelCard.click();
   await expect(page.getByRole('heading', { name: '@joud' })).toBeVisible();
   const banner = (await page.locator('.channel-banner').boundingBox())!;
   const avatar = (await page.locator('.channel-hero .channel-avatar').boundingBox())!;
