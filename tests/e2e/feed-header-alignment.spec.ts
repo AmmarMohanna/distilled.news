@@ -43,6 +43,13 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
       const title=(await heading.getByRole('heading', { level: 1 }).boundingBox())!;
       const group=(await actions.boundingBox())!;
       const toolbar=(await page.locator('.feed-tools').boundingBox())!;
+      if (width >= 900 && !enlarged) {
+        const byline=(await heading.locator(':scope > p').boundingBox())!;
+        const rtl=await heading.evaluate(node=>getComputedStyle(node).direction==='rtl');
+        const start=(box:typeof title)=>box.x+(rtl?box.width:0);
+        expect(start(group)).toBeCloseTo(start(title), 0);
+        expect(start(group)).toBeCloseTo(start(byline), 0);
+      }
       const boxes=await actions.locator(':scope > button, :scope > details > summary').evaluateAll(buttons=>buttons.map(button=>{
         const {left,right,top,bottom,width,height}=button.getBoundingClientRect();
         return {left,right,top,bottom,width,height};
