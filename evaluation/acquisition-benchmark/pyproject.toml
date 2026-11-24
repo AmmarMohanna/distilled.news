@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest==8.4.1",
+  "pytest==9.0.3",
 ]
 sources = ["feedparser==6.0.12", "Telethon==1.45.0"]
 extract = ["trafilatura==2.0.0"]
