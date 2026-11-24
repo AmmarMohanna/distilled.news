@@ -3684,7 +3684,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   --reader-gutter: clamp(28px, 4vw, 64px);
   --reader-header-height: 76px;
   --reader-art-direction: to right;
-  --reader-banner: linear-gradient(var(--reader-art-direction), #263c99, #384db7 43%, #793eaa 70%, #a5287c);
+  --reader-banner: color-mix(in srgb, var(--surface) 89%, #7278b0);
+  --reader-chrome: color-mix(in srgb, var(--surface) 78%, transparent);
   padding-inline: var(--reader-gutter);
 }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell.feed-shell:has(> .page-heading .feed-hero-art) > .experience-header.experience-header {
@@ -3699,15 +3700,15 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   padding-inline: var(--reader-gutter);
   background: transparent;
   box-shadow: none;
-  color: white;
+  color: var(--text);
 }
 :root.apple-ui.apple-ui .feed-shell .page-heading[aria-busy="true"] > :not(.feed-hero-art) { visibility: hidden; }
 :root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) :is(.feed-nav-back,.language-cycle,.theme-toggle,.appearance-menu > summary,.button-link) {
-  color: white;
+  color: var(--text);
 }
 :root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) .feed-nav-back:hover {
   background: transparent;
-  color: white;
+  color: var(--text);
   box-shadow: none;
 }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) {
@@ -3726,8 +3727,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   min-block-size: clamp(250px, 28vw, 380px);
   border-radius: 0;
   gap: 5px;
-  background: transparent;
-  color: #fff9fc;
+  background: var(--reader-banner);
+  color: var(--text);
   text-align: start;
 }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-art {
@@ -3741,22 +3742,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   overflow: hidden;
   border-radius: 0;
   background: var(--reader-banner);
-  background: linear-gradient(
-    var(--reader-art-direction),
-    color-mix(in srgb, var(--cover-start, #4053a8) 18%, #263c99),
-    #384db7 43%, #793eaa 70%,
-    color-mix(in srgb, var(--cover-end, #d476ad) 10%, #a5287c)
-  );
   mask-image: none;
   opacity: 1;
-}
-:root.apple-ui.apple-ui .shell.feed-shell .page-heading > .feed-hero-art::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: calc(var(--reader-header-height) + 24px);
-  background: linear-gradient(rgb(25 20 46 / 62%) 48%, transparent);
-  pointer-events: none;
 }
 :root.apple-ui.apple-ui .feed-shell .feed-hero-art .topic-art {
   position: absolute;
@@ -3790,7 +3777,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .feed-shell .feed-hero-art .topic-art img { object-fit: contain; object-position: center; }
 :root.apple-ui.apple-ui .feed-shell .feed-hero-art .full-cover-art img { object-fit: cover; object-position: center; }
-:root.apple-ui.apple-ui .feed-shell .page-heading :is(h1, .feed-owner-channel, .feed-header-actions > button) { color: #fff9fc; }
+:root.apple-ui.apple-ui .feed-shell .page-heading :is(h1, .feed-owner-channel, .feed-header-actions > button) { color: var(--text); }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) h1 {
   font-family: var(--app-font);
   font-size: clamp(1.25rem, 1.05rem + .52vw, 1.5rem);
@@ -3802,9 +3789,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > :is(.page-title-row,p) {
   align-self: auto;
   text-align: inherit;
-  text-shadow: 0 2px 12px rgb(28 19 53 / 60%);
+  text-shadow: none;
 }
-:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > p { color: #f4eafa; font: 400 clamp(.9375rem, .8rem + .35vw, 1.125rem)/1.3 var(--app-font); }
+:root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > p { color: var(--muted); font: 400 clamp(.9375rem, .8rem + .35vw, 1.125rem)/1.3 var(--app-font); }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > .feed-hero-controls {
   position: relative;
   z-index: 4;
@@ -3824,7 +3811,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   margin: 3px 0 0;
   border: 0;
   background: transparent;
-  color: #fbf1ff;
+  color: var(--muted);
   font-size: .8125rem;
   line-height: 1.4;
   text-align: start;
@@ -3862,8 +3849,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   margin: 0;
   padding: 0 2px;
   border-radius: 999px;
-  background: rgb(255 239 250 / 73%);
-  color: #38172c;
+  background: var(--reader-chrome);
+  color: var(--text);
 }
 :root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu > button,
 :root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu .feed-more > summary {
@@ -3882,7 +3869,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu > button:disabled { opacity: .6; }
 :root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu > button:hover:not(:disabled),
-:root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu .feed-more > summary:hover { background: rgb(50 39 66 / 9%); }
+:root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu .feed-more > summary:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
 @media (min-width: 701px) {
   :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > :is(.page-title-row, p, .feed-hero-controls) {
     align-self: stretch;
@@ -3906,12 +3893,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
     border-inline: 0 solid var(--line);
     border-inline-end-width: 1px;
     direction: inherit;
-    background: linear-gradient(
-      155deg,
-      color-mix(in srgb, var(--surface) 80%, #4860d1),
-      color-mix(in srgb, var(--surface) 86%, #c54d9a) 34%,
-      var(--surface) 66%
-    );
+    background: color-mix(in srgb, var(--surface) 96%, #7278b0);
   }
 }
 @media (max-width: 899px) {

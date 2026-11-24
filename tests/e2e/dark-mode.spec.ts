@@ -67,3 +67,21 @@ test('dark reader text, metadata, citations and actions meet contrast thresholds
   expect(await contrast(page.locator('.news-headline'))).toBeGreaterThanOrEqual(4.5);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+
+test('feed banner uses solid theme colors and keeps its text readable after switching',async({page})=>{
+  await mock(page);
+  await page.setViewportSize({width:1280,height:900});
+  await page.addInitScript(()=>localStorage.setItem('dn_theme','light'));
+  await page.goto('/owner/news/');
+  const title=page.locator('.page-heading h1');
+  const backdrop=page.locator('.feed-hero-art');
+  await expect(title).toBeVisible();
+  await expect(backdrop).toHaveCSS('background-image','none');
+  const light=await backdrop.evaluate(node=>getComputedStyle(node).backgroundColor);
+  expect(await contrast(title)).toBeGreaterThanOrEqual(4.5);
+  await page.locator('.experience-header .theme-toggle').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect(backdrop).not.toHaveCSS('background-color',light);
+  await expect(backdrop).toHaveCSS('background-image','none');
+  expect(await contrast(title)).toBeGreaterThanOrEqual(4.5);
+});
