@@ -3,7 +3,8 @@ import {DurableProviderHttp,R2SourcePayloadStore,sourceSqlFromD1,reconcileComple
 import {createIntakeDatabase} from './v1-intake/test-utils';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,http:DurableProviderHttp,store:R2SourcePayloadStore;
-let dispatch:ReturnType<typeof vi.fn>;
+type ProviderDispatch=ConstructorParameters<typeof DurableProviderHttp>[2];
+let dispatch:ReturnType<typeof vi.fn<ProviderDispatch>>;
 const scope:SourceScope={feedId:'feed-1',feedSourceId:'approved-1',sourceId:'canonical-1'};
 const other:SourceScope={...scope,feedSourceId:'approved-2',sourceId:'canonical-2'};
 const url='https://api.twitterapi.io/twitter/user/last_tweets';
@@ -11,7 +12,7 @@ beforeEach(async()=>{
  ctx=await createIntakeDatabase({product:true});
  const objects=new Map<string,Uint8Array>();
  store=new R2SourcePayloadStore({put:async(key:string,bytes:Uint8Array)=>{objects.set(key,bytes)},get:async(key:string)=>{const bytes=objects.get(key);return bytes?{arrayBuffer:async()=>bytes.buffer}:null}} as never);
- dispatch=vi.fn(async()=>new Response('{"ok":true}',{headers:{'content-type':'application/json'}}));
+ dispatch=vi.fn<ProviderDispatch>(async()=>new Response('{"ok":true}',{headers:{'content-type':'application/json'}}));
  http=new DurableProviderHttp(sourceSqlFromD1(ctx.db),store,dispatch,4_000_000,20_000,15);
  await http.configureLimit('primary',100);await http.configureLimit('fallback',100);
 });
