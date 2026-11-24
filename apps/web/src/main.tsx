@@ -33,6 +33,7 @@ import {
   Check,
   Layers,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock3,
   Circle,
@@ -1875,7 +1876,7 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)}/>}
+      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language} isOwnFeed={Boolean(ownedFeed || (account && account.id === payload?.briefing.ownerAccountId))}/>}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} {payload.briefing.publicFeedEnabled && !payload.briefing.paused
@@ -2301,6 +2302,11 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
       </span>
     </p>
   );
+}
+
+function FeedBackLink({ isOwnFeed, language }: { isOwnFeed: boolean; language: "en" | "ar" | "fr" }) {
+  const label = language === "ar" ? "رجوع" : language === "fr" ? "Retour" : "Back";
+  return <a className="feed-nav-back" lang={language} href={isOwnFeed ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
 }
 
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {

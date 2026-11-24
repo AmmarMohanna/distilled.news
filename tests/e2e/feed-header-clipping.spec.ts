@@ -24,9 +24,8 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     await page.goto('/owner/news/');
     await expect(page.getByRole('heading', {name:'News', exact:true})).toBeVisible();
     await expect(page.locator('.experience-header')).not.toHaveAttribute('aria-busy', 'true');
-    await expect(page.locator('.feed-nav-back')).toHaveCount(0);
-    const nav=page.locator('.feed-shell > .bottom-navigation');
-    await expect(nav).toBeVisible();
+    await expect(page.locator('.feed-nav-back')).toBeVisible();
+    await expect(page.locator('.feed-shell > .bottom-navigation')).toBeHidden();
     const header=(await page.locator('.experience-header').boundingBox())!;
     const artwork = page.locator('.feed-hero-art .full-cover-art');
     await expect(artwork.locator('img')).toBeVisible();
@@ -48,24 +47,13 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     }
     const viewport = page.locator('.app-pages > .screen-page-viewport');
     await expect(viewport).toHaveCSS('scrollbar-gutter','auto');
-    const navBox=(await nav.boundingBox())!;
-    expect(banner.width).toBeCloseTo(await viewport.evaluate(node => node.clientWidth) - (width>=900 ? navBox.width : 0), 0);
-    if(width>=900){
-      expect(language==='ar' ? banner.x+banner.width : banner.x).toBeCloseTo(language==='ar' ? navBox.x : navBox.x+navBox.width, 0);
-    }else expect(banner.x).toBeCloseTo(0, 0);
+    expect(banner.width).toBeCloseTo(await viewport.evaluate(node => node.clientWidth), 0);
+    expect(banner.x).toBeCloseTo(0, 0);
     expect(banner.y).toBeLessThanOrEqual(header.y + header.height + 1);
     expect(container.y).toBeCloseTo(header.y, 0);
     expect(container.y + container.height).toBeCloseTo(banner.y + banner.height, 0);
     expect(container.width).toBeCloseTo(banner.width, 0);
     expect(container.x).toBeCloseTo(banner.x, 0);
-    if (width >= 900 && !test.info().project.use.hasTouch) {
-      await nav.hover();
-      await expect(nav).not.toHaveClass(/is-collapsed/);
-      const expanded = (await page.locator('.feed-shell .page-heading').boundingBox())!;
-      expect(expanded.x).toBeCloseTo(banner.x, 0);
-      expect(expanded.width).toBeCloseTo(banner.width, 0);
-      await page.mouse.move(width / 2, 20);
-    }
     await page.locator('.feed-banner-menu summary').click();
     await expect(page.locator('.feed-banner-menu .feed-options-popover button')).toHaveCount(3);
     await expect(page.locator('.feed-banner-menu .feed-options-popover button').nth(1)).toBeVisible();

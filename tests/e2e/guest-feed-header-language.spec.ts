@@ -14,7 +14,7 @@ for(const width of [320,390,600]) {
     });
     await page.goto('/');
     await page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile-artwork').first().click();
-    await expect(page.locator('.feed-shell > .bottom-navigation')).toBeVisible();
+    await expect(page.locator('.feed-nav-back')).toBeVisible();
     await expect(page.locator('.experience-header')).toHaveClass(/is-guest/);
     const appearance=page.locator('.experience-header .appearance-menu > summary');
     const panel=page.locator('.experience-header .appearance-menu-panel');
@@ -22,7 +22,7 @@ for(const width of [320,390,600]) {
     await expect(page.locator('.experience-header .language-cycle')).toBeHidden();
     await expect(page.locator('.experience-header .theme-toggle')).toBeHidden();
     await page.evaluate(()=>document.fonts.ready);
-    const selectors=['.experience-header','.feed-shell > .bottom-navigation','.experience-header-actions',
+    const selectors=['.experience-header','.feed-nav-back','.experience-header-actions',
       '.experience-header .appearance-menu > summary',
       '.experience-header a[href="/login"]'];
     const bounds=()=>Promise.all(selectors.map(selector=>page.locator(selector).boundingBox()));

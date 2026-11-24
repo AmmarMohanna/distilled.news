@@ -167,7 +167,7 @@ test('owner opens feed settings from feed page',async({page})=>{
 });
 test('a signed-in feed keeps feed actions and an accessible account profile',async({page})=>{
  await mock(page); await page.goto('/joud/lebanon/');
- await expect(page.locator('.feed-shell > .bottom-navigation')).toBeVisible();
+ await expect(page.locator('.feed-nav-back')).toBeVisible();
  await expect(page.locator('.experience-header .avatar-button')).toHaveText('J');
  await expectSignedInAppearanceControls(page);
  await page.goto('/');

@@ -76,7 +76,7 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         localStorage.setItem('dn_language',language);
         window.dispatchEvent(new Event('dn-language'));
       },language);
-      await expect(page.locator('.feed-shell > .bottom-navigation')).toBeVisible();
+      await expect(page.locator('.feed-nav-back')).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('lang',language);
       await check();
     }
