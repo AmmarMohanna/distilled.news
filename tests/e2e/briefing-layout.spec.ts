@@ -105,3 +105,38 @@ test("published headlines open retained briefing evidence and preserve read-only
   await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
 });
+
+test("a late publisher photo leaves briefing rows in place", async ({ page }) => {
+  const edition = (id: string) => ({
+    id, title: id, summary: "Published briefing text.", publishedAt: "2026-10-11T08:00:00Z", sections: [],
+  });
+  let releasePhoto!: () => void;
+  const photoGate = new Promise<void>(resolve => { releasePhoto = resolve; });
+  await page.route("https://example.test/briefing-photo.svg", route => route.fulfill({
+    contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="blue"/></svg>',
+  }));
+  await page.route("**/api/**", async route => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.has("photo")) {
+      await photoGate;
+      return route.fulfill({ json: { photo: { url: "https://example.test/briefing-photo.svg", source: "Example" } } });
+    }
+    if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
+    return route.fulfill({ json: url.pathname === "/api/auth/session"
+      ? { authenticated: false }
+      : { briefing, editions: [edition("First"), edition("Second")], viewerHasStarred: false } });
+  });
+  await page.goto("/admin/personal-briefing/");
+  const second = page.getByRole("link", { name: "Second", exact: true });
+  try {
+    await expect(second).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const before = await second.boundingBox();
+    releasePhoto();
+    await expect(page.locator(".briefing-row-photo img").first()).toBeVisible();
+    expect(await second.boundingBox()).toEqual(before);
+  } finally {
+    releasePhoto();
+  }
+});

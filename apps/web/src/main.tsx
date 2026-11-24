@@ -2095,9 +2095,9 @@ function FeedEditionRow(props: {
         {props.isRead ? null : <span className="news-unread" aria-hidden />}
         <time dateTime={editionDisplayTime(edition)}>{formatClock(editionDisplayTime(edition), language)}</time>
       </div>
-      {image && <a className="briefing-row-photo" href={props.destination} aria-label={`${stamp}: ${headline}`}>
+      {(image || props.photoFeed) && <div className="briefing-row-photo-slot">{image && <a className="briefing-row-photo" href={props.destination} aria-label={`${stamp}: ${headline}`}>
         <PublisherPhoto photo={image}/>
-      </a>}
+      </a>}</div>}
       <BriefingText
         hideBody
         summary={edition.summary}
@@ -2218,7 +2218,7 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
       </div>
     </header>
     <section className="briefing-detail-body" aria-label={t("Briefing")} lang={briefing.language} dir={direction}>
-      {photo && <figure className="briefing-detail-photo"><PublisherPhoto photo={photo}/><figcaption><bdi>{photo.source}</bdi></figcaption></figure>}
+      {(photo || briefing.publicFeedEnabled) && <figure className="briefing-detail-photo">{photo && <><PublisherPhoto photo={photo}/><figcaption><bdi>{photo.source}</bdi></figcaption></>}</figure>}
       {hasSeparateSummary && <div className="briefing-detail-summary">{renderBody(summary)}</div>}
       {hasSeparateSummary ? edition.sections.map((section, index) => <div className="news-story" key={index}>
         {section.title && <h2 dir="auto">{section.title}</h2>}
@@ -2410,7 +2410,7 @@ function Shell(props: {
           </div>
         </div>
       </header>}
-      <div className="page-heading" aria-busy={props.headingLoading || undefined} style={props.headingLoading ? {visibility: 'hidden'} : undefined}>
+      <div className="page-heading" aria-busy={props.headingLoading || undefined}>
         {props.feed && <div className="feed-hero-art"><FeedArt feed={props.feed} centered/></div>}
         <div className="page-title-row"><h1>{props.title}</h1>{props.headingAction}</div>
         <p>{props.meta ?? (props.feed ? null : getPageMeta(titleText))}</p>

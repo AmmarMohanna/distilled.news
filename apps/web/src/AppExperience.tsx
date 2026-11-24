@@ -244,10 +244,14 @@ export function AppExperience(props: {
     <section className={`explore-view${props.account || tabFromLocation() === "explore" ? " hide-shelf-controls" : ""}`} aria-busy={loading} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {channelName ? <div className="channel-heading">
         <a className="channel-back" href="/explore">{t("Back to Explore")}</a>
-        {channel ? <ChannelHeader channel={channel} onError={setError} onReport={props.onHelp}/> : <p role="status">{t(
+        {channel ? <ChannelHeader channel={channel} onError={setError} onReport={props.onHelp}/> : channelFailed ? <p role="status">{t(
           channelMissing && channelName === props.account?.username ? "Your public profile appears when you have an active public feed." :
-            channelFailed ? "Channel not available" : "Loading channel…"
-        )}</p>}
+            "Channel not available"
+        )}</p> : <div className="channel-hero" aria-busy="true">
+          <div className="channel-banner" aria-hidden="true"/>
+          <span className="channel-avatar" aria-hidden="true"/>
+          <p className="channel-loading-status" role="status">{t("Loading channel…")}</p>
+        </div>}
       </div> : props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
@@ -550,7 +554,7 @@ function SidebarNavigation({ active, onNavigate }: { active?: string; onNavigate
     try { localStorage.setItem("dn-sidebar-collapsed", String(!current)); } catch {}
     return !current;
   });
-  return <nav className={`bottom-navigation collapsible-navigation${collapsed ? " is-collapsed" : ""}`} aria-label={t("Main navigation")} onPointerEnter={event => { if (event.pointerType === "mouse" && window.matchMedia("(min-width: 900px)").matches) setHovered(true); }} onPointerLeave={() => setHovered(false)}>
+  return <nav className={`bottom-navigation collapsible-navigation${unpinned ? " is-unpinned" : ""}${collapsed ? " is-collapsed" : ""}`} aria-label={t("Main navigation")} onPointerEnter={event => { if (event.pointerType === "mouse" && window.matchMedia("(min-width: 900px)").matches) setHovered(true); }} onPointerLeave={() => setHovered(false)}>
     <div className="sidebar-top">
       <div className="sidebar-brand" aria-label="Distilled.news"><BrandMark/></div>
       <button type="button" className="sidebar-toggle" aria-label={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} title={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} aria-expanded={!collapsed} aria-pressed={!unpinned} onClick={toggle}><PanelLeft size={22}/></button>

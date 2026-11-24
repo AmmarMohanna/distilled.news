@@ -58,6 +58,14 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     expect(container.y + container.height).toBeCloseTo(banner.y + banner.height, 0);
     expect(container.width).toBeCloseTo(banner.width, 0);
     expect(container.x).toBeCloseTo(banner.x, 0);
+    if (width >= 900 && !test.info().project.use.hasTouch) {
+      await nav.hover();
+      await expect(nav).not.toHaveClass(/is-collapsed/);
+      const expanded = (await page.locator('.feed-shell .page-heading').boundingBox())!;
+      expect(expanded.x).toBeCloseTo(banner.x, 0);
+      expect(expanded.width).toBeCloseTo(banner.width, 0);
+      await page.mouse.move(width / 2, 20);
+    }
     await page.locator('.feed-banner-menu summary').click();
     await expect(page.locator('.feed-banner-menu .feed-options-popover button')).toHaveCount(3);
     await expect(page.locator('.feed-banner-menu .feed-options-popover button').nth(1)).toBeVisible();
