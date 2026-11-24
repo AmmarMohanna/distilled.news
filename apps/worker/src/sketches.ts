@@ -1,4 +1,4 @@
-﻿import type { BriefingConfig } from "@distilled/core";
+import type { BriefingConfig } from "@distilled/core";
 import type { Env } from "./types";
 
 const SKETCH_MODEL = "@cf/black-forest-labs/flux-2-klein-4b";
@@ -34,16 +34,16 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
 }
 
 
-const EDITORIAL_ENGRAVING_STYLE = [
-  "Create an Ultra-Detailed Colored-Pencil Engraving for a premium news publication. Render master-level graphite textures, precise line weights, fine cross-hatching, controlled tonal shading, and convincing depth and perspective. Draw architecture, objects, and environments with the craftsmanship of a scientific illustration or architectural engraving.",
-  "Build a wide editorial composition with one dominant subject and detailed foreground and background. Keep the recognizable subject inside the middle quarter so a centered square crop remains meaningful. Use the entire canvas for one continuous edge-to-edge scene.",
-  "Use the Distilled.news Create feed button color #5E5CE6 as the dominant colored-pencil ink. Match that exact blue-violet hue in the medium tones. Use deeper values of the same ink for shadows and lighter values over Off-White #FAF9FF paper for highlights. Build depth and tonal variation with crisp hatching and layered pencil pressure. Keep the artwork anchored to #5E5CE6 across the canvas and avoid separate pink, magenta, violet or mauve color washes.",
+const QUIET_PENCIL_STYLE = [
+  "Create a quiet editorial colored-pencil study for Distilled.news. Draw one recognizable subject with precise, fine pencil lines and light cross-hatching. Add only a faint environmental cue. Leave most of the composition as untouched off-white paper, with subtle paper grain and restrained shadows.",
+  "Draw one continuous edge-to-edge scene in a wide panorama with the recognizable subject and its important details in the central quarter of the width, and within the central two-thirds of the height, so a centered square crop retains the subject. Let the landscape or background fade naturally into open paper at the edges. Avoid dense scenery and keep the surrounding paper open.",
+  "Use the Distilled.news Create feed button color #5E5CE6 as the dominant colored-pencil ink. Match that exact blue-violet hue in the medium tones. Use deeper values of the same ink for a few sparing shadows and lighter values over Off-White #FAF9FF paper for highlights. Build depth and tonal variation with crisp hatching and layered pencil pressure. Keep the artwork anchored to #5E5CE6 across the canvas and avoid separate pink, magenta, violet or mauve color washes.",
   "Output artwork only. Never draw words, letters, pseudo-writing, numbers, labels, logos, watermarks, buttons, or UI, including in the sky and on buildings or signage. No inset artwork, picture frames, panels, borders, stock photography, 3D renders, cartoons, anime, fantasy, flat vector art, or dreamy digital painting."
 ].join("\n");
 
 export function sketchPrompt(briefing: Pick<BriefingConfig, "title" | "interestProfile">): string {
   const topic = `Feed title: ${JSON.stringify(briefing.title)}. Feed description: ${JSON.stringify(briefing.interestProfile)}. Use both as subject context only. Choose recognizable subjects, landmarks, objects, and settings specific to the primary topic, and compose the scene around them. Vary the viewpoint and environment by subject and avoid generic decoration.`;
-  return `${EDITORIAL_ENGRAVING_STYLE}\n${topic}`;
+  return `${QUIET_PENCIL_STYLE}\n${topic}`;
 }
 
 export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'id' | 'title' | 'interestProfile'>, stillCurrent?: () => Promise<boolean>): Promise<boolean> {

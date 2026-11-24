@@ -51,8 +51,8 @@ it("uses the title and full interest text with the shared illustration palette",
   expect(prompt).not.toBe(sketchPrompt(renamed));
   expect(prompt).toContain(JSON.stringify(first.title));
   expect(prompt).toContain(JSON.stringify(interestProfile));
-  expect(prompt).toContain("Ultra-Detailed Colored-Pencil Engraving");
-  expect(prompt).toContain("fine cross-hatching");
+  expect(prompt).toContain("quiet editorial colored-pencil study");
+  expect(prompt).toContain("light cross-hatching");
   expect(prompt).toContain("one continuous edge-to-edge scene");
   expect(prompt).toContain("No inset artwork, picture frames, panels");
   expect(prompt).toContain("centered square crop");
