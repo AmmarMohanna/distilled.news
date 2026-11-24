@@ -28,6 +28,7 @@ for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable
   const explore = page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile');
   await expect(explore).toHaveCount(1);
 
+  await explore.scrollIntoViewIfNeeded();
   await expect.poll(() => contained(explore)).toBe(true);
   // Each view has its own available height; both cards must remain readable and fully on screen.
   await expect(explore.locator('.feed-tile-caption')).toBeVisible();
