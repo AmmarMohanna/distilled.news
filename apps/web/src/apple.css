@@ -3749,12 +3749,12 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   color: var(--text);
 }
 :root.apple-ui.apple-ui .feed-shell .page-heading[aria-busy="true"] > :not(.feed-hero-art) { visibility: hidden; }
-:root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) :is(.feed-nav-back,.language-cycle,.theme-toggle,.appearance-menu > summary,.button-link) {
+:root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) :is(.language-cycle,.theme-toggle,.appearance-menu > summary,.button-link) {
   color: var(--text);
 }
+:root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) .feed-nav-back { color: var(--accent-ink); }
 :root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) .feed-nav-back:hover {
   background: transparent;
-  color: var(--text);
   box-shadow: none;
 }
 @media (min-width: 701px) {
