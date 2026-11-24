@@ -36,25 +36,26 @@ it("sends the interest to Klein 4B as multipart form data and saves the returned
   expect(fields.get("height")).toBe("768");
   expect(fields.get("seed")).toBe("42");
   expect(fields.get("prompt")).toContain('"Parliament news"');
-  expect(fields.get("prompt")).not.toContain("World politics");
+  expect(fields.get("prompt")).toContain("World politics");
   expect(put).toHaveBeenCalledWith("feed-sketches/feed-1.jpg", new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), expect.objectContaining({
     httpMetadata: { contentType: "image/jpeg" },
     customMetadata: { artworkStyle: "pencil-cover-v1" }
   }));
 });
 
-it("uses only the interest for subject selection and preserves the full allowed interest text", () => {
+it("uses the title and full interest text with the shared illustration palette", () => {
   const interestProfile = 'Follow "AI" research\n'.repeat(190) + " and the latest partnerships";
   const first = { title: "Unrelated title", interestProfile };
   const renamed = { title: "Another unrelated title", interestProfile };
   const prompt = sketchPrompt(first);
-  expect(prompt).toBe(sketchPrompt(renamed));
+  expect(prompt).not.toBe(sketchPrompt(renamed));
+  expect(prompt).toContain(JSON.stringify(first.title));
   expect(prompt).toContain(JSON.stringify(interestProfile));
-  expect(prompt).toContain("wide landscape editorial illustration in traditional colored pencil");
+  expect(prompt).toContain("soft digital painting and duotone color grading");
   expect(prompt).toContain("one continuous edge-to-edge scene");
   expect(prompt).toContain("No inset artwork, picture frames, panels");
   expect(prompt).toContain("centered square crop");
-  expect(prompt).toContain("actual colors of the subject and setting");
+  for (const color of ["#405EAD", "#6875C7", "#8A6DC2", "#AD69B5", "#D476AD"]) expect(prompt).toContain(color);
 });
 
 it("does not save an image returned after the queue job has lost its lease", async () => {
