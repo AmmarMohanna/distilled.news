@@ -144,6 +144,10 @@ export async function resetPassword(token: string, password: string): Promise<vo
   });
 }
 
+export async function deleteAccountAvatar(): Promise<void> {
+  await requestJson("/api/me/avatar", { method: "DELETE" });
+}
+
 export async function uploadAccountAvatar(file: File): Promise<void> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
     throw new Error("Choose a JPEG, PNG, or WebP image");

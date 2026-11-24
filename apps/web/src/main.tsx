@@ -105,6 +105,7 @@ import {
   setupAdmin,
   updateAccount,
   uploadAccountAvatar,
+  deleteAccountAvatar,
   updateAdminAccount,
   updateAdminBriefing,
   verifyEmail,
@@ -1244,6 +1245,7 @@ function AccountDialog(props: {
   const [busy, setBusy] = useState<"username" | "password" | "logout" | "avatar" | null>(null);
   const usernameFieldRef = useRef<HTMLInputElement | null>(null);
   const pictureFieldRef = useRef<HTMLInputElement | null>(null);
+  const [hasPicture, setHasPicture] = useState(false);
 
   useEffect(() => {
     setUsername(props.account.username);
@@ -1359,13 +1361,28 @@ function AccountDialog(props: {
           }
         }}/>
         <div className="profile-picture-frame">
-          <AccountAvatar account={props.account} className="profile-avatar"/>
+          <AccountAvatar account={props.account} className="profile-avatar" onPictureChange={setHasPicture}/>
           <button type="button" className="profile-picture-upload" aria-label={t(busy === "avatar" ? "Uploading picture…" : "Upload profile picture")} disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
             <Camera size={17} aria-hidden/>
           </button>
         </div>
         <h3>{t("Profile picture")}</h3>
         <small className="profile-photo-note">{t("New photos appear on your public channel.")}</small>
+        {hasPicture && <button type="button" className="profile-picture-remove" disabled={busy !== null} onClick={async () => {
+          setBusy("avatar");
+          setMessage("");
+          setError("");
+          try {
+            await deleteAccountAvatar();
+            setHasPicture(false);
+            window.dispatchEvent(new CustomEvent(ACCOUNT_AVATAR_UPDATED, { detail: props.account.id }));
+            setMessage("Profile picture removed");
+          } catch (cause) {
+            setError(toUiError(cause));
+          } finally {
+            setBusy(null);
+          }
+        }}>{t("Remove profile picture")}</button>}
         <a className="profile-preview-link" href={channelUrl(props.account.username)}>{t("Preview public profile")} <ExternalLink size={14} aria-hidden/></a>
       </div>
 

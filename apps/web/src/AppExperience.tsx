@@ -434,7 +434,7 @@ function ChannelHeader({ channel, onError, onReport }: { channel: ExploreChannel
 
 export const ACCOUNT_AVATAR_UPDATED = "account-avatar-updated";
 
-export function AccountAvatar({ account, className }: { account: AccountRecord; className?: string }) {
+export function AccountAvatar({ account, className, onPictureChange }: { account: AccountRecord; className?: string; onPictureChange?: (available: boolean) => void }) {
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const updated = (event: Event) => {
@@ -447,7 +447,11 @@ export function AccountAvatar({ account, className }: { account: AccountRecord; 
   return <span className={className} aria-hidden="true">
     {accountInitials(account.username)}
     <img key={src} className="account-avatar-image" src={src} alt="" style={{ visibility: "hidden" }}
-      onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
+      onLoad={event => {
+        event.currentTarget.style.visibility = "visible";
+        onPictureChange?.(true);
+      }}
+      onError={() => onPictureChange?.(false)}/>
   </span>;
 }
 

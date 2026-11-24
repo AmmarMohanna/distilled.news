@@ -90,7 +90,8 @@ describe("worker app accounts", () => {
     const objects = new Map<string, Uint8Array<ArrayBuffer>>();
     const runtime = { ...env(), RAW_ARCHIVE: {
       put: async (key: string, bytes: Uint8Array<ArrayBuffer>) => { objects.set(key, bytes); },
-      get: async (key: string) => objects.has(key) ? { body: new Response(objects.get(key)).body } : null
+      get: async (key: string) => objects.has(key) ? { body: new Response(objects.get(key)).body } : null,
+      delete: async (key: string) => { objects.delete(key); }
     } } as unknown as Env;
     const path = "/api/me/avatar";
     const headers = { cookie: owner.cookie, "content-type": "image/jpeg" };
@@ -105,6 +106,12 @@ describe("worker app accounts", () => {
     expect(objects.size).toBe(1);
     expect((await app.request(path, { headers: { cookie: other.cookie } }, runtime)).status).toBe(404);
     expect((await app.request(path, {}, runtime)).status).toBe(401);
+    expect((await app.request(path, { method: "DELETE" }, runtime)).status).toBe(401);
+    expect((await app.request(path, { method: "DELETE", headers: { ...headers, origin: "https://other.example" } }, runtime)).status).toBe(403);
+    expect((await app.request(path, { method: "DELETE", headers: { cookie: other.cookie } }, runtime)).status).toBe(200);
+    expect(objects.size).toBe(1);
+    expect((await app.request(path, { method: "DELETE", headers }, runtime)).status).toBe(200);
+    expect((await app.request(path, { headers }, runtime)).status).toBe(404);
   });
 
   it("ranks channels by unique followers and exposes only active public feeds and opted-in photos", async () => {

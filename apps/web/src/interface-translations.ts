@@ -150,6 +150,8 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Edit': ['Modifier', 'تعديل'],
   'Uploading picture…': ['Téléversement de la photo…', 'جارٍ تحميل الصورة…'],
   'Profile picture saved': ['Photo de profil enregistrée', 'تم حفظ صورة الملف الشخصي'],
+  'Remove profile picture': ['Supprimer la photo de profil', 'إزالة صورة الملف الشخصي'],
+  'Profile picture removed': ['Photo de profil supprimée', 'تمت إزالة صورة الملف الشخصي'],
   'Choose a JPEG, PNG, or WebP image': ['Choisissez une image JPEG, PNG ou WebP', 'اختر صورة بتنسيق JPEG أو PNG أو WebP'],
   'Choose an image under 20 MB': ['Choisissez une image de moins de 20 Mo', 'اختر صورة يقل حجمها عن 20 ميغابايت'],
   'Unable to read this image': ['Impossible de lire cette image', 'تعذّرت قراءة هذه الصورة'],

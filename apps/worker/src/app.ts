@@ -888,6 +888,15 @@ export function createApp(options: AppOptions = {}) {
     return c.json({ ok: true });
   });
 
+  app.delete("/api/me/avatar", async (c) => {
+    const origin = c.req.header("origin");
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: "Forbidden" }, 403);
+    const bucket = c.env.RAW_ARCHIVE;
+    if (!bucket) return c.json({ error: "Profile picture storage is unavailable" }, 503);
+    await bucket.delete(accountAvatarKey(c.get("account")!.id));
+    return c.json({ ok: true });
+  });
+
   app.get("/api/me/briefings", async (c) => {
     const repo = c.get("repo");
     const account = c.get("account")!;
