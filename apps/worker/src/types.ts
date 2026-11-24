@@ -413,7 +413,7 @@ export interface Repository {
   hasChannelFollow(channelId: string, followerId: string): Promise<boolean>;
   setChannelFollow(channelId: string, followerId: string, following: boolean): Promise<void>;
   listExploreHighlights(kind: "trending" | "new", since: string, limit: number, voterId?: string, excludeOwnerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string; latestEditionId?: string}>>;
-  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string, ownerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>>;
+  listExploreBriefings(limit: number, offset?: number, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; viewerFollowsChannel: boolean; latestUpdatedAt?: string}>>;
   getExploreRevision(): Promise<string>;
   setExploreFeatured(briefingId: string, featured: boolean): Promise<void>;
   getBriefingById(id: string): Promise<BriefingConfig | null>;

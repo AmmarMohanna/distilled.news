@@ -1385,7 +1385,7 @@ function AccountDialog(props: {
         </div>
         <h3>{t("Profile picture")}</h3>
         <small className="profile-photo-note">{t("New photos appear on your public channel.")}</small>
-        <a className="profile-preview-link" href={channelUrl(props.account.username)}>{t("Preview public profile")} <ExternalLink size={14} aria-hidden/></a>
+        <a className="profile-preview-link" href={`${channelUrl(props.account.username)}&preview=1`}>{t("Preview public profile")} <ExternalLink size={14} aria-hidden/></a>
       </div>
 
       <div className="account-actions">

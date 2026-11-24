@@ -74,7 +74,7 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   const chooser = page.waitForEvent('filechooser');
   await dialog.locator('input[type=file]').dispatchEvent('cancel', { bubbles: true });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('link', { name: 'Preview public profile' })).toHaveAttribute('href', '/explore?channel=joud');
+  await expect(dialog.getByRole('link', { name: 'Preview public profile' })).toHaveAttribute('href', '/explore?channel=joud&preview=1');
   await dialog.getByRole('button', { name: 'Upload profile picture' }).click();
   await (await chooser).setFiles({ name: 'picture.png', mimeType: 'image/png', buffer: Buffer.from(file, 'base64') });
   await expect(dialog.getByText('Profile picture saved')).toBeVisible();
@@ -102,7 +102,7 @@ test('opens a top channel with its public feeds, recent updates and report menu'
     return route.fulfill({ json: { feeds: filtered ? [{ ...feed, latestUpdatedAt: '2026-11-22T12:00:00Z' }] : [], nextOffset: null } });
   });
   await page.goto('/explore');
-  await expect(page.getByRole('heading', { name: 'Top channels' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Explore channels' })).toBeVisible();
   const channelCard = page.getByRole('link', { name: /@joud.*2 public feeds.*7 followers/ });
   await expect(channelCard).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
   await expect(channelCard.locator('.channel-avatar')).toHaveCSS('border-radius','50%');
@@ -112,7 +112,7 @@ test('opens a top channel with its public feeds, recent updates and report menu'
   const avatar = (await page.locator('.channel-hero .channel-avatar').boundingBox())!;
   expect(avatar.y).toBeLessThan(banner.y + banner.height);
   expect(avatar.y + avatar.height).toBeGreaterThan(banner.y + banner.height);
-  await expect(page.getByRole('heading', { name: 'Public feeds' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'All public feeds' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Recently updated' })).toBeVisible();
   await page.locator('.channel-options summary').click();
   await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
@@ -129,11 +129,10 @@ test('discovery shelves link to a dedicated briefing with its published body', a
     const photo = new URL(route.request().url()).searchParams.has('photo');
     return route.fulfill({json:photo ? {photo:null} : {briefing:feed,edition}});
   });
-  await page.goto('/explore');
+  await page.goto('/');
   await expect(page.getByRole('heading', {name:'All public feeds'})).toBeVisible();
   await expect(page.getByRole('heading', {name:'New feeds'})).toBeVisible();
   const shelf = page.getByRole('region', {name:'Trending briefings',exact:true}).last();
-  await expect(page.getByRole('button', {name:'Scroll forward',exact:true})).toHaveCount(0);
   await expect(shelf).toHaveCSS('overflow-x', 'auto');
   await shelf.getByRole('link', {name:'Lebanon',exact:true}).click();
   await expect(page).toHaveURL(/\/joud\/lebanon\/briefing\/evening\//);
@@ -147,10 +146,10 @@ test('discovery shelves link to a dedicated briefing with its published body', a
 test('guests can explore and star feeds',async({page})=>{
  await mock(page,false); await page.goto('/explore');
  await expect(page.getByRole('heading',{name:'Featured feeds',level:2})).toHaveCount(0);
- await page.locator('.feed-tile-grid').getByRole('button',{name:'Star Lebanon',exact:true}).click();
- await expect(page.locator('.feed-tile-grid').getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.locator('.featured-feeds .catalog-shelf-track').getByRole('button',{name:'Star Lebanon',exact:true}).click();
+ await expect(page.locator('.featured-feeds .catalog-shelf-track').getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
  await page.reload();
- await expect(page.locator('.feed-tile-grid').getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(page.locator('.featured-feeds .catalog-shelf-track').getByRole('button',{name:'Unstar Lebanon',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(1);
  await expect(page.locator('.experience-brand a')).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -236,14 +235,14 @@ test('normal users never see admin account management',async({page})=>{
 });
 
 test('guest search filters illustrated public feeds inline',async({page})=>{
- await mock(page,false); await page.goto('/');
- await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .topic-art')).toBeVisible();
+ await mock(page,false); await page.goto('/explore');
+ await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track .topic-art')).toBeVisible();
  await expect(page.getByRole('searchbox',{name:'Search feeds'})).toBeVisible();
- await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(1);
+ await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile')).toHaveCount(1);
  await page.getByRole('searchbox').fill('technology');
- await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(0);
+ await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile')).toHaveCount(0);
  await page.getByRole('searchbox').fill('Lebanon');
- await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(1);
+ await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile')).toHaveCount(1);
 });
 
 test('feed language and advanced settings persist independently of website language',async({page})=>{

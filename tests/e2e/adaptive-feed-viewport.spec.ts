@@ -72,7 +72,7 @@ test('four feed tiles expand into unused columns and resize with the window', as
 });
 
 for (const view of ['Home', 'Explore'] as const) {
-  const gridSelector = view === 'Home' ? '.feed-tile-grid[data-feed-view=home]' : '.feed-tile-grid[data-feed-view=explore]';
+  const gridSelector = view === 'Home' ? '.feed-tile-grid[data-feed-view=home]' : '.explore-view .featured-feeds .catalog-shelf-track';
   test(`${view} keeps square tiles usable on short and tall laptops, then a phone`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 593 });
     await openFeeds(page, 1);

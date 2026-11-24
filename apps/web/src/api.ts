@@ -393,7 +393,7 @@ export function getBriefingPhoto(username: string, slug: string, editionId: stri
 
 export interface ExplorePage {
   revision?: string;
-  feeds: Array<PublicBriefing & { viewerHasStarred: boolean; latestUpdatedAt?: string }>;
+  feeds: Array<PublicBriefing & { viewerHasStarred: boolean; viewerFollowsChannel?: boolean; latestUpdatedAt?: string }>;
   nextOffset: number | null;
 }
 /** One bounded page. The caller retains earlier pages if a subsequent read fails. */

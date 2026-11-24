@@ -60,7 +60,7 @@ export function AppExperience(props: {
   const [resumingFeed, setResumingFeed] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<UiMessage>("");
   const [archiveStatus, setArchiveStatus] = useState("");
-  const [feeds, setFeeds] = useState<Array<PublicBriefing & { viewerHasStarred?: boolean; latestUpdatedAt?: string }>>([]);
+  const [feeds, setFeeds] = useState<Array<PublicBriefing & { viewerHasStarred?: boolean; viewerFollowsChannel?: boolean; latestUpdatedAt?: string }>>([]);
   const currentFeeds=useRef(feeds);currentFeeds.current=feeds;
   const confirmedVotes=useRef(new Map<string,FeedStarResult>());
   const voteScope=JSON.stringify(props.account?['account',props.account.id??props.account.username]:['anonymous']);
@@ -198,6 +198,11 @@ export function AppExperience(props: {
   const visibleFeeds = feeds.filter(feed => !feed.paused && (channelName ? feed.publicFeedEnabled && feed.ownerUsername === channel?.username : !owns(feed)) && matching(`${feed.title} ${feed.ownerUsername}`));
   const waitingForCatalog = tab === "explore" && !channelName && !query.trim() && !exploreError && !catalogReady;
   const showCatalogShelves = !channelName && tab === "explore" && !query && catalogReady && (!loading || feeds.length > 0);
+  const isExplorePage = Boolean(props.account || tabFromLocation() === "explore");
+  const ownChannel = Boolean(channel && props.account?.username === channel.username);
+  const previewingChannel = ownChannel && new URLSearchParams(window.location.search).get("preview") === "1";
+  const followedFeeds = visibleFeeds.filter(feed => feed.viewerFollowsChannel || feed.viewerHasStarred);
+  const otherPublicFeeds = visibleFeeds.filter(feed => !feed.viewerFollowsChannel && !feed.viewerHasStarred);
   const renderExploreFeed = (feed: (typeof visibleFeeds)[number]) => <FeedTile
     key={feed.id}
     feed={feed}
@@ -266,7 +271,7 @@ export function AppExperience(props: {
     <section className={`explore-view${props.account || tabFromLocation() === "explore" ? " hide-shelf-controls" : ""}`} aria-busy={loading || waitingForCatalog} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {channelName ? <div className="channel-heading">
         <a className="feed-nav-back" href="/explore"><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
-        {channel ? <ChannelHeader channel={channel} canEdit={props.account?.username === channel.username} onError={setError} onReport={props.onHelp}/> : channelFailed ? <p role="status">{t(
+        {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError} onReport={props.onHelp}/> : channelFailed ? <p role="status">{t(
           channelMissing && channelName === props.account?.username ? "Your public profile appears when you have an active public feed." :
             "Channel not available"
         )}</p> : <div className="channel-hero" aria-busy="true">
@@ -280,12 +285,12 @@ export function AppExperience(props: {
       </div>}
       <div className={props.account ? "explore-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
-        {!channelName || (channel && props.account?.username === channel.username)
+        {!channelName || (ownChannel && !previewingChannel)
           ? <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
-          : channel && <ChannelFollowButton key={channel.username} channel={channel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
+          : channel && <ChannelFollowButton key={channel.username} channel={channel} preview={previewingChannel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
             onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>}
       </div>
-      {showCatalogShelves && <>
+      {showCatalogShelves && !isExplorePage && <>
         {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")}>
           {visibleFeeds.slice(0, 8).map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
@@ -304,14 +309,19 @@ export function AppExperience(props: {
       </CatalogShelf>}
       {(!waitingForCatalog || props.account) && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")} style={waitingForCatalog ? { display: "none" } : undefined}>
         {channel && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
-        {!channelName && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
+        {!channelName && !isExplorePage && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {exploreError && <div role="alert">
           {feeds.length > 0 && <p>{t("Some feeds could not be loaded. Previously loaded feeds are still available.")}</p>}
           <p className="error">{t(exploreError)}</p>
           <button type="button" className="feed-state-retry" onClick={() => void exploreLoader.current(failedOffset.current)}>{t("Try Again")}</button>
         </div>}
 
-        {visibleFeeds.length ? <AdaptiveFeedGrid view="explore">{visibleFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim() || nextOffset === null) && (
+        {visibleFeeds.length ? (
+          isExplorePage && !channelName ? <>
+            {followedFeeds.length > 0 && <CatalogShelf title={t("Followed feeds")}>{followedFeeds.map(renderExploreFeed)}</CatalogShelf>}
+            {otherPublicFeeds.length > 0 && <CatalogShelf title={t("Public feeds")}>{otherPublicFeeds.map(renderExploreFeed)}</CatalogShelf>}
+          </> : <AdaptiveFeedGrid view="explore">{visibleFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
+        ) : !loading && !exploreError && (query.trim() || nextOffset === null) && (
           query.trim() || channelName ? (
             <p className="empty-copy" role="status">{t(query.trim()
               ? nextOffset !== null ? "No matches in loaded feeds. Load more feeds to continue searching." : "No feeds match your search."
@@ -325,7 +335,7 @@ export function AppExperience(props: {
         )}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>}
-      {showCatalogShelves && channels.length > 0 && <CatalogShelf title={t("Top channels")} className="channel-shelf">
+      {showCatalogShelves && channels.length > 0 && <CatalogShelf title={t(isExplorePage ? "Explore channels" : "Top channels")} className="channel-shelf">
         {channels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
           <ChannelAvatar username={item.username}/>
           <strong><bdi>@{item.username}</bdi></strong>
@@ -409,8 +419,9 @@ function ChannelCounts({ channel }: { channel: ExploreChannel }) {
   </span>;
 }
 
-function ChannelFollowButton({ channel, signedIn, onSignIn, onChange, onError }: {
+function ChannelFollowButton({ channel, preview, signedIn, onSignIn, onChange, onError }: {
   channel: ExploreChannel;
+  preview: boolean;
   signedIn: boolean;
   onSignIn: () => void;
   onChange: (channel: ExploreChannel) => void;
@@ -419,6 +430,7 @@ function ChannelFollowButton({ channel, signedIn, onSignIn, onChange, onError }:
   const { t } = useLanguage();
   const [followBusy, setFollowBusy] = useState(false);
   const toggleFollow = async () => {
+    if (preview) return;
     if (!signedIn) {
       onSignIn();
       return;
@@ -433,8 +445,8 @@ function ChannelFollowButton({ channel, signedIn, onSignIn, onChange, onError }:
     }
   };
   return <button type="button" className="primary-button landing-create" aria-pressed={Boolean(channel.viewerFollowing)}
-    disabled={followBusy} onClick={() => void toggleFollow()}>
-    {t(channel.viewerFollowing ? "Unfollow channel" : "Follow channel")}
+    aria-disabled={preview || undefined} disabled={followBusy} onClick={() => void toggleFollow()}>
+    {t(channel.viewerFollowing ? "Following" : "Follow")}
   </button>;
 }
 

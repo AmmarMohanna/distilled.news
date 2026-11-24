@@ -37,7 +37,7 @@ test("admin Explore preserves the configured editorial order without unavailable
   await expect(card.getByRole("button", { name: "Publish to Explore", exact: true })).toHaveCount(0);
   await card.locator("summary").press("Escape");
   await page.getByRole("navigation").getByRole("button", { name: "Explore", exact: true }).click();
-  const cards = page.locator(".feed-tile-grid[data-feed-view=explore] .feed-tile");
+  const cards = page.locator(".explore-view .featured-feeds .catalog-shelf-track .feed-tile");
   await expect(cards.locator(".feed-tile-caption > a")).toHaveText(["Quiet science", "World news"]);
   await expect(cards.getByRole("button", { name: "Star Quiet science", exact: true })).toHaveText("0");
   expect(requests.filter(path => /\/api\/admin\/briefings\/[^/]+\/explore$/.test(path))).toEqual([]);
@@ -59,6 +59,6 @@ test("users see curated admin feeds and cannot publish their own to Explore", as
   await expect(page.getByRole("button", { name: "Publish to Explore", exact: true })).toHaveCount(0);
   await page.locator(".feed-tile-grid[data-feed-view=home] summary").press("Escape");
   await page.getByRole("navigation").getByRole("button", { name: "Explore", exact: true }).click();
-  await expect(page.locator(".feed-tile-grid[data-feed-view=explore] .feed-tile-caption > a")).toHaveText(["Quiet science"]);
-  await expect(page.locator(".feed-tile-grid[data-feed-view=explore]")).not.toContainText("My user feed");
+  await expect(page.locator(".explore-view .featured-feeds .catalog-shelf-track .feed-tile-caption > a")).toHaveText(["Quiet science"]);
+  await expect(page.locator(".explore-view .featured-feeds .catalog-shelf-track")).not.toContainText("My user feed");
 });

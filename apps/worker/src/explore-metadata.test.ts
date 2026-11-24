@@ -46,6 +46,8 @@ it('lists public card metadata with indexed timestamps and voter isolation, with
   await repo.setChannelFollow(owner.id, follower.id, true);
   await repo.setChannelFollow(owner.id, follower.id, true);
   expect(await repo.hasChannelFollow(owner.id, follower.id)).toBe(true);
+  expect((await repo.listExploreBriefings(1, 0, undefined, undefined, owner.id, follower.id))[0].viewerFollowsChannel).toBe(true);
+  expect((await repo.listExploreBriefings(1, 0, undefined, undefined, owner.id))[0].viewerFollowsChannel).toBe(false);
   expect(await repo.listExploreChannels(1, owner.id)).toEqual([{ ...channel, followerCount: 1 }]);
   expect(await repo.getExploreRevision()).not.toBe(beforeFollow);
   await repo.setChannelFollow(owner.id, follower.id, false);
