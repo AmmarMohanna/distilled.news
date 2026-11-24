@@ -54,6 +54,7 @@ export function AppExperience(props: {
   const [highlights, setHighlights] = useState<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }>({ trending: [], newest: [] });
   const [channel, setChannel] = useState<ExploreChannel>();
   const [channelFailed, setChannelFailed] = useState(false);
+  const [channelMissing, setChannelMissing] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [resumingFeed, setResumingFeed] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<UiMessage>("");
@@ -87,8 +88,12 @@ export function AppExperience(props: {
       active = request;
       if (channelName) {
         void getExploreChannel(channelName, request.signal)
-          .then(value => { if (!request.signal.aborted) { setChannel(value); setChannelFailed(!value); } })
-          .catch(() => { if (!request.signal.aborted) setChannelFailed(true); });
+          .then(value => { if (!request.signal.aborted) { setChannel(value); setChannelFailed(!value); setChannelMissing(false); } })
+          .catch(error => {
+            if (request.signal.aborted) return;
+            setChannelFailed(true);
+            setChannelMissing(error instanceof ApiError && error.uiMessage.details.status === 404);
+          });
       } else {
         void getExploreChannels(request.signal)
           .then(value => { if (!request.signal.aborted) setChannels(value); })
@@ -239,7 +244,10 @@ export function AppExperience(props: {
     <section className="explore-view" aria-busy={loading} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {channelName ? <div className="channel-heading">
         <a className="channel-back" href="/explore">{t("Back to Explore")}</a>
-        {channel ? <ChannelHeader channel={channel} onError={setError} onReport={props.onHelp}/> : <p role="status">{t(channelFailed ? "Channel not available" : "Loading channel…")}</p>}
+        {channel ? <ChannelHeader channel={channel} onError={setError} onReport={props.onHelp}/> : <p role="status">{t(
+          channelMissing && channelName === props.account?.username ? "Your public profile appears when you have an active public feed." :
+            channelFailed ? "Channel not available" : "Loading channel…"
+        )}</p>}
       </div> : props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>

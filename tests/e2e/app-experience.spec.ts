@@ -72,6 +72,9 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
     return canvas.toDataURL('image/png').split(',')[1];
   });
   const chooser = page.waitForEvent('filechooser');
+  await dialog.locator('input[type=file]').dispatchEvent('cancel', { bubbles: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('link', { name: 'Preview public profile' })).toHaveAttribute('href', '/explore?channel=joud');
   await dialog.getByRole('button', { name: 'Upload profile picture' }).click();
   await (await chooser).setFiles({ name: 'picture.png', mimeType: 'image/png', buffer: Buffer.from(file, 'base64') });
   await expect(dialog.getByText('Profile picture saved')).toBeVisible();

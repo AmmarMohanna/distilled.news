@@ -23,6 +23,7 @@ import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
 import {
   Activity,
   Ban,
+  Camera,
   Eye,
   EyeOff,
   Mail,
@@ -1236,6 +1237,7 @@ function AccountDialog(props: {
   const [username, setUsername] = useState(props.account.username);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [visiblePasswords, setVisiblePasswords] = useState({ current: false, next: false });
   const [message, setMessage] = useState("");
   const [error, setError] = useState<UiMessage>("");
   const [busy, setBusy] = useState<"username" | "password" | "logout" | "avatar" | null>(null);
@@ -1278,6 +1280,7 @@ function AccountDialog(props: {
           }
         }}
       >
+        <h3>{t("Account")}</h3>
         <div className="profile-card-heading"><label htmlFor="profile-username">{t("Username")}</label></div>
         <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
         <button hidden={!editingUsername} type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "username"}>
@@ -1298,6 +1301,7 @@ function AccountDialog(props: {
             await props.onSaved(result.account, result.briefings, "password changed");
             setCurrentPassword("");
             setNewPassword("");
+            setVisiblePasswords({ current: false, next: false });
             setMessage("password changed");
             setPasswordOpen(false);
           } catch (cause) {
@@ -1309,24 +1313,26 @@ function AccountDialog(props: {
       >
         <label>
           {t("Current Password")}
-          <input
-            type="password"
+          <span className="profile-password-field"><input
+            type={visiblePasswords.current ? "text" : "password"}
+            aria-label={t("Current Password")}
             autoComplete="current-password"
             required
             value={currentPassword}
             onChange={(event) => setCurrentPassword(event.target.value)}
-          />
+          /><button type="button" aria-pressed={visiblePasswords.current} aria-label={t("Show current password")} onClick={() => setVisiblePasswords(value => ({...value,current: !value.current}))}>{visiblePasswords.current ? <Eye size={16}/> : <EyeOff size={16}/>}</button></span>
         </label>
         <label>
           {t("New Password")}
-          <input
-            type="password"
+          <span className="profile-password-field"><input
+            type={visiblePasswords.next ? "text" : "password"}
+            aria-label={t("New Password")}
             autoComplete="new-password"
             minLength={8}
             required
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
-          />
+          /><button type="button" aria-pressed={visiblePasswords.next} aria-label={t("Show new password")} onClick={() => setVisiblePasswords(value => ({...value,next: !value.next}))}>{visiblePasswords.next ? <Eye size={16}/> : <EyeOff size={16}/>}</button></span>
         </label>
         <button type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "password"}>
           {t("Save")}
@@ -1334,7 +1340,6 @@ function AccountDialog(props: {
       </form>
       </div>
       <div className="profile-identity">
-        <h3>{t("Profile picture")}</h3>
         <input ref={pictureFieldRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async event => {
           const picture = event.currentTarget.files?.[0];
           event.currentTarget.value = "";
@@ -1355,10 +1360,12 @@ function AccountDialog(props: {
         <div className="profile-picture-frame">
           <AccountAvatar account={props.account} className="profile-avatar"/>
           <button type="button" className="profile-picture-upload" aria-label={t(busy === "avatar" ? "Uploading picture…" : "Upload profile picture")} disabled={busy !== null} onClick={() => pictureFieldRef.current?.click()}>
-            <Pencil size={14} aria-hidden/> {t(busy === "avatar" ? "Uploading picture…" : "Edit")}
+            <Camera size={17} aria-hidden/>
           </button>
         </div>
+        <h3>{t("Profile picture")}</h3>
         <small className="profile-photo-note">{t("New photos appear on your public channel.")}</small>
+        <a className="profile-preview-link" href={channelUrl(props.account.username)}>{t("Preview public profile")} <ExternalLink size={14} aria-hidden/></a>
       </div>
 
       <div className="account-actions">
