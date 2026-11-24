@@ -3384,6 +3384,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .channel-discovery,
 :root.apple-ui.apple-ui .channel-recent { width: 100%; min-width: 0; grid-column: 1 / -1; text-align: start; }
 :root.apple-ui.apple-ui .channel-heading { margin-block-end: 16px; }
+:root.apple-ui.apple-ui .channel-heading > .feed-nav-back { padding-inline: 8px 12px; background: var(--surface-quiet); }
+:root.apple-ui.apple-ui[dir="rtl"] .channel-heading > .feed-nav-back > svg { transform: scaleX(-1); }
 :root.apple-ui.apple-ui .channel-back { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent-ink); }
 :root.apple-ui.apple-ui .channel-hero {
   position: relative;

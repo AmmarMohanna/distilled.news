@@ -2,7 +2,7 @@ import {ApiError,toUiError, type UiMessage} from './api-errors';
 import React, { useEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
-import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, ChevronRight, HelpCircle, Home, MessageSquareWarning, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, ChevronLeft, ChevronRight, HelpCircle, Home, MessageSquareWarning, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, ExploreChannel, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
 import { getExploreChannel, getExploreChannels, getExploreFeeds, getExploreHighlights, setFeedStar, type ExploreHighlight, type FeedStarResult } from "./api";
@@ -258,7 +258,7 @@ export function AppExperience(props: {
     </div>}
     <section className={`explore-view${props.account || tabFromLocation() === "explore" ? " hide-shelf-controls" : ""}`} aria-busy={loading || waitingForCatalog} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {channelName ? <div className="channel-heading">
-        <a className="channel-back" href="/explore">{t("Back to Explore")}</a>
+        <a className="feed-nav-back" href="/explore" title={t("Back to Explore")}><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
         {channel ? <ChannelHeader channel={channel} onError={setError} onReport={props.onHelp}/> : channelFailed ? <p role="status">{t(
           channelMissing && channelName === props.account?.username ? "Your public profile appears when you have an active public feed." :
             "Channel not available"
