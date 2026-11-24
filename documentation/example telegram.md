@@ -216,4 +216,4 @@ This is the first small Stage 1 example. Once both methods and evidence recordin
 2. Expand Stage 2 to more channels and checked posts; test paging, failures, restarts and duplicates. Use controlled fixtures or an authorized test channel for edits/deletions and bursts.
 3. Run Stage 3 for seven days at a frozen cadence, measuring freshness, reliability, resources and cost, then test actual fallback behavior.
 
-The final decision would identify a primary collector, a useful fallback if demonstrated, and the cases each still misses. Follow the [full testing steps](SCRAPER_TESTING_STEPS.md) for stage sizes and completion criteria, or [General image](<general image.md>) for the complete source/provider overview.
+The final decision would identify a primary collector, a useful fallback if demonstrated, and the cases each still misses. Follow the [full testing steps](SCRAPER_TESTING_STEPS.md) for stage sizes and completion criteria, or [the acquisition evaluation plan](SCRAPER_AND_API_EVALUATION_PLAN.md) for the complete source/provider overview.

@@ -1,6 +1,6 @@
 # Editorial behavior v1 implementation record
 
-This records implemented behavior and local proof. Local implementation and verification checkpoints are complete; human quality comparison and deployment remain pending. The task ledger is `docs/superpowers/plans/2026-10-04-distillation-editorial-v1.md`.
+This records implemented behavior and local proof. Local implementation and verification checkpoints are complete; human quality comparison and deployment remain pending. The task ledger is [archived task ledger](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/superpowers/plans/2026-10-04-distillation-editorial-v1.md).
 The frozen architecture and connector contracts remain authoritative.
 
 ## Previous communication
