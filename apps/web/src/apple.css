@@ -3048,7 +3048,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-editor .feed-details-fields .voice-field :is(input, textarea) {
   box-sizing: border-box; display: block; width: 100%; height: 100%; min-height: 0; max-height: 100%;
   padding: 9px 12px; padding-inline-end: 50px; border: 0; border-radius: inherit;
-  background: transparent; resize: none;
+  background: transparent; resize: none; line-height: 1.4;
 }
 :root.apple-ui.apple-ui .feed-editor .feed-details-fields .voice-field .voice-input {
   position: absolute; top: 50%; inset-inline-end: 4px; transform: translateY(-50%); padding-top: 0;
@@ -3061,7 +3061,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .feed-editor .feed-details-fields .voice-field textarea {
   height: calc(var(--feed-detail-control-height) - 2px); min-height: calc(var(--feed-detail-control-height) - 2px); max-height: none;
-  padding-block: 1px; padding-inline-end: 50px; line-height: 1.4;
+  padding-block: max(0px, calc((var(--feed-detail-control-height) - 2px) / 2 - .7em));
   resize: vertical; overflow: auto; scrollbar-width: none;
 }
 :root.apple-ui.apple-ui .feed-editor .feed-details-fields .voice-field textarea::-webkit-scrollbar {
