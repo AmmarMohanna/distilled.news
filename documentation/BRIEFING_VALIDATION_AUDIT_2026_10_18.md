@@ -1,5 +1,7 @@
 # Briefing validation audit — 18 October 2026
 
+Paths shown as code identify private or local artifacts referenced in the original report. Their availability depends on the original archive. Linked reports and scripts are tracked here.
+
 **Finding: deterministic prechecks produce real false rejections, but neither inspected briefing was safe to publish unchanged.** The larger failure also exposes an editorial contract problem: automatic normalization expanded three explicitly mandatory facts into 181 requirements, including article-navigation metadata. Replacing these checks with unconditional semantic approval would introduce a different failure mode: the latest saved verifier approved a whole claim containing incorrect speaker attribution.
 
 Investigation only, on `backend-briefing-review`, starting at `c3b28242b919f7d3530a5490da614a713e32fda5`. No runtime edits, inference calls, spending changes, deployment, queue replay, or remote data mutations. Read-only staging SELECTs retrieved existing artifacts; all experiments ran locally. “Genuine error” below includes material coverage omissions. The owner confirmed five source/draft changes as described below; other editorial classifications remain investigator judgments.
@@ -13,7 +15,7 @@ Two attempts were inspected, including their complete original/repaired drafts, 
 
 A has 76 issue records; B has nine. Collapse the automatic `LOST_QUANTITY` → `MISSING_REQUIRED_FACT` duplicates, repeated draft/repair findings, and multiple numbers within one omitted proposition. Fold the generic incomplete-claims wrapper into its underlying failure. Keep the two October 15 occurrences separate because they concern different developments. Result: **25 distinct rejection groups: six validator false positives, 11 excessive editorial requirements, four genuine errors, four uncertain.** This is an adjudicated failure sample, not an estimated population error rate.
 
-The table accounts for every group. R-identifiers resolve to the [private evidence ledger](../.local-reports/briefing-latency/validation-rejection-ledger.json), which retains exact fact IDs, approved support/revision IDs, draft prose, and feedback occurrences. Full drafts and source bodies remain in ignored local artifacts rather than committed documentation.
+The table accounts for every group. R-identifiers resolve to the private evidence ledger (`../.local-reports/briefing-latency/validation-rejection-ledger.json`), which retains exact fact IDs, approved support/revision IDs, draft prose, and feedback occurrences. Full drafts and source bodies remain in ignored local artifacts rather than committed documentation.
 
 | Groups | Exact evidence → reader prose or omission | Classification |
 |---|---|---|

@@ -2,14 +2,14 @@
 
 **Status:** Planned evaluation on a VPS for testing APIs and scrapers. No benchmark has been executed by this document review.
 **Version:** 1.5
-**Depends on:** `ARCHITECTURE_BASELINE_v1.5.md`, `TECHNICAL_CONTRACTS_AND_SERVICE_BOUNDARIES_v1.5.md`, `IMPLEMENTATION_PLAN_v1.5.md`
+**Historical design context:** [Original v1.5 plan set](https://github.com/AmmarMohanna/distilled.news/tree/e5f4ffb2e72916d10d5aa53191dbbb112d5ead0e/docs/planning/v1.5). Use the [runnable acquisition benchmark](../../../evaluation/acquisition-benchmark/README.md) for current commands.
 **Owners:** Workstream B (Acquisition) with Workstream G (Evaluation)
 **Produces:** measured `AcquisitionRouteStats`, the Acquisition Router v1 routing policy, connector decisions for Telegram/X/LinkedIn/RSS/Google News/GDELT, and raw captures that seed the M0 replay dataset.
 
 
 ## Version 1.5 authority and status
 
-Read [the decision register](README.md) and [the change log](REVIEW_AND_CHANGELOG_v1.5.md) with this document. This is a target plan, not a claim that its services already exist. Confirmed product direction and explicit user requests override older contradictory assumptions; non-conflicting earlier intelligence and delivery ambitions are retained. New schemas, providers, thresholds and schedules are proposed implementation details until accepted through measurement. Commands in this document are future runbook instructions, not authorization to execute them during a document review.
+The [historical decision register and change log](https://github.com/AmmarMohanna/distilled.news/tree/e5f4ffb2e72916d10d5aa53191dbbb112d5ead0e/docs/planning/v1.5) explain the proposed design decisions. New schemas, providers, thresholds and schedules in this plan are hypotheses or experimental inputs. Confirm current behavior and authorization in the [documentation index](../../README.md) before running a campaign.
 
 
 ---

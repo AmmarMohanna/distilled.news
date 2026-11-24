@@ -1,202 +1,68 @@
 # Distilled.news
 
-Distilled.news is a Cloudflare-first, self-hostable personal news briefing filter.
+Distilled.news turns recurring streams of news into short, source-linked briefings about a reader's interests. The goal is to keep material facts, qualifications and updates visible without making readers scan every post or reread the same story.
 
-Distilled.news ingests public Telegram channel URLs plus optional RSS, Google News, X, LinkedIn, and Apify-backed sources, filters noisy posts against an interest profile, merges repeated updates, and publishes a calm monospace briefing with expandable evidence links. It does not include chatbot or Q&A behavior.
+[Live site](https://distilled.news) · [Documentation](docs/README.md) · [Course evaluation evidence](docs/AGENT_PERFORMANCE_EVALUATION.md)
 
-## Course Evaluation Evidence
+## What readers can do
 
-[Distilled.news — Agent Performance and Evaluation Evidence](docs/AGENT_PERFORMANCE_EVALUATION.md) is the EECE 503N/798S submission index for baselines, measured results, failure analysis, regression tests, and reproducibility.
+- Create multiple feeds with an interest description, schedule and language. New feeds default to public and have username-scoped URLs. Private feeds are accessible only to their owner.
+- Configure Telegram, RSS, Google News, X or LinkedIn sources as supported by the deployment. Search retained published feeds, discover public feeds, and star feeds to follow them.
+- Scan headlines, expand summaries, and open source evidence. Use unread catch-up and install the web app where supported. Device notifications require browser permission and configured delivery.
+- Read localized editions in Arabic, English or French. Editorial and operational evidence varies by language and provider.
 
-## Acquisition Evaluation
+The Cloudflare production application uses the V3 briefing engine. The V4 editor is the default prompt policy for new V3 inputs. The separate continuous quality Worker and AgentOps collector have production deployment configurations. Connector and email availability depend on the environment; some acquisition routes require a private helper, a browser session or an Apify account. Published search is retained-feed search. The product has no chatbot or embedding search. [Production configuration](apps/worker/wrangler.production.jsonc) · [Operations](docs/README.md#deploy-and-operate)
 
-The next acquisition milestone is a measured scraper and API comparison. See the [Scraper and API Evaluation Plan](documentation/SCRAPER_AND_API_EVALUATION_PLAN.md) for the pilot, test cases, scoring, cost accounting, and provider-selection criteria. The [documentation index](documentation/README.md) explains how the existing plans relate to the current implementation.
+## How a briefing is made
 
-## What It Does
-
-- Public email signup with verified accounts, password login/reset, and admin oversight.
-- User-owned briefings with plain-language interest profiles.
-- Username-scoped public feed URLs such as `/ammar-mohanna/my-sports-feed/`.
-- Source setup by one simple field: `t: channel`, public `https://t.me/...` URLs, `rss: https://...`, `news: query`, or `x: handle`.
-- Rule-first filtering with optional OpenAI summaries through Cloudflare AI Gateway.
-- Feed intensity toggle for low, medium, or high publishing strictness.
-- Expandable evidence for each briefing item.
-- Basic search over retained published briefing items and their evidence only.
-- 15-day default retention for active news/media context.
-- Per-feed pause/resume and language selection.
-
-## Stack
-
-- Cloudflare Workers for API, scheduled source refresh, queue consumer, and web asset serving.
-- Cloudflare D1 for app data.
-- Cloudflare R2 for raw source payload archives.
-- Cloudflare Queues for processing jobs.
-- Cloudflare Email Service for account verification and password reset email.
-- Cloudflare AI Gateway routing to OpenAI for production summaries.
-- Apify Actors for optional X and advanced LinkedIn/source scraping.
-- React + Vite for the admin/feed UI.
-- Hono for Worker routes.
-- Vitest and Playwright for tests.
-
-## Quick Start
-
-```sh
-npx pnpm@10.12.1 install
-npx pnpm@10.12.1 test
-npx pnpm@10.12.1 build
+```mermaid
+flowchart LR
+  Sources[Configured sources] --> Collect[Acquisition and retained revisions]
+  Collect --> Freeze[Freeze feed interests, evidence and reader history]
+  Freeze --> Edit[V3 engine with V4 editor]
+  Edit --> Novelty[Consolidation and novelty checks]
+  Novelty --> Verify[Source-grounded verification]
+  Verify -->|when needed| Repair[Targeted repair and recheck]
+  Verify --> Publish[Durable edition or quiet outcome]
+  Repair --> Publish
+  Publish --> Reader[Reader and delivery]
+  Publish --> Review[Separate asynchronous evaluator]
 ```
 
-For local Worker development:
+Language models handle editorial choices that depend on meaning: assessing relevance, combining compatible reports, writing a concise brief and verifying the resulting claims. The runtime owns deadlines, source and citation identity, permissions, evidence admission, spend accounting and durable recovery. A completed model call is an intermediate result; the edition must still satisfy publication rules. Source attribution and provenance checks improve auditability. They do not certify factual accuracy. [Current architecture](docs/ARCHITECTURE.md) · [Briefing engine](packages/briefing/src/engine.ts)
+
+The workspace uses TypeScript, React and Vite for the reader, Hono on Cloudflare Workers for the API, D1 for application state, R2 for retained source payloads, and Queues and scheduled Workers for asynchronous work. The product configuration chooses model routing and mail transport. OpenRouter is configured for the V3 production editor and verifier; Cloudflare AI Gateway and other provider paths are available where configured.
+
+## Run locally
+
+Use Node.js 24 and the pinned pnpm 10.12.1. From the repository root:
 
 ```sh
-cp .env.example .env
-npx pnpm@10.12.1 --filter @distilled/worker db:migrate
-npx pnpm@10.12.1 dev
+pnpm install --frozen-lockfile
+pnpm run setup
+pnpm --filter @distilled/worker db:migrate
+pnpm dev
 ```
 
-On Windows, the local Worker runs with Containers disabled in `wrangler.toml`.
-The app and its local D1 database still run; authenticated browser container features require WSL and Docker.
-In a second terminal, run `npx pnpm@10.12.1 --filter @distilled/web dev` and open `http://127.0.0.1:5173`.
-Run `npx pnpm@10.12.1 run setup` once to preserve or generate browser notification keys.
-Notifications need browser permission; local scheduled delivery can be triggered at `http://127.0.0.1:8787/cdn-cgi/handler/scheduled`.
-
-For deployment:
+In a second terminal, run `pnpm --filter @distilled/web dev` and open `http://127.0.0.1:5173`. The Vite dev server proxies API requests to the local Worker. The default setup generates local files; keep `.env` and `apps/worker/.dev.vars` private. Provider-dependent collection and inference require separately configured credentials. Local Windows development leaves browser containers disabled. See the [deployment guide](docs/production-deployment.md) and [web app guide](docs/WEB_APP_AND_NOTIFICATIONS.md) before configuring shared resources or notifications.
 
 ```sh
-npx pnpm@10.12.1 run setup -- --provision-cloudflare --apply-remote-migrations --deploy
+pnpm typecheck
+pnpm test
+pnpm build
+python evaluation/briefing-quality/continuous.py
 ```
 
-`npx pnpm@10.12.1 run setup` creates local `.env` and Worker `.dev.vars` files when needed and generates missing app secrets. With `-- --provision-cloudflare`, it also creates or verifies the D1 database, R2 bucket, processing queue, dead-letter queue, writes `apps/worker/wrangler.toml`, uploads Worker secrets, applies migrations when requested, and deploys when requested. Run `npx pnpm@10.12.1 run setup -- --check` to verify Wrangler auth and dry-run deployment.
+The workspace build uses a Wrangler dry run for the Worker. The continuous evaluation command runs offline fixtures and requires Python 3.11 or later. Its reports and historical failures are separate from live review records. [Runtime and test entry points](package.json) · [Project CI](.github/workflows/project-checks.yml) · [Offline evaluation instructions](evaluation/briefing-quality/README.md)
 
-`distilled.news` is the canonical production domain. `lownoise.news` and `www.lownoise.news` are kept as legacy routes that redirect to `https://distilled.news`.
+## Submission and engineering evidence
 
-## Required External Values
+| Area | Start here |
+| --- | --- |
+| Problem, design alternatives and agentic justification | [Project problem and validation design](docs/planning/v1.5/PROJECT_PROBLEM_AND_VALIDATION_v1.5.md) · [Current architecture](docs/ARCHITECTURE.md) |
+| Agent performance | [Course evidence index and sanitized appendix](docs/AGENT_PERFORMANCE_EVALUATION.md) · [Briefing evaluation suite](evaluation/briefing-quality/README.md) · [Recorded release qualification](evaluation/briefing-quality/reports/live-fixes-20261119/GO_RESULT.md) |
+| AgentOps and professional engineering | [Observability and real publication pilot](docs/README.md#evaluation-and-evidence) · [k6 and performance fixtures](evaluation/performance-reliability/README.md) · [Security workflows and evidence](docs/security/DEVSECOPS.md) |
+| Reliability, privacy and QA | [Source-bound claims](docs/SOURCE_BOUND_CLAIMS.md) · [Transactional recovery](docs/transactional-briefing-recovery-staging-2026-11-13.md) · [CI checks](.github/workflows/project-checks.yml) |
+| Setup and reproducibility | [Documentation index](docs/README.md) · [Acquisition benchmark](evaluation/acquisition-benchmark/README.md) · [Monitor protocol and reporting](evaluation/briefing-quality/worker/README.md) |
 
-See `.env.example` for descriptions.
-
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_AI_GATEWAY_ID`
-- `OPENAI_API_KEY`
-- `APIFY_API_TOKEN` if using `x:`, `linkedin:`, `apify:` sources, or the optional Google News fallback
-- `ADMIN_SESSION_SECRET`
-- `ADMIN_SETUP_TOKEN`
-- `EMAIL_FROM`
-- `PUBLIC_WEB_BASE_URL`
-
-`EMAIL_FROM` must use a sender domain that is onboarded in Cloudflare Email
-Sending. For public user registration, Cloudflare must also allow sending to
-arbitrary recipients; Email Routing-only bindings can send only to verified
-destination addresses in the Cloudflare account.
-
-### Optional Zyte retry for website listings
-
-Set `SOURCE_ZYTE_LISTING_RETRY_ENABLED=true` to allow one Zyte follow-up per collection run for any homepage or recognized listing already eligible for paid Zyte collection. A recorded Zyte HTTP 500 or 520 uses the follow-up for a plain HTTP retry. If the initial request returned usable HTML but regular discovery found no article links, the follow-up can use Zyte Article List on that same HTML. Only links validated against the original page enter article acquisition, and coverage remains incomplete. Both modes use the existing budget and store separate receipts. Unknown provider outcomes, rate limits, and access refusals do not trigger a follow-up.
-
-### Website listing fallbacks and source regression fixtures
-
-When regular discovery reads a recognized listing or homepage but finds no article links, the collector tries a second parser before any paid or model fallback. It ignores card markup and keeps same-origin links that share the page's dominant article URL pattern (dated paths, numeric or opaque story IDs, long slugs), including links found only in embedded page data. It needs at least three matching links, and the coverage stays incomplete. Per-source scenarios live in `packages/connectors/test/publisher-scenarios.test.ts`. Save real listing pages with `node scripts/capture-publisher-fixtures.mjs <listing URL>` from a network that can reach the publisher; `publisher-captures.test.ts` then checks each saved page still yields its recorded minimum number of article links.
-
-Source health (`/api/me/sources/:sourceId/connector-health`) also warns with `SOURCE_NO_RECENT_SUCCESS` when a source has been checked without an accepted batch for 48 hours, and `SOURCE_NEVER_COLLECTED` when it has been checked three times without producing a single item. The same warnings appear on the feed page source notice for the feed owner and admins, in the pipeline trace `view=sources`, and in Grafana as `distilled_source_no_recent_success` and `distilled_source_never_collected` with two paused provisional alert rules. Apply migration `0100_source_collection_history_index.sql` before deploying the AgentOps collector.
-
-### Optional model fallback for website listings
-
-Set `SOURCE_WEBSITE_LINK_FALLBACK_MODEL` to a model covered by your existing OpenRouter model spending configuration. Leave the variable unset to disable the fallback. It runs only when a recognized public listing yields no links through regular HTTP collection. The model selects from at most 48 visible same-origin links. The collector sends the selected links through normal article acquisition and records the listing coverage as incomplete.
-
-The fallback uses the existing model ledger, with two admissions per source per hour and a $0.01 estimated cost limit per call. Identical requests reuse retained receipts. Unpaid recovery runs skip the fallback.
-
-### Gmail for verification emails
-
-Enable the Gmail API in Google Cloud and authorize a dedicated sending mailbox
-with the `https://www.googleapis.com/auth/gmail.send` scope and offline access.
-Follow [Google's OAuth setup guide](https://developers.google.com/workspace/gmail/api/auth/web-server)
-to obtain the refresh token. Set these values on the target Worker:
-
-- `VERIFICATION_MAIL_TRANSPORT=GMAIL_API`
-- `GMAIL_FROM` with the address of the authorized mailbox
-- `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` as Worker secrets
-- `PUBLIC_WEB_BASE_URL` with the public URL for that deployment
-
-Password resets continue to use `MAIL_TRANSPORT` and `EMAIL_FROM`. To switch
-verification back to the Outlook configuration, remove the override when
-`MAIL_TRANSPORT=OUTLOOK_GRAPH`, or set `VERIFICATION_MAIL_TRANSPORT=OUTLOOK_GRAPH`.
-After configuring Gmail, verify delivery by requesting a fresh signup link and
-opening it from the recipient's inbox.
-
-## Feed Illustrations
-
-Feed illustrations use Cloudflare Workers AI model `@cf/black-forest-labs/flux-2-klein-4b`.
-To run image generation from a separate Cloudflare account, set
-`CLOUDFLARE_IMAGE_ACCOUNT_ID` to that account's ID and save a Workers AI API
-token as `CLOUDFLARE_IMAGE_API_TOKEN`. Locally, put both values in
-`apps/worker/.dev.vars`; setup can also copy them from `.env`. The token must
-have Workers AI Read and Edit permissions for the image account. For a deployed
-Worker, upload it as a Worker secret in the application account. Generated JPEGs
-are stored in the application's existing `RAW_ARCHIVE` R2 bucket. Missing images
-retain the built-in outline illustration, and each account is limited to five
-generation attempts per 24 hours.
-
-## First Self-Hosted Setup
-
-1. Fill `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `PUBLIC_WEB_BASE_URL`, and any optional AI/Apify/email values in `.env`.
-2. Run `npx pnpm@10.12.1 run setup -- --provision-cloudflare --apply-remote-migrations --deploy`.
-3. Open the admin page.
-4. Use `ADMIN_SETUP_TOKEN` once to create the first verified admin account.
-5. Add sources such as `t: LebUpdate`, `rss: https://example.com/feed.xml`, `news: Lebanon Electricity`, or `x: NASA`.
-6. Write the interest profile and save.
-7. Use `fetch latest` once to validate ingestion.
-8. Share the username-scoped public feed URL when ready.
-
-Default Apify actors:
-
-- Google News fallback: `groupoject/google-news-scraper`
-- X: `kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest`
-- LinkedIn company/profile sources are advanced-only defaults: `harvestapi/linkedin-company-posts` and `harvestapi/linkedin-profile-posts`
-
-RSS and Google News are fetched directly by the Worker first. If Google News RSS returns a retryable Worker-side 429/5xx response and `APIFY_API_TOKEN` is configured, Google News can fall back to a capped Apify actor run.
-
-Public users can sign up after setup. Each email can have only one account.
-Usernames are normalized into slugs, can be changed later, and previous
-usernames stay reserved as aliases that redirect to the current username.
-
-## Routes
-
-- `POST /api/auth/setup`
-- `POST /api/auth/register`
-- `POST /api/auth/verify-email`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `POST /api/auth/password/forgot`
-- `POST /api/auth/password/reset`
-- `GET /api/me/account`
-- `PATCH /api/me/account`
-- `GET /api/me/briefings`
-- `POST /api/me/briefings`
-- `DELETE /api/me/briefings/:briefingId`
-- `GET /api/me/sources`
-- `POST /api/me/sources`
-- `POST /api/me/sources/refresh`
-- `DELETE /api/me/sources/:sourceId`
-- `GET /api/me/health`
-- `POST /api/me/processing/retry`
-- `GET /api/admin/accounts`
-- `PATCH /api/admin/accounts/:accountId`
-- `GET /api/admin/briefings`
-- `DELETE /api/admin/briefings/:briefingId`
-- `GET /api/feed/:username/:briefingSlug`
-- `GET /api/feed/:username/:briefingSlug/search?q=...`
-- `POST /api/feed/:username/:briefingSlug/star`
-
-Public pages are served at `/:username/:briefingSlug/`. Previous username
-aliases redirect to the account's current username. Old `/feed/:slug` routes
-return not found. There is intentionally no `/api/ask` endpoint.
-
-## Example Configs
-
-See `examples/` for starting interest profiles:
-
-- `personal-news.json`
-- `tech-news.json`
-- `local-community.json`
-
-These are examples only; configuration stays simple in the admin UI.
+The evaluation compares against all-headlines and keyword filtering, Single LLM, and specific prior pipeline versions. Monitored production editions, live comparison outputs, offline fixtures and automated judge labels answer different questions. The comparisons record strengths and failures. No general win over Single LLM, production-wide factual accuracy rate or measured reader time saving follows from the available cohorts. Experimental comparator and evaluator revisions remain research work. [Evaluation and uncertainty](docs/README.md#evaluation-and-evidence)

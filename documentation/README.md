@@ -1,37 +1,13 @@
-# Documentation
+# Acquisition and legacy engineering references
 
-For parallel v1 implementation, start with [Architecture v1](ARCHITECTURE_v1.md),
-especially normative Appendix C, the [working agreement and handoff interface](PARALLEL_IMPLEMENTATION_AGREEMENT.md),
-and the [shared contract package](../packages/contracts/README.md). These supersede conflicting
-older architecture proposals; they do not claim the new production pipeline is integrated.
+The [current documentation index](../docs/README.md) is the starting point for the product, deployment, testing and course evidence. The documents in this directory preserve acquisition methods, validation results and historical interface decisions.
 
-The acquisition testing material below remains evidence and operational reference.
+| Topic | Reference |
+| --- | --- |
+| Current benchmark CLI and offline reproduction | [Acquisition benchmark](../evaluation/acquisition-benchmark/README.md) |
+| Experiment design, scoring and provider comparison | [Scraper and API evaluation plan](SCRAPER_AND_API_EVALUATION_PLAN.md) · [Testing steps](SCRAPER_TESTING_STEPS.md) · [Acquisition methodology v1.2](ACQUISITION_BENCHMARK_RUNBOOK_v1.2.md) |
+| Recorded source and publication validation | [Testing evidence](testing-evidence/README.md) · [Real news end-to-end evaluation](REAL_NEWS_END_TO_END_EVALUATION.md) · [Five-feed QA](FIVE_FEED_QA_VALIDATION_2026_10_15.md) |
+| Compatibility and provenance | [V1 architecture and contract appendix](ARCHITECTURE_v1.md) · [Implementation agreement](PARALLEL_IMPLEMENTATION_AGREEMENT.md) · [Shared contracts](../packages/contracts/README.md) |
+| Environment-specific deployment notes | [Joud deployment](JOUD_DEPLOYMENT.md) and [production deployment](../docs/production-deployment.md) |
 
-Start with [External Testing: A to Z](EXTERNAL_TESTING_A_TO_Z.md) for the complete Windows-to-VPS operating guide, source configuration, all three testing stages, recovery, billing, and report export. Use [Scraper and API Testing on the University VPS](SCRAPER_TESTING_STEPS.md) for the broader experiment design and [Scraper and API Evaluation Plan](SCRAPER_AND_API_EVALUATION_PLAN.md) for scoring and methodological detail.
-
-## Reading order
-
-| Document | Use |
-|---|---|
-| [External testing results — living record](testing-evidence/README.md) | Accumulating pilot results, per-article PASS/PARTIAL explanations, scoring limitations, evidence links and remaining work. |
-| [VPS Testing Execution Log](VPS_TESTING_EXECUTION_LOG.md) | Commands and confirmed results from the actual VPS setup through the offline demo, the Playwright compatibility workaround, saved transcript, and Stage 1 handoff. |
-| [External Testing: A to Z](EXTERNAL_TESTING_A_TO_Z.md) | Start-to-finish external testing instructions, actual CLI commands, each source/candidate, references, schedules, recovery, costs, backups, and final deliverables. |
-| [Runnable benchmark and commands](../evaluation/acquisition-benchmark/README.md) | Implemented CLI, all source adapters, stage configs, offline demo, scoring and recovery. |
-| [General image](<general image.md>) | Quick source-by-source table of specific APIs/scrapers, plus an explanation of the existing Telegram scraper. |
-| [Example Telegram](<example telegram.md>) | One-channel walkthrough with setup commands, illustrative collector code and comparison instructions. The original snippets are illustrative; the document links to the implemented collectors. |
-| [Scraper and API Testing on the University VPS](SCRAPER_TESTING_STEPS.md) | Experiment design, source/provider roster, and stage rationale. Use the A-to-Z guide for current execution commands. |
-| [Scraper and API Evaluation Plan](SCRAPER_AND_API_EVALUATION_PLAN.md) | Detailed procedure, scoring rules, and implementation requirements. |
-| [Benchmark implementation notes](../implementation/ACQUISITION_BENCHMARK_IMPLEMENTATION.md) | Initial Python implementation and its limitations. Consult the evaluation plan for subsequently identified test gaps. |
-| [Acquisition Benchmark Runbook](ACQUISITION_BENCHMARK_RUNBOOK_v1.2.md) | Extended experimental background and scenarios. Apply the current plan's scoring and execution clarifications. |
-| [VPS Execution Guide](DISTILLED_VPS_TO_ACQUISITION_BENCHMARK_FULL_GUIDE.md) | Server preparation and operational reference. Confirm the actual host configuration before following environment-specific instructions. |
-| [Architecture Baseline](ARCHITECTURE_BASELINE_v1.2.md) | Broader conceptual architecture. |
-| [Technical Contracts and Service Boundaries](TECHNICAL_CONTRACTS_AND_SERVICE_BOUNDARIES_v1.2.md) | Proposed logical ownership, schemas, and reliability contracts. |
-| [Implementation Plan](IMPLEMENTATION_PLAN_v1.2.md) | Broader milestone and evaluation program. |
-
-## Implementation status and authority
-
-The current application is the Cloudflare-first implementation described in the [project README](../README.md) and [AGENTS.md](../AGENTS.md). Conceptual documents include capabilities and infrastructure that are not implemented; they are not an inventory of current behavior.
-
-The [acquisition benchmark package](../evaluation/acquisition-benchmark/README.md) now includes all candidate adapters, a CLI, durable jobs/budgets, raw evidence, extraction, normalization, scoring, reports, scheduling and offline tests. Live account settings, independent labels and server experiments are still required. No provider winner is established by these documents.
-
-The new evaluation plan updates the acquisition work sequence and reconciles methodological differences between the earlier runbook and VPS guide. It does not change the application's deployment stack or public-feed model.
+Historical proposals describe capabilities contemplated at their revision. The [current architecture](../docs/ARCHITECTURE.md) describes the V3/V4 product path. Use authorized datasets and approved budgets when repeating live acquisition tests.
