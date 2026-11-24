@@ -29,6 +29,9 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     expect(art.y + art.height).toBeLessThanOrEqual(container.y + container.height + 1);
     expect(art.height).toBeGreaterThanOrEqual(96);
     const banner = (await page.locator('.feed-shell .page-heading').boundingBox())!;
+    const viewport = page.locator('.app-pages > .screen-page-viewport');
+    await expect(viewport).toHaveCSS('scrollbar-gutter','auto');
+    expect(banner.width).toBeCloseTo(await viewport.evaluate(node => node.clientWidth), 0);
     expect(banner.x).toBeCloseTo(0, 0);
     expect(banner.width).toBeGreaterThan(width - 20);
     expect(banner.y).toBeLessThanOrEqual(header.y + header.height + 1);
