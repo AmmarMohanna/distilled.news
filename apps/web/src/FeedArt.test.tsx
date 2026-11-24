@@ -104,7 +104,7 @@ it('shares public artwork retrieval and conversion across simultaneous cards',as
  vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:()=> 'blob:shared',revokeObjectURL:vi.fn()}));
  const a=renderHost(),b=renderHost(),feed={id:'shared',title:'News',ownerUsername:'owner',slug:'shared',publicFeedEnabled:true};
  await act(async()=>{a.root.render(<FeedArt feed={feed}/>);b.root.render(<FeedArt feed={feed}/>)});
- expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher).toHaveBeenCalledWith('/api/feed/owner/shared/sketch',expect.objectContaining({cache:'default'}));
+ expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher).toHaveBeenCalledWith('/api/feed/owner/shared/sketch?v=v5',expect.objectContaining({cache:'default'}));
  await act(async()=>pending.resolve(sketch()));expect(transparentSketch).toHaveBeenCalledTimes(1);expect(a.host.querySelector('img')).not.toBeNull();expect(b.host.querySelector('img')).not.toBeNull();
 });
 it('never persists private artwork or reuses it across remounts',async()=>{
@@ -130,7 +130,7 @@ it('refreshes only explicitly requested artwork even when a processed image is c
  try{
   await act(async()=>root.render(<FeedArt feed={feed}/>));
   expect(fetcher).toHaveBeenCalledTimes(2);
-  expect(fetcher).toHaveBeenLastCalledWith('/api/feed/owner/refresh-one/sketch',expect.objectContaining({cache:'reload'}));
+  expect(fetcher).toHaveBeenLastCalledWith('/api/feed/owner/refresh-one/sketch?v=v5',expect.objectContaining({cache:'reload'}));
   expect(window.location.search).toBe('?keep=1');
  }finally{window.history.replaceState(null,'','/');}
 });

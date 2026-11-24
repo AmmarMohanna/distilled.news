@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { transparentSketch } from "./sketchImage";
-import { readSavedSketch, saveSketch } from "./sketchCache";
+import { FEED_ART_CACHE_VERSION, readSavedSketch, saveSketch } from "./sketchCache";
 
 // Keep processed artwork across card remounts during Home/Explore navigation.
 // Store blobs rather than object URLs so each card still owns its URL lifecycle.
@@ -81,7 +81,8 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
           }
         }
         const load = async () => {
-          const response = await fetch(sketchUrl, { ...(cacheable ? {} : {signal:controller.signal}), cache: cacheable ? refreshArtwork ? "reload" : "default" : "no-store" });
+          const imageRequestUrl = cacheable ? `${sketchUrl}?v=${FEED_ART_CACHE_VERSION}` : sketchUrl;
+          const response = await fetch(imageRequestUrl, { ...(cacheable ? {} : {signal:controller.signal}), cache: cacheable ? refreshArtwork ? "reload" : "default" : "no-store" });
           if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
             const blob = await response.blob();
             const fullCover = response.headers.get("X-Feed-Artwork-Style") === "pencil-cover-v1" && blob.type === "image/jpeg";
