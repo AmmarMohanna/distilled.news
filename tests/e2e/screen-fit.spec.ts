@@ -182,6 +182,9 @@ test("language changes keep navigation in place and localize empty Explore", asy
 
 test("mobile search and create stay together across languages", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/me/briefings", route => route.fulfill({ json: {
+    briefings: [{ id: "active-feed", ownerAccountId: "test", ownerUsername: "test", slug: "daily-news", title: "Daily news", paused: false }]
+  } }));
   await page.goto('/');
   const search = page.locator('.home-controls .explore-search');
   const create = page.locator('.home-add-feed');
