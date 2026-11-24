@@ -177,3 +177,17 @@ test('desktop card has readable linked identity and a separate menu control',asy
  await card.locator('.feed-options summary').click({trial:true});
  await card.screenshot({path:'test-results/desktop-feed-card.png'});
 });
+
+test('compact captions leave room for two full rows of square covers on Home', async ({page}) => {
+  await page.setViewportSize({width:1280,height:720});
+  await openApp(page,12);
+  const grid=page.locator('.feed-tile-grid[data-feed-view=home]');
+  await expect.poll(() => grid.locator('.feed-tile').evaluateAll(cards => {
+    const rows=new Map<number,boolean>();
+    for(const card of cards){
+      const {top,bottom}=card.getBoundingClientRect();
+      rows.set(top,(rows.get(top)??true)&&top>=0&&bottom<=innerHeight+1);
+    }
+    return [...rows.values()].slice(0,2);
+  })).toEqual([true,true]);
+});

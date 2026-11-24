@@ -12,7 +12,8 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
       const width = grid.clientWidth;
       if (!width) return;
 
-      const gap = parseFloat(getComputedStyle(grid).columnGap);
+      const { columnGap, rowGap } = getComputedStyle(grid);
+      const gap = parseFloat(columnGap);
       const preferred = Math.max(135, Math.min(window.innerHeight * 0.17, 200));
       const columns = Math.max(1, Math.min(count, Math.floor((width + gap) / (preferred + gap))));
       const bounds = grid.getBoundingClientRect();
@@ -21,19 +22,19 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
       const available = (bottom - bounds.top) / scale - (viewport?.scrollTop ?? window.scrollY) - 8;
       let caption = 0;
       for (const node of grid.querySelectorAll<HTMLElement>('.feed-tile-caption')) {
-        caption = Math.max(caption, node.offsetHeight + 9);
+        caption = Math.max(caption, node.offsetHeight + parseFloat(getComputedStyle(node).marginBlockStart));
       }
       const naturalSize = Math.min((width + gap) / columns - gap, Math.max(170, Math.min(window.innerHeight * 0.39, 280)));
       const oneRow = available - caption;
-      const twoRows = (available - gap) / 2 - caption;
+      const twoRows = (available - parseFloat(rowGap)) / 2 - caption;
       let fittedColumns = '';
       let fittedSize = '';
       if (count > columns && twoRows < naturalSize) {
         const widthInOneRow = (width + gap) / count - gap;
-        if (widthInOneRow >= 120 && widthInOneRow + caption <= available) {
-          fittedColumns = String(count);
-        } else if (twoRows >= 120) {
+        if (twoRows >= 120) {
           fittedSize = Math.floor(twoRows) + 'px';
+        } else if (widthInOneRow >= 120 && widthInOneRow + caption <= available) {
+          fittedColumns = String(count);
         }
       }
       if (!fittedColumns && !fittedSize && oneRow >= 120 && oneRow < naturalSize) {
