@@ -38,7 +38,7 @@ export function sketchPrompt(briefing: Pick<BriefingConfig, "interestProfile">):
     "Create a wide landscape editorial illustration in traditional colored pencil, on subtly textured paper.",
     `The news interest is ${JSON.stringify(briefing.interestProfile)}. Choose one immediately recognizable subject and a setting that relates directly to that topic.`,
     "Draw one continuous edge-to-edge scene with a single perspective. Place the main subject in the center and keep it compact so a centered square crop reads clearly at thumbnail size.",
-    "Use a limited palette of indigo blue, magenta, and warm paper highlights. Give the central subject strong tonal contrast, and let the surrounding blue and magenta crosshatching extend into the edges. Show fine pencil grain and pressure variation.",
+    "Choose a distinct palette from the actual colors of the subject and setting. Use rich, believable local colors, neutral paper highlights, and deep, natural shadows. Keep the focal point crisp and carry colored pencil grain and crosshatching through the background. Avoid a uniform color cast, washed-out pastels, and sepia.",
     "No inset artwork, picture frames, panels, collage, centered square background, borders, graphic templates, text, logos, signatures, photorealism, or drawing tools."
   ].join("\n");
 }

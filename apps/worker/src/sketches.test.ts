@@ -54,7 +54,7 @@ it("uses only the interest for subject selection and preserves the full allowed 
   expect(prompt).toContain("one continuous edge-to-edge scene");
   expect(prompt).toContain("No inset artwork, picture frames, panels");
   expect(prompt).toContain("centered square crop");
-  expect(prompt).toContain("indigo blue, magenta");
+  expect(prompt).toContain("actual colors of the subject and setting");
 });
 
 it("does not save an image returned after the queue job has lost its lease", async () => {

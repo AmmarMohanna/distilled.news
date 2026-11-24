@@ -1,5 +1,5 @@
 // Keep this version in sync with changes that invalidate stored artwork.
-const cacheName = 'distilled-processed-sketches-v3';
+const cacheName = 'distilled-processed-sketches-v4';
 const lifetime = 7 * 24 * 60 * 60 * 1000;
 
 export async function readSavedSketch(path: string): Promise<Blob | undefined> {
