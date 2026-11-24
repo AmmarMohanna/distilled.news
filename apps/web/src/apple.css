@@ -3421,7 +3421,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   text-align: center;
   overflow-wrap: anywhere;
 }
-:root.apple-ui.apple-ui .channel-card > strong { font-weight: 600; }
+:root.apple-ui.apple-ui .channel-card > strong { font-size: .875rem; font-weight: 600; }
 :root.apple-ui.apple-ui .channel-card:hover > strong { text-decoration: underline; text-underline-offset: 3px; }
 :root.apple-ui.apple-ui .channel-avatar {
   position: relative;
@@ -3437,13 +3437,13 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .channel-hero .channel-avatar { width: min(100%, 104px); font-size: 2rem; }
 :root.apple-ui.apple-ui .channel-card .channel-avatar {
-  width: min(100%, clamp(88px, 11vw, 124px));
+  width: min(100%, clamp(76px, 8vw, 98px));
   background: linear-gradient(155deg, #586eaa, #4c4c86);
   color: white;
-  font-size: clamp(1.7rem, 3vw, 2.65rem);
+  font-size: clamp(1.5rem, 2.4vw, 2.25rem);
   box-shadow: var(--shadow-soft);
 }
-:root.apple-ui.apple-ui .channel-counts { display: grid; gap: 2px; font-size: .8125rem; color: var(--muted); }
+:root.apple-ui.apple-ui .channel-counts { display: grid; gap: 2px; font-size: .75rem; color: var(--muted); }
 :root.apple-ui.apple-ui .channel-hero .channel-counts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; color: #ded9fa; font-size: .9375rem; }
 :root.apple-ui.apple-ui .channel-recent { margin-block: 24px; }
 :root.apple-ui.apple-ui .channel-recent ul {
@@ -3675,7 +3675,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   scrollbar-width: thin;
 }
 :root.apple-ui.apple-ui .catalog-shelf-track > * { scroll-snap-align: start; min-width: 0; }
-:root.apple-ui.apple-ui .channel-shelf .catalog-shelf-track { grid-auto-columns: clamp(126px, 15vw, 170px); }
+:root.apple-ui.apple-ui .channel-shelf .catalog-shelf-track { grid-auto-columns: clamp(100px, 11vw, 122px); }
 :root.apple-ui.apple-ui .experience .catalog-shelf-track .feed-tile-cover .feed-tile-artwork > .topic-art { height: 100%; max-height: none; }
 :root.apple-ui.apple-ui .channel-hero { padding: 0 0 18px; background: var(--surface); color: var(--text); gap: 9px; }
 :root.apple-ui.apple-ui .channel-banner {
@@ -4079,3 +4079,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .briefing-detail-photo { display: grid; grid-template-rows: minmax(0,1fr) 1.4em; aspect-ratio: 16 / 13; overflow: hidden; }
 :root.apple-ui.apple-ui .briefing-detail-photo img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; border-radius: 8px; }
 :root.apple-ui.apple-ui .briefing-detail-photo figcaption { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+:root.apple-ui.apple-ui .experience.product-refresh .explore-view > .experience-title h1 {
+  font-size: clamp(1.5rem, 2.6vw, 2.125rem);
+}
+:root.apple-ui.apple-ui .experience.product-refresh .explore-view > .experience-title p {
+  margin-block-start: 4px;
+  font-size: .875rem;
+}
