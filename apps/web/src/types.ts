@@ -6,6 +6,7 @@ export interface ExploreChannel {
   username: string;
   publicFeedCount: number;
   followerCount: number;
+  viewerFollowing?: boolean;
 }
 
 export interface AccountRecord {

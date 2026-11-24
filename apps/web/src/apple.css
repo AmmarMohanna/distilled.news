@@ -3384,7 +3384,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .channel-discovery,
 :root.apple-ui.apple-ui .channel-recent { width: 100%; min-width: 0; grid-column: 1 / -1; text-align: start; }
 :root.apple-ui.apple-ui .channel-heading { margin-block-end: 16px; }
-:root.apple-ui.apple-ui .channel-heading > .feed-nav-back { padding-inline: 8px 12px; background: var(--surface-quiet); }
+:root.apple-ui.apple-ui .channel-heading > .feed-nav-back { padding-inline: 8px 12px; background: transparent; }
 :root.apple-ui.apple-ui[dir="rtl"] .channel-heading > .feed-nav-back > svg { transform: scaleX(-1); }
 :root.apple-ui.apple-ui .channel-back { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent-ink); }
 :root.apple-ui.apple-ui .channel-hero {
@@ -3733,7 +3733,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   border-radius: 22px 22px 0 0;
   background: linear-gradient(120deg, #211c3e, #40345f);
 }
-:root.apple-ui.apple-ui .channel-banner img { width: 100%; height: 100%; object-fit: cover; filter: blur(26px) brightness(.75); transform: scale(1.22); }
+:root.apple-ui.apple-ui .channel-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+:root.apple-ui.apple-ui .channel-banner img:not(.channel-cover-photo) { filter: blur(26px) brightness(.75); transform: scale(1.22); }
 :root.apple-ui.apple-ui .channel-hero .channel-avatar { margin-block-start: calc(-.5 * var(--channel-profile-size) - 9px); border: 4px solid var(--surface); z-index: 1; }
 :root.apple-ui.apple-ui .channel-hero .channel-counts { color: var(--muted); }
 :root.apple-ui.apple-ui .channel-loading-status {

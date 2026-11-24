@@ -82,6 +82,56 @@ afterEach(() => {
 });
 
 describe("worker app accounts", () => {
+  it("persists channel follows for the signed-in viewer and rejects self-follows", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "channel-follow-owner@example.invalid", "Channel Follow Owner");
+    const reader = await createVerifiedUser(app, repo, "channel-follower@example.invalid", "Channel Follower");
+    const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
+    const username = encodeURIComponent(owner.account.username);
+    const follow = (following: boolean, cookie = "") => app.request(`/api/me/channels/${username}/follow`, {
+      method: "PUT",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ following })
+    }, env());
+    expect((await follow(true)).status).toBe(401);
+    expect((await follow(true, owner.cookie)).status).toBe(400);
+    expect(await (await follow(true, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true, followerCount: 1 } });
+    const profile = (cookie: string) => app.request(`/api/explore/channels/${username}`, { headers: { cookie } }, env());
+    expect(await (await profile(reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: true } });
+    expect(await (await profile(owner.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false } });
+    expect(await (await follow(false, reader.cookie)).json()).toMatchObject({ channel: { viewerFollowing: false, followerCount: 0 } });
+  });
+
+  it("serves an uploaded channel cover only while the owner has an active public feed", async () => {
+    const repo = new InMemoryRepository();
+    const app = createApp({ repository: repo });
+    const owner = await createVerifiedUser(app, repo, "cover-owner@example.invalid", "Cover Owner");
+    const feed = (await repo.getBriefingBySlug(owner.account.id, "personal"))!;
+    const objects = new Map<string, { bytes: Uint8Array<ArrayBuffer>; channel: string }>();
+    const runtime = { ...env(), RAW_ARCHIVE: {
+      put: async (key: string, bytes: Uint8Array<ArrayBuffer>, options: {customMetadata: {channel: string}}) => {
+        objects.set(key, { bytes, channel: options.customMetadata.channel });
+      },
+      get: async (key: string) => {
+        const object = objects.get(key);
+        return object ? { body: new Response(object.bytes).body, customMetadata: { channel: object.channel } } : null;
+      }
+    } } as unknown as Env;
+    const upload = "/api/me/channel-cover";
+    const original = new Uint8Array([0xff, 0xd8, 0xff, 1, 0xff, 0xd9]);
+    const headers = { cookie: owner.cookie, "content-type": "image/jpeg" };
+    expect((await app.request(upload, { method: "PUT", body: original }, runtime)).status).toBe(401);
+    expect((await app.request(upload, { method: "PUT", body: original, headers }, runtime)).status).toBe(200);
+    expect((await app.request("/api/me/avatar", {headers}, runtime)).status).toBe(404);
+    const cover = `/api/explore/channels/${encodeURIComponent(owner.account.username)}/cover`;
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: true, paused: false });
+    expect(new Uint8Array(await (await app.request(cover, {}, runtime)).arrayBuffer())).toEqual(original);
+    await repo.upsertBriefing({ ...feed, publicFeedEnabled: false });
+    expect((await app.request(cover, {}, runtime)).status).toBe(404);
+  });
+
   it("stores a replacement avatar privately for the signed-in account", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
@@ -114,7 +164,7 @@ describe("worker app accounts", () => {
     expect((await app.request(path, { headers }, runtime)).status).toBe(404);
   });
 
-  it("ranks channels by unique followers and exposes only active public feeds and opted-in photos", async () => {
+  it("keeps feed stars separate from channel follows and exposes only active public feeds and opted-in photos", async () => {
     const repo = new InMemoryRepository();
     const app = createApp({ repository: repo });
     const owner = await createVerifiedUser(app, repo, "channel@example.invalid", "Channel Owner");
@@ -128,7 +178,7 @@ describe("worker app accounts", () => {
     await repo.setBriefingStar("private", "private-reader", true);
     await repo.setBriefingStar("paused", "paused-reader", true);
     const prefix = "/api/explore/channels";
-    const channel = { username: owner.account.username, publicFeedCount: 2, followerCount: 1 };
+    const channel = { username: owner.account.username, publicFeedCount: 2, followerCount: 0 };
     expect(await (await app.request(prefix, {}, env())).json()).toEqual({ channels: [channel] });
     const filtered = await (await app.request(`/api/explore/feeds?channel=${owner.account.username}`, { headers: { cookie: owner.cookie } }, env())).json() as { feeds: Array<{ slug: string }> };
     expect(filtered.feeds.map(feed => feed.slug).sort()).toEqual(["another", "personal"]);

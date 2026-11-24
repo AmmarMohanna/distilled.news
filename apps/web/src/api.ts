@@ -148,7 +148,15 @@ export async function deleteAccountAvatar(): Promise<void> {
   await requestJson("/api/me/avatar", { method: "DELETE" });
 }
 
-export async function uploadAccountAvatar(file: File): Promise<void> {
+export function uploadAccountAvatar(file: File): Promise<void> {
+  return uploadAccountPicture(file, false);
+}
+
+export function uploadChannelCover(file: File): Promise<void> {
+  return uploadAccountPicture(file, true);
+}
+
+async function uploadAccountPicture(file: File, cover: boolean): Promise<void> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
     throw new Error("Choose a JPEG, PNG, or WebP image");
   }
@@ -156,18 +164,20 @@ export async function uploadAccountAvatar(file: File): Promise<void> {
   const photo = await createImageBitmap(file).catch(() => { throw new Error("Unable to read this image"); });
   try {
     const canvas = document.createElement("canvas");
-    const crop = Math.min(photo.width, photo.height);
-    const size = Math.min(crop, 512);
-    canvas.width = canvas.height = size;
+    const aspect = cover ? 4 : 1;
+    const cropWidth = Math.min(photo.width, photo.height * aspect);
+    const cropHeight = cropWidth / aspect;
+    canvas.width = Math.max(1, Math.round(Math.min(cropWidth, cover ? 1440 : 512)));
+    canvas.height = Math.max(1, Math.round(canvas.width / aspect));
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Unable to read this image");
     context.fillStyle = "#fff";
-    context.fillRect(0, 0, size, size);
-    context.drawImage(photo, (photo.width - crop) / 2, (photo.height - crop) / 2, crop, crop, 0, 0, size, size);
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(photo, (photo.width - cropWidth) / 2, (photo.height - cropHeight) / 2, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
     const image = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
       blob => blob ? resolve(blob) : reject(new Error("Unable to read this image")), "image/jpeg", 0.88
     ));
-    await requestJson("/api/me/avatar?channel=1", { method: "PUT", headers: { "content-type": "image/jpeg" }, body: image });
+    await requestJson(cover ? "/api/me/channel-cover" : "/api/me/avatar?channel=1", { method: "PUT", headers: { "content-type": "image/jpeg" }, body: image });
   } finally {
     photo.close();
   }
@@ -405,6 +415,14 @@ export function getExploreHighlights(signal: AbortSignal): Promise<{ trending: E
 
 export async function getExploreChannel(username: string, signal: AbortSignal): Promise<ExploreChannel> {
   const result = await requestJson<{ channel: ExploreChannel }>(`/api/explore/channels/${encodeURIComponent(username)}`, { signal });
+  return result.channel;
+}
+
+export async function setChannelFollow(username: string, following: boolean): Promise<ExploreChannel> {
+  const result = await requestJson<{ channel: ExploreChannel }>(`/api/me/channels/${encodeURIComponent(username)}/follow`, {
+    method: "PUT",
+    body: JSON.stringify({ following })
+  });
   return result.channel;
 }
 

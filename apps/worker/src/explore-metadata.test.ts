@@ -37,9 +37,19 @@ it('lists public card metadata with indexed timestamps and voter isolation, with
   await repo.setBriefingStar('second-public-card','voter-a',true);
   await repo.setBriefingStar('private-card','private-voter',true);
   await repo.setBriefingStar('paused-card','paused-voter',true);
-  const channel = { username: owner.username, publicFeedCount: 2, followerCount: 1 };
+  const channel = { username: owner.username, publicFeedCount: 2, followerCount: 0 };
   expect(await repo.listExploreChannels(8)).toEqual([channel]);
   expect(await repo.listExploreChannels(1, owner.id)).toEqual([channel]);
   expect(await repo.listExploreChannels(1, 'missing-owner')).toEqual([]);
+  const follower = await repo.createAccount({email:'follower@example.invalid',username:'follower',passwordHash:'test',role:'user'});
+  const beforeFollow = await repo.getExploreRevision();
+  await repo.setChannelFollow(owner.id, follower.id, true);
+  await repo.setChannelFollow(owner.id, follower.id, true);
+  expect(await repo.hasChannelFollow(owner.id, follower.id)).toBe(true);
+  expect(await repo.listExploreChannels(1, owner.id)).toEqual([{ ...channel, followerCount: 1 }]);
+  expect(await repo.getExploreRevision()).not.toBe(beforeFollow);
+  await repo.setChannelFollow(owner.id, follower.id, false);
+  expect(await repo.hasChannelFollow(owner.id, follower.id)).toBe(false);
+  expect(await repo.listExploreChannels(1, owner.id)).toEqual([channel]);
  }finally{await local.dispose()}
 },30000);

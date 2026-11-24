@@ -75,3 +75,31 @@ test('empty Explore and Top channels fit together on a short desktop viewport', 
   await expect(page.locator('.community-feeds-empty')).toBeInViewport({ratio:1});
   await expect(page.locator('.channel-shelf')).toBeInViewport({ratio:1});
 });
+
+test('a followed channel shows a horizontal shelf above its public feeds', async ({page}) => {
+  let following=false;
+  const feed={id:'science',title:'Science',ownerUsername:'owner',slug:'science',publicFeedEnabled:true,paused:false};
+  await page.route('**/api/**',route=>{
+    const request=route.request();
+    const path=new URL(request.url()).pathname;
+    if(path==='/api/auth/session')return route.fulfill({json:{authenticated:true,account:{id:'reader',username:'reader',role:'user'}}});
+    if(path==='/api/me/channels/owner/follow')following=request.postDataJSON().following;
+    if(path==='/api/explore/channels/owner'||path==='/api/me/channels/owner/follow'){
+      return route.fulfill({json:{channel:{username:'owner',publicFeedCount:1,followerCount:Number(following),viewerFollowing:following}}});
+    }
+    return route.fulfill({json:{feeds:[feed],briefings:[],nextOffset:null}});
+  });
+  await page.goto('/explore?channel=owner');
+  await expect(page.getByRole('heading',{name:'All public feeds'})).toBeVisible();
+  await page.getByRole('button',{name:'Follow channel',exact:true}).click();
+  const shelf=page.locator('section[aria-label="Followed feeds"]');
+  await expect(shelf.getByText('Science',{exact:true})).toBeVisible();
+  const shelfBounds=await shelf.boundingBox();
+  const publicBounds=await page.getByRole('heading',{name:'All public feeds'}).boundingBox();
+  expect(shelfBounds!.y+shelfBounds!.height).toBeLessThanOrEqual(publicBounds!.y);
+  await page.reload();
+  await expect(shelf).toBeVisible();
+  await page.getByRole('button',{name:'Unfollow channel',exact:true}).click();
+  await expect(shelf).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'All public feeds'})).toBeVisible();
+});

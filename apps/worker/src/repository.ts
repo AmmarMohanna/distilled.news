@@ -496,14 +496,28 @@ export class D1Repository implements Repository {
 
   async listExploreChannels(limit: number, ownerId?: string): Promise<ExploreChannel[]> {
     return all<ExploreChannel>(this.db.prepare(
-      `SELECT accounts.username, COUNT(DISTINCT briefings.id) AS publicFeedCount,
-        COUNT(DISTINCT briefing_stars.voter_id) AS followerCount
+      `SELECT accounts.username, COUNT(*) AS publicFeedCount,
+        (SELECT COUNT(*) FROM channel_follows
+          JOIN accounts AS followers ON followers.id = channel_follows.follower_id
+          WHERE channel_id = accounts.id AND followers.disabled_at IS NULL) AS followerCount
        FROM briefings JOIN accounts ON accounts.id = briefings.owner_account_id
-       LEFT JOIN briefing_stars ON briefing_stars.briefing_id = briefings.id
        WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
        ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
        GROUP BY accounts.id ORDER BY followerCount DESC, publicFeedCount DESC, accounts.username ASC LIMIT ?`
     ).bind(...(ownerId === undefined ? [limit] : [ownerId, limit])));
+  }
+
+  async hasChannelFollow(channelId: string, followerId: string): Promise<boolean> {
+    return Boolean(await first(this.db.prepare(
+      "SELECT 1 FROM channel_follows WHERE channel_id = ? AND follower_id = ?"
+    ).bind(channelId, followerId)));
+  }
+
+  async setChannelFollow(channelId: string, followerId: string, following: boolean): Promise<void> {
+    const statement = following
+      ? "INSERT INTO channel_follows (channel_id, follower_id) VALUES (?, ?) ON CONFLICT DO NOTHING"
+      : "DELETE FROM channel_follows WHERE channel_id = ? AND follower_id = ?";
+    await this.db.prepare(statement).bind(channelId, followerId).run();
   }
 
   async listExploreHighlights(kind: "trending" | "new", since: string, limit: number, voterId?: string, excludeOwnerId?: string) {
@@ -1835,6 +1849,7 @@ export class InMemoryRepository implements Repository {
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   editionsByBriefing = new Map<string, Map<string, BriefingEdition>>();
   starsByBriefing = new Map<string, Set<string>>();
+  private channelFollows = new Map<string, Set<string>>();
   private starDatesByBriefing = new Map<string, Map<string, string>>();
   jobs = new Map<string, ProcessingJobRecord>();
   settings = new Map<string, string>();
@@ -2008,26 +2023,43 @@ export class InMemoryRepository implements Repository {
   }
 
   async getExploreRevision():Promise<string>{
-    return canonicalJson(Array.from(this.briefings.values())
+    const publicFeeds = Array.from(this.briefings.values())
       .filter(feed=>feed.publicFeedEnabled&&!feed.paused&&!this.accounts.get(feed.ownerAccountId)?.disabledAt)
       .sort((a,b)=>a.id.localeCompare(b.id))
-      .map(feed=>[feed.id,feed.ownerAccountId,this.accounts.get(feed.ownerAccountId)?.username,feed.slug,feed.title,feed.stars,this.briefingCreatedAt.get(feed.id)]));
+      .map(feed=>[feed.id,feed.ownerAccountId,this.accounts.get(feed.ownerAccountId)?.username,feed.slug,feed.title,feed.stars,this.briefingCreatedAt.get(feed.id)]);
+    return canonicalJson([publicFeeds, [...this.channelFollows].map(([id, followers]) => [
+      id, [...followers].filter(follower => this.accounts.has(follower) && !this.accounts.get(follower)?.disabledAt).sort()
+    ])]);
   }
 
   async listExploreChannels(limit: number, ownerId?: string): Promise<ExploreChannel[]> {
-    const channels = new Map<string, { username: string; publicFeedCount: number; followers: Set<string> }>();
+    const channels = new Map<string, { username: string; publicFeedCount: number }>();
     for (const feed of this.briefings.values()) {
       if (!feed.publicFeedEnabled || feed.paused || (ownerId !== undefined && feed.ownerAccountId !== ownerId)) continue;
       const account = this.accounts.get(feed.ownerAccountId);
       if (!account || account.disabledAt) continue;
-      const channel = channels.get(account.id) ?? { username: account.username, publicFeedCount: 0, followers: new Set<string>() };
+      const channel = channels.get(account.id) ?? { username: account.username, publicFeedCount: 0 };
       channel.publicFeedCount++;
-      for (const voter of this.starsByBriefing.get(feed.id) ?? []) channel.followers.add(voter);
       channels.set(account.id, channel);
     }
-    return Array.from(channels.values(), ({ username, publicFeedCount, followers }) => ({ username, publicFeedCount, followerCount: followers.size }))
+    return Array.from(channels, ([id, { username, publicFeedCount }]) => ({
+      username, publicFeedCount,
+      followerCount: Array.from(this.channelFollows.get(id) ?? []).filter(follower => this.accounts.has(follower) && !this.accounts.get(follower)?.disabledAt).length
+    }))
       .sort((a, b) => b.followerCount - a.followerCount || b.publicFeedCount - a.publicFeedCount || (a.username < b.username ? -1 : Number(a.username > b.username)))
       .slice(0, limit);
+  }
+
+  async hasChannelFollow(channelId: string, followerId: string): Promise<boolean> {
+    return this.channelFollows.get(channelId)?.has(followerId) ?? false;
+  }
+
+  async setChannelFollow(channelId: string, followerId: string, following: boolean): Promise<void> {
+    const followers = this.channelFollows.get(channelId) ?? new Set<string>();
+    if (following) followers.add(followerId);
+    else followers.delete(followerId);
+    if (followers.size) this.channelFollows.set(channelId, followers);
+    else this.channelFollows.delete(channelId);
   }
 
   async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string): Promise<Array<BriefingConfig & {viewerHasStarred: boolean; latestUpdatedAt?: string}>> {

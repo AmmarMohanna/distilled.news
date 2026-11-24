@@ -293,6 +293,7 @@ function isDatabaseUnavailable(error: unknown): boolean {
 }
 
 const accountAvatarKey = (accountId: string) => `account-avatars/${encodeURIComponent(accountId)}.jpg`;
+const channelCoverKey = (accountId: string) => `channel-covers/${encodeURIComponent(accountId)}.jpg`;
 
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -865,10 +866,11 @@ export function createApp(options: AppOptions = {}) {
     });
   });
 
-  app.put("/api/me/avatar", bodyLimit({
+  const accountPictureLimit = bodyLimit({
     maxSize: 512 * 1024,
     onError: c => c.json({ error: "Profile picture is too large" }, 413)
-  }), async (c) => {
+  });
+  const saveAccountPicture = (cover: boolean) => async (c: Context<{ Bindings: Env; Variables: Variables }>) => {
     const origin = c.req.header("origin");
     if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: "Invalid upload origin" }, 403);
     const bucket = c.env.RAW_ARCHIVE;
@@ -881,12 +883,14 @@ export function createApp(options: AppOptions = {}) {
         data[data.length - 2] !== 0xff || data[data.length - 1] !== 0xd9) {
       return c.json({ error: "Choose a JPEG, PNG, or WebP image" }, 415);
     }
-    await bucket.put(accountAvatarKey(account.id), data, {
+    await bucket.put(cover ? channelCoverKey(account.id) : accountAvatarKey(account.id), data, {
       httpMetadata: { contentType: "image/jpeg" },
-      customMetadata: { channel: c.req.query("channel") === "1" ? "public" : "private" }
+      customMetadata: { channel: cover || c.req.query("channel") === "1" ? "public" : "private" }
     });
     return c.json({ ok: true });
-  });
+  };
+  app.put("/api/me/avatar", accountPictureLimit, saveAccountPicture(false));
+  app.put("/api/me/channel-cover", accountPictureLimit, saveAccountPicture(true));
 
   app.delete("/api/me/avatar", async (c) => {
     const origin = c.req.header("origin");
@@ -1358,7 +1362,10 @@ export function createApp(options: AppOptions = {}) {
       return c.json({ error: "keep at least one admin" }, 400);
     }
     await repo.deleteAccount(target.id);
-    if (c.env.RAW_ARCHIVE) await repo.queueArchiveDeletion(accountAvatarKey(target.id), nowFor());
+    if (c.env.RAW_ARCHIVE) {
+      await repo.queueArchiveDeletion(accountAvatarKey(target.id), nowFor());
+      await repo.queueArchiveDeletion(channelCoverKey(target.id), nowFor());
+    }
     return c.json({ accounts: await repo.listAccounts(), briefings: await repo.listBriefings() });
   });
 
@@ -1443,26 +1450,48 @@ export function createApp(options: AppOptions = {}) {
   }
 
   app.get("/api/explore/channels/:username", async (c) => {
-    c.header("Cache-Control", "no-store");
+    c.header("Cache-Control", "private, no-store");
+    c.header("Vary", "Cookie");
     const repo = repoFor(c);
     const owner = await channelOwner(repo, c.req.param("username"));
     const channel = owner && (await repo.listExploreChannels(1, owner.id))[0];
-    return channel ? c.json({ channel }) : c.json({ error: "Channel not found" }, 404);
+    if (!owner || !channel) return c.json({ error: "Channel not found" }, 404);
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims && await repo.getAccountById(claims.sub);
+    const viewerFollowing = Boolean(viewer && !viewer.disabledAt && await repo.hasChannelFollow(owner.id, viewer.id));
+    return c.json({ channel: { ...channel, viewerFollowing } });
   });
 
-  app.get("/api/explore/channels/:username/avatar", async (c) => {
+  app.put("/api/me/channels/:username/follow", async (c) => {
+    const origin = c.req.header("origin");
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: "Forbidden" }, 403);
+    const viewer = c.get("account")!;
+    const repo = c.get("repo");
+    const owner = await channelOwner(repo, c.req.param("username"));
+    if (!owner || !(await repo.listExploreChannels(1, owner.id)).length) return c.json({ error: "Channel not found" }, 404);
+    if (owner.id === viewer.id) return c.json({ error: "You can’t follow your own channel" }, 400);
+    const { following } = z.object({ following: z.boolean() }).parse(await c.req.json());
+    await repo.setChannelFollow(owner.id, viewer.id, following);
+    const channel = (await repo.listExploreChannels(1, owner.id))[0];
+    if (!channel) return c.json({ error: "Channel not found" }, 404);
+    return c.json({ channel: { ...channel, viewerFollowing: following } });
+  });
+
+  async function readChannelPicture(c: Context<{ Bindings: Env; Variables: Variables }>, username: string, cover: boolean) {
     c.header("Cache-Control", "no-store");
     const repo = repoFor(c);
-    const owner = await channelOwner(repo, c.req.param("username"));
+    const owner = await channelOwner(repo, username);
     if (!owner || !(await repo.listExploreBriefings(1, 0, undefined, undefined, owner.id)).length) return c.body(null, 404);
-    const avatar = await c.env.RAW_ARCHIVE?.get(accountAvatarKey(owner.id));
+    const avatar = await c.env.RAW_ARCHIVE?.get(cover ? channelCoverKey(owner.id) : accountAvatarKey(owner.id));
     if (avatar?.customMetadata?.channel !== "public") return c.body(null, 404);
     return c.body(avatar.body, 200, {
       "Content-Type": "image/jpeg",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "sandbox"
     });
-  });
+  }
+  app.get("/api/explore/channels/:username/avatar", c => readChannelPicture(c, c.req.param("username"), false));
+  app.get("/api/explore/channels/:username/cover", c => readChannelPicture(c, c.req.param("username"), true));
 
   app.get("/api/explore/feeds", async (c) => {
     c.header('Cache-Control','private, no-store');
