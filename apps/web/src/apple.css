@@ -47,8 +47,16 @@
 
 /* Apple-inspired foundations. Content stays solid; only navigation uses material.
    Keep this after the legacy styles so every route shares one visual system. */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-4.1.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: fallback;
+}
+
 :root.apple-ui {
-  --app-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, sans-serif;
+  --app-font: "Inter", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
   --page: #fff;
   --surface: #fff;
   --surface-quiet: #f5f5f7;
@@ -2633,7 +2641,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .sidebar-top { inset-inline: var(--sidebar-inset); }
   :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .sidebar-brand .distilled-logo-wordmark { font-size: clamp(22px, 1.55vw, 26px); }
   :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .navigation-item { min-height: clamp(50px, 5.8vh, 60px); padding-inline: clamp(12px, 1vw, 18px); column-gap: clamp(14px, 1.2vw, 22px); }
-  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .navigation-item > span { font-size: clamp(16px, 1.1vw, 18px); text-align: start; }
+  :root.apple-ui.apple-ui .collapsible-navigation:not(.is-collapsed) .navigation-item > span { font-size: .9375rem; font-weight: 400; text-align: start; }
 }
 
 /* A centered feed identity and one compact, responsive reader toolbar. */
@@ -3785,9 +3793,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-shell .page-heading :is(h1, .feed-owner-channel, .feed-header-actions > button) { color: #fff9fc; }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) h1 {
   font-family: var(--app-font);
-  font-size: clamp(1.375rem, 1.125rem + .7vw, 1.875rem);
-  font-weight: 650;
-  line-height: 1.12;
+  font-size: clamp(1.25rem, 1.05rem + .52vw, 1.5rem);
+  font-weight: 620;
+  line-height: 1.2;
+  letter-spacing: -.02em;
   overflow-wrap: anywhere;
 }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell .page-heading:has(.feed-hero-art) > :is(.page-title-row,p) {
@@ -3840,7 +3849,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   padding: 6px 12px;
   border: 0;
   border-radius: 0;
-  font-weight: 500;
+  font-size: .875rem;
+  font-weight: 400;
 }
 :root.apple-ui.apple-ui .feed-banner-menu .feed-options-popover > :is(a,button) + :is(a,button) { border-block-start: 1px solid var(--line); }
 :root.apple-ui.apple-ui .feed-shell .page-heading .feed-header-actions.feed-banner-menu {
