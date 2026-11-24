@@ -35,10 +35,10 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
 
 export function sketchPrompt(briefing: Pick<BriefingConfig, "interestProfile">): string {
   return [
-    "Create a complete square editorial cover illustration in traditional colored pencil, on subtly textured paper.",
+    "Create a wide landscape editorial illustration in traditional colored pencil, on subtly textured paper.",
     `The news interest is ${JSON.stringify(briefing.interestProfile)}. Choose one immediately recognizable subject and a setting that relates directly to that topic.`,
-    "Draw the setting as part of the illustration across the whole square, with layered perspective, faint background detail and crosshatching extending to the edges. Keep the subject fully inside the square and clearly readable at thumbnail size.",
-    "Use a carefully limited, muted palette, with separate tonal values for the subject and the setting. Show fine pencil grain and pressure variation. Use paper as a highlight and preserve a strong focal point.",
+    "Draw the setting across the whole landscape, with layered perspective, faint background detail and crosshatching extending to the edges. Center the complete main subject inside the middle square so a centered square crop reads clearly at thumbnail size.",
+    "Use a limited palette of indigo blue, magenta, and warm paper highlights. Give the central subject strong tonal contrast, and let the surrounding blue and magenta crosshatching extend into the edges. Show fine pencil grain and pressure variation.",
     "No text, logos, signatures, borders, graphic templates, photorealism, or drawing tools."
   ].join("\n");
 }
@@ -50,8 +50,8 @@ export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'i
   // Klein uses multipart input and a fixed four-step inference process.
   const form = new FormData();
   form.append("prompt", prompt);
-  form.append("width", "1024");
-  form.append("height", "1024");
+  form.append("width", "1344");
+  form.append("height", "768");
   form.append("seed", "42");
   let result;
   try {

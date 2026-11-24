@@ -32,8 +32,8 @@ it("sends the interest to Klein 4B as multipart form data and saves the returned
   expect(request.headers.get("content-type")).toMatch(/^multipart\/form-data; boundary=/);
   const fields = await request.formData();
   expect([...fields.keys()].sort()).toEqual(["height", "prompt", "seed", "width"]);
-  expect(fields.get("width")).toBe("1024");
-  expect(fields.get("height")).toBe("1024");
+  expect(fields.get("width")).toBe("1344");
+  expect(fields.get("height")).toBe("768");
   expect(fields.get("seed")).toBe("42");
   expect(fields.get("prompt")).toContain('"Parliament news"');
   expect(fields.get("prompt")).not.toContain("World politics");
@@ -50,9 +50,10 @@ it("uses only the interest for subject selection and preserves the full allowed 
   const prompt = sketchPrompt(first);
   expect(prompt).toBe(sketchPrompt(renamed));
   expect(prompt).toContain(JSON.stringify(interestProfile));
-  expect(prompt).toContain("complete square editorial cover illustration in traditional colored pencil");
+  expect(prompt).toContain("wide landscape editorial illustration in traditional colored pencil");
   expect(prompt).toContain("crosshatching extending to the edges");
-  expect(prompt).toContain("separate tonal values for the subject and the setting");
+  expect(prompt).toContain("centered square crop");
+  expect(prompt).toContain("indigo blue, magenta");
 });
 
 it("does not save an image returned after the queue job has lost its lease", async () => {
