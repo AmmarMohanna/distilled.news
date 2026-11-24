@@ -130,6 +130,7 @@ test('discovery shelves link to a dedicated briefing with its published body', a
   await expect(page.getByRole('heading', {name:'All public feeds'})).toBeVisible();
   await expect(page.getByRole('heading', {name:'New feeds'})).toBeVisible();
   const shelf = page.getByRole('region', {name:'Trending briefings',exact:true}).last();
+  await expect(page.getByRole('button', {name:'Scroll forward',exact:true})).toHaveCount(0);
   await expect(shelf).toHaveCSS('overflow-x', 'auto');
   await shelf.getByRole('link', {name:'Lebanon',exact:true}).click();
   await expect(page).toHaveURL(/\/joud\/lebanon\/briefing\/evening\//);

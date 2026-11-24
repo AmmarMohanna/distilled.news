@@ -241,7 +241,7 @@ export function AppExperience(props: {
         </>}
       </section>
     </div>}
-    <section className="explore-view" aria-busy={loading} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
+    <section className={`explore-view${props.account || tabFromLocation() === "explore" ? " hide-shelf-controls" : ""}`} aria-busy={loading} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {channelName ? <div className="channel-heading">
         <a className="channel-back" href="/explore">{t("Back to Explore")}</a>
         {channel ? <ChannelHeader channel={channel} onError={setError} onReport={props.onHelp}/> : <p role="status">{t(

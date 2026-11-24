@@ -3631,6 +3631,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .catalog-shelf-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-block-end: 6px; }
 :root.apple-ui.apple-ui .catalog-shelf-header h2 { font-size: 1.25rem; margin: 0; }
 :root.apple-ui.apple-ui .catalog-shelf-controls { display: flex; gap: 4px; }
+:root.apple-ui.apple-ui .hide-shelf-controls .catalog-shelf-controls { display: none; }
 :root.apple-ui.apple-ui .catalog-shelf-controls button {
   display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
   border: 1px solid var(--line); border-radius: 50%; background: var(--surface-quiet); color: var(--text);
