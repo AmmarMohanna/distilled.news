@@ -3235,6 +3235,22 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   display: block;
   border-radius: inherit;
 }
+:root.apple-ui.apple-ui .experience .feed-tile-artwork::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgb(20 21 25 / 26%);
+  opacity: 0;
+  pointer-events: none;
+}
+:root.apple-ui.apple-ui .experience .feed-tile:is(:focus-within, :has(.feed-tile-options[open])) .feed-tile-artwork::after { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  :root.apple-ui.apple-ui .experience .feed-tile:hover .feed-tile-artwork::after { opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root.apple-ui.apple-ui .experience .feed-tile-artwork::after { transition: opacity 140ms ease-out; }
+}
 :root.apple-ui.apple-ui .experience .feed-tile-grid .feed-tile-cover .feed-tile-artwork > .topic-art {
   position: absolute;
   inset: 0;

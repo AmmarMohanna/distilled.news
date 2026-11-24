@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable within their available space at ${width}px`, async ({ page }) => {
+for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable within their available space at ${width}px`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: 844 });
   const feed = { id: 'science', ownerAccountId: 'owner', ownerUsername: 'owner', slug: 'science', title: 'Science', stars: 0, publicFeedEnabled: true, paused: false, latestUpdatedAt: '2026-10-14T08:00:00Z' };
   await page.route('**/api/**', route => {
@@ -22,6 +22,18 @@ for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable
   await expect.poll(() => contained(home)).toBe(true);
   await expect(home.locator('.feed-tile-caption')).toBeVisible();
   await expect(home.locator('.topic-art')).toBeVisible();
+  if (width === 1280 && !info.project.use.hasTouch) {
+    const artwork=home.locator('.feed-tile-artwork');
+    const overlay=()=>artwork.evaluate(node=>getComputedStyle(node,'::after').opacity);
+    await expect.poll(overlay).toBe('0');
+    await artwork.hover();
+    await expect.poll(overlay).toBe('1');
+    await expect(home.locator('.feed-tile-controls')).toHaveCSS('opacity','1');
+    await page.mouse.move(width - 2, 2);
+    await expect.poll(overlay).toBe('0');
+    await home.locator('.feed-tile-caption > a').focus();
+    await expect.poll(overlay).toBe('1');
+  }
   const create = page.locator('.home-add-feed');
   expect(await create.evaluate(el => getComputedStyle(el).whiteSpace)).toBe('nowrap');
   await page.getByRole('button', { name: 'Explore', exact: true }).click();
