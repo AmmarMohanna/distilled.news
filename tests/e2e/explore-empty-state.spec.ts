@@ -25,3 +25,29 @@ test('an Explore failure is not presented as an empty community and retries to t
  await explore.getByRole('button',{name:'Try Again',exact:true}).click();
  await expect(explore.locator('.empty-copy')).toHaveText('No community feeds are available yet.');
 });
+
+test('Explore reveals the initial grid and optional shelves together', async ({page}) => {
+  const feed={id:'science',title:'Science',ownerUsername:'owner',slug:'science',publicFeedEnabled:true,paused:false};
+  let release!:()=>void;
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  await page.route('**/api/**',async route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==='/api/auth/session')return route.fulfill({json:{authenticated:false,setupRequired:false}});
+    if(path==='/api/explore/feeds')return route.fulfill({json:{feeds:[feed],nextOffset:null}});
+    if(path==='/api/explore/highlights'){
+      await gate;
+      return route.fulfill({json:{trending:[feed],newest:[]}});
+    }
+    return route.fulfill({json:{channels:[]}});
+  });
+  const listing=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/explore/feeds');
+  await page.goto('/explore');
+  try{
+    await listing;
+    const grid=page.locator('.feed-tile-grid[data-feed-view=explore]');
+    await expect(grid).toHaveCount(0);
+    release();
+    await expect(page.getByRole('heading',{name:'Trending topics'})).toBeVisible();
+    await expect(grid.locator('.feed-tile')).toHaveCount(1);
+  }finally{release();}
+});

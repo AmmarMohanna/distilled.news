@@ -50,6 +50,7 @@ export function AppExperience(props: {
   const [tab, setTab] = useState<ExperienceTab>(() => props.initialTab ?? tabFromLocation());
   const [query, setQuery] = useState("");
   const [channelName, setChannelName] = useState(() => new URLSearchParams(window.location.search).get("channel") ?? "");
+  const [catalogReady, setCatalogReady] = useState(false);
   const [channels, setChannels] = useState<ExploreChannel[]>([]);
   const [highlights, setHighlights] = useState<{ trending: ExploreHighlight[]; newest: ExploreHighlight[] }>({ trending: [], newest: [] });
   const [channel, setChannel] = useState<ExploreChannel>();
@@ -95,12 +96,24 @@ export function AppExperience(props: {
             setChannelMissing(error instanceof ApiError && error.uiMessage.details.status === 404);
           });
       } else {
-        void getExploreChannels(request.signal)
-          .then(value => { if (!request.signal.aborted) setChannels(value); })
-          .catch(() => { /* Feed discovery remains usable when channel rankings are unavailable. */ });
-        void getExploreHighlights(request.signal)
-          .then(value => { if (!request.signal.aborted) setHighlights({ trending: value.trending ?? [], newest: value.newest ?? [] }); })
-          .catch(() => { /* The main public feed catalog remains available. */ });
+        // Optional shelves should settle together and must not hold up the catalog indefinitely.
+        const optional = new AbortController();
+        const cancel = () => optional.abort();
+        request.signal.addEventListener("abort", cancel, {once:true});
+        const deadline = window.setTimeout(cancel, 1800);
+        void Promise.allSettled([getExploreChannels(optional.signal), getExploreHighlights(optional.signal)])
+          .then(([channelResult, highlightResult]) => {
+            if (request.signal.aborted) return;
+            if (channelResult.status === "fulfilled") setChannels(channelResult.value);
+            if (highlightResult.status === "fulfilled") {
+              const { trending = [], newest = [] } = highlightResult.value;
+              setHighlights({ trending, newest });
+            }
+            setCatalogReady(true);
+          }).finally(() => {
+            window.clearTimeout(deadline);
+            request.signal.removeEventListener("abort", cancel);
+          });
       }
     };
     setChannel(undefined);
@@ -183,6 +196,7 @@ export function AppExperience(props: {
   const ownFeeds = activeFeeds.filter(feed => matching(feed.title));
   const owns = (feed: PublicBriefing) => Boolean(props.account && ((Boolean(props.account.id) && feed.ownerAccountId === props.account.id) || feed.ownerUsername === props.account.username));
   const visibleFeeds = feeds.filter(feed => !feed.paused && (channelName ? feed.publicFeedEnabled && feed.ownerUsername === channel?.username : !owns(feed)) && matching(`${feed.title} ${feed.ownerUsername}`));
+  const waitingForCatalog = tab === "explore" && !channelName && !query.trim() && !exploreError && !catalogReady;
   const recentFeeds = channel && !query ? visibleFeeds.filter(feed => feed.latestUpdatedAt)
     .sort((a, b) => b.latestUpdatedAt!.localeCompare(a.latestUpdatedAt!)).slice(0, 6) : [];
   const setting = (icon: React.ReactNode, label: string, action: () => void) => <button type="button" className="setting-row" onClick={action}>{icon}<span>{t(label)}</span><ChevronRight size={17}/></button>;
@@ -241,7 +255,7 @@ export function AppExperience(props: {
         </>}
       </section>
     </div>}
-    <section className={`explore-view${props.account || tabFromLocation() === "explore" ? " hide-shelf-controls" : ""}`} aria-busy={loading} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
+    <section className={`explore-view${props.account || tabFromLocation() === "explore" ? " hide-shelf-controls" : ""}`} aria-busy={loading || waitingForCatalog} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {channelName ? <div className="channel-heading">
         <a className="channel-back" href="/explore">{t("Back to Explore")}</a>
         {channel ? <ChannelHeader channel={channel} onError={setError} onReport={props.onHelp}/> : channelFailed ? <p role="status">{t(
@@ -260,7 +274,7 @@ export function AppExperience(props: {
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
       </div>
-      {!channelName && tab === "explore" && !query && <>
+      {!channelName && tab === "explore" && !query && catalogReady && (!loading || feeds.length > 0) && <>
         {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")}>
           {visibleFeeds.slice(0, 8).map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
@@ -281,7 +295,7 @@ export function AppExperience(props: {
           </a>)}
         </CatalogShelf>}
       </>}
-      <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")}>
+      {!waitingForCatalog && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")}>
         {channel && <h2 className="channel-section-title">{t("Public feeds")}</h2>}
         {!channelName && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {exploreError && <div role="alert">
@@ -298,7 +312,7 @@ export function AppExperience(props: {
           onStarChange={result => setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item))}
         />)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim()||nextOffset===null) ? <p className="empty-copy" role="status">{t(query.trim()?(nextOffset!==null?"No matches in loaded feeds. Load more feeds to continue searching.":"No feeds match your search."):"No community feeds are available yet.")}</p> : null}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
-      </section>
+      </section>}
       {recentFeeds.length > 0 && <section className="channel-recent" aria-labelledby="channel-recent-heading">
         <h2 id="channel-recent-heading">{t("Recently updated")}</h2>
         <ul>{recentFeeds.map(feed => <li key={feed.id}><a href={feedUrl(feed)}>
