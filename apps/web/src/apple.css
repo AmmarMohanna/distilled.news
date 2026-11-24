@@ -3248,6 +3248,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .briefing-detail-art > .full-cover-art > img { object-fit: cover; object-position: center; }
 :root.apple-ui.apple-ui .experience .feed-tile-cover .full-cover-art { overflow: hidden; }
 :root.apple-ui.apple-ui .experience .feed-tile-cover .full-cover-art > img { scale: 1.24; }
+:root.apple-ui.apple-ui .experience .feed-tile-cover .full-cover-art > .panoramic-cover-image {
+  scale: 1.08;
+  transform-origin: center bottom;
+  object-position: 52% bottom;
+}
 :root.apple-ui.apple-ui .feed-tile-controls {
   position: absolute;
   inset: auto 8px 8px;

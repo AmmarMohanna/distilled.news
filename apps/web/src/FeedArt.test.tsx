@@ -34,7 +34,11 @@ it('keeps the full cover background and original ink colors', async () => {
   vi.stubGlobal('URL', Object.assign(class {}, { createObjectURL: create, revokeObjectURL: vi.fn() }));
   const { host, root } = renderHost();
   await act(async () => root.render(<FeedArt centered feed={{ id: 'cover', publicFeedEnabled: false, title: 'Science', ownerUsername: 'owner', slug: 'cover' }}/>));
-  expect(host.querySelector('img')?.style.filter).toBe('');
+  const image = host.querySelector('img')!;
+  expect(image.style.filter).toBe('');
+  Object.defineProperties(image, { naturalWidth: { value: 1920 }, naturalHeight: { value: 480 } });
+  await act(async () => image.dispatchEvent(new Event('load')));
+  expect(image.classList.contains('panoramic-cover-image')).toBe(true);
   expect(create.mock.calls[0]).toHaveLength(1);
   expect(transparentSketch).not.toHaveBeenCalled();
 });
@@ -104,7 +108,7 @@ it('shares public artwork retrieval and conversion across simultaneous cards',as
  vi.stubGlobal('URL',Object.assign(class {},{createObjectURL:()=> 'blob:shared',revokeObjectURL:vi.fn()}));
  const a=renderHost(),b=renderHost(),feed={id:'shared',title:'News',ownerUsername:'owner',slug:'shared',publicFeedEnabled:true};
  await act(async()=>{a.root.render(<FeedArt feed={feed}/>);b.root.render(<FeedArt feed={feed}/>)});
- expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher).toHaveBeenCalledWith('/api/feed/owner/shared/sketch?v=v5',expect.objectContaining({cache:'default'}));
+ expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher).toHaveBeenCalledWith('/api/feed/owner/shared/sketch?v=v6',expect.objectContaining({cache:'default'}));
  await act(async()=>pending.resolve(sketch()));expect(transparentSketch).toHaveBeenCalledTimes(1);expect(a.host.querySelector('img')).not.toBeNull();expect(b.host.querySelector('img')).not.toBeNull();
 });
 it('never persists private artwork or reuses it across remounts',async()=>{
@@ -130,7 +134,7 @@ it('refreshes only explicitly requested artwork even when a processed image is c
  try{
   await act(async()=>root.render(<FeedArt feed={feed}/>));
   expect(fetcher).toHaveBeenCalledTimes(2);
-  expect(fetcher).toHaveBeenLastCalledWith('/api/feed/owner/refresh-one/sketch?v=v5',expect.objectContaining({cache:'reload'}));
+  expect(fetcher).toHaveBeenLastCalledWith('/api/feed/owner/refresh-one/sketch?v=v6',expect.objectContaining({cache:'reload'}));
   expect(window.location.search).toBe('?keep=1');
  }finally{window.history.replaceState(null,'','/');}
 });

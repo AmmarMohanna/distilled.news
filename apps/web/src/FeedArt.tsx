@@ -37,10 +37,10 @@ function rememberSketch(key: string, blob: Blob) {
 
 export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?: string; feed?: { id?: string; title: string; interestProfile?: string; ownerUsername?: string; slug?: string; publicFeedEnabled?: boolean } }) {
   const [image, setImage] = useState<{ url: string; fullCover: boolean }>();
-  const [loaded, setLoaded] = useState(false);
+  const [loadedAspect, setLoadedAspect] = useState(0);
   const [failure, setFailure] = useState("");
   useEffect(() => {
-    setImage(undefined); setLoaded(false); setFailure("");
+    setImage(undefined); setLoadedAspect(0); setFailure("");
     // Wait for feed metadata rather than fetching the placeholder before visibility is known.
     if (!feed?.ownerUsername || !feed?.slug || feed.publicFeedEnabled === undefined) { return; }
     const controller = new AbortController();
@@ -131,9 +131,9 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
   }, [feed?.ownerUsername, feed?.slug, feed?.id, feed?.publicFeedEnabled, centered]);
   return <span className={`topic-art pencil-art${image?.fullCover ? " full-cover-art" : ""}`} title={failure || undefined} aria-hidden="true">
 
-    {image && <img src={image.url} alt="" style={{
-      visibility: loaded ? "visible" : "hidden",
+    {image && <img src={image.url} alt="" className={loadedAspect >= 3 ? "panoramic-cover-image" : undefined} style={{
+      visibility: loadedAspect ? "visible" : "hidden",
       filter: image.fullCover ? undefined : `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
-    }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); }}/>}
+    }} onLoad={({ currentTarget }) => setLoadedAspect(currentTarget.naturalHeight ? currentTarget.naturalWidth / currentTarget.naturalHeight : 1)} onError={() => setLoadedAspect(0)}/>}
   </span>;
 }

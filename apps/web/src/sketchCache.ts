@@ -1,5 +1,5 @@
 // Keep this version in sync with changes that invalidate stored artwork.
-export const FEED_ART_CACHE_VERSION = 'v5';
+export const FEED_ART_CACHE_VERSION = 'v6';
 const cacheName = `distilled-processed-sketches-${FEED_ART_CACHE_VERSION}`;
 const lifetime = 7 * 24 * 60 * 60 * 1000;
 
