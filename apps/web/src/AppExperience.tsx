@@ -197,6 +197,7 @@ export function AppExperience(props: {
   const owns = (feed: PublicBriefing) => Boolean(props.account && ((Boolean(props.account.id) && feed.ownerAccountId === props.account.id) || feed.ownerUsername === props.account.username));
   const visibleFeeds = feeds.filter(feed => !feed.paused && (channelName ? feed.publicFeedEnabled && feed.ownerUsername === channel?.username : !owns(feed)) && matching(`${feed.title} ${feed.ownerUsername}`));
   const waitingForCatalog = tab === "explore" && !channelName && !query.trim() && !exploreError && !catalogReady;
+  const showCatalogShelves = !channelName && tab === "explore" && !query && catalogReady && (!loading || feeds.length > 0);
   const recentFeeds = channel && !query ? visibleFeeds.filter(feed => feed.latestUpdatedAt)
     .sort((a, b) => b.latestUpdatedAt!.localeCompare(a.latestUpdatedAt!)).slice(0, 6) : [];
   const setting = (icon: React.ReactNode, label: string, action: () => void) => <button type="button" className="setting-row" onClick={action}>{icon}<span>{t(label)}</span><ChevronRight size={17}/></button>;
@@ -274,7 +275,7 @@ export function AppExperience(props: {
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
         <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
       </div>
-      {!channelName && tab === "explore" && !query && catalogReady && (!loading || feeds.length > 0) && <>
+      {showCatalogShelves && <>
         {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")}>
           {visibleFeeds.slice(0, 8).map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
@@ -286,13 +287,6 @@ export function AppExperience(props: {
         </CatalogShelf>}
         {highlights.newest.length > 0 && <CatalogShelf title={t("New feeds")}>
           {highlights.newest.map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
-        </CatalogShelf>}
-        {channels.length > 0 && <CatalogShelf title={t("Top channels")} className="channel-shelf">
-          {channels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
-          <ChannelAvatar username={item.username}/>
-          <strong><bdi>@{item.username}</bdi></strong>
-          <ChannelCounts channel={item}/>
-          </a>)}
         </CatalogShelf>}
       </>}
       {(!waitingForCatalog || props.account) && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")} style={waitingForCatalog ? { display: "none" } : undefined}>
@@ -325,6 +319,13 @@ export function AppExperience(props: {
         )}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>}
+      {showCatalogShelves && channels.length > 0 && <CatalogShelf title={t("Top channels")} className="channel-shelf">
+        {channels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
+          <ChannelAvatar username={item.username}/>
+          <strong><bdi>@{item.username}</bdi></strong>
+          <ChannelCounts channel={item}/>
+        </a>)}
+      </CatalogShelf>}
       {recentFeeds.length > 0 && <section className="channel-recent" aria-labelledby="channel-recent-heading">
         <h2 id="channel-recent-heading">{t("Recently updated")}</h2>
         <ul>{recentFeeds.map(feed => <li key={feed.id}><a href={feedUrl(feed)}>

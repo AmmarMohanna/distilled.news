@@ -6,10 +6,19 @@ for(const [language,message] of [
  ['ar','لا توجد خلاصات مجتمعية متاحة بعد.']
 ] as const)test(`successful empty Explore is explained in ${language}`,async({page})=>{
  await page.addInitScript(language=>localStorage.setItem('dn_language',language),language);
- await page.route('**/api/**',route=>route.fulfill({json:new URL(route.request().url()).pathname==='/api/auth/session'?{authenticated:false,setupRequired:false}:{feeds:[],nextOffset:null}}));
+ await page.route('**/api/**',route=>{
+  const path=new URL(route.request().url()).pathname;
+  if(path==='/api/auth/session')return route.fulfill({json:{authenticated:false,setupRequired:false}});
+  if(path==='/api/explore/channels')return route.fulfill({json:{channels:[{username:'admin',publicFeedCount:6,followerCount:1}]}});
+  return route.fulfill({json:{feeds:[],nextOffset:null}});
+ });
  await page.goto('/explore');
  await expect(page.locator('.community-feeds-empty').getByRole('heading')).toHaveText(message);
  await expect(page.locator('.community-feeds-empty').getByRole('button')).toBeVisible();
+ await expect(page.locator('.channel-shelf')).toBeVisible();
+ const button=await page.locator('.community-feeds-empty').getByRole('button').boundingBox();
+ const shelf=await page.locator('.channel-shelf').boundingBox();
+ expect(shelf!.y).toBeGreaterThan(button!.y+button!.height);
  await expect(page.locator('.explore-view [role="alert"]')).toHaveCount(0);
 });
 
