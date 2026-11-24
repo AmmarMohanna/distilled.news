@@ -14,6 +14,9 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
     await page.getByRole("button", { name: "Account profile" }).click();
     const dialog = page.locator(".profile-dialog");
     await expect(dialog.getByRole("button", { name: "Log out" })).toBeVisible();
+    const bounds = await dialog.boundingBox();
+    expect(bounds!.x + bounds!.width / 2).toBeCloseTo(size.width / 2, 0);
+    expect(bounds!.y + bounds!.height / 2).toBeCloseTo(size.height / 2, 0);
     const result = await dialog.evaluate(node => ({
       viewportHeight: node.querySelector(".screen-page-viewport")!.clientHeight,
       scrollHeight: node.querySelector(".screen-page-viewport")!.scrollHeight,

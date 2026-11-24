@@ -4053,13 +4053,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   row-gap: 10px;
   padding-block: 20px;
 }
-:root.apple-ui.apple-ui .profile-dialog {
-  --profile-top: clamp(12px, 9dvh, 72px);
-  margin-block: var(--profile-top) auto;
-}
-:root.apple-ui.apple-ui .profile-dialog .screen-page-viewport {
-  max-height: calc(100dvh - var(--profile-top) - 12px);
-}
 :root.apple-ui.apple-ui .profile-dialog .profile-account-fields {
   grid-area: fields;
   display: flex;
