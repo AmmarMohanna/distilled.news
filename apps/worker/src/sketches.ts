@@ -35,9 +35,9 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
 
 
 const EDITORIAL_ENGRAVING_STYLE = [
-  "Create an Ultra-Detailed Duotone Pencil Engraving for a premium news publication. Render master-level graphite textures, precise line weights, fine cross-hatching, controlled tonal shading, and convincing depth and perspective. Draw architecture, objects, and environments with the craftsmanship of a scientific illustration or architectural engraving.",
+  "Create an Ultra-Detailed Colored-Pencil Engraving for a premium news publication. Render master-level graphite textures, precise line weights, fine cross-hatching, controlled tonal shading, and convincing depth and perspective. Draw architecture, objects, and environments with the craftsmanship of a scientific illustration or architectural engraving.",
   "Build a wide editorial composition with one dominant subject and detailed foreground and background. Keep the recognizable subject inside the middle quarter so a centered square crop remains meaningful. Use the entire canvas for one continuous edge-to-edge scene.",
-  "Use Electric Blue #2448D8 and Deep Indigo #303B9F strokes on the left, Violet #7852B5 through the transition, Magenta #DB4BA6 and Soft Pink #F4A6D7 on the right, and Off-White #FAF9FF in highlights and negative space. Build these colors from pencil strokes and tonal variations. Keep linework crisp and avoid flat tint overlays, blur, oversaturation, and muddy shading.",
+  "Use the Distilled.news Create feed button color #5E5CE6 as the dominant colored-pencil ink. Match that exact blue-violet hue in the medium tones. Use deeper values of the same ink for shadows and lighter values over Off-White #FAF9FF paper for highlights. Build depth and tonal variation with crisp hatching and layered pencil pressure. Keep the artwork anchored to #5E5CE6 across the canvas and avoid separate pink, magenta, violet or mauve color washes.",
   "Output artwork only. Never draw words, letters, pseudo-writing, numbers, labels, logos, watermarks, buttons, or UI, including in the sky and on buildings or signage. No inset artwork, picture frames, panels, borders, stock photography, 3D renders, cartoons, anime, fantasy, flat vector art, or dreamy digital painting."
 ].join("\n");
 

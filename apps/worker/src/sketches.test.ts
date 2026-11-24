@@ -51,13 +51,15 @@ it("uses the title and full interest text with the shared illustration palette",
   expect(prompt).not.toBe(sketchPrompt(renamed));
   expect(prompt).toContain(JSON.stringify(first.title));
   expect(prompt).toContain(JSON.stringify(interestProfile));
-  expect(prompt).toContain("Ultra-Detailed Duotone Pencil Engraving");
+  expect(prompt).toContain("Ultra-Detailed Colored-Pencil Engraving");
   expect(prompt).toContain("fine cross-hatching");
   expect(prompt).toContain("one continuous edge-to-edge scene");
   expect(prompt).toContain("No inset artwork, picture frames, panels");
   expect(prompt).toContain("centered square crop");
   expect(prompt).toContain("Never draw words, letters, pseudo-writing");
-  for (const color of ["#2448D8", "#303B9F", "#7852B5", "#DB4BA6", "#F4A6D7", "#FAF9FF"]) expect(prompt).toContain(color);
+  expect(prompt).toContain("Create feed button color #5E5CE6");
+  expect(prompt).toContain("Off-White #FAF9FF");
+  expect(prompt).toContain("avoid separate pink, magenta, violet or mauve color washes");
 });
 
 it("does not save an image returned after the queue job has lost its lease", async () => {
