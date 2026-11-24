@@ -27,8 +27,8 @@
     "evaluate:strong:prepare": "vitest run --config benchmarks/strong-route-comparison.vitest.config.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.53.0",
-    "@types/node": "^24.0.0",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^24.19.2",
     "typescript": "^5.8.3",
     "vitest": "^4.1.12"
   }

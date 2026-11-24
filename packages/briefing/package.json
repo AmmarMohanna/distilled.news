@@ -12,7 +12,7 @@
     "eval": "node --experimental-strip-types eval/run.ts"
   },
   "devDependencies": {
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.3",
     "vitest": "^4.1.12"
   }
