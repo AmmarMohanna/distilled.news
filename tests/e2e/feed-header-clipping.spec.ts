@@ -24,19 +24,16 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     await expect(back).toHaveCSS('border-top-left-radius', '12px');
     const art = (await page.locator('.feed-hero-art .topic-art').boundingBox())!;
     const container = (await page.locator('.feed-hero-art').boundingBox())!;
-    expect(art.y).toBeGreaterThanOrEqual(header.y + header.height);
     expect(art.y).toBeGreaterThanOrEqual(container.y);
     expect(art.y + art.height).toBeLessThanOrEqual(container.y + container.height + 1);
     expect(art.height).toBeGreaterThanOrEqual(96);
-    if(width<900){
-      const title=(await page.locator('.page-title-row').boundingBox())!;
-      expect(title.y).toBeGreaterThanOrEqual(container.y + container.height - 1);
-      await expect(page.locator('.feed-hero-art .topic-art')).toHaveCSS('transform','none');
-    } else {
-      const title = (await page.locator('.page-title-row').boundingBox())!;
-      if (language === 'ar') expect(title.x + title.width).toBeLessThan(container.x);
-      else expect(title.x).toBeGreaterThan(container.x + container.width);
-    }
-    expect(Math.abs(container.width - container.height)).toBeLessThan(1);
+    const banner = (await page.locator('.feed-shell .page-heading').boundingBox())!;
+    expect(banner.x).toBeCloseTo(0, 0);
+    expect(banner.width).toBeGreaterThan(width - 20);
+    expect(banner.y).toBeLessThanOrEqual(header.y + header.height + 1);
+    expect(container.height).toBeCloseTo(banner.height, 0);
+    await page.locator('.feed-banner-menu summary').click();
+    await expect(page.locator('.feed-banner-menu .feed-options-popover button')).toHaveCount(2);
+    await expect(page.locator('.feed-banner-menu .feed-options-popover button').nth(1)).toBeVisible();
   });
 }

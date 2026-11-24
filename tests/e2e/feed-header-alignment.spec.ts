@@ -22,9 +22,13 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
     await expect(accountControl).toBeVisible();
     await expect(header.locator('.feed-header-actions')).toHaveCount(0);
     await expect(actions.getByRole('button',{name:/Star/})).toBeVisible();
-    await expect(actions.getByRole('button',{name:'Share'})).toBeVisible();
+    const menu=heading.locator('.feed-banner-menu');
+    await menu.locator('summary').click();
+    await expect(menu.getByRole('button',{name:'Share',exact:true})).toBeVisible();
+    await expect(menu.getByRole('button',{name:'Copy link',exact:true})).toBeVisible();
+    await page.keyboard.press('Escape');
     if(owner) await expect(actions.getByRole('button',{name:'Edit feed settings'})).toBeVisible();
-    else await expect(actions.getByRole('button')).toHaveCount(2);
+    else await expect(actions.getByRole('button')).toHaveCount(1);
 
     const preferences=header.locator('.appearance-menu > summary');
     if(!owner&&width<900) await expect(preferences).toBeVisible();

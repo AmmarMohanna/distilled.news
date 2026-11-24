@@ -120,7 +120,7 @@ test('discovery shelves link to a dedicated briefing with its published body', a
   await mock(page, false);
   const edition = { id: 'evening', briefingId: feed.id, title: 'An evening film briefing',
     summary: 'The festival announced its full programme and published the dates for its screenings.',
-    sections: [], publishedAt: '2026-11-22T12:00:00Z', updatedAt: '2026-11-22T12:00:00Z' };
+    sections: [{ title:'Screening details', summary:'The screenings begin with a restored print from the city archive.', evidence:[] }], publishedAt: '2026-11-22T12:00:00Z', updatedAt: '2026-11-22T12:00:00Z' };
   await page.route('**/api/explore/highlights', route => route.fulfill({json:{trending:[{...feed,latestEditionId:edition.id}],newest:[feed]}}));
   await page.route('**/api/feed/joud/lebanon/editions/evening*', route => {
     const photo = new URL(route.request().url()).searchParams.has('photo');
@@ -134,7 +134,10 @@ test('discovery shelves link to a dedicated briefing with its published body', a
   await shelf.getByRole('link', {name:'Lebanon',exact:true}).click();
   await expect(page).toHaveURL(/\/joud\/lebanon\/briefing\/evening\//);
   await expect(page.getByRole('heading', {name:edition.title})).toBeVisible();
-  await expect(page.locator('.briefing-detail-body')).toContainText(edition.summary);
+  await expect(page.locator('.briefing-detail-summary')).toContainText(edition.summary);
+  await expect(page.getByRole('heading', {name:'Screening details'})).toBeVisible();
+  await expect(page.locator('.briefing-detail-body')).toContainText(edition.sections[0].summary);
+  await expect(page.locator('.briefing-parent-feed')).toHaveAttribute('href','/joud/lebanon/');
   await expect(page.getByRole('link', {name:'Back to feed'})).toHaveAttribute('href','/joud/lebanon/');
 });
 test('guests can explore and star feeds',async({page})=>{

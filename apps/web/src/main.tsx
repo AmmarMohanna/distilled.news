@@ -51,6 +51,7 @@ import {
   LogOut,
   Moon,
   MoreHorizontal,
+  MessageSquareWarning,
   Newspaper,
   Pause,
   Pencil,
@@ -1771,17 +1772,6 @@ function FeedPage(props: { username: string; slug: string }) {
     </span>
   ) : initialLoading ? null : "briefing";
 
-  async function shareFeed() {
-    const url = window.location.origin + window.location.pathname;
-    if (navigator.share) {
-      try { await navigator.share({ title: payload?.briefing.title, url }); }
-      catch (cause) { if (!(cause instanceof DOMException && cause.name === "AbortError")) setError("Could not copy URL"); }
-      return;
-    }
-    try { await navigator.clipboard.writeText(url); setSummaryMessage(t("URL copied")); }
-    catch { setError("Could not copy URL"); }
-  }
-
   async function loadEditionDetail(edition: BriefingEdition): Promise<BriefingEdition | null> {
     const key = feedKey;
     if (!visibleEditionIds.current.has(edition.id)) return null;
@@ -1848,7 +1838,6 @@ function FeedPage(props: { username: string; slug: string }) {
         <span className="action-label">{starControlLabel(payload?.viewerHasStarred ?? false, language)}</span>{" "}
         <span className="action-count">{payload?.briefing.stars ?? 0}</span>
       </button>
-      <button type="button" title={t("Share")} aria-label={t("Share")} disabled={!payload?.briefing.publicFeedEnabled} onClick={() => void shareFeed()}><Share size={20} aria-hidden /></button>
       {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={20} aria-hidden /></button> : null}
     </div>
   );
@@ -1888,17 +1877,7 @@ function FeedPage(props: { username: string; slug: string }) {
         {feedActions}
       </div>}
       headingAction={payload?.briefing.publicFeedEnabled ? <span className="feed-banner-menu">
-        <FeedMoreMenu label={t("Feed options")}>{close => <>
-          <button type="button" onClick={() => { close(); void shareFeed(); }}><Share size={16} aria-hidden/>{t("Share")}</button>
-          <button type="button" onClick={async () => {
-            close();
-            try { await navigator.clipboard.writeText(window.location.origin + window.location.pathname); setSummaryMessage(t("URL copied")); }
-            catch { setError("Could not copy URL"); }
-          }}><Copy size={16} aria-hidden/>{t("Copy link")}</button>
-          <a href={`mailto:distillednews.platform@gmail.com?subject=${encodeURIComponent(t("Report a concern"))}&body=${encodeURIComponent(window.location.href)}`}>
-            <Mail size={16} aria-hidden/>{t("Report a concern")}
-          </a>
-        </>}</FeedMoreMenu>
+        <ReaderShareMenu title={payload.briefing.title} onError={() => setError("Could not copy URL")}/>
       </span> : undefined}
       headingLoading={readerLoading}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
@@ -2210,23 +2189,38 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const photo = retainedPhoto ?? previewPhoto;
   const references = briefingReferences(edition);
   const renderReference = (number: number) => <CitationReference key={number} number={number} edition={edition} loadDetail={async () => edition} label={referenceButtonLabel(number, language)}/>;
+  const renderBody = (text: string) => text.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) =>
+    <ReferenceParagraph key={index} className="news-summary" text={paragraph} language={language} direction={direction}
+      referenceCount={references.length} onOpenReference={() => {}} renderReference={renderReference}/>
+  );
+  const summary = normalizeSummary(edition.summary);
+  const comparedText = (text: string) => normalizeSummary(text).replace(/\s*\[\d+\]/g, "").replace(/\s+/g, " ").trim();
+  const fullText = edition.sections.map(section => section.summary).join("\n\n");
+  const hasSeparateSummary = Boolean(summary && fullText && comparedText(summary) !== comparedText(fullText));
   const date = editionDisplayTime(edition);
   return <main className="briefing-detail-page">
     <a className="channel-back" href={href}>{t("Back to feed")}</a>
+    {briefing.publicFeedEnabled && <span className="feed-banner-menu">
+      <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>
+    </span>}
+    {error && <p role="alert">{t(error)}</p>}
     <header className="briefing-detail-hero">
-      <div className="briefing-detail-art">{photo ? <PublisherPhoto photo={photo}/> : <FeedArt feed={briefing} centered/>}</div>
       <div>
         <time dateTime={date}>{formatDayHeading(date, language)} · {formatClock(date, language)}</time>
         <h1 dir="auto">{edition.title || briefing.title}</h1>
-        <a href={href} dir="auto">{briefing.title}</a>
+        <a className="briefing-parent-feed" href={href}><span className="briefing-detail-art"><FeedArt feed={briefing} centered/></span><bdi>{briefing.title}</bdi><ChevronRight size={15} aria-hidden/></a>
       </div>
     </header>
-    {photo && <small className="briefing-photo-credit"><bdi>{photo.source}</bdi></small>}
     <section className="briefing-detail-body" aria-label={t("Briefing")} lang={briefing.language} dir={direction}>
-      <BriefingText summary={edition.summary} sections={edition.sections} direction={direction}
+      {photo && <figure className="briefing-detail-photo"><PublisherPhoto photo={photo}/><figcaption><bdi>{photo.source}</bdi></figcaption></figure>}
+      {hasSeparateSummary && <div className="briefing-detail-summary">{renderBody(summary)}</div>}
+      {hasSeparateSummary ? edition.sections.map((section, index) => <div className="news-story" key={index}>
+        {section.title && <h2 dir="auto">{section.title}</h2>}
+        {renderBody(section.summary)}
+        {references.filter(item => item.sectionIndex === index).map(item => renderReference(item.number))}
+      </div>) : <BriefingText summary={edition.summary} sections={edition.sections} direction={direction}
         renderReferences={section => references.filter(item => section === undefined || item.sectionIndex === section).map(item => renderReference(item.number))}
-        renderBody={text => text.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => <ReferenceParagraph key={index} className="news-summary" text={paragraph} language={language} direction={direction}
-          referenceCount={references.length} onOpenReference={() => {}} renderReference={renderReference}/>)}/>
+        renderBody={renderBody}/>}
     </section>
   </main>;
 }
@@ -2330,6 +2324,27 @@ function FeedMoreMenu(props: { label: string; children: (close: () => void) => R
   );
 }
 
+function ReaderShareMenu({ title, onError }: { title: string; onError: () => void }) {
+  const { t } = useLanguage();
+  const [copied, setCopied] = useState(false);
+  const url = window.location.origin + window.location.pathname;
+  async function copy() {
+    try { await navigator.clipboard.writeText(url); setCopied(true); }
+    catch { onError(); }
+  }
+  return <FeedMoreMenu label={t("Feed options")}>{close => <>
+    <button type="button" onClick={async () => {
+      if (!navigator.share) { await copy(); return; }
+      try { await navigator.share({ title, url }); close(); }
+      catch (cause) { if (!(cause instanceof DOMException && cause.name === "AbortError")) onError(); }
+    }}>{t("Share")}<Share size={16} aria-hidden/></button>
+    <button type="button" onClick={() => void copy()}><span aria-live="polite">{t(copied ? "Copied" : "Copy link")}</span><Copy size={16} aria-hidden/></button>
+    <a href={`mailto:distillednews.platform@gmail.com?subject=${encodeURIComponent(t("Report a concern"))}&body=${encodeURIComponent(url)}`}>
+      {t("Report a concern")}<MessageSquareWarning size={16} aria-hidden/>
+    </a>
+  </>}</FeedMoreMenu>;
+}
+
 function Shell(props: {
   header?: React.ReactNode;
   title: React.ReactNode;
@@ -2337,7 +2352,7 @@ function Shell(props: {
   children: React.ReactNode;
   meta?: React.ReactNode;
   description?: React.ReactNode;
-  feed?: Pick<BriefingConfig, "ownerUsername" | "slug" | "title">;
+  feed?: Pick<BriefingConfig, "ownerUsername" | "slug" | "title"> & Partial<Pick<BriefingConfig, "id" | "publicFeedEnabled">>;
   onAccount?: () => void;
   onLogout?: () => Promise<void>;
   pageLanguage?: "en" | "ar" | "fr";

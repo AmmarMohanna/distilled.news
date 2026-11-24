@@ -71,7 +71,7 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   await expect(page.locator('.notice')).toHaveCount(0);
   await expect(page.locator('.feed-publication-status')).toHaveCount(0);
   expect(empty!.height).toBeGreaterThanOrEqual(140);
-  await expect(page.locator('.feed-shell h1')).toHaveCSS('font-size', '40px');
+  await expect(page.locator('.feed-shell h1')).toHaveCSS('font-size', '36px');
   await page.screenshot({ path: test.info().outputPath('feed-dashboard.png'), fullPage: true });
 });
 

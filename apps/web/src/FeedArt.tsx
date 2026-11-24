@@ -128,7 +128,7 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
     void check();
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [feed?.ownerUsername, feed?.slug, feed?.id, feed?.publicFeedEnabled, centered]);
-  return <span className="topic-art pencil-art" title={failure || undefined} aria-hidden="true">
+  return <span className={`topic-art pencil-art${image?.fullCover ? " full-cover-art" : ""}`} title={failure || undefined} aria-hidden="true">
 
     {image && <img src={image.url} alt="" style={{
       visibility: loaded ? "visible" : "hidden",
