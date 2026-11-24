@@ -4087,8 +4087,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .profile-dialog .profile-picture-upload {
   inset: auto;
-  inset-block-end: 0;
-  inset-inline-end: 0;
+  inset-block-end: 15%;
+  inset-inline-end: 15%;
+  margin-block-end: -22px;
+  margin-inline-end: -22px;
   display: grid;
   place-items: center;
   min-width: 44px;
@@ -4105,8 +4107,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .profile-preview-link { display: inline-flex; align-items: center; gap: 6px; margin-block-start: 2px; font-size: .875rem; color: var(--accent-ink); }
 :root.apple-ui.apple-ui .profile-dialog .profile-picture-remove {
   position: absolute;
-  inset-block-start: 8px;
-  inset-inline-end: 8px;
+  inset-block-start: 15%;
+  inset-inline-end: 15%;
+  margin-block-start: -12px;
+  margin-inline-end: -12px;
   display: grid;
   place-items: center;
   inline-size: 24px;
