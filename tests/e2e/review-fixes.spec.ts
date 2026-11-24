@@ -63,15 +63,12 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   await expect(page.getByText('Briefing delayed', { exact: true })).toHaveCount(0);
   await expect(page.locator('.feed-empty-state')).toBeVisible();
   await expect(page.locator('.feed-filter')).toBeHidden();
-  const search = await page.locator('.feed-tools .search').boundingBox();
   const empty = await page.locator('.feed-empty-state').boundingBox();
-  expect(search!.width).toBeGreaterThanOrEqual(300);
-  expect(search!.x + search!.width).toBeLessThanOrEqual(1440);
   expect(empty!.x + empty!.width).toBeLessThanOrEqual(1440);
   await expect(page.locator('.notice')).toHaveCount(0);
   await expect(page.locator('.feed-publication-status')).toHaveCount(0);
   expect(empty!.height).toBeGreaterThanOrEqual(140);
-  await expect(page.locator('.feed-shell h1')).toHaveCSS('font-size', '36px');
+  await expect(page.locator('.feed-tools .search')).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('feed-dashboard.png'), fullPage: true });
 });
 
@@ -90,7 +87,7 @@ for (const size of [{width: 1280, height: 640}, {width: 390, height: 664}]) {
     expect(icon!.y).toBeGreaterThan(circle!.y);
     expect(icon!.x + icon!.width).toBeLessThan(circle!.x + circle!.width);
     expect(icon!.y + icon!.height).toBeLessThan(circle!.y + circle!.height);
-    await expect(page.locator('.feed-tools .search')).toHaveCSS('height', '44px');
+    await expect(page.locator('.page-heading > .feed-check-status')).toBeVisible();
   });
 }
 
@@ -112,7 +109,7 @@ test("feed stays quiet while loading and shows empty state only after the respon
   release();
   await expect(page.locator('.feed-loading-skeleton')).toHaveCount(0);
   await expect(page.locator('.feed-empty-state')).toBeVisible();
-  await expect(page.locator('.feed-tools input')).toHaveCSS('font-size', '16px');
+  await expect(page.locator('.feed-tools input')).toHaveCount(0);
 });
 
 test("feed refreshes automatically without a manual refresh control", async ({ page }) => {

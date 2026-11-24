@@ -71,9 +71,9 @@ test('legacy historical read flags migrate from search and an explicit unread fl
  await fixture(page,true);
  await page.route('**/api/feed/owner/news/search?*',route=>route.fulfill({json:{editions:[{...edition,id:'historical-only',title:'Historical development',sections:edition.sections.map(section=>({...section,title:'Historical development'}))}]}}));
  await page.goto('/owner/news/');await expect(page.locator('.news-item')).toHaveCount(1);
- await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
+ await page.locator('.feed-banner-menu summary').click();await page.getByRole('button',{name:'Search briefings',exact:true}).click();await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
  await expect(page.getByRole('button',{name:'Mark as unread',exact:true})).toBeVisible();await page.getByRole('button',{name:'Mark as unread',exact:true}).click();
- await page.reload();await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
+ await page.reload();await page.locator('.feed-banner-menu summary').click();await page.getByRole('button',{name:'Search briefings',exact:true}).click();await page.getByPlaceholder('Search briefings').fill('historical');await expect(page.locator('.news-item')).toContainText('Historical development');
  await expect(page.getByRole('button',{name:'Mark as read',exact:true})).toBeVisible();
 });
 

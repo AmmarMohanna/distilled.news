@@ -19,7 +19,7 @@ async function openBriefing(page: import("@playwright/test").Page) {
 test("restored briefing layout preserves controls and theme", async ({ page }) => {
   await openBriefing(page);
   await expect(page.locator(".page-heading")).toContainText("by admin");
-  await expect(page.getByRole("link", { name: "Back" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", {name:"Home"})).toBeVisible();
   await expect(page.locator(".feed-check-status")).toContainText("feed paused");
   const artwork=page.locator('.feed-hero-art .topic-art');
   const displayed=await artwork.boundingBox();
@@ -31,7 +31,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   expect(displayed!.y+displayed!.height).toBeLessThanOrEqual(reserved!.y+reserved!.height+1);
   const titleBounds=await page.locator('.page-heading h1').boundingBox();
   const authorBounds=await page.locator('.page-heading > p').boundingBox();
-  const toolsBounds=await page.locator('.feed-tools').boundingBox();
+  const toolsBounds=await page.locator('.feed-empty-state').boundingBox();
   const actions = page.locator(".page-heading .feed-header-actions");
   const actionBounds=await actions.boundingBox();
   expect(authorBounds!.y-titleBounds!.y-titleBounds!.height).toBeLessThanOrEqual(8);
@@ -49,7 +49,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(0);
   await page.keyboard.press("Escape");
   const toolbar = page.locator(".feed-tools");
-  await expect(toolbar.getByPlaceholder("Search briefings")).toBeVisible();
+  await expect(toolbar.getByPlaceholder("Search briefings")).toHaveCount(0);
   const empty = page.locator(".feed-empty-state");
   await expect(empty).toContainText("no published briefings");
   await expect(empty.locator(".feed-empty-icon")).toBeVisible();

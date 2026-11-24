@@ -24,14 +24,10 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     await page.goto('/owner/news/');
     await expect(page.getByRole('heading', {name:'News', exact:true})).toBeVisible();
     await expect(page.locator('.experience-header')).not.toHaveAttribute('aria-busy', 'true');
-    const back = page.locator('.feed-nav-back');
-    await back.hover();
-    const button = (await back.boundingBox())!;
-    const header = (await page.locator('.experience-header').boundingBox())!;
-    expect(button.x).toBeGreaterThanOrEqual(header.x);
-    expect(button.x + button.width).toBeLessThanOrEqual(header.x + header.width);
-    await expect(back).toHaveCSS('border-top-left-radius', '12px');
-    await expect(back).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(page.locator('.feed-nav-back')).toHaveCount(0);
+    const nav=page.locator('.feed-shell > .bottom-navigation');
+    await expect(nav).toBeVisible();
+    const header=(await page.locator('.experience-header').boundingBox())!;
     const artwork = page.locator('.feed-hero-art .full-cover-art');
     await expect(artwork.locator('img')).toBeVisible();
     const art = (await artwork.boundingBox())!;
@@ -52,16 +48,18 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     }
     const viewport = page.locator('.app-pages > .screen-page-viewport');
     await expect(viewport).toHaveCSS('scrollbar-gutter','auto');
-    expect(banner.width).toBeCloseTo(await viewport.evaluate(node => node.clientWidth), 0);
-    expect(banner.x).toBeCloseTo(0, 0);
-    expect(banner.width).toBeGreaterThan(width - 20);
+    const navBox=(await nav.boundingBox())!;
+    expect(banner.width).toBeCloseTo(await viewport.evaluate(node => node.clientWidth) - (width>=900 ? navBox.width : 0), 0);
+    if(width>=900){
+      expect(language==='ar' ? banner.x+banner.width : banner.x).toBeCloseTo(language==='ar' ? navBox.x : navBox.x+navBox.width, 0);
+    }else expect(banner.x).toBeCloseTo(0, 0);
     expect(banner.y).toBeLessThanOrEqual(header.y + header.height + 1);
     expect(container.y).toBeCloseTo(header.y, 0);
     expect(container.y + container.height).toBeCloseTo(banner.y + banner.height, 0);
     expect(container.width).toBeCloseTo(banner.width, 0);
     expect(container.x).toBeCloseTo(banner.x, 0);
     await page.locator('.feed-banner-menu summary').click();
-    await expect(page.locator('.feed-banner-menu .feed-options-popover button')).toHaveCount(2);
+    await expect(page.locator('.feed-banner-menu .feed-options-popover button')).toHaveCount(3);
     await expect(page.locator('.feed-banner-menu .feed-options-popover button').nth(1)).toBeVisible();
   });
 }

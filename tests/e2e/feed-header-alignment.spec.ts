@@ -42,7 +42,7 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
       if(!enlarged) expect(await header.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
       const title=(await heading.getByRole('heading', { level: 1 }).boundingBox())!;
       const group=(await actions.boundingBox())!;
-      const toolbar=(await page.locator('.feed-tools').boundingBox())!;
+      const toolbar=(await page.locator('.feed-empty-state').boundingBox())!;
       if (width >= 900 && !enlarged) {
         const byline=(await heading.locator(':scope > p').boundingBox())!;
         const rtl=await heading.evaluate(node=>getComputedStyle(node).direction==='rtl');
@@ -76,7 +76,7 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         localStorage.setItem('dn_language',language);
         window.dispatchEvent(new Event('dn-language'));
       },language);
-      await expect(page.locator('.feed-nav-back')).toHaveText(language==='fr'?'Retour':'رجوع');
+      await expect(page.locator('.feed-shell > .bottom-navigation')).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('lang',language);
       await check();
     }

@@ -254,7 +254,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 
   await page.goto("/ammar-mohanna/personal/");
 
-  await expect(page.getByRole("link", { name: "Back", exact: true })).toHaveAttribute("href", "/explore");
+  await expect(page.getByRole("navigation", { name:"Main navigation" }).getByRole("link", { name: "Explore", exact: true })).toHaveAttribute("href", "/explore");
   await expect(page.getByRole("heading", { name: "Personal Briefing" })).toBeVisible();
   await expect(page.getByRole("status", { name: "waiting for the next accepted update.", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
@@ -266,6 +266,8 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByText("by ammar-mohanna")).toBeVisible();
   await expect(page.getByRole("button", { name: /explore/i })).toHaveCount(0);
   expect(sessionRequests).toBeGreaterThan(0);
+  await page.locator(".feed-banner-menu summary").click();
+  await page.getByRole("button",{name:"Search briefings",exact:true}).click();
   await expect(page.getByPlaceholder("Search briefings")).toBeVisible();
   await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Verified updates");
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
@@ -309,7 +311,7 @@ test("arabic feed keeps public chrome localized and summary stable when expandin
 
   await expect(page.getByRole("button", { name: /موجز الآن/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /استكشاف/ })).toHaveCount(0);
-  await expect(page.getByPlaceholder("البحث في الموجزات")).toBeVisible();
+  await expect(page.getByPlaceholder("البحث في الموجزات")).toHaveCount(0);
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
   await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText(arabicEdition.title);
 

@@ -36,20 +36,12 @@ for(const width of [320,390,1280])for(const dark of [false,true])test(`unread ca
 
   expect(await page.locator('.news-item.is-read').count()).toBe(0);
   await page.screenshot({path:`.local-reports/unread-summary/${info.project.name}-${width}-${dark?'dark':'light'}.png`,animations:'disabled'});
-  const [search,action]=await Promise.all([page.locator('.feed-tools form').boundingBox(),button.boundingBox()]);
-  expect(action!.height).toBeGreaterThanOrEqual(43.99);
-  expect(action!.y+action!.height<=850).toBe(true);
-  if(width>600) {
-    expect(Math.abs(search!.y+search!.height/2-action!.y-action!.height/2)).toBeLessThan(3);
-    expect(search!.width).toBeGreaterThan(action!.width * 2);
-    expect(action!.width).toBeLessThan(280);
-  }
-  else {
-    expect(action!.y).toBeGreaterThanOrEqual(search!.y+search!.height);
-    const status=await page.locator('.feed-check-status').boundingBox();
-    expect(Math.abs(status!.y-action!.y)).toBeLessThan(2);
-    expect(status!.x+status!.width).toBeLessThanOrEqual(action!.x);
-  }
+  const action=(await button.boundingBox())!;
+  const status=(await page.locator('.page-heading > .feed-check-status').boundingBox())!;
+  expect(action.height).toBeGreaterThanOrEqual(43.99);
+  expect(action.y+action.height).toBeLessThanOrEqual(850);
+  expect(status.y+status.height).toBeLessThan(action.y);
+  await expect(page.locator('.feed-tools form')).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:`.local-reports/unread-summary/${info.project.name}-${width}-${dark?'dark':'light'}.png`,animations:'disabled'});
   await page.getByRole('button',{name:'Close summary'}).click();await button.click();await expect(card).toContainText(summary);expect(calls).toBe(2);

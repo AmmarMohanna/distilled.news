@@ -50,8 +50,7 @@ async function inSettings(page: Page, action: () => Promise<void>) {
   const collapsed = await page.locator('.bottom-navigation').evaluate(node => node.classList.contains('is-collapsed'));
   const navigation = page.locator('.bottom-navigation .navigation-item');
   const previous = await navigation.evaluateAll(nodes => nodes.findIndex(node => node.getAttribute('aria-current') === 'page'));
-  // Feed pages keep mobile account preferences on Home, reached through Back.
-  if (!await page.locator('.bottom-navigation .navigation-settings').isVisible()) await page.locator('.feed-nav-back').click();
+  if (!await page.locator('.bottom-navigation .navigation-settings').isVisible()) await page.locator('.feed-shell > .bottom-navigation a[href="/"]').click();
   await page.locator('.bottom-navigation .navigation-settings').click();
   await action();
   if (previous >= 0 && previous !== 2) await navigation.nth(previous).click();

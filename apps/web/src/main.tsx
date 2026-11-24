@@ -33,7 +33,6 @@ import {
   Check,
   Layers,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   Clock3,
   Circle,
@@ -1610,6 +1609,7 @@ function FeedPage(props: { username: string; slug: string }) {
   const readerLoading = initialLoading || viewerLoading;
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
   const [editionSource,setEditionSource]=useState<{key:string;text:string}|null>(null);
+  const [searchOpen, setSearchOpen] = useState(() => new URLSearchParams(window.location.search).has("search"));
   const [query, setQuery] = useState("");
   const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
   const [error, setError] = useState<UiMessage>("");
@@ -1839,7 +1839,15 @@ function FeedPage(props: { username: string; slug: string }) {
         <span className="action-count">{payload?.briefing.stars ?? 0}</span>
       </button>
       {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={16} aria-hidden /></button> : null}
-      {payload?.briefing.publicFeedEnabled && <ReaderShareMenu title={payload.briefing.title} onError={() => setError("Could not copy URL")}/>}
+      {payload && <ReaderShareMenu
+        title={payload.briefing.title}
+        canShare={payload.briefing.publicFeedEnabled}
+        searchAction={{label:searchPublishedLabel(language), onOpen:() => {
+          setSearchOpen(true);
+          requestAnimationFrame(() => document.getElementById("reader-briefing-search")?.focus());
+        }}}
+        onError={() => setError("Could not copy URL")}
+      />}
     </div>
   );
 
@@ -1867,13 +1875,16 @@ function FeedPage(props: { username: string; slug: string }) {
 
   return (
     <Shell
-      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)} leading={<FeedBackLink language={language} isOwnFeed={Boolean(ownedFeed || (account && account.id === payload?.briefing.ownerAccountId))}/>}/>}
+      header={<AppHeader account={account} loading={viewerLoading || sessionState==='error'} onAccount={() => setAccountDialogOpen(true)}/>}
       title={feedTitle}
       titleText={payload?.briefing.title ?? "briefing"}
       meta={payload ? <>{bylineLabel(language)} {payload.briefing.publicFeedEnabled && !payload.briefing.paused
         ? <a className="feed-owner-channel" href={channelUrl(payload.briefing.ownerUsername)}><bdi>{payload.briefing.ownerUsername}</bdi></a>
         : <bdi>{payload.briefing.ownerUsername}</bdi>}</> : undefined}
-      headingFooter={payload ? <div className="feed-hero-controls">{feedActions}</div> : undefined}
+      headingFooter={payload ? <>
+        {feedStatusMessage&&<span className={`feed-check-status${compactFeedStatusMessage !== feedStatusMessage ? " has-compact-label" : ""}`} role="status" aria-label={feedStatusMessage} title={feedStatusMessage}><Clock3 size={18} aria-hidden/><span className="feed-check-status-full" aria-hidden>{feedStatusMessage}</span><span className="feed-check-status-compact" aria-hidden>{compactFeedStatusMessage}</span></span>}
+        <div className="feed-hero-controls">{feedActions}</div>
+      </> : undefined}
       headingLoading={readerLoading}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
@@ -1887,7 +1898,7 @@ function FeedPage(props: { username: string; slug: string }) {
         <button type="button" onClick={retryOwnership}>{t('Retry feed controls')}</button>
       </div>}
       {sessionState==='authenticated'&&!viewerLoading&&ownershipState==='loading'&&<p role="status">{t('Loading feed controls…')}</p>}
-      {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch/> : <>
+      {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch={searchOpen}/> : <>
       {accountDialog}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveFeed(input);
@@ -1897,7 +1908,7 @@ function FeedPage(props: { username: string; slug: string }) {
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
       <div className={`feed-tools${payload?.editions.length ? "" : " is-empty-feed"}`} dir={pageDir}>
-        <div className="feed-side-actions">
+        {searchOpen && <div className="feed-side-actions">
           <form
             className="search"
             onSubmit={(event) => {
@@ -1906,6 +1917,7 @@ function FeedPage(props: { username: string; slug: string }) {
           >
             <Search size={15} aria-hidden />
             <input
+              id="reader-briefing-search"
               aria-label={searchPublishedLabel(language)}
               dir={pageDir}
               value={query}
@@ -1913,8 +1925,7 @@ function FeedPage(props: { username: string; slug: string }) {
               placeholder={searchPublishedLabel(language)}
             />
           </form>
-        </div>
-        {feedStatusMessage&&<span className={`feed-check-status${compactFeedStatusMessage !== feedStatusMessage ? " has-compact-label" : ""}`} role="status" aria-label={feedStatusMessage} title={feedStatusMessage}><Clock3 size={18} aria-hidden/><span className="feed-check-status-full" aria-hidden>{feedStatusMessage}</span><span className="feed-check-status-compact" aria-hidden>{compactFeedStatusMessage}</span></span>}
+        </div>}
         {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
           key={JSON.stringify([account.id,props.username,props.slug])}
           readerId={account.id}
@@ -2292,11 +2303,6 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
   );
 }
 
-function FeedBackLink({ isOwnFeed, language }: { isOwnFeed: boolean; language: "en" | "ar" | "fr" }) {
-  const label = language === "ar" ? "رجوع" : language === "fr" ? "Retour" : "Back";
-  return <a className="feed-nav-back" lang={language} href={isOwnFeed ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
-}
-
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {
   const ref = useRef<HTMLDetailsElement>(null);
   useVisibleFeedMenu(ref);
@@ -2319,7 +2325,7 @@ function FeedMoreMenu(props: { label: string; children: (close: () => void) => R
   );
 }
 
-function ReaderShareMenu({ title, onError }: { title: string; onError: () => void }) {
+function ReaderShareMenu({ title, onError, canShare = true, searchAction }: { title: string; onError: () => void; canShare?: boolean; searchAction?: {label:string; onOpen: () => void} }) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const url = window.location.origin + window.location.pathname;
@@ -2328,6 +2334,7 @@ function ReaderShareMenu({ title, onError }: { title: string; onError: () => voi
     catch { onError(); }
   }
   return <FeedMoreMenu label={t("Feed options")}>{close => <>
+    {canShare && <>
     <button type="button" onClick={async () => {
       if (!navigator.share) { await copy(); return; }
       try { await navigator.share({ title, url }); close(); }
@@ -2337,6 +2344,10 @@ function ReaderShareMenu({ title, onError }: { title: string; onError: () => voi
     <a href={`mailto:distillednews.platform@gmail.com?subject=${encodeURIComponent(t("Report a concern"))}&body=${encodeURIComponent(url)}`}>
       {t("Report a concern")}<MessageSquareWarning size={16} aria-hidden/>
     </a>
+    </>}
+    {searchAction && <button type="button" onClick={() => { close(); searchAction.onOpen(); }}>
+      {searchAction.label}<Search size={16} aria-hidden/>
+    </button>}
   </>}</FeedMoreMenu>;
 }
 
