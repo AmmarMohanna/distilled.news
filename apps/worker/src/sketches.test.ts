@@ -56,6 +56,7 @@ it("uses the title and full interest text with the shared illustration palette",
   expect(prompt).toContain("one continuous edge-to-edge scene");
   expect(prompt).toContain("No inset artwork, picture frames, panels");
   expect(prompt).toContain("centered square crop");
+  expect(prompt).toContain("Never draw words, letters, pseudo-writing");
   for (const color of ["#5764B5", "#7779CB", "#9984D5", "#C58BD3", "#F0A4C1", "#FFC3A4"]) expect(prompt).toContain(color);
 });
 

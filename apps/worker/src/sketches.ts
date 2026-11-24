@@ -3,6 +3,7 @@ import type { Env } from "./types";
 
 const SKETCH_MODEL = "@cf/black-forest-labs/flux-2-klein-4b";
 export const PENCIL_COVER_STYLE = "pencil-cover-v1";
+export const IMPORTED_COVER_DISPOSITION = 'inline; filename="feed-cover.jpg"';
 
 export class SketchError extends Error {
   constructor(public readonly code: string, message: string) { super(message); }
@@ -37,9 +38,9 @@ export function sketchPrompt(briefing: Pick<BriefingConfig, "title" | "interestP
   return [
     "Create a premium cinematic editorial illustration in a 4:1 panoramic landscape format. Make it feel like a sophisticated hand-painted digital illustration with subtle pencil-like outlines, soft painterly shading, fine textures, and polished storybook lighting.",
     `Feed title: ${JSON.stringify(briefing.title)}. Feed description: ${JSON.stringify(briefing.interestProfile)}. Draw the primary topic described by both, using immediately recognizable objects, environments, or architecture specific to it. Use an original composition suited to the subject.`,
-    "Build realistic depth through layered foreground details near the lower corners, a clear central or slightly right-of-center focal point, and softly lit atmospheric distance. Keep the upper-middle area visually calm for a title placed later. Keep the subject recognizable after a centered square crop.",
+    "Build realistic depth through layered foreground details near the lower corners, a clear central or slightly right-of-center focal point, and softly lit atmospheric distance. In the middle quarter of the panorama, put the recognizable subject and context below the horizon so that a centered square crop communicates the topic by itself. Leave the upper-middle area visually calm.",
     "Paint one continuous edge-to-edge scene with gentle left-to-right transitions: indigo #5764B5 and periwinkle #7779CB shadows on the left, lavender #9984D5 and soft orchid #C58BD3 through the middle, and pastel pink #F0A4C1 and warm peach #FFC3A4 where light reaches the scene on the right. Integrate the palette into the sky, shadows, light, and surfaces so local colors remain visible.",
-    "Use soft contrast. Avoid obvious graphite sketching, harsh crosshatching, neon, oversaturation, and flat monochromatic overlays. Output artwork only. No inset artwork, picture frames, panels, borders, typography, logos, watermarks, UI elements, cartoons, anime, or photorealism."
+    "Use soft contrast. Avoid obvious graphite sketching, harsh crosshatching, neon, oversaturation, and flat monochromatic overlays. Output artwork only. The supplied title and description are topic context only. Never draw words, letters, pseudo-writing, numbers, typography, logos, or watermarks anywhere, including in the sky, on signage, or on buildings. No inset artwork, picture frames, panels, borders, UI elements, cartoons, anime, or photorealism."
   ].join("\n");
 }
 
