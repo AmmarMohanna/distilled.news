@@ -132,6 +132,11 @@ test("a late publisher photo leaves briefing rows in place", async ({ page }) =>
     const before = await second.boundingBox();
     releasePhoto();
     await expect(page.locator(".briefing-row-photo img").first()).toBeVisible();
+    const first = page.getByRole("link", { name: "First", exact: true });
+    const headline = (await first.boundingBox())!;
+    const photo = (await page.locator(".briefing-row-photo img").first().boundingBox())!;
+    expect(photo.x).toBeGreaterThan(headline.x + headline.width);
+    expect(photo.y).toBeLessThan(headline.y + headline.height);
     expect(await second.boundingBox()).toEqual(before);
   } finally {
     releasePhoto();

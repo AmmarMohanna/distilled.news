@@ -2211,8 +2211,9 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
     document.title = result?.edition.title || t("Briefing");
   }, [result, language, t]);
   const href = `/${encodeURIComponent(props.username)}/${encodeURIComponent(props.slug)}/`;
+  const back = <a className="feed-nav-back" href={href} aria-label={t("Back to feed")}><ChevronLeft size={22} aria-hidden/><span>{t("Back")}</span></a>;
   if (!result) return <main className="briefing-detail-page">
-    <a className="channel-back" href={href}>{t("Back to feed")}</a>
+    <div className="briefing-detail-toolbar">{back}</div>
     {error ? <p role="alert">{t(error)}</p> : <FeedLoadingSkeleton label={loadingFeedLabel(language)}/>}
   </main>;
   const { briefing, edition } = result;
@@ -2230,10 +2231,12 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const hasSeparateSummary = Boolean(summary && fullText && comparedText(summary) !== comparedText(fullText));
   const date = editionDisplayTime(edition);
   return <main className="briefing-detail-page">
-    <a className="channel-back" href={href}>{t("Back to feed")}</a>
-    {briefing.publicFeedEnabled && <span className="feed-banner-menu">
-      <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>
-    </span>}
+    <div className="briefing-detail-toolbar">
+      {back}
+      {briefing.publicFeedEnabled && <span className="feed-banner-menu">
+        <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>
+      </span>}
+    </div>
     {error && <p role="alert">{t(error)}</p>}
     <header className="briefing-detail-hero">
       <div>
