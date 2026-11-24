@@ -39,6 +39,7 @@ export function sketchPrompt(briefing: Pick<BriefingConfig, "interestProfile">):
     `The news interest is ${JSON.stringify(briefing.interestProfile)}. Choose one immediately recognizable subject and a setting that relates directly to that topic.`,
     "Draw one continuous edge-to-edge scene with a single perspective. Place the main subject in the center and keep it compact so a centered square crop reads clearly at thumbnail size.",
     "Choose a distinct palette from the actual colors of the subject and setting. Use rich, believable local colors, neutral paper highlights, and deep, natural shadows. Keep the focal point crisp and carry colored pencil grain and crosshatching through the background. Avoid a uniform color cast, washed-out pastels, and sepia.",
+    "Give the scene luminous golden-hour lighting: warm peach and rose highlights and cool indigo-violet shadows. Where the sky is visible, paint a gradual transition from blue-violet to soft pink and apricot. Let the subject retain its natural colors.",
     "No inset artwork, picture frames, panels, collage, centered square background, borders, graphic templates, text, logos, signatures, photorealism, or drawing tools."
   ].join("\n");
 }
