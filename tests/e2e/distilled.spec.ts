@@ -267,7 +267,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
   await expect(page.getByRole("button", { name: /explore/i })).toHaveCount(0);
   expect(sessionRequests).toBeGreaterThan(0);
   await expect(page.getByPlaceholder("Search briefings")).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Verified updates");
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Verified updates");
   await expect(page.getByText(/confidence|source count|breaking/i)).toHaveCount(0);
 
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
@@ -280,7 +280,7 @@ test("feed uses username-scoped URL while exposing evidence, refresh, and search
 
   await page.getByPlaceholder("Search briefings").fill("power supply");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".news-headline > bdi")).toHaveText("Infrastructure");
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Infrastructure");
 
   expect(sessionRequests).toBeGreaterThan(0);
 });
@@ -311,13 +311,13 @@ test("arabic feed keeps public chrome localized and summary stable when expandin
   await expect(page.getByRole("button", { name: /استكشاف/ })).toHaveCount(0);
   await expect(page.getByPlaceholder("البحث في الموجزات")).toBeVisible();
   await expect(page.getByText("بواسطة ammar-mohanna")).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText(arabicEdition.title);
 
   await page.locator('.briefing-read-more > summary').click();
   await expect(page.locator('.briefing-extra-sources')).toHaveCount(0);
   await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
   await expect(page.locator('.briefing-expanded-text')).toBeVisible();
-  await expect(page.locator(".news-headline > bdi")).toHaveText(arabicEdition.title);
+  await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText(arabicEdition.title);
   await expect(page.locator(".news-item").filter({ hasText: "تحديثات موثوقة" })).toHaveCount(1);
   await expect(page.getByText("refresh")).toHaveCount(0);
   await expect(page.getByText("Explore")).toHaveCount(0);

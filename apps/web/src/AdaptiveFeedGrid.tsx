@@ -43,7 +43,18 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
       if (grid.style.getPropertyValue('--feed-fit-size') !== fittedSize) grid.style.setProperty('--feed-fit-size', fittedSize);
     };
     fit();
-    const observer = new ResizeObserver(fit);
+    let observedWidth = grid.clientWidth;
+    let observedHeight = viewport?.clientHeight ?? window.innerHeight;
+    const observer = new ResizeObserver(() => {
+      const width = grid.clientWidth;
+      const height = viewport?.clientHeight ?? window.innerHeight;
+      // A fitted tile can change its caption's wrapping and the grid height.
+      // Refitting from that change alone can alternate between two sizes.
+      if (width === observedWidth && height === observedHeight) return;
+      observedWidth = width;
+      observedHeight = height;
+      fit();
+    });
     observer.observe(grid);
     if (viewport) observer.observe(viewport);
     window.addEventListener('resize', fit);

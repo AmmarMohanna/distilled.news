@@ -39,7 +39,7 @@ test("admin Explore preserves the configured editorial order without unavailable
   await page.getByRole("navigation").getByRole("button", { name: "Explore", exact: true }).click();
   const cards = page.locator(".feed-tile-grid[data-feed-view=explore] .feed-tile");
   await expect(cards.locator(".feed-tile-caption > a")).toHaveText(["Quiet science", "World news"]);
-  await expect(page.getByRole("button", { name: "Star Quiet science", exact: true })).toHaveText("0");
+  await expect(cards.getByRole("button", { name: "Star Quiet science", exact: true })).toHaveText("0");
   expect(requests.filter(path => /\/api\/admin\/briefings\/[^/]+\/explore$/.test(path))).toEqual([]);
 });
 

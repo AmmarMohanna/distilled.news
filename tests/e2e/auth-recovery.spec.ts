@@ -40,7 +40,7 @@ test('successful signup asks the user to open the emailed link and keeps resend 
  await page.route('**/api/**',route=>{const path=new URL(route.request().url()).pathname;if(route.request().method()==='POST')requests.push(path);return route.fulfill({json:path==='/api/auth/session'?{authenticated:false,setupRequired:false}:path==='/api/explore/feeds'?{feeds:[]}:{ok:true}})});
  await page.goto('/');await page.getByRole('button',{name:'Create feed',exact:true}).click();await page.locator('.auth-choice button').click();
  const dialog=page.locator('.auth-dialog');await dialog.getByPlaceholder('Email address').fill('pending@example.invalid');await dialog.getByPlaceholder('Username').fill('pending');await dialog.getByPlaceholder('Password',{exact:true}).fill('original-password');await dialog.locator('button[type=submit]').click();
- await expect(dialog.getByRole('heading',{name:'Verify your email',exact:true})).toBeVisible();
+ await expect(dialog.getByRole('heading',{name:'Check your email',exact:true})).toBeVisible();
  await expect(dialog.getByText('Open the verification link sent to your email.',{exact:true})).toBeVisible();
  await expect(dialog.locator('.auth-email-address')).toHaveText('pending@example.invalid');
  await expect(dialog.getByPlaceholder('Email address')).toHaveCount(0);

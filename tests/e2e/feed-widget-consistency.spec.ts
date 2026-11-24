@@ -25,7 +25,7 @@ for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable
   const create = page.locator('.home-add-feed');
   expect(await create.evaluate(el => getComputedStyle(el).whiteSpace)).toBe('nowrap');
   await page.getByRole('button', { name: 'Explore', exact: true }).click();
-  const explore = page.locator('.explore-view .feed-tile');
+  const explore = page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile');
   await expect(explore).toHaveCount(1);
 
   await expect.poll(() => contained(explore)).toBe(true);
