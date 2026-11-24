@@ -3561,7 +3561,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   box-shadow: var(--shadow-soft);
 }
 :root.apple-ui.apple-ui .profile-dialog .profile-account-fields > .account-form,
-:root.apple-ui.apple-ui .profile-dialog .profile-password-section { align-self: start; padding: 0; border: 0; background: transparent; }
+:root.apple-ui.apple-ui .profile-dialog .profile-password-section { align-self: stretch; padding: 0; border: 0; background: transparent; }
 :root.apple-ui.apple-ui .profile-dialog .profile-username-field { border-radius: 12px; }
 :root.apple-ui.apple-ui .profile-dialog .password-disclosure { padding: 8px 0; min-height: 44px; }
 :root.apple-ui.apple-ui .profile-dialog #change-password-form:not([hidden]) { padding: 8px 0 0; }
@@ -4063,7 +4063,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   gap: 8px;
   min-width: 0;
 }
-:root.apple-ui.apple-ui .profile-dialog .profile-password-section { align-self: stretch; }
 :root.apple-ui.apple-ui .profile-dialog .account-form { gap: 8px; }
 :root.apple-ui.apple-ui .profile-dialog .account-form h3 { margin: 0 0 2px; font-size: 1rem; }
 :root.apple-ui.apple-ui .profile-dialog .password-disclosure { padding-block: 4px; }
