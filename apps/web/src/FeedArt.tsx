@@ -132,7 +132,7 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
 
     {image && <img src={image.url} alt="" style={{
       visibility: loaded ? "visible" : "hidden",
-      filter: image.fullCover ? "none" : `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
+      filter: image.fullCover ? undefined : `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
     }} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); }}/>}
   </span>;
 }

@@ -34,7 +34,7 @@ it('keeps the full cover background and original ink colors', async () => {
   vi.stubGlobal('URL', Object.assign(class {}, { createObjectURL: create, revokeObjectURL: vi.fn() }));
   const { host, root } = renderHost();
   await act(async () => root.render(<FeedArt centered feed={{ id: 'cover', publicFeedEnabled: false, title: 'Science', ownerUsername: 'owner', slug: 'cover' }}/>));
-  expect(host.querySelector('img')?.style.filter).toBe('none');
+  expect(host.querySelector('img')?.style.filter).toBe('');
   expect(create.mock.calls[0]).toHaveLength(1);
   expect(transparentSketch).not.toHaveBeenCalled();
 });
