@@ -3604,25 +3604,25 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .feed-library-empty .primary-button { min-height: 44px; margin-block-start: 12px; }
 
-:root.apple-ui.apple-ui .feed-shell .briefings-empty {
+:root.apple-ui.apple-ui :is(.feed-shell .briefings-empty, .explore-view .community-feeds-empty) {
   display: grid;
   justify-items: center;
   gap: 8px;
   padding: clamp(36px, 7vh, 72px) 16px;
   text-align: center;
 }
-:root.apple-ui.apple-ui .feed-shell .briefings-empty h2 {
+:root.apple-ui.apple-ui :is(.feed-shell .briefings-empty, .explore-view .community-feeds-empty) h2 {
   margin: 0;
   color: var(--muted);
   font-size: 1.25rem;
 }
-:root.apple-ui.apple-ui .feed-shell .briefings-empty p {
+:root.apple-ui.apple-ui :is(.feed-shell .briefings-empty, .explore-view .community-feeds-empty) p {
   max-width: 46ch;
   margin: 0;
   color: var(--muted);
   text-wrap: balance;
 }
-:root.apple-ui.apple-ui .feed-shell .briefings-empty .primary-button {
+:root.apple-ui.apple-ui :is(.feed-shell .briefings-empty, .explore-view .community-feeds-empty) .primary-button {
   display: inline-grid;
   place-items: center;
   min-height: 44px;

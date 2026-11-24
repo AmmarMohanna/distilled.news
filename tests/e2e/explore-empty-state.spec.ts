@@ -8,7 +8,8 @@ for(const [language,message] of [
  await page.addInitScript(language=>localStorage.setItem('dn_language',language),language);
  await page.route('**/api/**',route=>route.fulfill({json:new URL(route.request().url()).pathname==='/api/auth/session'?{authenticated:false,setupRequired:false}:{feeds:[],nextOffset:null}}));
  await page.goto('/explore');
- await expect(page.locator('.explore-view .empty-copy')).toHaveText(message);
+ await expect(page.locator('.community-feeds-empty').getByRole('heading')).toHaveText(message);
+ await expect(page.locator('.community-feeds-empty').getByRole('button')).toBeVisible();
  await expect(page.locator('.explore-view [role="alert"]')).toHaveCount(0);
 });
 
@@ -21,9 +22,9 @@ test('an Explore failure is not presented as an empty community and retries to t
   return route.fulfill({json:{feeds:[],nextOffset:null}});
  });
  await page.goto('/explore');const explore=page.locator('.explore-view');
- await expect(explore.getByRole('alert')).toBeVisible();await expect(explore.locator('.empty-copy')).toHaveCount(0);
+ await expect(explore.getByRole('alert')).toBeVisible();await expect(explore.locator('.community-feeds-empty')).toHaveCount(0);
  await explore.getByRole('button',{name:'Try Again',exact:true}).click();
- await expect(explore.locator('.empty-copy')).toHaveText('No community feeds are available yet.');
+ await expect(explore.locator('.community-feeds-empty').getByRole('heading')).toHaveText('No community feeds are available yet.');
 });
 
 test('Explore reveals the initial grid and optional shelves together', async ({page}) => {

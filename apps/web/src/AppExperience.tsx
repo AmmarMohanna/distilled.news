@@ -295,7 +295,7 @@ export function AppExperience(props: {
           </a>)}
         </CatalogShelf>}
       </>}
-      {!waitingForCatalog && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")}>
+      {(!waitingForCatalog || props.account) && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")} style={waitingForCatalog ? { display: "none" } : undefined}>
         {channel && <h2 className="channel-section-title">{t("Public feeds")}</h2>}
         {!channelName && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {exploreError && <div role="alert">
@@ -310,7 +310,19 @@ export function AppExperience(props: {
           owner={owns(feed)}
           onError={setError}
           onStarChange={result => setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item))}
-        />)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim()||nextOffset===null) ? <p className="empty-copy" role="status">{t(query.trim()?(nextOffset!==null?"No matches in loaded feeds. Load more feeds to continue searching.":"No feeds match your search."):"No community feeds are available yet.")}</p> : null}
+        />)}</AdaptiveFeedGrid> : !loading && !exploreError && (query.trim() || nextOffset === null) && (
+          query.trim() || channelName ? (
+            <p className="empty-copy" role="status">{t(query.trim()
+              ? nextOffset !== null ? "No matches in loaded feeds. Load more feeds to continue searching." : "No feeds match your search."
+              : "No community feeds are available yet.")}</p>
+          ) : (
+            <div className="community-feeds-empty">
+              <h2>{t("No community feeds are available yet.")}</h2>
+              <p>{t("Check back for new public feeds, or create a feed about a topic you follow.")}</p>
+              {props.onCreate && <button type="button" className="primary-button" onClick={props.onCreate}>{t("Create feed")}</button>}
+            </div>
+          )
+        )}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>}
       {recentFeeds.length > 0 && <section className="channel-recent" aria-labelledby="channel-recent-heading">

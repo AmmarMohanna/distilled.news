@@ -27,7 +27,7 @@ it('shows a successful empty Explore state only after loading, independently of 
   await act(async()=>root.render(<AppExperience account={null} briefings={[]} initialTab="explore" onAccount={()=>{}} onHelp={()=>{}}/>));
   expect(host.textContent).not.toContain('No community feeds are available yet.');
   await act(async()=>resolve({feeds:[],nextOffset:null}));
-  expect(host.querySelector('.explore-view [role="status"]')?.textContent).toBe('No community feeds are available yet.');
+  expect(host.querySelector('.community-feeds-empty h2')?.textContent).toBe('No community feeds are available yet.');
  }finally{await act(async()=>root.unmount());vi.unstubAllGlobals();}
 });
 
