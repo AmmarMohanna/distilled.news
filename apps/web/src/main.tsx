@@ -621,10 +621,11 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [mode, setMode] = useState<"login" | "register" | "forgot">(initialMode);
-  const [authStep, setAuthStep] = useState<"email" | "details" | "link">(initialMode === "login" ? "email" : "details");
+  const [authStep, setAuthStep] = useState<"email" | "details" | "link" | "code" | "welcome">(initialMode === "login" ? "email" : "details");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetSignal, setTurnstileResetSignal] = useState(0);
@@ -633,14 +634,17 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
   function clearVerificationRecovery() {
     verificationFlow.current += 1;
     setVerificationRecoveryEmail("");
+    setVerificationCode("");
   }
   const [message, setMessage] = useState("");
   const [error, setError] = useState<UiMessage>("");
-  const awaitingVerification = authStep === "link";
-  const copy = awaitingVerification
-    ? { title: "Verify your email", description: "Open the verification link sent to your email." }
+  const usingCode = authStep === "code";
+  const awaitingVerification = usingCode || authStep === "link";
+  const copy = usingCode
+    ? { title: "Enter your verification code", description: "Enter the six-digit code sent to" }
+    : authStep === "link" ? { title: "Verify your email", description: "Open the verification link sent to your email." }
     : authStep === "email" ? { title: "Continue with Email", description: "Enter your email to sign in or create an account." } : getAuthPanelCopy(props.setupRequired, mode);
-  const submitLabel = authStep === "link" ? "Sign in" : authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
+  const submitLabel = usingCode ? "Verify email" : authStep === "link" ? "Sign in" : authStep === "email" ? "Continue" : getAuthSubmitLabel(props.setupRequired, mode);
   const requiresTurnstile = Boolean(props.turnstileSiteKey && !props.setupRequired);
   const usernamePreview = username.trim() ? normalizeUsername(username) : "";
 
@@ -648,6 +652,20 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
     if (!requiresTurnstile) return;
     setTurnstileToken("");
     setTurnstileResetSignal((value) => value + 1);
+  }
+
+  if (authStep === "welcome") {
+    return <section className="login auth-welcome-step" aria-labelledby="auth-welcome-title">
+      <span className="auth-step-logo distilled-logo-symbol" role="img" aria-label="Distilled.News" />
+      <div className="auth-copy">
+        <h2 id="auth-welcome-title">{t("Welcome to Distilled.News")}</h2>
+        <p>{t("Sign in to build your first briefing.")}</p>
+      </div>
+      <button type="button" className="primary-button auth-submit" autoFocus onClick={() => {
+        setMode("login");
+        setAuthStep("details");
+      }}>{t("Sign in")}<ArrowRight size={22} aria-hidden /></button>
+    </section>;
   }
 
   return (
@@ -668,9 +686,17 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           resetTurnstile();
           return;
         }
+        if (usingCode && verificationCode.length !== 6) return;
         const submittedFlow = verificationFlow.current;
         setSubmitting(true);
         try {
+          if (usingCode) {
+            await verifyEmail({ email: verificationRecoveryEmail, code: verificationCode });
+            if (submittedFlow !== verificationFlow.current) return;
+            clearVerificationRecovery();
+            setAuthStep("welcome");
+            return;
+          }
           if (requiresTurnstile && !turnstileToken) {
             setError("Complete the verification check.");
             return;
@@ -681,11 +707,13 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
             return;
           }
           if (mode === "register") {
-            await register({ email, username, password, turnstileToken });
+            const verificationMethod = await register({ email, username, password, turnstileToken });
             if (submittedFlow !== verificationFlow.current) return;
             setPassword("");
-            setAuthStep("link");
-            setMessage("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
+            setAuthStep(verificationMethod === "link" ? "link" : "code");
+            if (verificationMethod === "link") {
+              setMessage("Verification email requested. Check your inbox and spam folder. If it does not arrive, resend it below.");
+            }
             setVerificationRecoveryEmail(email.trim().toLowerCase());
             resetTurnstile();
             return;
@@ -700,6 +728,13 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           await props.onAuthenticated();
         } catch (cause) {
           if (submittedFlow !== verificationFlow.current) return;
+          if (mode === "login" && !usingCode && cause instanceof ApiError && cause.id === "AUTH_EMAIL_CODE_REQUIRED") {
+            setPassword("");
+            setVerificationRecoveryEmail(email.trim().toLowerCase());
+            setAuthStep("code");
+            resetTurnstile();
+            return;
+          }
           if(cause instanceof ApiError&&cause.id==="AUTH_EMAIL_ALREADY_VERIFIED")clearVerificationRecovery();
           setError(toUiError(cause));
           resetTurnstile();
@@ -708,10 +743,14 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
         }
       }}
     >
-      {authStep === "email" ? <div className="auth-brand-mark" aria-hidden="true"><img src="/favicon.svg" alt="" /></div> : null}
+      {authStep === "email" && <div className="auth-brand-mark" role="img" aria-label="Distilled.News"><span className="distilled-logo-symbol" /></div>}
+      {usingCode && <span className="auth-step-logo distilled-logo-symbol" role="img" aria-label="Distilled.News" />}
       <div className="auth-copy">
         <h2>{t(copy.title)}</h2>
-        <p>{t(copy.description)}</p>
+        <p id={usingCode ? "auth-code-description" : undefined}>
+          {t(copy.description)}
+          {usingCode && <strong className="auth-email-address"><bdi>{email}</bdi></strong>}
+        </p>
       </div>
       {props.setupRequired ? (
         <label>
@@ -719,7 +758,30 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           <span className="field-help" id="admin-setup-token-help">{t("Required only for the site owner to create the first admin account. Regular sign-up and login do not require a setup token.")}</span>
         </label>
       ) : null}
-      {awaitingVerification ? <div className="auth-input auth-verified-email" role="group" aria-label={t("email")}>
+      {usingCode ? <label className="auth-code-input" dir="ltr">
+        <span className="sr-only">{t("Verification code")}</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          aria-describedby="auth-code-description"
+          value={verificationCode}
+          readOnly={submitting}
+          autoFocus
+          onChange={event => {
+            const digits = event.target.value.replace(/[٠-٩۰-۹]/g, digit =>
+              String("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit) % 10)
+            );
+            setVerificationCode(digits.replace(/[^0-9]/g, "").slice(0, 6));
+            setError("");
+          }}
+        />
+        <span className="auth-code-cells" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, index) =>
+            <span key={index} data-current={index === Math.min(verificationCode.length, 5)}>{verificationCode[index]}</span>
+          )}
+        </span>
+      </label> : awaitingVerification ? <div className="auth-input auth-verified-email" role="group" aria-label={t("email")}>
         <Mail size={21} aria-hidden/><span className="auth-email-address" dir="auto">{email}</span>
       </div> : <label className="auth-input">
         <span className="sr-only">{t("email")}</span><Mail size={21} aria-hidden/>
@@ -752,22 +814,23 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
         <TurnstileField siteKey={props.turnstileSiteKey} resetSignal={turnstileResetSignal} onToken={setTurnstileToken} />
       ) : null}
       {authStep === "details" && !props.setupRequired && mode === "login" && <button className="auth-forgot" type="button" onClick={() => { setMode("forgot"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Forgot password?")}</button>}
-      <button type="submit" disabled={submitting} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
+      <button type="submit" disabled={submitting || (usingCode && verificationCode.length !== 6)} className="primary-button auth-submit" title={t(submitLabel)}>{t(submitting ? "Please wait…" : submitLabel)}<ArrowRight size={22} aria-hidden/></button>
       <div className="auth-feedback" aria-live="polite">
-        {error ? <p className="auth-error" role="alert">{typeof error !== "string" && (error.id === "AUTH_EMAIL_ALREADY_VERIFIED" || error.id === "AUTH_EMAIL_REGISTERED")
+        {error ? <p className="auth-error" role="alert">{typeof error !== "string" && (error.id === "AUTH_EMAIL_ALREADY_VERIFIED" || error.id === "AUTH_EMAIL_REGISTERED" || error.id === "AUTH_EMAIL_VERIFICATION_PENDING")
           ? <VerifiedEmailError language={preferredLanguage()} errorId={error.id} onNavigate={nextMode => {
             clearVerificationRecovery(); setMode(nextMode); setAuthStep("details"); setPassword(""); setError(""); setMessage(""); resetTurnstile();
           }}/>
           : t(error)}</p> : message ? <p className="auth-message">{t(message)}</p> : null}
       </div>
       <div className="auth-verification-actions">
-      {authStep === "link" && verificationRecoveryEmail ?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
+      {awaitingVerification && verificationRecoveryEmail ?<button type="button" className="button-link" disabled={submitting} onClick={async()=>{
         const requestedFlow=verificationFlow.current;
         setError("");setMessage("");setSubmitting(true);
         try{
           if(requiresTurnstile&&!turnstileToken){setError("Complete the verification check.");resetTurnstile();return;}
           await resendVerification(verificationRecoveryEmail,turnstileToken);
           if(requestedFlow!==verificationFlow.current)return;
+          if (usingCode) setVerificationCode("");
           setMessage("If this account needs verification, an email was requested. Check your inbox and spam folder. If it still does not arrive, contact support.");
           resetTurnstile();
         }catch(cause){
@@ -777,9 +840,9 @@ export function AuthPanel(props: { setupRequired: boolean; turnstileSiteKey?: st
           resetTurnstile();
         }
         finally{setSubmitting(false);}
-      }}>{t("Resend verification email")}</button>:null}
+      }}>{t(usingCode ? "Request a new code" : "Resend verification email")}</button>:null}
       </div>
-      {!props.setupRequired && (authStep === "email" || mode === "login") ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); clearVerificationRecovery(); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
+      {!props.setupRequired && (authStep === "email" || (authStep === "details" && mode === "login")) ? <p className="auth-choice">{t("New here?")} <button type="button" onClick={() => { setMode("register"); clearVerificationRecovery(); setAuthStep("details"); setError(""); setMessage(""); }}>{t("Create an account")}</button></p> : null}
       {!props.setupRequired && authStep === "details" && mode !== "login" ? <p className="auth-choice">{t("Already have an account?")} <button type="button" onClick={() => { setMode("login"); clearVerificationRecovery(); setError(""); setMessage(""); }}>{t("Sign in")}</button></p> : null}
 
     </form>
@@ -979,47 +1042,105 @@ function VerifyEmailPage(props: { token: string }) {
 function ResetPasswordPage(props: { token: string }) {
   const { language, t } = useLanguage();
   const [password, setPassword] = useState("");
-  const [visible, setVisible] = useState(false);
-  useEffect(() => { document.title = `${t('Reset Password')} · Distilled.News`; }, [language]);
+  const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState<UiMessage>("");
+  const mismatch = error === "Passwords do not match.";
+  function clearMismatch() {
+    if (mismatch) setError("");
+  }
+
+  function goToSignIn() {
+    window.location.replace("/login");
+  }
+
+  async function submitPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy || !props.token) return;
+    if (password !== confirmation) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await resetPassword(props.token, password);
+      setPassword("");
+      setConfirmation("");
+      setMessage("Password reset successfully.");
+    } catch (cause) {
+      setError(toUiError(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <main className="email-verification-page reset-password-page" lang={language} dir={language === 'ar' ? 'rtl' : 'ltr'}>
-      <section className="email-verification-panel" aria-labelledby="reset-password-title">
-      <div className="email-verification-brand" role="img" aria-label="Distilled.News" dir="ltr"><BrandMark /></div>
-      <h1 id="reset-password-title">{t('Reset Password')}</h1>
-      <p className="email-verification-description" role={message ? 'status' : undefined}>{t(message || 'Enter your new password')}</p>
-      {!message && <form className="reset-password-form" onSubmit={async (event) => {
-        event.preventDefault();
-        if (busy || !props.token) return;
-        setBusy(true); setError('');
-        try {
-          await resetPassword(props.token, password);
-          setPassword('');
-          setMessage("Password reset successfully.");
-        } catch (cause) {
-          setError(toUiError(cause));
-        } finally {
-          setBusy(false);
-        }
-      }}>
-        <label>
-          {t('New Password')}
-          <span className="reset-password-input">
-          <input type={visible ? 'text' : 'password'} autoComplete="new-password" required minLength={8} placeholder={t('Enter your new password')} value={password} onChange={(event) => setPassword(event.target.value)} />
-          <button type="button" aria-label={t(visible ? 'Hide password' : 'Show password')} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={24} aria-hidden /> : <Eye size={24} aria-hidden />}</button>
-          </span>
-        </label>
-        <button className="email-verification-submit" type="submit" disabled={busy || !props.token}>
-          {t(busy ? 'Saving...' : 'Save new password')}<ArrowRight size={17} aria-hidden="true" />
-        </button>
-        {error ? <p className="auth-error" role="alert">{t(error)}</p> : null}
-      </form>}
-      <a className="email-verification-create" href="/login">{t('Sign in')}</a>
-      </section>
-    </main>
+    <>
+      <meta name="referrer" content="no-referrer" />
+      <AppExperience account={null} briefings={[]} initialTab="explore" onAccount={goToSignIn} onHelp={() => {}} onCreate={goToSignIn}
+        pageTitle={`${t("Reset Password")} · Distilled.News`} />
+      <Dialog label={t("Reset Password")} className="auth-dialog reset-password-dialog" onClose={goToSignIn}>
+        <div className="email-verification-page reset-password-page" lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
+          <button type="button" className="dialog-close quiet-icon" aria-label={t("Close dialog")} onClick={goToSignIn}><X size={20} aria-hidden /></button>
+          <section className="email-verification-panel" aria-labelledby="reset-password-title">
+            <h1 id="reset-password-title">{t("Reset Password")}</h1>
+            <p className="email-verification-description" role={message ? "status" : undefined}>{t(message || "Create a new password for your account.")}</p>
+            {!message && <form className="reset-password-form" onSubmit={submitPassword}>
+              <ResetPasswordField value={password} onChange={value => { setPassword(value); clearMismatch(); }} />
+              <ResetPasswordField confirmation value={confirmation} invalid={mismatch} onChange={value => { setConfirmation(value); clearMismatch(); }} />
+              <p className="reset-password-hint" id="reset-password-hint">{t("Use at least 8 characters.")}</p>
+              <button className="email-verification-submit" type="submit" disabled={busy || !props.token}>
+                {t(busy ? "Saving..." : "Save new password")}<ArrowRight size={17} aria-hidden />
+              </button>
+              {error ? <p className="auth-error" id="reset-password-error" role="alert">{t(error)}</p> : null}
+            </form>}
+            <a className="email-verification-create" href="/login" onClick={event => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              goToSignIn();
+            }}>{t("Back to sign in")}</a>
+          </section>
+        </div>
+      </Dialog>
+    </>
   );
+}
+
+function ResetPasswordField(props: {
+  value: string;
+  confirmation?: boolean;
+  invalid?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useLanguage();
+  const [visible, setVisible] = useState(false);
+  const id = props.confirmation ? "confirm-new-password" : "new-password";
+  const showLabel = props.confirmation ? "Show confirmation password" : "Show password";
+  const hideLabel = props.confirmation ? "Hide confirmation password" : "Hide password";
+
+  return <div className="reset-password-field">
+    <label htmlFor={id}>{t(props.confirmation ? "Confirm password" : "New password")}</label>
+    <div className="reset-password-input">
+      <LockKeyhole className="reset-password-lock" size={20} aria-hidden />
+      <input
+        id={id}
+        type={visible ? "text" : "password"}
+        autoComplete="new-password"
+        required
+        minLength={8}
+        placeholder={t(props.confirmation ? "Re-enter your new password" : "Enter your new password")}
+        aria-describedby={props.invalid ? "reset-password-hint reset-password-error" : "reset-password-hint"}
+        aria-invalid={props.invalid || undefined}
+        value={props.value}
+        onChange={event => props.onChange(event.target.value)}
+      />
+      <button type="button" aria-label={t(visible ? hideLabel : showLabel)} aria-pressed={visible} aria-controls={id} onClick={() => setVisible(!visible)}>
+        {visible ? <EyeOff size={22} aria-hidden /> : <Eye size={22} aria-hidden />}
+      </button>
+    </div>
+  </div>;
 }
 
 function Sheet(props: {

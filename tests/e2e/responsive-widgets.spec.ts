@@ -63,7 +63,10 @@ test('brand size stays stable when the viewport grows and login uses the transpa
   expect(Math.abs(second!.width-first!.width)).toBeLessThan(1);
   expect(Math.abs(second!.height-first!.height)).toBeLessThan(1);
   await page.goto('/login');
-  await expect(page.locator('.auth-brand-mark img')).toHaveAttribute('src','/favicon.svg');
+  const authMark = page.getByRole('dialog').getByRole('img', {name: 'Distilled.News', exact: true});
+  await expect(authMark).toBeVisible();
+  await expect(authMark).toHaveCSS('width', '104px');
+  await expect(authMark.locator('.distilled-logo-symbol')).toHaveCSS('mask-image', /\/logo\.svg/);
 });
 
 for(const width of [390,667,1280,1920])test(`Home and Explore keep matching widget sizes at ${width}px`,async({page})=>{

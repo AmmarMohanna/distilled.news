@@ -53,7 +53,7 @@ it("routes verification to Gmail and leaves password resets on the configured tr
     .mockResolvedValueOnce(Response.json({ id: "sent" }));
   vi.stubGlobal("fetch", fetchMock);
 
-  await sendVerificationEmail(env, account, "fixture", "ar");
+  await sendVerificationEmail(env, account, "012345", "ar");
   await sendPasswordResetEmail(env, account, "reset");
 
   expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -67,9 +67,9 @@ it("routes verification to Gmail and leaves password resets on the configured tr
   expect(raw).toMatch(/^[a-zA-Z0-9_-]+$/);
   const mime = atob(raw.replace(/-/g, "+").replace(/_/g, "/"));
   expect(mime).toContain("To: <reader@example.com>\r\n");
-  const text = expectVerificationMime(mime, "https://qa.example.com/verify-email?token=fixture&lang=ar");
+  const text = expectVerificationMime(mime, "012345");
   expect(text).toContain("أكّد بريدك الإلكتروني");
-  expect(text).toContain("صالح لمدة ٢٤ ساعة");
+  expect(text).toContain("صالح لمدة ١٥ دقيقة");
   expect(resetSend).toHaveBeenCalledOnce();
 });
 
@@ -81,47 +81,31 @@ it.each(['en', 'fr', 'ar'] as const)('localizes the styled Cloudflare verificati
     PUBLIC_WEB_BASE_URL: 'https://joud.example',
     EMAIL: { send: async (message: unknown) => { messages.push(message); } }
   } as unknown as Env;
-  await sendVerificationEmail(env, account, 'verification-fixture', language);
+  await sendVerificationEmail(env, account, '012345', language);
   await sendPasswordResetEmail(env, account, 'reset-fixture', language);
   expect(messages).toHaveLength(2);
   const copy = {
-    en: ['Verify your email', 'Valid for 24 hours', 'Reset password'],
-    fr: ['Vérifiez votre adresse e-mail', 'Valable pendant 24 heures', 'Réinitialiser le mot de passe'],
-    ar: ['أكّد بريدك الإلكتروني', 'صالح لمدة ٢٤ ساعة', 'إعادة تعيين كلمة المرور'],
+    en: ['Verify your email', 'Valid for 15 minutes.', 'Reset password'],
+    fr: ['Vérifiez votre adresse e-mail', 'Valable 15 minutes.', 'Réinitialiser le mot de passe'],
+    ar: ['أكّد بريدك الإلكتروني', 'صالح لمدة ١٥ دقيقة.', 'إعادة تعيين كلمة المرور'],
   }[language];
   for (const [index, message] of messages.entries()) {
     expect(message.from).toEqual({ email: 'accounts@distilled.news', name: 'Distilled.News' });
     expect(message.html).toContain("font:bold 25px/32px Georgia,'Times New Roman',serif;");
     expect(message.html).toContain('Distilled<span style="color:#5B55EB;">.</span>News');
     if(index===0){
-      const url = `https://joud.example/verify-email?token=verification-fixture&lang=${language}`;
-      expect(message.text).toContain(url);
+      expect(message.text).toContain("\n012345\n");
       expect(message.text).toContain(copy[0]);
       expect(message.text).toContain(copy[1]);
-      expect(message.text).not.toMatch(/<[^>]+>/);
+      expect(message.text).not.toMatch(/https?:|<[^>]+>/);
       expect(message.html).toContain(`lang="${language}" dir="${language === 'ar' ? 'rtl' : 'ltr'}"`);
-      expect(message.html.match(/\bbgcolor="[^"]+"/g)).toEqual(['bgcolor="#5B55EB"']);
-      expect(message.html.match(/\bbackground-color:[^;]+;/g)).toEqual(['background-color:#5B55EB;']);
-      expect(message.html).toContain('class="dn-divider"');
-      expect(message.html).toContain('border-top:1px solid #5B55EB');
-      expect(message.html).toContain('@media screen and (max-width:480px)');
       expect(message.html).toContain('name="color-scheme" content="light dark"');
-      const escapedUrl = url.replace('&', '&amp;');
-      expect(message.html).toMatch(new RegExp(`<h1 class="dn-heading"[^>]*>${copy[0]}</h1>`));
-      expect(message.html).toContain(`class="dn-button-label" href="${escapedUrl}"`);
-      const visibleLink = `<a href="${escapedUrl}">${escapedUrl}</a>`;
-      expect(message.html).toContain(visibleLink);
-      expect(message.html.indexOf(visibleLink)).toBeGreaterThan(message.html.indexOf('class="dn-button-label"'));
-      expect(message.attachments).toEqual([expect.objectContaining({
-        filename: 'email-logo.png',
-        type: 'image/png',
-        disposition: 'inline',
-        contentId: 'distilled-verification-logo',
-        content: expect.any(ArrayBuffer)
-      })]);
-      const logoBytes = new Uint8Array(message.attachments[0].content);
-      expect(Array.from(logoBytes.subarray(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-      expect(message.html.split(`src="cid:${message.attachments[0].contentId}"`)).toHaveLength(2);
+      expect(message.html).toMatch(/class="verification-code"[^>]+>012345<\/td>/);
+      expect(message.html).toContain('background-color:#F5F3FF;color:#151532;');
+      expect(message.html).toContain('<img src="https://joud.example/email-logo.png" alt="" width="64" height="32"');
+      expect(message.html.match(/https?:[^"]+/g)).toEqual(['https://joud.example/email-logo.png']);
+      expect(message.html).not.toMatch(/<a\b|cid:|prefers-color-scheme/);
+      expect(message).not.toHaveProperty('attachments');
       continue;
     }
     expect(message.html).toContain(`lang="${language}" dir="${language === 'ar' ? 'rtl' : 'ltr'}"`);
@@ -163,7 +147,7 @@ describe("Outlook QA mail", () => {
       return new Response(null, { status: 202 });
     }));
 
-    await sendVerificationEmail(env, account, "verify-secret");
+    await sendVerificationEmail(env, account, "012345");
 
     expect(requests.map(request => request.url)).toEqual([
       "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
@@ -173,12 +157,12 @@ describe("Outlook QA mail", () => {
     expect(new Headers(requests[2].init?.headers).get("content-type")).toBe("text/plain");
     const mime=atob(String(requests[2].init?.body));
     expect(mime).toContain("To: <reader@example.com>\r\n");
-    expect(mime).toContain("Subject: =?UTF-8?B?"+btoa("Verify your email for Distilled.News")+"?=");
-    expectVerificationMime(mime, "https://qa.example.com/verify-email?token=verify-secret&lang=en");
+    expect(mime).toContain("Subject: =?UTF-8?B?"+btoa("Your Distilled.News verification code")+"?=");
+    expectVerificationMime(mime, "012345");
     expect(JSON.stringify(getStored())).not.toContain("rotated-refresh-token");
     expect(getStored()?.ciphertext).toBeTruthy();
 
-    await sendVerificationEmail(env, account, "another-secret");
+    await sendVerificationEmail(env, account, "543210");
     const secondExchange = requests[3].init?.body as URLSearchParams;
     expect(secondExchange.get("refresh_token")).toBe("rotated-refresh-token");
   });
@@ -204,20 +188,21 @@ describe("Outlook QA mail", () => {
       : Response.json({ mail: "someone-else@outlook.com" }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(sendVerificationEmail(env, account, "verify-secret"))
+    await expect(sendVerificationEmail(env, account, "012345"))
       .rejects.toThrow("Connected Outlook mailbox does not match EMAIL_FROM");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 
 
-function expectVerificationMime(mime: string, url: string) {
+function expectVerificationMime(mime: string, code: string) {
   const [headers, body] = mime.split("\r\n\r\n");
   expect(headers).toContain("Content-Type: text/plain; charset=UTF-8");
   expect(headers).not.toMatch(/multipart\/|text\/html|image\/|Content-ID:|Content-Disposition:/i);
   const text = new TextDecoder().decode(Uint8Array.from(atob(body), character => character.charCodeAt(0)));
   expect(text).toContain("Distilled.News");
-  expect(text).toContain(url);
+  expect(text.split(/\r?\n/)).toContain(code);
+  expect(text).not.toMatch(/https?:/);
   expect(text).not.toMatch(/<[^>]+>/);
   return text;
 }

@@ -443,6 +443,26 @@ export class D1Repository implements Repository {
     return account ? rowToAccount(account) : null;
   }
 
+  async replaceEmailVerificationCode(input: { accountId: string; tokenHash: string; expiresAt: string }): Promise<boolean> {
+    const result = await this.db.prepare(`INSERT INTO auth_tokens
+      (id, account_id, purpose, token_hash, expires_at, created_at)
+      VALUES (?, ?, 'email_verification', ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET token_hash = excluded.token_hash,
+        expires_at = excluded.expires_at, created_at = excluded.created_at, consumed_at = NULL
+      WHERE auth_tokens.token_hash <> excluded.token_hash`)
+      .bind(`email-code:${input.accountId}`, input.accountId, input.tokenHash, input.expiresAt, new Date().toISOString()).run();
+    return result.meta.changes === 1;
+  }
+
+  async claimAuthAttempt(input: { key: string; action: string; since: string; limit: number }, now: Date): Promise<boolean> {
+    const result = await this.db.prepare(`INSERT INTO auth_attempts (id, key, action, created_at)
+      SELECT ?, ?, ?, ? WHERE
+      (SELECT COUNT(*) FROM auth_attempts WHERE key = ? AND action = ? AND created_at >= ?) < ?`)
+      .bind(`attempt_${crypto.randomUUID()}`, input.key, input.action, now.toISOString(),
+        input.key, input.action, input.since, input.limit).run();
+    return result.meta.changes === 1;
+  }
+
   async countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number> {
     const row = await first<{ count: number }>(
       this.db
@@ -1934,6 +1954,21 @@ export class InMemoryRepository implements Repository {
     if (!account.emailVerifiedAt || action.purpose === "password_reset") account.updatedAt = timestamp;
     account.emailVerifiedAt ??= timestamp;
     return rowlessAccount(account);
+  }
+
+  async replaceEmailVerificationCode(input: { accountId: string; tokenHash: string; expiresAt: string }): Promise<boolean> {
+    const id = `email-code:${input.accountId}`;
+    if (this.tokens.get(id)?.tokenHash === input.tokenHash) return false;
+    this.tokens.set(id, { ...input, id, purpose: "email_verification", createdAt: new Date().toISOString() });
+    return true;
+  }
+
+  async claimAuthAttempt(input: { key: string; action: string; since: string; limit: number }, now: Date): Promise<boolean> {
+    const { key, action, since, limit } = input;
+    const recent = this.attempts.filter(attempt => attempt.key === key && attempt.action === action && attempt.createdAt >= since);
+    if (recent.length >= limit) return false;
+    this.attempts.push({ key, action, createdAt: now.toISOString() });
+    return true;
   }
 
   async countRecentAuthAttempts(input: { key: string; action: string; since: string }): Promise<number> {
