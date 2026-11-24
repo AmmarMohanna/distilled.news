@@ -355,8 +355,9 @@ export function accountInitials(username: string) {
 
 function ChannelAvatar({ username }: { username: string }) {
   const [missingPictureFor, setMissingPictureFor] = useState<string>();
-  return <span className="channel-avatar" aria-hidden="true">
-    {missingPictureFor === username && accountInitials(username)}
+  const missingPicture = missingPictureFor === username;
+  return <span className={`channel-avatar${missingPicture ? " channel-avatar-initials" : ""}`} aria-hidden="true">
+    {missingPicture && accountInitials(username)}
     <img key={username} className="account-avatar-image" src={`/api/explore/channels/${encodeURIComponent(username)}/avatar`} alt="" style={{ visibility: "hidden" }}
       onLoad={event => { event.currentTarget.style.visibility = "visible"; }}
       onError={() => setMissingPictureFor(username)}/>
