@@ -51,7 +51,8 @@ it("uses only the interest for subject selection and preserves the full allowed 
   expect(prompt).toBe(sketchPrompt(renamed));
   expect(prompt).toContain(JSON.stringify(interestProfile));
   expect(prompt).toContain("wide landscape editorial illustration in traditional colored pencil");
-  expect(prompt).toContain("crosshatching extending to the edges");
+  expect(prompt).toContain("one continuous edge-to-edge scene");
+  expect(prompt).toContain("No inset artwork, picture frames, panels");
   expect(prompt).toContain("centered square crop");
   expect(prompt).toContain("indigo blue, magenta");
 });
