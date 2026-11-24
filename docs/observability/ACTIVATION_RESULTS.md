@@ -12,6 +12,9 @@ The deployed collector is `distilled-news-staging-agentops`, every fifteen minut
 
 ## Actual evidence
 
+The [October 31 preflight](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/observability/ACTIVATION_APPROVAL.md) sent exactly one synthetic `distilled_agentops_preflight` point. Ingestion returned HTTP 200 and an independent query returned `1`. That check established synthetic ingestion only. The account-wide analytics used to estimate marginal cost were sampled aggregates, with unavailable subscription details.
+
+
 - Real application OTLP metrics were independently queried from Grafana after scheduled executions at approximately 14:30 and 14:45 UTC on October 31, 2026.
 - The 14:45 run read 19 D1 rows in seven queries, with 3.3098 ms SQL execution. Live tail observed outcome `ok`, approximately 10 ms CPU and 774 ms wall time, with no console entries or raw logs retained.
 - Cloudflare aggregate analytics through 14:47 reported three invocations, one initial failed invocation and 31.368 ms total CPU. Actual CPU quantiles were p50 10.557 ms and p99 13.074 ms; quantiles with so few samples are descriptive, not a capacity guarantee.

@@ -1,5 +1,7 @@
 # AgentOps and k6 implementation/validation report
 
+The [original implementation checklist](https://github.com/AmmarMohanna/distilled.news/blob/2f37bb445a2a54c4eb83eee2171e78facaeb3bab/docs/superpowers/plans/2026-10-30-agentops-k6.md) is pinned to the pre-cleanup revision. The historical change list below describes that run.
+
 Date: 2026-10-30, Asia/Beirut. Branch: `feat/agentops-k6-observability`.
 
 Implemented code HEAD: `cd967db28f64031de2b51d01215452dee077f481`. Final report-only commit follows this code commit; use `git log` or the final chat response for the final branch HEAD. Base: latest fetched `origin/ghada/joud-aya-preserved-integration` at `feb20d9d74aba538cd0666863bf2e75f7b289480`. The original checkout and unrelated worktrees were preserved. No merge or deployment was performed.
