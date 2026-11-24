@@ -35,12 +35,11 @@ export function sketchKey(briefing: Pick<BriefingConfig, "id">): string {
 
 export function sketchPrompt(briefing: Pick<BriefingConfig, "title" | "interestProfile">): string {
   return [
-    "Create a cinematic hand-drawn editorial landscape illustration with soft digital painting and duotone color grading.",
+    "Create a premium cinematic editorial illustration in a 4:1 panoramic landscape format. Make it feel like a sophisticated hand-painted digital illustration with subtle pencil-like outlines, soft painterly shading, fine textures, and polished storybook lighting.",
     `Feed title: ${JSON.stringify(briefing.title)}. Feed description: ${JSON.stringify(briefing.interestProfile)}. Draw the primary topic described by both, using immediately recognizable objects, environments, or architecture specific to it. Use an original composition suited to the subject.`,
-    "Combine intricate pencil-like outlines and cross-hatched textures with rich digital painting, realistic proportions, and soft atmospheric pastel lighting. Give the foreground, midground, and background distinct depth, with detailed foliage, objects, or architecture as appropriate.",
-    "Draw one continuous edge-to-edge scene with no paper margins. Use a strong central focal point that remains recognizable after a centered square crop. Keep enough tonal contrast for white interface text to be placed over the scene.",
-    "Integrate a soft left-to-right color grade: cool indigo #405EAD and periwinkle #6875C7 on the left, lavender #8A6DC2 and orchid #AD69B5 through the middle, then soft pink-magenta #D476AD on the right. Add subtle peach highlights where the lighting fits. Let local colors, pencil detail, and shading show through the grade.",
-    "No inset artwork, picture frames, panels, collage, borders, typography, logos, watermarks, UI elements, drawing tools, cartoons, anime, flat vector art, or neon colors."
+    "Build realistic depth through layered foreground details near the lower corners, a clear central or slightly right-of-center focal point, and softly lit atmospheric distance. Keep the upper-middle area visually calm for a title placed later. Keep the subject recognizable after a centered square crop.",
+    "Paint one continuous edge-to-edge scene with gentle left-to-right transitions: indigo #5764B5 and periwinkle #7779CB shadows on the left, lavender #9984D5 and soft orchid #C58BD3 through the middle, and pastel pink #F0A4C1 and warm peach #FFC3A4 where light reaches the scene on the right. Integrate the palette into the sky, shadows, light, and surfaces so local colors remain visible.",
+    "Use soft contrast. Avoid obvious graphite sketching, harsh crosshatching, neon, oversaturation, and flat monochromatic overlays. Output artwork only. No inset artwork, picture frames, panels, borders, typography, logos, watermarks, UI elements, cartoons, anime, or photorealism."
   ].join("\n");
 }
 
@@ -51,8 +50,8 @@ export async function generateSketch(env: Env, briefing: Pick<BriefingConfig, 'i
   // Klein uses multipart input and a fixed four-step inference process.
   const form = new FormData();
   form.append("prompt", prompt);
-  form.append("width", "1344");
-  form.append("height", "768");
+  form.append("width", "1920");
+  form.append("height", "480");
   form.append("seed", "42");
   let result;
   try {

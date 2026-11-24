@@ -32,8 +32,8 @@ it("sends the interest to Klein 4B as multipart form data and saves the returned
   expect(request.headers.get("content-type")).toMatch(/^multipart\/form-data; boundary=/);
   const fields = await request.formData();
   expect([...fields.keys()].sort()).toEqual(["height", "prompt", "seed", "width"]);
-  expect(fields.get("width")).toBe("1344");
-  expect(fields.get("height")).toBe("768");
+  expect(fields.get("width")).toBe("1920");
+  expect(fields.get("height")).toBe("480");
   expect(fields.get("seed")).toBe("42");
   expect(fields.get("prompt")).toContain('"Parliament news"');
   expect(fields.get("prompt")).toContain("World politics");
@@ -51,11 +51,12 @@ it("uses the title and full interest text with the shared illustration palette",
   expect(prompt).not.toBe(sketchPrompt(renamed));
   expect(prompt).toContain(JSON.stringify(first.title));
   expect(prompt).toContain(JSON.stringify(interestProfile));
-  expect(prompt).toContain("soft digital painting and duotone color grading");
+  expect(prompt).toContain("hand-painted digital illustration");
+  expect(prompt).toContain("4:1 panoramic landscape format");
   expect(prompt).toContain("one continuous edge-to-edge scene");
   expect(prompt).toContain("No inset artwork, picture frames, panels");
   expect(prompt).toContain("centered square crop");
-  for (const color of ["#405EAD", "#6875C7", "#8A6DC2", "#AD69B5", "#D476AD"]) expect(prompt).toContain(color);
+  for (const color of ["#5764B5", "#7779CB", "#9984D5", "#C58BD3", "#F0A4C1", "#FFC3A4"]) expect(prompt).toContain(color);
 });
 
 it("does not save an image returned after the queue job has lost its lease", async () => {
