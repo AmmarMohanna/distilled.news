@@ -86,7 +86,10 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
           if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
             const blob = await response.blob();
             const fullCover = response.headers.get("X-Feed-Artwork-Style") === "pencil-cover-v1" && blob.type === "image/jpeg";
-            return { blob: fullCover ? blob : await transparentSketch(blob, centered), pending: false };
+            const artwork = fullCover
+              ? await transparentSketch(blob, false, true).catch(() => blob)
+              : await transparentSketch(blob, centered);
+            return { blob: artwork, pending: false };
           }
           // A missing job cannot become ready merely by repeatedly reading its URL.
           return {pending:response.status === 404 && Boolean(response.headers?.get("Retry-After"))};
@@ -129,11 +132,13 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
     void check();
     return () => { controller.abort(); clearTimeout(timer); window.removeEventListener("feed-sketch-updated", refresh); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [feed?.ownerUsername, feed?.slug, feed?.id, feed?.publicFeedEnabled, centered]);
-  return <span className={`topic-art pencil-art${image?.fullCover ? " full-cover-art" : ""}`} title={failure || undefined} aria-hidden="true">
+  const panoramic = loadedAspect >= 3;
+  const fullCover = image?.fullCover || panoramic;
+  return <span className={`topic-art pencil-art${fullCover ? " full-cover-art" : ""}`} title={failure || undefined} aria-hidden="true">
 
-    {image && <img src={image.url} alt="" className={loadedAspect >= 3 ? "panoramic-cover-image" : undefined} style={{
+    {image && <img src={image.url} alt="" className={panoramic ? "panoramic-cover-image" : undefined} style={{
       visibility: loadedAspect ? "visible" : "hidden",
-      filter: image.fullCover ? undefined : `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
+      filter: fullCover ? undefined : `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
     }} onLoad={({ currentTarget }) => {
       setLoadedAspect(currentTarget.naturalHeight ? currentTarget.naturalWidth / currentTarget.naturalHeight : 1);
     }} onError={() => setLoadedAspect(0)}/>}

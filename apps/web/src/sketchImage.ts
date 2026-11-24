@@ -11,11 +11,12 @@ export function violetStrokeAlpha(red: number, green: number, blue?: number, pap
   return Math.min(255, Math.round(ink * 255 / 163));
 }
 
-export async function transparentSketch(blob: Blob, centered = false): Promise<Blob> {
+export async function transparentSketch(blob: Blob, centered = false, panoramicCover = false): Promise<Blob> {
   const bitmap = await createImageBitmap(blob);
   try {
     const canvas = document.createElement("canvas");
-    const scale = Math.min(1, 768 / Math.max(bitmap.width, bitmap.height));
+    if (panoramicCover && bitmap.width < bitmap.height * 3) return blob;
+    const scale = Math.min(1, (panoramicCover ? 1920 : 768) / Math.max(bitmap.width, bitmap.height));
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -33,7 +34,8 @@ export async function transparentSketch(blob: Blob, centered = false): Promise<B
     let hasDrawing = false;
     let left = canvas.width, right = -1, top = canvas.height, bottom = -1;
     for (let i = 0; i < pixels.data.length; i += 4) {
-      const alpha = violetStrokeAlpha(pixels.data[i], pixels.data[i + 1], pixels.data[i + 2], paper);
+      const ink = violetStrokeAlpha(pixels.data[i], pixels.data[i + 1], pixels.data[i + 2], paper);
+      const alpha = panoramicCover ? Math.min(255, Math.round(ink * 1.6)) : ink;
       pixels.data[i] = 94;
       pixels.data[i + 1] = 92;
       pixels.data[i + 2] = 230;
