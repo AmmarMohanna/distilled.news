@@ -50,12 +50,9 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   await page.keyboard.press("Escape");
   const toolbar = page.locator(".feed-tools");
   await expect(toolbar.getByPlaceholder("Search briefings")).toHaveCount(0);
-  const empty = page.locator(".feed-empty-state");
-  await expect(empty).toContainText("no published briefings");
-  await expect(empty.locator(".feed-empty-icon")).toBeVisible();
-  const emptyBounds = await empty.boundingBox();
-  expect(emptyBounds).not.toBeNull();
-  expect(emptyBounds!.y + emptyBounds!.height).toBeLessThanOrEqual(page.viewportSize()!.height + 1);
+  await expect(page.locator(".feed-empty-state")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "No published briefings yet" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Explore feeds" })).toHaveAttribute("href", "/explore");
   for (const control of await page.locator(".feed-tools input:visible, .feed-header-actions button:visible").all()) {
     const bounds = await control.boundingBox();
     expect(bounds).not.toBeNull();

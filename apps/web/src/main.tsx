@@ -2008,13 +2008,18 @@ function FeedPage(props: { username: string; slug: string }) {
           </div>
         ) : null}
         {payload && !initialLoading && !searchLoading && filteredEditions.length === 0 && !error && !activeSearchError ? (
-          <div className="empty-state feed-empty-state">
-            {archivedReadEditions.length === 0 && <span className="feed-empty-icon" aria-hidden="true"><Newspaper size={32} strokeWidth={1.5}/></span>}
-            <strong>{emptyFeedTitle(archivedReadEditions.length, language)}</strong>
-            <p className="muted">
-              {emptyFeedMessage(archivedReadEditions.length, language)}
-            </p>
-          </div>
+          archivedReadEditions.length > 0 ? (
+            <div className="empty-state feed-empty-state">
+              <strong>{allBriefingsReadTitle(language)}</strong>
+              <p className="muted">{allBriefingsReadMessage(language)}</p>
+            </div>
+          ) : (
+            <section className="briefings-empty" aria-labelledby="briefings-empty-title">
+              <h2 id="briefings-empty-title">{t("No published briefings yet")}</h2>
+              <p>{t("Check back for the first briefing, or explore other feeds in the meantime.")}</p>
+              <a className="primary-button" href="/explore">{t("Explore feeds")}</a>
+            </section>
+          )
         ) : null}
       </div>
       </>}
@@ -2708,16 +2713,16 @@ function moreCountLabel(count: number, language: "en" | "ar" | "fr"): string {
   return `${count} more`;
 }
 
-function emptyFeedTitle(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "جميع الموجزات المعروضة مقروءة" : "لا توجد موجزات منشورة";
-  if (language === "fr") return readCount > 0 ? "Tous les briefs affichés sont lus" : "Aucun brief publié";
-  return readCount > 0 ? "all visible briefings are read" : "no published briefings";
+function allBriefingsReadTitle(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "جميع الموجزات المعروضة مقروءة";
+  if (language === "fr") return "Tous les briefs affichés sont lus";
+  return "all visible briefings are read";
 }
 
-function emptyFeedMessage(readCount: number, language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return readCount > 0 ? "افتح قسم «المقروءة» للاطلاع على الموجزات السابقة." : "سيظهر الموجز المجدول التالي هنا.";
-  if (language === "fr") return readCount > 0 ? "Ouvrez la section « Lus » pour consulter les briefs précédents." : "Le prochain brief programmé apparaîtra ici.";
-  return readCount > 0 ? "Open the read section below to revisit archived briefings." : "The next scheduled briefing will appear here.";
+function allBriefingsReadMessage(language: "en" | "ar" | "fr"): string {
+  if (language === "ar") return "افتح قسم «المقروءة» للاطلاع على الموجزات السابقة.";
+  if (language === "fr") return "Ouvrez la section « Lus » pour consulter les briefs précédents.";
+  return "Open the read section below to revisit archived briefings.";
 }
 
 function readSectionLabel(count: number, language: "en" | "ar" | "fr"): string {

@@ -3600,6 +3600,34 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 :root.apple-ui.apple-ui .feed-library-empty .primary-button { min-height: 44px; margin-block-start: 12px; }
 
+:root.apple-ui.apple-ui .feed-shell .briefings-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: clamp(36px, 7vh, 72px) 16px;
+  text-align: center;
+}
+:root.apple-ui.apple-ui .feed-shell .briefings-empty h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.25rem;
+}
+:root.apple-ui.apple-ui .feed-shell .briefings-empty p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--muted);
+  text-wrap: balance;
+}
+:root.apple-ui.apple-ui .feed-shell .briefings-empty .primary-button {
+  display: inline-grid;
+  place-items: center;
+  min-height: 44px;
+  margin-block-start: 12px;
+  padding-inline: 16px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
 :root.apple-ui.apple-ui .profile-dialog .profile-username-field,
 :root.apple-ui.apple-ui .profile-dialog #change-password-form input {
   box-sizing: border-box;
