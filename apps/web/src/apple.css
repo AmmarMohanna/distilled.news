@@ -3203,11 +3203,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Home and Explore share the same responsive artwork tiles. */
 :root.apple-ui.apple-ui {
   --feed-cover-paper: linear-gradient(145deg, #fffdf8, #efede6);
-  --feed-cover-outline: rgb(94 80 59 / 15%);
+  --feed-cover-outline: rgb(49 43 98 / 21%);
 }
 :root.apple-ui.apple-ui[data-theme="dark"] {
   --feed-cover-paper: linear-gradient(145deg, #34312d, #262422);
-  --feed-cover-outline: rgb(255 247 232 / 13%);
+  --feed-cover-outline: rgb(218 214 255 / 26%);
 }
 :root.apple-ui.apple-ui .experience .feed-tile-grid {
   display: grid;
@@ -3227,7 +3227,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   aspect-ratio: 1;
   border-radius: 14px;
   background: var(--feed-cover-paper);
-  box-shadow: inset 0 0 0 1px var(--feed-cover-outline), var(--shadow-soft);
+  box-shadow: 0 0 0 1px var(--feed-cover-outline), 0 4px 12px rgb(19 15 42 / 10%);
 }
 :root.apple-ui.apple-ui .experience .feed-tile-artwork {
   position: absolute;
