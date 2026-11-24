@@ -1260,10 +1260,11 @@ function AccountDialog(props: {
       <section className="profile-dialog-content">
       <button type="button" className="dialog-close" aria-label={t("close account settings")} onClick={props.onClose}><X size={22}/></button>
       <div className="profile-settings-title">
-        <h2>{t("Profile settings")}</h2>
+        <h2>{t("Profile Settings")}</h2>
         <span className="profile-role">{t(props.account.role === "admin" ? "Admin" : "User")}</span>
       </div>
 
+      <div className="profile-account-fields">
       <form
         className="account-form"
         onSubmit={async (event) => {
@@ -1342,6 +1343,7 @@ function AccountDialog(props: {
         </button>
       </form>
       </div>
+      </div>
       <div className="profile-identity">
         <input ref={pictureFieldRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={async event => {
           const picture = event.currentTarget.files?.[0];
@@ -1379,7 +1381,7 @@ function AccountDialog(props: {
           } finally {
             setBusy(null);
           }
-          }}><Trash2 size={17} aria-hidden/></button>}
+          }}><X size={12} aria-hidden/></button>}
         </div>
         <h3>{t("Profile picture")}</h3>
         <small className="profile-photo-note">{t("New photos appear on your public channel.")}</small>

@@ -140,7 +140,7 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   '{count} follower': ['{count} abonné', 'المتابعون: {count}'],
   '{count} followers': ['{count} abonnés', 'المتابعون: {count}'],
   'Upload profile picture': ['Ajouter une photo de profil', 'تحميل صورة الملف الشخصي'],
-  'Profile settings': ['Paramètres du profil', 'إعدادات الملف الشخصي'],
+  'Profile Settings': ['Paramètres du profil', 'إعدادات الملف الشخصي'],
   'Account': ['Compte', 'الحساب'],
   'Your public profile appears when you have an active public feed.': ['Votre profil public apparaît quand vous avez un fil public actif.', 'يظهر ملفك الشخصي العام عندما يكون لديك موجز عام نشط.'],
   'Preview public profile': ['Aperçu du profil public', 'معاينة الملف الشخصي العام'],

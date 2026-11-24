@@ -54,7 +54,7 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   const dialog = page.getByRole('dialog', { name: 'Account' });
   await expect(dialog.getByText('Your account username')).toHaveCount(0);
   await expect(dialog.getByRole('checkbox')).toHaveCount(0);
-  await expect(dialog.getByRole('heading', { name: 'Profile settings' })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Profile Settings' })).toBeVisible();
   await expect(dialog.getByText('joud@example.test')).toHaveCount(0);
   const portrait = (await dialog.getByRole('heading', { name: 'Profile picture' }).boundingBox())!;
   const username = (await dialog.getByRole('textbox', { name: 'username' }).boundingBox())!;
@@ -331,7 +331,7 @@ for(const size of [{width:320,height:568},{width:667,height:375}])test(`Arabic p
 test('account and help dialogs dismiss outside without dismissing on an inside click',async({page})=>{
  await mock(page); await page.goto('/');
  await page.getByRole('button',{name:'Account profile'}).click();
- await page.getByRole('dialog',{name:'account',exact:true}).getByRole('heading',{name:'Profile settings'}).click();
+ await page.getByRole('dialog',{name:'account',exact:true}).getByRole('heading',{name:'Profile Settings'}).click();
  await expect(page.getByRole('dialog',{name:'account',exact:true})).toBeVisible();
  await page.mouse.click(4,4);
  await expect(page.getByRole('dialog')).toHaveCount(0);
