@@ -3248,20 +3248,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .briefing-detail-art > .full-cover-art > img { object-fit: cover; object-position: center; }
 :root.apple-ui.apple-ui .experience .feed-tile-cover .full-cover-art { overflow: hidden; }
 :root.apple-ui.apple-ui .experience .feed-tile-cover .full-cover-art > img { scale: 1.24; }
-:root.apple-ui.apple-ui .topic-art.full-cover-art {
-  position: relative;
-  isolation: isolate;
-}
-:root.apple-ui.apple-ui .topic-art.full-cover-art > img { filter: saturate(1.12) contrast(1.04); }
-:root.apple-ui.apple-ui .topic-art.full-cover-art::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to right, #405ead, #6875c7 25%, #8a6dc2 50%, #ad69b5 75%, #d476ad);
-  mix-blend-mode: color;
-  opacity: .57;
-  pointer-events: none;
-}
 :root.apple-ui.apple-ui .feed-tile-controls {
   position: absolute;
   inset: auto 8px 8px;
@@ -3761,8 +3747,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 51%, rgb(28 20 44 / 58%), transparent 67%),
-    linear-gradient(rgb(20 20 48 / 67%) 0%, transparent 38%, rgb(30 24 56 / 28%));
+    radial-gradient(ellipse at 50% 51%, rgb(27 23 48 / 44%), transparent 66%),
+    linear-gradient(rgb(25 24 53 / 56%) 0%, transparent 36%);
   pointer-events: none;
 }
 :root.apple-ui.apple-ui .feed-shell .feed-hero-art .topic-art img { object-fit: contain; object-position: center; }
