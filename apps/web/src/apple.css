@@ -3631,6 +3631,17 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   border-radius: 8px;
   text-decoration: none;
 }
+:root.apple-ui.apple-ui .explore-view .community-feeds-empty {
+  gap: 4px;
+  padding-block: clamp(3px, 1dvh, 12px);
+}
+:root.apple-ui.apple-ui .explore-view .community-feeds-empty .primary-button { margin-block-start: 4px; }
+:root.apple-ui.apple-ui .explore-view:has(.community-feeds-empty) .channel-shelf { margin-block: 4px 6px; }
+:root.apple-ui.apple-ui .explore-view:has(.community-feeds-empty) .channel-shelf .catalog-shelf-track { padding-block-end: 4px; }
+:root.apple-ui.apple-ui .explore-view:has(.community-feeds-empty) .channel-card { gap: 4px; }
+:root.apple-ui.apple-ui .explore-view:has(.community-feeds-empty) .channel-card .channel-avatar {
+  width: min(100%, clamp(60px, 12dvh, 82px));
+}
 
 :root.apple-ui.apple-ui .profile-dialog .profile-username-field,
 :root.apple-ui.apple-ui .profile-dialog #change-password-form input {

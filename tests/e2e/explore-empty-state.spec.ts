@@ -61,3 +61,16 @@ test('Explore reveals the initial grid and optional shelves together', async ({p
     await expect(grid.locator('.feed-tile')).toHaveCount(1);
   }finally{release();}
 });
+
+test('empty Explore and Top channels fit together on a short desktop viewport', async ({page}) => {
+  await page.setViewportSize({width:1280,height:588});
+  await page.route('**/api/**',route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path==='/api/auth/session')return route.fulfill({json:{authenticated:true,account:{id:'reader',username:'reader',role:'user'}}});
+    if(path==='/api/explore/channels')return route.fulfill({json:{channels:[{username:'admin',publicFeedCount:6,followerCount:1}]}});
+    return route.fulfill({json:{feeds:[],briefings:[],nextOffset:null}});
+  });
+  await page.goto('/explore');
+  await expect(page.locator('.community-feeds-empty').getByRole('button')).toBeInViewport({ratio:1});
+  await expect(page.locator('.channel-shelf')).toBeInViewport({ratio:1});
+});
