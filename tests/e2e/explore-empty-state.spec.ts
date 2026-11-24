@@ -14,11 +14,12 @@ for(const [language,message] of [
  });
  await page.goto('/explore');
  await expect(page.locator('.community-feeds-empty').getByRole('heading')).toHaveText(message);
- await expect(page.locator('.community-feeds-empty').getByRole('button')).toBeVisible();
+ await expect(page.locator('.landing-controls .landing-create')).toHaveCount(1);
+ await expect(page.locator('.community-feeds-empty').getByRole('button')).toHaveCount(0);
  await expect(page.locator('.channel-shelf')).toBeVisible();
- const button=await page.locator('.community-feeds-empty').getByRole('button').boundingBox();
+ const empty=await page.locator('.community-feeds-empty').boundingBox();
  const shelf=await page.locator('.channel-shelf').boundingBox();
- expect(shelf!.y).toBeGreaterThan(button!.y+button!.height);
+ expect(shelf!.y).toBeGreaterThan(empty!.y+empty!.height);
  await expect(page.locator('.explore-view [role="alert"]')).toHaveCount(0);
 });
 
@@ -71,6 +72,6 @@ test('empty Explore and Top channels fit together on a short desktop viewport', 
     return route.fulfill({json:{feeds:[],briefings:[],nextOffset:null}});
   });
   await page.goto('/explore');
-  await expect(page.locator('.community-feeds-empty').getByRole('button')).toBeInViewport({ratio:1});
+  await expect(page.locator('.community-feeds-empty')).toBeInViewport({ratio:1});
   await expect(page.locator('.channel-shelf')).toBeInViewport({ratio:1});
 });

@@ -313,7 +313,6 @@ export function AppExperience(props: {
             <div className="community-feeds-empty">
               <h2>{t("No community feeds are available yet.")}</h2>
               <p>{t("Check back for new public feeds, or create a feed about a topic you follow.")}</p>
-              {props.onCreate && <button type="button" className="primary-button" onClick={props.onCreate}>{t("Create feed")}</button>}
             </div>
           )
         )}
