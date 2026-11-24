@@ -3273,6 +3273,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   scale: 1.14;
   object-position: 52% bottom;
 }
+:root.apple-ui.apple-ui[data-theme="dark"] .topic-art > .transparent-cover-image {
+  filter: saturate(.65) brightness(1.7);
+}
 :root.apple-ui.apple-ui .feed-tile-controls {
   position: absolute;
   inset: auto 8px 8px;

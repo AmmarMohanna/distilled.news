@@ -136,7 +136,7 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
   const fullCover = image?.fullCover || panoramic;
   return <span className={`topic-art pencil-art${fullCover ? " full-cover-art" : ""}`} title={failure || undefined} aria-hidden="true">
 
-    {image && <img src={image.url} alt="" className={panoramic ? "panoramic-cover-image" : undefined} style={{
+    {image && <img src={image.url} alt="" className={panoramic ? `panoramic-cover-image${image.fullCover ? "" : " transparent-cover-image"}` : undefined} style={{
       visibility: loadedAspect ? "visible" : "hidden",
       filter: fullCover ? undefined : `hue-rotate(${inkRotation(feed?.id ?? `${feed?.ownerUsername}/${feed?.slug}`)}deg)`
     }} onLoad={({ currentTarget }) => {
