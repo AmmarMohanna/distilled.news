@@ -22,6 +22,7 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     expect(button.x).toBeGreaterThanOrEqual(header.x);
     expect(button.x + button.width).toBeLessThanOrEqual(header.x + header.width);
     await expect(back).toHaveCSS('border-top-left-radius', '12px');
+    await expect(back).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     const art = (await page.locator('.feed-hero-art .topic-art').boundingBox())!;
     const container = (await page.locator('.feed-hero-art').boundingBox())!;
     expect(art.y).toBeGreaterThanOrEqual(container.y);
@@ -31,7 +32,8 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     expect(banner.x).toBeCloseTo(0, 0);
     expect(banner.width).toBeGreaterThan(width - 20);
     expect(banner.y).toBeLessThanOrEqual(header.y + header.height + 1);
-    expect(container.height).toBeCloseTo(banner.height, 0);
+    expect(container.y).toBeCloseTo(header.y, 0);
+    expect(container.y + container.height).toBeCloseTo(banner.y + banner.height, 0);
     expect(container.width).toBeCloseTo(banner.width, 0);
     expect(container.x).toBeCloseTo(banner.x, 0);
     await page.locator('.feed-banner-menu summary').click();
