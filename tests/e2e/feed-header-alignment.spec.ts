@@ -56,7 +56,7 @@ for (const owner of [true,false]) for (const width of [320,390,1280]) {
         expect(Math.abs(box.top-boxes[0].top)).toBeLessThan(2);
         expect(box.top).toBeGreaterThanOrEqual(group.y);
         expect(box.bottom).toBeLessThanOrEqual(group.y+group.height+1);
-        expect(box.bottom).toBeLessThanOrEqual(title.y+1);
+        expect(box.top).toBeGreaterThanOrEqual(title.y+title.height-1);
         expect(box.bottom).toBeLessThanOrEqual(toolbar.y+1);
         end=box.right;
       }

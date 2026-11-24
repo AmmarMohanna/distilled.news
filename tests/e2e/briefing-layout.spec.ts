@@ -36,7 +36,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   const actionBounds=await actions.boundingBox();
   expect(authorBounds!.y-titleBounds!.y-titleBounds!.height).toBeLessThanOrEqual(8);
   expect(actionBounds!.y).toBeGreaterThanOrEqual(header!.y+header!.height);
-  expect(actionBounds!.y+actionBounds!.height).toBeLessThanOrEqual(titleBounds!.y+1);
+  expect(actionBounds!.y).toBeGreaterThanOrEqual(authorBounds!.y+authorBounds!.height-1);
   expect(toolsBounds!.y-actionBounds!.y-actionBounds!.height).toBeGreaterThanOrEqual(0);
   await actions.getByLabel("Feed options").click();
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();

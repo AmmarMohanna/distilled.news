@@ -1834,11 +1834,11 @@ function FeedPage(props: { username: string; slug: string }) {
           }
         }}
       >
-        <Star size={20} aria-hidden fill={payload?.viewerHasStarred ? "currentColor" : "none"} />
+        <Star size={16} aria-hidden fill={payload?.viewerHasStarred ? "currentColor" : "none"} />
         <span className="action-label">{starControlLabel(payload?.viewerHasStarred ?? false, language)}</span>{" "}
         <span className="action-count">{payload?.briefing.stars ?? 0}</span>
       </button>
-      {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={20} aria-hidden /></button> : null}
+      {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={16} aria-hidden /></button> : null}
       {payload?.briefing.publicFeedEnabled && <ReaderShareMenu title={payload.briefing.title} onError={() => setError("Could not copy URL")}/>}
     </div>
   );
@@ -1873,10 +1873,7 @@ function FeedPage(props: { username: string; slug: string }) {
       meta={payload ? <>{bylineLabel(language)} {payload.briefing.publicFeedEnabled && !payload.briefing.paused
         ? <a className="feed-owner-channel" href={channelUrl(payload.briefing.ownerUsername)}><bdi>{payload.briefing.ownerUsername}</bdi></a>
         : <bdi>{payload.briefing.ownerUsername}</bdi>}</> : undefined}
-      headingFooter={payload?.editions.length ? <div className="feed-hero-controls">
-        <a className="feed-read-briefings" href="#feed-briefings">{t("Read briefings")}</a>
-      </div> : undefined}
-      headingAction={payload ? feedActions : undefined}
+      headingFooter={payload ? <div className="feed-hero-controls">{feedActions}</div> : undefined}
       headingLoading={readerLoading}
       feed={payload?.briefing ?? { ownerUsername: props.username, slug: props.slug, title: "" }}
       pageLanguage={language}
