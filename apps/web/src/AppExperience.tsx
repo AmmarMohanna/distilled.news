@@ -283,9 +283,9 @@ export function AppExperience(props: {
       </div>}
       <div className={props.account ? "explore-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
-        {!channelName || (ownChannel && !previewingChannel)
+        {!channelName
           ? <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
-          : channel && <ChannelFollowButton key={channel.username} channel={channel} preview={previewingChannel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
+          : channel && <ChannelFollowButton key={channel.username} channel={channel} ownChannel={ownChannel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
             onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>}
       </div>
       {showCatalogShelves && !isExplorePage && <>
@@ -410,9 +410,9 @@ function ChannelCounts({ channel }: { channel: ExploreChannel }) {
   </span>;
 }
 
-function ChannelFollowButton({ channel, preview, signedIn, onSignIn, onChange, onError }: {
+function ChannelFollowButton({ channel, ownChannel, signedIn, onSignIn, onChange, onError }: {
   channel: ExploreChannel;
-  preview: boolean;
+  ownChannel: boolean;
   signedIn: boolean;
   onSignIn: () => void;
   onChange: (channel: ExploreChannel) => void;
@@ -421,7 +421,7 @@ function ChannelFollowButton({ channel, preview, signedIn, onSignIn, onChange, o
   const { t } = useLanguage();
   const [followBusy, setFollowBusy] = useState(false);
   const toggleFollow = async () => {
-    if (preview) return;
+    if (ownChannel) return;
     if (!signedIn) {
       onSignIn();
       return;
@@ -436,7 +436,7 @@ function ChannelFollowButton({ channel, preview, signedIn, onSignIn, onChange, o
     }
   };
   return <button type="button" className="primary-button landing-create" aria-pressed={Boolean(channel.viewerFollowing)}
-    aria-disabled={preview || undefined} disabled={followBusy} onClick={() => void toggleFollow()}>
+    disabled={ownChannel || followBusy} onClick={() => void toggleFollow()}>
     {t(channel.viewerFollowing ? "Following" : "Follow")}
   </button>;
 }

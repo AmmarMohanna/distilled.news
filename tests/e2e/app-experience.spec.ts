@@ -119,6 +119,27 @@ test('opens a top channel with its public feeds and report menu', async ({ page 
   await page.getByRole('button', { name: 'Report a concern' }).click();
   await expect(page.getByRole('dialog', { name: 'Help & Support' }).locator('a').first()).toHaveAttribute('href', /channel%3Djoud/);
 });
+test('channel follow toggles for visitors and is disabled for the owner', async ({ page }) => {
+  await mock(page);
+  let following = false;
+  await page.route('**/api/explore/channels/*', route => {
+    const username = new URL(route.request().url()).pathname.split('/').at(-1);
+    return route.fulfill({ json: { channel: { username, publicFeedCount: 1, followerCount: Number(following), viewerFollowing: following } } });
+  });
+  await page.route('**/api/me/channels/another/follow', route => {
+    following = route.request().postDataJSON().following;
+    return route.fulfill({ json: { channel: { username: 'another', publicFeedCount: 1, followerCount: Number(following), viewerFollowing: following } } });
+  });
+  await page.goto('/explore?channel=another');
+  await page.getByRole('button', { name: 'Follow', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Following', exact: true })).toBeEnabled();
+  for (const suffix of ['', '&preview=1']) {
+    following = false;
+    await page.goto('/explore?channel=joud' + suffix);
+    await expect(page.getByRole('button', { name: 'Follow', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Create feed', exact: true })).toHaveCount(0);
+  }
+});
 test('discovery shelves link to a dedicated briefing with its published body', async ({ page }) => {
   await mock(page, false);
   const edition = { id: 'evening', briefingId: feed.id, title: 'An evening film briefing',
