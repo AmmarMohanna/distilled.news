@@ -49,7 +49,6 @@ import {
   LogOut,
   Moon,
   MoreHorizontal,
-  MessageSquareWarning,
   Newspaper,
   Pause,
   Pencil,
@@ -1766,19 +1765,6 @@ function FeedPage(props: { username: string; slug: string }) {
     ...archivedReadEditions,
   ];
   const visibleUnreadEditions = filteredEditions.slice(0, visibleUnreadCount);
-  const repeatedPhotos = new Set<string>();
-  const seenPhotoUrls = new Set<string>();
-  const seenHeadlines = new Set<string>();
-  for (const edition of visibleUnreadEditions) {
-    const photo = briefingPhoto(editionDetails.get(edition.id) ?? edition);
-    const headline = briefingRowHeadline(edition).trim().toLowerCase();
-    const titleIsSpecific = headline && headline !== payload?.briefing.title.trim().toLowerCase();
-    if ((photo && seenPhotoUrls.has(photo.url)) || (titleIsSpecific && seenHeadlines.has(headline))) {
-      repeatedPhotos.add(edition.id);
-    }
-    if (photo) seenPhotoUrls.add(photo.url);
-    if (titleIsSpecific) seenHeadlines.add(headline);
-  }
   const hiddenUnreadCount = Math.max(0, filteredEditions.length - visibleUnreadEditions.length);
   const language = uiLanguage;
   const pageDir = textDirection(language);
@@ -1944,8 +1930,6 @@ function FeedPage(props: { username: string; slug: string }) {
                   key={edition.id}
                   edition={edition}
                   destination={editionUrl({ownerUsername:props.username,slug:props.slug}, edition.id)}
-                  hidePhoto={repeatedPhotos.has(edition.id)}
-                  photoFeed={payload?.briefing.publicFeedEnabled && visibleUnreadEditions.indexOf(edition) < 2 ? {username:props.username,slug:props.slug} : undefined}
                   detailEdition={editionDetails.get(edition.id)}
                   language={language}
                   contentLanguage={payload?.briefing.language ?? language}
@@ -2054,8 +2038,6 @@ function briefingRowHeadline(edition: BriefingEdition) {
 function FeedEditionRow(props: {
   edition: BriefingEdition;
   destination: string;
-  hidePhoto?: boolean;
-  photoFeed?: { username: string; slug: string };
   detailEdition?: BriefingEdition;
   language: "en" | "ar" | "fr";
   contentLanguage: "en" | "ar" | "fr";
@@ -2072,19 +2054,12 @@ function FeedEditionRow(props: {
   const referenceCount = Math.max(edition.sections.length ? references.length : 0, highestReferenceNumber(edition.summary));
   const referenceNumbers = Array.from({length: referenceCount}, (_, index) => index + 1);
   const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
-  const retainedImage = props.hidePhoto ? undefined : briefingPhoto(props.detailEdition ?? edition);
-  const photoFeed = props.hidePhoto ? undefined : props.photoFeed;
-  const previewImage = usePublisherPhoto(retainedImage ? undefined : photoFeed?.username, photoFeed?.slug, edition.id);
-  const image = props.hidePhoto ? undefined : retainedImage ?? previewImage;
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
       <div className="news-head">
         {props.isRead ? null : <span className="news-unread" aria-hidden />}
         <time dateTime={editionDisplayTime(edition)}>{formatClock(editionDisplayTime(edition), language)}</time>
       </div>
-      {(image || photoFeed) && <div className="briefing-row-photo-slot">{image && <a className="briefing-row-photo" href={props.destination} aria-label={`${stamp}: ${headline}`}>
-        <PublisherPhoto photo={image}/>
-      </a>}</div>}
       <div className="briefing-row-copy"><BriefingText
         hideBody
         summary={edition.summary}
@@ -2114,17 +2089,19 @@ function FeedEditionRow(props: {
   );
 }
 
-function briefingPhoto(edition: BriefingEdition) {
+function briefingPhotos(edition: BriefingEdition) {
+  const photos = new Map<string, {url: string; source: string}>();
   for (const section of edition.sections) for (const evidence of section.evidence) for (const media of evidence.media) {
     if (media.type !== "photo" || !media.url) continue;
     try {
       const url = new URL(media.url);
-      if (url.protocol === "https:" && !url.username && !url.password) return { url: url.href, source: evidence.sourceTitle };
+      if (url.protocol === "https:" && !url.username && !url.password) photos.set(url.href, { url: url.href, source: evidence.sourceTitle });
     } catch { /* Ignore unavailable image references. */ }
   }
+  return [...photos.values()];
 }
 
-function PublisherPhoto({photo}: {photo: NonNullable<ReturnType<typeof briefingPhoto>>}) {
+function PublisherPhoto({photo}: {photo: ReturnType<typeof briefingPhotos>[number]}) {
   return <img src={photo.url} referrerPolicy="no-referrer" loading="lazy" alt="" title={photo.source}
     onError={event => { event.currentTarget.hidden = true; }}/>;
 }
@@ -2147,8 +2124,17 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const { t, language } = useLanguage();
   const [result, setResult] = useState<Awaited<ReturnType<typeof getBriefingPage>>>();
   const [error, setError] = useState<UiMessage>("");
-  const retainedPhoto = result && briefingPhoto(result.edition);
-  const previewPhoto = usePublisherPhoto(result?.briefing.publicFeedEnabled && !retainedPhoto ? props.username : undefined, props.slug, props.editionId);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const [readerAccount, setReaderAccount] = useState<AccountRecord | null>();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const retainedPhotos = result ? briefingPhotos(result.edition) : [];
+  const previewPhoto = usePublisherPhoto(result?.briefing.publicFeedEnabled && !retainedPhotos.length ? props.username : undefined, props.slug, props.editionId);
+  useEffect(() => {
+    let active = true;
+    void getSession().then(session => { if (active) setReaderAccount(session.account ?? null); })
+      .catch(() => { if (active) setReaderAccount(null); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     const request = new AbortController();
     void getBriefingPage(props.username, props.slug, props.editionId, request.signal)
@@ -2163,13 +2149,15 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   }, [result, language, t]);
   const href = `/${encodeURIComponent(props.username)}/${encodeURIComponent(props.slug)}/`;
   const back = <a className="feed-nav-back" href={href} aria-label={t("Back to feed")}><ChevronLeft size={22} aria-hidden/><span>{t("Back")}</span></a>;
+  const header = <AppHeader account={readerAccount ?? null} loading={readerAccount === undefined} leading={back} onAccount={() => setProfileOpen(true)}/>;
   if (!result) return <main className="briefing-detail-page">
-    <div className="briefing-detail-toolbar">{back}</div>
+    {header}
     {error ? <p role="alert">{t(error)}</p> : <FeedLoadingSkeleton label={loadingFeedLabel(language)}/>}
   </main>;
   const { briefing, edition } = result;
   const direction = textDirection(briefing.language);
-  const photo = retainedPhoto ?? previewPhoto;
+  const photos = retainedPhotos.length ? retainedPhotos : previewPhoto ? [previewPhoto] : [];
+  const photo = photos[photoIndex];
   const references = briefingReferences(edition);
   const renderReference = (number: number) => <CitationReference key={number} number={number} edition={edition} loadDetail={async () => edition} label={referenceButtonLabel(number, language)}/>;
   const renderBody = (text: string) => text.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) =>
@@ -2182,12 +2170,8 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
   const hasSeparateSummary = Boolean(summary && fullText && comparedText(summary) !== comparedText(fullText));
   const date = editionDisplayTime(edition);
   return <main className="briefing-detail-page">
-    <div className="briefing-detail-toolbar">
-      {back}
-      {briefing.publicFeedEnabled && <span className="feed-banner-menu">
-        <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>
-      </span>}
-    </div>
+    <AppHeader account={readerAccount ?? null} loading={readerAccount === undefined} leading={back}
+      onAccount={() => setProfileOpen(true)} actions={briefing.publicFeedEnabled && <ReaderShareMenu title={edition.title || briefing.title} onError={() => setError("Could not copy URL")}/>}/>
     {error && <p role="alert">{t(error)}</p>}
     <header className="briefing-detail-hero">
       <div>
@@ -2197,7 +2181,10 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
       </div>
     </header>
     <section className="briefing-detail-body" aria-label={t("Briefing")} lang={briefing.language} dir={direction}>
-      {(photo || briefing.publicFeedEnabled) && <figure className="briefing-detail-photo">{photo && <><PublisherPhoto photo={photo}/><figcaption><bdi>{photo.source}</bdi></figcaption></>}</figure>}
+      {photo && <figure className="briefing-detail-photo">
+        <PublisherPhoto key={photo.url} photo={photo}/>
+        <figcaption><bdi>{photo.source}</bdi>{photos.length > 1 && <button type="button" aria-label={t("Next image")} onClick={() => setPhotoIndex(index => (index + 1) % photos.length)}><ChevronRight size={18} aria-hidden/></button>}</figcaption>
+      </figure>}
       {hasSeparateSummary && <div className="briefing-detail-summary">{renderBody(summary)}</div>}
       {hasSeparateSummary ? edition.sections.map((section, index) => <div className="news-story" key={index}>
         {section.title && <h2 dir="auto">{section.title}</h2>}
@@ -2207,6 +2194,8 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
         renderReferences={section => references.filter(item => section === undefined || item.sectionIndex === section).map(item => renderReference(item.number))}
         renderBody={renderBody}/>}
     </section>
+    {readerAccount && profileOpen && <AccountDialog account={readerAccount} onClose={() => setProfileOpen(false)}
+      onSaved={async saved => setReaderAccount(saved)} onLogout={async () => { await logout(); window.location.assign("/"); }}/>}
   </main>;
 }
 
@@ -2320,9 +2309,6 @@ function ReaderShareMenu({ title, onError }: { title: string; onError: () => voi
       catch (cause) { if (!(cause instanceof DOMException && cause.name === "AbortError")) onError(); }
     }}>{t("Share")}<Share size={16} aria-hidden/></button>
     <button type="button" onClick={() => void copy()}><span aria-live="polite">{t(copied ? "Copied" : "Copy link")}</span><Copy size={16} aria-hidden/></button>
-    <a href={`mailto:distillednews.platform@gmail.com?subject=${encodeURIComponent(t("Report a concern"))}&body=${encodeURIComponent(url)}`}>
-      {t("Report a concern")}<MessageSquareWarning size={16} aria-hidden/>
-    </a>
   </>}</FeedMoreMenu>;
 }
 

@@ -196,6 +196,9 @@ export function AppExperience(props: {
   const ownFeeds = activeFeeds.filter(feed => matching(feed.title));
   const owns = (feed: PublicBriefing) => Boolean(props.account && ((Boolean(props.account.id) && feed.ownerAccountId === props.account.id) || feed.ownerUsername === props.account.username));
   const visibleFeeds = feeds.filter(feed => !feed.paused && (channelName ? feed.publicFeedEnabled && feed.ownerUsername === channel?.username : !owns(feed)) && matching(`${feed.title} ${feed.ownerUsername}`));
+  const visibleChannels = channels.filter(item => item.username !== props.account?.username);
+  const trendingFeeds = highlights.trending.filter(feed => !owns(feed));
+  const newFeeds = highlights.newest.filter(feed => !owns(feed));
   const waitingForCatalog = tab === "explore" && !channelName && !query.trim() && !exploreError && !catalogReady;
   const showCatalogShelves = !channelName && tab === "explore" && !query && catalogReady && (!loading || feeds.length > 0);
   const isExplorePage = Boolean(props.account || tabFromLocation() === "explore");
@@ -292,14 +295,14 @@ export function AppExperience(props: {
         {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")}>
           {visibleFeeds.slice(0, 8).map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
-        {highlights.trending.length > 0 && <CatalogShelf title={t("Trending topics")}>
-          {highlights.trending.map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
+        {trendingFeeds.length > 0 && <CatalogShelf title={t("Trending topics")}>
+          {trendingFeeds.map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
-        {highlights.trending.some(feed => feed.latestEditionId) && <CatalogShelf title={t("Trending briefings")}>
-          {highlights.trending.filter(feed => feed.latestEditionId).map(feed => <FeedTile key={feed.id} feed={feed} destination={editionUrl(feed, feed.latestEditionId!)} onError={setError}/>)}
+        {trendingFeeds.some(feed => feed.latestEditionId) && <CatalogShelf title={t("Trending briefings")}>
+          {trendingFeeds.filter(feed => feed.latestEditionId).map(feed => <FeedTile key={feed.id} feed={feed} destination={editionUrl(feed, feed.latestEditionId!)} onError={setError}/>)}
         </CatalogShelf>}
-        {highlights.newest.length > 0 && <CatalogShelf title={t("New feeds")}>
-          {highlights.newest.map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
+        {newFeeds.length > 0 && <CatalogShelf title={t("New feeds")}>
+          {newFeeds.map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
       </>}
       {channel?.viewerFollowing && !query.trim() && visibleFeeds.length > 0 && <CatalogShelf title={t("Followed feeds")}>
@@ -333,8 +336,8 @@ export function AppExperience(props: {
         )}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>}
-      {showCatalogShelves && channels.length > 0 && <CatalogShelf title={t(isExplorePage ? "Explore channels" : "Top channels")} className="channel-shelf">
-        {channels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
+      {showCatalogShelves && visibleChannels.length > 0 && <CatalogShelf title={t(isExplorePage ? "Explore channels" : "Top channels")} className="channel-shelf">
+        {visibleChannels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
           <ChannelAvatar username={item.username}/>
           <strong><bdi>@{item.username}</bdi></strong>
           <ChannelCounts channel={item}/>

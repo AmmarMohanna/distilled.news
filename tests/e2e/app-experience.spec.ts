@@ -130,8 +130,12 @@ test('channel follow toggles for visitors and is disabled for the owner', async 
     return route.fulfill({ json: { channel: { username: 'another', publicFeedCount: 1, followerCount: Number(following), viewerFollowing: following } } });
   });
   await page.goto('/explore?channel=another');
-  await page.getByRole('button', { name: 'Follow', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Following', exact: true })).toBeEnabled();
+  const follow = page.getByRole('button', { name: 'Follow', exact: true });
+  const before = await follow.boundingBox();
+  await follow.click();
+  const followed = page.getByRole('button', { name: 'Following', exact: true });
+  await expect(followed).toBeEnabled();
+  expect(await followed.boundingBox()).toEqual(before);
   for (const suffix of ['', '&preview=1']) {
     following = false;
     await page.goto('/explore?channel=joud' + suffix);

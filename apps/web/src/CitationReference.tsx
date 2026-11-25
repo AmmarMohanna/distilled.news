@@ -3,6 +3,9 @@ import type { BriefingEdition } from '@distilled/core';
 import { briefingReferences, readerEvidenceUrl } from './briefing-references';
 import { sourceEvidenceLabels } from './source-evidence-labels';
 import { SourceLogo } from './SourceLogo';
+import { createPortal } from 'react-dom';
+import { Dialog } from './Dialog';
+import { useLanguage } from './LanguageControl';
 
 export function CitationReference({ number, edition, loadDetail, label, sectionReference = false }: {
   number: number;
@@ -11,6 +14,8 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
   label: string;
   sectionReference?: boolean;
 }) {
+  const { t } = useLanguage();
+  const [sourceOpen, setSourceOpen] = useState(false);
   const id = useId();
   const trigger = useRef<HTMLAnchorElement>(null);
   const preview = useRef<HTMLSpanElement>(null);
@@ -51,14 +56,20 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
       aria-label={publisher ? `${label}: ${publisher}` : label} aria-describedby={publisher ? id : undefined}
       aria-busy={pending} role="link" tabIndex={0} onKeyDown={event => { if (!url && event.key === 'Enter') { event.preventDefault(); event.currentTarget.click(); } }} onClick={async event => {
         setDismissed(true);
-        if (url) return;
         event.preventDefault();
-        const detail = await prepare();
-        const source = detail && sourceFor(detail), destination = source && readerEvidenceUrl(source);
-        if (destination) window.location.assign(destination);
+        setSourceOpen(true);
+        await prepare();
       }}><bdi dir="ltr">[{number}]</bdi>
     {entry && publisher && !dismissed && <span ref={preview} id={id} className="citation-publisher" role="tooltip" dir="ltr">
       <SourceLogo source={url ?? entry.sourceUrl ?? publisher}/><strong>{publisher}</strong>
     </span>}</a>
+    {sourceOpen && createPortal(<Dialog label={t("Source preview")} className="citation-source-dialog" onClose={() => setSourceOpen(false)}>
+      <div className="dialog-inner">
+        <button type="button" className="dialog-close" aria-label={t("Close dialog")} onClick={() => setSourceOpen(false)}>×</button>
+        <h2 dir="auto">{entry ? sourceEvidenceLabels(entry).headline : t("Source preview")}</h2>
+        {entry && <><p className="muted" dir="auto">{publisher}</p><p className="citation-source-text" dir="auto">{entry.text}</p></>}
+        {url && <a className="primary-button" href={url} target="_blank" rel="noopener noreferrer">{t("Read article")}</a>}
+      </div>
+    </Dialog>, document.body)}
   </span>;
 }

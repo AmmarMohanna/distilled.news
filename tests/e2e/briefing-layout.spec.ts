@@ -103,66 +103,36 @@ test("published headlines open retained briefing evidence and preserve read-only
   const body = page.locator(".briefing-detail-body .news-summary");
   await expect(body).toContainText("The full briefing ends here");
   await expect(body).toHaveCSS("overflow", "visible");
+  await page.locator(".briefing-detail-body .briefing-reference").first().click();
+  const source = page.getByRole("dialog", { name: "Source preview" });
+  await expect(source).toContainText("The full briefing ends here");
+  await expect(source.getByRole("link", { name: "Read article" })).toHaveAttribute("href", sourceUrl);
 });
 
-test("a late publisher photo leaves briefing rows in place", async ({ page }) => {
-  const edition = (id: string) => ({
-    id, title: id, summary: "Published briefing text.", publishedAt: "2026-10-11T08:00:00Z", sections: [],
-  });
-  let releasePhoto!: () => void;
-  const photoGate = new Promise<void>(resolve => { releasePhoto = resolve; });
-  await page.route("https://example.test/briefing-photo.svg", route => route.fulfill({
+test("briefing photos load only after opening the detail page", async ({ page }) => {
+  const edition = { id: "latest", title: "A published headline", summary: "Published briefing text.",
+    publishedAt: "2026-10-11T08:00:00Z", sections: [] };
+  const photoUrl = "https://example.test/briefing-photo.svg";
+  let photoRequests = 0;
+  await page.route(photoUrl, route => route.fulfill({
     contentType: "image/svg+xml",
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="blue"/></svg>',
-  }));
-  await page.route("**/api/**", async route => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has("photo")) {
-      await photoGate;
-      return route.fulfill({ json: { photo: { url: "https://example.test/briefing-photo.svg", source: "Example" } } });
-    }
-    if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
-    return route.fulfill({ json: url.pathname === "/api/auth/session"
-      ? { authenticated: false }
-      : { briefing, editions: [edition("First"), edition("Second")], viewerHasStarred: false } });
-  });
-  await page.goto("/admin/personal-briefing/");
-  const second = page.getByRole("link", { name: "Second", exact: true });
-  try {
-    await expect(second).toBeVisible();
-    await page.evaluate(() => document.fonts.ready);
-    const before = await second.boundingBox();
-    releasePhoto();
-    await expect(page.locator(".briefing-row-photo img").first()).toBeVisible();
-    const first = page.getByRole("link", { name: "First", exact: true });
-    const headline = (await first.boundingBox())!;
-    const photo = (await page.locator(".briefing-row-photo img").first().boundingBox())!;
-    expect(photo.x).toBeGreaterThan(headline.x + headline.width);
-    expect(photo.y).toBeLessThan(headline.y + headline.height);
-    expect(await second.boundingBox()).toEqual(before);
-  } finally {
-    releasePhoto();
-  }
-});
-
-test("a repeated headline requests a thumbnail only for its first row", async ({ page }) => {
-  const calls: string[] = [];
-  const editions = ["latest", "previous"].map(id => ({
-    id, title: "An identical news headline", summary: "Published briefing text.", publishedAt: "2026-10-11T08:00:00Z", sections: [],
   }));
   await page.route("**/api/**", route => {
     const url = new URL(route.request().url());
     if (url.searchParams.has("photo")) {
-      calls.push(url.pathname);
-      return route.fulfill({ json: { photo: null } });
+      photoRequests++;
+      return route.fulfill({ json: { photo: { url: photoUrl, source: "Example" } } });
     }
     if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
     return route.fulfill({ json: url.pathname === "/api/auth/session"
-      ? { authenticated: false }
-      : { briefing, editions, viewerHasStarred: false } });
+      ? { authenticated: false } : { briefing, editions: [edition], edition, viewerHasStarred: false } });
   });
   await page.goto("/admin/personal-briefing/");
-  await expect(page.getByRole("link", { name: "An identical news headline", exact: true })).toHaveCount(2);
-  await expect.poll(() => calls.length).toBe(1);
-  await expect(page.locator(".briefing-row-photo-slot")).toHaveCount(1);
+  const headline = page.getByRole("link", { name: edition.title, exact: true });
+  await expect(headline).toBeVisible();
+  expect(photoRequests).toBe(0);
+  await headline.click();
+  await expect(page.locator(".briefing-detail-photo img")).toBeVisible();
+  expect(photoRequests).toBe(1);
 });
