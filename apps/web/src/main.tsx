@@ -1621,7 +1621,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const readerLoading = initialLoading || viewerLoading;
   const [editions, setEditions] = useState<BriefingEdition[]>([]);
   const [editionSource,setEditionSource]=useState<{key:string;text:string}|null>(null);
-  const [searchOpen, setSearchOpen] = useState(() => new URLSearchParams(window.location.search).has("search"));
   const [query, setQuery] = useState("");
   const [settledSearch, setSettledSearch] = useState<{ key: string; text: string } | null>(null);
   const [error, setError] = useState<UiMessage>("");
@@ -1767,6 +1766,19 @@ function FeedPage(props: { username: string; slug: string }) {
     ...archivedReadEditions,
   ];
   const visibleUnreadEditions = filteredEditions.slice(0, visibleUnreadCount);
+  const repeatedPhotos = new Set<string>();
+  const seenPhotoUrls = new Set<string>();
+  const seenHeadlines = new Set<string>();
+  for (const edition of visibleUnreadEditions) {
+    const photo = briefingPhoto(editionDetails.get(edition.id) ?? edition);
+    const headline = briefingRowHeadline(edition).trim().toLowerCase();
+    const titleIsSpecific = headline && headline !== payload?.briefing.title.trim().toLowerCase();
+    if ((photo && seenPhotoUrls.has(photo.url)) || (titleIsSpecific && seenHeadlines.has(headline))) {
+      repeatedPhotos.add(edition.id);
+    }
+    if (photo) seenPhotoUrls.add(photo.url);
+    if (titleIsSpecific) seenHeadlines.add(headline);
+  }
   const hiddenUnreadCount = Math.max(0, filteredEditions.length - visibleUnreadEditions.length);
   const language = uiLanguage;
   const pageDir = textDirection(language);
@@ -1837,13 +1849,8 @@ function FeedPage(props: { username: string; slug: string }) {
         <span className="action-count">{payload?.briefing.stars ?? 0}</span>
       </button>
       {ownedFeed ? <button type="button" title={t("Edit feed settings")} aria-label={t("Edit feed settings")} onClick={() => setEditorOpen(true)}><Settings size={16} aria-hidden /></button> : null}
-      {payload && <ReaderShareMenu
+      {payload?.briefing.publicFeedEnabled && <ReaderShareMenu
         title={payload.briefing.title}
-        canShare={payload.briefing.publicFeedEnabled}
-        searchAction={{label:searchPublishedLabel(language), onOpen:() => {
-          setSearchOpen(true);
-          requestAnimationFrame(() => document.getElementById("reader-briefing-search")?.focus());
-        }}}
         onError={() => setError("Could not copy URL")}
       />}
     </div>
@@ -1896,7 +1903,7 @@ function FeedPage(props: { username: string; slug: string }) {
         <button type="button" onClick={retryOwnership}>{t('Retry feed controls')}</button>
       </div>}
       {sessionState==='authenticated'&&!viewerLoading&&ownershipState==='loading'&&<p role="status">{t('Loading feed controls…')}</p>}
-      {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)} showSearch={searchOpen}/> : <>
+      {readerLoading ? <FeedLoadingSkeleton label={loadingFeedLabel(language)}/> : <>
       {accountDialog}
       {editorOpen && ownedFeed && <FeedEditor feed={ownedFeed} onClose={() => setEditorOpen(false)} onSave={async input => {
         const saved = await saveFeed(input);
@@ -1906,24 +1913,6 @@ function FeedPage(props: { username: string; slug: string }) {
         else await refresh();
       }} onPause={async () => { const saved = await saveBriefing({ ...ownedFeed, paused: !ownedFeed.paused }); setOwnedFeed(saved); await refresh(); }} onCopy={() => navigator.clipboard.writeText(publicFeedUrl(ownedFeed.ownerUsername, ownedFeed.slug))} onDelete={async () => { await deleteBriefing(ownedFeed.id); window.location.href = "/"; }}/ >}
       <div className={`feed-tools${payload?.editions.length ? "" : " is-empty-feed"}`} dir={pageDir}>
-        {searchOpen && <div className="feed-side-actions">
-          <form
-            className="search"
-            onSubmit={(event) => {
-              event.preventDefault(); void applySearch(latestQuery.current, ++searchRequest.current);
-            }}
-          >
-            <Search size={15} aria-hidden />
-            <input
-              id="reader-briefing-search"
-              aria-label={searchPublishedLabel(language)}
-              dir={pageDir}
-              value={query}
-              onChange={(event) => { latestQuery.current = event.target.value; searchRequest.current++; setQuery(event.target.value); }}
-              placeholder={searchPublishedLabel(language)}
-            />
-          </form>
-        </div>}
         {account&&payload?.unreadSummaryAvailable&&payload.editions.length>0&&<UnreadSummary
           key={JSON.stringify([account.id,props.username,props.slug])}
           readerId={account.id}
@@ -1955,6 +1944,7 @@ function FeedPage(props: { username: string; slug: string }) {
                   key={edition.id}
                   edition={edition}
                   destination={editionUrl({ownerUsername:props.username,slug:props.slug}, edition.id)}
+                  hidePhoto={repeatedPhotos.has(edition.id)}
                   photoFeed={payload?.briefing.publicFeedEnabled && visibleUnreadEditions.indexOf(edition) < 2 ? {username:props.username,slug:props.slug} : undefined}
                   detailEdition={editionDetails.get(edition.id)}
                   language={language}
@@ -2055,9 +2045,16 @@ function groupEditionsByDay(editions: BriefingEdition[], language: "en" | "ar" |
   return groups;
 }
 
+function briefingRowHeadline(edition: BriefingEdition) {
+  const lines = edition.summary.trim().split(/\r?\n/).filter(line => line.trim());
+  const retained = lines.length > 1 && lines[0].length <= 240 ? lines[0].trim() : undefined;
+  return (edition.sections.length === 1 ? edition.sections[0].title || retained : undefined) || edition.title;
+}
+
 function FeedEditionRow(props: {
   edition: BriefingEdition;
   destination: string;
+  hidePhoto?: boolean;
   photoFeed?: { username: string; slug: string };
   detailEdition?: BriefingEdition;
   language: "en" | "ar" | "fr";
@@ -2070,23 +2067,22 @@ function FeedEditionRow(props: {
 }) {
   const { edition, language } = props;
   const textDir = textDirection(props.contentLanguage);
-  const retainedLines = edition.summary.trim().split(/\r?\n/).filter(line => line.trim());
-  const retainedHeadline = retainedLines.length > 1 && retainedLines[0].length <= 240 ? retainedLines[0].trim() : undefined;
-  const headline = (edition.sections.length === 1 ? edition.sections[0].title || retainedHeadline : undefined) || edition.title;
+  const headline = briefingRowHeadline(edition);
   const references = briefingReferences(props.detailEdition ?? edition);
   const referenceCount = Math.max(edition.sections.length ? references.length : 0, highestReferenceNumber(edition.summary));
   const referenceNumbers = Array.from({length: referenceCount}, (_, index) => index + 1);
   const stamp = `${formatDayHeading(editionDisplayTime(edition), language)}, ${formatClock(editionDisplayTime(edition), language)}`;
-  const retainedImage = briefingPhoto(props.detailEdition ?? edition);
-  const previewImage = usePublisherPhoto(retainedImage ? undefined : props.photoFeed?.username, props.photoFeed?.slug, edition.id);
-  const image = retainedImage ?? previewImage;
+  const retainedImage = props.hidePhoto ? undefined : briefingPhoto(props.detailEdition ?? edition);
+  const photoFeed = props.hidePhoto ? undefined : props.photoFeed;
+  const previewImage = usePublisherPhoto(retainedImage ? undefined : photoFeed?.username, photoFeed?.slug, edition.id);
+  const image = props.hidePhoto ? undefined : retainedImage ?? previewImage;
   return (
     <article className={`news-item${props.isRead ? " is-read" : ""}`} aria-label={stamp} lang={props.contentLanguage} dir={textDir}>
       <div className="news-head">
         {props.isRead ? null : <span className="news-unread" aria-hidden />}
         <time dateTime={editionDisplayTime(edition)}>{formatClock(editionDisplayTime(edition), language)}</time>
       </div>
-      {(image || props.photoFeed) && <div className="briefing-row-photo-slot">{image && <a className="briefing-row-photo" href={props.destination} aria-label={`${stamp}: ${headline}`}>
+      {(image || photoFeed) && <div className="briefing-row-photo-slot">{image && <a className="briefing-row-photo" href={props.destination} aria-label={`${stamp}: ${headline}`}>
         <PublisherPhoto photo={image}/>
       </a>}</div>}
       <div className="briefing-row-copy"><BriefingText
@@ -2309,7 +2305,7 @@ function FeedMoreMenu(props: { label: string; children: (close: () => void) => R
   );
 }
 
-function ReaderShareMenu({ title, onError, canShare = true, searchAction }: { title: string; onError: () => void; canShare?: boolean; searchAction?: {label:string; onOpen: () => void} }) {
+function ReaderShareMenu({ title, onError }: { title: string; onError: () => void }) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const url = window.location.origin + window.location.pathname;
@@ -2318,7 +2314,6 @@ function ReaderShareMenu({ title, onError, canShare = true, searchAction }: { ti
     catch { onError(); }
   }
   return <FeedMoreMenu label={t("Feed options")}>{close => <>
-    {canShare && <>
     <button type="button" onClick={async () => {
       if (!navigator.share) { await copy(); return; }
       try { await navigator.share({ title, url }); close(); }
@@ -2328,10 +2323,6 @@ function ReaderShareMenu({ title, onError, canShare = true, searchAction }: { ti
     <a href={`mailto:distillednews.platform@gmail.com?subject=${encodeURIComponent(t("Report a concern"))}&body=${encodeURIComponent(url)}`}>
       {t("Report a concern")}<MessageSquareWarning size={16} aria-hidden/>
     </a>
-    </>}
-    {searchAction && <button type="button" onClick={() => { close(); searchAction.onOpen(); }}>
-      {searchAction.label}<Search size={16} aria-hidden/>
-    </button>}
   </>}</FeedMoreMenu>;
 }
 
@@ -2649,12 +2640,6 @@ function unreadFilterLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "غير المقروءة";
   if (language === "fr") return "Non lus";
   return "Unread";
-}
-
-function searchPublishedLabel(language: "en" | "ar" | "fr"): string {
-  if (language === "ar") return "البحث في الموجزات";
-  if (language === "fr") return "Chercher dans les briefs";
-  return "Search briefings";
 }
 
 function loadMoreLabel(language: "en" | "ar" | "fr"): string {

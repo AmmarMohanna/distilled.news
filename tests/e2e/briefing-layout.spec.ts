@@ -40,6 +40,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
   expect(emptyBounds!.y-actionBounds!.y-actionBounds!.height).toBeGreaterThanOrEqual(0);
   await actions.getByLabel("Feed options").click();
   await expect(actions.getByRole("button", { name: "Share" })).toBeVisible();
+  await expect(actions.getByRole("button", { name: "Search briefings" })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(actions.getByRole("button", { name: /Star/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Brief now/i })).toHaveCount(0);
@@ -138,4 +139,26 @@ test("a late publisher photo leaves briefing rows in place", async ({ page }) =>
   } finally {
     releasePhoto();
   }
+});
+
+test("a repeated headline requests a thumbnail only for its first row", async ({ page }) => {
+  const calls: string[] = [];
+  const editions = ["latest", "previous"].map(id => ({
+    id, title: "An identical news headline", summary: "Published briefing text.", publishedAt: "2026-10-11T08:00:00Z", sections: [],
+  }));
+  await page.route("**/api/**", route => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.has("photo")) {
+      calls.push(url.pathname);
+      return route.fulfill({ json: { photo: null } });
+    }
+    if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
+    return route.fulfill({ json: url.pathname === "/api/auth/session"
+      ? { authenticated: false }
+      : { briefing, editions, viewerHasStarred: false } });
+  });
+  await page.goto("/admin/personal-briefing/");
+  await expect(page.getByRole("link", { name: "An identical news headline", exact: true })).toHaveCount(2);
+  await expect.poll(() => calls.length).toBe(1);
+  await expect(page.locator(".briefing-row-photo-slot")).toHaveCount(1);
 });

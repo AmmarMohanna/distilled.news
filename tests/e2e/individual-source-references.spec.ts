@@ -26,8 +26,6 @@ for(const language of ['en','fr','ar'])test(`each supporting source opens separa
  const opened=page.waitForEvent('popup');await third.click();const article=await opened;
  await expect(article).toHaveURL('https://publisher3.example/article');await article.close();
  await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
- await first.locator('.briefing-read-more > summary').click();
- await expect(first.locator('.briefing-expanded-text')).toContainText('First explanation.');
  await expect(first.locator('.briefing-extra-sources')).toHaveCount(0);
  for(let index=0;index<3;index++){
   await expect(first.locator('.briefing-reference').nth(index)).toHaveAttribute('href',`https://publisher${index+1}.example/article`);

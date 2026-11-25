@@ -81,7 +81,6 @@ const scenes: { name: string; role: "user" | "admin" | null; url: string; act?: 
   { name: "settings", role: "admin", url: "/", act: async page => { await page.locator(".bottom-navigation .navigation-settings").click(); } },
   { name: "feed", role: "user", url: "/joud/lebanon/" },
   { name: "feed with settings open", role: "user", url: "/joud/lebanon/", act: async page => { await page.getByRole("button", { name: "Edit feed settings", exact: true }).click(); } },
-  { name: "feed expanded details", role: "user", url: "/joud/lebanon/", act: async page => { const item=page.locator('.news-item').first(); await item.locator('.briefing-read-more > summary').first().click(); await expect(item.locator('.briefing-expanded-text').first()).toBeVisible(); await expect(item.locator('.briefing-reference').nth(1)).toHaveAttribute('href','https://news.example.org/story2'); } },
 ];
 const variants = [
   { label: "320px", width: 320, height: 568, scale: 1 },
