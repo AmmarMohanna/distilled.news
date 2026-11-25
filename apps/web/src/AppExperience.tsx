@@ -2,7 +2,7 @@ import {ApiError,toUiError, type UiMessage} from './api-errors';
 import React, { useEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
-import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, Camera, ChevronLeft, ChevronRight, HelpCircle, Home, MessageSquareWarning, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, Camera, ChevronLeft, ChevronRight, HelpCircle, Home, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, ExploreChannel, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
 import { getExploreChannel, getExploreChannels, getExploreFeeds, getExploreHighlights, setChannelFollow, setFeedStar, uploadChannelCover, type ExploreHighlight, type FeedStarResult } from "./api";
@@ -269,7 +269,7 @@ export function AppExperience(props: {
     <section className={`explore-view${props.account || tabFromLocation() === "explore" ? " hide-shelf-controls" : ""}`} aria-busy={loading || waitingForCatalog} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
       {channelName ? <div className="channel-heading">
         <a className="feed-nav-back" href="/explore"><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
-        {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError} onReport={props.onHelp}/> : channelFailed ? <p role="status">{t(
+        {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError}/> : channelFailed ? <p role="status">{t(
           channelMissing && channelName === props.account?.username ? "Your public profile appears when you have an active public feed." :
             "Channel not available"
         )}</p> : <div className="channel-hero" aria-busy="true">
@@ -435,17 +435,16 @@ function ChannelFollowButton({ channel, ownChannel, signedIn, onSignIn, onChange
       setFollowBusy(false);
     }
   };
-  return <button type="button" className="primary-button landing-create" aria-pressed={Boolean(channel.viewerFollowing)}
+  return <button type="button" className="primary-button channel-follow-button" aria-pressed={Boolean(channel.viewerFollowing)}
     disabled={ownChannel || followBusy} onClick={() => void toggleFollow()}>
     {t(channel.viewerFollowing ? "Following" : "Follow")}
   </button>;
 }
 
-function ChannelHeader({ channel, canEdit, onError, onReport }: {
+function ChannelHeader({ channel, canEdit, onError }: {
   channel: ExploreChannel;
   canEdit: boolean;
   onError: (message: UiMessage) => void;
-  onReport: () => void;
 }) {
   const { t } = useLanguage();
   const menu = useRef<HTMLDetailsElement>(null);
@@ -507,7 +506,6 @@ function ChannelHeader({ channel, canEdit, onError, onReport }: {
         {canEdit && <button type="button" disabled={coverBusy} onClick={() => { close(); coverInput.current?.click(); }}>{t("Upload cover photo")}<Camera size={16} aria-hidden/></button>}
         <button type="button" onClick={() => void share(false)}>{t("Share")}<Share size={16} aria-hidden/></button>
         <button type="button" onClick={() => void share(true)}><span aria-live="polite">{t(copied ? "Copied" : "Copy link")}</span><Copy size={16} aria-hidden/></button>
-        <button type="button" onClick={() => { close(); onReport(); }}>{t("Report a concern")}<MessageSquareWarning size={16} aria-hidden/></button>
       </div>
     </details>
   </div>;

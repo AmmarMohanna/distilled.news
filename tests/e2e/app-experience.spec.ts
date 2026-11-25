@@ -89,7 +89,7 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   expect(photo.x).toBeCloseTo(button.x, 0);
   expect(photo.y).toBeCloseTo(button.y, 0);
 });
-test('opens a top channel with its public feeds and report menu', async ({ page }) => {
+test('opens a top channel with its public feeds and sharing menu', async ({ page }) => {
   const channel = { username: 'joud', publicFeedCount: 2, followerCount: 7 };
   await mock(page, false);
   await page.route('**/api/explore/channels**', route => {
@@ -116,8 +116,7 @@ test('opens a top channel with its public feeds and report menu', async ({ page 
   await expect(page.getByRole('heading', { name: 'Recently updated' })).toHaveCount(0);
   await page.locator('.channel-options summary').click();
   await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
-  await page.getByRole('button', { name: 'Report a concern' }).click();
-  await expect(page.getByRole('dialog', { name: 'Help & Support' }).locator('a').first()).toHaveAttribute('href', /channel%3Djoud/);
+  await expect(page.getByRole('button', { name: 'Report a concern' })).toHaveCount(0);
 });
 test('channel follow toggles for visitors and is disabled for the owner', async ({ page }) => {
   await mock(page);

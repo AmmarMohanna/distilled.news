@@ -3450,6 +3450,18 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   box-shadow: var(--shadow-soft);
 }
 :root.apple-ui.apple-ui .channel-card .channel-avatar-initials { background: linear-gradient(155deg, #586eaa, #4c4c86); }
+:root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls):has(> .channel-follow-button) {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  column-gap: 8px;
+}
+:root.apple-ui.apple-ui .experience.product-refresh :is(.explore-controls, .landing-controls) > .channel-follow-button {
+  min-height: 44px;
+  padding-inline: 16px;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+  font-size: .875rem;
+}
 :root.apple-ui.apple-ui .channel-counts { display: grid; gap: 2px; font-size: .75rem; color: var(--muted); }
 :root.apple-ui.apple-ui .channel-hero .channel-counts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; color: #ded9fa; font-size: .9375rem; }
 :root.apple-ui.apple-ui .profile-picture-visibility { display: inline-flex; align-items: baseline; gap: 8px; font-size: .875rem; text-align: start; }
