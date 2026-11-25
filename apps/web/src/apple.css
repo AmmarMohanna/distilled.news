@@ -3279,7 +3279,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   scale: 2.25;
 }
 :root.apple-ui.apple-ui[data-theme="dark"] .topic-art > .transparent-cover-image {
-  filter: saturate(.65) brightness(1.7);
+  filter: saturate(.8) brightness(.84);
 }
 :root.apple-ui.apple-ui .feed-tile-controls {
   position: absolute;
