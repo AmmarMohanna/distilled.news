@@ -4,7 +4,7 @@ import {selectWithinReaderBudget} from './reader-budget-selection';
 import {frenchQualificationIssues} from './qualification-scope';
 import {BriefingOutputError} from './types';
 import {arabicIdentityIssues} from './identity-fidelity';
-import {verifySourceBoundClaims,independentBindingPolicy} from './source-bound-claims';
+import {verifySourceBoundClaims,independentBindingPolicy,type SourceInventoryCache} from './source-bound-claims';
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OCCURRENCE_RULE} from './novelty';
 import {completeStorySources} from './citation-coverage';
@@ -41,9 +41,13 @@ import {wordingFidelity,wordingBase} from './wording-fidelity';
 import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,SUPPORTED_CORE_VERIFY_V2,SUPPORTED_CORE_REPAIR_V2,MATERIAL_RECOVERY,auditRepairCoverage,recoveryHistory,sourceBoundIdentityRepair} from './verification-recovery';
 import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, BriefingReviewEvent, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
+const RESEARCH_SYNTHESIS='\n\nRESEARCH SYNTHESIS: A new, source-grounded analysis of recent findings can merit coverage when it identifies a consequential pattern, comparison or limitation relevant to this reader. It does not need a new experiment, benchmark, or model release. Check what is materially new to this reader. Describe the synthesis and its cited findings as such. Do not present cited work as a new discovery by the author. Exclude repetitive commentary and unsupported speculation.';
 const READER_PRIORITIES='\n\nREADER PRIORITIES: The supplied feed interests are the selection authority. Do not silently narrow them to technical breakthroughs, benchmark records, enacted laws, or independently benchmarked products only. A relevant product release, coding tool, infrastructure finding or concrete policy proposal can be news without meeting those narrower gates; describe its actual significance and limitations. Prefer independent evidence where available without inventing a requirement for it. Exclude genuinely marginal items with an evidence-specific reason. For an already communicated occurrence, retain only material new facts, use update/correction with the exact prior ID, and lead the headline with what changed instead of announcing the original launch again.';
 export interface EngineOptions {
   reviewCheckpoint?: (event: BriefingReviewEvent) => Promise<void>;
+  /** Experimental; frozen production and shadow defaults do not opt in. */
+  researchSynthesisPolicy?: 'eligible-v1';
+  reuseSourceInventory?: 'per-window-v1';
   noveltyWirePolicy?:'consistent-links-v2';
   /** Consolidation combines editor-selected developments; it does not silently reselect. */
   editorSelectionPolicy?:'preserve-selected-developments-v1';
@@ -237,7 +241,8 @@ async function edit(
   sourcePolicy?:EngineOptions['editorSourcePolicy'],
   noveltyPolicy?:EngineOptions['noveltyPolicy'],
   failurePolicy?:EngineOptions['editorFailurePolicy'],
-  selectionPolicy?:EngineOptions['editorSelectionPolicy']
+  selectionPolicy?:EngineOptions['editorSelectionPolicy'],
+  researchSynthesisPolicy?:EngineOptions['researchSynthesisPolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
   const generation = models.generation;
   const ceiling = readingBudgetWords(input.feed.windowMinutes);
@@ -259,7 +264,7 @@ async function edit(
     {
       model: generation?.model ?? models.editor,
       ...(generation ? { generation } : {}),
-      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:'')+writerRules+additionalRules+qualificationRules+spaceRules+(reliability?history.linkInstruction:''),
+      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:'')+writerRules+additionalRules+qualificationRules+spaceRules+(reliability?history.linkInstruction:'')+(generation&&researchSynthesisPolicy==='eligible-v1'?RESEARCH_SYNTHESIS:''),
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior: history.items, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
         ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: Math.min(generation?.maxOutputTokens ?? Infinity, accountingPolicy ? Math.max(4000, articles.length * 48) : 4000),
@@ -464,7 +469,8 @@ async function verify(
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
   noveltyGuard = false,
   sourcePolicy?:EngineOptions['editorSourcePolicy'],
-  noveltyPolicy?:EngineOptions['noveltyPolicy']
+  noveltyPolicy?:EngineOptions['noveltyPolicy'],
+  sourceInventoryCache?:SourceInventoryCache
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -474,7 +480,7 @@ async function verify(
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
       if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||independentBindingPolicy(input.feed.identityFidelityPolicy)){
-        const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language, stageRoutes: models.stageRoutes,
+        const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language, stageRoutes: models.stageRoutes,sourceInventoryCache,
           items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
           ...(proofBackedV5(models) ? { proofCitations: true } : {}),
           context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
@@ -707,7 +713,7 @@ export async function generateBriefing(
   }
   const editChunk=async(chunk:PreparedArticle[],partial:boolean)=>{
     try{
-      const edited=await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy,options.noveltyPolicy,options.editorFailurePolicy,options.editorSelectionPolicy);
+      const edited=await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy,options.noveltyPolicy,options.editorFailurePolicy,options.editorSelectionPolicy,options.researchSynthesisPolicy);
       if(options.editorFailurePolicy==='isolate-unaccounted-sources-v2'&&edited.unaccounted.length)editorialFailures.push({headline:'Unaccounted source decisions',reason:'EDITOR_ACCOUNTING_INCOMPLETE: editor sources unaccounted after bounded correction; retained for a later window',carry:true,sourceIds:edited.unaccounted.flatMap(a=>a.sourceIds)});
       await checkpoint("writer",edited.drafts);
       return edited;
@@ -834,13 +840,14 @@ export async function generateBriefing(
     const refs=await timed('source_coverage',()=>completeStorySources(modelStage(port,models.stageRoutes,'citationCoverage'),meter,models.editor,drafts,prepared,options.maxEditorChars));
     drafts=drafts.map((d,i)=>({...d,refs:refs[i]}));
   }
+  const sourceInventoryCache:SourceInventoryCache|undefined = models.generation && options.reuseSourceInventory==='per-window-v1' ? new Map() : undefined;
   const accepted = new Set<number>();
   const acceptedProofs = new Map<number, string[]>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   const repairHistory = new Map<number,Array<Omit<PreviousReview,'index'>>>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
-    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy,options.noveltyPolicy));
+    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy,options.noveltyPolicy,sourceInventoryCache));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
     for (const index of todo) {

@@ -139,4 +139,12 @@ describe('V5 reliability revision',()=>{
     expect(events).toContainEqual(expect.objectContaining({stage:'writer',
       candidates:[expect.objectContaining({body:oversized.body,sourceIds:['current']})]}));
   });
+
+  it('allows useful evidence-backed research synthesis without requiring an original experiment',async()=>{
+    const {port,calls}=scripted({edit:[{items:[draft]}],verify:[ok]});
+    await generateBriefing({...start,articles:[article('current',FUND)]},port,models,{researchSynthesisPolicy:'eligible-v1'});
+    expect(calls[0].request.system).toContain('It does not need a new experiment, benchmark, or model release.');
+    expect(calls[0].request.system).toContain('Exclude repetitive commentary and unsupported speculation.');
+    expect(calls.map(call=>call.stage)).toEqual(['edit','verify']);
+  });
 });
