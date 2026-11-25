@@ -11,10 +11,10 @@ The supported stages are `topicSelection`, `consolidation`, `novelty`, `citation
 The selected shadow comparison uses this opt-in configuration:
 
 ```json
-{"default":{"novelty":"gemini-ai-studio-flex","sourceInventory":"gemini-ai-studio-flex","correction":"deepseek-flash-wafer"}}
+{"default":{"novelty":"gemini-ai-studio-flex","sourceInventory":"gemini-ai-studio-flex","correction":"deepseek-flash-wafer"},"ar":{"correction":"gpt-41-openai"}}
 ```
 
-The final factual verifier remains independent from the correction request. Gemini and DeepSeek both approved the known French timing and penalty-scope errors on the frozen verification request. The cheaper consolidation candidates also failed a structural or factual check. Keep those stages on the existing paths for this profile. The selected configuration has no output-language overrides.
+The final factual verifier remains independent from the correction request. Gemini and DeepSeek both approved the known French timing and penalty-scope errors on the frozen verification request. The cheaper consolidation candidates also failed a structural or factual check. Keep those stages on the existing paths for this profile. Arabic uses GPT-4.1 for correction in the shadow profile because the controlled recheck restored the supported budget story that the DeepSeek repair path withheld. One Arabic case does not establish a general language preference.
 
 The editor prioritizes current events before using history to check novelty. Its drafting target is 85% of the established window reading budget. ICU word segmentation counts the final headline and body in the output language. The final gate withholds over-budget copy without truncating it, and repair remains subject to re-verification. Exhausted editor and consolidation contract failures retain affected evidence for a later window.
 
