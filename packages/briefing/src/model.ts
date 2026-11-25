@@ -1,4 +1,4 @@
-import { BriefingModelError, BriefingOutputError, type Usage } from "./types";
+import { BriefingModelError, BriefingOutputError, type BriefingGeneration, type Usage } from "./types";
 
 export interface ModelRequest {
   model: string;
@@ -7,6 +7,8 @@ export interface ModelRequest {
   maxTokens: number;
   /** Optional strict provider schema. Parser validation remains authoritative. */
   responseSchema?: Record<string, unknown>;
+  /** Explicit OpenRouter route for the versioned initial writer. */
+  generation?: BriefingGeneration;
   signal?: AbortSignal;
 }
 
@@ -115,7 +117,19 @@ export function openAiCompatibleModel(config: {
         { authorization: `Bearer ${config.apiKey}`, ...config.headers },
         {
           model: request.model,
-          temperature: 0.1,
+          ...(request.generation
+            ? {
+              ...(request.generation.temperature !== undefined ? { temperature: request.generation.temperature } : {}),
+              ...(request.generation.reasoning ? { reasoning: request.generation.reasoning } : {}),
+              ...(request.generation.serviceTier ? { service_tier: request.generation.serviceTier } : {}),
+              provider: {
+                only: [request.generation.provider],
+                allow_fallbacks: false,
+                require_parameters: true,
+                max_price: { ...request.generation.price, request: 0 }
+              }
+            }
+            : { temperature: 0.1 }),
           max_tokens: request.maxTokens,
           response_format: request.responseSchema ? {type:'json_schema',json_schema:{name:'source_bindings',strict:true,schema:request.responseSchema}} : { type: "json_object" },
           ...(config.reportCost ? { usage: { include: true } } : {}),

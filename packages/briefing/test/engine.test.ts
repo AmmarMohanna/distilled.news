@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { generateBriefing } from "../src/engine";
+import { readerWordCount } from "../src/prompts";
+import type { BriefingModels } from "../src/types";
 import { FEED, FUND, GENESIS, MODELS, WINDOW, article, scripted } from "./helpers";
 
 const base = { feed: FEED, ...WINDOW };
+const candidate: BriefingModels = {
+  ...MODELS,
+  generation: {
+    model: "candidate", provider: "test", prompt: "v5-source-first-v2",
+    contextTokens: 262_144, maxOutputTokens: 4_000, price: { prompt: 1, completion: 1 }
+  }
+};
 const fund = (extra = {}) => ({
   headline: "Anthropic commits shares to new public benefit fund",
   body: "Subject to stockholder approval, Anthropic will commit 5% of its shares to a new Public Benefit Fund, with a further 2% at the board's discretion for each 50% rise in company value.",
@@ -14,6 +23,38 @@ const fund = (extra = {}) => ({
 });
 
 describe("generateBriefing", () => {
+  it("withholds a V5 draft after bounded budget correction and retains the source", async () => {
+    const long = fund({ body: "Material approval condition. ".repeat(40) });
+    const { port, calls } = scripted({ edit: [{ items: [long] }, { items: [long] }] });
+    const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, candidate);
+    expect(result.status).toBe("rejected");
+    expect(result.items).toEqual([]);
+    expect(result.dropped[0]).toMatchObject({ carry: true, sourceIds: ["a1"] });
+    expect(result.dropped[0].reason).toContain("READER_WORD_BUDGET");
+    expect(calls.map(c => c.request.model)).toEqual(["candidate", "candidate"]);
+  });
+
+  it("re-verifies a V5 repair and withholds the exact final copy when it exceeds the ceiling", async () => {
+    const long = "Subject to stockholder approval. ".repeat(30).trim();
+    const { port, calls } = scripted({
+      edit: [{ items: [fund()] }],
+      verify: [
+        { results: [{ i: 0, verdict: "fix", issues: ["Preserve the condition."] }] },
+        { results: [{ i: 0, verdict: "ok", issues: [] }] },
+      ],
+      repair: [{ items: [{ i: 0, headline: fund().headline, body: long, drop: false }] }],
+    });
+    const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, candidate);
+    expect(result.status).toBe("rejected");
+    expect(result.dropped[0].reason).toContain("V5_READER_WORD_BUDGET");
+    expect(calls.map(c => c.request.model)).toEqual(["candidate", MODELS.verifier, MODELS.editor, MODELS.verifier]);
+    expect(calls[3].request.user).toContain(long);
+  });
+
+  it("counts reader prose with the same ICU rules across French and Arabic", () => {
+    expect(readerWordCount("fr", [{ headline: "L’Union l’approuve.", body: "L’Union l’approuve." }])).toBe(2);
+    expect(readerWordCount("ar", [{ headline: "وزير المالية", body: "انخفض السعر ١٬٠٠٠ ليرة." }])).toBe(6);
+  });
   it("publishes with one editor call and one verification call", async () => {
     const { port, calls } = scripted({ edit: [{ items: [fund()] }], verify: [{ results: [{ i: 0, verdict: "ok", issues: [] }] }] });
     const result = await generateBriefing({ ...base, articles: [article("a1", FUND)] }, port, MODELS);

@@ -127,6 +127,21 @@ export interface BriefingResult {
 export interface BriefingModels {
   editor: string;
   verifier: string;
+  /** Frozen opt-in for the initial editorial pass only. */
+  generation?: BriefingGeneration;
+}
+
+export interface BriefingGeneration {
+  model: string;
+  provider: string;
+  contextTokens: number;
+  maxOutputTokens: number;
+  /** USD per million text tokens, including any higher pricing tiers. */
+  price: { prompt: number; completion: number };
+  temperature?: number;
+  reasoning?: { effort: 'low'; exclude: true } | { enabled: false; exclude?: true };
+  serviceTier?: 'flex';
+  prompt: 'v5-source-first-v1' | 'v5-source-first-v2';
 }
 
 /**

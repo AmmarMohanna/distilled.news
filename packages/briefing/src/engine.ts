@@ -28,6 +28,8 @@ import {
   editorUser,
   repairUser,
   verifyUser,
+  readerWordCount,
+  readingBudgetWords,
   type PreviousReview
 } from "./prompts";
 import { significantNumbers } from "./text";
@@ -225,6 +227,11 @@ async function edit(
   failurePolicy?:EngineOptions['editorFailurePolicy'],
   selectionPolicy?:EngineOptions['editorSelectionPolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[]; unaccounted: UnaccountedSource[] }> {
+  const generation = models.generation;
+  const ceiling = readingBudgetWords(input.feed.windowMinutes);
+  const draftTarget = Math.floor(ceiling * 0.85);
+  const writerRules = generation ? `\n\nCURRENT EVIDENCE: Establish each occurrence from current article bodies before deciding whether it updates reader history. History can establish repetition or identify an update, and cannot support a current fact. Preserve approval conditions, benchmark or licensing scope, and the difference between an announcement date and the date an action takes effect. Select only developments that can be told faithfully in ${draftTarget} words including headlines. The reader limit is ${ceiling} words. Leave room for verification corrections.` : '';
+  const additionalRules = generation?.prompt === 'v5-source-first-v2' ? '\nFor each selected event, make its strongest supported action clear. A proposal, trial, preliminary result or disputed claim needs its governing condition in the reader copy when it changes the meaning. A short, precise item is sufficient when it carries the whole change.' : '';
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
   const idsOf = new Map(articles.map((a) => [a.ref, [a.id, ...a.alsoIds]]));
@@ -233,16 +240,20 @@ async function edit(
     port,
     meter,
     {
-      model: models.editor,
-      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:''),
+      model: generation?.model ?? models.editor,
+      ...(generation ? { generation } : {}),
+      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:'')+writerRules+additionalRules,
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
         ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
-      maxTokens: accountingPolicy?Math.max(4000,articles.length*48):4000,
+      maxTokens: Math.min(generation?.maxOutputTokens ?? Infinity, accountingPolicy ? Math.max(4000, articles.length * 48) : 4000),
       ...(accountingPolicy==='complete-source-decisions-v3'?{responseSchema:editorAccountingSchema(articles.map(a=>a.ref))}:{}),
     },
     (raw) => {
       recovery.value=undefined;
       const drafts=parseDrafts(raw,known,priorIds,promptVersion>=4);
+      if (generation && !partial && readerWordCount(input.feed.language, drafts) > ceiling) {
+        throw Error(`READER_WORD_BUDGET: return a coherent edition of at most ${ceiling} words, retaining material facts and conditions. Select fewer developments where necessary.`);
+      }
       if(accountingPolicy==='complete-source-decisions-v3')raw=normalizeEditorAccounting(raw,articles.map(a=>a.ref));
       if(accountingPolicy){
         try{assertCompleteEditorAccounting(raw,articles,accountingPolicy!=='complete-source-decisions-v1');}
@@ -628,7 +639,14 @@ export async function generateBriefing(
       return edited;
     }
     catch(error){
-      if(!options.editorAccountingPolicy||!options.editorFailurePolicy||!(error instanceof BriefingOutputError)||!partial&&!/EDITOR_ACCOUNTING/.test(error.validationFailure??''))throw error;
+      if (!(error instanceof BriefingOutputError)) throw error;
+      if (!models.generation && (!options.editorAccountingPolicy || !options.editorFailurePolicy ||
+          !partial && !/EDITOR_ACCOUNTING/.test(error.validationFailure ?? ''))) throw error;
+      if (models.generation) {
+        const code = error.validationFailure?.match(/^[A-Z_]+(?=:)/)?.[0] ?? 'UNUSABLE_OUTPUT';
+        editorialFailures.push({ headline: 'Unprocessed source batch', reason: `V5_EDITOR_CONTRACT: ${code} after bounded correction`, carry: true, sourceIds: sourceIdsOfRefs(chunk.map(a => a.ref)) });
+        return { drafts: [], omitted: [], unaccounted: auditEditorSourceAccounting({}, chunk) };
+      }
       editorialFailures.push({headline:'Unprocessed source batch',reason:'editor output unusable after correction: '+error.message.split('; last reply began:')[0],carry:true,sourceIds:sourceIdsOfRefs(chunk.map(a=>a.ref))});
       return {drafts:[],omitted:[],unaccounted:auditEditorSourceAccounting({},chunk)};
     }
@@ -655,7 +673,17 @@ export async function generateBriefing(
     omitted.push(...parts.flatMap((part) => part.omitted));
     unaccounted.push(...parts.flatMap((part) => part.unaccounted));
     if (merged.length > 1) {
-      const consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion,options.editorSourcePolicy,options.noveltyPolicy,options.editorSelectionPolicy));
+      let consolidated: Awaited<ReturnType<typeof consolidate>>;
+      try {
+        consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion,options.editorSourcePolicy,options.noveltyPolicy,options.editorSelectionPolicy));
+      } catch (error) {
+        if (!models.generation || !(error instanceof BriefingOutputError)) throw error;
+        const code = error.validationFailure?.match(/^[A-Z_]+(?=:)/)?.[0] ?? 'UNUSABLE_OUTPUT';
+        return finish({ status: 'rejected', items: [], skipped, dropped: [
+          ...editorialFailures,
+          ...merged.map(draft => ({ headline: draft.headline, sourceIds: sourceIdsOfRefs(draft.refs), reason: `V5_CONSOLIDATION_CONTRACT: ${code} after bounded correction`, carry: true })),
+        ] });
+      }
       drafts = consolidated.drafts;
       omitted.push(...consolidated.omitted);
     } else {
@@ -672,8 +700,8 @@ export async function generateBriefing(
   }
   drafts = drafts.slice(0, options.maxItems);
   const repeatReasons=new Map<Draft,string>();
-  const exactRepeats=options.noveltyGuard&&!options.noveltyPolicy?drafts.filter(d=>exactPriorRepeat(d,input.prior??[])):[];
-  if(options.noveltyGuard&&!options.noveltyPolicy)drafts=drafts.filter(d=>!exactPriorRepeat(d,input.prior??[]));
+  const exactRepeats=options.noveltyGuard&&(!options.noveltyPolicy||models.generation)?drafts.filter(d=>exactPriorRepeat(d,input.prior??[])):[];
+  if(exactRepeats.length)drafts=drafts.filter(d=>!exactRepeats.includes(d));
   if(options.noveltyGuard&&drafts.length){
     const memory=verificationMemory(input.prior??[],drafts,options.now());
     const redundant=options.noveltyPolicy?await timed('novelty',async()=>{
@@ -780,5 +808,9 @@ export async function generateBriefing(
         ...(d.updatesId && priorIds.has(d.updatesId) ? { updatesId: d.updatesId } : {})
       };
     });
+  if (models.generation && readerWordCount(input.feed.language, items) > readingBudgetWords(input.feed.windowMinutes)) {
+    const overBudget = items.map(item => ({ headline: item.headline, sourceIds: item.sourceIds, carry: true, reason: 'V5_READER_WORD_BUDGET: final verified edition exceeds the reader word budget' }));
+    return finish({ status: 'rejected', items: [], skipped, dropped: [...dropped, ...overBudget] });
+  }
   return finish({ status: items.length ? "published" : "rejected", items, skipped, dropped });
 }
