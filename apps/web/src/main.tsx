@@ -1277,7 +1277,6 @@ function AccountDialog(props: {
           }
         }}
       >
-        <h3>{t("Account")}</h3>
         <div className="profile-card-heading"><label htmlFor="profile-username">{t("Username")}</label></div>
         <span className="profile-username-field"><input id="profile-username" aria-label={t("username")} ref={usernameFieldRef} readOnly={!editingUsername} value={username} autoComplete="username" onChange={(event) => setUsername(event.target.value)} /><button type="button" className="profile-edit-button" aria-label={t("Edit username")} aria-pressed={editingUsername} disabled={busy !== null} onClick={() => { if (editingUsername) setUsername(props.account.username); setEditingUsername(value => !value); }}><Pencil size={19}/></button></span>
         <button hidden={!editingUsername} type="submit" className="profile-save-button" title={t("Save")} disabled={busy === "username"}>
