@@ -88,6 +88,7 @@ it.each([
   expect(await store.list('feed-1','delivery_jobs')).toHaveLength(0);
   expect(calls[0].max_tokens).toBe(4000);
   expect(frozen.models.generation.model).toBe('deepseek/deepseek-v4.1-flash-1017');
+  expect(frozen.models.generation.prompt).toBe('v5-source-first-v5');
   expect(calls[0].provider).toEqual({only:['wafer/us'],allow_fallbacks:false,require_parameters:true,max_price:{prompt:.036,completion:.5,request:0}});
   expect(calls[0].reasoning).toEqual({enabled:false});
   const sourceInventory=calls.find(call=>call.messages[0].content.startsWith('Independently extract explicitly supported HUMAN'));

@@ -153,7 +153,7 @@ export interface BriefingRoute {
 }
 
 export interface BriefingGeneration extends BriefingRoute {
-  prompt: 'v5-source-first-v1' | 'v5-source-first-v2' | 'v5-source-first-v3' | 'v5-source-first-v4';
+  prompt: 'v5-source-first-v1' | 'v5-source-first-v2' | 'v5-source-first-v3' | 'v5-source-first-v4' | 'v5-source-first-v5';
 }
 
 /**

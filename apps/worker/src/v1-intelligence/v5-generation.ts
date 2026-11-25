@@ -59,6 +59,6 @@ export function v5Generation(profile: string | undefined): BriefingGeneration | 
   return {
     ...sources[profile as keyof typeof sources],
     maxOutputTokens: 6_500,
-    prompt: 'v5-source-first-v4',
+    prompt: 'v5-source-first-v5',
   };
 }
