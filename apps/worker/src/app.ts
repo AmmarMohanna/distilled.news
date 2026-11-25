@@ -1411,11 +1411,17 @@ export function createApp(options: AppOptions = {}) {
   app.get("/api/explore/channels", async (c) => {
     c.header("Cache-Control", "no-store");
     const repo = repoFor(c);
+    c.header("Vary", "Cookie");
+    const claims = await verifySession(getCookie(c, SESSION_COOKIE), c.env.ADMIN_SESSION_SECRET ?? "");
+    const viewer = claims ? await repo.getAccountById(claims.sub) : null;
+    const followed = c.req.query("followed") === "1";
+    if (viewer && !viewer.disabledAt) return c.json({ channels: await repo.listExploreChannels(100, undefined, { id: viewer.id, followed }) });
+    if (followed) return c.json({ channels: [] });
     const scope = options.repository ?? c.env.DB;
     const revision = await repo.getExploreRevision();
     let ranking = channelRankings.get(scope);
     if (ranking?.revision !== revision) {
-      const entries = repo.listExploreChannels(8).catch(error => {
+      const entries = repo.listExploreChannels(100).catch(error => {
         if (channelRankings.get(scope)?.entries === entries) channelRankings.delete(scope);
         throw error;
       });
@@ -1504,12 +1510,14 @@ export function createApp(options: AppOptions = {}) {
     const channel = z.string().max(200).optional().parse(c.req.query("channel"));
     const owner = channel ? await channelOwner(repo, channel) : undefined;
     if (channel && !owner) return c.json({ feeds: [], nextOffset: null });
+    const followed = c.req.query("followed") === "1";
+    if (followed && (!viewer || viewer.disabledAt)) return c.json({ feeds: [], nextOffset: null });
     const excludedOwner=!owner&&viewer&&!viewer.disabledAt?viewer.id:undefined;
     const before=await repo.getExploreRevision();
-    const revision=await hashToken(JSON.stringify([before,excludedOwner??null,owner?.id??null]));
+    const revision=await hashToken(JSON.stringify([before,excludedOwner??null,owner?.id??null,followed]));
     const changed=()=>c.json({error:'Community feed listing changed. Reload it.',code:'EXPLORE_CHANGED'},409);
     if(offset>0&&expected!==undefined&&expected!==revision)return changed();
-    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined, owner?.id, viewer && !viewer.disabledAt ? viewer.id : undefined);
+    const feeds = await repo.listExploreBriefings(101, offset, excludedOwner, await getVoterId(c) ?? undefined, owner?.id, viewer && !viewer.disabledAt ? viewer.id : undefined, followed);
     // The revision bookends the query, so a page cannot be labelled with a
     // revision from before or after a concurrent membership/ranking change.
     if(await repo.getExploreRevision()!==before)return changed();

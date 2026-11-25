@@ -494,7 +494,7 @@ export class D1Repository implements Repository {
     return String(row.revision);
   }
 
-  async listExploreChannels(limit: number, ownerId?: string): Promise<ExploreChannel[]> {
+  async listExploreChannels(limit: number, ownerId?: string, viewer?: { id: string; followed: boolean }): Promise<ExploreChannel[]> {
     return all<ExploreChannel>(this.db.prepare(
       `SELECT accounts.username, COUNT(*) AS publicFeedCount,
         (SELECT COUNT(*) FROM channel_follows
@@ -503,8 +503,10 @@ export class D1Repository implements Repository {
        FROM briefings JOIN accounts ON accounts.id = briefings.owner_account_id
        WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
        ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
-       GROUP BY accounts.id ORDER BY followerCount DESC, publicFeedCount DESC, accounts.username ASC LIMIT ?`
-    ).bind(...(ownerId === undefined ? [limit] : [ownerId, limit])));
+       ${viewer ? `AND accounts.id != ? AND ${viewer.followed ? '' : 'NOT '}EXISTS (
+         SELECT 1 FROM channel_follows WHERE channel_id = accounts.id AND follower_id = ?)` : ''}
+       GROUP BY accounts.id ORDER BY followerCount DESC, SUM(briefings.stars) DESC, publicFeedCount DESC, accounts.username ASC LIMIT ?`
+    ).bind(...(ownerId === undefined ? [] : [ownerId]), ...(viewer ? [viewer.id, viewer.id] : []), limit));
   }
 
   async hasChannelFollow(channelId: string, followerId: string): Promise<boolean> {
@@ -545,7 +547,7 @@ export class D1Repository implements Repository {
     return rows.map(row => ({ ...rowToBriefingCard(row), latestEditionId: row.latest_edition_id ?? undefined }));
   }
 
-  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string) {
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
     if (limit <= 0) return [];
     const rows = await all<BriefingRow & {viewer_starred: number; latest_updated_at: string | null; viewer_follows_channel: number}>(
       this.db
@@ -558,10 +560,11 @@ export class D1Repository implements Repository {
           WHERE accounts.disabled_at IS NULL AND briefings.public_feed_enabled = 1 AND briefings.paused = 0
           AND (? IS NULL OR briefings.owner_account_id != ?)
           ${ownerId === undefined ? '' : 'AND briefings.owner_account_id = ?'}
+          ${starredOnly ? "AND EXISTS (SELECT 1 FROM briefing_stars WHERE briefing_id=briefings.id AND voter_id=?)" : ""}
           ORDER BY briefings.stars DESC, briefings.created_at ASC, briefings.id ASC
           LIMIT ? OFFSET ?`
         )
-        .bind(voterId ?? null, viewerId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), limit, offset)
+        .bind(voterId ?? null, viewerId ?? null, excludeOwnerId ?? null, excludeOwnerId ?? null, ...(ownerId === undefined ? [] : [ownerId]), ...(starredOnly ? [voterId ?? null] : []), limit, offset)
     );
     return rows.map(row => ({...rowToBriefingCard(row), viewerFollowsChannel: Boolean(row.viewer_follows_channel)}));
   }
@@ -2033,12 +2036,12 @@ export class InMemoryRepository implements Repository {
     ])]);
   }
 
-  async listExploreChannels(limit: number, ownerId?: string): Promise<ExploreChannel[]> {
+  async listExploreChannels(limit: number, ownerId?: string, viewer?: { id: string; followed: boolean }): Promise<ExploreChannel[]> {
     const channels = new Map<string, { username: string; publicFeedCount: number }>();
     for (const feed of this.briefings.values()) {
       if (!feed.publicFeedEnabled || feed.paused || (ownerId !== undefined && feed.ownerAccountId !== ownerId)) continue;
       const account = this.accounts.get(feed.ownerAccountId);
-      if (!account || account.disabledAt) continue;
+      if (!account || account.disabledAt || (viewer && (viewer.id === account.id || Boolean(this.channelFollows.get(account.id)?.has(viewer.id)) !== viewer.followed))) continue;
       const channel = channels.get(account.id) ?? { username: account.username, publicFeedCount: 0 };
       channel.publicFeedCount++;
       channels.set(account.id, channel);
@@ -2063,10 +2066,11 @@ export class InMemoryRepository implements Repository {
     else this.channelFollows.delete(channelId);
   }
 
-  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string) {
+  async listExploreBriefings(limit: number, offset = 0, excludeOwnerId?: string, voterId?: string, ownerId?: string, viewerId?: string, starredOnly = false) {
     if (limit <= 0) return [];
     return Array.from(this.briefings.values())
       .filter((briefing) => briefing.publicFeedEnabled && !briefing.paused && briefing.ownerAccountId !== excludeOwnerId && (ownerId === undefined || briefing.ownerAccountId === ownerId) && !this.accounts.get(briefing.ownerAccountId)?.disabledAt)
+      .filter(briefing => !starredOnly || this.cardMetadata(briefing, voterId).viewerHasStarred)
       .map((briefing) => this.withCurrentBriefingOwner(briefing))
       .sort((a, b) => compareBriefingsByStarsAndAge(a, b, this.briefingCreatedAt))
       .slice(offset, offset + limit)

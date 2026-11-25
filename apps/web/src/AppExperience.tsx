@@ -18,9 +18,15 @@ import { AdaptiveFeedGrid } from "./AdaptiveFeedGrid";
 import { formatFeedUpdated } from "./helpers";
 import { EXPLORE_CHANGED_EVENT } from "./ExplorePublishingControl";
 
-type ExperienceTab='home'|'explore'|'settings';
+type ExperienceTab='home'|'explore'|'followed'|'settings';
+type CatalogView = 'feeds' | 'channels' | 'trending' | 'top-channels';
+function catalogViewFromLocation(): CatalogView | undefined {
+  const section = new URLSearchParams(window.location.search).get('section');
+  return section === 'feeds' || section === 'channels' || section === 'trending' || section === 'top-channels' ? section : undefined;
+}
 function tabFromLocation():ExperienceTab {
-  if(new URLSearchParams(window.location.search).get('view')==='settings')return 'settings';
+  const view = new URLSearchParams(window.location.search).get('view');
+  if (view === 'settings' || view === 'followed') return view;
   return /^\/explore\/?$/.test(window.location.pathname)?'explore':'home';
 }
 const feedUrl = (feed: Pick<PublicBriefing, "ownerUsername" | "slug">) => `/${encodeURIComponent(feed.ownerUsername)}/${encodeURIComponent(feed.slug)}/`;
@@ -49,6 +55,12 @@ export function AppExperience(props: {
 }) {
   const [tab, setTab] = useState<ExperienceTab>(() => props.initialTab ?? tabFromLocation());
   const [query, setQuery] = useState("");
+  const [catalogView, setCatalogView] = useState(catalogViewFromLocation);
+  function showCatalog(view?: CatalogView) {
+    window.history.pushState(null, "", view ? `/explore?section=${view}` : "/explore");
+    setCatalogView(view);
+    document.querySelector(".app-pages > .screen-page-viewport")?.scrollTo({ top: 0 });
+  }
   const [channelName, setChannelName] = useState(() => new URLSearchParams(window.location.search).get("channel") ?? "");
   const [catalogReady, setCatalogReady] = useState(false);
   const [channels, setChannels] = useState<ExploreChannel[]>([]);
@@ -81,7 +93,7 @@ export function AppExperience(props: {
   const { language, t } = useLanguage();
   const { theme, setTheme } = useTheme();
   useEffect(() => {
-    if (tab !== "explore") return;
+    if (tab !== "explore" && tab !== "followed") return;
     let active: AbortController | undefined;
     const loadChannel = () => {
       active?.abort();
@@ -101,7 +113,7 @@ export function AppExperience(props: {
         const cancel = () => optional.abort();
         request.signal.addEventListener("abort", cancel, {once:true});
         const deadline = window.setTimeout(cancel, 1800);
-        void Promise.allSettled([getExploreChannels(optional.signal), getExploreHighlights(optional.signal)])
+        void Promise.allSettled([getExploreChannels(optional.signal, tab === "followed"), getExploreHighlights(optional.signal)])
           .then(([channelResult, highlightResult]) => {
             if (request.signal.aborted) return;
             if (channelResult.status === "fulfilled") setChannels(channelResult.value);
@@ -121,8 +133,8 @@ export function AppExperience(props: {
     loadChannel();
     window.addEventListener(EXPLORE_CHANGED_EVENT, loadChannel);
     return () => { active?.abort(); window.removeEventListener(EXPLORE_CHANGED_EVENT, loadChannel); };
-  }, [tab, channelName]);
-  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."; }, [tab, language, props.account]);
+  }, [tab, channelName, voteScope]);
+  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = props.account ? `${t(tab === "home" ? "Home" : tab === "explore" ? "Explore" : tab === "followed" ? "Followed" : "Settings")} · Distilled.News` : "Distilled.News - A calmer perspective on a complex world."; }, [tab, language, props.account]);
   useEffect(() => {
     let active = true;
     let version = 0;
@@ -139,7 +151,7 @@ export function AppExperience(props: {
       try {
         const result = channelName
           ? await getExploreFeeds(offset, offset > 0 ? listingRevision : undefined, channelName)
-          : await getExploreFeeds(offset, offset > 0 ? listingRevision : undefined);
+          : await getExploreFeeds(offset, offset > 0 ? listingRevision : undefined, undefined, tab === "followed");
         if (!active || version !== request) return;
         if(offset>0&&listingRevision!==undefined&&result.revision!==listingRevision){refreshRequested=true;setNextOffset(null);return;}
         if(offset>0&&result.feeds.some(feed=>loadedIds.has(feed.id))){
@@ -187,7 +199,7 @@ export function AppExperience(props: {
     void load();
     window.addEventListener(EXPLORE_CHANGED_EVENT, changed);
     return () => { active = false; window.removeEventListener(EXPLORE_CHANGED_EVENT, changed); };
-  }, [channelName]);
+  }, [channelName, tab === "followed", voteScope]);
   const matching = (title: string) => (!query || title.toLowerCase().includes(query.toLowerCase()));
   const ownListReady = !props.briefingsState || props.briefingsState === 'ready';
   const emptyLibrary = ownListReady && props.briefings.length === 0;
@@ -195,17 +207,17 @@ export function AppExperience(props: {
   const archivedFeeds = props.briefings.filter(feed => feed.paused);
   const ownFeeds = activeFeeds.filter(feed => matching(feed.title));
   const owns = (feed: PublicBriefing) => Boolean(props.account && ((Boolean(props.account.id) && feed.ownerAccountId === props.account.id) || feed.ownerUsername === props.account.username));
-  const visibleFeeds = feeds.filter(feed => !feed.paused && (channelName ? feed.publicFeedEnabled && feed.ownerUsername === channel?.username : !owns(feed)) && matching(`${feed.title} ${feed.ownerUsername}`));
-  const visibleChannels = channels.filter(item => item.username !== props.account?.username);
-  const trendingFeeds = highlights.trending.filter(feed => !owns(feed));
+  const visibleFeeds = feeds.filter(feed => feed.publicFeedEnabled && !feed.paused && (channelName ? feed.ownerUsername === channel?.username : !owns(feed)) && matching(`${feed.title} ${feed.ownerUsername}`));
+  const visibleChannels = channels.filter(item => item.username !== props.account?.username && (tab === "followed" || !item.viewerFollowing) && matching(item.username));
+  const trendingFeeds = highlights.trending.filter(feed => !owns(feed) && !(confirmedVotes.current.get(feed.id)?.viewerHasStarred ?? feed.viewerHasStarred));
   const newFeeds = highlights.newest.filter(feed => !owns(feed));
   const waitingForCatalog = tab === "explore" && !channelName && !query.trim() && !exploreError && !catalogReady;
   const showCatalogShelves = !channelName && tab === "explore" && !query && catalogReady && (!loading || feeds.length > 0);
   const isExplorePage = Boolean(props.account || tabFromLocation() === "explore");
   const ownChannel = Boolean(channel && props.account?.username === channel.username);
   const previewingChannel = ownChannel && new URLSearchParams(window.location.search).get("preview") === "1";
-  const followedFeeds = visibleFeeds.filter(feed => feed.viewerFollowsChannel || feed.viewerHasStarred);
-  const otherPublicFeeds = visibleFeeds.filter(feed => !feed.viewerFollowsChannel && !feed.viewerHasStarred);
+  const followedFeeds = visibleFeeds.filter(feed => feed.viewerHasStarred);
+  const otherPublicFeeds = visibleFeeds.filter(feed => !props.account || !feed.viewerHasStarred);
   const renderExploreFeed = (feed: (typeof visibleFeeds)[number]) => <FeedTile
     key={feed.id}
     feed={feed}
@@ -213,14 +225,19 @@ export function AppExperience(props: {
     onError={setError}
     onStarChange={result => setFeeds(current => current.map(item => item.id === feed.id ? { ...item, ...result } : item))}
   />;
+  const renderChannel = (item: ExploreChannel) => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
+    <ChannelAvatar username={item.username}/>
+    <strong><bdi>@{item.username}</bdi></strong>
+    <ChannelCounts channel={item}/>
+  </a>;
   const setting = (icon: React.ReactNode, label: string, action: () => void) => <button type="button" className="setting-row" onClick={action}>{icon}<span>{t(label)}</span><ChevronRight size={17}/></button>;
   function changeTab(next: typeof tab) {
-    const url = next === "home" ? "/" : next === "explore" ? "/explore" : "/?view=settings";
+    const url = next === "home" ? "/" : next === "explore" ? "/explore" : `/?view=${next}`;
     if(window.location.pathname + window.location.search !== url) window.history.pushState(null, "", url);
-    setTab(next); setChannelName(""); setArchiveOpen(false); setSettingsDialog(null); window.scrollTo({ top: 0 });
+    setTab(next); setCatalogView(undefined); setChannelName(""); setArchiveOpen(false); setSettingsDialog(null); window.scrollTo({ top: 0 });
   }
   useEffect(() => {
-    const restore = () => { setTab(tabFromLocation()); setChannelName(new URLSearchParams(window.location.search).get("channel") ?? ""); setArchiveOpen(false); setSettingsDialog(null); };
+    const restore = () => { setTab(tabFromLocation()); setCatalogView(catalogViewFromLocation()); setChannelName(new URLSearchParams(window.location.search).get("channel") ?? ""); setArchiveOpen(false); setSettingsDialog(null); };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
   }, []);
@@ -269,7 +286,8 @@ export function AppExperience(props: {
         </>}
       </section>
     </div>}
-    <section className={`explore-view${props.account || tabFromLocation() === "explore" ? " hide-shelf-controls" : ""}`} aria-busy={loading || waitingForCatalog} style={tab !== "explore" && props.account ? { display: "none" } : undefined}>
+    <section className="explore-view" aria-busy={loading || waitingForCatalog} style={tab !== "explore" && tab !== "followed" && props.account ? { display: "none" } : undefined}>
+      {catalogView && <button type="button" className="feed-nav-back" onClick={() => showCatalog()}><ChevronLeft size={20}/>{t("Back")}</button>}
       {channelName ? <div className="channel-heading">
         <a className="feed-nav-back" href="/explore"><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
         {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError}/> : channelFailed ? <p role="status">{t(
@@ -280,22 +298,22 @@ export function AppExperience(props: {
           <span className="channel-avatar" aria-hidden="true"/>
           <p className="channel-loading-status" role="status">{t("Loading channel…")}</p>
         </div>}
-      </div> : props.account ? <div className="experience-title"><h1>{t("Explore")}</h1><p>{t("Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
+      </div> : props.account ? <div className="experience-title"><h1>{t(tab === "followed" ? "Followed" : "Explore")}</h1>{tab !== "followed" && <p>{t("Find topics and feeds to follow.")}</p>}</div> : <div className="landing-introduction">
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
       <div className={props.account ? "explore-controls" : "landing-controls"}>
         <div className="explore-search"><Search size={18} aria-hidden/><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search feeds")} aria-label={t("Search feeds")}/>{query && <button type="button" className="search-clear" aria-label={t("Clear search")} onClick={() => setQuery("")}><X size={16}/></button>}</div>
-        {!channelName
+        {tab !== "followed" && (!channelName
           ? <button type="button" className="primary-button landing-create" aria-label={t("Create feed")} onClick={props.onCreate}><Plus size={18} aria-hidden/><span className="create-feed-label">{t("Create feed")}</span></button>
           : channel && <ChannelFollowButton key={channel.username} channel={channel} ownChannel={ownChannel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
-            onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>}
+            onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>)}
       </div>
-      {showCatalogShelves && !isExplorePage && <>
-        {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")}>
+      {!catalogView && showCatalogShelves && !isExplorePage && <>
+        {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")} onShowAll={() => showCatalog("feeds")}>
           {visibleFeeds.slice(0, 8).map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
-        {trendingFeeds.length > 0 && <CatalogShelf title={t("Trending topics")}>
+        {trendingFeeds.length > 0 && <CatalogShelf title={t("Trending topics")} onShowAll={() => showCatalog("trending")}>
           {trendingFeeds.map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
         {trendingFeeds.some(feed => feed.latestEditionId) && <CatalogShelf title={t("Trending briefings")}>
@@ -308,7 +326,7 @@ export function AppExperience(props: {
       {channel?.viewerFollowing && !query.trim() && visibleFeeds.length > 0 && <CatalogShelf title={t("Followed feeds")}>
         {visibleFeeds.map(renderExploreFeed)}
       </CatalogShelf>}
-      {(!waitingForCatalog || props.account) && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")} style={waitingForCatalog ? { display: "none" } : undefined}>
+      {(!catalogView || catalogView === "feeds") && (!waitingForCatalog || props.account) && <section className={props.account ? "featured-feeds your-feeds" : "featured-feeds"} aria-label={t("Community feeds")} style={waitingForCatalog ? { display: "none" } : undefined}>
         {channel && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {!channelName && !isExplorePage && visibleFeeds.length > 0 && <h2 className="channel-section-title">{t("All public feeds")}</h2>}
         {exploreError && <div role="alert">
@@ -317,10 +335,12 @@ export function AppExperience(props: {
           <button type="button" className="feed-state-retry" onClick={() => void exploreLoader.current(failedOffset.current)}>{t("Try Again")}</button>
         </div>}
 
-        {visibleFeeds.length ? (
-          isExplorePage && !channelName ? <>
-            {followedFeeds.length > 0 && <CatalogShelf title={t("Followed feeds")}>{followedFeeds.map(renderExploreFeed)}</CatalogShelf>}
-            {otherPublicFeeds.length > 0 && <CatalogShelf title={t("Public feeds")}>{otherPublicFeeds.map(renderExploreFeed)}</CatalogShelf>}
+        {(channelName || !isExplorePage ? visibleFeeds : tab === "followed" ? followedFeeds : otherPublicFeeds).length ? (
+          (isExplorePage || catalogView === "feeds") && !channelName ? <>
+            {tab === "followed" && <CatalogShelf title={t("Followed feeds")}>{followedFeeds.map(renderExploreFeed)}</CatalogShelf>}
+            {tab === "explore" && (catalogView === "feeds"
+              ? <AdaptiveFeedGrid view="explore">{otherPublicFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
+              : <CatalogShelf title={t("Public feeds")} onShowAll={() => showCatalog("feeds")}>{otherPublicFeeds.map(renderExploreFeed)}</CatalogShelf>)}
           </> : <AdaptiveFeedGrid view="explore">{visibleFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
         ) : !loading && !exploreError && (query.trim() || nextOffset === null) && (
           query.trim() || channelName ? (
@@ -329,20 +349,26 @@ export function AppExperience(props: {
               : "No community feeds are available yet.")}</p>
           ) : (
             <div className="community-feeds-empty">
-              <h2>{t("No community feeds are available yet.")}</h2>
-              <p>{t("Check back for new public feeds, or create a feed about a topic you follow.")}</p>
+              <h2>{t(tab === "followed" ? "No starred feeds yet" : "No community feeds are available yet.")}</h2>
+              {tab !== "followed" && <p>{t("Check back for new public feeds, or create a feed about a topic you follow.")}</p>}
             </div>
           )
         )}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>}
-      {showCatalogShelves && visibleChannels.length > 0 && <CatalogShelf title={t(isExplorePage ? "Explore channels" : "Top channels")} className="channel-shelf">
-        {visibleChannels.map(item => <a className="channel-card" key={item.username} href={channelUrl(item.username)}>
-          <ChannelAvatar username={item.username}/>
-          <strong><bdi>@{item.username}</bdi></strong>
-          <ChannelCounts channel={item}/>
-        </a>)}
-      </CatalogShelf>}
+      {tab === "explore" && !channelName && !query && trendingFeeds.length > 0 && (!catalogView || catalogView === "trending") && (isExplorePage || catalogView === "trending") &&
+        (catalogView ? <AdaptiveFeedGrid view="explore">{trendingFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
+          : <CatalogShelf title={t("Trending feeds")} onShowAll={() => showCatalog("trending")}>{trendingFeeds.map(renderExploreFeed)}</CatalogShelf>)}
+      {!channelName && visibleChannels.length > 0 && (!catalogView || catalogView === "channels" || catalogView === "top-channels") &&
+        (tab === "followed" || tab === "explore") &&
+        <CatalogShelf title={t(tab === "followed" ? "Followed channels" : catalogView === "top-channels" ? "Most followed channels" : isExplorePage ? "Explore channels" : "Top channels")}
+          className="channel-shelf" expanded={Boolean(catalogView)} onShowAll={tab === "explore" ? () => showCatalog("channels") : undefined}>
+          {(catalogView === "top-channels" ? visibleChannels.filter(item => item.followerCount > 0) : visibleChannels).map(renderChannel)}
+        </CatalogShelf>}
+      {showCatalogShelves && !catalogView && isExplorePage && visibleChannels.length > 1 && visibleChannels.some(item => item.followerCount > 0) &&
+        <CatalogShelf title={t("Most followed channels")} className="channel-shelf" onShowAll={() => showCatalog("top-channels")}>
+          {visibleChannels.filter(item => item.followerCount > 0).slice(0, 12).map(renderChannel)}
+        </CatalogShelf>}
     </section>
     {tab === "settings" && <section className="settings-view"><div className="experience-title"><h1>{t("Settings")}</h1><p>{t("Customize your experience.")}</p></div><p className="settings-group-label settings-account-label">{t("Account")}</p><div className="settings-group settings-account-group">{setting(<User/>, "Profile", props.onAccount)}<button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Notifications")} aria-checked={notificationEnabled ?? false} disabled={notificationBusy || notificationEnabled === undefined} onClick={() => void toggleNotifications()}><Bell/><span>{t("Notifications")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div>{notificationError && <p className="error" role="alert">{t(notificationError)}</p>}<p className="settings-group-label settings-preferences-label">{t("Preferences")}</p><div className="settings-group settings-preferences-group"><div className="setting-row setting-language" role="group" aria-label={t("Language")}><Globe/><span>{t("Language")}</span><span className="language-segments">{(["en", "fr", "ar"] as const).map(code => <button key={code} type="button" lang={code} aria-pressed={language === code} onClick={() => setWebsiteLanguage(code)} aria-label={languageNames[code]}><span className="language-name">{languageNames[code]}</span><span className="language-code" aria-hidden="true">{code.toUpperCase()}</span></button>)}</span></div><button type="button" className="setting-row notification-setting-row" role="switch" aria-label={t("Dark mode")} aria-checked={theme === "dark"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}><Moon/><span>{t("Dark mode")}</span><span className="notification-switch" aria-hidden="true"><span/></span></button></div><p className="settings-group-label settings-app-label">{t("App")}</p><div className="settings-group settings-app-group">{setting(<Smartphone/>, "Install app", () => { setSettingsDialog("install"); setInstallStatus("pending"); setInstallError(""); void installApp().then(result => setInstallStatus(current => current === "installed" ? current : result)).catch(cause => { setInstallStatus("error"); setInstallError(String(cause)); }); })}{setting(<HelpCircle/>, "Help & Support", props.onHelp)}</div>{props.account?.role === "admin" && props.children}</section>}
     {props.account && archiveOpen && <Dialog label={t("Archived feeds")} className="feed-archive-dialog" onClose={() => setArchiveOpen(false)}>
@@ -387,20 +413,48 @@ function ChannelAvatar({ username }: { username: string }) {
   </span>;
 }
 
-function CatalogShelf({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
+function CatalogShelf({ title, children, className = "", expanded = false, onShowAll }: {
+  title: string; children: React.ReactNode; className?: string; expanded?: boolean; onShowAll?: () => void;
+}) {
   const track = useRef<HTMLDivElement>(null);
-  const { t } = useLanguage();
-  const scroll = (direction: number) => {
-    const node = track.current!;
+  const timer = useRef<number | undefined>(undefined);
+  const [scrolling, setScrolling] = useState(false);
+  const [edges, setEdges] = useState({ back: false, forward: false });
+  const { language, t } = useLanguage();
+  function measure() {
+    const node = track.current;
+    if (!node) return;
+    const position = Math.abs(node.scrollLeft);
+    setEdges({ back: position > 2, forward: position + node.clientWidth < node.scrollWidth - 2 });
+  }
+  useEffect(() => {
+    const node = track.current;
+    if (!node || expanded) return;
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => { observer.disconnect(); window.clearTimeout(timer.current); };
+  }, [children, expanded, language]);
+  function onScroll() {
+    measure();
+    setScrolling(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setScrolling(false), 700);
+  }
+  function scroll(direction: number) {
+    const node = track.current;
+    if (!node) return;
     const sign = getComputedStyle(node).direction === "rtl" ? -1 : 1;
     node.scrollBy({ left: direction * sign * node.clientWidth, behavior: "smooth" });
-  };
+  }
   return <section className={`catalog-shelf ${className}`} aria-label={title}>
-    <div className="catalog-shelf-header"><h2>{title}</h2><div className="catalog-shelf-controls">
-      <button type="button" onClick={() => scroll(-1)} aria-label={t("Scroll backward")}><ChevronRight size={17} aria-hidden/></button>
-      <button type="button" onClick={() => scroll(1)} aria-label={t("Scroll forward")}><ChevronRight size={17} aria-hidden/></button>
-    </div></div>
-    <div className="catalog-shelf-track" ref={track} tabIndex={0} role="region" aria-label={title}>{children}</div>
+    <div className="catalog-shelf-header"><h2>{title}</h2>{onShowAll && !expanded && <button type="button" className="catalog-show-all" onClick={onShowAll}>{t("Show all")}</button>}</div>
+    <div className="catalog-shelf-viewport" data-scrolling={scrolling || undefined}>
+      <div className={expanded ? "catalog-vertical-grid" : "catalog-shelf-track"} ref={track}
+        onScroll={expanded ? undefined : onScroll} tabIndex={expanded ? undefined : 0} role="region" aria-label={title}>{children}</div>
+      {!expanded && edges.back && <button type="button" className="catalog-edge catalog-edge-back" onClick={() => scroll(-1)} aria-label={t("Scroll backward")}><ChevronRight size={17} aria-hidden/></button>}
+      {!expanded && edges.forward && <button type="button" className="catalog-edge catalog-edge-forward" onClick={() => scroll(1)} aria-label={t("Scroll forward")}><ChevronRight size={17} aria-hidden/></button>}
+    </div>
   </section>;
 }
 
@@ -641,7 +695,7 @@ function FeedUpdatedAt({ value }: { value?: string }) {
   return value ? <time className="feed-updated-at" dateTime={value}>{formatFeedUpdated(value, language, now)}</time> : null;
 }
 
-type NavigationTab = "home" | "explore" | "settings";
+type NavigationTab = ExperienceTab;
 function SidebarNavigation({ active, onNavigate }: { active?: string; onNavigate?: (tab: NavigationTab) => void }) {
   const { t } = useLanguage();
   const [unpinned, setUnpinned] = useState(() => {
@@ -658,7 +712,7 @@ function SidebarNavigation({ active, onNavigate }: { active?: string; onNavigate
       <div className="sidebar-brand" aria-label="Distilled.news"><BrandMark/></div>
       <button type="button" className="sidebar-toggle" aria-label={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} title={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} aria-expanded={!collapsed} aria-pressed={!unpinned} onClick={toggle}><PanelLeft size={22}/></button>
     </div>
-    {([{ id: "home", label: "Home", icon: Home, href: "/" }, { id: "explore", label: "Explore", icon: Search, href: "/explore" }, { id: "settings", label: "Settings", icon: Settings, href: "/?view=settings" }] as const).map(({ id, label, icon: Icon, href }) => onNavigate
+    {([{ id: "home", label: "Home", icon: Home, href: "/" }, { id: "explore", label: "Explore", icon: Search, href: "/explore" }, { id: "followed", label: "Followed", icon: Star, href: "/?view=followed" }, { id: "settings", label: "Settings", icon: Settings, href: "/?view=settings" }] as const).map(({ id, label, icon: Icon, href }) => onNavigate
       ? <button key={id} type="button" className={`navigation-item ${id === "settings" ? "navigation-settings" : ""} ${active === id ? "active" : ""}`} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)} onClick={() => onNavigate(id)}><Icon size={23}/><span>{t(label)}</span></button>
       : <a key={id} className={`navigation-item ${id === "settings" ? "navigation-settings" : ""}`} href={href} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)}><Icon size={23}/><span>{t(label)}</span></a>)}
   </nav>;

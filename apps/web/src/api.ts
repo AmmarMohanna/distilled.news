@@ -397,13 +397,13 @@ export interface ExplorePage {
   nextOffset: number | null;
 }
 /** One bounded page. The caller retains earlier pages if a subsequent read fails. */
-export async function getExploreFeeds(offset = 0, revision?:string, channel?: string): Promise<ExplorePage> {
-  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}${revision?'&revision='+encodeURIComponent(revision):''}${channel?'&channel='+encodeURIComponent(channel):''}`);
+export async function getExploreFeeds(offset = 0, revision?:string, channel?: string, followed = false): Promise<ExplorePage> {
+  const payload = await requestJson<ExplorePage>(`/api/explore/feeds?offset=${offset}${revision?'&revision='+encodeURIComponent(revision):''}${channel?'&channel='+encodeURIComponent(channel):''}${followed ? '&followed=1' : ''}`);
   return { ...payload, nextOffset: payload.nextOffset ?? null };
 }
 
-export async function getExploreChannels(signal: AbortSignal): Promise<ExploreChannel[]> {
-  const result = await requestJson<{ channels: ExploreChannel[] }>("/api/explore/channels", { signal });
+export async function getExploreChannels(signal: AbortSignal, followed = false): Promise<ExploreChannel[]> {
+  const result = await requestJson<{ channels: ExploreChannel[] }>(followed ? "/api/explore/channels?followed=1" : "/api/explore/channels", { signal });
   return result.channels ?? [];
 }
 
