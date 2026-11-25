@@ -99,6 +99,10 @@ interface Draft {
 
 const RELATIONS = new Set(["new", "update", "correction"]);
 
+function proofBackedV5(models: BriefingModels): boolean {
+  return models.generation?.prompt === 'v5-source-first-v3' || models.generation?.prompt === 'v5-source-first-v4';
+}
+
 function text(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
@@ -231,7 +235,10 @@ async function edit(
   const ceiling = readingBudgetWords(input.feed.windowMinutes);
   const draftTarget = Math.floor(ceiling * 0.85);
   const writerRules = generation ? `\n\nCURRENT EVIDENCE: Establish each occurrence from current article bodies before deciding whether it updates reader history. History can establish repetition or identify an update, and cannot support a current fact. Preserve approval conditions, benchmark or licensing scope, and the difference between an announcement date and the date an action takes effect. Select only developments that can be told faithfully in ${draftTarget} words including headlines. The reader limit is ${ceiling} words. Leave room for verification corrections.` : '';
-  const additionalRules = generation?.prompt === 'v5-source-first-v2' ? '\nFor each selected event, make its strongest supported action clear. A proposal, trial, preliminary result or disputed claim needs its governing condition in the reader copy when it changes the meaning. A short, precise item is sufficient when it carries the whole change.' : '';
+  const revised = proofBackedV5(models);
+  const additionalRules = generation?.prompt === 'v5-source-first-v2' || revised ? '\nFor each selected event, make its strongest supported action clear. A proposal, trial, preliminary result or disputed claim needs its governing condition in the reader copy when it changes the meaning. A short, precise item is sufficient when it carries the whole change.' : '';
+  const qualificationRules = revised ? '\nKeep the headline independently accurate. Distinguish what is decided from what is still pending, and an expected timetable from a committed one. Include timing, approval and applicability conditions alongside the assertion they limit. Attach a report only if it supports at least one factual statement about this development as written; the same speaker, meeting or general subject is insufficient.' : '';
+  const spaceRules = generation?.prompt === 'v5-source-first-v4' ? '\nLeave secondary facts and previously announced details out when space is tight. If one story merits inclusion, lead with a short headline and a body of at most three sentences. State an expected vote as expected in the clause giving its timing, even if the vote itself is required.' : '';
   const known = new Set(articles.map((a) => a.ref));
   const priorIds = new Set(prior.map((p) => p.id));
   const idsOf = new Map(articles.map((a) => [a.ref, [a.id, ...a.alsoIds]]));
@@ -242,7 +249,7 @@ async function edit(
     {
       model: generation?.model ?? models.editor,
       ...(generation ? { generation } : {}),
-      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:'')+writerRules+additionalRules,
+      system: (promptVersion === 7 ? EDITOR_SYSTEM_V7 : promptVersion >= 6 ? EDITOR_SYSTEM_V6 : promptVersion >= 5 ? EDITOR_SYSTEM_V5 : promptVersion >= 4 ? EDITOR_SYSTEM_V4 : EDITOR_SYSTEM)+(noveltyPolicy?'\n\n'+OCCURRENCE_RULE:'')+wordingFidelity(input.feed)+(selectionPolicy?READER_PRIORITIES:'')+(accountingPolicy==='complete-source-decisions-v3'?STRUCTURED_ACCOUNTING_CONTRACT:'')+writerRules+additionalRules+qualificationRules+spaceRules,
       user: editorUser({ feed: input.feed, windowStart: input.windowStart, windowEnd: input.windowEnd, prior, articles, partial, promptVersion })+(accountingPolicy==='complete-source-decisions-v1'
         ?'\n\nSOURCE ACCOUNTING CONTRACT: Every supplied article label must appear either in a selected item or in left_out with a nonempty, source-specific reason. Account for all labels even when items is empty. For each exclusion explain the actual source content: identify the unrelated topic/location, the fact already told, or what makes it non-news. Bare labels such as off-topic, routine, or not important are invalid. Group exclusions only when the same specific reason genuinely applies. A source must not be both selected and excluded. Report what the source actually says; a crime or investigative development is not routine official commentary. Coverage is bookkeeping, not a requirement to publish anything. Labels: '+articles.map(a=>a.ref).join(', '):'')+(accountingPolicy==='complete-source-decisions-v2'?'\n\nSOURCE ACCOUNTING CONTRACT: Account for every supplied article label in a selected item or left_out with a nonempty reason. Concise categories such as off-topic, routine or unchanged are valid. Group sources with the same reason. Give detail where the decision is ambiguous. Do not label a supporting report as excluded merely because another outlet covers the same development. Labels: '+articles.map(a=>a.ref).join(', '):'')+(sourcePolicy?'\n\nALL SUPPORTING SOURCES: While reading these articles, group reports of the SAME occurrence, decision or statement into ONE item and cite EVERY supplied source that directly supports it, including translations, shorter reports and repeated outlet coverage. Do not choose just one representative outlet. An additional supporting report is a citation, not a separate heading and not an editorial omission. Do not attach sources about a different occurrence, earlier status, proposal, or mere shared entities. Preserve meaningful attribution and uncertainty. Sources need not contain every supplementary detail. There is no later full-input source audit, so complete the sources array here.'+(partial?' PARTIAL CHUNK: Another chunk may contain the fuller report. Propose a concise, attributed draft for an on-topic supporting report even when this fragment is not a sufficient standalone story. Preserve only what this source establishes. For a fragment without an explicit action, describe its reported subject only; do not invent a discussion, decision, full name, title or location to make it a standalone story. Do not exclude an on-topic report as off-topic or redundant merely because it is short or lacks the complete decision; let consolidation combine its source with fuller reports of this same occurrence. This does not require publishing it as a separate story.':''):'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
       maxTokens: Math.min(generation?.maxOutputTokens ?? Infinity, accountingPolicy ? Math.max(4000, articles.length * 48) : 4000),
@@ -252,7 +259,8 @@ async function edit(
       recovery.value=undefined;
       const drafts=parseDrafts(raw,known,priorIds,promptVersion>=4);
       if (generation && !partial && readerWordCount(input.feed.language, drafts) > ceiling) {
-        throw Error(`READER_WORD_BUDGET: return a coherent edition of at most ${ceiling} words, retaining material facts and conditions. Select fewer developments where necessary.`);
+        const recovery = spaceRules ? ` Aim for ${draftTarget} words. Exclude optional rollout details or lower-priority developments before shortening the lead's governing conditions.` : '';
+        throw Error(`READER_WORD_BUDGET: return a coherent edition of at most ${ceiling} words, retaining material facts and conditions. Select fewer developments where necessary.`+recovery);
       }
       if(accountingPolicy==='complete-source-decisions-v3')raw=normalizeEditorAccounting(raw,articles.map(a=>a.ref));
       if(accountingPolicy){
@@ -293,6 +301,21 @@ async function consolidate(
   selectionPolicy?:EngineOptions['editorSelectionPolicy']
 ): Promise<{ drafts: Draft[]; omitted: OmittedStory[] }> {
   const priorIds = new Set(prior.map((p) => p.id));
+  const revised = proofBackedV5(models);
+  const ceiling = readingBudgetWords(input.feed.windowMinutes);
+  const object = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
+  const from = { type: 'array', minItems: 1, items: { type: 'integer', enum: drafts.map((_, index) => index) } };
+  const string = { type: 'string' };
+  const schema = revised ? object({
+    items: { type: 'array', items: object({
+      from, headline: string, body: string,
+      relation: { type: 'string', enum: ['new', 'update', 'correction'] },
+      updates: { type: ['string', 'null'], enum: [null, ...priorIds] }, importance: { type: 'integer', enum: [1, 2, 3] },
+    }) },
+    cut: { type: 'array', items: object({ from, why: string }) },
+  }) : undefined;
+  const budgetRule = revised ? `\nThe entire edition must fit ${ceiling} reader words including headlines. Aim below it to allow corrections. Use each supplied draft index at most once. If distinct developments cannot all fit with exact attribution, approval and timing conditions, explicitly cut a lower-priority development and state why. Keep lead stories. Do not weaken facts, conditions or uncertainty to fit.` : '';
+  const emptyCuts = models.generation?.prompt === 'v5-source-first-v4' ? '\nReturn cut:[] if everything fits. No draft may be in both cut and items.' : '';
   return callJson(
     port,
     meter,
@@ -304,8 +327,9 @@ async function consolidate(
         feed: input.feed,
         prior,
         drafts: drafts.map((d) => ({ headline: d.headline, body: d.body, relation: d.relation, updates: d.updatesId, importance: d.importance }))
-      })+(sourcePolicy?'\n\nPreserve every draft supporting the same development in the merged item: list ALL corresponding draft indices in from, including shorter or translated reports. Citations are the union of those drafts. Do not cut a supporting duplicate just to retain one representative outlet. A short supporting fragment can add a citation without adding a sentence. Preserve the supported wording of the fuller report and do not narrate that reports exist, details may be available elsewhere, or that something may have been discussed merely to describe a fragment. Do not turn preparation notes into reader text. Keep different occurrences and proposals separate.':'')+(noveltyPolicy?OCCURRENCE_PROSE:''),
-      maxTokens: 4000
+      })+(sourcePolicy?'\n\nPreserve every draft supporting the same development in the merged item: list ALL corresponding draft indices in from, including shorter or translated reports. Citations are the union of those drafts. Do not cut a supporting duplicate just to retain one representative outlet. A short supporting fragment can add a citation without adding a sentence. Preserve the supported wording of the fuller report and do not narrate that reports exist, details may be available elsewhere, or that something may have been discussed merely to describe a fragment. Do not turn preparation notes into reader text. Keep different occurrences and proposals separate.':'')+(noveltyPolicy?OCCURRENCE_PROSE:'')+budgetRule+emptyCuts,
+      maxTokens: 4000,
+      ...(schema ? { responseSchema: schema } : {}),
     },
     (raw) => {
       const list = (raw as { items?: unknown })?.items;
@@ -324,6 +348,9 @@ async function consolidate(
           if (!Array.isArray(item?.from) || !item.from.length || item.from.some((n) => typeof n !== "number" || !Number.isInteger(n) || n < 0 || n >= drafts.length)) {
             throw new Error('INVALID_CONSOLIDATION_FROM: every selected item requires a nonempty array of supplied integer draft indices');
           }
+        }
+        if (revised && (from.some(n => used.has(n)) || new Set(from).size !== from.length)) {
+          throw Error('INVALID_CONSOLIDATION_FROM: each draft index belongs to at most one item');
         }
         if (!from.length || !headline || (!body && promptVersion < 4) || (promptVersion >= 4 && typeof item?.body !== "string")) continue;
         // Sources are the union of the merged drafts: the model cannot invent a citation here.
@@ -346,9 +373,15 @@ async function consolidate(
       const cuts = Array.isArray((raw as { cut?: unknown })?.cut) ? ((raw as { cut: unknown[] }).cut) : [];
       for (const entry of cuts) {
         const row = entry as Record<string, unknown>;
+        if (revised && (!Array.isArray(row?.from) || !row.from.length || !text(row.why) ||
+          new Set(row.from).size !== row.from.length ||
+          row.from.some(n => typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n >= drafts.length ||
+            used.has(n) || cutIndexes.has(n) || drafts[n].importance === 1))) {
+          throw Error('INVALID_CONSOLIDATION_CUT: justify each cut and use only unique, unselected non-lead draft indices');
+        }
         const from = (Array.isArray(row?.from) ? row.from : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < drafts.length && !used.has(n));
         for (const n of from) {
-          if (drafts[n].importance === 1 || selectionPolicy) continue; // restored below
+          if (drafts[n].importance === 1 || selectionPolicy && !revised) continue; // restored below
           cutIndexes.add(n);
           omitted.push({ stage: "consolidation", reason: text(row.why) || "cut for reading budget", headline: drafts[n].headline, sourceIds: idsOfRefs(drafts[n].refs) });
         }
@@ -361,6 +394,9 @@ async function consolidate(
         else omitted.push({ stage: "consolidation", reason: "dropped by consolidation without a reason", headline: draft.headline, sourceIds: idsOfRefs(draft.refs) });
       });
       const retained=[...restored,...out];
+      if (revised && readerWordCount(input.feed.language, retained) > ceiling) {
+        throw Error(`READER_WORD_BUDGET: fit the entire edition in ${ceiling} words with material qualifications intact`);
+      }
       return { drafts: selectionPolicy?retained.sort((a,b)=>order.get(a)!-order.get(b)!):retained, omitted };
     }
   );
@@ -369,6 +405,7 @@ async function consolidate(
 interface Verdict {
   verdict: "ok" | "fix" | "drop" | "redundant";
   issues: string[];
+  proofRefs?: string[];
 }
 
 export function batchesBySourceSize(indices: number[], drafts: Draft[], byRef: Map<string, PreparedArticle>, maxChars: number,proofAware=false): number[][] {
@@ -424,6 +461,7 @@ async function verify(
       if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||independentBindingPolicy(input.feed.identityFidelityPolicy)){
         const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
           items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
+          ...(proofBackedV5(models) ? { proofCitations: true } : {}),
           context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
         for(const [local,decision]of verified)results.set(batch[local],decision);
         return;
@@ -672,7 +710,9 @@ export async function generateBriefing(
     const merged = parts.flatMap((part) => part.drafts);
     omitted.push(...parts.flatMap((part) => part.omitted));
     unaccounted.push(...parts.flatMap((part) => part.unaccounted));
-    if (merged.length > 1) {
+    const needsConsolidation = merged.length > 1 &&
+      (models.generation?.prompt !== 'v5-source-first-v4' || parts.filter(part => part.drafts.length > 0).length > 1);
+    if (needsConsolidation) {
       let consolidated: Awaited<ReturnType<typeof consolidate>>;
       try {
         consolidated = await timed("consolidate", () => consolidate(port, meter, models, input, merged, prior, sourceIdsOfRefs, options.promptVersion,options.editorSourcePolicy,options.noveltyPolicy,options.editorSelectionPolicy));
@@ -725,12 +765,20 @@ export async function generateBriefing(
 
   // 2. Verify, repair what is repairable once, drop what is not.
   const dropped: DroppedItem[] = [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:repeatReasons.get(d)??'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))];
+  if (proofBackedV5(models) &&
+      readerWordCount(input.feed.language, drafts) > readingBudgetWords(input.feed.windowMinutes)) {
+    return finish({ status: 'rejected', items: [], skipped, dropped: [
+      ...dropped,
+      ...drafts.map(draft => ({ headline: draft.headline, sourceIds: sourceIdsOfRefs(draft.refs), carry: true, reason: 'V5_READER_WORD_BUDGET: draft exceeds the ceiling before factual verification' })),
+    ] });
+  }
   const verifierPrior=options.noveltyGuard?verificationMemory(input.prior??[],drafts,options.now()):prior;
   if(options.citationCoverage){
     const refs=await timed('source_coverage',()=>completeStorySources(port,meter,models.editor,drafts,prepared,options.maxEditorChars));
     drafts=drafts.map((d,i)=>({...d,refs:refs[i]}));
   }
   const accepted = new Set<number>();
+  const acceptedProofs = new Map<number, string[]>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
   const repairHistory = new Map<number,Array<Omit<PreviousReview,'index'>>>();
   let todo = drafts.map((_, i) => i);
@@ -752,7 +800,10 @@ export async function generateBriefing(
       // A fallible model's "ok" cannot override that source-binding requirement.
       else if (guardIssue && round < options.maxRepairs) flagged.set(index, [guardIssue]);
       else if (guardIssue) dropped.push({ headline: drafts[index].headline, reason: `still flagged after repair: ${guardIssue}`, carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
-      else if (verdict.verdict === "ok") accepted.add(index);
+      else if (verdict.verdict === "ok") {
+        accepted.add(index);
+        if (verdict.proofRefs) acceptedProofs.set(index, verdict.proofRefs);
+      }
       else if (verdict.verdict === "redundant") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "repeats what the reader was already told", carry: false, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
       else if (verdict.verdict === "drop") dropped.push({ headline: drafts[index].headline, reason: verdict.issues.join(" | ") || "judged unsupported", carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });
       else if (round < options.maxRepairs) flagged.set(index, verdict.issues.length ? verdict.issues : ["verifier flagged this item"]);
@@ -798,7 +849,10 @@ export async function generateBriefing(
     .sort((a, b) => a - b)
     .map((index) => {
       const d = drafts[index];
-      const ids = d.refs.flatMap((ref) => [byRef.get(ref)!.id, ...byRef.get(ref)!.alsoIds]);
+      const proof = acceptedProofs.get(index);
+      const ids = d.refs.flatMap(ref => proof
+        ? proof.includes(ref) ? [byRef.get(ref)!.id] : []
+        : [byRef.get(ref)!.id, ...byRef.get(ref)!.alsoIds]);
       return {
         headline: d.headline,
         body: options.promptVersion >= 4 && d.body === d.headline ? "" : d.body,

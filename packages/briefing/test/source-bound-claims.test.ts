@@ -1,5 +1,18 @@
 import {expect,it} from 'vitest';
 import {readerUnits,readerTokens,decodeInventory,parseReaderInventory,parseReaderObligations,parseBoundReview,verifySourceBoundClaims} from '../src/source-bound-claims';
+it('keeps every claim witness and excludes a same-speaker citation that never supports a claim',()=>{
+ const headline='Kanaan said the budget could reach Parliament before the holidays.';
+ const sources=[{ref:'S1',text:headline},{ref:'S2',text:'Before the holidays.'},{ref:'S3',text:'Kanaan urged support for the army.'}];
+ const items=[{headline,body:'',refs:sources.map(s=>s.ref)}];
+ const facets=parseReaderInventory({units:[{id:'I0.H',facets:[{id:'f',quote:headline,claim:headline,kind:'action'}]}]},items);
+ const result={i:0,inventory:'complete',verdict:'ok',issues:[],citationChecks:Object.fromEntries(sources.map(s=>[s.ref,{quote:s.text,support:'supported',explanation:'Model label.'}])),facets:[{id:'f',support:'supported',evidence:sources.slice(0,2).map(s=>({source:s.ref,quote:s.text})),explanation:'Both passages establish the claim.'}]};
+ const review=()=>parseBoundReview({results:[result]},items,sources,facets,[],undefined,true).get(0);
+ expect(review()).toMatchObject({verdict:'ok',proofRefs:['S1','S2']});
+ result.citationChecks.S3.support='unsupported';
+ expect(review()).toMatchObject({verdict:'ok',proofRefs:['S1','S2']});
+ result.citationChecks.S2.support='uncertain';
+ expect(review).toThrow('BINDING_VERDICT_CONTRADICTION');
+});
 it('reconstructs complete multi-token names and roles from contiguous original token IDs',()=>{
  const headline='أعلن الرئيس عبد الفتاح السيسي قراراً.';
  expect(readerTokens(headline).map(t=>t.text)).toEqual(['أعلن','الرئيس','عبد','الفتاح','السيسي','قراراً']);

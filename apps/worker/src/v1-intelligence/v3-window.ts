@@ -206,6 +206,16 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,saved!));
   }
   const completed=saved;
+  // V5 qualification is shadow-only. The private frozen result is the review
+  // artifact. It never becomes a public edition, archive, or delivery job.
+  if (frozen.models.generation) {
+   await feedTransact(store,feedId,async tx=>{
+    const request=await tx.read<BriefingRequest>('briefing_requests',id);
+    if(!request||request.state!=='PENDING'||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
+    await tx.write('briefing_requests',id,{...request,state:'DONE',result:'DEFERRED',reason:'V5_SHADOW_REVIEW_REQUIRED',completedAt:now()});
+   });
+   return undefined;
+  }
   // Opt-in chaos test after the durable result: retries reuse original paid
   // operation identities. No hook query or behavior change in normal deployments.
   await campaignInterruptAfterResult(env,feedId);
@@ -274,6 +284,7 @@ export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditi
  const inputId=edition.v3InputId??edition.id;
  const input=await tx.read<V3WindowInput>('v3_window_inputs',inputId),saved=await tx.read<V3WindowResult>('v3_window_results',inputId);
  if(!input||!saved||saved.inputId!==input.fingerprint||saved.result.status!=='published'||input.feedRevision!==tx.snapshot.feed.revision)throw new HandoffError('SCOPE_DENIED');
+ if(input.models.generation)throw new HandoffError('SCOPE_DENIED');
  if(input.cutoffPolicy){if(!await cutoffEvidenceAuthorized(tx.store,input))throw new HandoffError('SCOPE_DENIED');}
  else{const active=await tx.store.activeEvidenceRevisionIds(edition.feedId);if(input.evidenceRevisionIds.some(id=>!active.has(id)))throw new HandoffError('SCOPE_DENIED');}
  for(const id of saved.operationIds){const operation=await tx.read<{status:string;usage:{reported:boolean};input:{state:{inputId:string}}}>('semantic_results',id);if(operation?.status!=='SUCCEEDED'||!operation.usage.reported||operation.input.state.inputId!==input.fingerprint)throw new HandoffError('SCOPE_DENIED')}

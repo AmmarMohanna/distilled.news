@@ -141,7 +141,7 @@ export interface BriefingGeneration {
   temperature?: number;
   reasoning?: { effort: 'low'; exclude: true } | { enabled: false; exclude?: true };
   serviceTier?: 'flex';
-  prompt: 'v5-source-first-v1' | 'v5-source-first-v2';
+  prompt: 'v5-source-first-v1' | 'v5-source-first-v2' | 'v5-source-first-v3' | 'v5-source-first-v4';
 }
 
 /**
