@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg">
   <filter id="ink" color-interpolation-filters="sRGB">
     <feColorMatrix type="matrix" values="
-      -.12 -.40 -.04 0 .71
-      -.04 -.16 -.02 0 .37
-      -.17 -.57 -.07 0 1
+      -.053 -.180 -.018 0 .369
+      -.051 -.171 -.017 0 .361
+      -.161 -.541 -.055 0 .902
       0 0 0 1 0"/>
   </filter>
 </svg>
