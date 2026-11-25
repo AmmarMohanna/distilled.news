@@ -4,6 +4,7 @@ import type { Env } from "./types";
 const SKETCH_MODEL = "@cf/black-forest-labs/flux-2-klein-4b";
 export const PENCIL_COVER_STYLE = "pencil-cover-v1";
 export const IMPORTED_COVER_DISPOSITION = 'inline; filename="feed-cover.jpg"';
+export const IMPORTED_PNG_COVER_DISPOSITION = 'inline; filename="feed-cover.png"';
 
 export class SketchError extends Error {
   constructor(public readonly code: string, message: string) { super(message); }

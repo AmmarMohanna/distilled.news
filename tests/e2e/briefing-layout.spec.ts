@@ -88,11 +88,8 @@ test("published headlines open retained briefing evidence and preserve read-only
   await expect(page.locator(".news-headline .briefing-reference > bdi")).toHaveText("[1]");
   await expect(page.getByRole("button", { name: /brief now/i })).toHaveCount(0);
   await expect(page.locator(".news-headline .briefing-reference")).toHaveAttribute("href", sourceUrl);
-  await page.locator('.briefing-read-more > summary').click();
-  await expect(page.locator('.briefing-expanded-text .news-summary > bdi').first()).toHaveText("Acme released an updated research model");
-  await expect(page.locator('.briefing-expanded-text .briefing-reference')).toHaveAttribute('href',sourceUrl);
+  await expect(page.locator('.briefing-read-more')).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.locator('.briefing-read-more > summary').click();
   const readsBefore = feedReads;
   await refreshFeed(page);
   await expect.poll(() => feedReads).toBeGreaterThan(readsBefore);

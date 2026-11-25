@@ -62,7 +62,7 @@ import { Context, Hono } from "hono";
 import {stream} from 'hono/streaming';
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
-import { IMPORTED_COVER_DISPOSITION, PENCIL_COVER_STYLE, sketchKey } from "./sketches";
+import { IMPORTED_COVER_DISPOSITION, IMPORTED_PNG_COVER_DISPOSITION, PENCIL_COVER_STYLE, sketchKey } from "./sketches";
 import { queueInitialFeedSketch } from "./feed-sketch-jobs";
 import {
   accountAuth,
@@ -1525,9 +1525,11 @@ export function createApp(options: AppOptions = {}) {
       return c.body(null, 404, { "Cache-Control": "no-store", ...(job && job.state !== 'ready' ? {"Retry-After":"3"} : {}) });
     }
     // Resolve visibility before every network read. Never put private artwork in a shared cache.
-    const headers = { "Content-Type": "image/jpeg", "Cache-Control": resolved.briefing.publicFeedEnabled ? "private, max-age=300" : "no-store", "X-Content-Type-Options": "nosniff", "Vary": "Cookie", ...(object.httpEtag ? {ETag:object.httpEtag} : {}) };
+    const disposition = object.httpMetadata?.contentDisposition;
+    const transparentCover = object.httpMetadata?.contentType === "image/png" && disposition === IMPORTED_PNG_COVER_DISPOSITION;
+    const headers = { "Content-Type": transparentCover ? "image/png" : "image/jpeg", "Cache-Control": resolved.briefing.publicFeedEnabled ? "private, max-age=300" : "no-store", "X-Content-Type-Options": "nosniff", "Vary": "Cookie", ...(object.httpEtag ? {ETag:object.httpEtag} : {}) };
     const responseHeaders = new Headers(headers);
-    if (object.customMetadata?.artworkStyle === PENCIL_COVER_STYLE || object.httpMetadata?.contentDisposition === IMPORTED_COVER_DISPOSITION) {
+    if (transparentCover || object.customMetadata?.artworkStyle === PENCIL_COVER_STYLE || disposition === IMPORTED_COVER_DISPOSITION) {
       responseHeaders.set("X-Feed-Artwork-Style", PENCIL_COVER_STYLE);
     }
     if (object.httpEtag && c.req.header('If-None-Match') === object.httpEtag) return new Response(null, {status:304,headers: responseHeaders});

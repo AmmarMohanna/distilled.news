@@ -26,11 +26,11 @@ afterEach(async()=>{for(const root of testRoots)await act(async()=>root.unmount(
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r});return {promise,resolve}}
 function renderHost(){vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);const host=document.createElement('div'),root=createRoot(host);testRoots.add(root);return {host,root}}
 const sketch=()=>({ok:true,status:200,headers:new Headers({'content-type':'image/png'}),blob:async()=>new Blob(['sketch'],{type:'image/png'})});
-it('removes the panoramic paper while retaining the full cover layout', async () => {
-  const cover = new Blob(['cover'], { type: 'image/jpeg' });
-  vi.mocked(transparentSketch).mockResolvedValueOnce(new Blob(['ink'], { type: 'image/png' }));
+it.each(['image/jpeg', 'image/png'])('keeps panoramic layout and transparency for %s covers', async type => {
+  const cover = new Blob(['cover'], { type });
+  if (type === 'image/jpeg') vi.mocked(transparentSketch).mockResolvedValueOnce(new Blob(['ink'], { type: 'image/png' }));
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(cover, {
-    headers: { 'content-type': 'image/jpeg', 'X-Feed-Artwork-Style': 'pencil-cover-v1' }
+    headers: { 'content-type': type, 'X-Feed-Artwork-Style': 'pencil-cover-v1' }
   })));
   const create = vi.fn(() => 'blob:full-cover');
   vi.stubGlobal('URL', Object.assign(class {}, { createObjectURL: create, revokeObjectURL: vi.fn() }));
@@ -43,7 +43,8 @@ it('removes the panoramic paper while retaining the full cover layout', async ()
   expect(host.querySelector('.full-cover-art')).not.toBeNull();
   expect(image.style.filter).toBe('');
   expect(create.mock.calls[0]).toHaveLength(1);
-  expect(transparentSketch).toHaveBeenCalledWith(expect.any(Blob), false, true);
+  if (type === 'image/jpeg') expect(transparentSketch).toHaveBeenCalledWith(expect.any(Blob), false, true);
+  else expect(transparentSketch).not.toHaveBeenCalled();
 });
 it('does not flash fallback artwork while a saved sketch is loading',async()=>{
  const pending=deferred<ReturnType<typeof sketch>>();vi.stubGlobal('fetch',vi.fn(()=>pending.promise));

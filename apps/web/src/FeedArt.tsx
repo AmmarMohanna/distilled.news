@@ -85,8 +85,9 @@ export function FeedArt({ feed, centered = false }: { centered?: boolean; kind?:
           const response = await fetch(imageRequestUrl, { ...(cacheable ? {} : {signal:controller.signal}), cache: cacheable ? refreshArtwork ? "reload" : "default" : "no-store" });
           if (response.ok && response.headers.get("content-type")?.startsWith("image/")) {
             const blob = await response.blob();
-            const fullCover = response.headers.get("X-Feed-Artwork-Style") === "pencil-cover-v1" && blob.type === "image/jpeg";
-            const artwork = fullCover
+            const fullCover = response.headers.get("X-Feed-Artwork-Style") === "pencil-cover-v1";
+            if (fullCover && blob.type === "image/png") return { blob, pending: false };
+            const artwork = fullCover && blob.type === "image/jpeg"
               ? await transparentSketch(blob, false, true).catch(() => blob)
               : await transparentSketch(blob, centered);
             return { blob: artwork, pending: false };

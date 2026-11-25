@@ -4,13 +4,11 @@ import {ApiError, toUiError, type UiMessage} from './api-errors';
 import {FEED_REFRESH_INTERVAL_MS, afterFeedRefresh, initialFeedRefreshState, mayRefreshFeed} from './feed-refresh-policy';
 import { useFeedViewer } from './useFeedViewer';
 import { usePageMagnification } from './usePageMagnification';
-import { NewsBriefing } from "./NewsBriefing";
 import {PrivateFeedPage} from './PrivateFeedPage';
 import {briefingReferences} from './briefing-references';
 import { normalizeSummary, highestReferenceNumber, referenceTextParts } from "./summary-format";
 import { BriefingText } from "./BriefingText";
 import { CitationReference } from "./CitationReference";
-import { BriefingReadMore } from "./BriefingReadMore";
 import { VerifiedEmailError } from "./VerifiedEmailError";
 import React, { useEffect, useRef, useState } from "react";
 import { FeedNotice } from "./FeedNotice";
@@ -71,7 +69,7 @@ import {
   User,
   X
 } from "lucide-react";
-import type { BriefingConfig, BriefingEdition, BriefingEditionSection, BriefingEvidence } from "@distilled/core";
+import type { BriefingConfig, BriefingEdition, BriefingEditionSection } from "@distilled/core";
 import { personalNewsBriefing, FEED_TITLE_MAX_LENGTH } from "@distilled/core";
 import {
   addSource,
@@ -144,11 +142,6 @@ const sourceInputExamples = [
   { label: "X URL", value: "https://x.com/NASA" },
   { label: "Search topic", value: "Lebanon electricity" }
 ];
-
-type ReportSelection = {
-  editionId: string;
-  sectionIndex: number;
-};
 
 declare global {
   interface Window {
@@ -1643,7 +1636,6 @@ function FeedPage(props: { username: string; slug: string }) {
   ] : []);
   const [visibleUnreadCount, setVisibleUnreadCount] = useState(FEED_BATCH_SIZE);
   const [clock, setClock] = useState(Date.now());
-  const [selectedReport, setSelectedReport] = useState<ReportSelection | null>(null);
   const [editionDetails, setEditionDetails] = useState<Map<string, BriefingEdition>>(() => new Map());
 
   async function refresh(silent = false) {
@@ -1681,14 +1673,13 @@ function FeedPage(props: { username: string; slug: string }) {
       // visible while its authoritative replacement is pending or unavailable.
       setEditions(current => searching ? (changed?[]:complete?current.filter(edition => ids.has(edition.id)):current) : next.editions);
       if(!searching)setEditionSource({key,text:latestQuery.current});
-      if(changed){setEditionSource(null);setSettledSearch(null);setSelectedReport(null);setEditionDetails(new Map());}
+      if(changed){setEditionSource(null);setSettledSearch(null);setEditionDetails(new Map());}
       setEditionDetails(current => new Map([...current].filter(([id]) => ids.has(id))));
-      setSelectedReport(current => current && ids.has(current.editionId) ? current : null);
     } catch (cause) {
       if (feedIdentity.current !== key || request !== feedRequest.current) return;
       if(cause instanceof ApiError&&[403,404].includes(cause.uiMessage.details.status??0)){
         setInaccessibleFeed(key);setFeedResult(null);setReadState({key,state:'failed'});
-        setEditions([]);setEditionDetails(new Map());setSelectedReport(null);
+        setEditions([]);setEditionDetails(new Map());
         visibleEditionIds.current=new Set();loadedFeed.current=null;
         return cause.uiMessage.details;
       }
@@ -1704,7 +1695,7 @@ function FeedPage(props: { username: string; slug: string }) {
   useEffect(() => {
     setError("");setSearchError(null);setEditionSource(null); setSummaryMessage(""); latestQuery.current = "";
     setQuery(""); setEditions([]); setEditionBusyIds(new Set());
-    setEditionDetails(new Map()); setSelectedReport(null); setVisibleUnreadCount(FEED_BATCH_SIZE);
+    setEditionDetails(new Map()); setVisibleUnreadCount(FEED_BATCH_SIZE);
     visibleEditionIds.current = new Set(); setReadState({ key: feedKey, state: "loading" });
     void refresh();
     return () => {
@@ -1783,9 +1774,6 @@ function FeedPage(props: { username: string; slug: string }) {
   const canStar = Boolean(payload);
   const feedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language) : "";
   const compactFeedStatusMessage = payload ? feedStatusText(payload.briefing, clock, language, true) : "";
-  const reportEdition = editionMatchesQuery&&selectedReport
-    ? editionDetails.get(selectedReport.editionId) ?? editions.find((edition) => edition.id === selectedReport.editionId)
-    : undefined;
   const feedTitle = payload ? (
     <span className="feed-page-title">
       <span>{payload.briefing.title}</span>
@@ -1818,15 +1806,6 @@ function FeedPage(props: { username: string; slug: string }) {
         return next;
       });
     }
-  }
-
-  async function openEditionReport(edition: BriefingEdition, sectionIndex: number) {
-    const detailed = await loadEditionDetail(edition);
-    if (!detailed) return;
-    const references=briefingReferences(detailed);
-    const selectedIndex=edition.sections.length||editionDetails.has(edition.id)?sectionIndex:references.findIndex(reference=>reference.sectionIndex===sectionIndex);
-    if (!references[selectedIndex]) return;
-    setSelectedReport({ editionId: edition.id, sectionIndex:selectedIndex });
   }
 
   const { theme, setTheme } = useTheme();
@@ -1876,7 +1855,7 @@ function FeedPage(props: { username: string; slug: string }) {
           const result = await logout();
           feedRead.current?.abort(); feedRead.current=null; feedRequest.current++; searchRequest.current++;
           visibleEditionIds.current=new Set();loadedFeed.current=null;latestQuery.current='';
-          setFeedResult(null);setEditions([]);setEditionSource(null);setEditionDetails(new Map());setSelectedReport(null);
+          setFeedResult(null);setEditions([]);setEditionSource(null);setEditionDetails(new Map());
           setQuery('');setSettledSearch(null);setSearchError(null);setSummaryMessage('');setError('');setEditionBusyIds(new Set());
           setEditorOpen(false);setAccountDialogOpen(false);setAccount(null);setOwnedFeed(null);
           if (result.pushRevocationFailed) window.alert(t("Logged out. Notification removal could not be confirmed. Disable notifications in your browser settings."));
@@ -1957,14 +1936,6 @@ function FeedPage(props: { username: string; slug: string }) {
         />}
       </div>
       <div className="unread-summary-slot" ref={setSummaryTarget}/>
-      {reportEdition && selectedReport ? (
-        <SourcesSheet
-          edition={reportEdition}
-          selectedIndex={selectedReport.sectionIndex}
-          language={language}
-          onClose={() => setSelectedReport(null)}
-        />
-      ) : null}
       {error ? <FeedNotice message={t(error)} language={language} /> : null}
       {activeSearchError&&<FeedNotice message={t(activeSearchError)} language={language}/>}
       <FeedReaderStatus payload={payload} isAdmin={sessionState === "authenticated" && account?.role === "admin"} language={language} t={t}/>
@@ -1994,7 +1965,6 @@ function FeedPage(props: { username: string; slug: string }) {
                   readProgressUnavailable={readerId===undefined}
                   onToggleRead={() => toggleRead(readIds, setReadIds, edition.id, !readIds.has(edition.id))}
                   onLoadDetail={() => loadEditionDetail(edition)}
-                  onOpenReport={(sectionIndex) => void openEditionReport(edition, sectionIndex)}
                 />
               ))}
             </div>
@@ -2097,7 +2067,6 @@ function FeedEditionRow(props: {
   isRead: boolean;
   onToggleRead: () => void;
   readProgressUnavailable?: boolean;
-  onOpenReport: (sectionIndex: number) => void;
   onLoadDetail: () => Promise<BriefingEdition | null>;
 }) {
   const { edition, language } = props;
@@ -2105,8 +2074,6 @@ function FeedEditionRow(props: {
   const retainedLines = edition.summary.trim().split(/\r?\n/).filter(line => line.trim());
   const retainedHeadline = retainedLines.length > 1 && retainedLines[0].length <= 240 ? retainedLines[0].trim() : undefined;
   const headline = (edition.sections.length === 1 ? edition.sections[0].title || retainedHeadline : undefined) || edition.title;
-  const narrative = normalizeSummary(edition.summary);
-  const summary = headline && narrative.startsWith(headline) ? narrative.slice(headline.length).trimStart() : narrative;
   const references = briefingReferences(props.detailEdition ?? edition);
   const referenceCount = Math.max(edition.sections.length ? references.length : 0, highestReferenceNumber(edition.summary));
   const referenceNumbers = Array.from({length: referenceCount}, (_, index) => index + 1);
@@ -2123,29 +2090,18 @@ function FeedEditionRow(props: {
       {(image || props.photoFeed) && <div className="briefing-row-photo-slot">{image && <a className="briefing-row-photo" href={props.destination} aria-label={`${stamp}: ${headline}`}>
         <PublisherPhoto photo={image}/>
       </a>}</div>}
-      <BriefingText
+      <div className="briefing-row-copy"><BriefingText
         hideBody
         summary={edition.summary}
         fallbackHeadline={headline}
-        fallbackSummary={summary}
         renderHeadline={title => <a className="briefing-headline-link" href={props.destination}><bdi dir={textDir}>{title}</bdi></a>}
         sections={edition.sections}
         direction={textDir}
         renderReferences={sectionIndex => (sectionIndex === undefined ? referenceNumbers : references.filter(item=>item.sectionIndex===sectionIndex).map(item=>item.number)).map(number => <CitationReference
           key={number} number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}
         />)}
-        renderDetails={(body, sectionIndex) => <>{body && <p className="briefing-row-excerpt" dir={textDir}>{body.replace(/\s*\[\d+\]/g, "")}</p>}<BriefingReadMore body={body} sectionIndex={sectionIndex} language={language} loadDetail={props.onLoadDetail}
-          renderBody={text => <ReferenceParagraph className="news-summary" text={text} language={language} direction={textDir} referenceCount={referenceCount} onOpenReference={props.onOpenReport}
-            renderReference={number => <CitationReference number={number} edition={props.detailEdition ?? edition} sectionReference={!edition.sections.length} loadDetail={props.onLoadDetail} label={referenceButtonLabel(number, language)}/>}/>}/></>}
-        renderBody={text=><ReferenceParagraph
-          className="news-summary"
-          text={text}
-          language={language}
-          direction={textDir}
-          referenceCount={referenceCount}
-          onOpenReference={props.onOpenReport}
-        />}
-      />
+        renderBody={() => null}
+      /></div>
       <div className="news-foot">
         <span />
         <button
@@ -2308,10 +2264,6 @@ function ReferenceParagraph(props: {
       })}
     </p>
   );
-}
-
-function SourcesSheet(props: {edition: BriefingEdition; selectedIndex: number; language: "en" | "ar" | "fr"; onClose: () => void}) {
-  return <NewsBriefing {...props} mediaLabel={media => mediaDisplayLabel(media, props.language)}/>;
 }
 
 function Timestamp(props: { value: string; language: "en" | "ar" | "fr" }) {
@@ -2861,30 +2813,6 @@ function linkLabel(language: "en" | "ar" | "fr"): string {
   if (language === "ar") return "رابط";
   if (language === "fr") return "Lien";
   return "Link";
-}
-
-function mediaDisplayLabel(media: BriefingEvidence["media"][number], language: "en" | "ar" | "fr"): string {
-  const generatedTelegramLabel = /^telegram\s+/i.test(media.label ?? "");
-  if (media.label && !generatedTelegramLabel) return media.label;
-  if (language === "ar") {
-    if (media.type === "photo") return "صورة";
-    if (media.type === "video") return "فيديو";
-    if (media.type === "document") return "مستند";
-    if (media.type === "animation") return "رسوم متحركة";
-    if (media.type === "audio") return "صوت";
-    if (media.type === "voice") return "رسالة صوتية";
-    return "وسائط";
-  }
-  if (language === "fr") {
-    if (media.type === "photo") return "photo";
-    if (media.type === "video") return "vidéo";
-    if (media.type === "document") return "document";
-    if (media.type === "animation") return "animation";
-    if (media.type === "audio") return "audio";
-    if (media.type === "voice") return "message vocal";
-    return "média";
-  }
-  return media.label ?? media.type;
 }
 
 function onboardingStorageKey(accountId: string): string {
