@@ -3817,7 +3817,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   aspect-ratio: auto;
   overflow: hidden;
   border-radius: 0;
-  background: var(--reader-banner);
+  background: linear-gradient(to bottom right, var(--reader-banner), color-mix(in srgb, var(--reader-banner) 94%, #a38be3));
   mask-image: none;
   opacity: 1;
 }
@@ -3847,16 +3847,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   border-radius: 0;
   opacity: 1;
   mask-image: linear-gradient(var(--reader-art-direction), black 43%, rgb(0 0 0 / 80%) 62%, transparent 98%);
-}
-@media (min-width: 701px) {
-  :root.apple-ui.apple-ui .feed-shell .feed-hero-art .full-cover-art {
-    mask-image: url("./feed-art-dissolve.svg"), linear-gradient(to right, black 58%, transparent 99%);
-    mask-size: 100% 18px, 100% 100%;
-    mask-repeat: repeat-y, no-repeat;
-    mask-composite: intersect;
-  }
-  :root.apple-ui.apple-ui[dir="rtl"] .feed-shell .feed-hero-art .full-cover-art,
-  :root.apple-ui.apple-ui[dir="rtl"] .feed-shell .feed-hero-art .full-cover-art > img { transform: scaleX(-1); }
 }
 :root.apple-ui.apple-ui[dir="rtl"] .shell.feed-shell.feed-shell.feed-shell:has(> .page-heading .feed-hero-art) {
   --reader-art-direction: to left;
