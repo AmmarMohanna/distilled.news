@@ -89,7 +89,7 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   expect(photo.x).toBeCloseTo(button.x, 0);
   expect(photo.y).toBeCloseTo(button.y, 0);
 });
-test('opens a top channel with its public feeds, recent updates and report menu', async ({ page }) => {
+test('opens a top channel with its public feeds and report menu', async ({ page }) => {
   const channel = { username: 'joud', publicFeedCount: 2, followerCount: 7 };
   await mock(page, false);
   await page.route('**/api/explore/channels**', route => {
@@ -113,7 +113,7 @@ test('opens a top channel with its public feeds, recent updates and report menu'
   expect(avatar.y).toBeLessThan(banner.y + banner.height);
   expect(avatar.y + avatar.height).toBeGreaterThan(banner.y + banner.height);
   await expect(page.getByRole('heading', { name: 'All public feeds' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Recently updated' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recently updated' })).toHaveCount(0);
   await page.locator('.channel-options summary').click();
   await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
   await page.getByRole('button', { name: 'Report a concern' }).click();
