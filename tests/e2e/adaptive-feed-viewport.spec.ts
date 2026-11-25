@@ -129,15 +129,15 @@ for (const view of ['Home', 'Explore'] as const) {
     const popover = first.locator('.feed-options-popover');
     await expect(first.locator('.feed-options')).toHaveAttribute('open', '');
     await expect(popover).toBeVisible();
-    await expect(popover.getByRole('link', {name: 'Open feed'})).toBeVisible();
+    await expect(popover.getByRole('link', {name: 'Open feed'})).toHaveCount(0);
     await expect(popover.getByRole('button', {name: 'Share', exact: true})).toBeVisible();
     await expect(popover.getByRole('button', {name: 'Copy link'})).toBeVisible();
     const menu = (await popover.boundingBox())!;
     const finePointer = await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches);
     const coarsePointer = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
     await expect(summary).toHaveCSS('min-height', finePointer ? '32px' : '44px');
-    await expect(popover.getByRole('link', { name: 'Open feed' })).toHaveCSS('min-height', coarsePointer ? '44px' : '36px');
-    await expect(popover.getByRole('button', { name: 'Share', exact: true })).toHaveCSS('border-block-start-width', '1px');
+    await expect(popover.getByRole('button', { name: 'Share', exact: true })).toHaveCSS('min-height', coarsePointer ? '44px' : '36px');
+    await expect(popover.getByRole('button', { name: 'Copy link' })).toHaveCSS('border-block-start-width', '1px');
     expect(menu.y + menu.height).toBeLessThanOrEqual(720);
     expect(menu.x).toBeGreaterThanOrEqual(0);
     expect(menu.x + menu.width).toBeLessThanOrEqual(1280);

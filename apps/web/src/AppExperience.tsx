@@ -2,7 +2,7 @@ import {ApiError,toUiError, type UiMessage} from './api-errors';
 import React, { useEffect, useRef, useState } from "react";
 import { AppearanceMenu } from './AppearanceMenu';
 import { useVisibleFeedMenu } from "./useVisibleFeedMenu";
-import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, Camera, ChevronLeft, ChevronRight, HelpCircle, Home, Newspaper, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
+import { Archive, Play, PanelLeft, Ellipsis, Globe, Moon, Share, X, Pencil, Copy, Bell, Camera, ChevronLeft, ChevronRight, HelpCircle, Home, Plus, Search, Settings, Smartphone, Star, User } from "lucide-react";
 import type { BriefingConfig } from "@distilled/core";
 import type { AccountRecord, ExploreChannel, HealthStatus, PublicBriefing, FeedCardMetadata } from "./types";
 import { getExploreChannel, getExploreChannels, getExploreFeeds, getExploreHighlights, setChannelFollow, setFeedStar, uploadChannelCover, type ExploreHighlight, type FeedStarResult } from "./api";
@@ -604,10 +604,9 @@ function FeedTile({ feed, owner = false, onError, onStarChange, destination }: {
           <Star size={19} fill={starred ? "currentColor" : "none"} aria-hidden/>
           <span>{stars}</span>
         </button>}
-        <details ref={menu} className="feed-options feed-tile-options" onToggle={event => { if (!event.currentTarget.open) setCopied(false); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); closeMenu(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
+        {(feed.publicFeedEnabled || owner) && <details ref={menu} className="feed-options feed-tile-options" onToggle={event => { if (!event.currentTarget.open) setCopied(false); }} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); closeMenu(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node) && menu.current) menu.current.open = false; }}>
           <summary aria-label={`${t("Feed options")}: ${feed.title}`}><Ellipsis size={21} aria-hidden/></summary>
           <div className="feed-options-popover">
-            <a href={href}><span>{t("Open feed")}</span><Newspaper size={16} aria-hidden/></a>
             {canStar && !owner && <button type="button" aria-disabled={busy} onClick={() => { if (!busy) { closeMenu(); void toggleStar(); } }}><span>{t(starred ? "Unfollow feed" : "Follow feed")}</span><Star size={16} fill={starred ? "currentColor" : "none"} aria-hidden/></button>}
             {feed.publicFeedEnabled && <>
               <button type="button" onClick={() => void share(false)}><span>{t("Share")}</span><Share size={16} aria-hidden/></button>
@@ -615,7 +614,7 @@ function FeedTile({ feed, owner = false, onError, onStarChange, destination }: {
             </>}
             {owner && <a href={`${href}?edit=1`}><span>{t("Edit feed settings")}</span><Pencil size={16} aria-hidden/></a>}
           </div>
-        </details>
+        </details>}
       </div>
     </div>
     <div className="feed-tile-caption">
