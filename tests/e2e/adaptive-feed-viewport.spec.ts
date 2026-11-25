@@ -14,6 +14,20 @@ async function openFeeds(page: Page, count: number, artwork?: Buffer) {
   await expect(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile')).toHaveCount(count);
 }
 
+test('additional rows remain reachable as the Home viewport resizes', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await openFeeds(page, 16);
+  const cards = page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile');
+  expect((await cards.last().boundingBox())!.y).toBeGreaterThan((await cards.first().boundingBox())!.y);
+  for (const size of [{ width: 1280, height: 720 }, { width: 1024, height: 590 }, { width: 390, height: 720 }]) {
+    await page.setViewportSize(size);
+    await cards.last().scrollIntoViewIfNeeded();
+    await expect(cards.last()).toBeInViewport({ ratio: 1 });
+    const cover = (await cards.last().locator('.feed-tile-cover').boundingBox())!;
+    expect(cover.width).toBeCloseTo(cover.height, 0);
+  }
+});
+
 test('six tiles fit in a short pinned-sidebar window and off-center ink is centered', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 638 });
   await page.addInitScript(() => localStorage.setItem('dn-sidebar-collapsed', 'false'));

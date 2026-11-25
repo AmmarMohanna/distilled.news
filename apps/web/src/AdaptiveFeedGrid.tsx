@@ -1,6 +1,6 @@
 ﻿import { Children, useLayoutEffect, useRef, type ReactNode } from 'react';
 
-/** Fit two complete rows where possible while keeping the page scrollable. */
+/** Fit complete rows where possible while keeping the page scrollable. */
 export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view: "home" | "explore" }) {
   const ref = useRef<HTMLDivElement>(null);
   const count = Children.count(children);
@@ -25,20 +25,22 @@ export function AdaptiveFeedGrid({ children, view }: { children: ReactNode; view
         caption = Math.max(caption, node.offsetHeight + parseFloat(getComputedStyle(node).marginBlockStart));
       }
       const naturalSize = Math.min((width + gap) / columns - gap, Math.max(170, Math.min(window.innerHeight * 0.39, 280)));
-      const oneRow = available - caption;
-      const twoRows = (available - parseFloat(rowGap)) / 2 - caption;
+      const verticalGap = parseFloat(rowGap);
+      const minimumSize = 120;
+      const rowsNeeded = Math.ceil(count / columns);
+      const rowsAtMinimum = Math.floor((available + verticalGap) / (minimumSize + caption + verticalGap));
+      const fittedRows = Math.min(rowsNeeded, rowsAtMinimum);
       let fittedColumns = '';
       let fittedSize = '';
-      if (count > columns && twoRows < naturalSize) {
+      if (rowsNeeded > 1 && fittedRows === 1) {
         const widthInOneRow = (width + gap) / count - gap;
-        if (twoRows >= 120) {
-          fittedSize = Math.floor(twoRows) + 'px';
-        } else if (widthInOneRow >= 120 && widthInOneRow + caption <= available) {
+        if (widthInOneRow >= minimumSize && widthInOneRow + caption <= available) {
           fittedColumns = String(count);
         }
       }
-      if (!fittedColumns && !fittedSize && oneRow >= 120 && oneRow < naturalSize) {
-        fittedSize = Math.floor(oneRow) + 'px';
+      if (!fittedColumns && fittedRows > 0) {
+        const size = (available - (fittedRows - 1) * verticalGap) / fittedRows - caption;
+        if (size >= minimumSize && size < naturalSize) fittedSize = Math.floor(size) + 'px';
       }
       if (grid.style.getPropertyValue('--feed-fit-columns') !== fittedColumns) grid.style.setProperty('--feed-fit-columns', fittedColumns);
       if (grid.style.getPropertyValue('--feed-fit-size') !== fittedSize) grid.style.setProperty('--feed-fit-size', fittedSize);
