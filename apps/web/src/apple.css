@@ -4011,6 +4011,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   pointer-events: none;
 }
 :root.apple-ui.apple-ui .feed-shell .news-item:hover { background: var(--surface-quiet); }
+:root.apple-ui.apple-ui .feed-shell :is(.news-item:hover, .news-item:has(+ .news-item:hover))::after { visibility: hidden; }
 :root.apple-ui.apple-ui .feed-shell .news-item .news-head { position: static; width: auto; gap: 6px; }
 :root.apple-ui.apple-ui .feed-shell .news-item .news-head time { margin-inline-start: 0; color: var(--muted); }
 :root.apple-ui.apple-ui .feed-shell .news-item .news-unread { visibility: visible; width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--accent); }
