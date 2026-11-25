@@ -3279,7 +3279,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   scale: 2.25;
 }
 :root.apple-ui.apple-ui[data-theme="dark"] .topic-art > .transparent-cover-image {
-  filter: saturate(.8) brightness(.84);
+  /* Map pale paper to charcoal and darker pencil marks to periwinkle. */
+  filter: url("./dark-pencil-art.svg#ink");
 }
 :root.apple-ui.apple-ui .feed-tile-controls {
   position: absolute;
