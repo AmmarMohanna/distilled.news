@@ -1,0 +1,118 @@
+name: Deploy the application Worker
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      url:
+        required: true
+        type: string
+      artifact-id:
+        required: true
+        type: string
+      artifact-digest:
+        required: true
+        type: string
+      frontend-sha256:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      (inputs.target == 'staging' || inputs.target == 'production')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: distilled-worker-release-${{ inputs.target }}
+      cancel-in-progress: false
+    environment:
+      name: ${{ inputs.target }}
+      url: ${{ inputs.url }}
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+      TARGET: ${{ inputs.target }}
+      RELEASE_URL: ${{ inputs.url }}
+      ARTIFACT_ID: ${{ inputs.artifact-id }}
+      ARTIFACT_DIGEST: ${{ inputs.artifact-digest }}
+      FRONTEND_SHA256: ${{ inputs.frontend-sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14'
+      - name: Reject superseded releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release.py current
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ inputs.artifact-id }}
+          path: ${{ runner.temp }}/release
+      - name: Verify the validated frontend archive
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "$FRONTEND_SHA256  $RUNNER_TEMP/release/frontend.tar" | sha256sum --check --strict
+          mkdir apps/web/dist
+          tar -xf "$RUNNER_TEMP/release/frontend.tar" -C apps/web/dist
+      - name: Verify target, infrastructure baseline and D1 ledger
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_INFRA_SHA: ${{ vars.RELEASE_INFRA_SHA }}
+        run: python scripts/release.py preflight "$TARGET"
+      - name: Deploy the exact validated commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          case "$TARGET" in
+            staging) config=wrangler.staging.toml; mode=true ;;
+            production) config=wrangler.production.jsonc; mode=false ;;
+            *) exit 1 ;;
+          esac
+          python scripts/release.py current
+          unset GH_TOKEN
+          export WRANGLER_OUTPUT_FILE_PATH="$RUNNER_TEMP/worker-deployment.jsonl"
+          pnpm --filter @distilled/worker exec wrangler deploy --config "$config" \
+            --containers-rollout=none --x-autoconfig=false --x-provision=false --x-auto-create=false \
+            --var "RELEASE_SHA:$GITHUB_SHA" "CI_STAGING_READ_ONLY:$mode" \
+            --message "GitHub Actions $GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT $GITHUB_SHA"
+      - name: Smoke test the deployed version and frontend
+        run: python scripts/release.py smoke "$TARGET"
+      - name: Record release evidence
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          {
+            printf '### %s release (%s)\n\n' "$TARGET" "$RESULT"
+            printf -- '- Commit: %s\n- URL: %s\n- Artifact ID: %s\n' "$GITHUB_SHA" "$RELEASE_URL" "$ARTIFACT_ID"
+            printf -- '- GitHub artifact digest: %s\n- Frontend tar SHA-256: %s\n' "$ARTIFACT_DIGEST" "$FRONTEND_SHA256"
+            version=$(jq -r 'select(.type == "deploy") | .version_id // empty' "$RUNNER_TEMP/worker-deployment.jsonl" 2>/dev/null || true)
+            printf -- '- Cloudflare version ID: %s\n' "${version:-unavailable. Check Cloudflare Deployments if upload started.}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: deployment-${{ inputs.target }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/worker-deployment.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
