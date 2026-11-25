@@ -61,9 +61,9 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
   await page.route('**/api/feed/joud/lebanon', route => route.fulfill({ json: { briefing: feed, editions: [], viewerHasStarred: false, publicationState: 'failed' } }));
   await page.goto('/joud/lebanon/');
   await expect(page.getByText('Briefing delayed', { exact: true })).toHaveCount(0);
-  await expect(page.locator('.feed-empty-state')).toBeVisible();
+  await expect(page.locator('.briefings-empty')).toBeVisible();
   await expect(page.locator('.feed-filter')).toBeHidden();
-  const empty = await page.locator('.feed-empty-state').boundingBox();
+  const empty = await page.locator('.briefings-empty').boundingBox();
   expect(empty!.x + empty!.width).toBeLessThanOrEqual(1440);
   await expect(page.locator('.notice')).toHaveCount(0);
   await expect(page.locator('.feed-publication-status')).toHaveCount(0);
@@ -73,20 +73,18 @@ test("empty public feed uses the reference dashboard layout", async ({ page }) =
 });
 
 for (const size of [{width: 1280, height: 640}, {width: 390, height: 664}]) {
-  test(`empty feed fits without extra scroll and renders a complete icon at ${size.width}px`, async ({ page }) => {
+  test(`empty feed keeps its Explore action reachable at ${size.width}px`, async ({ page }) => {
     await mock(page, false);
     await page.setViewportSize(size);
     await page.route('**/api/feed/joud/lebanon', route => route.fulfill({ json: { briefing: {...feed, nextBriefingAt: new Date(Date.now() + 1_200_000).toISOString()}, editions: [], viewerHasStarred: false, publicationState: 'failed' } }));
     await page.goto('/joud/lebanon/');
-    await expect(page.locator('.feed-empty-state')).toBeVisible();
+    await expect(page.locator('.briefings-empty')).toBeVisible();
     const viewport = page.locator('.app-pages > .screen-page-viewport');
-    await expect.poll(() => viewport.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
-    const circle = await page.locator('.feed-empty-icon').boundingBox();
-    const icon = await page.locator('.feed-empty-icon svg').boundingBox();
-    expect(icon!.x).toBeGreaterThan(circle!.x);
-    expect(icon!.y).toBeGreaterThan(circle!.y);
-    expect(icon!.x + icon!.width).toBeLessThan(circle!.x + circle!.width);
-    expect(icon!.y + icon!.height).toBeLessThan(circle!.y + circle!.height);
+    expect(await viewport.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+    const action = page.locator('.briefings-empty a');
+    await expect(action).toHaveAttribute('href','/explore');
+    await action.scrollIntoViewIfNeeded();
+    await expect(action).toBeInViewport();
     await expect(page.locator('.page-heading > .feed-check-status')).toBeVisible();
   });
 }
@@ -101,14 +99,14 @@ test("feed stays quiet while loading and shows empty state only after the respon
   });
   await page.goto('/joud/lebanon/');
   await expect(page.locator('.feed-loading-skeleton')).toHaveCount(0);
-  await expect(page.locator('.feed-empty-state')).toHaveCount(0);
+  await expect(page.locator('.briefings-empty')).toHaveCount(0);
   await expect(page.getByRole('status')).toHaveCount(0);
   await expect(page.locator('h1')).not.toContainText(/loading/i);
   await expect(page.locator('.page-heading > p')).not.toContainText(/loading/i);
   await page.screenshot({ path: test.info().outputPath('feed-loading-skeleton.png'), fullPage: true });
   release();
   await expect(page.locator('.feed-loading-skeleton')).toHaveCount(0);
-  await expect(page.locator('.feed-empty-state')).toBeVisible();
+  await expect(page.locator('.briefings-empty')).toBeVisible();
   await expect(page.locator('.feed-tools input')).toHaveCount(0);
 });
 

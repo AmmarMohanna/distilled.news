@@ -8,7 +8,7 @@ for(const viewer of ['guest','owner','admin'] as const)for(const state of ['fail
    const path=new URL(route.request().url()).pathname;
    return route.fulfill({json:path==='/api/auth/session'?{authenticated:viewer!=='guest',setupRequired:false,...(viewer!=='guest'?{account}:{})}:path==='/api/me/briefings'?{briefings:[feed]}:path==='/api/feed/owner/news'?{briefing:feed,editions:[],publicationState:state,sourceAvailability:[{sourceId:'source',title:'Publisher',state:'UNAVAILABLE',providers:[],reason:'BUDGET_EXHAUSTED'}]}:{feeds:[]}});
   });
-  await page.goto('/owner/news/');await expect(page.locator('.feed-empty-state')).toBeVisible();
+  await page.goto('/owner/news/');await expect(page.locator('.briefings-empty')).toBeVisible();
   if(viewer==='admin'){
    await expect(page.getByText('Source collection needs attention',{exact:true})).toBeVisible();
    if(state==='failed')await expect(page.locator('.feed-publication-status')).toContainText('Briefing delayed');

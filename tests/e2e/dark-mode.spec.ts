@@ -39,8 +39,8 @@ test('dark Home, Explore and creation controls retain readable contrast',async({
   expect(await contrast(page.locator('.home-add-feed'))).toBeGreaterThanOrEqual(4.5);
   expect(await contrast(page.locator('.feed-tile-grid[data-feed-view=home] .feed-tile-caption > a'))).toBeGreaterThanOrEqual(7);
   await page.getByRole('button',{name:'Explore',exact:true}).click();
-  await expect(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile')).toHaveCount(1);
-  expect(await contrast(page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile-caption > a'))).toBeGreaterThanOrEqual(7);
+  await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile')).toHaveCount(1);
+  expect(await contrast(page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile-caption > a'))).toBeGreaterThanOrEqual(7);
   await page.screenshot({path:`.local-reports/dark-mode/${info.project.name}-explore.png`});
   await page.getByRole('button',{name:'Create feed',exact:true}).click();
   const dialog=page.getByRole('dialog');
@@ -68,7 +68,7 @@ test('dark reader text, metadata, citations and actions meet contrast thresholds
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
-test('feed banner uses solid theme colors and keeps its text readable after switching',async({page})=>{
+test('feed banner uses a subtle theme gradient and keeps its text readable after switching',async({page})=>{
   await mock(page);
   await page.setViewportSize({width:1280,height:900});
   await page.addInitScript(()=>localStorage.setItem('dn_theme','light'));
@@ -76,12 +76,12 @@ test('feed banner uses solid theme colors and keeps its text readable after swit
   const title=page.locator('.page-heading h1');
   const backdrop=page.locator('.feed-hero-art');
   await expect(title).toBeVisible();
-  await expect(backdrop).toHaveCSS('background-image','none');
-  const light=await backdrop.evaluate(node=>getComputedStyle(node).backgroundColor);
+  await expect(backdrop).toHaveCSS('background-image',/^linear-gradient/);
+  const light=await backdrop.evaluate(node=>getComputedStyle(node).backgroundImage);
   expect(await contrast(title)).toBeGreaterThanOrEqual(4.5);
   await page.locator('.experience-header .theme-toggle').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  await expect(backdrop).not.toHaveCSS('background-color',light);
-  await expect(backdrop).toHaveCSS('background-image','none');
+  await expect(backdrop).not.toHaveCSS('background-image',light);
+  await expect(backdrop).toHaveCSS('background-image',/^linear-gradient/);
   expect(await contrast(title)).toBeGreaterThanOrEqual(4.5);
 });

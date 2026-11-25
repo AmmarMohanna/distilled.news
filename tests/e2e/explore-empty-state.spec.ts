@@ -59,8 +59,8 @@ test('Explore reveals the initial grid and optional shelves together', async ({p
     const tracks=page.locator('.explore-view .catalog-shelf-track');
     await expect(tracks).toHaveCount(0);
     release();
-    await expect(page.locator('.explore-view .catalog-shelf h2')).toHaveText(['Followed feeds','Public feeds','Explore channels']);
-    await expect(tracks.nth(0).locator('.feed-tile')).toHaveText(/Climate/);
+    await expect(page.locator('.explore-view .catalog-shelf h2')).toHaveText(['Public feeds','Trending feeds','Explore channels']);
+    await expect(tracks.nth(0).locator('.feed-tile-caption > a')).toHaveText(['Science','Climate']);
     await expect(tracks.nth(1).locator('.feed-tile')).toHaveText(/Science/);
     await expect(page.getByRole('button',{name:'Scroll forward',exact:true})).toHaveCount(0);
     for (const track of await tracks.all()) await expect(track).toHaveCSS('overflow-x','auto');
@@ -119,5 +119,5 @@ test('own public profile preview shows Follow without offering to follow yoursel
   await expect(page.getByRole('button',{name:'Follow',exact:true})).toBeDisabled();
   await expect(page.getByRole('button',{name:'Create feed',exact:true})).toHaveCount(0);
   await page.goto('/explore?channel=owner');
-  await expect(page.locator('.explore-controls').getByRole('button',{name:'Create feed',exact:true})).toBeVisible();
+  await expect(page.locator('.explore-controls').getByRole('button',{name:'Follow',exact:true})).toBeDisabled();
 });

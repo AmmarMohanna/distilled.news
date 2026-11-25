@@ -37,7 +37,7 @@ const CHECK = (): string[] => {
   const controls = [...scope.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary, [role=switch], [role=button]")].filter(shown).filter(e => !e.closest(".sr-only") && !e.matches(".skip-link"));
   const issues: string[] = [];
   const inView = (r: DOMRect) => r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
-  const overlay = (n: Element | null) => n && n.closest && n.closest(".feed-options-popover, [class*=popover], [role=menu]");
+  const overlay = (n: Element | null) => n && n.closest && n.closest(".feed-options-popover, [class*=popover], [role=menu], .catalog-edge");
   const related = (a: Element, b: Element) => a.contains(b) || b.contains(a) || (a.closest("label") && a.closest("label") === b.closest("label"));
   for (let i = 0; i < controls.length; i++) for (let j = i + 1; j < controls.length; j++) {
     const a = controls[i], b = controls[j]; if (related(a, b)) continue;
@@ -67,7 +67,7 @@ const CHECK = (): string[] => {
   for (const e of scope.querySelectorAll("h1,h2,h3,p,strong,span,a,button,label,summary,time,small")) {
     if (!shown(e)) continue; const s = getComputedStyle(e);
     if ((s.overflow === "hidden" || s.overflowX === "hidden") && s.textOverflow !== "ellipsis" && s.display !== "-webkit-box" && e.scrollWidth > e.clientWidth + 2 && e.clientWidth > 0 && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim())) issues.push(`CLIPPED ${desc(e)} ${e.scrollWidth}>${e.clientWidth}`);
-    const r = e.getBoundingClientRect(); if (inView(r) && (r.right > innerWidth + 0.5 || r.left < -0.5) && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim()) && !e.closest("[class*=popover]")) issues.push(`OFFSCREEN-TEXT ${desc(e)} ${Math.round(r.left)}..${Math.round(r.right)}`);
+    const r = e.getBoundingClientRect(); if (inView(r) && (r.right > innerWidth + 0.5 || r.left < -0.5) && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent?.trim()) && !e.closest("[class*=popover], .catalog-shelf-track")) issues.push(`OFFSCREEN-TEXT ${desc(e)} ${Math.round(r.left)}..${Math.round(r.right)}`);
   }
   return issues;
 };

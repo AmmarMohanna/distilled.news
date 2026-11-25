@@ -147,10 +147,8 @@ for (const view of ['Home', 'Explore'] as const) {
     expect(await page.evaluate(() => sessionStorage.getItem('copied-feed-url'))).toBe(new URL(view === 'Home' ? '/owner/feed-0/' : '/community/feed-0/', page.url()).href);
     if (view === 'Explore') {
       await popover.getByRole('button', {name: 'Follow feed', exact: true}).click();
-      await expect(first.getByRole('button', {name: 'Unstar Science 1'})).toHaveAttribute('aria-pressed', 'true');
-      await expect(popover).toBeHidden();
-      await summary.click();
-      await expect(popover.getByRole('button', {name: 'Unfollow feed'})).toBeVisible();
+      await expect(grid.getByRole('link', { name: 'Science 1', exact: true })).toHaveCount(0);
+      return;
     }
     await page.keyboard.press('Escape');
     await expect(summary).toBeFocused();

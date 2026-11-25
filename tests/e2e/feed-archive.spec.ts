@@ -47,7 +47,7 @@ test('Home archive resumes owned feeds; Explore shows active community feeds onl
   await expect(archive).toBeFocused();
   await expect(page.locator('.feed-tile-grid[data-feed-view=home]')).toContainText('Archived news');
   await page.getByRole('button',{name:'Explore',exact:true}).click();
-  await expect(page.locator('.explore-view .feed-tile-grid[data-feed-view=explore]')).toContainText('Community news');
+  await expect(page.locator('.explore-view .featured-feeds .catalog-shelf-track')).toContainText('Community news');
   await expect(page.locator('.explore-view')).not.toContainText('Active news');
   await expect(page.locator('.explore-view')).not.toContainText('Archived news');
   await page.getByRole('button',{name:'Home',exact:true}).click();

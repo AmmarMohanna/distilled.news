@@ -55,7 +55,7 @@ for (const width of [390, 1280]) for (const language of ['en', 'ar']) {
     expect(container.width).toBeCloseTo(banner.width, 0);
     expect(container.x).toBeCloseTo(banner.x, 0);
     await page.locator('.feed-banner-menu summary').click();
-    await expect(page.locator('.feed-banner-menu .feed-options-popover button')).toHaveCount(3);
+    await expect(page.locator('.feed-banner-menu .feed-options-popover button')).toHaveCount(2);
     await expect(page.locator('.feed-banner-menu .feed-options-popover button').nth(1)).toBeVisible();
   });
 }

@@ -16,7 +16,7 @@ for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable
   await expect(home).toHaveCount(1);
   await expect(home.locator('.feed-updated-at')).toBeVisible();
   const contained = async (card: import('@playwright/test').Locator) => card.evaluate(node => {
-    const r = node.getBoundingClientRect(), grid = node.closest('.adaptive-feed-grid')!.getBoundingClientRect();
+    const r = node.getBoundingClientRect(), grid = node.closest('.adaptive-feed-grid, .catalog-shelf-track')!.getBoundingClientRect();
     return r.width > 100 && r.height >= 64 && r.left >= grid.left - 1 && r.right <= grid.right + 1 && r.top >= 0 && r.bottom <= innerHeight;
   });
   await expect.poll(() => contained(home)).toBe(true);
@@ -37,7 +37,7 @@ for (const width of [320, 390, 1280]) test(`Home and Explore keep cards readable
   const create = page.locator('.home-add-feed');
   expect(await create.evaluate(el => getComputedStyle(el).whiteSpace)).toBe('nowrap');
   await page.getByRole('button', { name: 'Explore', exact: true }).click();
-  const explore = page.locator('.feed-tile-grid[data-feed-view=explore] .feed-tile');
+  const explore = page.locator('.explore-view .featured-feeds .catalog-shelf-track .feed-tile');
   await expect(explore).toHaveCount(1);
 
   await explore.scrollIntoViewIfNeeded();

@@ -23,8 +23,14 @@ for(const language of ['en','fr','ar'])test(`each supporting source opens separa
  await expect(third.getByRole('tooltip').locator('img,svg')).toHaveCount(1);
  await expect(third).toHaveAttribute('href','https://publisher3.example/article');
  await page.context().route('https://publisher3.example/**',route=>route.fulfill({body:'Article 3'}));
- const opened=page.waitForEvent('popup');await third.click();const article=await opened;
+ await third.click();
+ const preview=page.getByRole('dialog');
+ await expect(preview).toContainText('Retained source 3');
+ const opened=page.waitForEvent('popup');
+ await preview.locator('a[href="https://publisher3.example/article"]').click();
+ const article=await opened;
  await expect(article).toHaveURL('https://publisher3.example/article');await article.close();
+ await page.keyboard.press('Escape');
  await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
  await expect(first.locator('.briefing-extra-sources')).toHaveCount(0);
  for(let index=0;index<3;index++){

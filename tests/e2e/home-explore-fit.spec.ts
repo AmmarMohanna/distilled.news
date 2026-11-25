@@ -26,7 +26,7 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1280, height: 593 }, 
       await page.setViewportSize(size);
       await openApp(page, 1);
       if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
-      const grid = page.locator(tab === "home" ? ".feed-tile-grid[data-feed-view=home]" : ".feed-tile-grid[data-feed-view=explore]");
+      const grid = page.locator(tab === "home" ? ".feed-tile-grid[data-feed-view=home]" : ".explore-view .featured-feeds .catalog-shelf-track");
       await expect(grid.locator(".feed-tile")).toHaveCount(1);
       const tile = grid.locator(".feed-tile").first();
       await tile.scrollIntoViewIfNeeded();
@@ -42,9 +42,9 @@ for (const size of [{ width: 1280, height: 593, count: 4 }, { width: 390, height
       await openApp(page, size.count);
       if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
       const viewport = page.locator(".app-pages > .screen-page-viewport");
-      await expect(page.locator(tab === "home" ? ".feed-tile-grid[data-feed-view=home] .feed-tile" : ".feed-tile-grid[data-feed-view=explore] .feed-tile")).toHaveCount(size.count);
-      await page.locator(tab === "home" ? ".feed-tile-grid[data-feed-view=home] .feed-tile" : ".feed-tile-grid[data-feed-view=explore] .feed-tile").last().scrollIntoViewIfNeeded();
-      await expect(page.locator(tab === "home" ? ".feed-tile-grid[data-feed-view=home] .feed-tile" : ".feed-tile-grid[data-feed-view=explore] .feed-tile").last()).toBeInViewport();
+      await expect(page.locator(tab === "home" ? ".feed-tile-grid[data-feed-view=home] .feed-tile" : ".explore-view .featured-feeds .catalog-shelf-track .feed-tile")).toHaveCount(size.count);
+      await page.locator(tab === "home" ? ".feed-tile-grid[data-feed-view=home] .feed-tile" : ".explore-view .featured-feeds .catalog-shelf-track .feed-tile").last().scrollIntoViewIfNeeded();
+      await expect(page.locator(tab === "home" ? ".feed-tile-grid[data-feed-view=home] .feed-tile" : ".explore-view .featured-feeds .catalog-shelf-track .feed-tile").last()).toBeInViewport();
     });
   }
 }
@@ -55,7 +55,12 @@ for (const tab of ["home", "explore"] as const) {
     await openApp(page, 8);
     if (tab === "explore") await page.getByRole("navigation").getByRole("button", { name: "Explore" }).click();
     const viewport = page.locator(".app-pages > .screen-page-viewport");
-    expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+    if (tab === "home") {
+      expect(await viewport.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+    } else {
+      const shelf = page.locator(".featured-feeds .catalog-shelf-track");
+      await expect.poll(() => shelf.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true);
+    }
   });
 }
 
@@ -66,7 +71,7 @@ for (const language of ["fr", "ar"]) {
       await page.addInitScript(value => localStorage.setItem("dn_language", value), language);
       await openApp(page, 1);
       if (tab === "explore") await page.locator(".bottom-navigation button").nth(1).click();
-      const tile = page.locator(".adaptive-feed-grid:visible .feed-tile").first();
+      const tile = page.locator(".feed-tile:visible").first();
       await tile.scrollIntoViewIfNeeded();
       await expect(tile).toBeInViewport({ratio: 0.95});
     });
@@ -99,7 +104,7 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
   await page.setViewportSize(size);await openApp(page,5);
   for(const tab of ['home','explore']) {
    if(tab==='explore'){await page.locator('.bottom-navigation').getByRole('button',{name:'Explore',exact:true}).click();await page.mouse.move(size.width-10,70);}
-   const grid=page.locator('.adaptive-feed-grid:visible');
+   const grid=page.locator(tab === 'home' ? '.adaptive-feed-grid:visible' : '.featured-feeds .catalog-shelf-track');
    await expect(grid.locator('.feed-tile')).toHaveCount(5);
    const complete=async()=>grid.evaluate(node=>{
     const bounds=node.getBoundingClientRect();
@@ -114,7 +119,7 @@ for(const size of [{width:1280,height:593},{width:1920,height:1100},{width:390,h
    }));
    expect(Math.max(...covers)).toBeLessThan(1);
    await expect.poll(complete).toBe(true);
-   expect(await grid.evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
+   if (tab === "home") expect(await grid.evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
    await page.locator('.app-pages > .screen-page-viewport').evaluate(n=>n.scrollTo({top:n.scrollHeight,behavior:'instant'}));
    await expect.poll(complete).toBe(true);
    await expect(page.getByRole('button',{name:'Next page',exact:true})).toHaveCount(0);
