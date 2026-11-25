@@ -229,6 +229,8 @@ export interface Env extends Cloudflare.Env {
   BRIEFING_EDITOR_MODEL?: string;
   BRIEFING_V5_GENERATION_PROFILE?: string;
   BRIEFING_V5_STAGE_ROUTES_JSON?: string;
+  BRIEFING_V5_EDITOR_REVIEW_ENABLED?: string;
+  BRIEFING_V5_EDITOR_PUBLICATION_ENABLED?: string;
   BRIEFING_VERIFIER_MODEL?: string;
   /** Required for V3: rolling 24h dollar ceiling across all feeds. V3 does not run without it. */
   BRIEFING_V3_DAILY_BUDGET_USD?: string;

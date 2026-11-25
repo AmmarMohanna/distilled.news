@@ -1,6 +1,6 @@
 import {campaignInterruptAfterResult} from '../agentops-campaign-fault';
 import {CUTOFF_EDITION_POLICY,atScheduledCutoff,cutoffEvidenceAuthorized} from './cutoff-edition';
-import {generateBriefing,openAiCompatibleModel,priorMemoryCutoff,type BriefingInput,type BriefingModels,type BriefingResult,type ModelPort,type ModelRequest} from '@distilled/briefing';
+import {BriefingOutputError,generateBriefing,openAiCompatibleModel,priorMemoryCutoff,type BriefingInput,type BriefingModels,type BriefingResult,type BriefingReviewEvent,type ModelPort,type ModelRequest} from '@distilled/briefing';
 import {HandoffError,sha256,type EvidenceRevision} from '@distilled/contracts';
 import type {Env} from '../types';
 import {canonicalJson} from '../v1-intake/canonical';
@@ -21,6 +21,7 @@ import type {BriefingRequest} from './runtime';
 import {buildEditionDeliveryPayload} from './public-read';
 import {stageVerifiedArchive} from '../verified-archives';
 import {v5Generation,v5StageRouting} from './v5-generation';
+import {validateEditorApprovedEdition,type V5ReviewCase} from './v5-review-contract';
 
 export const V3_ADMISSION_POLICY='PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1' as const;
 export type V3AdmissionReason='PUBLICATION_WINDOW'|'LATE_DISCOVERY'|'SOURCE_REVISION'|'VERIFICATION_RETRY'|'EDITORIAL_OVERFLOW'|'VERIFIED_UNPUBLISHED'|'UNRESOLVED_WINDOW';
@@ -210,22 +211,62 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
   }
   const frozen=snapshot;
   let saved=await store.read<V3WindowResult>(feedId,'v3_window_results',frozen.id);
-  if(!saved){const operations=new Set<string>(),port=durableV3Port(store,env,frozen,id,now,fetcher,operations);let result:BriefingResult;
-   try{result=await generateBriefing(frozen.input,port,frozen.models,{noveltyWirePolicy:frozen.noveltyWirePolicy,editorSelectionPolicy:frozen.editorSelectionPolicy,editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(window.end),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}})}finally{await port.drain()}
-   saved={id:frozen.id,feedId,inputId:frozen.fingerprint,windowEnd:window.end,result,operationIds:[...operations].sort()};
-   await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,saved!));
+  const editorialReview=Boolean(frozen.models.generation)&&env.BRIEFING_V5_EDITOR_REVIEW_ENABLED==='true';
+  let blocked:{code:string;operationIds:string[]}|undefined;
+  if(!saved){
+   const operations=new Set<string>(),port=durableV3Port(store,env,frozen,id,now,fetcher,operations);
+   let hasDrafts=false;
+   const checkpoint=async (event:BriefingReviewEvent)=>{
+    const checkpointId=frozen.id+':'+await sha256(canonicalJson(event));
+    await feedTransact(store,feedId,async tx=>{
+     const current=await tx.read<BriefingRequest>('briefing_requests',id);
+     if(!current||current.state!=='PENDING'||(current.v3InputId??id)!==frozen.id||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
+     await tx.write('v5_review_checkpoints',checkpointId,{id:checkpointId,feedId,inputId:frozen.id,event});
+    });
+    if(event.candidates?.length)hasDrafts=true;
+   };
+   try{
+    const result=await generateBriefing(frozen.input,port,frozen.models,{
+     noveltyWirePolicy:frozen.noveltyWirePolicy,editorSelectionPolicy:frozen.editorSelectionPolicy,editorSourcePolicy:frozen.editorSourcePolicy,
+     editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,citationCoverage:frozen.citationCoverage,
+     noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),
+     promptVersion:frozen.promptVersion??1,now:()=>new Date(window.end),
+     prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01},
+     ...(editorialReview?{reviewCheckpoint:checkpoint}:{}),
+    });
+    await port.drain();
+    const generated:V3WindowResult={id:frozen.id,feedId,inputId:frozen.fingerprint,windowEnd:window.end,result,operationIds:[...operations].sort()};
+    await feedTransact(store,feedId,tx=>tx.write('v3_window_results',frozen.id,generated));
+    saved=generated;
+   }catch(error){
+    await port.drain();
+    if(!editorialReview||!hasDrafts||!(error instanceof BriefingOutputError||error instanceof SettledV3CallFailure||error instanceof ModelSpendingWait))throw error;
+    // Editorial handoff ends automated generation for this window. Provider
+    // receipt recovery and unsettled reservations remain in their own ledger.
+    const reason=error instanceof BriefingOutputError?error.validationFailure:error.message;
+    blocked={code:reason?.match(/^[A-Z][A-Z_]+(?=:|$)/)?.[0]??'STAGE_FAILED',operationIds:[...operations].sort()};
+   }
   }
-  const completed=saved;
-  // V5 qualification is shadow-only. The private frozen result is the review
-  // artifact. It never becomes a public edition, archive, or delivery job.
-  if (frozen.models.generation) {
+  // Automated V5 always stops in private shadow. The separate editor action
+  // is the only path that can project an approved edition.
+  if(frozen.models.generation){
    await feedTransact(store,feedId,async tx=>{
     const request=await tx.read<BriefingRequest>('briefing_requests',id);
-    if(!request||request.state!=='PENDING'||request.engine!=='v3'||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
-    await tx.write('briefing_requests',id,{...request,state:'DONE',result:'DEFERRED',reason:'V5_SHADOW_REVIEW_REQUIRED',completedAt:now()});
+    if(!request||request.state!=='PENDING'||request.engine!=='v3'||(request.v3InputId??id)!==frozen.id||tx.snapshot.feed.revision!==frozen.feedRevision)throw new HandoffError('SCOPE_DENIED');
+    const completedAt=now();
+    if(editorialReview){
+     const attempts=await env.DB.prepare("SELECT id FROM v1_feed_documents WHERE feed_id=? AND kind='semantic_intents' AND json_extract(json,'$.input.state.inputId')=? AND json_extract(json,'$.input.budgetKey')=? ORDER BY id").bind(feedId,frozen.fingerprint,'v3:'+id).all<{id:string}>();
+     const operationIds=[...new Set([...(saved?.operationIds??blocked?.operationIds??[]),...attempts.results.map(row=>row.id)])].sort();
+     const review:V5ReviewCase={id,feedId,inputId:frozen.id,fingerprint:frozen.fingerprint,openedAt:completedAt,
+      operationIds,...(blocked?{failure:blocked.code}:{})};
+     await tx.write('v5_review_cases',id,review);
+    }
+    await tx.write('briefing_requests',id,{...request,state:'DONE',result:'DEFERRED',reason:'V5_SHADOW_REVIEW_REQUIRED',completedAt});
    });
    return undefined;
   }
+  if(!saved)throw new HandoffError('TEMPORARY_UNAVAILABLE');
+  const completed=saved;
   // Opt-in chaos test after the durable result: retries reuse original paid
   // operation identities. No hook query or behavior change in normal deployments.
   await campaignInterruptAfterResult(env,feedId);
@@ -269,14 +310,21 @@ export async function publishProductV3Window(env:Env,feedId:string,window:Public
    await tx.preloadRevisions(frozen.evidenceRevisionIds);
    const edition=stagedEdition??await v3Edition(ref=>tx.revision(ref),id,frozen,completed,now());
    if(stagedArtifact)tx.editionDelivery={id,...stagedArtifact};
-   await tx.write('editions',id,edition);await tx.write('publication_status',id,{id,feedId,status:'PUBLISHED',publishedAt:edition.createdAt});
+   await writeV3EditionForDelivery(tx,edition);
    await tx.write('fidelity_results',id,{id,feedId,passed:true,protocol:POLICY,resultId:completed.id});
-   await tx.write('delivery_jobs',id,{id,feedId,editionId:id,state:'PENDING',attempts:0,createdAt:edition.createdAt});
-   // The edition itself is V3's reader memory. Do not fabricate canonical Events.
-   await tx.write('ledger_projections',JSON.stringify([id,'grounded-communication-ledger-v1']),{id:JSON.stringify([id,'grounded-communication-ledger-v1']),feedId,editionId:id,entryIds:[],policyVersion:POLICY});
    await tx.write('briefing_requests',id,{...request,coverage,state:'DONE',result:'PUBLISHED',reason:undefined,completedAt:edition.createdAt});return edition;
   },completed.result.status==='published',true);
  });
+}
+
+export async function writeV3EditionForDelivery(tx:FeedTransaction,edition:BriefingEditionRecord){
+ const {id,feedId,createdAt,selectionPolicyVersion}=edition;
+ await tx.write('editions',id,edition);
+ await tx.write('publication_status',id,{id,feedId,status:'PUBLISHED',publishedAt:createdAt});
+ await tx.write('delivery_jobs',id,{id,feedId,editionId:id,state:'PENDING',attempts:0,createdAt});
+ // The edition itself is V3's reader memory. No fabricated canonical events.
+ const ledgerId=JSON.stringify([id,'grounded-communication-ledger-v1']);
+ await tx.write('ledger_projections',ledgerId,{id:ledgerId,feedId,editionId:id,entryIds:[],policyVersion:selectionPolicyVersion});
 }
 
 async function v3Edition(revision:(id:string)=>Promise<EvidenceRevision|undefined>,id:string,input:V3WindowInput,saved:V3WindowResult,now:string):Promise<BriefingEditionRecord>{
@@ -291,6 +339,7 @@ async function v3Edition(revision:(id:string)=>Promise<EvidenceRevision|undefine
 /** The V3 edition is a projection of an immutable verified result, never a
  * bypass around the V2 selection graph validator. Source scope remains live. */
 export async function validateV3Edition(tx:FeedTransaction,edition:BriefingEditionRecord):Promise<void>{
+ if(edition.editorialApprovalId)return validateEditorApprovedEdition(tx,edition);
  const inputId=edition.v3InputId??edition.id;
  const input=await tx.read<V3WindowInput>('v3_window_inputs',inputId),saved=await tx.read<V3WindowResult>('v3_window_results',inputId);
  if(!input||!saved||saved.inputId!==input.fingerprint||saved.result.status!=='published'||input.feedRevision!==tx.snapshot.feed.revision)throw new HandoffError('SCOPE_DENIED');

@@ -101,6 +101,14 @@ export interface SourceDecision {
   outcomes:Array<{stage:'preparation'|'editor'|'consolidation'|'safety_cap'|'final';decision:'selected'|'omitted'|'deferred'|'skipped'|'duplicate'|'unresolved';reason:string;headline?:string}>;
 }
 
+/** Private artifacts for editorial review. Candidate text carries no publication authority. */
+export interface BriefingReviewEvent {
+  stage: string;
+  candidates?: BriefingItem[];
+  reasons?: DroppedItem[];
+  failure?: string;
+}
+
 export interface BriefingResult {
   /** Per-input provenance, not a certificate of editorial correctness. New accounting policy only. */
   sourceDecisions?:SourceDecision[];

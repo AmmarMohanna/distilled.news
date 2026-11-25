@@ -39,10 +39,11 @@ import { significantNumbers } from "./text";
 import {selectTopicSources} from './topic-selection';
 import {wordingFidelity,wordingBase} from './wording-fidelity';
 import {SUPPORTED_CORE_VERIFY,SUPPORTED_CORE_REPAIR,SUPPORTED_CORE_VERIFY_V2,SUPPORTED_CORE_REPAIR_V2,MATERIAL_RECOVERY,auditRepairCoverage,recoveryHistory,sourceBoundIdentityRepair} from './verification-recovery';
-import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
+import type { BriefingInput, BriefingItem, BriefingModels, BriefingResult, BriefingReviewEvent, DroppedItem, FeedSpec, ItemRelation, OmittedStory, PriorItem, UnaccountedSource } from "./types";
 
 const READER_PRIORITIES='\n\nREADER PRIORITIES: The supplied feed interests are the selection authority. Do not silently narrow them to technical breakthroughs, benchmark records, enacted laws, or independently benchmarked products only. A relevant product release, coding tool, infrastructure finding or concrete policy proposal can be news without meeting those narrower gates; describe its actual significance and limitations. Prefer independent evidence where available without inventing a requirement for it. Exclude genuinely marginal items with an evidence-specific reason. For an already communicated occurrence, retain only material new facts, use update/correction with the exact prior ID, and lead the headline with what changed instead of announcing the original launch again.';
 export interface EngineOptions {
+  reviewCheckpoint?: (event: BriefingReviewEvent) => Promise<void>;
   noveltyWirePolicy?:'consistent-links-v2';
   /** Consolidation combines editor-selected developments; it does not silently reselect. */
   editorSelectionPolicy?:'preserve-selected-developments-v1';
@@ -648,10 +649,17 @@ export async function generateBriefing(
   const meter = new UsageMeter();
   const started = Date.now();
   const stages: Record<string, number> = {};
+  const review = models.generation ? options.reviewCheckpoint : undefined;
   const timed = async <T>(name: string, run: () => Promise<T>): Promise<T> => {
     const t = Date.now();
     try {
       return await run();
+    } catch (error) {
+      if (review) {
+        const detail = error instanceof BriefingOutputError ? error.validationFailure : error instanceof Error ? error.message : '';
+        await review({stage:name,failure:detail?.match(/^[A-Z][A-Z_]+(?=:|$)/)?.[0] ?? 'STAGE_FAILED'});
+      }
+      throw error;
     } finally {
       stages[name] = (stages[name] ?? 0) + Date.now() - t;
     }
@@ -675,6 +683,13 @@ export async function generateBriefing(
   const priorIds = new Set((options.noveltyGuard?input.prior??[]:prior).map((p) => p.id));
   const sourceIdsOfRefs = (refs: string[]) => [...new Set(refs.flatMap((ref) => [byRef.get(ref)!.id, ...byRef.get(ref)!.alsoIds]))];
 
+  const checkpoint = async (stage:string,drafts:Draft[],reasons?:DroppedItem[]) => {
+    if (!review || !drafts.length) return;
+    await review({stage,candidates:drafts.map(({headline,body,relation,importance,refs,updatesId})=>({
+      headline,body,relation,importance,sourceIds:refs.map(ref=>byRef.get(ref)!.id),...(updatesId?{updatesId}:{}),
+    })),...(reasons?.length?{reasons}:{})});
+  };
+
   // 1. Edit: choose and write.
   const editorialFailures: DroppedItem[] = [];
   let eligible=prepared;
@@ -694,6 +709,7 @@ export async function generateBriefing(
     try{
       const edited=await edit(port,meter,models,input,chunk,prior,partial,options.promptVersion,options.editorAccountingPolicy,options.editorSourcePolicy,options.noveltyPolicy,options.editorFailurePolicy,options.editorSelectionPolicy);
       if(options.editorFailurePolicy==='isolate-unaccounted-sources-v2'&&edited.unaccounted.length)editorialFailures.push({headline:'Unaccounted source decisions',reason:'EDITOR_ACCOUNTING_INCOMPLETE: editor sources unaccounted after bounded correction; retained for a later window',carry:true,sourceIds:edited.unaccounted.flatMap(a=>a.sourceIds)});
+      await checkpoint("writer",edited.drafts);
       return edited;
     }
     catch(error){
@@ -750,6 +766,7 @@ export async function generateBriefing(
       drafts = merged;
     }
   }
+  if (chunks.length>1) await checkpoint("consolidation",drafts);
   omittedStories.push(...omitted);
   drafts = drafts
     .map((d, order) => ({ d, order }))
@@ -781,6 +798,10 @@ export async function generateBriefing(
     exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)));
     drafts=drafts.filter((_,i)=>!redundant.has(i));
   }
+  if (review && exactRepeats.length) await checkpoint("novelty_excluded",exactRepeats,exactRepeats.map(d=>({
+    headline:d.headline,reason:repeatReasons.get(d)??'Exact repetition of reader history',sourceIds:sourceIdsOfRefs(d.refs),carry:false,
+  })));
+  await checkpoint("after_novelty",drafts);
   if (!drafts.length) return finish({ status: editorialFailures.length ? "rejected" : "empty", items: [], skipped, dropped: [...editorialFailures,...exactRepeats.map(d=>({headline:d.headline,reason:repeatReasons.get(d)??'repeats published reader information without material change',carry:false,sourceIds:sourceIdsOfRefs(d.refs)}))] });
 
   // 2. Verify, repair what is repairable once, drop what is not.
@@ -850,6 +871,9 @@ export async function generateBriefing(
     }
     todo = unchecked; // a verifier that skipped an item has not approved it; ask again
     if (flagged.size && round < options.maxRepairs) {
+      await checkpoint("verification_flagged",[...flagged.keys()].map(index=>drafts[index]),
+        [...flagged].map(([index,issues])=>({headline:drafts[index].headline,reason:issues.join(' | '),
+          sourceIds:sourceIdsOfRefs(drafts[index].refs),carry:true})));
       for(const [index,issues]of flagged)repairHistory.set(index,[...(repairHistory.get(index)??[]),{headline:drafts[index].headline,body:drafts[index].body,issues:[...issues]}]);
       const fixes = await timed("repair", () => repair(port, meter, models, input, drafts, flagged, byRef, options.promptVersion >= 4, options.promptVersion,options.noveltyPolicy,repairHistory,round===options.maxRepairs-1));
       for (const index of flagged.keys()) {
@@ -862,6 +886,7 @@ export async function generateBriefing(
         drafts[index] = { ...drafts[index], ...fixed };
         todo.push(index);
       }
+      await checkpoint("repair",todo.filter(index=>flagged.has(index)).map(index=>drafts[index]));
     }
   }
   for (const index of todo) dropped.push({ headline: drafts[index].headline, reason: "never confirmed by the verifier", carry: true, sourceIds: sourceIdsOfRefs(drafts[index].refs) });

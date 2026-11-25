@@ -96,4 +96,47 @@ describe('V5 reliability revision',()=>{
     expect(frenchQualificationIssues({headline:'Accord provisoire SFDR',body:
       'Le seuil de 70 % concerne les produits catégorisés. Les règles seront applicables deux ans après publication.'},[customs])).toEqual([]);
   });
+
+  it('retains exact writer text and source provenance when consolidation fails',async()=>{
+    const second={...draft,headline:'Second funding decision',sources:['S2']};
+    const malformed={items:[{...draft,from:[3]}]};
+    const {port}=scripted({edit:[{items:[draft]},{items:[second]}],consolidate:[malformed,malformed]});
+    const events:import('../src/types').BriefingReviewEvent[]=[];
+    const result=await generateBriefing({...start,articles:[article('a-one',FUND),article('b-two',GENESIS)]},port,models,{
+      maxEditorChars:10,reviewCheckpoint:async event=>{events.push(event);},
+    });
+    expect(result.status).toBe('rejected');
+    expect(events).toContainEqual(expect.objectContaining({stage:'consolidate',failure:'INVALID_CONSOLIDATION_FROM'}));
+    expect(events.filter(event=>event.stage==='writer').flatMap(event=>event.candidates)).toEqual([
+      expect.objectContaining({headline:draft.headline,body:draft.body,sourceIds:['a-one']}),
+      expect.objectContaining({headline:second.headline,body:second.body,sourceIds:['b-two']}),
+    ]);
+  });
+
+  it('retains original text and the reason when novelty discards a candidate',async()=>{
+    const {port}=scripted({edit:[{items:[draft]}],repair:[{results:[{
+      i:0,relation:'repeat',redundant:true,priorIds:['H1'],sameOccurrence:'Same reported decision',delta:'none',
+    }]}]});
+    const events:import('../src/types').BriefingReviewEvent[]=[];
+    const result=await generateBriefing({...start,prior:[past],articles:[article('current',FUND)]},port,models,{
+      noveltyGuard:true,noveltyPolicy:'occurrence-aware-v1',editorSelectionPolicy:'preserve-selected-developments-v1',
+      reviewCheckpoint:async event=>{events.push(event);},now:()=>new Date(WINDOW.windowEnd),
+    });
+    expect(result.items).toEqual([]);
+    expect(events).toContainEqual(expect.objectContaining({stage:'novelty_excluded',
+      candidates:[expect.objectContaining({body:draft.body,sourceIds:['current']})],
+      reasons:[expect.objectContaining({reason:expect.stringContaining(past.id)})]}));
+  });
+
+  it('keeps an editorial capacity failure and its complete lead available for review',async()=>{
+    const oversized={...draft,body:'Subject to shareholder approval. '.repeat(45).trim()};
+    const {port}=scripted({edit:[{items:[oversized]}]});
+    const events:import('../src/types').BriefingReviewEvent[]=[];
+    const result=await generateBriefing({...start,articles:[article('current',FUND)]},port,models,{
+      reviewCheckpoint:async event=>{events.push(event);},
+    });
+    expect(result.dropped[0].reason).toContain('V5_EDITORIAL_CAPACITY');
+    expect(events).toContainEqual(expect.objectContaining({stage:'writer',
+      candidates:[expect.objectContaining({body:oversized.body,sourceIds:['current']})]}));
+  });
 });
