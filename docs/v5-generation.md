@@ -4,6 +4,18 @@ V5 is an opt-in writer configuration for a source-bound V3 window. The Worker pe
 
 The profiles under review are `gemini-ai-studio-flex` and `deepseek-flash-wafer`. `BRIEFING_V5_GENERATION_PROFILE` is unset by default. Selecting a profile requires the source-binding flag and existing spending authorization for the precise writer model. There is no provider or model fallback. V3 retains its existing reservation, response checkpoint, recovery and publication fencing.
 
+`BRIEFING_V5_STAGE_ROUTES_JSON` is an optional object with `default` and output-language keys (`en`, `ar`, `fr`). Each value maps a stage to an explicit profile. A language entry overrides the default for that stage. Unspecified stages use the existing editor or verifier for their role. Stage routing requires a V5 writer and independent source-bound verification. The complete configuration is part of the frozen snapshot, and each attempted stage route must match that snapshot before admission.
+
+The supported stages are `topicSelection`, `consolidation`, `novelty`, `citationCoverage`, `readerInventory`, `sourceInventory`, `factualReview`, `correction`, and `recoveryCoverage`. GPT-4.1 on OpenAI can also be explicitly pinned with `gpt-41-openai`. The language overrides do not choose a profile automatically. Keep provider preference, price ceilings, and all acceptance checks fixed when comparing a stage.
+
+The selected shadow comparison uses this opt-in configuration:
+
+```json
+{"default":{"novelty":"gemini-ai-studio-flex","sourceInventory":"gemini-ai-studio-flex","correction":"deepseek-flash-wafer"}}
+```
+
+The final factual verifier remains independent from the correction request. Gemini and DeepSeek both approved the known French timing and penalty-scope errors on the frozen verification request. The cheaper consolidation candidates also failed a structural or factual check. Keep those stages on the existing paths for this profile. The selected configuration has no output-language overrides.
+
 The editor prioritizes current events before using history to check novelty. Its drafting target is 85% of the established window reading budget. ICU word segmentation counts the final headline and body in the output language. The final gate withholds over-budget copy without truncating it, and repair remains subject to re-verification. Exhausted editor and consolidation contract failures retain affected evidence for a later window.
 
 ## Shadow pilot and review procedure

@@ -7,7 +7,7 @@ import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OC
 import {completeStorySources} from './citation-coverage';
 import { EDITOR_SYSTEM_V7, CONSOLIDATE_SYSTEM_V7, VERIFY_SYSTEM_V7, REPAIR_SYSTEM_V7 } from './prompts-v7';
 import { auditEditorSourceAccounting,assertCompleteEditorAccounting,buildSourceDecisions } from './source-accounting';
-import { callJson, UsageMeter, type ModelPort } from "./model";
+import { callJson, modelStage, UsageMeter, type ModelPort } from "./model";
 import { chunkArticles, prepareArticles, selectPrior, type PrepareOptions, type PreparedArticle } from "./prepare";
 import {
   CONSOLIDATE_SYSTEM,
@@ -317,7 +317,7 @@ async function consolidate(
   const budgetRule = revised ? `\nThe entire edition must fit ${ceiling} reader words including headlines. Aim below it to allow corrections. Use each supplied draft index at most once. If distinct developments cannot all fit with exact attribution, approval and timing conditions, explicitly cut a lower-priority development and state why. Keep lead stories. Do not weaken facts, conditions or uncertainty to fit.` : '';
   const emptyCuts = models.generation?.prompt === 'v5-source-first-v4' ? '\nReturn cut:[] if everything fits. No draft may be in both cut and items.' : '';
   return callJson(
-    port,
+    modelStage(port, models.stageRoutes, 'consolidation'),
     meter,
     {
       model: models.editor,
@@ -459,7 +459,7 @@ async function verify(
       const refs = [...new Set(batch.flatMap((i) => drafts[i].refs))];
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
       if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||independentBindingPolicy(input.feed.identityFidelityPolicy)){
-        const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
+        const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language, stageRoutes: models.stageRoutes,
           items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
           ...(proofBackedV5(models) ? { proofCitations: true } : {}),
           context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
@@ -467,7 +467,7 @@ async function verify(
         return;
       }
       const parsed = await callJson(
-        port,
+        modelStage(port, models.stageRoutes, 'factualReview'),
         meter,
         {
           model: models.verifier,
@@ -550,7 +550,7 @@ async function repair(
   const refs = [...new Set(indices.flatMap((i) => drafts[i].refs))];
   const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
   const generated=await callJson(
-    port,
+    modelStage(port, models.stageRoutes, 'correction'),
     meter,
     {
       model: models.editor,
@@ -617,6 +617,12 @@ export async function generateBriefing(
   overrides: Partial<EngineOptions> = {}
 ): Promise<BriefingResult> {
   if ('v7Experiment' in overrides && overrides.v7Experiment !== undefined) throw new Error('UNSUPPORTED_V7_EXPERIMENT');
+  if (models.stageRoutes || models.languageStageRoutes) {
+    if (!models.generation || overrides.architecture || input.feed.identityFidelityPolicy !== 'source-bound-claims-v3') {
+      throw Error('V5_STAGE_ROUTING_REQUIRES_SOURCE_BOUND_V5');
+    }
+    models = { ...models, stageRoutes: { ...models.stageRoutes, ...models.languageStageRoutes?.[input.feed.language] } };
+  }
   const options: EngineOptions = { ...DEFAULT_ENGINE, ...overrides };
   if(input.feed.topicSelectionPolicy&&options.architecture)throw Error('TOPIC_SELECTION_ARCHITECTURE_UNQUALIFIED');
   if(input.feed.wordingFidelityPolicy&&options.architecture)throw Error('WORDING_FIDELITY_ARCHITECTURE_UNQUALIFIED');
@@ -659,7 +665,7 @@ export async function generateBriefing(
   const editorialFailures: DroppedItem[] = [];
   let eligible=prepared;
   if(input.feed.topicSelectionPolicy==='reader-topic-boundaries-v1'){
-    const decisions=await timed('topic_selection',()=>selectTopicSources(port,meter,models.verifier,input.feed,prepared,options.maxVerifyChars));
+    const decisions=await timed('topic_selection',()=>selectTopicSources(modelStage(port,models.stageRoutes,'topicSelection'),meter,models.verifier,input.feed,prepared,options.maxVerifyChars));
     eligible=prepared.filter(article=>{
       const decision=decisions.get(article.ref)!;
       if(decision.relation==='direct')return true;
@@ -748,7 +754,7 @@ export async function generateBriefing(
       // Reuse evidence-size batching; every draft and its complete cited evidence is retained.
       const decisions=(await Promise.all(batchesBySourceSize(drafts.map((_,i)=>i),drafts,byRef,options.maxVerifyChars).map(async batch=>{
         const selected=batch.map(i=>drafts[i]);
-        const rows=await occurrenceNovelty(port,meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd,Boolean(options.editorSelectionPolicy),options.noveltyWirePolicy);
+        const rows=await occurrenceNovelty(modelStage(port,models.stageRoutes,'novelty'),meter,models.editor,selected.map(d=>({headline:d.headline,body:d.body,sources:d.refs.flatMap(ref=>{const a=byRef.get(ref);return a?[{id:a.id,publishedAt:a.publishedAt,text:a.text}]:[]})})),verificationMemory(input.prior??[],selected,options.now()),input.windowEnd,Boolean(options.editorSelectionPolicy),options.noveltyWirePolicy);
         return rows.map(row=>({...row,i:batch[row.i]}));
       }))).flat();
       for(const d of decisions)if(d.redundant)repeatReasons.set(drafts[d.i],`Same occurrence already covered in ${d.priorIds.join(', ')}: ${d.sameOccurrence}`);
@@ -757,7 +763,7 @@ export async function generateBriefing(
         drafts[d.i].updatesId=d.relation==='new'?undefined:d.priorIds[0];
       }
       return new Set(decisions.filter(d=>d.redundant).map(d=>d.i));
-    }):await timed('novelty',()=>redundantDrafts(port,meter,models.editor,drafts,memory));
+    }):await timed('novelty',()=>redundantDrafts(modelStage(port,models.stageRoutes,'novelty'),meter,models.editor,drafts,memory));
     exactRepeats.push(...drafts.filter((_,i)=>redundant.has(i)));
     drafts=drafts.filter((_,i)=>!redundant.has(i));
   }
@@ -774,7 +780,7 @@ export async function generateBriefing(
   }
   const verifierPrior=options.noveltyGuard?verificationMemory(input.prior??[],drafts,options.now()):prior;
   if(options.citationCoverage){
-    const refs=await timed('source_coverage',()=>completeStorySources(port,meter,models.editor,drafts,prepared,options.maxEditorChars));
+    const refs=await timed('source_coverage',()=>completeStorySources(modelStage(port,models.stageRoutes,'citationCoverage'),meter,models.editor,drafts,prepared,options.maxEditorChars));
     drafts=drafts.map((d,i)=>({...d,refs:refs[i]}));
   }
   const accepted = new Set<number>();
@@ -833,7 +839,7 @@ export async function generateBriefing(
       const refs=[...new Set(batch.flatMap(index=>drafts[index].refs))];
       let issues:Map<number,string>;
       try{
-        issues=await timed('recovery_coverage',()=>auditRepairCoverage(port,meter,models.editor,input,batch.map(index=>({index,...drafts[index],history:repairHistory.get(index)!})),refs.map(ref=>byRef.get(ref)!)));
+        issues=await timed('recovery_coverage',()=>auditRepairCoverage(modelStage(port,models.stageRoutes,'recoveryCoverage'),meter,models.editor,input,batch.map(index=>({index,...drafts[index],history:repairHistory.get(index)!})),refs.map(ref=>byRef.get(ref)!)));
       }catch(error){
         // Only received output that exhausted correction is isolatable. Provider,
         // accounting, scope and uncertain-payment failures must still propagate.

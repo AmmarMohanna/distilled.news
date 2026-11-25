@@ -20,7 +20,7 @@ import type {BriefingEditionRecord} from './publication';
 import type {BriefingRequest} from './runtime';
 import {buildEditionDeliveryPayload} from './public-read';
 import {stageVerifiedArchive} from '../verified-archives';
-import {v5Generation} from './v5-generation';
+import {v5Generation,v5StageRouting} from './v5-generation';
 
 export const V3_ADMISSION_POLICY='PUBLICATION_DATE_WITH_EXPLICIT_RECOVERY_V1' as const;
 export type V3AdmissionReason='PUBLICATION_WINDOW'|'LATE_DISCOVERY'|'SOURCE_REVISION'|'VERIFICATION_RETRY'|'EDITORIAL_OVERFLOW'|'VERIFIED_UNPUBLISHED'|'UNRESOLVED_WINDOW';
@@ -44,6 +44,7 @@ export function productV3PromptVersion(env:Pick<Env,'BRIEFING_PROMPT_VERSION'>):
 }
 export function productV3Models(env: Env): BriefingModels {
  const generation = v5Generation(env.BRIEFING_V5_GENERATION_PROFILE);
+ if (!generation && env.BRIEFING_V5_STAGE_ROUTES_JSON !== undefined) throw Error('V5_STAGE_ROUTING_REQUIRES_V5');
  if (generation && env.BRIEFING_SOURCE_BINDINGS_ENABLED !== 'true') throw Error('BRIEFING_V5_REQUIRES_SOURCE_BINDINGS');
  return {
   editor: env.BRIEFING_EDITOR_MODEL ?? 'openai/gpt-4.1',
@@ -51,6 +52,7 @@ export function productV3Models(env: Env): BriefingModels {
    ? env.BRIEFING_SOURCE_BINDINGS_MODEL ?? 'openai/gpt-4.1'
    : env.BRIEFING_VERIFIER_MODEL ?? 'openai/gpt-4.1-mini',
   ...(generation ? { generation } : {}),
+  ...v5StageRouting(env.BRIEFING_V5_STAGE_ROUTES_JSON),
  };
 }
 
@@ -106,13 +108,21 @@ export function durableV3Port(store:V1FeedStore,env:Env,snapshot:V3WindowInput,w
   try{
    const {signal:_,...state}=request;
    const generation = request.generation;
-   const capability = generation
+   const stage = request.stageRoute;
+   const route = generation ?? stage?.route;
+   if (stage) {
+    const configured = snapshot.models.languageStageRoutes?.[snapshot.input.feed.language]?.[stage.stage]
+      ?? snapshot.models.stageRoutes?.[stage.stage];
+    if (generation || !snapshot.models.generation || !configured || request.model !== stage.route.model ||
+      request.maxTokens > configured.maxOutputTokens || canonicalJson(configured) !== canonicalJson(stage.route)) throw Error('V5_STAGE_SCOPE_MISMATCH');
+   }
+   const capability = route
     ? {
-     contextTokens: generation.contextTokens,
-     maxOutputTokens: generation.maxOutputTokens,
-     inputUsdPerToken: generation.price.prompt / 1_000_000,
-     outputUsdPerToken: generation.price.completion / 1_000_000,
-     source: generation.provider,
+     contextTokens: route.contextTokens,
+     maxOutputTokens: route.maxOutputTokens,
+     inputUsdPerToken: route.price.prompt / 1_000_000,
+     outputUsdPerToken: route.price.completion / 1_000_000,
+     source: route.provider,
     }
     : modelCapability(request.model,env.V1_MODEL_CAPABILITIES_JSON);
    if (generation && (generation.model !== request.model || !snapshot.models.generation ||

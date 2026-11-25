@@ -55,10 +55,14 @@ it.each(['arabic-person-role-v1','source-bound-claims-v1','source-bound-claims-v
  expect(unchanged).toEqual(old.input.feed);expect(next.input.articles).toEqual(old.input.articles);
 });
 it.each([
- {compact:false, profile:undefined},
- {compact:true, profile:undefined},
- {compact:true, profile:'deepseek-flash-wafer'},
-])('binds new windows to their verification and generation configuration ($compact, $profile)',async ({compact,profile})=>{
+ {compact:false, profile:undefined, routing:undefined},
+ {compact:true, profile:undefined, routing:undefined},
+ {compact:true, profile:'deepseek-flash-wafer', routing:undefined},
+ {compact:true, profile:'deepseek-flash-wafer', routing:JSON.stringify({
+  default:{sourceInventory:'deepseek-flash-wafer'},
+  en:{sourceInventory:'gemini-ai-studio-flex'},
+ })},
+])('binds new windows to their verification and generation configuration ($compact, $profile, $routing)',async ({compact,profile,routing})=>{
  await article();const calls:any[]=[];
  const provider=(async(_url:unknown,init?:RequestInit)=>{
   const request=JSON.parse(String(init?.body));calls.push(request);const system=request.messages[0].content;let value:unknown;
@@ -68,7 +72,7 @@ it.each([
   else value={items:[{headline:'Banking reform approved',body:'Presidential approval is still required.',sources:['S1'],relation:'new',updates:null,importance:1}]};
   return Response.json({id:'gen-general-'+calls.length,choices:[{message:{content:JSON.stringify(editorFixture(request,value))},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:50,cost:.001}});
  }) as typeof fetch;
- const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile},message={type:'v1_briefing' as const,feedId:'feed-1',window};
+ const candidate={...env,BRIEFING_SOURCE_BINDINGS_ENABLED:'true',BRIEFING_COMPACT_VERIFICATION_ENABLED:String(compact),BRIEFING_V5_GENERATION_PROFILE:profile,BRIEFING_V5_STAGE_ROUTES_JSON:routing},message={type:'v1_briefing' as const,feedId:'feed-1',window};
  const edition=await processV1Briefing(candidate,message,()=>window.end,undefined,provider);expect(calls).toHaveLength(4);
  const id=await windowIdentity('feed-1',window),frozen=await store.read<any>('feed-1','v3_window_inputs',id);
  expect(frozen.input.feed.identityFidelityPolicy).toBe('source-bound-claims-v3');
@@ -86,13 +90,20 @@ it.each([
   expect(frozen.models.generation.model).toBe('deepseek/deepseek-v4.1-flash-1017');
   expect(calls[0].provider).toEqual({only:['wafer/us'],allow_fallbacks:false,require_parameters:true,max_price:{prompt:.036,completion:.5,request:0}});
   expect(calls[0].reasoning).toEqual({enabled:false});
-  expect(calls.slice(1).every(call=>call.model==='openai/gpt-4.1'&&!call.provider)).toBe(true);
+  const sourceInventory=calls.find(call=>call.messages[0].content.startsWith('Independently extract explicitly supported HUMAN'));
+  if(routing){
+   expect(frozen.models.stageRoutes.sourceInventory.model).toBe('deepseek/deepseek-v4.1-flash-1017');
+   expect(sourceInventory.model).toBe('google/gemini-3.8-flash');
+   expect(sourceInventory.provider).toEqual({only:['google-ai-studio/flex'],allow_fallbacks:false,require_parameters:true,max_price:{prompt:.375,completion:1.875,request:0}});
+   expect(sourceInventory.max_tokens).toBe(6000);
+  }
+  expect(calls.slice(1).filter(call=>!routing||call!==sourceInventory).every(call=>call.model==='openai/gpt-4.1'&&!call.provider)).toBe(true);
  }else {
   expect(edition).toBeDefined();
   expect(frozen.models).not.toHaveProperty('generation');
  }
- await processV1Briefing({...candidate,BRIEFING_COMPACT_VERIFICATION_ENABLED:String(!compact),BRIEFING_V5_GENERATION_PROFILE:undefined},message,()=>window.end,undefined,provider);expect(calls).toHaveLength(4);
-},30000);
+ await processV1Briefing({...candidate,BRIEFING_COMPACT_VERIFICATION_ENABLED:String(!compact),BRIEFING_V5_GENERATION_PROFILE:undefined,BRIEFING_V5_STAGE_ROUTES_JSON:undefined},message,()=>window.end,undefined,provider);expect(calls).toHaveLength(4);
+},45000);
 it('keeps compact verification opt-in and freezes a distinct payload policy without changing evidence',async()=>{
  expect(productV3VerificationInputPolicy({})).toBeUndefined();
  expect(productV3VerificationInputPolicy({BRIEFING_COMPACT_VERIFICATION_ENABLED:'true'})).toBeUndefined();

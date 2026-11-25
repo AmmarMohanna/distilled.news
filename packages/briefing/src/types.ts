@@ -129,9 +129,18 @@ export interface BriefingModels {
   verifier: string;
   /** Frozen opt-in for the initial editorial pass only. */
   generation?: BriefingGeneration;
+  stageRoutes?: BriefingStageRoutes;
+  languageStageRoutes?: Partial<Record<FeedSpec['language'], BriefingStageRoutes>>;
 }
 
-export interface BriefingGeneration {
+export const BRIEFING_MODEL_STAGES = [
+  'topicSelection', 'consolidation', 'novelty', 'citationCoverage', 'readerInventory',
+  'sourceInventory', 'factualReview', 'correction', 'recoveryCoverage',
+] as const;
+export type BriefingModelStage = typeof BRIEFING_MODEL_STAGES[number];
+export type BriefingStageRoutes = Partial<Record<BriefingModelStage, BriefingRoute>>;
+
+export interface BriefingRoute {
   model: string;
   provider: string;
   contextTokens: number;
@@ -141,6 +150,9 @@ export interface BriefingGeneration {
   temperature?: number;
   reasoning?: { effort: 'low'; exclude: true } | { enabled: false; exclude?: true };
   serviceTier?: 'flex';
+}
+
+export interface BriefingGeneration extends BriefingRoute {
   prompt: 'v5-source-first-v1' | 'v5-source-first-v2' | 'v5-source-first-v3' | 'v5-source-first-v4';
 }
 
