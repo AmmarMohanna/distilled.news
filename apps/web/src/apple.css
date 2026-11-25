@@ -4072,7 +4072,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   grid-area: fields;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   min-width: 0;
   padding-block-start: 8px;
 }
@@ -4093,7 +4093,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
     border: 0;
     border-block-start: 1px solid var(--line);
     border-radius: 0;
-    padding-block-start: 8px;
+    margin-block-start: 4px;
+    padding-block-start: 14px;
   }
 }
 :root.apple-ui.apple-ui .profile-dialog .profile-picture-frame .profile-avatar {
