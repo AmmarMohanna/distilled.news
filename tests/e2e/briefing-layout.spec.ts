@@ -70,7 +70,7 @@ test("restored briefing layout preserves controls and theme", async ({ page }) =
 
 test("published headlines open retained briefing evidence and preserve read-only refresh", async ({ page }) => {
   const sourceUrl = "https://example.test/supported-development";
-  const summary = "Acme released an updated research model [1].";
+  const summary = "Acme released an updated research model. ".repeat(18) + "The full briefing ends here [1].";
   const edition = { id: "published-one", title: "October 11 updates", summary, publishedAt: "2026-10-11T08:00:00Z", sections: [{ title: "Research model", summary, evidence: [{ messageId: "evidence-one", sourceTitle: "Research source", sourceUrl, text: summary, postedAt: "2026-10-11T07:00:00Z", links: [], media: [] }] }] };
   let manualRequests = 0, feedReads = 0;
   await page.route("**/api/**", route => {
@@ -79,7 +79,7 @@ test("published headlines open retained briefing evidence and preserve read-only
     if (path === "/api/feed/admin/personal-briefing") feedReads++;
     const data = path === "/api/auth/session" ? { authenticated: false }
       : path === "/api/feed/admin/personal-briefing" ? { briefing, editions: [edition] }
-      : path.endsWith("/editions/published-one") ? { edition } : {};
+      : path.endsWith("/editions/published-one") ? { briefing, edition } : {};
     return route.fulfill({ json: data });
   });
   await page.goto("/admin/personal-briefing/");
@@ -99,6 +99,10 @@ test("published headlines open retained briefing evidence and preserve read-only
   await page.reload();
   await expect(page.locator(".news-headline .briefing-headline-link")).toHaveText("Research model");
   await expect(page.locator(".news-summary:visible")).toHaveCount(0);
+  await page.locator(".briefing-headline-link").click();
+  const body = page.locator(".briefing-detail-body .news-summary");
+  await expect(body).toContainText("The full briefing ends here");
+  await expect(body).toHaveCSS("overflow", "visible");
 });
 
 test("a late publisher photo leaves briefing rows in place", async ({ page }) => {
