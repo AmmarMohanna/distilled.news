@@ -33,6 +33,31 @@ async function read(f:number,cache:boolean,init:RequestInit={},db:D1Database=ctx
  return app.request(feedUrl(f),init,env(db,cache,extra));
 }
 
+it('bounds D1 timeline reads while preserving permissions on older edition detail',async()=>{
+ const app=createApp({now:()=>new Date('2026-11-26T12:00:00Z')});
+ const path=feedUrl(1), runtime=env(ctx.db,true);
+ const old=editionIdFor(1,0);
+ const recent='2026-11-26T10:00:00.000Z';
+ await ctx.db.batch(editionStatements(ctx.db,1,70,1,1,recent));
+ try {
+  const result=await app.request(`${path}?timeline=1`,{},runtime);
+  expect(result.status).toBe(200);
+  const timeline=await result.json() as {editions:{id:string}[];timelineNextCursor:string|null};
+  expect(timeline.editions.map(edition=>edition.id)).toEqual([editionIdFor(1,70)]);
+  expect(timeline.timelineNextCursor).toBeNull();
+  expect((await app.request(`${path}/editions/${old}`,{},runtime)).status).toBe(200);
+  const repo=new D1Repository(ctx.db),feed=(await repo.getBriefingById(feedId(1)))!;
+  await repo.upsertBriefing({...feed,publicFeedEnabled:false});
+  try {
+   expect((await app.request(`${path}?timeline=1`,{},runtime)).status).toBe(404);
+   expect((await app.request(`${path}/editions/${old}`,{},runtime)).status).toBe(404);
+   expect((await app.request(`${path}/search?q=Article`,{},runtime)).status).toBe(404);
+  } finally {await repo.upsertBriefing(feed);}
+ } finally {
+  await ctx.db.prepare("DELETE FROM v1_feed_documents WHERE id=? AND kind IN ('editions','publication_status')").bind(editionIdFor(1,70)).run();
+ }
+});
+
 it('bumps the read version only for edition and publication-status writes',async()=>{
  const id=feedId(2),before=await feedReadVersion(ctx.db,id);
  await ctx.db.prepare("UPDATE v1_feed_documents SET json=json_set(json,'$.attempts',1) WHERE kind='briefing_requests' AND id=?").bind(`${id}_req_0`).run();

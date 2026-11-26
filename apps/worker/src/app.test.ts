@@ -216,6 +216,36 @@ describe("worker app accounts", () => {
       expect(after.editions.some(edition=>edition.id===old.id)).toBe(false);
     }
   });
+  it('pages recent publications by time and ID and leaves quiet history searchable',async()=>{
+    const now=new Date('2026-11-26T12:00:00Z');
+    const repo=new InMemoryRepository(),app=createApp({repository:repo,now:()=>now});
+    const user=await createVerifiedUser(app,repo,'timeline@example.invalid','Timeline Owner');
+    const briefing=(await repo.getBriefingBySlug(user.account.id,'personal'))!;
+    const path='/api/feed/timeline-owner/personal';
+    const read=async(before?:string)=>{
+      const response=await app.request(`${path}?timeline=1${before?'&before='+encodeURIComponent(before):''}`,{},env());
+      expect(response.status).toBe(200);
+      return response.json() as Promise<{editions:{id:string}[];timelineNextCursor:string|null}>;
+    };
+    const publish=(id:string,at:string,status:'published'|'empty'='published')=>repo.saveBriefingEdition({
+      id,briefingId:briefing.id,cadence:'daily',windowStart:at,windowEnd:at,title:'Coastal news',summary:'The coastal road reopened.',
+      sections:[{title:'Infrastructure',summary:'The coastal road reopened.',evidence:[]}],status,publishedAt:at,createdAt:at,updatedAt:at
+    });
+    expect((await read()).editions).toEqual([]);
+    await publish('archive','2026-10-01T11:00:00.000Z');
+    expect(await read()).toMatchObject({editions:[],timelineNextCursor:null});
+    const time='2026-11-26T11:00:00.000Z';
+    for(let i=0;i<10;i++)await publish(`recent-${i}`,time);
+    await publish('withdrawn',time,'empty');
+    await publish('future','2026-11-26T13:00:00.000Z');
+    const first=await read();
+    expect(first.editions.map(edition=>edition.id)).toEqual([9,8,7,6,5,4,3,2].map(i=>`recent-${i}`));
+    const second=await read(first.timelineNextCursor!);
+    expect(second.editions.map(edition=>edition.id)).toEqual(['recent-1','recent-0']);
+    expect(second.timelineNextCursor).toBeNull();
+    const search=await (await app.request(`${path}/search?q=coastal`,{},env())).json() as {editions:{id:string}[]};
+    expect(search.editions.some(edition=>edition.id==='archive')).toBe(true);
+  });
   it('rejects invalid retrieval budgets and never spends on an ordinary blocked source check',async()=>{
     const fetcher=vi.fn<typeof fetch>(async()=>new Response('Blocked',{status:403})),app=createApp({repository:new InMemoryRepository(),fetcher});
     const target={...env(),SOURCE_ASSESSMENT_ENABLED:'true',SOURCE_CONNECTORS_ENABLED:'true',SOURCE_NATIVE_EXECUTION_ENABLED:'true',SOURCE_PAID_VERIFICATION_ENABLED:'true',OPENROUTER_API_KEY:'test',ZYTE_API_KEY:'test',SOURCE_PROVIDER_BUDGETS_JSON:'{"zyte":15}',SOURCE_OPERATION_CEILINGS_JSON:'{"zyte":0.05}'};
