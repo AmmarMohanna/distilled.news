@@ -3006,8 +3006,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   }
   :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions > .button-link {
     box-sizing: border-box; flex: 0 0 auto;
-    width: max-content; min-width: var(--guest-login-width);
-    justify-content: center; white-space: nowrap;
+    width: var(--guest-login-width); min-width: var(--guest-login-width);
+    justify-content: center; height: 44px; min-height: 44px; padding-block: 0; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; text-align: center;
   }
 }
 @media (max-width: 480px) {
@@ -4251,14 +4251,16 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
     display: grid;
     isolation: isolate;
     grid-template-columns: repeat(3, minmax(0, 1fr)) 48px;
-    width: min(100%, 420px);
-    inset-inline: 0;
-    margin-inline: auto;
     gap: 4px;
     background: transparent;
     border: 0;
     box-shadow: none;
     backdrop-filter: none;
+  }
+  :root.apple-ui.apple-ui:not([data-pinch-zoom]) .experience .bottom-navigation.collapsible-navigation {
+    width: min(100%, 420px);
+    inset-inline: 0;
+    margin-inline: auto;
   }
   :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation::after {
     content: "";
@@ -4285,3 +4287,20 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 
 :root.apple-ui.apple-ui .experience.guest-landing .landing-controls + .catalog-shelf { margin-block-start: 24px; }
+
+:root.apple-ui.apple-ui .explore-view .catalog-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  min-height: 36px;
+  justify-self: start;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--accent-ink);
+  font-size: .875rem;
+}
+:root.apple-ui.apple-ui[dir="rtl"] .catalog-back svg { transform: scaleX(-1); }

@@ -10,7 +10,7 @@ afterEach(() => window.history.replaceState(null, '', '/'));
 vi.mock('./api', () => ({
   getExploreChannels: vi.fn(async () => []),
   getExploreHighlights: vi.fn(async () => ({ trending: [], newest: [] })),
-  getExploreFeeds: vi.fn(async () => ({feeds: [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', stars: 0, viewerHasStarred: false }], nextOffset: null})),
+  getExploreFeeds: vi.fn(async () => ({feeds: [{ id: 'public', title: 'Science', ownerUsername: 'owner', slug: 'science', publicFeedEnabled: true, stars: 0, viewerHasStarred: false }], nextOffset: null})),
   getFeed: vi.fn(async () => ({ editions: [], viewerHasStarred: false })),
   setFeedStar: vi.fn()
 }));
@@ -144,7 +144,7 @@ it('loads one Explore page without feed fan-out, keeps cards on page failure and
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
   vi.stubGlobal('scrollTo', vi.fn());
   vi.mocked(getExploreFeeds).mockClear(); vi.mocked(getFeed).mockClear();
-  const first = {id:'first',title:'First science',ownerUsername:'other',slug:'first',stars:2,publicFeedEnabled:true,viewerHasStarred:true,latestUpdatedAt:new Date().toISOString()} as any;
+  const first = {id:'first',title:'First science',ownerUsername:'other',slug:'first',stars:2,publicFeedEnabled:true,viewerHasStarred:false,latestUpdatedAt:new Date().toISOString()} as any;
   const second = {...first,id:'second',title:'Second science',slug:'second'};
   vi.mocked(getExploreFeeds).mockResolvedValueOnce({feeds:[first],nextOffset:100})
     .mockRejectedValueOnce(new Error('Temporary page failure'))
@@ -155,7 +155,7 @@ it('loads one Explore page without feed fan-out, keeps cards on page failure and
     expect(getExploreFeeds).toHaveBeenCalledTimes(1);expect(getFeed).not.toHaveBeenCalled();
     await act(async()=>host.querySelector<HTMLButtonElement>('nav button[aria-label="Explore"]')!.click());
     const explore=host.querySelector('.explore-view')!;
-    expect(explore.querySelector('[aria-label="Unstar First science"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(explore.querySelector('[aria-label="Star First science"]')?.getAttribute('aria-pressed')).toBe('false');
     const more=Array.from(explore.querySelectorAll('button')).find(button=>button.textContent==='Load more feeds')!;
     await act(async()=>more.click());
     expect(explore.textContent).toContain('First science');expect(explore.querySelector('[role="alert"]')).not.toBeNull();

@@ -287,7 +287,7 @@ export function AppExperience(props: {
       </section>
     </div>}
     <section className="explore-view" aria-busy={loading || waitingForCatalog} style={tab !== "explore" && tab !== "followed" && props.account ? { display: "none" } : undefined}>
-      {catalogView && <button type="button" className="feed-nav-back" onClick={() => showCatalog()}><ChevronLeft size={20}/>{t("Back")}</button>}
+
       {channelName ? <div className="channel-heading">
         <a className="feed-nav-back" href="/explore"><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
         {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError}/> : channelFailed ? <p role="status">{t(
@@ -309,6 +309,7 @@ export function AppExperience(props: {
           : channel && <ChannelFollowButton key={channel.username} channel={channel} ownChannel={ownChannel} signedIn={Boolean(props.account)} onSignIn={props.onAccount}
             onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>)}
       </div>
+      {catalogView && <button type="button" className="catalog-back" onClick={() => showCatalog()}><ChevronLeft size={17} aria-hidden/>{t("Back")}</button>}
       {!catalogView && showCatalogShelves && !isExplorePage && <>
         {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")} onShowAll={() => showCatalog("feeds")}>
           {visibleFeeds.slice(0, 8).map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
@@ -338,7 +339,7 @@ export function AppExperience(props: {
         {(channelName || !isExplorePage ? visibleFeeds : tab === "followed" ? followedFeeds : otherPublicFeeds).length ? (
           (isExplorePage || catalogView === "feeds") && !channelName ? <>
             {tab === "followed" && <CatalogShelf title={t("Followed feeds")}>{followedFeeds.map(renderExploreFeed)}</CatalogShelf>}
-            {tab === "explore" && (catalogView === "feeds"
+            {tab !== "followed" && (catalogView === "feeds"
               ? <AdaptiveFeedGrid view="explore">{otherPublicFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
               : <CatalogShelf title={t("Public feeds")} onShowAll={() => showCatalog("feeds")}>{otherPublicFeeds.map(renderExploreFeed)}</CatalogShelf>)}
           </> : <AdaptiveFeedGrid view="explore">{visibleFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>

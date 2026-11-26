@@ -5,6 +5,10 @@ import type { BriefingEdition } from '@distilled/core';
 import { CitationReference } from './CitationReference';
 import { BriefingReadMore } from './BriefingReadMore';
 
+vi.mock('./Dialog', () => ({
+  Dialog: ({children, label}: {children: React.ReactNode; label: string}) => <div role="dialog" aria-label={label}>{children}</div>
+}));
+
 const edition = { id: 'edition', summary: 'Headline\nRetained detail. [1]', sections: [{ title: '', summary: 'Headline\nRetained detail.', evidence: [{ sourceId: 'bbc', sourceTitle: 'BBC', sourceUrl: 'https://www.bbc.co.uk/rss', links: ['https://www.bbc.co.uk/news/article'], media: [], text: 'Full source evidence must not become the briefing.' }] }] } as unknown as BriefingEdition;
 async function render(node: React.ReactNode, check: (host: HTMLDivElement) => void | Promise<void>) {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -12,7 +16,7 @@ async function render(node: React.ReactNode, check: (host: HTMLDivElement) => vo
   try { await act(async () => root.render(node)); await check(host); }
   finally { await act(async () => root.unmount()); vi.unstubAllGlobals(); }
 }
-it('links a citation directly to its article and previews the publisher logo and domain', async () => {
+it('shows the citation destination and previews the publisher logo and domain', async () => {
   const loadDetail = vi.fn(async () => edition);
   await render(<CitationReference number={1} edition={edition} loadDetail={loadDetail} label="Source 1"/>, async host => {
     const link = host.querySelector('a')!;
@@ -69,11 +73,14 @@ it('omits empty read-more controls for headline-only stories', async () => {
     expect(host.querySelector('button, details')).toBeNull();
   });
 });
-it('dismisses the publisher popup when opening its article', async () => {
+it('opens retained evidence and a separate article link', async () => {
   await render(<CitationReference number={1} edition={edition} loadDetail={async () => edition} label="Source 1"/>, async host => {
     const link = host.querySelector('a')!;
     link.addEventListener('click', event => event.preventDefault());
     await act(async () => link.click());
     expect(host.querySelector('[role="tooltip"]')).toBeNull();
+    const preview = document.body.querySelector('[role="dialog"]');
+    expect(preview?.textContent).toContain('Full source evidence');
+    expect(preview?.querySelector('a')?.href).toBe('https://www.bbc.co.uk/news/article');
   });
 });
