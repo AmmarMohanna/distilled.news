@@ -33,6 +33,38 @@ async function read(f:number,cache:boolean,init:RequestInit={},db:D1Database=ctx
  return app.request(feedUrl(f),init,env(db,cache,extra));
 }
 
+it('keeps the legacy timeline version stable across requests and changes it when an older edition is withdrawn',async()=>{
+ const now=new Date('2026-11-26T12:00:00Z'),repo=new D1Repository(ctx.db),briefingId=feedId(1);
+ const runtime=env(ctx.db,true,{PRODUCT_FEEDS_ENABLED:'false'});
+ const app=createApp({now:()=>now}),url=`${feedUrl(1)}?timeline=1`;
+ const records=Array.from({length:10},(_,i)=>{
+  const at=new Date(now.getTime()-(i+1)*60_000).toISOString();
+  const text='The coastal road reopened after an overnight security closure.';
+  return {id:`legacy-${i}`,briefingId,cadence:'hourly' as const,windowStart:at,windowEnd:at,title:'Coastal news',summary:text,
+    sections:[{title:'Infrastructure',summary:text,evidence:[]}],status:'published' as const,publishedAt:at,createdAt:at,updatedAt:at};
+ });
+ for(const edition of records)await repo.saveBriefingEdition(edition,now);
+ const get=async(suffix='')=>{
+  const response=await app.request(url+suffix,{},runtime);
+  expect(response.status).toBe(200);
+  return response.json() as Promise<{editions:{id:string}[];publicationVersion:string;timelineNextCursor:string|null}>;
+ };
+ try {
+  const initial=await get(),pageQuery=`&before=${encodeURIComponent(initial.timelineNextCursor!)}`;
+  expect(initial.editions).toHaveLength(8);
+  expect(initial.publicationVersion).toMatch(/^\d+:\d+:(en|ar|fr)$/);
+  expect((await get()).publicationVersion).toBe(initial.publicationVersion);
+  expect(await get(pageQuery)).toMatchObject({publicationVersion:initial.publicationVersion,editions:[{id:'legacy-8'},{id:'legacy-9'}]});
+  await repo.saveBriefingEdition({...records[9],status:'empty'},now);
+  const changed=await get();
+  expect(changed.publicationVersion).not.toBe(initial.publicationVersion);
+  expect(changed.editions).toEqual(initial.editions);
+  expect(await get(pageQuery)).toMatchObject({publicationVersion:changed.publicationVersion,editions:[{id:'legacy-8'}]});
+ } finally {
+  await ctx.db.prepare("DELETE FROM briefing_editions WHERE briefing_id=? AND id LIKE 'legacy-%'").bind(briefingId).run();
+ }
+});
+
 it('bounds D1 timeline reads while preserving permissions on older edition detail',async()=>{
  const app=createApp({now:()=>new Date('2026-11-26T12:00:00Z')});
  const path=feedUrl(1), runtime=env(ctx.db,true);

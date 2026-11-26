@@ -17,7 +17,7 @@ it('selects sparse daily history from published server editions alone',async()=>
  const base={briefingId:feed.id,cadence:'daily',windowStart:new Date(Date.now()-70*3600000).toISOString(),windowEnd:at,publishedAt:at,title:'News',summary:'Published news',sections:[{id:'s',title:'A proposal',summary:'Officials proposed a change, not yet approved.',evidence:[]}]} as unknown as BriefingEdition;
  await repo.saveBriefingEdition({...base,id:'one',status:'published'});
  await repo.saveBriefingEdition({...base,id:'empty',status:'empty',windowStart:'2026-10-20T00:00:00Z',windowEnd:'2026-10-20T01:00:00Z'});await post();
- expect(vi.mocked(generateCatchUpSummary).mock.calls[0][0].input.briefings.map(item=>item.id)).toEqual(['one']);expect(vi.mocked(generateCatchUpSummary).mock.calls[0][0].input.briefings[0].text).toContain('not yet approved');
+ expect(vi.mocked(generateCatchUpSummary).mock.calls[0][0].input.briefings.map(item=>item.id)).toEqual(['one']);expect(vi.mocked(generateCatchUpSummary).mock.calls[0][0].input.briefings[0].stories[0].summary).toContain('not yet approved');
 });
 it('leaves manual publication retired',async()=>{expect((await app.request('/api/feed/owner/personal/request-summary',{method:'POST'},config)).status).toBe(410);expect(generateCatchUpSummary).not.toHaveBeenCalled();});
 
@@ -28,7 +28,7 @@ it('returns a retryable pending response for pre-inference provider capacity wai
  vi.mocked(generateCatchUpSummary).mockResolvedValueOnce({status:'pending'});const response=await post();expect(response.status).toBe(202);expect(await response.json()).toEqual({status:'pending'});
 });
 
-it.each([['SUMMARY_TOO_LONG',422],['SUMMARY_INVALID_OUTPUT',422],['SUMMARY_OUTCOME_UNKNOWN',503]] as const)('returns a specific safe error for %s',async(code,status)=>{
+it.each([['SUMMARY_TOO_LONG',422],['SUMMARY_INVALID_OUTPUT',422],['SUMMARY_OUTCOME_UNKNOWN',503],['SUMMARY_PROVIDER_REFUSED',503]] as const)('returns a specific safe error for %s',async(code,status)=>{
  vi.mocked(generateCatchUpSummary).mockRejectedValueOnce(new CatchUpSummaryError(code));const response=await post();expect(response.status).toBe(status);const body=await response.json() as {code:string;error:string};expect(body.code).toBe(code);expect(body.error).not.toContain('Try again shortly');
 });
 

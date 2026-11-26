@@ -492,6 +492,7 @@ export interface Repository {
   getFeedItemEvidence(briefingId: string, itemId: string, now?: Date): Promise<BriefingEvidence[]>;
   saveBriefingEdition(edition: BriefingEdition, now?: Date): Promise<void>;
   listBriefingEditions(briefingId: string, includeSections: boolean, now?: Date, limit?: number, window?: EditionWindow): Promise<BriefingEdition[]>;
+  briefingPublicationVersion(briefingId: string): Promise<number>;
   getBriefingEdition(briefingId: string, editionId: string, now?: Date): Promise<BriefingEdition | null>;
   getHealth(briefingId?: string, now?: Date): Promise<HealthStatus>;
   createSourceRun(input: {

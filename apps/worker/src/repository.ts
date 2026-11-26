@@ -1,5 +1,6 @@
 import {canonicalJson} from './v1-intake/canonical';
 import type {EditionWindow} from './reader-history';
+import {feedReadVersion} from './feed-read-cache';
 import {
   collapseDuplicateBriefingItems,
   defaultNextBriefingAt,
@@ -1337,6 +1338,10 @@ export class D1Repository implements Repository {
       .run();
   }
 
+  briefingPublicationVersion(briefingId: string): Promise<number> {
+    return feedReadVersion(this.db, briefingId);
+  }
+
   async listBriefingEditions(
     briefingId: string,
     includeSections: boolean,
@@ -1918,6 +1923,7 @@ export class InMemoryRepository implements Repository {
   rawMessages = new Map<string, NormalizedMessage>();
   itemsByBriefing = new Map<string, Map<string, BriefingItem>>();
   editionsByBriefing = new Map<string, Map<string, BriefingEdition>>();
+  private publicationVersions = new Map<string, number>();
   starsByBriefing = new Map<string, Set<string>>();
   private channelFollows = new Map<string, Set<string>>();
   private starDatesByBriefing = new Map<string, Map<string, string>>();
@@ -2572,6 +2578,14 @@ export class InMemoryRepository implements Repository {
     );
     scoped.set(existing?.id ?? edition.id, structuredClone({ ...edition, id: existing?.id ?? edition.id }));
     this.editionsByBriefing.set(edition.briefingId, scoped);
+    if(existing?.status==='published'||edition.status==='published') {
+      const version=this.publicationVersions.get(edition.briefingId)??0;
+      this.publicationVersions.set(edition.briefingId,version+1);
+    }
+  }
+
+  async briefingPublicationVersion(briefingId: string): Promise<number> {
+    return this.publicationVersions.get(briefingId)??0;
   }
 
   async listBriefingEditions(

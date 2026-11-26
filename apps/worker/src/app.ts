@@ -1646,7 +1646,7 @@ export function createApp(options: AppOptions = {}) {
       const now=nowFor(), pageSize=8;
       const minutes=await readerInterval(briefing,product?env.DB:undefined);
       const window=editionWindow(now,readerHistoryDays(minutes),pageSize+1,before);
-      const version=product?await feedReadVersion(env.DB,briefing.id):undefined;
+      const version=product?await feedReadVersion(env.DB,briefing.id):await repo.briefingPublicationVersion(briefing.id);
       const records=await readRecentEditions(env,repo,briefing,window);
       const visible=records.slice(0,pageSize);
       const last=visible.at(-1);
@@ -1656,13 +1656,13 @@ export function createApp(options: AppOptions = {}) {
         editions:product?visible:visible.filter(edition=>isPublicEditionVisible(edition,briefing.language)).map(edition=>publicEdition(edition,briefing,false)),
         timelineNextCursor:next,
         timelineSince:window.since,
-        publicationVersion:version===undefined?undefined:String(version)
+        publicationVersion:`${version}:${minutes}:${briefing.language}`
       };
       if(before)return c.json(page);
       const claims=await verifySession(getCookie(c,SESSION_COOKIE),env.ADMIN_SESSION_SECRET??'');
       const [viewerHasStarred,status,diagnostics,hasPublishedBriefings]=await Promise.all([
         getVoterId(c).then(voter=>repo.hasBriefingStar(briefing.id,voter,claims?.sub)),
-        product?readTimelineStatus(env,briefing.id,version!):{},
+        product?readTimelineStatus(env,briefing.id,version):{},
         product&&await viewerSeesSourceHealth(c,briefing.ownerAccountId)?readSourceDiagnostics(env,briefing.id,feedReadCacheEnabled(env)?version:undefined):{},
         page.editions.length>0||hasRetainedPublication(env,repo,briefing.id,now)
       ]);
@@ -1820,7 +1820,7 @@ export function createApp(options: AppOptions = {}) {
       }
       return c.json(result,result.status==='pending'?202:200);
     }
-    catch(error){if(error instanceof CatchUpSummaryQuotaError){c.header('Retry-After','3600');return c.json({error:error.message,code:'SUMMARY_QUOTA_EXCEEDED'},429);}if(error instanceof CatchUpSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'?503:422);console.warn('reader-catch-up-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
+    catch(error){if(error instanceof CatchUpSummaryQuotaError){c.header('Retry-After','3600');return c.json({error:error.message,code:'SUMMARY_QUOTA_EXCEEDED'},429);}if(error instanceof CatchUpSummaryError)return c.json({error:error.message,code:error.code},error.code==='SUMMARY_OUTCOME_UNKNOWN'||error.code==='SUMMARY_PROVIDER_REFUSED'?503:422);console.warn('reader-catch-up-failed',{reason:error instanceof Error?error.name:'UNKNOWN'});return c.json({error:'Summaries are temporarily unavailable. Your briefings are still available.'},503);}
   });
 
   // Retired: summaries above never collect articles or publish editions.

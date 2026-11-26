@@ -3,15 +3,19 @@ import {createIntakeDatabase} from './v1-intake/test-utils';
 import {catchUpSummaryPort} from './catch-up-summary-provider';
 import {generateCatchUpSummary,CatchUpSummaryResourceWait,catchUpSummaryRequest} from './catch-up-summary';
 import type {Env} from './types';
-import {reserveModelSpending} from './v1-intelligence/model-spending';
+import {authorizeModelSpending,reserveModelSpending} from './v1-intelligence/model-spending';
 import {recoverProviderGeneration} from './v1-intelligence/provider-recovery';
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>;
 beforeAll(async()=>{ctx=await createIntakeDatabase({product:true});await ctx.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('summary-test',JSON.stringify({revision:1,paused:true})).run();});
 afterAll(async()=>ctx?.dispose());
-const input={language:'en',briefings:[{id:'one',publishedAt:'2026-10-26T12:00:00Z',text:'Officials proposed a change, subject to approval.'}]};
+const text='Officials proposed a change, subject to approval.';
+const input={language:'en',briefings:[{id:'one',publishedAt:'2026-10-26T12:00:00Z',stories:[{id:'one:story',title:'',summary:text,sources:[]}]}]};
+const summaryResponse=(cost=.0001)=>Response.json({choices:[{message:{content:JSON.stringify({sentences:[{text,storyIds:['one:story']}]})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20,cost}});
 const config=()=>({DB:ctx.db,OPENROUTER_API_KEY:'test-only'} as Env);
+// Other tests deliberately leave unresolved operations in this database.
+const refusalConfig=()=>({...config(),V1_PROVIDER_MAX_CONCURRENCY:'6',V1_PROVIDER_REQUESTS_PER_MINUTE:'1000'});
 it('reserves before inference, settles reported cost and reuses its immutable receipt',async()=>{
- const fetcher=vi.fn(async()=>{const held=await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_model_spending_reservations WHERE feed_id='summary-test'").first<{n:number}>();expect(held!.n).toBe(1);return Response.json({choices:[{message:{content:'{"summary":"Officials proposed a change, subject to approval."}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20,cost:.0001}});});
+ const fetcher=vi.fn(async()=>{const held=await ctx.db.prepare("SELECT COUNT(*) AS n FROM v1_model_spending_reservations WHERE feed_id='summary-test'").first<{n:number}>();expect(held!.n).toBe(1);return summaryResponse();});
  const port=catchUpSummaryPort(config(),'summary-test','reader',fetcher);
  const first=await port.complete(catchUpSummaryRequest(input));expect(first.costUsd).toBe(.0001);
  expect(await port.complete(catchUpSummaryRequest(input))).toEqual(first);expect(fetcher).toHaveBeenCalledOnce();
@@ -79,25 +83,70 @@ it('settles known usage before rejecting an unusable summary and never resends i
 },30000);
 
 
-it('uses TRACK_ONLY without an additional budget while retaining receipts and UNKNOWN fences',async()=>{
+it('requires and enforces a finite grant even when the model account is in TRACK_ONLY mode',async()=>{
  const local=await createIntakeDatabase({product:true,modelSpending:false});try{
   await local.db.prepare('INSERT INTO v1_feeds(id,json) VALUES(?,?)').bind('tracking-feed',JSON.stringify({revision:1})).run();
   await local.db.prepare("INSERT INTO settings(key,value,updated_at) VALUES(?,?,'2026-11-16T00:00:00Z')").bind('model-spending:tracking-only:summary-account',JSON.stringify({mode:'TRACK_ONLY',modelIds:['*'],enabledAt:'2000-01-01T00:00:00Z'})).run();
   const env={DB:local.db,OPENROUTER_API_KEY:'test'} as Env;
-  const fetcher=vi.fn(async()=>Response.json({choices:[{message:{content:'{"summary":"A proposal remains subject to approval."}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20,cost:.0001}}));
+  const fetcher=vi.fn(async()=>summaryResponse(.005));
   const port=catchUpSummaryPort(env,'tracking-feed','reader',fetcher);
+  await expect(port.complete(catchUpSummaryRequest(input))).rejects.toThrow('temporarily unavailable');
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(await local.db.prepare('SELECT id FROM v1_model_spending_reservations').first()).toBeNull();
+  await authorizeModelSpending(local.db,{id:'finite-grant',accountId:'summary-account',modelIds:['*'],
+    validFrom:'2000-01-01T00:00:00Z',validUntil:'2100-01-01T00:00:00Z',maxExposureUsd:.005,maxConcurrentOperations:2});
   const result=await port.complete(catchUpSummaryRequest(input));
   expect(await port.complete(catchUpSummaryRequest(input))).toEqual(result);expect(fetcher).toHaveBeenCalledOnce();
-  expect(await local.db.prepare('SELECT account_id,authorization_id FROM v1_model_spending_reservations').first()).toEqual({account_id:'summary-account',authorization_id:null});
-  expect(await local.db.prepare('SELECT reported,cost_usd FROM v1_model_spending_settlements').first()).toMatchObject({reported:1,cost_usd:.0001});
-  const lost=vi.fn(async()=>{throw new TypeError('response lost')});
-  const uncertain=catchUpSummaryPort(env,'tracking-feed','other-reader',lost);
-  await expect(uncertain.complete(catchUpSummaryRequest(input))).rejects.toThrow();
-  const holds=(await local.db.prepare('SELECT * FROM v1_model_spending_reservations ORDER BY id').all()).results;
-  await expect(uncertain.complete(catchUpSummaryRequest(input))).rejects.toThrow('could not be confirmed');
-  expect(lost).toHaveBeenCalledOnce();
-  expect((await local.db.prepare('SELECT * FROM v1_model_spending_reservations ORDER BY id').all()).results).toEqual(holds);
+  expect(await local.db.prepare('SELECT account_id,authorization_id FROM v1_model_spending_reservations').first()).toEqual({account_id:'summary-account',authorization_id:'finite-grant'});
+  expect(await local.db.prepare('SELECT reported,cost_usd FROM v1_model_spending_settlements').first()).toMatchObject({reported:1,cost_usd:.005});
+  await expect(port.complete(catchUpSummaryRequest({...input,language:'fr'}))).rejects.toThrow('temporarily unavailable');
+  expect(fetcher).toHaveBeenCalledOnce();
  }finally{await local.dispose()}
+},30000);
+
+it.each([429,503])('retries a confirmed HTTP %i once and reuses the successful result',async status=>{
+ const accountId=`refused-${status}`;
+ let release!:()=>void;
+ const waiting=new Promise<void>(resolve=>{release=resolve;});
+ const fetcher=vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(null,{status})).mockImplementationOnce(async()=>{await waiting;return summaryResponse();});
+ const port=catchUpSummaryPort(refusalConfig(),'summary-test',accountId,fetcher);
+ const run=()=>generateCatchUpSummary({db:ctx.db,feedId:'summary-test',accountId,input,port});
+ expect(await run()).toEqual({status:'pending'});
+ expect(fetcher).toHaveBeenCalledOnce();
+ const first=await ctx.db.prepare("SELECT id FROM v1_feed_documents WHERE kind='reader_catch_up_provider_refusal' AND json_extract(json,'$.httpStatus')=?").bind(status).first<{id:string}>();
+ const retry=run();
+ try {
+  await vi.waitFor(()=>expect(fetcher).toHaveBeenCalledTimes(2),{timeout:5000});
+  expect(await run()).toEqual({status:'pending'});
+ } finally {release();}
+ expect(await retry).toEqual({status:'ready',summary:text});
+ expect(await run()).toEqual({status:'ready',summary:text});
+ expect(fetcher).toHaveBeenCalledTimes(2);
+ const rows=await ctx.db.prepare('SELECT id,reported,cost_usd FROM v1_model_spending_settlements WHERE id IN (?,?) ORDER BY id').bind(first!.id,`${first!.id}:2`).all();
+ expect(rows.results).toEqual([{id:first!.id,reported:1,cost_usd:0},{id:`${first!.id}:2`,reported:1,cost_usd:.0001}]);
+},30000);
+
+it('stops after three confirmed refusals and keeps every zero-cost settlement',async()=>{
+ const fetcher=vi.fn(async()=>new Response(null,{status:429}));
+ const port=catchUpSummaryPort(refusalConfig(),'summary-test','repeated-refusals',fetcher);
+ const run=()=>generateCatchUpSummary({db:ctx.db,feedId:'summary-test',accountId:'repeated-refusals',input,port});
+ expect(await run()).toEqual({status:'pending'});
+ expect(await run()).toEqual({status:'pending'});
+ for(let i=0;i<2;i++)await expect(run()).rejects.toMatchObject({code:'SUMMARY_PROVIDER_REFUSED'});
+ expect(fetcher).toHaveBeenCalledTimes(3);
+},30000);
+
+it('retains a hold when a refusal status also carries a generation identity',async()=>{
+ const fetcher=vi.fn(async()=>new Response(null,{status:503,headers:{'x-generation-id':'gen-potentially-billed'}}));
+ const accountId='refused-with-generation';
+ const port=catchUpSummaryPort(refusalConfig(),'summary-test',accountId,fetcher);
+ const run=()=>generateCatchUpSummary({db:ctx.db,feedId:'summary-test',accountId,input,port});
+ for(let i=0;i<2;i++)await expect(run()).rejects.toMatchObject({code:'SUMMARY_OUTCOME_UNKNOWN'});
+ const row=await ctx.db.prepare(`SELECT s.id AS settled FROM v1_feed_documents d
+   LEFT JOIN v1_model_spending_settlements s ON s.id=json_extract(d.json,'$.reservationId')
+   WHERE d.kind='model_provider_receipts' AND json_extract(d.json,'$.generationId')='gen-potentially-billed'`).first();
+ expect(row).toEqual({settled:null});
+ expect(fetcher).toHaveBeenCalledOnce();
 },30000);
 
 it('atomically caps distinct summary attempts across feeds while reusing paid receipts without quota',async()=>{

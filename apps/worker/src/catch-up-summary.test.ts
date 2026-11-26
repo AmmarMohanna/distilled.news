@@ -6,6 +6,8 @@ import type {BriefingEdition} from '@distilled/core';
 import {V3SpendGuard} from './v3-spend';
 import {generateCatchUpSummary,parseCatchUpSummary,prepareCatchUpSummary,CatchUpSummaryResourceWait,summaryTokenUpperBound,catchUpSummaryRequest} from './catch-up-summary';
 import {migrationStatements} from './test-migrations';
+import {presentProductEditions,type PublishedProductEditionRecord} from './product-feeds';
+import type {BriefingConfig} from '@distilled/core';
 
 let mf:Miniflare,db:D1Database;
 const now=Date.parse('2026-10-26T12:00:00Z');
@@ -16,7 +18,8 @@ const edition=(id:string,hours:number,text='Officials announced a new electricit
     windowStart:at,windowEnd:at,createdAt:at,updatedAt:at,summary:text,sections:[{title:'',summary:text,evidence:[]}]};
 };
 const input=()=>prepareCatchUpSummary([edition('one',1)],'en',since,now);
-const response={text:'{"summary":"Officials announced a new electricity schedule."}',inputTokens:100,outputTokens:20,costUsd:.0001};
+const result=(text:string,storyIds=['one:section:0'])=>JSON.stringify({sentences:[{text,storyIds}]});
+const response={text:result('Officials announced a new electricity schedule.'),inputTokens:100,outputTokens:20,costUsd:.0001};
 const port=()=>({complete:vi.fn(async()=>response)});
 const run=(p:ModelPort,accountId='reader',data=input())=>generateCatchUpSummary({db,accountId,feedId:'feed',input:data,port:p,guard:new V3SpendGuard(db,{dailyUsd:1,runUsd:.1}),prices:DEFAULT_PRICES,now});
 beforeAll(async()=>{
@@ -79,30 +82,38 @@ it('recovers a durably recorded response without another model call',async()=>{
 
 it('requires a complete response within the word limit',()=>{
   const summary=Array(80).fill('news').join(' ');
-  expect(parseCatchUpSummary(JSON.stringify({summary}))).toBe(summary);
-  expect(()=>parseCatchUpSummary(JSON.stringify({summary:summary+' news'}))).toThrow('too long to show');
-  expect(()=>parseCatchUpSummary(JSON.stringify({summary}),'length')).toThrow('incomplete');
-  expect(()=>parseCatchUpSummary(JSON.stringify({summary,other:'unexpected'}))).toThrow('incomplete');
+  expect(parseCatchUpSummary(result(summary),input())).toBe(summary);
+  expect(()=>parseCatchUpSummary(result(summary+' news'),input())).toThrow('too long to show');
+  expect(()=>parseCatchUpSummary(result(summary),input(),'length')).toThrow('incomplete');
+  expect(()=>parseCatchUpSummary(JSON.stringify({summary,other:'unexpected'}),input())).toThrow('incomplete');
 });
 
-it('supplies repeats, later corrections, names and qualifiers without altering the evidence',()=>{
-  const report=edition('original',3,'The utility said power could return at 8 p.m. if repairs succeed.');
-  const repeat=edition('repeat',2,report.sections[0].summary);
-  const correction=edition('correction',1,'The utility corrected its estimate to after 10 p.m., subject to testing.');
-  correction.sections[0].relation='correction';
-  correction.sections[0].updatesId='original';
-  const separate=edition('other',1,'The water authority said water service might resume by 8 p.m.');
-  const request=catchUpSummaryRequest(prepareCatchUpSummary([correction,separate,repeat,report],'fr',since,now));
-  const evidence=JSON.parse(request.user);
-  expect(evidence.language).toBe('fr');
-  expect(evidence.briefings.map((item:{id:string})=>item.id)).toEqual(['original','repeat','correction','other']);
-  expect(evidence.briefings[0].text).toBe(report.sections[0].summary);
-  expect(evidence.briefings[1].text).toBe(report.sections[0].summary);
-  expect(evidence.briefings[2].text).toBe(`Relation: correction (updates original)\n${correction.sections[0].summary}`);
-  expect(evidence.briefings[3].text).toBe(separate.sections[0].summary);
-  expect(request.system).toContain('Count repeat reports of the same development once');
-  expect(request.system).toContain('Apply an explicit correction');
-  expect(request.system).toContain('Never present an allegation, estimate, proposal, denial or forecast as a confirmed fact.');
+it.each([
+  ['en','The utility said power could return at 8 p.m.','The utility revised its estimate to after 10 p.m., subject to testing.','The water authority said water service might resume at 8 p.m.'],
+  ['ar','قالت شركة الكهرباء إن التيار قد يعود عند الثامنة مساءً.','صححت شركة الكهرباء تقديرها إلى ما بعد العاشرة مساءً، رهن نجاح الاختبارات.','قالت هيئة المياه إن الخدمة قد تعود عند الثامنة مساءً.'],
+  ['fr','La compagnie a estimé que le courant pourrait revenir à 20 h.','La compagnie a repoussé son estimation après 22 h, sous réserve des essais.','Le service des eaux a annoncé une reprise possible à 20 h.']
+] as const)('keeps product story identities and validates correction references in %s',(language,original,corrected,separate)=>{
+  const record=(id:string,hours:number,text:string,updatesId?:string):PublishedProductEditionRecord=>{
+    const at=new Date(now-hours*3600000).toISOString();
+    return {id,feedId:'feed',title:'News',language,windowStart:at,windowEnd:at,createdAt:at,publishedAt:at,citations:[],
+      stories:[{candidateId:`${id}:0`,claims:[{id:`${id}:claim`,text,support:[]}],
+        relation:updatesId?'correction':'new',updatesId}]};
+  };
+  const originalId='edition-1:edition-1:0', correctionId='edition-2:edition-2:0', separateId='edition-3:edition-3:0';
+  const report=record('edition-1',3,original);
+  const correction=record('edition-2',1,corrected,originalId);
+  const water=record('edition-3',2,separate);
+  const repeated=record('edition-4',2.5,original);
+  const data=prepareCatchUpSummary(presentProductEditions({id:'feed',briefingCadence:'hourly'} as BriefingConfig,
+    [correction,report,water,repeated]),language,since,now);
+  expect(data.briefings.flatMap(briefing=>briefing.stories.map(story=>story.id))).toEqual([originalId,'edition-4:edition-4:0',separateId,correctionId]);
+  expect(data.briefings[3].stories[0]).toMatchObject({relation:'correction',updatesId:originalId,summary:corrected});
+  const response=JSON.stringify({sentences:[{text:corrected,storyIds:[correctionId]},{text:separate,storyIds:[separateId]}]});
+  expect(parseCatchUpSummary(response,data)).toBe(`${corrected} ${separate}`);
+  expect(()=>parseCatchUpSummary(result(original,[originalId]),data)).toThrow('incomplete');
+  expect(()=>parseCatchUpSummary(result(original,['edition-4:edition-4:0']),data)).toThrow('incomplete');
+  expect(()=>parseCatchUpSummary(result(original,['edition-1']),data)).toThrow('incomplete');
+  expect(catchUpSummaryRequest(data).system).toContain('Never present an allegation, estimate, proposal, denial or forecast as a confirmed fact.');
 });
 
 it('reports provider capacity as pending without retaining a failed cache claim or spending',async()=>{
@@ -114,11 +125,11 @@ it('reports provider capacity as pending without retaining a failed cache claim 
 });
 
 it('explains retained overlong output on repeated reads without sending another paid request',async()=>{
- const p={complete:vi.fn(async()=>({...response,text:JSON.stringify({summary:Array(178).fill('news').join(' ')})}))};
+ const p={complete:vi.fn(async()=>({...response,text:result(Array(178).fill('news').join(' '))}))};
  for(let i=0;i<2;i++)await expect(run(p)).rejects.toMatchObject({code:'SUMMARY_TOO_LONG'});
  expect(p.complete).toHaveBeenCalledOnce();
  expect(await db.prepare('SELECT state FROM v3_model_spend').first()).toMatchObject({state:'settled'});
 });
 it('distinguishes unconfirmed outcomes from malformed known output',()=>{
- for(const text of ['null','not JSON','{}'])expect(()=>parseCatchUpSummary(text)).toThrow('summary was incomplete');
+ for(const text of ['null','not JSON','{}'])expect(()=>parseCatchUpSummary(text,input())).toThrow('summary was incomplete');
 });
