@@ -204,12 +204,14 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
   try{
    const scoped=await feedEnv(env,body.feedId);
    let nextCollection=claimed.collection_due_ms;
+   let storageDeferred=false;
    if(scoped){
     if(claimed.collection_due_ms<=Date.now()){
      const interval=Number(scoped.SOURCE_COLLECTION_INTERVAL_MS??300000);
      if(!Number.isSafeInteger(interval)||interval<60000||interval>86400000)throw Error('INVALID_COLLECTION_INTERVAL');
-     await runConnectorMaintenance(scoped,new Date(),{scheduleOnly:true});
-     nextCollection=(Math.floor(Date.now()/interval)+1)*interval;
+     const collection=await runConnectorMaintenance(scoped,new Date(),{scheduleOnly:true});
+     storageDeferred=collection?.storageDeferred===true;
+     if(!storageDeferred)nextCollection=(Math.floor(Date.now()/interval)+1)*interval;
     }
     await dispatchConnectorPolls(scoped,body.feedId);await scoped.PROCESSING_QUEUE.send({type:'connector_relay',feedId:body.feedId});
    }
@@ -220,7 +222,7 @@ export async function processConnectorMessage(env:Env,raw:ConnectorQueueMessage,
     collection_due_ms=CASE WHEN collection_epoch=? THEN ? ELSE collection_due_ms END,
     token=NULL,last_error=NULL,attempts=0,processing_until=0,processing_token=NULL
     WHERE feed_id=? AND token=? AND processing_token=? RETURNING feed_id`)
-    .bind(claimed.collection_epoch,Math.min(Date.now()+(scoped?60_000:300_000),nextCollection||Infinity),claimed.collection_epoch,nextCollection,body.feedId,body.token,workToken).first();
+    .bind(claimed.collection_epoch,Math.min(Date.now()+(scoped?60_000:300_000),storageDeferred?Infinity:nextCollection||Infinity),claimed.collection_epoch,nextCollection,body.feedId,body.token,workToken).first();
   }finally{if(!released)await env.DB.prepare('UPDATE connector_feed_schedule SET processing_until=0,processing_token=NULL WHERE feed_id=? AND processing_token=?').bind(body.feedId,workToken).run();}
  }else{
   if(!Object.hasOwn(tables,body.table))throw Error('INVALID_CONNECTOR_MESSAGE');

@@ -18,6 +18,7 @@ import type {SourceFetchRequest} from '@distilled/connectors';
 import {buildGoogleNewsRssUrl,TESTED_ACTORS,D1ProviderPollScheduler,sourceSqlFromD1} from '@distilled/connectors';
 import type {Env} from './types';
 import {freezeCollectionWindow,approvedCollectionBounds,initialCollectionStart} from './connector-collection-window';
+import {expireCompletedConnectorBatches} from './connector-batch-expiry';
 
 let ctx:Awaited<ReturnType<typeof createIntakeDatabase>>,env:Env,request:SourceFetchRequest;
 it('freezes X date windows, advances only finished scans, and refuses invented scope or run identities',async()=>{
@@ -76,6 +77,43 @@ beforeEach(async()=>{
  request={scope:{feedId:'feed-1',feedSourceId:'feed-source-1',sourceId:enrolled.scope.sourceId},configurationRevision:enrolled.scope.feedRevision,runId:'rss-run',source:{family:'rss',locator:'https://example.com/feed'},requestedBounds:{},limit:30};
 });
 afterEach(async()=>ctx?.dispose());
+it('defers new collection at the storage threshold and resumes with the normal identity',async()=>{
+ const due=new Date('2026-10-03T13:00:00Z');
+ const pressured=new Proxy(ctx.db,{get(target,key){
+  if(key==='prepare')return (sql:string)=>sql==='SELECT 1'?{run:async()=>({meta:{size_after:9_000_000_000}})}:target.prepare(sql);
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+ const guarded={...env,STORAGE_MAINTENANCE_ENABLED:'true'};
+ expect(await runConnectorMaintenance({...guarded,DB:pressured},due,{scheduleOnly:true})).toMatchObject({scheduled:[]});
+ expect(await ctx.db.prepare('SELECT COUNT(*) AS count FROM connector_rss_poll_jobs').first()).toEqual({count:0});
+ const resumed=await runConnectorMaintenance(guarded,due,{scheduleOnly:true});
+ expect(resumed?.scheduled).toHaveLength(1);
+ expect((await runConnectorMaintenance(guarded,due,{scheduleOnly:true}))?.scheduled).toEqual(resumed?.scheduled);
+},20_000);
+it('expires a completed batch, preserves health metadata, and leaves pending poll payloads intact',async()=>{
+ const now=new Date(),xml='<rss><channel>'+Array.from({length:4},(_,i)=>`<item><guid>story-${i}</guid><title>Story ${i}</title><link>https://example.com/articles/${i}</link><description>One new development per story.</description></item>`).join('')+'</channel></rss>';
+ const runtime=createConnectorRuntime(env,vi.fn(async()=>new Response(xml)) as typeof fetch);
+ const rss={scope:request.scope,configurationRevision:request.configurationRevision,runId:'expiry-fixture',url:request.source.locator,maxItems:30};
+ await runtime.rssScheduler.schedule(rss.runId,rss,now.toISOString());
+ expect(await runtime.rssScheduler.runOne(120000,rss.runId)).toBe('DONE');
+ const original=await ctx.db.prepare("SELECT handoff_id,json_extract(data,'$.archiveRef') ref FROM connector_batches").first<{handoff_id:string;ref:string}>();
+ expect(original?.ref).toMatch(/^connector-batches\/v1\//);
+ const [due]= (await ctx.db.prepare('SELECT batch_id,expires_at FROM connector_batch_expiry').all<{batch_id:string;expires_at:number}>()).results;
+ expect(due.batch_id).toBe(original?.handoff_id);
+ const expireAt=new Date((due.expires_at+1)*1000);
+ const remove=vi.fn(async(key:string)=>{objects.delete(key);});
+ const bucket={delete:remove} as unknown as R2Bucket;
+ expect(await expireCompletedConnectorBatches({DB:ctx.db,RAW_ARCHIVE:bucket},now)).toBe(0);
+ await ctx.db.prepare("INSERT INTO connector_batches(feed_id,feed_source_id,handoff_id,data) VALUES('feed-1','feed-source-1','pending','{}')").run();
+ remove.mockRejectedValueOnce(Error('simulated archive outage'));
+ await expect(expireCompletedConnectorBatches({DB:ctx.db,RAW_ARCHIVE:bucket},expireAt)).rejects.toThrow('simulated archive outage');
+ expect(objects.has(original!.ref)).toBe(true);
+ expect(await expireCompletedConnectorBatches({DB:ctx.db,RAW_ARCHIVE:bucket},expireAt)).toBe(1);
+ expect(objects.has(original!.ref)).toBe(false);
+ expect(await connectorSourceHealth(ctx.db,'feed-1','feed-source-1')).toMatchObject({lastBatch:{observations:4,accepted:true},cumulative:{observations:4}});
+ expect(await ctx.db.prepare("SELECT data FROM connector_batches WHERE handoff_id='pending'").first()).toEqual({data:'{}'});
+ await expect(runtime.collectRss(rss)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
+},25_000);
 it('collects RSS from publishers requiring the same bot identity used during assessment',async()=>{
  const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
   const headers=new Headers(init?.headers);

@@ -1,9 +1,16 @@
 import { sha256, HandoffError } from '@distilled/contracts';
-import type { SqlDatabase } from './storage';
+import type { ConnectorBatchArchive, SqlDatabase } from './storage';
 import { FallbackSourceCollector } from './provider-collector';
 import { DEFAULT_SOURCE_ORDER, SourceProviderError, type SourceFetchRequest } from './provider-types';
 import {SourceHandoffWait,isSourceDatabaseUnavailable} from './handoff-wait';
 import {D1ProviderSourceRepository} from './provider-storage';
+
+/** A completed poll needs its coverage watermark, not another copy of the batch. */
+function completedProviderPollResult(result: Extract<Awaited<ReturnType<FallbackSourceCollector['collect']>>, {state:'HANDED_OFF'}>) {
+  const {request,response,...summary} = result;
+  if (!request || !response) return result;
+  return {...summary,request:{handoffId:request.handoffId,coverage:request.coverage},response:{durable:response.durable}};
+}
 
 export const PROVIDER_POLL_SCHEMA=`CREATE TABLE IF NOT EXISTS connector_provider_poll_jobs(
  job_id TEXT PRIMARY KEY, request TEXT NOT NULL, initial_hash TEXT NOT NULL, provider_order TEXT NOT NULL,
@@ -15,7 +22,7 @@ interface Job {job_id:string;request:string;provider_order:string;lease_version:
  * create an endpoint. Authorization must also ensure legacy polling is disabled. */
 export class D1ProviderPollScheduler {
   constructor(private db:SqlDatabase,private collector:Pick<FallbackSourceCollector,'collect'>,
-    private authorize:(request:SourceFetchRequest)=>Promise<boolean>,private now=Date.now,private maxPages=100,private coalescePending=false,private retireUnboundedX=false){}
+    private authorize:(request:SourceFetchRequest)=>Promise<boolean>,private now=Date.now,private maxPages=100,private coalescePending=false,private retireUnboundedX=false,private batchArchive?:ConnectorBatchArchive){}
   async schedule(id:string,request:SourceFetchRequest,dueAt:string,order=DEFAULT_SOURCE_ORDER[request.source.family]) {
     if(!id||!Number.isFinite(Date.parse(dueAt)))throw new Error('INVALID_SCHEDULE');
     const data=JSON.stringify(request),providers=JSON.stringify(order),hash=await sha256(JSON.stringify([data,providers]));
@@ -79,7 +86,7 @@ export class D1ProviderPollScheduler {
         &&!request.recheckItemKeys&&!request.requestedBounds.startTime&&!request.requestedBounds.endTime
         &&(!request.continuation||request.continuation.providerId==='x_twitterapi_io');
       if(retiring){
-        const repository=new D1ProviderSourceRepository(this.db);
+        const repository=new D1ProviderSourceRepository(this.db,this.batchArchive);
         const key=(n:number)=>sha256(JSON.stringify([request.scope,request.runId,'provider-batch',n]));
         const saved=await repository.loadProviderBatch(request.scope,await key(job.offset))
           ??await repository.loadSnapshot(request.scope,await key(-1));
@@ -103,7 +110,7 @@ export class D1ProviderPollScheduler {
       if(result.nextOffset!==undefined)return await retry(result,request,result.nextOffset,job.pages,0,true);
       if(retiring&&result.providerId!=='x_apify')return await finish('BLOCKED',result,'UNBOUNDED_SCOPE_RETIRED');
       if(result.continuation)return await retry(result,{...request,runId:await sha256(request.runId+':page'),continuation:result.continuation},0,job.pages+1,1000,true);
-      return await finish('DONE',result);
+      return await finish('DONE',completedProviderPollResult(result));
     }catch(error){
       if(error instanceof SourceHandoffWait)return await retry(null,request,job.offset,job.pages,5000,false,error.code,true);
       if(isSourceDatabaseUnavailable(error))return await retry(null,request,job.offset,job.pages,5000,false,'TEMPORARY_UNAVAILABLE',true);

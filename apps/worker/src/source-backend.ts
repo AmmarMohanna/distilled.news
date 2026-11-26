@@ -1,5 +1,5 @@
 import {BoundedFeedHttp,createSourceCollector,D1ProviderSourceRepository,D1ProviderPollScheduler,
-  DurableProviderHttp,HttpSourceExecution,R2SourcePayloadStore,sourceSqlFromD1,
+  DurableProviderHttp,HttpSourceExecution,R2SourcePayloadStore,ConnectorBatchArchive,CONNECTOR_BATCH_ARCHIVE_NAMESPACE,sourceSqlFromD1,
   D1RssPollScheduler,RssSourceCollector,D1SourceRepository,isSourceDatabaseUnavailable,SourceProviderError,type RssRequest,
   type SourceFetchRequest,type WebsiteLinkSelector} from '@distilled/connectors';
 import {HandoffError,type CandidateIntakePort} from '@distilled/contracts';
@@ -43,6 +43,7 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
   selectWebsiteLinks?:(request:SourceFetchRequest)=>WebsiteLinkSelector;
 }) {
   const sql=sourceSqlFromD1(env.DB),payloads=new R2SourcePayloadStore(env.RAW_ARCHIVE);
+  const batchArchive=new ConnectorBatchArchive(new R2SourcePayloadStore(env.RAW_ARCHIVE,CONNECTOR_BATCH_ARCHIVE_NAMESPACE));
   const dispatch=options.fetcher??fetch;
   const publicDispatch:typeof fetch=(value,init)=>{
     const headers=new Headers(init?.headers);
@@ -104,12 +105,12 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     const baseHttp=new BoundedFeedHttp(async(value,init)=>{await authorizeUrl(value);return publicDispatch(value,{...init,redirect:'manual'})},{maxBytes:PUBLIC_SOURCE_MAX_BYTES,followSameOriginRedirects:request.source.family==='rss'||request.source.family==='website'});
     const originHttp=env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?rateLimitedPublicHttp(env.DB,baseHttp,authorizeUrl):baseHttp;
     const http=env.SOURCE_SHARED_PUBLIC_FETCH_ENABLED==='true'?sharedPublicHttp(env.DB,env.RAW_ARCHIVE,originHttp,authorizeUrl,Date.now,PUBLIC_SOURCE_MAX_BYTES):originHttp;
-    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,dispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited',requirePaidApproval),execution,secrets,ceilings,
+    return {provider:createSourceCollector({repository:new D1ProviderSourceRepository(sql,batchArchive),payloads,intake,http,paidHttp:new DurableProviderHttp(sql,payloads,dispatch,4_000_000,60_000,sourceProviderLimit,deploymentLimits,dailyBudget,{zyte:60_000},env.SOURCE_COLLECTION_BUDGET_MODE!=='unlimited',requirePaidApproval),execution,secrets,ceilings,
 
       zyteListingRetryEnabled,
       selectWebsiteLinks:options.selectWebsiteLinks&& (async (url,candidates)=>{await requirePaidApproval();return options.selectWebsiteLinks!(request)(url,candidates);}),
       enrichRssArticles:!!(env.SOURCE_EXECUTION_URL&&env.SOURCE_EXECUTION_TOKEN),resolveGoogleArticles:env.SOURCE_GOOGLE_RESOLUTION_ENABLED==='true'}),
-      rss:new RssSourceCollector(new D1SourceRepository(sql),payloads,http,intake,undefined,helper)};
+      rss:new RssSourceCollector(new D1SourceRepository(sql,batchArchive),payloads,http,intake,undefined,helper)};
   };
   const scheduledCollector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>makeCollector(request).provider.collect(request,order,offset)};
   const collector={collect:async(request:SourceFetchRequest,order?:readonly string[],offset?:number)=>{
@@ -127,6 +128,6 @@ export function createSourceBackend(env:SourceBackendEnv,options:{
     // Scheduler admission already performed the initial approval read. Public
     // direct calls retain their own admission; every transport/cache/handoff
     // boundary still revalidates current persisted approval independently.
-    scheduler:new D1ProviderPollScheduler(sql,scheduledCollector,options.authorize,Date.now,options.providerPageLimit??100,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true',env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'),
+    scheduler:new D1ProviderPollScheduler(sql,scheduledCollector,options.authorize,Date.now,options.providerPageLimit??100,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true',env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true',batchArchive),
     rssScheduler:new D1RssPollScheduler(sql,scheduledRssCollector,r=>options.authorize(rssRequest(r)),Date.now,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true')};
 }

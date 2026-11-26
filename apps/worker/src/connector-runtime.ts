@@ -12,6 +12,7 @@ import {productConnectorSource} from './connector-source';
 import {canonicalJson} from './v1-intake/canonical';
 import {hasUncertainSourcePayment} from './connector-paid-fence';
 import {sourceAvailability} from './connector-availability';
+import {readStorageHealth} from './storage-maintenance';
 import {approvedCollectionBounds,freezeCollectionWindow,initialCollectionStart} from './connector-collection-window';
 
 /** Reads current approved product state; never enrolls or repairs stale queued work. */
@@ -116,6 +117,14 @@ export async function scheduleProviderWindow(db:D1Database,scheduler:Pick<Return
 /** Durable scheduler owns continuation and retries; one bounded slice per cron tick. */
 export async function runConnectorMaintenance(env:Env,now=new Date(),options:{scheduleOnly?:boolean;skipSchedule?:boolean}={}) {
  if(env.SOURCE_CONNECTORS_ENABLED!=='true'||env.V1_DOWNSTREAM_ENABLED!=='true')return;
+ if(env.STORAGE_MAINTENANCE_ENABLED==='true'&&!options.skipSchedule){
+  const health=await readStorageHealth(env.DB);
+  if(health.status==='critical'){
+   console.warn(JSON.stringify({event:'connector_collection_admission_deferred',...health}));
+   if(options.scheduleOnly)return {scheduled:[],outcomes:[],durationMs:0,storageDeferred:true as const};
+   options={...options,skipSchedule:true};
+  }
+ }
  const maxJobs=Number(env.SOURCE_POLL_MAX_JOBS_PER_TICK??4),budgetMs=Number(env.SOURCE_POLL_TICK_BUDGET_MS??90000);
  if(!Number.isSafeInteger(maxJobs)||maxJobs<1||maxJobs>20||!Number.isSafeInteger(budgetMs)||budgetMs<1000||budgetMs>600000)throw new Error('INVALID_POLL_RUNNER_BOUNDS');
  const backend=createConnectorRuntime(env);

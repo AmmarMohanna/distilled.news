@@ -1,5 +1,5 @@
 import {HandoffError,type ConnectorHandoffResponse} from '@distilled/contracts';
-import {D1ProviderSourceRepository,sourceSqlFromD1,type SourceFetchRequest} from '@distilled/connectors';
+import {CONNECTOR_BATCH_ARCHIVE_NAMESPACE,ConnectorBatchArchive,D1ProviderSourceRepository,R2SourcePayloadStore,sourceSqlFromD1,type SourceFetchRequest} from '@distilled/connectors';
 import {authorizeConnectorSource} from './connector-runtime';
 import {acceptV1Handoff} from './v1-downstream-runtime';
 import {canonicalJson} from './v1-intake/canonical';
@@ -8,7 +8,7 @@ import type {Env} from './types';
 /** Authenticated QA repair only: revalidate a saved snapshot against current
  * approval and intake policy. Never execute a provider or advance its cursor. */
 export async function recoverQaProviderBatch(env:Env,current:SourceFetchRequest,providerId:string,batchKey:string):Promise<ConnectorHandoffResponse> {
- const repository=new D1ProviderSourceRepository(sourceSqlFromD1(env.DB));
+ const repository=new D1ProviderSourceRepository(sourceSqlFromD1(env.DB),new ConnectorBatchArchive(new R2SourcePayloadStore(env.RAW_ARCHIVE,CONNECTOR_BATCH_ARCHIVE_NAMESPACE)));
  const batch=await repository.loadProviderBatch(current.scope,batchKey);
  if(!batch||batch.providerId!==providerId||canonicalJson(batch.originalRequest.scope)!==canonicalJson(current.scope)||
    canonicalJson(batch.originalRequest.source)!==canonicalJson(current.source)||
