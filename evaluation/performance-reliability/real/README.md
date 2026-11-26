@@ -158,6 +158,14 @@ Set these GitHub Actions variables:
 | `CAMPAIGN_CLOUD_USD` | Optional. Cloudflare cost envelope per run; defaults to `0.2`. |
 | `CAMPAIGN_CAPACITY_JSON` | Optional. Overrides the declared capacity figures (Workers plan, CPU and D1 budgets) that the pilot used. |
 
+To read the digest of the Worker as currently deployed (read-only; run it again after every redeploy):
+
+```sh
+CAMPAIGN_CLOUDFLARE_TOKEN=... node evaluation/performance-reliability/real/bundle-digest.mjs
+```
+
+Or from a local build of the exact module:
+
 ```sh
 node -e "const fs=require('node:fs');const {createHash}=require('node:crypto');const bytes=fs.readFileSync(process.argv[1]);console.log(createHash('sha256').update(JSON.stringify(bytes.toString('base64'))).digest('hex'))" path/to/index.js
 ```
