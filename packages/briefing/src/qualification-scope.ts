@@ -13,6 +13,7 @@ const importBase = /\bimportations?\b/u;
 const previousYear = /\b(?:annee|exercice) precedent[e]?\b/u;
 const percentage = /(?<![\d,.])\d+(?:[,.]\d+)?\s*%/gu;
 const reservation = /\b(?:plafonds?|reserves?|marges?|disponibles?)\b/u;
+const reserveYear = /\b(?:en|pour|de|sur|exercice) (\d{4})\b/gu;
 const amount = /(?<![\d,.])\d+(?:[,.]\d+)?\s+(?:millions?|milliards?)\b/gu;
 const numericValues = (sentence:string, pattern:RegExp) =>
   Array.from(sentence.matchAll(pattern), ([value])=>value.replace(/\s+/g,'').replace('.',','));
@@ -48,9 +49,9 @@ export function frenchQualificationIssues(
     const year=/^(\d{4})-\d\d-\d\d/u.exec(source.publishedAt)?.[1];
     if (!year || !/\bcette annee\b/u.test(evidence) || !reservation.test(evidence)) continue;
     const values = numericValues(evidence,amount);
-    const scope = new RegExp('\\b(?:en|pour|de|sur|exercice) '+year+'\\b','u');
     if (claims.some(claim=>reservation.test(claim) &&
-        numericValues(claim,amount).some(value=>values.includes(value)) && !scope.test(claim))) {
+        numericValues(claim,amount).some(value=>values.includes(value)) &&
+        !Array.from(claim.matchAll(reserveYear), match=>match[1]).includes(year))) {
       issues.add('V5_RESERVE_YEAR: '+source.ref+' places this amount within the '+year+' reserve. State the applicable year next to the amount.');
     }
   }

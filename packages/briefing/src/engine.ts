@@ -815,7 +815,7 @@ export async function generateBriefing(
   if (reliabilityRevision(models)) {
     const ceiling = readingBudgetWords(input.feed.windowMinutes);
     const selection = selectWithinReaderBudget(input.feed.language,drafts,ceiling);
-    if (!selection.fits) {
+    if (selection.fits === false) {
       return finish({status:'rejected',items:[],skipped,dropped:[
         ...dropped,
         ...drafts.map(draft=>({headline:draft.headline,sourceIds:sourceIdsOfRefs(draft.refs),carry:true,

@@ -4,13 +4,15 @@ The beta has two controls. Automated V5 always ends in private review. An editor
 
 ## Isolated setup
 
-1. Use an isolated Worker and D1 database with migration `0101_v5_editorial_review.sql` applied. Use beta-owned feeds and test-only subscriptions. Retain the existing V5 stage routes, OpenRouter spending admission and source-binding configuration.
+1. Use an isolated Worker and D1 database with migration `0103_v5_editorial_review.sql` applied. Use beta-owned feeds and test-only subscriptions. Retain the existing V5 stage routes, OpenRouter spending admission and source-binding configuration.
 2. Set `BRIEFING_V5_EDITOR_REVIEW_ENABLED=true` when generating a beta window. It saves immutable stage checkpoints and closes terminal or deferred downstream attempts with usable drafts into an editorial case. Existing automatic V5 remains a private shadow. Existing shadow runs created before checkpointing require their own archive replay rather than being recovered from older snapshots automatically.
 3. Sign in as the administrator account that owns the enrolled feed and open `/api/admin/v5-editor/workbench`. Use the feed ID from the account’s feed list and select the window. Review the original sources, earlier editions, generated candidates and downstream findings.
 4. Compose the edition and bind each cited source to an exact passage. Use the original reader-history link for an update or correction when appropriate. Save, inspect the saved copy and attest to factual support, scope, attribution and novelty. Rejection records a reason. A new edit invalidates any earlier approval.
 5. Keep `BRIEFING_V5_EDITOR_PUBLICATION_ENABLED` unset for review-only use. Once a deployment and delivery are explicitly authorized, enable it on the beta Worker only. An authenticated owner-admin must still select **Publish approved copy** for that exact revision. Delivery respects the scheduled time and existing outbox. Test with isolated subscriptions before using any reader feed.
 
 The workflow checks that the source revision belongs to the feed and frozen window, is still authorized, and contains the quotation. It counts headlines and bodies using the feed language’s word boundaries and rejects exact repeats. The editor judges whether a real passage supports the wording, whether an occurrence is the same, and whether an omitted condition changes the claim. Valid quotation text alone is insufficient. New reader history, source revocation, another edit, rejection or a feed revision change can invalidate the publication attempt.
+
+Integration staging previously recorded the same V5 trigger change under `0101_v5_editorial_review.sql`. Fresh targets apply the retention migrations `0101` and `0102` before `0103`. For the existing integration database, reconcile its migration ledger and verify the trigger definition before a release. Retain the old record until a reviewed database recovery procedure accounts for it.
 
 ## Audit and spending
 

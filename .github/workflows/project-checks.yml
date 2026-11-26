@@ -40,7 +40,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == push && "$BASE_SHA" =~ ^0{40}$ ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == push &&
+                ( "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" || "$BASE_SHA" =~ ^0{40}$ ) ]]; then
             BASE_SHA="$(git merge-base HEAD "refs/remotes/origin/$DEFAULT_BRANCH")"
           fi
           python scripts/release.py validate "$BASE_SHA"
