@@ -1,0 +1,50 @@
+{
+  "baseCommit": "a37050f4",
+  "hashPolicy": "SHA256 of raw bytes. Prior reports and paid operation records remain unchanged.",
+  "files": [
+    {
+      "file": "evaluation/briefing-quality/reports/verification-review-fixes-20261120/COMBINED_REPLAY.json",
+      "sha256": "449c66abf414c5efaa59259470f2f0a543202f82e1441665fd718cef4eec6c07"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-review-fixes-20261120/FINAL_OFFLINE_CHECKS.json",
+      "sha256": "d12ade833d3a9c394776a8f665aaee9c807171f7d7bb921e7d6d99d5a44f1791"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-review-fixes-20261120/INITIAL_OFFLINE_CHECKS.json",
+      "sha256": "e1a7b06cc24d615a823e7eaa5953ea5dbdfbbd59dcb2aa7c3c324e0231c12b3b"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-review-fixes-20261120/LEGACY_REPLAY.json",
+      "sha256": "71f235760c36435dc6c78df61fc6caec3397e22df5952c342efe7abccbc05dbe"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-review-fixes-20261120/REPORT.md",
+      "sha256": "37e8315d92a1f25eaa445f257626a5cfc8b56901ced6805ec1e40298345829f2"
+    },
+    {
+      "file": "packages/briefing/src/source-bound-claims.ts",
+      "sha256": "bacc3f0893d118c237fe622fc3cbff04d05123be3f4f9c91681410258a7df2b7"
+    },
+    {
+      "file": "packages/briefing/test/source-identity-memo.test.ts",
+      "sha256": "f2b11e6b44fb5c0b7243cb328b33c1ca327bae468148aa1ea83e901727c1a48f"
+    },
+    {
+      "file": "packages/briefing/test/person-role-inventory.test.ts",
+      "sha256": "5e881a274a176b718fe9454f84d294d37e4d32e08b6820026b965b09c2b0b61f"
+    },
+    {
+      "file": "evaluation/briefing-quality/replay-adaptive-context.ts",
+      "sha256": "5602a4f75be5d1c1856364132fe34cdcd41f3a767a046ea962d02e8eac402c89"
+    },
+    {
+      "file": "evaluation/briefing-quality/replay-policies.ts",
+      "sha256": "81be9b7fa2839ef6b1a82ae65533a44c15314b199e43281123bcf9b6cb55cac8"
+    },
+    {
+      "file": "evaluation/briefing-quality/replay-policies.test.ts",
+      "sha256": "fac3b55ca6e5d320fbf37e3703ce81771335119079cf04cf0d8c32b65cb160b6"
+    }
+  ]
+}

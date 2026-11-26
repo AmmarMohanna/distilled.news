@@ -1,0 +1,70 @@
+{
+  "experimentCheckpoint": "b92d0bbc",
+  "hashPolicy": "SHA256 of raw bytes; paid request and response hashes are in measurements.json",
+  "files": [
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/BUNDLE_REPLAY.json",
+      "sha256": "d6eb999fad6e46224f2a8c890f6b89959c9cb23b862451b582c7b2dd7f6f4969"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/ENGINE_RESULTS.json",
+      "sha256": "77bd2e58db6d929a612c272a00f335d81c44bfd964e04ba4bcf75be405b0624f"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/FINANCIAL.json",
+      "sha256": "b38c27ac5b655a2e7437a46cb2f86d3a994e29547b59d71b16d2b709a271edd6"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/LOCAL_CHECKS.json",
+      "sha256": "9209f7e8943200e9d462407e018c8e264ac8527ed192cffad989f88ec913e175"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/measurements.json",
+      "sha256": "c429627df7efb3683537e5d4d9fd9f1c67b11a9c9fe98d6d851ed306ad5c0cfe"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/OFFLINE_CHECKS.json",
+      "sha256": "9b9da8ffd6a9379ba26698a966bb6a9576115e78c0ee2a8b77db310735b142d6"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/REPLAY.json",
+      "sha256": "4c0e378aaa83963cda067793568672aa72aac50a6abd09b3e32e30c9227c1a38"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/REPORT.md",
+      "sha256": "8ecc86d8f545b884aa1065a03a19930a4d393aa345d33c242113519b963ef7fb"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/SUBSET_BUNDLE_REPLAY.json",
+      "sha256": "d6eb999fad6e46224f2a8c890f6b89959c9cb23b862451b582c7b2dd7f6f4969"
+    },
+    {
+      "file": "evaluation/briefing-quality/reports/verification-cost-fix-20261120/SUBSET_TRACE.json",
+      "sha256": "6248c1d76648e1cc2ddf089c7fb2084af953689979bbfaf012f5377f83b5ad13"
+    },
+    {
+      "file": "packages/briefing/src/compact-proofs.ts",
+      "sha256": "a958f6583725232a1e91ca91079e7316c4390b695f2ff31540662831c5603768"
+    },
+    {
+      "file": "packages/briefing/src/source-bound-claims.ts",
+      "sha256": "166e78f88d1290804a768493145cc480e08d1b68d3359bd64f4693592eac5011"
+    },
+    {
+      "file": "packages/briefing/src/engine.ts",
+      "sha256": "4f784199273128036a363a7b7e421114139a6798d8cbb21a4ed2ebf95bf92b52"
+    },
+    {
+      "file": "apps/worker/src/v1-intelligence/v3-window.ts",
+      "sha256": "c3f3259094b5a29376bf44657008a03dea03c3e920b729f2afa5053f39d15e1a"
+    },
+    {
+      "file": "evaluation/briefing-quality/qualify-source-bindings.ts",
+      "sha256": "200fe7fe1fc824f73c886f083930097b4b63e33f4495360c5d81ffaf61b0b4a1"
+    },
+    {
+      "file": "evaluation/briefing-quality/replay-adaptive-context.ts",
+      "sha256": "b0932fc77e3201945f384df8ca89417d2e671d2ce2cec8ba39aaf729365c9ea3"
+    }
+  ]
+}

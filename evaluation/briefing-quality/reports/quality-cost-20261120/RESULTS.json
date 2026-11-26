@@ -1,0 +1,841 @@
+{
+  "additionalUsd": 2.8442756,
+  "paidCalls": 127,
+  "heldUsd": 0,
+  "results": [
+    {
+      "run": "quality-cost-20261120-a",
+      "paidCalls": 12,
+      "additionalUsd": 0.050244,
+      "heldUsd": 0,
+      "controls": [
+        {
+          "id": "ar-compound-valid-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-valid-literal",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-literal",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-literal",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-literal",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-literal",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-literal",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-literal",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-literal",
+          "language": "ar",
+          "completed": true,
+          "matched": false
+        }
+      ],
+      "engine": []
+    },
+    {
+      "run": "quality-cost-20261120-b",
+      "paidCalls": 6,
+      "additionalUsd": 0.008035999999999995,
+      "heldUsd": 0,
+      "controls": [
+        {
+          "id": "ar-compound-valid-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-valid-literal-v2",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-literal-v2",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-literal-v2",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-literal-v2",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-literal-v2",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-literal-v2",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-literal-v2",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-literal-v2",
+          "language": "ar",
+          "completed": true,
+          "matched": false
+        }
+      ],
+      "engine": []
+    },
+    {
+      "run": "quality-cost-20261120-c",
+      "paidCalls": 31,
+      "additionalUsd": 0.6577796000000001,
+      "heldUsd": 0,
+      "controls": [
+        {
+          "id": "ar-compound-valid-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-valid-source-mini",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-source-mini",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-source-mini",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-source-mini",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-source-mini",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-source-mini",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-source-mini",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-source-mini",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-focused-source-mini",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-identity-only-control-focused-source-mini",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        }
+      ],
+      "engine": [
+        {
+          "id": "lebanon-current",
+          "calls": 15,
+          "inputTokens": 169474,
+          "outputTokens": 14539,
+          "normalizedUsd": 0.45526,
+          "reconstructedUsd": 0.41215440000000003,
+          "unchangedReaderItems": true,
+          "stories": 5,
+          "dropped": 0,
+          "replayObservedMs": 68976,
+          "baselineUsd": 0.329698
+        },
+        {
+          "id": "ai-current",
+          "calls": 14,
+          "inputTokens": 262312,
+          "outputTokens": 22330,
+          "normalizedUsd": 0.703264,
+          "reconstructedUsd": 0.5874032,
+          "unchangedReaderItems": true,
+          "stories": 9,
+          "dropped": 0,
+          "replayObservedMs": 82313,
+          "baselineUsd": 0.7060879999999999
+        }
+      ]
+    },
+    {
+      "run": "quality-cost-20261120-d",
+      "paidCalls": 21,
+      "additionalUsd": 0.5842560000000003,
+      "heldUsd": 0,
+      "controls": [
+        {
+          "id": "ar-compound-valid-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-valid-shared-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-shared-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-shared-schema",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-shared-schema",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-shared-schema",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-shared-schema",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-shared-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-shared-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-focused-shared-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-identity-only-control-focused-shared-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        }
+      ],
+      "engine": [
+        {
+          "id": "lebanon-current",
+          "calls": 7,
+          "inputTokens": 115472,
+          "outputTokens": 10461,
+          "normalizedUsd": 0.31463199999999997,
+          "reconstructedUsd": 0.314632,
+          "unchangedReaderItems": true,
+          "stories": 5,
+          "dropped": 0,
+          "replayObservedMs": 25662,
+          "baselineUsd": 0.329698
+        },
+        {
+          "id": "ai-current",
+          "calls": 23,
+          "inputTokens": 329989,
+          "outputTokens": 31693,
+          "normalizedUsd": 0.913522,
+          "reconstructedUsd": 0.9060340000000001,
+          "unchangedReaderItems": false,
+          "stories": 9,
+          "dropped": 0,
+          "replayObservedMs": 126204,
+          "baselineUsd": 0.7060879999999999
+        }
+      ]
+    },
+    {
+      "run": "quality-cost-20261120-e",
+      "paidCalls": 48,
+      "additionalUsd": 1.09244,
+      "heldUsd": 0,
+      "controls": [
+        {
+          "id": "ar-compound-valid-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-valid-general-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-general-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-general-schema",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-general-schema",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-general-schema",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-general-schema",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-general-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-general-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-focused-general-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-identity-only-control-focused-general-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        }
+      ],
+      "engine": [
+        {
+          "id": "lebanon-current",
+          "calls": 10,
+          "inputTokens": 124499,
+          "outputTokens": 12373,
+          "normalizedUsd": 0.347982,
+          "reconstructedUsd": 0.34798199999999996,
+          "unchangedReaderItems": false,
+          "stories": 5,
+          "dropped": 0,
+          "replayObservedMs": 84109,
+          "baselineUsd": 0.329698
+        },
+        {
+          "id": "ai-current",
+          "calls": 12,
+          "inputTokens": 237253,
+          "outputTokens": 16419,
+          "normalizedUsd": 0.605858,
+          "reconstructedUsd": 0.569186,
+          "unchangedReaderItems": false,
+          "stories": 9,
+          "dropped": 0,
+          "replayObservedMs": 103264,
+          "baselineUsd": 0.7060879999999999
+        }
+      ]
+    },
+    {
+      "run": "quality-cost-20261120-f",
+      "paidCalls": 9,
+      "additionalUsd": 0.4515199999999995,
+      "heldUsd": 0,
+      "controls": [
+        {
+          "id": "ar-compound-valid-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-valid-source-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "ar-compound-substitution-source-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-valid-qualification-source-schema",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-baseline",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "en-quantity-substitution-source-schema",
+          "language": "en",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-valid-uncertainty-source-schema",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-baseline",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "fr-certainty-substitution-source-schema",
+          "language": "fr",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-focused-source-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-name-identity-only-control-focused-source-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-focused-source-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-identity-only-control-focused-baseline",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        },
+        {
+          "id": "retained-role-identity-only-control-focused-source-schema",
+          "language": "ar",
+          "completed": true,
+          "matched": true
+        }
+      ],
+      "engine": [
+        {
+          "id": "lebanon-current",
+          "calls": 7,
+          "inputTokens": 120970,
+          "outputTokens": 10750,
+          "normalizedUsd": 0.32794,
+          "reconstructedUsd": 0.30662800000000007,
+          "unchangedReaderItems": true,
+          "stories": 5,
+          "dropped": 0,
+          "replayObservedMs": 35148,
+          "baselineUsd": 0.329698
+        },
+        {
+          "id": "ai-current",
+          "calls": 14,
+          "inputTokens": 261803,
+          "outputTokens": 21964,
+          "normalizedUsd": 0.699318,
+          "reconstructedUsd": 0.625974,
+          "unchangedReaderItems": true,
+          "stories": 9,
+          "dropped": 0,
+          "replayObservedMs": 69226,
+          "baselineUsd": 0.7060879999999999
+        }
+      ]
+    }
+  ]
+}

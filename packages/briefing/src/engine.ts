@@ -1,7 +1,7 @@
 import {editorAccountingSchema,normalizeEditorAccounting,STRUCTURED_ACCOUNTING_CONTRACT} from './structured-accounting';
 import {BriefingOutputError} from './types';
 import {arabicIdentityIssues} from './identity-fidelity';
-import {verifySourceBoundClaims,independentBindingPolicy} from './source-bound-claims';
+import {verifySourceBoundClaims,independentBindingPolicy,createSourceIdentityMemo} from './source-bound-claims';
 import {generateEvidenceBriefing} from './evidence-agent';
 import {verificationMemory,exactPriorRepeat,redundantDrafts,occurrenceNovelty,OCCURRENCE_RULE} from './novelty';
 import {completeStorySources} from './citation-coverage';
@@ -401,7 +401,8 @@ async function verify(
   promptVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7,
   noveltyGuard = false,
   sourcePolicy?:EngineOptions['editorSourcePolicy'],
-  noveltyPolicy?:EngineOptions['noveltyPolicy']
+  noveltyPolicy?:EngineOptions['noveltyPolicy'],
+  sourceIdentityMemo?:ReturnType<typeof createSourceIdentityMemo>
 ): Promise<Map<number, Verdict>> {
   const priorById = new Map(prior.map((p) => [p.id, p]));
   const results = new Map<number, Verdict>();
@@ -412,7 +413,7 @@ async function verify(
       const sources = refs.map((ref) => byRef.get(ref)!).filter(Boolean);
       if(input.feed.identityFidelityPolicy==='source-bound-claims-v1'||independentBindingPolicy(input.feed.identityFidelityPolicy)){
         const verified=await verifySourceBoundClaims(port,meter,{model:models.verifier,language:input.feed.language,
-          items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
+          items:batch.map(index=>drafts[index]),sources,prior,verificationInputPolicy:input.feed.verificationInputPolicy,sourceSchemaSharing:input.feed.schemaSharingPolicy==='source-definitions-v1',compactProofs:input.feed.verificationProofPolicy==='compact-proofs-v1',sourceIdentityMemo,strictLegacyInventory:input.feed.identityFidelityPolicy==='source-bound-claims-v1',independentSourceBindings:independentBindingPolicy(input.feed.identityFidelityPolicy),atomicReaderAssertions:input.feed.identityFidelityPolicy==='source-bound-claims-v3',
           context:JSON.stringify({windowEnd:input.windowEnd,previousReviews:batch.map(index=>previousReviews.get(index)??null)})});
         for(const [local,decision]of verified)results.set(batch[local],decision);
         return;
@@ -704,10 +705,11 @@ export async function generateBriefing(
   }
   const accepted = new Set<number>();
   const previousReviews = new Map<number, Omit<PreviousReview, "index">>();
+  const sourceIdentityMemo=input.feed.sourceIdentityReusePolicy==='within-briefing-v1'?createSourceIdentityMemo():undefined;
   const repairHistory = new Map<number,Array<Omit<PreviousReview,'index'>>>();
   let todo = drafts.map((_, i) => i);
   for (let round = 0; round <= options.maxRepairs && todo.length; round += 1) {
-    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy,options.noveltyPolicy));
+    const verdicts = await timed("verify", () => verify(port, meter, models, input, drafts, todo, byRef, verifierPrior, options.maxVerifyChars, previousReviews, options.promptVersion, options.noveltyGuard,options.editorSourcePolicy,options.noveltyPolicy,sourceIdentityMemo));
     const flagged = new Map<number, string[]>();
     const unchecked: number[] = [];
     for (const index of todo) {

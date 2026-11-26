@@ -15,7 +15,7 @@ import {auditRepairCoverage} from '../../packages/briefing/src/verification-reco
 const hash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const write=(file:string,v:unknown)=>fs.writeFileSync(file,JSON.stringify(v,null,2)+'\n',{flag:'wx'});
 const [mode,dirArg]=process.argv.slice(2),dir=path.resolve(dirArg||'.local-reports/integration/source-bindings-q1');
-type Case={id:string;kind:string;language:string;items:Array<{headline:string;body:string;refs:string[]}>;sources:Array<{ref:string;text:string;title?:string}>;prior:unknown[];context:string;expected:Record<number,'ok'|'reject'>;rationale:string;original?:ModelRequest;engineSnapshot?:any;coverageProbe?:boolean;verificationInputPolicy?:'reader-unit-context-v1'};
+type Case={expectedEngineItemsHash?:string;id:string;kind:string;language:string;items:Array<{headline:string;body:string;refs:string[]}>;sources:Array<{ref:string;text:string;title?:string}>;prior:unknown[];context:string;expected:Record<number,'ok'|'reject'>;rationale:string;original?:ModelRequest;engineSnapshot?:any;coverageProbe?:boolean;verificationInputPolicy?:'reader-unit-context-v1'|'reader-unit-context-v2';verificationProofPolicy?:'compact-proofs-v1';sourcePeoplePolicy?:'reader-names-v1';sourceInventoryPolicy?:'literal-v1'|'literal-mini-v1'|'literal-v2'|'literal-mini-v2'|'indexed-mini-v1';verificationSchemaPolicy?:'shared-facet-definitions-v1';schemaSharingPolicy?:'shared-definitions-v1'|'source-definitions-v1'};
 function settledSeeds(runDir:string){
  const events=fs.readFileSync(path.join(runDir,'ledger.jsonl'),'utf8').trim().split('\n').map(l=>JSON.parse(l));
  return events.filter(e=>e.state==='SETTLED').flatMap(e=>{const file=path.join(runDir,e.id+'.response.json');if(!fs.existsSync(file))return [];const raw=JSON.parse(fs.readFileSync(file,'utf8')),choice=raw.choices?.[0];if(typeof choice?.message?.content!=='string'||!choice.message.content.trim()||raw.id!==e.generationId||raw.usage.cost!==e.costUsd)return [];
@@ -107,7 +107,7 @@ if(mode==='reconcile-refusals'){
   runs.push({run:path.basename(runDir),plan:{...plan,priorDir:plan.priorDir?path.basename(plan.priorDir):undefined},totals,originalTotals,
    inputFileHash:hash(cases),ledgerFileHash:hash(fs.readFileSync(path.join(runDir,'ledger.jsonl'),'utf8')),
    cases:cases.map(c=>({id:c.id,kind:c.kind,language:c.language,expected:c.expected,rationale:c.rationale,itemsHash:hash(c.items),sourcesHash:hash(c.sources),priorHash:hash(c.prior),engineSnapshotHash:c.engineSnapshot?hash(c.engineSnapshot):undefined})),
-   controlledCases:cases.filter(c=>c.kind==='constructed-control'),outcomes,
+   controlledCases:cases.filter(c=>c.kind==='constructed-control').map(c=>({id:c.id,kind:c.kind,language:c.language,expected:c.expected,rationale:c.rationale,itemsHash:hash(c.items),sourcesHash:hash(c.sources),priorHash:hash(c.prior)})),outcomes,
    operations:reservations.map(r=>({...r,receipt:receipts.find(v=>v.id===r.id),refusal:ledger.find(e=>e.id===r.id&&['REFUSED','REFUSAL_RECONCILED'].includes(e.state)),responseHash:fs.existsSync(path.join(runDir,r.id+'.response.json'))?hash(read(r.id+'.response.json')):null})),reuses:ledger.filter(e=>['REUSED','HISTORICAL_REUSE'].includes(e.state))});
  }
  write(path.join(dir,'measurements.json'),{scope:'Development qualification only. Exact request/response payloads retained privately; immutable hashes and provider receipts below. Hashes use SHA256(JSON.stringify(parsed JSON)); ledger hashes use SHA256(JSON.stringify(raw UTF8 text)). Failed inventories are NOT true-positive factual detections.',runs});
@@ -156,6 +156,7 @@ if(mode==='reconcile-refusals'){
 }else if(mode==='run'){
  const plan=JSON.parse(fs.readFileSync(path.join(dir,'plan.json'),'utf8')),cases=JSON.parse(fs.readFileSync(path.join(dir,'cases.json'),'utf8')) as Case[];
  if(![2,5,5.5].includes(plan.ceilingUsd)||hash(cases)!==plan.casesHash)throw Error('FROZEN_PLAN_CHANGED');
+ if(cases.some(c=>c.sourcePeoplePolicy||c.engineSnapshot?.input?.feed?.sourcePeoplePolicy||c.sourceInventoryPolicy||c.verificationSchemaPolicy||c.schemaSharingPolicy==='shared-definitions-v1'||c.engineSnapshot?.input?.feed?.sourceInventoryPolicy||c.engineSnapshot?.input?.feed?.verificationSchemaPolicy||c.engineSnapshot?.input?.feed?.schemaSharingPolicy==='shared-definitions-v1'))throw Error('REJECTED_RESEARCH_ARM_USE_IMMUTABLE_CHECKPOINT_08d770bf');
  const journal=path.join(dir,'ledger.jsonl');
  // Single-process, append-only campaign. A restart never resends anything.
  const lock=fs.openSync(path.join(dir,'run.lock'),'wx');fs.closeSync(lock);
@@ -165,10 +166,10 @@ if(mode==='reconcile-refusals'){
  const line=fs.readFileSync(file,'utf8').split(/\r?\n/).find(l=>/^\s*OPENROUTER_API_KEY\s*=/.test(l));
  let key=line?.slice(line.indexOf('=')+1).trim();if(key&&(key[0]==='"'||key[0]==="'"))key=key.slice(1,key.lastIndexOf(key[0]));if(!key?.startsWith('sk-or-'))throw Error('KEY_NOT_CONFIGURED');
  const models=await (await fetch('https://openrouter.ai/api/v1/models')).json() as any;
- const pricing=models.data.find((v:any)=>v.id===plan.model)?.pricing;
- const rates=plan.model==='openai/gpt-4.1'?{input:2e-6,output:8e-6}:plan.model==='openai/gpt-4.1-mini'?{input:.4e-6,output:1.6e-6}:undefined;
- if(!rates||!pricing||Number(pricing.prompt)>rates.input||Number(pricing.completion)>rates.output)throw Error('PRICING_CEILING_CHANGED');
- write(path.join(dir,'pricing.json'),{at:new Date().toISOString(),model:plan.model,pricing});
+ const ceilings={'openai/gpt-4.1':{input:2e-6,output:8e-6},'openai/gpt-4.1-mini':{input:.4e-6,output:1.6e-6}};
+ const usedModels=[...new Set([plan.model,...(plan.additionalModels??[])])] as string[];
+ const checkedPricing=Object.fromEntries(usedModels.map(model=>{const pricing=models.data.find((v:any)=>v.id===model)?.pricing,limit=ceilings[model as keyof typeof ceilings];if(!limit||!pricing||Number(pricing.prompt)>limit.input||Number(pricing.completion)>limit.output)throw Error('PRICING_CEILING_CHANGED_'+model);return [model,pricing]}));
+ write(path.join(dir,'pricing.json'),{at:new Date().toISOString(),models:checkedPricing});
  if(plan.priorDir&&hash(fs.readFileSync(path.join(plan.priorDir,'ledger.jsonl'),'utf8'))!==plan.priorLedgerHash)throw Error('PRIOR_LEDGER_CHANGED');
  let settled=plan.priorSettledUsd??0,held=plan.priorHeldUsd??0,calls=0,unresolved=false;const outcomes=[];
  const responseCache=new Map<string,{id:string;response:Awaited<ReturnType<ReturnType<typeof openAiCompatibleModel>['complete']>>}>();let nextDispatch=0;
@@ -183,6 +184,7 @@ if(mode==='reconcile-refusals'){
   if(cached){append({state:'REUSED',caseId,system,requestHash,originalId:cached.id});return {...cached.response,costUsd:0}}
   const old=historical.find((v:any)=>['model','system','user','maxTokens','responseSchema'].every(k=>JSON.stringify(v.request[k]??null)===JSON.stringify((request as any)[k]??null)));
   if(old){append({state:'HISTORICAL_REUSE',caseId,system,requestHash,originalId:old.id,originalRequestHash:hash(old.request),originalReportedCostUsd:old.originalUsage.costUsd});return {...old.response,costUsd:0}}
+  const rates=ceilings[request.model as keyof typeof ceilings];if(!rates||!checkedPricing[request.model])throw Error('UNAUTHORIZED_MODEL');
   const reserve=Math.ceil(((Buffer.byteLength(JSON.stringify(request),'utf8')+4096)*rates.input+request.maxTokens*rates.output)*1e6)/1e6;
   if(settled+held+reserve>plan.ceilingUsd||calls>=plan.maxCalls)throw Error('CAMPAIGN_CEILING');
   if(plan.forbiddenRequestHashes?.includes(hash(request)))throw Error('HISTORICAL_UNKNOWN_REQUEST_FORBIDDEN');
@@ -223,15 +225,16 @@ if(mode==='reconcile-refusals'){
    }else if(system==='engine'){
     const frozen=c.engineSnapshot;if(!frozen)throw Error('ENGINE_SNAPSHOT_REQUIRED');
     engineResult=await generateBriefing({...frozen.input,feed:{...frozen.input.feed,...(plan.verificationOutputPolicy?{verificationOutputPolicy:plan.verificationOutputPolicy}:{}),identityFidelityPolicy:plan.preserveFrozenInput?frozen.input.feed.identityFidelityPolicy:plan.atomicReaderAssertions?'source-bound-claims-v3':'source-bound-claims-v2'}},port,{...frozen.models,verifier:plan.model},{editorSourcePolicy:frozen.editorSourcePolicy,editorAccountingPolicy:frozen.editorAccountingPolicy,editorFailurePolicy:frozen.editorFailurePolicy,...(plan.engineOptions??{}),...((c as any).engineOptions??{}),citationCoverage:frozen.citationCoverage,noveltyGuard:frozen.noveltyGuard,noveltyPolicy:frozen.noveltyPolicy,...(frozen.architecture?{architecture:frozen.architecture}:{}),promptVersion:frozen.promptVersion??1,now:()=>new Date(frozen.input.windowEnd),prepare:{maxArticleChars:Number.MAX_SAFE_INTEGER,minChars:1,nearDuplicate:1.01}});
-   }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(port,meter,{model:plan.model,independentSourceBindings:true,atomicReaderAssertions:plan.atomicReaderAssertions===true,verificationInputPolicy:c.verificationInputPolicy,language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
+   }else if(system==='candidate')decisions=Object.fromEntries(await verifySourceBoundClaims(port,meter,{model:plan.model,independentSourceBindings:true,atomicReaderAssertions:plan.atomicReaderAssertions===true,verificationInputPolicy:c.verificationInputPolicy,sourceSchemaSharing:c.schemaSharingPolicy==='source-definitions-v1',compactProofs:c.verificationProofPolicy==='compact-proofs-v1',language:c.language,items:c.items,sources:c.sources,prior:c.prior,context:c.context}));
    else{const req=c.original??{model:plan.model,system:VERIFY_SYSTEM,user:JSON.stringify({language:c.language,items:c.items.map((i,index)=>({...i,i:index})),sources:c.sources,prior:c.prior,context:c.context}),maxTokens:3000};
     decisions=await callJson(port,meter,req,raw=>{const rows=(raw as any)?.results;if(!Array.isArray(rows)||rows.length!==c.items.length)throw Error('MISSING_ITEM');const out:Record<number,unknown>={};for(const r of rows){if(!Number.isInteger(r.i)||r.i<0||r.i>=c.items.length||out[r.i]||!['ok','fix','drop','redundant'].includes(r.verdict)||r.issues!==undefined&&(!Array.isArray(r.issues)||r.issues.some((x:unknown)=>typeof x!=='string')))throw Error('INVALID_DECISION');out[r.i]=r}return out});
    }
   }catch(e){error=String(e)}
   while(campaignInFlight.size)await Promise.allSettled([...campaignInFlight]);
   const journalRows=fs.existsSync(journal)?fs.readFileSync(journal,'utf8').trim().split('\n').map(line=>JSON.parse(line)):[],ids=new Set(journalRows.filter(r=>r.state==='RESERVED'&&r.caseId===c.id&&r.system===system).map(r=>r.id)),receipts=journalRows.filter(r=>r.state==='SETTLED'&&ids.has(r.id)),paidUsage={calls:receipts.length,inputTokens:receipts.reduce((n,r)=>n+r.inputTokens,0),outputTokens:receipts.reduce((n,r)=>n+r.outputTokens,0),costUsd:receipts.reduce((n,r)=>n+r.costUsd,0)};
-  const row={caseId:c.id,system,decisions,error,engineResult,usage:engineResult?.usage??meter.usage,paidUsage,latencyMs:Date.now()-start};outcomes.push(row);write(path.join(dir,c.id+'.'+system+'.outcome.json'),row);console.log(JSON.stringify({caseId:c.id,system,error,usage:row.usage,paidUsage,status:engineResult?.status,items:engineResult?.items?.length,latencyMs:row.latencyMs}));
-  if(unresolved||plan.stopOnError&&error||plan.stopOnExpectationFailure&&Object.entries(c.expected??{}).some(([i,wanted])=>{const actual=(decisions as any)?.[i]?.verdict;return !actual||(wanted==='ok'?actual!=='ok':!['fix','drop'].includes(actual))}))break campaign;
+  const engineOutputMatched=engineResult&&c.expectedEngineItemsHash?hash(engineResult.items)===c.expectedEngineItemsHash:undefined;
+  const row={caseId:c.id,system,decisions,error,engineResult,engineOutputMatched,usage:engineResult?.usage??meter.usage,paidUsage,latencyMs:Date.now()-start};outcomes.push(row);write(path.join(dir,c.id+'.'+system+'.outcome.json'),row);console.log(JSON.stringify({caseId:c.id,system,error,usage:row.usage,paidUsage,status:engineResult?.status,items:engineResult?.items?.length,latencyMs:row.latencyMs}));
+  if(engineOutputMatched===false||unresolved||plan.stopOnError&&error||plan.stopOnExpectationFailure&&Object.entries(c.expected??{}).some(([i,wanted])=>{const actual=(decisions as any)?.[i]?.verdict;return !actual||(wanted==='ok'?actual!=='ok':!['fix','drop'].includes(actual))}))break campaign;
  }
  write(path.join(dir,'outcomes.json'),outcomes);write(path.join(dir,'totals.json'),{settledUsd:settled,newSettledUsd:settled-(plan.priorSettledUsd??0),outstandingReservedUsd:held,historicalHeldUsd:plan.priorHeldUsd??0,calls,unresolved,ceilingUsd:plan.ceilingUsd});
  console.log(JSON.stringify({settledUsd:settled,outstandingReservedUsd:held,calls,unresolved}));

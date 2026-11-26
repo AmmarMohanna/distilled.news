@@ -1,6 +1,25 @@
 import {expect,it} from 'vitest';
-import {compactVerificationInventory,bindingReviewUser,verifySourceBoundClaims} from '../src/source-bound-claims';
+import {compactVerificationInventory,bindingReviewUser,bindingReviewWire,COMPACT_READER_CONTEXT,verifySourceBoundClaims} from '../src/source-bound-claims';
 import {UsageMeter,type ModelRequest,type ModelPort} from '../src/model';
+
+it.each(['A short claim.','قرار قصير.','Une brève annonce.'])('falls back atomically to the exact original short request: %s',text=>{
+ const items=[{headline:text,body:'',refs:['S1']}],inventory=[{id:'F',unit:'I0.H',item:0,quote:text,claim:text,kind:'action'}],packet={items,inventory,sources:[{ref:'S1',text}],prior:[]};
+ const old=JSON.stringify(packet),next=bindingReviewWire(packet,'reader-unit-context-v2');
+ expect(next).toEqual({user:old,systemSuffix:'',compacted:false});
+ expect(bindingReviewWire(packet)).toEqual(next);
+ expect(bindingReviewWire(packet,'reader-unit-context-v1')).toEqual({user:bindingReviewUser(packet,'reader-unit-context-v1'),systemSuffix:COMPACT_READER_CONTEXT,compacted:true});
+});
+it.each(['Supported context. ','سياق ثابت موثق. ','Un contexte sourcé. '])('uses exactly the existing compact format for large repeated context: %s',phrase=>{
+ const text=phrase.repeat(30),items=[{headline:text,body:'',refs:['S1']}],inventory=Array.from({length:10},(_,i)=>({id:'F'+i,unit:'I0.H',item:0,quote:phrase,claim:text,kind:'action'})),packet={items,inventory,sources:[{ref:'S1',text}],prior:[]};
+ const a=bindingReviewWire(packet,'reader-unit-context-v1'),b=bindingReviewWire(packet,'reader-unit-context-v2');
+ expect(b).toEqual(a);expect(b.compacted).toBe(true);
+ expect(b.user.length+b.systemSuffix.length).toBeLessThan(JSON.stringify(packet).length);
+ expect(new TextEncoder().encode(b.user+b.systemSuffix).length).toBeLessThan(new TextEncoder().encode(JSON.stringify(packet)).length);
+});
+it('does not add reference instructions when no claim is replaceable',()=>{
+ const text='Full reader context.',packet={items:[{headline:text,body:'',refs:['S1']}],inventory:[{id:'F',unit:'I0.H',item:0,quote:'reader',claim:'An independently phrased assertion.',kind:'other'}]};
+ expect(bindingReviewWire(packet,'reader-unit-context-v2')).toEqual({user:JSON.stringify(packet),systemSuffix:'',compacted:false});
+});
 
 it.each([
  ['en','President Jane Doe approved the €15 million plan.'],
@@ -31,7 +50,7 @@ it('retains literal claims when context is different, missing, or associated wit
 
 it.each(['supported','uncertain','contradicted'])('changes only redundant request context and preserves %s decisions',async support=>{
  const items=[{headline:'The bridge opened.',body:'It opened on Monday.',refs:['S1']}];
- async function run(compact:boolean){
+ async function run(compact:boolean|'adaptive'){
   const requests:ModelRequest[]=[];
   const port:ModelPort={complete:async request=>{
    requests.push(request);const p=JSON.parse(request.user);
@@ -42,10 +61,11 @@ it.each(['supported','uncertain','contradicted'])('changes only redundant reques
    const content=request.system.startsWith('Independently extract')?{sources:{S1:[]}}:value;
    return {text:JSON.stringify(content),inputTokens:1,outputTokens:1};
   }};
-  const result=await verifySourceBoundClaims(port,new UsageMeter(),{model:'m',language:'en',items,sources:[{ref:'S1',text:'The bridge opened on Monday.'}],prior:[],independentSourceBindings:true,atomicReaderAssertions:true,...(compact?{verificationInputPolicy:'reader-unit-context-v1' as const}:{})});
+  const result=await verifySourceBoundClaims(port,new UsageMeter(),{model:'m',language:'en',items,sources:[{ref:'S1',text:'The bridge opened on Monday.'}],prior:[],independentSourceBindings:true,atomicReaderAssertions:true,...(compact?{verificationInputPolicy:compact==='adaptive'?'reader-unit-context-v2' as const:'reader-unit-context-v1' as const}:{})});
   return {requests,result};
  }
  const old=await run(false),next=await run(true);
+ const adaptive=await run('adaptive');expect(adaptive.requests).toEqual(old.requests);expect(adaptive.result).toEqual(old.result);
  expect(next.result).toEqual(old.result);expect(next.result.get(0)?.verdict).toBe(support==='supported'?'ok':'fix');
  expect(next.requests).toHaveLength(3);expect(next.requests.slice(0,2)).toEqual(old.requests.slice(0,2));
  const a=old.requests[2],b=next.requests[2];

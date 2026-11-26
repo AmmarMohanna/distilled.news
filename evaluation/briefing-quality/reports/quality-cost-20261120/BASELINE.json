@@ -1,0 +1,22 @@
+[
+  {
+    "id": "lebanon-current",
+    "calls": 7,
+    "inputTokens": 121157,
+    "outputTokens": 10923,
+    "readerItemsHash": "25528df6f4a6e72c8b69de06602bdb98b6e3a108d0dd2a61f4ae70641bac3433",
+    "stories": 5,
+    "reconstructedUsd": 0.329698,
+    "provenance": "Existing adaptive-context report / compact-paid-20261119-v5 matched-stage reconstruction; full engine token totals. Not new spending."
+  },
+  {
+    "id": "ai-current",
+    "calls": 14,
+    "inputTokens": 262400,
+    "outputTokens": 22661,
+    "readerItemsHash": "2367ecb319fa3156db1f06586984e099c948f172a76fa8334fae118a1b08d906",
+    "stories": 9,
+    "reconstructedUsd": 0.7060879999999999,
+    "provenance": "Existing adaptive-context report / compact-paid-20261119-v5 matched-stage reconstruction; full engine token totals. Not new spending."
+  }
+]

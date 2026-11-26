@@ -1,0 +1,42 @@
+{
+  "cumulativeAuthorizationUsd": 5,
+  "priorSettledUsd": 2.8442756,
+  "continuationSettledUsd": 0.5210640000000004,
+  "cumulativeSettledUsd": 3.3653396000000004,
+  "newHoldsUsd": 0,
+  "records": [
+    {
+      "phase": "g2",
+      "settledUsd": 3.3061516,
+      "newSettledUsd": 0.4618760000000002,
+      "outstandingReservedUsd": 0,
+      "historicalHeldUsd": 0,
+      "calls": 14,
+      "unresolved": false,
+      "ceilingUsd": 5,
+      "ledgerSha256": "c4c4050aed982c42b9f2981fc23596e9da4b7cb78c703c5e8b350abd49055678"
+    },
+    {
+      "phase": "h",
+      "settledUsd": 3.3447476000000003,
+      "newSettledUsd": 0.038596000000000075,
+      "outstandingReservedUsd": 0,
+      "historicalHeldUsd": 0,
+      "calls": 7,
+      "unresolved": false,
+      "ceilingUsd": 5,
+      "ledgerSha256": "f248e79e21b33e72ca6674d66e084844ee63a5712a8f2aedcfc2d2e26815b3bf"
+    },
+    {
+      "phase": "i",
+      "settledUsd": 3.3653396000000004,
+      "newSettledUsd": 0.020592000000000166,
+      "outstandingReservedUsd": 0,
+      "historicalHeldUsd": 0,
+      "calls": 4,
+      "unresolved": false,
+      "ceilingUsd": 5,
+      "ledgerSha256": "71a839c4637a1e1f963a1f5bfec213f2429f73b7f2c8cdcea6aa373070f534a9"
+    }
+  ]
+}
