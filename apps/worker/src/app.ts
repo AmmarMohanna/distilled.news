@@ -585,6 +585,18 @@ export function createApp(options: AppOptions = {}) {
     return c.json({requestId:row.request_id,state:row.state,outcome:row.outcome,result:row.result_json?JSON.parse(row.result_json):null,failureClass:row.failure_class,createdAt:row.created_at,startedAt:row.started_at,completedAt:row.completed_at});
   });
 
+  app.get("/api/health/release", async (c) => {
+    c.header("Cache-Control", "no-store");
+    if (!c.env.RELEASE_SHA) return c.json({ status: "unavailable" }, 503);
+    // Check that the account schema is readable without returning account data.
+    await c.env.DB.prepare("SELECT 1 FROM accounts LIMIT 1").first();
+    return c.json({
+      status: "ok",
+      sha: c.env.RELEASE_SHA,
+      readOnly: c.env.CI_STAGING_READ_ONLY === "true"
+    });
+  });
+
   app.get("/api/auth/session", async (c) => {
     const repo = repoFor(c);
     const setupRequired = (await repo.countAdmins()) === 0;

@@ -6,10 +6,15 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: project-checks-${{ github.ref }}
-  cancel-in-progress: true
+  group: project-checks-${{ github.event_name }}-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'checks' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   verify:
+    outputs:
+      artifact-id: ${{ steps.frontend.outputs.artifact-id }}
+      artifact-digest: ${{ steps.frontend.outputs.artifact-digest }}
+      frontend-sha256: ${{ steps.package.outputs.sha256 }}
+      release-enabled: ${{ steps.release-policy.outputs.enabled }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -17,6 +22,9 @@ jobs:
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 10.12.1
@@ -27,6 +35,16 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.14'
+      - name: Validate release targets and migration history
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == push && "$BASE_SHA" =~ ^0{40}$ ]]; then
+            BASE_SHA="$(git merge-base HEAD "refs/remotes/origin/$DEFAULT_BRANCH")"
+          fi
+          python scripts/release.py validate "$BASE_SHA"
+      - run: python -m unittest discover -s scripts -p test_release.py
       - run: pnpm install --frozen-lockfile
       - name: Configure HTTPS Ubuntu mirrors for browser dependencies
         run: sudo --preserve-env=GITHUB_ACTIONS python3 scripts/configure-ci-apt.py
@@ -40,6 +58,27 @@ jobs:
       - run: python scripts/test_source_execution.py
       - run: pnpm -r --workspace-concurrency=1 --no-bail test
       - run: pnpm build
+      - name: Bundle both Cloudflare targets offline
+        run: |
+          pnpm --filter @distilled/worker exec wrangler deploy --dry-run --config wrangler.ci-staging.jsonc --containers-rollout=none --x-autoconfig=false --x-provision=false --x-auto-create=false --outdir "$RUNNER_TEMP/staging-package"
+          pnpm --filter @distilled/worker exec wrangler deploy --dry-run --config wrangler.production.jsonc --containers-rollout=none --x-autoconfig=false --x-provision=false --x-auto-create=false --outdir "$RUNNER_TEMP/production-package"
+      - name: Keep release execution off until infrastructure is approved
+        id: release-policy
+        run: echo 'enabled=false' >> "$GITHUB_OUTPUT"
+      - name: Package the validated frontend
+        id: package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.release-policy.outputs.enabled == 'true' && vars.RELEASE_STAGING_ENABLED == 'true'
+        run: |
+          tar -C apps/web/dist -cf "$RUNNER_TEMP/frontend.tar" .
+          echo "sha256=$(sha256sum "$RUNNER_TEMP/frontend.tar" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: frontend
+        if: steps.package.outcome == 'success'
+        with:
+          name: frontend-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frontend.tar
+          if-no-files-found: error
+          retention-days: 14
 
   browser:
     name: Browser checks
@@ -148,3 +187,45 @@ jobs:
           name: correctness-${{ matrix.group }}-${{ github.sha }}
           path: .local-reports/agentops-fixtures/
           retention-days: 7
+
+  release-security:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.verify.outputs.release-enabled == 'true' && vars.RELEASE_STAGING_ENABLED == 'true'
+    needs: [verify, browser, agentops-fixture-smoke, agentops-fixture-campaigns, agentops-correctness-fixtures]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.14'
+      - name: Require security workflows for this exact main push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release.py security
+
+  release-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_STAGING_ENABLED == 'true'
+    needs: [verify, release-security]
+    uses: ./.github/workflows/deploy-worker.yml
+    with:
+      target: ci-staging
+      url: https://distilled-news-ci-staging.distillednews-platform.workers.dev
+      artifact-id: ${{ needs.verify.outputs.artifact-id }}
+      artifact-digest: ${{ needs.verify.outputs.artifact-digest }}
+      frontend-sha256: ${{ needs.verify.outputs.frontend-sha256 }}
+
+  release-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RELEASE_PRODUCTION_ENABLED == 'true'
+    needs: [verify, release-staging]
+    uses: ./.github/workflows/deploy-worker.yml
+    with:
+      target: production
+      url: https://distilled.news
+      artifact-id: ${{ needs.verify.outputs.artifact-id }}
+      artifact-digest: ${{ needs.verify.outputs.artifact-digest }}
+      frontend-sha256: ${{ needs.verify.outputs.frontend-sha256 }}
