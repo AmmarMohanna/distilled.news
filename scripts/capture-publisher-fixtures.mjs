@@ -9,7 +9,7 @@
 // still finds article links in it. Commit the fixture together with the fix it
 // covers. Only public HTTPS pages; cross-origin redirects are refused.
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
-import {dirname,join,relative} from 'node:path';
+import {dirname,join,posix,relative} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 export const FIXTURE_DIR=join(dirname(fileURLToPath(import.meta.url)),'..','packages','connectors','test','fixtures','publishers');
@@ -18,7 +18,7 @@ const MAX_BYTES=2_000_000;
 export function fixturePath(url,capturedAt){
   const target=new URL(url);
   const slug=(target.pathname.replace(/^\/+|\/+$/g,'')||'home').replace(/[^a-z0-9]+/gi,'-').toLowerCase().slice(0,60);
-  return join(target.hostname.replace(/^www\./,''),`${capturedAt.slice(0,10)}-${slug}.html`);
+  return posix.join(target.hostname.replace(/^www\./,''),`${capturedAt.slice(0,10)}-${slug}.html`);
 }
 
 export function upsertCapture(index,entry){
