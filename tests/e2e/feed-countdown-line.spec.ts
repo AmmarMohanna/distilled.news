@@ -9,10 +9,10 @@ for(const width of [320,390,1280]) for(const language of ['en','fr','ar']) {
     await page.route('**/api/**',route=>{
       const path=new URL(route.request().url()).pathname;
       if(path.endsWith('/sketch'))return route.fulfill({status:404});
-      return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:{id:'owner',username:'owner',role:'user'}}:path==='/api/me/briefings'?{briefings:[feed]}:path.startsWith('/api/feed/')?{briefing:feed,editions:[{id:'one',briefingId:'news',title:'News',summary:'One update.',publishedAt:'2026-11-02T07:00:00Z',sections:[{title:'News',summary:'One update.',evidence:[]}]}],unreadSummaryAvailable:true}:{}});
+      return route.fulfill({json:path==='/api/auth/session'?{authenticated:true,account:{id:'owner',username:'owner',role:'user'}}:path==='/api/me/briefings'?{briefings:[feed]}:path.startsWith('/api/feed/')?{briefing:feed,editions:[{id:'one',briefingId:'news',title:'News',summary:'One update.',publishedAt:'2026-11-02T07:00:00Z',sections:[{title:'News',summary:'One update.',evidence:[]}]}],catchUpAvailable:true}:{}});
     });
     await page.goto('/owner/news/');
-    const status=page.locator('.feed-check-status'),summary=page.locator('.unread-summary-button');
+    const status=page.locator('.feed-check-status'),summary=page.locator('.catch-up-summary-button');
     await expect(status).toBeVisible();await expect(summary).toBeVisible();
     await page.evaluate(()=>document.fonts.ready);
     const label=page.locator(width<=700?'.feed-check-status-compact':'.feed-check-status-full');

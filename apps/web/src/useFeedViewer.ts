@@ -50,6 +50,5 @@ export function useFeedViewer(username: string, slug: string) {
   },[]);
   const loading=resolvedKey!==key;
   const retryOwnership=useCallback(()=>{setOwnershipState('loading');setAttempt(value=>value+1);},[]);
-  const readerId=loading||sessionState==='unresolved'||sessionState==='error'?undefined:sessionState==='anonymous'?null:account?.id;
-  return { account, setAccount, ownedFeed, setOwnedFeed, loading, readerId, sessionState:loading?'unresolved' as const:sessionState, retrySession, ownershipState:loading?'loading' as const:ownershipState, retryOwnership };
+  return { account, setAccount, ownedFeed, setOwnedFeed, loading, sessionState:loading?'unresolved' as const:sessionState, retrySession, ownershipState:loading?'loading' as const:ownershipState, retryOwnership };
 }
