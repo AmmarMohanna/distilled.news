@@ -59,8 +59,8 @@ test('Explore reveals the initial grid and optional shelves together', async ({p
     const tracks=page.locator('.explore-view .catalog-shelf-track');
     await expect(tracks).toHaveCount(0);
     release();
-    await expect(page.locator('.explore-view .catalog-shelf h2')).toHaveText(['Public feeds','Trending feeds','Explore channels']);
-    await expect(tracks.nth(0).locator('.feed-tile-caption > a')).toHaveText(['Science','Climate']);
+    await expect(page.locator('.explore-view .catalog-shelf h2')).toHaveText(['Top feeds','Trending topics','Public feeds','Explore channels']);
+    await expect(tracks.nth(2).locator('.feed-tile-caption > a')).toHaveText(['Science','Climate']);
     await expect(tracks.nth(1).locator('.feed-tile')).toHaveText(/Science/);
     await expect(page.getByRole('button',{name:'Scroll forward',exact:true})).toHaveCount(0);
     for (const track of await tracks.all()) await expect(track).toHaveCSS('overflow-x','auto');

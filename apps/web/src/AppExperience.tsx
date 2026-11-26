@@ -359,7 +359,7 @@ export function AppExperience(props: {
       {tab === "explore" && !channelName && !query && trendingFeeds.length > 0 && (!catalogView || catalogView === "trending") && (props.account || catalogView === "trending") &&
         (catalogView ? <AdaptiveFeedGrid view="explore">{trendingFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
           : <CatalogShelf title={t("Trending feeds")} onShowAll={() => showCatalog("trending")}>{trendingFeeds.map(renderExploreFeed)}</CatalogShelf>)}
-      {!channelName && visibleChannels.length > 0 && (!catalogView || catalogView === "channels" || catalogView === "top-channels") &&
+      {!waitingForCatalog && !channelName && visibleChannels.length > 0 && (!catalogView || catalogView === "channels" || catalogView === "top-channels") &&
         (tab === "followed" || tab === "explore") &&
         <CatalogShelf title={t(tab === "followed" ? "Followed channels" : catalogView === "top-channels" ? "Most followed channels" : isExplorePage ? "Explore channels" : "Top channels")}
           className="channel-shelf" expanded={Boolean(catalogView)} onShowAll={tab === "explore" ? () => showCatalog("channels") : undefined}>
