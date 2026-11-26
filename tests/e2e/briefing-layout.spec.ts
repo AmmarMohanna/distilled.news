@@ -129,7 +129,7 @@ test("published headlines open retained briefing evidence and preserve read-only
   await expect(source.getByRole("link", { name: "Read full article" })).toHaveAttribute("href", sourceUrl);
 });
 
-test("briefing photos load only after opening the detail page", async ({ page }) => {
+for (const language of ["en", "fr", "ar"] as const) test(`briefing photos and menu follow ${language} layout`, async ({ page }) => {
   const edition = { id: "latest", title: "A published headline", summary: "Published briefing text.",
     publishedAt: "2026-10-11T08:00:00Z", sections: [] };
   const photoUrl = "https://example.test/briefing-photo.svg";
@@ -147,7 +147,7 @@ test("briefing photos load only after opening the detail page", async ({ page })
     }
     if (url.pathname.endsWith("/sketch")) return route.fulfill({ status: 404 });
     return route.fulfill({ json: url.pathname === "/api/auth/session"
-      ? { authenticated: false } : { briefing, editions: [edition], edition, viewerHasStarred: false } });
+      ? { authenticated: false } : { briefing: { ...briefing, language }, editions: [edition], edition, viewerHasStarred: false } });
   });
   await page.goto("/admin/personal-briefing/");
   const headline = page.getByRole("link", { name: edition.title, exact: true });
@@ -155,6 +155,10 @@ test("briefing photos load only after opening the detail page", async ({ page })
   expect(photoRequests).toBe(0);
   await headline.click();
   await expect(page.locator(".briefing-detail-photo img")).toBeVisible();
+  const menu = (await page.locator(".briefing-detail-menu summary").boundingBox())!;
+  const photo = (await page.locator(".briefing-detail-photo").boundingBox())!;
+  if (language === "ar") expect(menu.x).toBeCloseTo(photo.x, 0);
+  else expect(menu.x + menu.width).toBeCloseTo(photo.x + photo.width, 0);
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", photoUrl);
   await page.getByRole("button", { name: "Next image" }).click();
   await expect(page.locator(".briefing-detail-photo img")).toHaveAttribute("src", secondPhotoUrl);

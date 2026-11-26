@@ -68,6 +68,11 @@ test('mobile navigation groups the three tabs beside a separate Settings button'
   await page.goto('/');
   const nav = page.getByRole('navigation', { name: 'Main navigation' });
   await expect(nav.getByRole('button', { name: 'Pin sidebar' })).toBeHidden();
+  expect(await nav.evaluate(element => parseFloat(getComputedStyle(element, '::after').height))).toBeGreaterThanOrEqual(52);
+  if (await page.evaluate(() => matchMedia('(pointer: coarse)').matches)) {
+    await expect(page.locator('.home-view .feed-tile-options > summary').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(page.locator('.home-view .feed-tile-star').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  }
   const tabs = await Promise.all(['Home', 'Explore', 'Followed', 'Settings'].map(async name => {
     const button = nav.getByRole('button', { name, exact: true });
     await expect(button).toBeVisible();
@@ -129,7 +134,7 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   if (await page.evaluate(() => matchMedia('(min-width: 621px)').matches)) {
     expect(portrait.x).toBeGreaterThan(username.x + username.width);
   } else {
-    expect(portrait.y).toBeGreaterThan(username.y + username.height);
+    expect(portrait.y + portrait.height).toBeLessThan(username.y);
   }
   const file = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
