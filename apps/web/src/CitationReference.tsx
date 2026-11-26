@@ -51,17 +51,19 @@ export function CitationReference({ number, edition, loadDetail, label, sectionR
     try { const detail = await request.current; if (detail) setLoaded(detail); return detail; }
     finally { setPending(false); request.current = undefined; }
   }
-  return <span className="citation-reference" onMouseEnter={() => { setDismissed(false); fitPreview(); void prepare(); }} onFocus={() => { setDismissed(false); fitPreview(); void prepare(); }}
+  return <span className="citation-reference"
     onKeyDown={event => { if (event.key === 'Escape') setDismissed(true); }}>
-    <a ref={trigger} className="briefing-reference" href={url} target={url ? '_blank' : undefined} rel="noopener noreferrer"
-      aria-label={publisher ? `${label}: ${publisher}` : label} aria-describedby={publisher ? id : undefined}
+    <a ref={trigger} className="briefing-reference" href={url}
+      onMouseEnter={() => { if (!sourceOpen) { setDismissed(false); fitPreview(); void prepare(); } }}
+      onFocus={() => { fitPreview(); void prepare(); }} target={url ? '_blank' : undefined} rel="noopener noreferrer"
+      aria-label={publisher ? `${label}: ${publisher}` : label} aria-describedby={publisher && !dismissed && !sourceOpen ? id : undefined}
       aria-busy={pending} role="link" tabIndex={0} onKeyDown={event => { if (!url && event.key === 'Enter') { event.preventDefault(); event.currentTarget.click(); } }} onClick={async event => {
         setDismissed(true);
         event.preventDefault();
         setSourceOpen(true);
         await prepare();
       }}><bdi dir="ltr">[{number}]</bdi>
-    {entry && publisher && !dismissed && <span ref={preview} id={id} className="citation-publisher" role="tooltip" dir="ltr">
+    {entry && publisher && !dismissed && !sourceOpen && <span ref={preview} id={id} className="citation-publisher" role="tooltip" dir="ltr">
       <SourceLogo source={url ?? entry.sourceUrl ?? publisher}/><strong>{publisher}</strong>
     </span>}</a>
     {sourceOpen && createPortal(<Dialog label={t("Source preview")} className="citation-source-dialog" onClose={() => setSourceOpen(false)}>

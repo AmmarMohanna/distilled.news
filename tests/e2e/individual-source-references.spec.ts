@@ -43,6 +43,7 @@ for(const language of ['en','fr','ar'])test(`each supporting source opens separa
  const article=await opened;
  await expect(article).toHaveURL('https://publisher3.example/article');await article.close();
  await page.keyboard.press('Escape');
+ await expect(third.getByRole('tooltip')).toBeHidden();
  await expect(page.locator('.news-briefing-dialog')).toHaveCount(0);
  await expect(first.locator('.briefing-extra-sources')).toHaveCount(0);
  for(let index=0;index<3;index++){
