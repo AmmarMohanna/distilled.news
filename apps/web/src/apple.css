@@ -4266,39 +4266,64 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .experience .bottom-navigation.collapsible-navigation {
     display: grid;
+    direction: ltr;
     isolation: isolate;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) 48px;
-    gap: 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 56px;
+    grid-template-rows: 56px;
+    height: 56px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    gap: 0;
+    padding: 0;
     background: transparent;
     border: 0;
     box-shadow: none;
     backdrop-filter: none;
   }
   :root.apple-ui.apple-ui:not([data-pinch-zoom]) .experience .bottom-navigation.collapsible-navigation {
-    width: min(100%, 420px);
+    width: min(calc(100% - 24px), 420px);
     inset-inline: 0;
     margin-inline: auto;
   }
-  :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation::after {
+  :root.apple-ui.apple-ui .experience .bottom-navigation.collapsible-navigation > .sidebar-top { display: none; }
+  :root.apple-ui.apple-ui .experience .bottom-navigation.collapsible-navigation::after {
     content: "";
     z-index: -1;
     grid-area: 1 / 1 / 2 / 4;
-    align-self: stretch;
+    margin-inline-end: 8px;
     border-radius: 999px;
     border: 1px solid var(--line);
     background: var(--surface);
+    box-shadow: var(--shadow);
   }
-  :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > .navigation-item {
+  :root.apple-ui.apple-ui .experience .bottom-navigation.collapsible-navigation > .navigation-item {
     grid-row: 1;
     min-width: 0;
     min-height: 48px;
+    margin-block: 4px;
     border-radius: 999px;
-    padding-inline: 4px;
+    padding: 2px 4px;
+    gap: 2px;
   }
-  :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > .navigation-settings {
+  :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > [data-nav-tab="home"] {
+    grid-column: 1;
+    margin-inline-start: 4px;
+  }
+  :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > [data-nav-tab="explore"] { grid-column: 2; }
+  :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > [data-nav-tab="followed"] {
+    grid-column: 3;
+    margin-inline-end: 12px;
+  }
+  :root.apple-ui.apple-ui .experience .bottom-navigation.collapsible-navigation > .navigation-settings {
     grid-column: 4;
+    width: 56px;
+    height: 56px;
+    margin: 0;
     background: var(--surface);
     border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  :root.apple-ui.apple-ui .experience .bottom-navigation.collapsible-navigation > .navigation-settings.active {
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   }
   :root.apple-ui.apple-ui .bottom-navigation.collapsible-navigation > .navigation-settings > span { display: none; }
 }

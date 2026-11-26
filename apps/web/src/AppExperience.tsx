@@ -713,8 +713,8 @@ function SidebarNavigation({ active, onNavigate }: { active?: string; onNavigate
       <button type="button" className="sidebar-toggle" aria-label={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} title={t(unpinned ? "Pin sidebar" : "Unpin sidebar")} aria-expanded={!collapsed} aria-pressed={!unpinned} onClick={toggle}><PanelLeft size={22}/></button>
     </div>
     {([{ id: "home", label: "Home", icon: Home, href: "/" }, { id: "explore", label: "Explore", icon: Search, href: "/explore" }, { id: "followed", label: "Followed", icon: Star, href: "/?view=followed" }, { id: "settings", label: "Settings", icon: Settings, href: "/?view=settings" }] as const).map(({ id, label, icon: Icon, href }) => onNavigate
-      ? <button key={id} type="button" className={`navigation-item ${id === "settings" ? "navigation-settings" : ""} ${active === id ? "active" : ""}`} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)} onClick={() => onNavigate(id)}><Icon size={23}/><span>{t(label)}</span></button>
-      : <a key={id} className={`navigation-item ${id === "settings" ? "navigation-settings" : ""}`} href={href} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)}><Icon size={23}/><span>{t(label)}</span></a>)}
+      ? <button key={id} type="button" data-nav-tab={id} className={`navigation-item ${id === "settings" ? "navigation-settings" : ""} ${active === id ? "active" : ""}`} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)} onClick={() => onNavigate(id)}><Icon size={23}/><span>{t(label)}</span></button>
+      : <a key={id} data-nav-tab={id} className={`navigation-item ${id === "settings" ? "navigation-settings" : ""}`} href={href} aria-current={active === id ? "page" : undefined} aria-label={t(label)} title={t(label)}><Icon size={23}/><span>{t(label)}</span></a>)}
   </nav>;
 }
 export function PublicNavigation() {

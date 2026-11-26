@@ -62,6 +62,23 @@ test('home has one creation entry and no decorative globe or briefing card',asyn
  await expect(dialog).toHaveCount(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+test('mobile navigation groups the three tabs beside a separate Settings button', async ({ page }) => {
+  await mock(page);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  await expect(nav.getByRole('button', { name: 'Pin sidebar' })).toBeHidden();
+  const tabs = await Promise.all(['Home', 'Explore', 'Followed', 'Settings'].map(async name => {
+    const button = nav.getByRole('button', { name, exact: true });
+    await expect(button).toBeVisible();
+    return (await button.boundingBox())!;
+  }));
+  expect(tabs[0].x).toBeCloseTo((await nav.boundingBox())!.x + 4, 0);
+  expect(tabs.every((tab, index) => index === 0 || tab.x >= tabs[index - 1].x + tabs[index - 1].width)).toBe(true);
+  expect(tabs[3].width).toBeCloseTo(tabs[3].height, 0);
+  await nav.getByRole('button', { name: 'Followed' }).click();
+  await expect(nav.getByRole('button', { name: 'Followed' })).toHaveAttribute('aria-current', 'page');
+});
 test('uploads a profile picture and restores it after a reload', async ({ page }) => {
   await mock(page);
   let picture: Buffer | null = null;
