@@ -1,7 +1,7 @@
 import { HandoffError, connectorHandoffRequestSchema, collectionCoverageSchema, validateHandoffResponse,sha256 } from '@distilled/contracts';
 import type { ConnectorHandoffRequest, ConnectorHandoffResponse,CollectionCoverage } from '@distilled/contracts';
 import type { SourceScope } from './ports';
-import { D1SourceRepository, type SqlDatabase } from './storage';
+import { D1SourceRepository, matchingBatchData, type ConnectorBatchArchive, type SqlDatabase } from './storage';
 import { isApifyPollingProvider, providerBillingId } from './provider-types';
 import type { ProviderAttempt, SourceFetchRequest, ProviderPage } from './provider-types';
 
@@ -49,35 +49,38 @@ export interface StoredProviderSnapshot {
   pageRef:string;
 }
 export class D1ProviderSourceRepository extends D1SourceRepository {
-  constructor(private readonly sql:SqlDatabase){super(sql);}
+  constructor(private readonly sql:SqlDatabase,batchArchive?:ConnectorBatchArchive){super(sql,batchArchive);}
   async saveProviderBatch(key:string,batch:StoredProviderBatch) {
     // Round-trip strict wire validation drops undefined values deterministically.
     batch={...batch,request:connectorHandoffRequestSchema.parse(batch.request)};
     const data=JSON.stringify(batch), c=batch.request.coverage;
+    const stored=await this.batchArchive?.store(batch.request,data,batch.providerId)??data;
     const row=await this.sql.prepare(`INSERT INTO connector_provider_batches(feed_id,feed_source_id,batch_key,data) VALUES(?,?,?,?)
       ON CONFLICT(feed_id,feed_source_id,batch_key) DO UPDATE SET data=connector_provider_batches.data
-      WHERE connector_provider_batches.data=excluded.data RETURNING batch_key`)
-      .bind(c.feedId,c.feedSourceId,key,data).first();
+      WHERE ${matchingBatchData('connector_provider_batches.data')} RETURNING batch_key`)
+      .bind(c.feedId,c.feedSourceId,key,stored,data).first();
     if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async loadProviderBatch(scope:SourceScope,key:string):Promise<StoredProviderBatch|undefined> {
     const row=await this.sql.prepare('SELECT data FROM connector_provider_batches WHERE feed_id=? AND feed_source_id=? AND batch_key=?')
       .bind(scope.feedId,scope.feedSourceId,key).first<{data:string}>();
     if (!row) return undefined;
-    const b:StoredProviderBatch=JSON.parse(row.data);
+    const b=await this.decodeBatch<StoredProviderBatch>(scope,row.data);
     if (b.originalRequest.scope.sourceId!==scope.sourceId) throw new HandoffError('SCOPE_DENIED');
     return b;
   }
   async saveProviderReceipts(batch:StoredProviderBatch,response:ConnectorHandoffResponse) {
     validateHandoffResponse(batch.request,response);
     const c=batch.request.coverage;
-    await this.sql.prepare('UPDATE connector_provider_batches SET receipts=? WHERE feed_id=? AND feed_source_id=? AND batch_key=?')
-      .bind(JSON.stringify(response),c.feedId,c.feedSourceId,batch.request.handoffId).run();
+    const row=await this.sql.prepare("UPDATE connector_provider_batches SET receipts=? WHERE feed_id=? AND feed_source_id=? AND batch_key=? AND json_extract(data,'$.expired') IS NOT 1 RETURNING batch_key")
+      .bind(JSON.stringify(response),c.feedId,c.feedSourceId,batch.request.handoffId).first();
+    if(!row)throw new HandoffError('IDEMPOTENCY_CONFLICT');
   }
   async loadProviderReceipts(scope:SourceScope,key:string):Promise<ConnectorHandoffResponse|undefined> {
     const row=await this.sql.prepare('SELECT receipts FROM connector_provider_batches WHERE feed_id=? AND feed_source_id=? AND batch_key=?')
       .bind(scope.feedId,scope.feedSourceId,key).first<{receipts:string|null}>();
-    return row?.receipts?JSON.parse(row.receipts):undefined;
+    const receipt=row?.receipts?JSON.parse(row.receipts):undefined;
+    return receipt?.expired?undefined:receipt;
   }
   async attempt(scope:SourceScope,a:ProviderAttempt) {
     await this.sql.prepare('INSERT INTO connector_provider_attempts(feed_id,feed_source_id,run_id,data) VALUES(?,?,?,?) ON CONFLICT DO NOTHING')
