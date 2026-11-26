@@ -3789,9 +3789,6 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   color: var(--text);
 }
 :root.apple-ui.apple-ui .feed-shell .page-heading[aria-busy="true"] > :not(.feed-hero-art) { visibility: hidden; }
-:root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) .button-link {
-  color: var(--text);
-}
 :root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) .feed-nav-back { color: var(--accent-ink); }
 :root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) .feed-nav-back:hover {
   background: transparent;
@@ -3834,7 +3831,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   aspect-ratio: auto;
   overflow: hidden;
   border-radius: 0;
-  background: linear-gradient(to bottom, transparent 72%, var(--page)), linear-gradient(to bottom right, var(--reader-banner), color-mix(in srgb, var(--reader-banner) 94%, #a38be3));
+  background: linear-gradient(to left, var(--page), transparent clamp(12px, 1.6vw, 24px)), linear-gradient(to bottom, transparent 72%, var(--page)), linear-gradient(to bottom right, var(--reader-banner), color-mix(in srgb, var(--reader-banner) 94%, #a38be3));
   mask-image: none;
   opacity: 1;
 }
