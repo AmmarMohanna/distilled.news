@@ -1784,7 +1784,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Keep guest account controls aligned when moving from browse to a feed. */
 :root.apple-ui.apple-ui .experience-header.is-guest { direction: ltr; }
 @media (max-width: 899px) and (max-height: 450px) and (orientation: landscape) {
-  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest { min-height: 50px; }
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest { min-height: 50px; }
 }
 
 /* Guest browse and reader chrome share the same viewport insets. */
@@ -2026,7 +2026,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   direction: ltr; margin-left: 0; margin-right: auto; justify-content: flex-start;
 }
 :root.apple-ui.apple-ui[dir="rtl"] .feed-shell .experience-header .experience-leading { direction: rtl; flex-shrink: 0; }
-:root.apple-ui.apple-ui[dir="rtl"] .feed-shell .feed-nav-back { margin-inline-start: 0; }
+:root.apple-ui.apple-ui[dir="rtl"] :is(.feed-shell, .briefing-detail-page) .feed-nav-back { margin-inline-start: 0; }
 
 /* Each reader is identified by its own transparent, enlarged feed artwork. */
 :root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) {
@@ -2060,8 +2060,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   direction: ltr; margin-left: auto; margin-right: -8px; justify-content: flex-end;
 }
 :root.apple-ui.apple-ui[dir="rtl"] .feed-shell .experience-header .experience-leading { direction: ltr; }
-:root.apple-ui.apple-ui[dir="rtl"] .feed-shell .feed-nav-back { direction: ltr; }
-:root.apple-ui.apple-ui[dir="rtl"] .feed-shell .feed-nav-back svg { transform: none; }
+:root.apple-ui.apple-ui[dir="rtl"] :is(.feed-shell, .briefing-detail-page) .feed-nav-back { direction: ltr; }
+:root.apple-ui.apple-ui[dir="rtl"] :is(.feed-shell, .briefing-detail-page) .feed-nav-back svg { transform: none; }
 
 /* Feed artwork is a decorative watermark, without adding a tall image row. */
 :root.apple-ui.apple-ui .feed-shell .page-heading:has(.feed-hero-art) {
@@ -2337,11 +2337,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 /* Guests need mobile preferences; signed-in users have them in Settings. */
 @media (max-width: 899px) {
   :root.apple-ui.apple-ui .experience-header.is-guest :is(.language-cycle, .theme-toggle),
-  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest :is(.language-cycle, .theme-toggle) { display: inline-flex; }
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest :is(.language-cycle, .theme-toggle) { display: inline-flex; }
   :root.apple-ui.apple-ui .experience-header.has-account :is(.language-cycle, .theme-toggle),
   :root.apple-ui.apple-ui .feed-shell .experience-header.has-account :is(.language-cycle, .theme-toggle) { display: none; }
-  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions { gap: 4px; }
-  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .language-cycle { padding-inline: 4px; }
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest .experience-header-actions { gap: 4px; }
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest .language-cycle { padding-inline: 4px; }
 }
 
 /* The dialog shell and heading stay still; only its content region scrolls. */
@@ -2403,10 +2403,10 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { flex-wrap: nowrap; overflow-x: auto; }
 :root.apple-ui.apple-ui .shell.feed-shell > .experience-header > .experience-leading { flex: 0 0 auto; }
 :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.experience-header .experience-header-actions { max-width: none; flex-wrap: nowrap; }
-:root.apple-ui.apple-ui .feed-shell .feed-nav-back { white-space: nowrap; }
+:root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .feed-nav-back { white-space: nowrap; }
 @media (max-width: 480px) {
   :root.apple-ui.apple-ui .shell.feed-shell > .experience-header { gap: 0; }
-  :root.apple-ui.apple-ui .feed-shell .feed-nav-back { margin-inline-start: 0; padding-inline: 0; font-size: .75rem; }
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .feed-nav-back { margin-inline-start: 0; padding-inline: 0; font-size: .75rem; }
   :root.apple-ui.apple-ui :is(.shell.feed-shell, .briefing-detail-page) .experience-header.experience-header .experience-header-actions { gap: 0; }
   :root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions > .language-cycle { width: 44px; min-width: 44px; flex-basis: 44px; padding-inline: 0; }
   :root.apple-ui.apple-ui .feed-shell .experience-header .experience-header-actions > .button-link { width: auto; min-width: 44px; flex: 0 0 auto; padding-inline: 4px; font-size: .75rem; }
@@ -2464,8 +2464,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui[dir] .experience-header.experience-header { direction: ltr; flex-direction: row; }
 :root.apple-ui.apple-ui[dir] :is(.feed-shell, .briefing-detail-page) .experience-header.experience-header .experience-header-actions,
 :root.apple-ui.apple-ui[dir] .experience-header.experience-header .experience-header-actions { direction: ltr; margin-left: auto; margin-right: 0; margin-inline-end: 0; }
-:root.apple-ui.apple-ui[dir] .feed-shell .feed-nav-back { direction: ltr; }
-:root.apple-ui.apple-ui[dir] .feed-shell .feed-nav-back svg { transform: none; }
+:root.apple-ui.apple-ui[dir] :is(.feed-shell, .briefing-detail-page) .feed-nav-back { direction: ltr; }
+:root.apple-ui.apple-ui[dir] :is(.feed-shell, .briefing-detail-page) .feed-nav-back svg { transform: none; }
 
 /* Feed pages omit the profile control without leaving an empty toolbar slot. */
 :root.apple-ui.apple-ui .feed-shell .experience-header .avatar-button { display: none; }
@@ -2878,9 +2878,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > .feed-preferences-group-label { border: 0; }
 :root.apple-ui.apple-ui .feed-editor .feed-preferences-fields > .feed-preferences-group-label:not(:first-child) { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 /* Guest feed actions precede the same fixed language/theme/login rail as landing. */
-:root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions { gap: 20px; }
+:root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest .experience-header-actions { gap: 20px; }
 @media(max-width:899px) {
- :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions { gap: 4px; }
+ :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest .experience-header-actions { gap: 4px; }
 }
 /* Arabic feed actions put the primary action on the right. */
 :root.apple-ui.apple-ui[dir="rtl"] .feed-editor .dialog-inner > .experience-dialog-actions { direction: ltr; }
@@ -2967,9 +2967,9 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .landing-headline-reference { visibility: hidden; pointer-events: none; user-select: none; direction: ltr; }
 :root.apple-ui.apple-ui .landing-headline-text > span { display: block; }
 @media (max-width: 360px) {
-  :root.apple-ui.apple-ui .feed-shell .feed-nav-back { min-width: 44px; }
-  :root.apple-ui.apple-ui .feed-shell .feed-nav-back > svg { width: 20px; height: 20px; }
-  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions > .button-link { padding-inline: 0; }
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .feed-nav-back { min-width: 44px; }
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .feed-nav-back > svg { width: 20px; height: 20px; }
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest .experience-header-actions > .button-link { padding-inline: 0; }
 }
 
 /* Translated guest navigation keeps the same slots on mobile feed readers. */
@@ -2991,35 +2991,35 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   :root.apple-ui.apple-ui .feed-shell .feed-tools:has(.feed-check-status.has-compact-label) :is(.feed-check-status, .unread-summary-button) { font-size: .6875rem; }
 }
 @media (max-width: 899px) {
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest {
+  :root.apple-ui.apple-ui :is(.shell.feed-shell, .briefing-detail-page) > .experience-header.is-guest {
     --guest-back-width: 100px;
     --guest-login-width: 96px;
   }
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest > .experience-leading {
+  :root.apple-ui.apple-ui :is(.shell.feed-shell, .briefing-detail-page) > .experience-header.is-guest > .experience-leading {
     flex: 0 0 auto;
     width: max-content; min-width: var(--guest-back-width);
   }
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest .feed-nav-back {
+  :root.apple-ui.apple-ui :is(.shell.feed-shell, .briefing-detail-page) > .experience-header.is-guest .feed-nav-back {
     box-sizing: border-box; width: max-content; min-width: var(--guest-back-width);
   }
-  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions > .button-link {
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest .experience-header-actions > .button-link {
     box-sizing: border-box; flex: 0 0 auto;
     width: var(--guest-login-width); min-width: var(--guest-login-width);
     justify-content: center; height: 44px; min-height: 44px; padding-block: 0; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; text-align: center;
   }
 }
 @media (max-width: 480px) {
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest {
+  :root.apple-ui.apple-ui :is(.shell.feed-shell, .briefing-detail-page) > .experience-header.is-guest {
     --guest-back-width: 64px;
     --guest-login-width: 88px;
   }
 }
 @media (max-width: 360px) {
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest {
+  :root.apple-ui.apple-ui :is(.shell.feed-shell, .briefing-detail-page) > .experience-header.is-guest {
     --guest-back-width: 60px;
     --guest-login-width: 72px;
   }
-  :root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .experience-header-actions > .button-link {
+  :root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest .experience-header-actions > .button-link {
     font-size: .6875rem;
   }
 }
@@ -3126,7 +3126,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 }
 @media (max-width: 360px) {
   :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.has-account { width: 100%; margin-inline: 0; }
-  :root.apple-ui.apple-ui .shell.feed-shell > .experience-header.is-guest { width: calc(100% + 24px); margin-inline: -12px; }
+  :root.apple-ui.apple-ui :is(.shell.feed-shell, .briefing-detail-page) > .experience-header.is-guest { width: calc(100% + 24px); margin-inline: -12px; }
 }
 :root.apple-ui.apple-ui .experience.product-refresh.private-feed-page { min-height:100svh; display:flex; flex-direction:column; padding-bottom:0 !important; background:var(--page,#fff); color:var(--text,#1d1d1f); }
 :root.apple-ui.apple-ui .screen-page-content:has(> .private-feed-page) { padding-bottom:0; }
@@ -3192,7 +3192,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .feed-shell .citation-reference > .briefing-reference:is(:hover,:active,:focus) { background: transparent; }
 
 :root.apple-ui.apple-ui .auth-verified-email .auth-email-address { flex: 1; min-width: 0; padding-block: 8px; color: var(--text); font-weight: 600; overflow-wrap: anywhere; user-select: text; cursor: text; }
-:root.apple-ui.apple-ui .feed-shell .experience-header.is-guest .feed-nav-back { gap: 0; }
+:root.apple-ui.apple-ui :is(.feed-shell, .briefing-detail-page) .experience-header.is-guest .feed-nav-back { gap: 0; }
 :root.apple-ui.apple-ui .citation-publisher[data-placement="above"]::before { inset-block-start: 100%; inset-block-end: auto; }
 
 :root.apple-ui.apple-ui .auth-error .auth-error-action { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
@@ -3633,6 +3633,11 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   gap: 4px;
   padding-block: clamp(3px, 1dvh, 12px);
 }
+:root.apple-ui.apple-ui .followed-empty-icon { color: var(--muted); margin-block-end: 8px; }
+:root.apple-ui.apple-ui .explore-view .community-feeds-empty > :is(h2, p) {
+  margin-inline: auto;
+  text-align: center;
+}
 :root.apple-ui.apple-ui .explore-view:has(.community-feeds-empty) .channel-shelf { margin-block: 4px 6px; }
 :root.apple-ui.apple-ui .explore-view:has(.community-feeds-empty) .channel-shelf .catalog-shelf-track { padding-block-end: 4px; }
 :root.apple-ui.apple-ui .explore-view:has(.community-feeds-empty) .channel-card { gap: 4px; }
@@ -3795,7 +3800,7 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
   box-shadow: none;
 }
 @media (min-width: 701px) {
-  :root.apple-ui.apple-ui .feed-shell > .experience-header:has(+ .page-heading .feed-hero-art) .feed-nav-back:is(:link, :visited, :hover) {
+  :root.apple-ui.apple-ui :is(.feed-shell > .experience-header:has(+ .page-heading .feed-hero-art), .briefing-detail-page > .experience-header) .feed-nav-back:is(:link, :visited, :hover) {
     padding-inline: 8px 12px;
     background: transparent;
   }
@@ -4253,8 +4258,8 @@ html.apple-ui[lang="ar"] :is(input,textarea) { direction: rtl; text-align: right
 :root.apple-ui.apple-ui .citation-source-heading { display: grid; justify-items: center; gap: 6px; padding-inline: 36px; text-align: center; }
 :root.apple-ui.apple-ui .citation-source-heading > :is(img, svg) { width: 36px; height: 36px; object-fit: contain; }
 :root.apple-ui.apple-ui .citation-source-heading h2 { margin: 0; text-align: center; font-size: 1.125rem; overflow-wrap: anywhere; }
-:root.apple-ui.apple-ui .citation-source-link { position: relative; display: inline-flex; align-items: center; text-align: center; color: var(--accent-ink); text-decoration: underline; text-underline-offset: .18em; font-size: .875rem; }
-:root.apple-ui.apple-ui .citation-source-link > svg { position: absolute; inset-inline-start: calc(100% + 6px); }
+:root.apple-ui.apple-ui .citation-source-link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-align: center; color: var(--accent-ink); text-decoration: underline; text-underline-offset: .18em; font-size: .875rem; }
+:root.apple-ui.apple-ui .citation-source-link > svg { flex: none; }
 :root.apple-ui.apple-ui .citation-source-text { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 :root.apple-ui.apple-ui .shell.feed-shell.feed-shell > .feed-tools:has(.unread-summary) { justify-content: end; grid-template-columns: minmax(0, 1fr); }
 

@@ -2148,7 +2148,7 @@ function BriefingDetailPage(props: { username: string; slug: string; editionId: 
     document.title = result?.edition.title || t("Briefing");
   }, [result, language, t]);
   const href = `/${encodeURIComponent(props.username)}/${encodeURIComponent(props.slug)}/`;
-  const back = <a className="feed-nav-back" href={href} aria-label={t("Back to feed")}><ChevronLeft size={22} aria-hidden/><span>{t("Back")}</span></a>;
+  const back = <FeedBackLink isOwnFeed={false} language={language} destination={href} accessibleLabel={t("Back to feed")}/>;
   const header = <AppHeader account={readerAccount ?? null} loading={readerAccount === undefined} leading={back} onAccount={() => setProfileOpen(true)}/>;
   if (!result) return <main className="briefing-detail-page">
     {header}
@@ -2271,9 +2271,9 @@ function StatusLine(props: { label: string; value: React.ReactNode; valueDir?: "
   );
 }
 
-function FeedBackLink({ isOwnFeed, language }: { isOwnFeed: boolean; language: "en" | "ar" | "fr" }) {
+function FeedBackLink({ isOwnFeed, language, destination, accessibleLabel }: { isOwnFeed: boolean; language: "en" | "ar" | "fr"; destination?: string; accessibleLabel?: string }) {
   const label = language === "ar" ? "رجوع" : language === "fr" ? "Retour" : "Back";
-  return <a className="feed-nav-back" lang={language} href={isOwnFeed || document.referrer.split("?")[0] === new URL("/", window.location.origin).href ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
+  return <a className="feed-nav-back" lang={language} aria-label={accessibleLabel} href={destination ?? (isOwnFeed || document.referrer.split("?")[0] === new URL("/", window.location.origin).href ? "/" : "/explore")}><ChevronLeft size={24} aria-hidden /><span>{label}</span></a>;
 }
 
 function FeedMoreMenu(props: { label: string; children: (close: () => void) => React.ReactNode }) {

@@ -136,6 +136,8 @@ export const interfaceTranslations: Record<string, [string, string]> = {
   'Trending feeds': ['Fils tendance', 'الموجزات الرائجة'],
   'Most followed channels': ['Chaînes les plus suivies', 'القنوات الأكثر متابعة'],
   'Show all': ['Tout afficher', 'عرض الكل'],
+  'Find your starred feeds and followed channels.': ['Retrouvez vos fils favoris et les chaînes suivies.', 'اعثر على خلاصاتك المميزة والقنوات التي تتابعها.'],
+  'Star feeds to find them here.': ['Ajoutez des fils à vos favoris pour les retrouver ici.', 'ميّز الخلاصات بنجمة لتجدها هنا.'],
   'No starred feeds yet': ['Aucun fil favori pour le moment', 'لا توجد موجزات مميزة بعد'],
   'Following': ['Abonné', 'تتابع'],
   'Followed feeds': ['Fils suivis', 'الخلاصات المتابَعة'],

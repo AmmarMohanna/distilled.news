@@ -102,9 +102,12 @@ test("published headlines open retained briefing evidence and preserve read-only
   const login = page.locator('.experience-header a[href="/login"]');
   await expect(login).toBeVisible();
   const feedLogin = (await login.boundingBox())!;
+  const backLabel = page.locator(".experience-header .feed-nav-back > span");
+  const feedBackLabel = await backLabel.boundingBox();
   await page.locator(".briefing-headline-link").click();
   await expect(login).toBeVisible();
   const detailLogin = (await login.boundingBox())!;
+  expect(await backLabel.boundingBox()).toEqual(feedBackLabel);
   expect(detailLogin.x + detailLogin.width).toBeCloseTo(feedLogin.x + feedLogin.width, 0);
   expect(detailLogin.y + detailLogin.height / 2).toBeCloseTo(feedLogin.y + feedLogin.height / 2, 0);
   await expect(page.locator('.briefing-detail-hero .feed-more > summary')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');

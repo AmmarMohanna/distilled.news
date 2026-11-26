@@ -297,7 +297,7 @@ export function AppExperience(props: {
           <span className="channel-avatar" aria-hidden="true"/>
           <p className="channel-loading-status" role="status">{t("Loading channel…")}</p>
         </div>}
-      </div> : props.account ? <div className="experience-title"><h1>{t(tab === "followed" ? "Followed" : "Explore")}</h1>{tab !== "followed" && <p>{t("Find topics and feeds to follow.")}</p>}</div> : <div className="landing-introduction">
+      </div> : props.account ? <div className="experience-title"><h1>{t(tab === "followed" ? "Followed" : "Explore")}</h1><p>{t(tab === "followed" ? "Find your starred feeds and followed channels." : "Find topics and feeds to follow.")}</p></div> : <div className="landing-introduction">
         <h1 aria-label={t("A calmer perspective on a complex world.")}><span className="landing-headline-reference" aria-hidden="true">A calmer perspective on a complex world.</span><span className="landing-headline-text">{language === 'fr' ? <><span>{t('A calmer perspective')}</span><span>{t('on a complex world.')}</span></> : t("A calmer perspective on a complex world.")}</span></h1>
         <p>{t("You choose what matters.")}</p>
       </div>}
@@ -349,8 +349,9 @@ export function AppExperience(props: {
               : "No community feeds are available yet.")}</p>
           ) : (
             <div className="community-feeds-empty">
+              {tab === "followed" && <Star className="followed-empty-icon" size={44} strokeWidth={1.5} aria-hidden/>}
               <h2>{t(tab === "followed" ? "No starred feeds yet" : "No community feeds are available yet.")}</h2>
-              {tab !== "followed" && <p>{t("Check back for new public feeds, or create a feed about a topic you follow.")}</p>}
+              <p>{t(tab === "followed" ? "Star feeds to find them here." : "Check back for new public feeds, or create a feed about a topic you follow.")}</p>
             </div>
           )
         )}
