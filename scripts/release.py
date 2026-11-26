@@ -18,16 +18,18 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "apps/worker"
 MIGRATIONS = "apps/worker/migrations"
-CONFIGS = {"staging": "wrangler.staging.toml", "production": "wrangler.production.jsonc"}
+CONFIGS = {"ci-staging": "wrangler.ci-staging.jsonc", "production": "wrangler.production.jsonc"}
+CI_STAGING_PLACEHOLDER = "00000000-0000-0000-0000-000000000000"
+CI_STAGING_GENERATED = WORKER / "wrangler.ci-staging.generated.json"
 URLS = {
-    "staging": "https://distilled-news-staging.distillednews-platform.workers.dev",
+    "ci-staging": "https://distilled-news-ci-staging.distillednews-platform.workers.dev",
     "production": "https://distilled.news",
 }
 SECURITY_WORKFLOWS = tuple(
     f"security-{name}.yml" for name in ("codeql", "gitleaks", "semgrep", "trivy", "container-validation")
 )
 INFRA_PATHS = (
-    "apps/worker/wrangler.staging.toml", "apps/worker/wrangler.production.jsonc",
+    "apps/worker/wrangler.ci-staging.jsonc", "apps/worker/wrangler.production.jsonc",
     "evaluation/briefing-quality/worker", "apps/agentops-collector",
     "apps/worker/browser-container.Dockerfile", "packages/browser-bridge",
     "scripts/source-execution-server.mjs", "scripts/source-execution.mjs",
@@ -53,39 +55,50 @@ def git(*args):
 
 
 def load_configs():
-    return {
-        "staging": tomllib.loads((WORKER / CONFIGS["staging"]).read_text(encoding="utf-8")),
-        "production": json.loads((WORKER / CONFIGS["production"]).read_text(encoding="utf-8")),
-    }
+    return {target: json.loads((WORKER / path).read_text(encoding="utf-8"))
+            for target, path in CONFIGS.items()}
 
 
 def validate_configs(configs):
     resources = {}
     for target, config in configs.items():
+        staging = target == "ci-staging"
         worker = f"distilled-news-{target}"
         require(config["name"] == worker, f"{target}: unexpected Worker")
-        require(config["main"] == ("src/staging.ts" if target == "staging" else "src/index.ts"),
+        require(config["main"] == ("src/staging.ts" if staging else "src/index.ts"),
                 f"{target}: unexpected entry point")
         require(not set(config) & {"env", "build", "containers", "migrations", "services", "workflows"},
                 f"{target}: custom builds, nested environments and additional runtimes require a separate release")
         require(not config.get("durable_objects", {}).get("bindings"), f"{target}: Durable Object changes need a separate release")
         require(config["preview_urls"] is False, f"{target}: previews must be off")
-        require(config["routes"] == ([] if target == "staging" else [{"pattern": "distilled.news", "custom_domain": True}]),
+        require(config["routes"] == ([] if staging else [{"pattern": "distilled.news", "custom_domain": True}]),
                 f"{target}: unexpected routes")
         require(config["assets"]["directory"] == "../web/dist" and config["assets"]["binding"] == "ASSETS"
                 and config["assets"]["run_worker_first"] is True, f"{target}: unexpected assets binding")
         variables = config["vars"]
         require(all(variables[k] == URLS[target] for k in ("PUBLIC_WEB_BASE_URL", "PUBLIC_API_BASE_URL")),
                 f"{target}: unexpected public URL")
+        db, = config["d1_databases"]
+        require(db["binding"] == "DB" and db["database_name"] == worker and db["migrations_dir"] == "migrations"
+                and not {"migrations_table", "preview_database_id"} & db.keys(),
+                f"{target}: unexpected D1 binding or ledger")
+        require(re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}", db["database_id"]),
+                f"{target}: invalid database ID")
+        if staging:
+            require(set(config) == {"name", "account_id", "main", "compatibility_date", "compatibility_flags",
+                                    "workers_dev", "preview_urls", "routes", "vars", "d1_databases", "assets",
+                                    "observability", "secrets"} and config["workers_dev"] is True
+                    and config["secrets"] == {"required": ["ADMIN_SESSION_SECRET"]},
+                    "ci-staging: only the dedicated DB, frontend and authentication probe are allowed")
+            require(set(variables) == {"CI_STAGING_READ_ONLY", "PUBLIC_WEB_BASE_URL", "PUBLIC_API_BASE_URL"}
+                    and variables["CI_STAGING_READ_ONLY"] == "true", "ci-staging: read-only mode is required")
+            resources[target] = {db["database_id"]}
+            continue
         require(variables["BRIEFING_ENGINE"] == "v3" and not any(re.search(r"(^|_)V5(_|$)", k, re.I) for k in variables),
                 f"{target}: experimental briefing settings are outside this pipeline")
         require(not {"RELEASE_SHA", "CI_STAGING_READ_ONLY"} & variables.keys(),
                 f"{target}: release markers are set by CI")
-        db, = config["d1_databases"]
         bucket, = config["r2_buckets"]
-        require(db["binding"] == "DB" and db["database_name"] == worker and db["migrations_dir"] == "migrations"
-                and "migrations_table" not in db, f"{target}: unexpected D1 binding or ledger")
-        require(re.fullmatch(r"[a-f0-9-]{36}", db["database_id"]), f"{target}: invalid database ID")
         require(bucket["binding"] == "RAW_ARCHIVE" and bucket["bucket_name"] == f"{worker}-raw",
                 f"{target}: unexpected R2 binding")
         producers = {queue["queue"] for queue in config["queues"]["producers"]}
@@ -95,7 +108,11 @@ def validate_configs(configs):
         require(producers == consumers == expected and dead_letters == {f"{q}-dlq" for q in expected},
                 f"{target}: unexpected queue topology")
         resources[target] = {db["database_id"], bucket["bucket_name"], *expected, *dead_letters}
-    require(resources["staging"].isdisjoint(resources["production"]), "staging and production share a data resource")
+    integration = tomllib.loads((WORKER / "wrangler.staging.toml").read_text(encoding="utf-8"))
+    integration_ids = {db["database_id"] for db in integration["d1_databases"]}
+    require(resources["ci-staging"].isdisjoint(resources["production"] | integration_ids),
+            "ci-staging shares a data resource with production or integration staging")
+    require(resources["production"].isdisjoint(integration_ids), "production and integration staging share a data resource")
 
 
 def migration_names():
@@ -189,16 +206,11 @@ def check_infra_baseline(baseline, sha):
     require(not changed, f"Review and reconcile infrastructure or companion changes before releasing:\n{changed}")
 
 
-def preflight(target, config, cf):
-    if target == "staging":
-        for consumer in config["queues"]["consumers"]:
-            name = consumer["queue"]
-            queues = cf(f"queues?{urlencode({'name': name})}")
-            matches = [queue for queue in queues if queue["queue_name"] == name]
-            require(len(matches) == 1 and matches[0].get("settings", {}).get("delivery_paused") is True,
-                    f"Pause delivery for staging queue {name} before deployment")
+def preflight(config, cf):
     db = config["d1_databases"][0]
-    results = cf(f"d1/database/{db['database_id']}/query", {"sql": "SELECT name FROM d1_migrations"})
+    path = f"d1/database/{db['database_id']}"
+    require(cf(path).get("name") == db["database_name"], "Live D1 database name does not match the deployment target")
+    results = cf(f"{path}/query", {"sql": "SELECT name FROM d1_migrations"})
     check_migration_ledger(migration_names(), results)
 
 
@@ -222,7 +234,7 @@ def smoke(target, sha, get, directory=BUILD):
         return body
 
     health = json.loads(expect("/api/health/release", 200, "application/json"))
-    require(health == {"status": "ok", "sha": sha, "readOnly": target == "staging"},
+    require(health == {"status": "ok", "sha": sha, "readOnly": target == "ci-staging"},
             "Release health returned an unexpected SHA, status or staging mode")
     parser = AssetLinks()
     parser.feed(expect("/", 200, "text/html").decode())
@@ -237,7 +249,8 @@ def smoke(target, sha, get, directory=BUILD):
                 f"{path}: deployed asset differs from the validated artifact")
 
     session = json.loads(expect("/api/auth/session", 200, "application/json"))
-    require(session.get("authenticated") is False and "account" not in session and session.get("setupRequired") is False,
+    require(session.get("authenticated") is False and "account" not in session
+            and session.get("setupRequired") is (target == "ci-staging"),
             "Unexpected anonymous session or uninitialized account database")
     explore = json.loads(expect("/api/explore/feeds", 200, "application/json"))
     require(isinstance(explore.get("feeds"), list) and isinstance(explore.get("revision"), str),
@@ -276,6 +289,10 @@ def main():
     require(target in CONFIGS and SHA.fullmatch(sha), "Expected a known target and a full release SHA")
     if args.command == "preflight":
         configs = load_configs()
+        if target == "ci-staging":
+            database_id = os.environ["CI_STAGING_DATABASE_ID"]
+            require(database_id != CI_STAGING_PLACEHOLDER, "Configure the dedicated CI staging D1 database ID")
+            configs[target]["d1_databases"][0]["database_id"] = database_id
         validate_configs(configs)
         config = configs[target]
         require(os.environ["CLOUDFLARE_ACCOUNT_ID"] == config["account_id"], "Cloudflare account does not match the target")
@@ -288,7 +305,9 @@ def main():
             require(result["success"] is True, f"Cloudflare rejected the preflight request ({path.split('?')[0]})")
             return result["result"]
 
-        preflight(target, config, cf)
+        preflight(config, cf)
+        if target == "ci-staging":
+            CI_STAGING_GENERATED.write_text(json.dumps(config), encoding="utf-8")
         print(f"{target}: infrastructure baseline, target and D1 ledger verified")
         return
 

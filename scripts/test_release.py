@@ -18,9 +18,20 @@ class ReleaseGateTests(unittest.TestCase):
     def test_repository_targets_are_valid_and_isolated(self):
         configs = release.load_configs()
         release.validate_configs(configs)
-        configs["staging"]["d1_databases"][0]["database_id"] = configs["production"]["d1_databases"][0]["database_id"]
-        with self.assertRaisesRegex(release.ReleaseError, "share a data resource"):
+        configs["ci-staging"]["d1_databases"][0]["database_id"] = configs["production"]["d1_databases"][0]["database_id"]
+        with self.assertRaisesRegex(release.ReleaseError, "shares a data resource"):
             release.validate_configs(configs)
+
+    def test_ci_staging_refuses_integration_database_and_background_bindings(self):
+        configs = release.load_configs()
+        configs["ci-staging"]["d1_databases"][0]["database_id"] = "ab259bfe-6029-4e20-8cb6-eea6b7a67459"
+        with self.assertRaisesRegex(release.ReleaseError, "integration staging"):
+            release.validate_configs(configs)
+        for binding in ("queues", "triggers", "vpc_services", "send_email", "r2_buckets"):
+            configs = release.load_configs()
+            configs["ci-staging"][binding] = {}
+            with self.subTest(binding=binding), self.assertRaisesRegex(release.ReleaseError, "only the dedicated DB"):
+                release.validate_configs(configs)
 
     def test_production_cannot_use_an_experimental_engine_or_container_rollout(self):
         for key, value in (("vars", {"BRIEFING_ENGINE": "v5"}), ("containers", [{}])):
@@ -49,22 +60,19 @@ class ReleaseGateTests(unittest.TestCase):
                 with self.assertRaises(release.ReleaseError):
                     release.validate_migration_diff(SHA, ["0100_old.sql", Path(path).name])
 
-    def test_staging_refuses_active_queues_and_production_queries_only_its_ledger(self):
-        configs = release.load_configs()
-        staging = configs["staging"]
-        name = staging["queues"]["consumers"][0]["queue"]
-        with self.assertRaisesRegex(release.ReleaseError, "Pause delivery"):
-            release.preflight("staging", staging, lambda _path: [{"queue_name": name, "settings": {"delivery_paused": False}}])
-
+    def test_preflight_checks_the_target_database_name_and_ledger(self):
+        production = release.load_configs()["production"]
+        db = production["d1_databases"][0]
+        path = f"d1/database/{db['database_id']}"
         calls = []
-        def cloudflare(path, data=None):
-            calls.append((path, data))
-            return rows(*release.migration_names())
+        def cloudflare(endpoint, data=None):
+            calls.append((endpoint, data))
+            return {"name": db["database_name"]} if data is None else rows(*release.migration_names())
 
-        production = configs["production"]
-        release.preflight("production", production, cloudflare)
-        database = production["d1_databases"][0]["database_id"]
-        self.assertEqual(calls, [(f"d1/database/{database}/query", {"sql": "SELECT name FROM d1_migrations"})])
+        release.preflight(production, cloudflare)
+        self.assertEqual(calls, [(path, None), (f"{path}/query", {"sql": "SELECT name FROM d1_migrations"})])
+        with self.assertRaisesRegex(release.ReleaseError, "Live D1 database name"):
+            release.preflight(production, lambda _: {"name": "distilled-news-staging"})
 
     def test_old_runs_fail_even_if_their_security_checks_succeeded(self):
         with patch.object(release, "git", return_value=SHA):
@@ -113,7 +121,7 @@ class SmokeTests(unittest.TestCase):
             "/": (200, {"Content-Type": "text/html"}, html.encode()),
             self.asset: (200, {"Content-Type": "text/javascript"}, b"export {};"),
             "/api/health/release": self.json_response(200, {"status": "ok", "sha": SHA, "readOnly": True}),
-            "/api/auth/session": self.json_response(200, {"authenticated": False, "setupRequired": False}),
+            "/api/auth/session": self.json_response(200, {"authenticated": False, "setupRequired": True}),
             "/api/explore/feeds": self.json_response(200, {"feeds": [], "revision": "r"}),
             "/api/me/health": self.json_response(401, {"error": "unauthorized"}),
             "/api/admin/accounts": self.json_response(401, {"error": "unauthorized"}),
@@ -124,7 +132,7 @@ class SmokeTests(unittest.TestCase):
         return status, {"Content-Type": "application/json"}, json.dumps(value).encode()
 
     def test_read_only_staging_smoke(self):
-        release.smoke("staging", SHA, self.responses.__getitem__, self.dist)
+        release.smoke("ci-staging", SHA, self.responses.__getitem__, self.dist)
 
     def test_smoke_fails_on_redirect_auth_regression_other_release_or_wrong_asset(self):
         for path, response in (
@@ -137,4 +145,4 @@ class SmokeTests(unittest.TestCase):
             with self.subTest(path=path, response=response):
                 overridden = self.responses | {path: response}
                 with self.assertRaises(release.ReleaseError):
-                    release.smoke("staging", SHA, overridden.__getitem__, self.dist)
+                    release.smoke("ci-staging", SHA, overridden.__getitem__, self.dist)

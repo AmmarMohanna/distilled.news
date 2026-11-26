@@ -29,7 +29,7 @@ export default {
   },
   async queue(batch: Parameters<typeof worker.queue>[0], env: Env) {
     if (env.CI_STAGING_READ_ONLY === 'true') {
-      // CI also requires paused delivery. Preserve messages if delivery is resumed out of band.
+      // CI staging has no queue bindings. Preserve an unexpected delivery for retry.
       batch.retryAll();
       return;
     }

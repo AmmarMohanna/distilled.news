@@ -25,7 +25,7 @@ jobs:
   deploy:
     if: >-
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      (inputs.target == 'staging' || inputs.target == 'production')
+      (inputs.target == 'ci-staging' || inputs.target == 'production')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     concurrency:
@@ -76,6 +76,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           RELEASE_INFRA_SHA: ${{ vars.RELEASE_INFRA_SHA }}
+          CI_STAGING_DATABASE_ID: ${{ vars.CI_STAGING_DATABASE_ID }}
         run: python scripts/release.py preflight "$TARGET"
       - name: Deploy the exact validated commit
         env:
@@ -84,8 +85,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           case "$TARGET" in
-            staging) config=wrangler.staging.toml; mode=true ;;
-            production) config=wrangler.production.jsonc; mode=false ;;
+            ci-staging) config=wrangler.ci-staging.generated.json ;;
+            production) config=wrangler.production.jsonc ;;
             *) exit 1 ;;
           esac
           python scripts/release.py current
@@ -93,7 +94,7 @@ jobs:
           export WRANGLER_OUTPUT_FILE_PATH="$RUNNER_TEMP/worker-deployment.jsonl"
           pnpm --filter @distilled/worker exec wrangler deploy --config "$config" \
             --containers-rollout=none --x-autoconfig=false --x-provision=false --x-auto-create=false \
-            --var "RELEASE_SHA:$GITHUB_SHA" "CI_STAGING_READ_ONLY:$mode" \
+            --var "RELEASE_SHA:$GITHUB_SHA" \
             --message "GitHub Actions $GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT $GITHUB_SHA"
       - name: Smoke test the deployed version and frontend
         run: python scripts/release.py smoke "$TARGET"
