@@ -60,7 +60,7 @@ export async function currentReviewHistory(store:V1FeedStore,input:V3WindowInput
 export async function reviewEvidenceAllowed(store:V1FeedStore,input:V3WindowInput,ids:string[]):Promise<boolean>{
   if(ids.some(id=>!input.evidenceRevisionIds.includes(id)))return false;
   if(input.cutoffPolicy)return cutoffEvidenceAuthorized(store,{...input,evidenceRevisionIds:ids});
-  const active=await store.activeEvidenceRevisionIds(input.feedId);
+  const active=await store.activeEvidenceRevisionIds(input.feedId,ids);
   return ids.every(id=>active.has(id));
 }
 

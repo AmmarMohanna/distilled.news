@@ -98,7 +98,7 @@ export async function selectionInput(tx:FeedTransaction,selection:SelectionRecor
 async function loadSelectionInput(tx:FeedTransaction,selection:SelectionRecord,adaptiveExecution:boolean):Promise<SynthesisInput> {
  if(selection.feedRevision!==tx.snapshot.feed.revision) throw new HandoffError('SCOPE_DENIED');
  await assertCommunicationCurrent(tx,selection);
- const active=await measureLatency('PUBLICATION_ACTIVE_IDENTITIES',()=>tx.store.activeEvidenceRevisionIds(tx.snapshot.feed.id)),stories:SynthesisInput['stories']=[];
+ const stories:SynthesisInput['stories']=[];
  const plan=selection.editorialPlanId?await tx.read<EditorialPlanRecord>('editorial_plans',selection.editorialPlanId):undefined,shortlist=plan?await tx.read<ShortlistRecord>('shortlists',plan.shortlistId):undefined;
  if(selection.editorialPlanId && (!plan||!shortlist||plan.communicationFingerprint!==selection.communicationFingerprint||plan.feedRevision!==selection.feedRevision))throw new HandoffError('SCOPE_DENIED');
  // Revalidate the exact immutable cutoff state against current active source
@@ -110,7 +110,6 @@ async function loadSelectionInput(tx:FeedTransaction,selection:SelectionRecord,a
  const historyRevisionIds=[...new Set(shortlist?.ledger.flatMap(e=>e.evidenceRevisionIds??[])??[])];
  countLatency('publicationHistoryRevisionIds',historyRevisionIds.length);
  const historyArticleIds=await measureLatency('PUBLICATION_HISTORY_IDENTITIES',()=>tx.store.revisionEvidenceIds(tx.snapshot.feed.id,historyRevisionIds));
- countLatency('publicationActiveRevisionIds',active.size);
  await tx.preload('candidates',selection.selectedCandidateIds);
  const selectedCandidates:BriefingCandidate[]=[];
  for(const id of selection.selectedCandidateIds){
@@ -120,7 +119,11 @@ async function loadSelectionInput(tx:FeedTransaction,selection:SelectionRecord,a
  }
  // Only read-ahead is narrowed. The complete catalog/cutoff/source checks above
  // and every selected version/provenance check below remain authoritative.
- const selectedVersions=[...new Set(selectedCandidates.flatMap(c=>eligible.get(c.targetVersionId)!.eventVersionIds))];
+ const selectedVersionIds=new Set(selectedCandidates.flatMap(c=>eligible.get(c.targetVersionId)!.eventVersionIds));
+ const selectedVersions=[...selectedVersionIds];
+ const supportIds=memberships.filter(m=>selectedVersionIds.has(m.eventVersionId)).map(m=>m.evidenceRevisionId);
+ const active=await measureLatency('PUBLICATION_ACTIVE_IDENTITIES',()=>tx.store.activeEvidenceRevisionIds(tx.snapshot.feed.id,supportIds));
+ countLatency('publicationActiveRevisionIds',active.size);
  countLatency('publicationSelectedSemanticVersions',selectedVersions.length);
  await measureLatency('PUBLICATION_SELECTED_SEMANTIC_LOAD',()=>tx.preloadSemanticReferences(selectedVersions));
  let inspected=0;

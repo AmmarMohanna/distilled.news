@@ -27,6 +27,8 @@ export function readSessionConstraint(request:Request):'first-primary'|'first-un
 
 export function readRouteDatabase(env:Env,request:Request,wrap:(db:D1Database)=>D1Database=db=>db):D1Database {
  const {pathname}=new URL(request.url);
+ // Session validation must see current account revocations on the primary.
+ if(env.DB && request.method==='GET' && pathname==='/api/auth/session')return withReadRetry(wrap(env.DB));
  if(!env.DB||!isReadOnlyRoute(request.method,pathname))return wrap(env.DB);
  let db=env.DB;
  if(env.D1_READ_SESSIONS_ENABLED==='true'&&typeof db.withSession==='function')
