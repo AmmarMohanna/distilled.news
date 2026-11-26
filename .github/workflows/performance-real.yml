@@ -1,6 +1,12 @@
 name: Manually approved isolated multi-user campaign
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Campaign profile (native runs build their bundle from this draft)
+        type: choice
+        options: [load, spike, stress, soak]
+        default: load
 permissions:
   contents: read
 concurrency:
@@ -61,6 +67,11 @@ jobs:
           CAMPAIGN_GRAFANA_OTLP_URL: ${{ vars.CAMPAIGN_GRAFANA_OTLP_URL }}
           CAMPAIGN_GRAFANA_AUTH: ${{ secrets.CAMPAIGN_GRAFANA_AUTH }}
           CAMPAIGN_ADAPTER_KIND: ${{ vars.CAMPAIGN_ADAPTER_KIND }}
+          CAMPAIGN_PROFILE: ${{ inputs.profile }}
+          CAMPAIGN_MAX_USD: ${{ vars.CAMPAIGN_MAX_USD }}
+          CAMPAIGN_CLOUD_USD: ${{ vars.CAMPAIGN_CLOUD_USD }}
+          CAMPAIGN_SOURCE_AUTHORIZATION: ${{ vars.CAMPAIGN_SOURCE_AUTHORIZATION }}
+          CAMPAIGN_CAPACITY_JSON: ${{ vars.CAMPAIGN_CAPACITY_JSON }}
           CAMPAIGN_QA_GMAIL: ${{ vars.CAMPAIGN_ADAPTER_KIND == 'native' && vars.CAMPAIGN_QA_GMAIL || '' }}
           CAMPAIGN_PILOT_WORKER: ${{ vars.CAMPAIGN_PILOT_WORKER }}
           CAMPAIGN_PROVIDER_ACCOUNT_ID: ${{ vars.CAMPAIGN_PROVIDER_ACCOUNT_ID }}

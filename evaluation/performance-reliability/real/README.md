@@ -147,12 +147,16 @@ Set these GitHub Actions variables:
 | Variable | Value |
 | --- | --- |
 | `CAMPAIGN_ADAPTER_KIND` | `native` |
-| `CAMPAIGN_QA_GMAIL` | `testingdistilled@gmail.com`, or the dedicated QA Gmail used for consent |
+| `CAMPAIGN_QA_GMAIL` | The dedicated QA Gmail used for consent |
 | `CAMPAIGN_PILOT_WORKER` | `distilled-news-staging-campaign-pilot` |
 | `CAMPAIGN_PROVIDER_ACCOUNT_ID` | The confirmed provider billing account ID from the pilot D1 ledger. The November 2 pilot used `pilotnov02-provider`. Verify the current ID before using it. |
 | `CAMPAIGN_MAX_MODEL_OPERATIONS` | The approved positive integer model-operation cap, at most 500 and at most the manifest's `budget.maxModelCalls`. |
 | `CAMPAIGN_EXPECTED_BUNDLE_DIGEST` | The reviewed deployed `index.js` digest. Compute it from the exact module using the command below. |
 | `CAMPAIGN_GRAFANA_OTLP_URL` | `https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics` for the current stack |
+| `CAMPAIGN_MAX_USD` | The agreed per-run spending ceiling in USD (at most 50). It becomes the manifest `budget.totalUsd` and the approval's `maximumUsd`. |
+| `CAMPAIGN_SOURCE_AUTHORIZATION` | A short reference to the team's approval of the draft's sources, for example `team-approved-2026-11-26`. Recorded as `sourceAuthorization.evidenceId`. |
+| `CAMPAIGN_CLOUD_USD` | Optional. Cloudflare cost envelope per run; defaults to `0.2`. |
+| `CAMPAIGN_CAPACITY_JSON` | Optional. Overrides the declared capacity figures (Workers plan, CPU and D1 budgets) that the pilot used. |
 
 ```sh
 node -e "const fs=require('node:fs');const {createHash}=require('node:crypto');const bytes=fs.readFileSync(process.argv[1]);console.log(createHash('sha256').update(JSON.stringify(bytes.toString('base64'))).digest('hex'))" path/to/index.js
@@ -168,7 +172,33 @@ Set these secrets in the protected `agentops-multiuser-staging-approval` environ
 | `CAMPAIGN_ADMIN_COOKIE` | A current isolated staging admin session, as `dn_session=…`. |
 | `CAMPAIGN_ARTIFACT_KEY` | The 64-character hexadecimal key used to encrypt run artifacts. |
 | `CAMPAIGN_GRAFANA_AUTH` | The full authorization value for the Grafana metrics endpoint. |
-| `CAMPAIGN_PRIVATE_BUNDLE` | The fresh, reviewed bundle for the exact commit, including the manifest, preflight, approval, and isolated resource inventory. The approval must include telemetry and cleanup. |
+| `CAMPAIGN_PRIVATE_BUNDLE` | Optional in native mode. Leave it unset to let the job build the bundle itself (below). Set it only to run an exact, hand-reviewed bundle. |
+
+### Automatic bundle (native mode)
+
+When `CAMPAIGN_PRIVATE_BUNDLE` is unset, `real/auto-bundle.mjs` builds the run bundle
+inside the approved job. Pick the profile (`load`, `spike`, `stress` or `soak`) when
+starting the workflow. The job:
+
+- fills the profile's draft manifest with run ID `gh<run id>a<attempt>`, the workflow
+  commit as `revision`, `CAMPAIGN_MAX_USD` as the budget and
+  `CAMPAIGN_MAX_MODEL_OPERATIONS` as the model-call ceiling;
+- runs the native preflight live (Worker isolation, deployed bundle digest, ledger and
+  grant state, Gmail, Cron), reads the isolated queue IDs and R2 bucket from the
+  Worker's bindings, fetches current OpenRouter prices for the manifest's models,
+  checks the admin session, and proves the Grafana credential with an empty OTLP write;
+- computes the preflight with `manifest.mjs` and stops with the blocker names if it is
+  not `READY`;
+- writes a six-hour approval bound to that manifest and preflight, recording the
+  protected environment's required reviewer as the authorization.
+
+The human sign-off is therefore the reviewer's **Approve** on the waiting job, and the
+spending ceiling is the admin-set `CAMPAIGN_MAX_USD`. Capacity figures that cannot be
+measured before the run are listed under `declared` in the private
+`auto-preflight-evidence.private.json`; live resource reads continue during the run.
+The campaign Worker's code is pinned by `CAMPAIGN_EXPECTED_BUNDLE_DIGEST`; the
+evidence asserts the harness revision only when that digest matched. Supported for
+regular profiles only; `recovery` and `agentops` still need a reviewed bundle.
 
 Native mode can leave all private QA bridge URLs, `CAMPAIGN_PRIVATE_API_ORIGINS`,
 `CAMPAIGN_PRIVATE_API_TOKEN`, and `CAMPAIGN_EMAIL_DOMAIN` unset. The workflow

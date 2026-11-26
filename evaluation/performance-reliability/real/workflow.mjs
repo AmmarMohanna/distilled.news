@@ -44,7 +44,11 @@ async function main(env) {
   const file = adapterFor(env.CAMPAIGN_ADAPTER_KIND);
   const native = file === 'native-adapter.mjs';
   if (!/^[a-f0-9]{64}$/i.test(env.CAMPAIGN_ARTIFACT_KEY ?? '')) throw Error('DURABLE_PRIVATE_ARTIFACT_STORAGE_REQUIRED');
-  const bundle = JSON.parse(env.CAMPAIGN_PRIVATE_BUNDLE ?? 'null');
+  // Native runs build their bundle inside the approved job unless an operator
+  // explicitly supplies one. The required environment reviewer is the sign-off.
+  const bundle = env.CAMPAIGN_PRIVATE_BUNDLE
+    ? JSON.parse(env.CAMPAIGN_PRIVATE_BUNDLE)
+    : native ? await (await import('./auto-bundle.mjs')).buildAutoBundle(env) : null;
   if (!bundle || !['run', 'setup', 'plan', 'campaign', 'cleanup'].includes(bundle.phase)) throw Error('REVIEWED_PRIVATE_WORKFLOW_BUNDLE_REQUIRED');
   const manifest = validateManifest(bundle.manifest);
   if (manifest.revision !== env.GITHUB_SHA) throw Error('EXACT_WORKFLOW_REVISION_REQUIRED');
