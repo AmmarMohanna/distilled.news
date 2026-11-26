@@ -24,7 +24,7 @@ import {cachedFeedEditions,cachedFeedStatus,feedReadCacheEnabled,feedReadVersion
 import {connectorSourceHealth,feedCollectionAlerts,type CollectionAlertCode} from './connector-health';
 import { pushConfigured, subscriptionSchema, validPushEndpoint } from './push';
 import { bodyLimit } from 'hono/body-limit';
-import { briefingPublisherPhoto } from "./briefing-photo";
+import { briefingPublisherPhotos } from "./briefing-photo";
 import {feedSourceAvailability} from './connector-availability';
 import {D1CatchUpStore,generateCatchUp,publicCatchUp,publicDevelopment} from "./development-feed";
 import { HandoffError } from '@distilled/contracts';
@@ -1628,10 +1628,11 @@ export function createApp(options: AppOptions = {}) {
     if(usesEditionArtifacts(c.env)&&!await canReadPublishedEdition(c,edition.id))return c.json({error:'edition not found'},404);
     if (c.env.PRODUCT_FEEDS_ENABLED !== "true" && !isPublicEditionVisible(edition, briefing.language)) return c.json({ error: "edition not found" }, 404);
     if (c.req.query("photo") === "1") {
-      if (!briefing.publicFeedEnabled) return c.json({ photo: null });
-      const photo = await briefingPublisherPhoto(edition, fetcher);
-      const current = photo ? await repo.getBriefingById(briefing.id) : null;
-      return c.json({ photo: current?.publicFeedEnabled ? photo : null });
+      if (!briefing.publicFeedEnabled) return c.json({ photo: null, photos: [] });
+      const photos = await briefingPublisherPhotos(edition, fetcher);
+      const current = photos.length ? await repo.getBriefingById(briefing.id) : null;
+      const visiblePhotos = current?.publicFeedEnabled ? photos : [];
+      return c.json({ photo: visiblePhotos[0] ?? null, photos: visiblePhotos });
     }
     return c.json({ briefing: publicBriefing(briefing), edition: c.env.PRODUCT_FEEDS_ENABLED === "true" ? edition : publicEdition(edition, briefing, true) });
   });
