@@ -403,13 +403,14 @@ export function accountInitials(username: string) {
 }
 
 function ChannelAvatar({ username }: { username: string }) {
+  const src = useChannelAvatarUrl(username);
   const [missingPictureFor, setMissingPictureFor] = useState<string>();
-  const missingPicture = missingPictureFor === username;
+  const missingPicture = missingPictureFor === src;
   return <span className={`channel-avatar${missingPicture ? " channel-avatar-initials" : ""}`} aria-hidden="true">
     {missingPicture && accountInitials(username)}
-    <img key={username} className="account-avatar-image" src={`/api/explore/channels/${encodeURIComponent(username)}/avatar`} alt="" style={{ visibility: "hidden" }}
+    <img key={src} className="account-avatar-image" src={src} alt="" style={{ visibility: "hidden" }}
       onLoad={event => { event.currentTarget.style.visibility = "visible"; }}
-      onError={() => setMissingPictureFor(username)}/>
+      onError={() => setMissingPictureFor(src)}/>
   </span>;
 }
 
@@ -510,6 +511,7 @@ function ChannelHeader({ channel, canEdit, onError }: {
   const [coverVersion, setCoverVersion] = useState(0);
   const [coverBusy, setCoverBusy] = useState(false);
   const picturePath = `/api/explore/channels/${encodeURIComponent(channel.username)}`;
+  const avatarUrl = useChannelAvatarUrl(channel.username);
   useVisibleFeedMenu(menu);
   const close = () => {
     if (!menu.current) return;
@@ -532,7 +534,7 @@ function ChannelHeader({ channel, canEdit, onError }: {
   };
   return <div className="channel-hero">
     <div className="channel-banner" aria-hidden="true">
-      <img src={`${picturePath}/avatar`} alt="" style={{ visibility: "hidden" }} onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
+      <img key={avatarUrl} src={avatarUrl} alt="" style={{ visibility: "hidden" }} onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
       <img key={coverVersion} className="channel-cover-photo" src={`${picturePath}/cover?v=${coverVersion}`} alt="" style={{ visibility: "hidden" }}
         onLoad={event => { event.currentTarget.style.visibility = "visible"; }}/>
     </div>
@@ -568,17 +570,34 @@ function ChannelHeader({ channel, canEdit, onError }: {
   </div>;
 }
 
-export const ACCOUNT_AVATAR_UPDATED = "account-avatar-updated";
+const ACCOUNT_AVATAR_UPDATED = "account-avatar-updated";
+const avatarRevisions = new Map<string, number>();
+
+export function refreshAccountAvatar(account: Pick<AccountRecord, "id" | "username">) {
+  const revision = Date.now();
+  avatarRevisions.set(`account:${account.id}`, revision);
+  avatarRevisions.set(`channel:${account.username}`, revision);
+  window.dispatchEvent(new Event(ACCOUNT_AVATAR_UPDATED));
+}
+
+function useAvatarRevision(key: string) {
+  const [revision, setRevision] = useState(() => avatarRevisions.get(key) ?? 0);
+  useEffect(() => {
+    const updated = () => setRevision(avatarRevisions.get(key) ?? 0);
+    window.addEventListener(ACCOUNT_AVATAR_UPDATED, updated);
+    updated();
+    return () => window.removeEventListener(ACCOUNT_AVATAR_UPDATED, updated);
+  }, [key]);
+  return revision;
+}
+
+function useChannelAvatarUrl(username: string) {
+  const revision = useAvatarRevision(`channel:${username}`);
+  return `/api/explore/channels/${encodeURIComponent(username)}/avatar${revision ? `?v=${revision}` : ""}`;
+}
 
 export function AccountAvatar({ account, className, onPictureChange }: { account: AccountRecord; className?: string; onPictureChange?: (available: boolean) => void }) {
-  const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    const updated = (event: Event) => {
-      if ((event as CustomEvent<string>).detail === account.id) setRevision(Date.now());
-    };
-    window.addEventListener(ACCOUNT_AVATAR_UPDATED, updated);
-    return () => window.removeEventListener(ACCOUNT_AVATAR_UPDATED, updated);
-  }, [account.id]);
+  const revision = useAvatarRevision(`account:${account.id}`);
   const src = `/api/me/avatar?account=${encodeURIComponent(account.id)}&v=${revision}`;
   return <span className={className} aria-hidden="true">
     {accountInitials(account.username)}

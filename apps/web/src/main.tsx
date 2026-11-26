@@ -114,7 +114,7 @@ import { normalizeUsername } from "@distilled/core";
 import { useTheme } from "./ThemeToggle";
 import type { AccountRecord, AccountWithStats, FeedPayload, HealthStatus, PublicBriefing, SessionStatus, SourceRecord } from "./types";
 import "./styles.css";
-import { accountInitials, AccountAvatar, ACCOUNT_AVATAR_UPDATED, AppExperience, AppHeader, BrandMark, channelUrl, editionUrl, PublicNavigation } from "./AppExperience";
+import { accountInitials, AccountAvatar, refreshAccountAvatar, AppExperience, AppHeader, BrandMark, channelUrl, editionUrl, PublicNavigation } from "./AppExperience";
 import { LanguageControl, preferredLanguage, useLanguage, languageNames, setWebsiteLanguage } from "./LanguageControl";
 import { FeedEditor, type FeedInput } from "./FeedEditor";
 import {FeedSettingsSelect} from './FeedLanguageSelect';
@@ -1345,7 +1345,7 @@ function AccountDialog(props: {
           setError("");
           try {
             await uploadAccountAvatar(picture);
-            window.dispatchEvent(new CustomEvent(ACCOUNT_AVATAR_UPDATED, { detail: props.account.id }));
+            refreshAccountAvatar(props.account);
             setMessage("Profile picture saved");
           } catch (cause) {
             setError(toUiError(cause));
@@ -1365,7 +1365,7 @@ function AccountDialog(props: {
           try {
             await deleteAccountAvatar();
             setHasPicture(false);
-            window.dispatchEvent(new CustomEvent(ACCOUNT_AVATAR_UPDATED, { detail: props.account.id }));
+            refreshAccountAvatar(props.account);
             setMessage("Profile picture removed");
           } catch (cause) {
             setError(toUiError(cause));

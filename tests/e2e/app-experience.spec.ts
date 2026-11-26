@@ -121,6 +121,7 @@ test('uploads a profile picture and restores it after a reload', async ({ page }
   await dialog.getByRole('button', { name: 'Upload profile picture' }).click();
   await (await chooser).setFiles({ name: 'picture.png', mimeType: 'image/png', buffer: Buffer.from(file, 'base64') });
   await expect(dialog.getByText('Profile picture saved')).toBeVisible();
+  await expect(avatar.locator('.account-avatar-image')).toBeVisible();
   await expect(dialog.locator('.account-avatar-image')).toBeVisible();
   await page.reload();
   const image = avatar.locator('.account-avatar-image');
