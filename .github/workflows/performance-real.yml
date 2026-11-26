@@ -37,6 +37,8 @@ jobs:
           CAMPAIGN_BROWSER_EVIDENCE_URL: ${{ vars.CAMPAIGN_BROWSER_EVIDENCE_URL }}
           CAMPAIGN_PREFLIGHT_URL: ${{ vars.CAMPAIGN_PREFLIGHT_URL }}
           CAMPAIGN_PRIVATE_API_TOKEN: ${{ secrets.CAMPAIGN_PRIVATE_API_TOKEN }}
+          CAMPAIGN_GRAFANA_OTLP_URL: ${{ vars.CAMPAIGN_GRAFANA_OTLP_URL }}
+          CAMPAIGN_GRAFANA_AUTH: ${{ secrets.CAMPAIGN_GRAFANA_AUTH }}
         run: node evaluation/performance-reliability/real/workflow.mjs
       - name: Encrypt private evidence before artifact storage
         if: always()
