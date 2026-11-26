@@ -2,15 +2,16 @@ import {readStorageHealth} from './storage-maintenance';
 
 const CANARY_MAX_ALLOCATION = 9_500_000_000;
 const CANARY_COOLDOWN_MS = 15 * 60_000;
+const activeRssSource = `SELECT 1 FROM sources s JOIN briefings b ON b.id=s.briefing_id
+  WHERE s.enabled=1 AND s.collection_owner='connector' AND b.paused=0
+    AND s.provider='rss' AND s.kind='rss_feed'`;
 
 /** Prove that a real bounded write can reuse allocated pages. This grants a
  * single named source admission and leaves the general 9 GB guard closed. */
 export async function authorizeConnectorStorageCanary(db:D1Database,feedId:string,sourceId:string,now=Date.now()) {
   const health=await readStorageHealth(db);
   if (health.status!=='critical'||health.allocatedBytes>=CANARY_MAX_ALLOCATION) return false;
-  const source=await db.prepare(`SELECT 1 FROM sources s JOIN briefings b ON b.id=s.briefing_id
-    WHERE s.id=? AND b.id=? AND s.enabled=1 AND s.collection_owner='connector' AND b.paused=0`)
-    .bind(sourceId,feedId).first();
+  const source=await db.prepare(`${activeRssSource} AND s.id=? AND b.id=?`).bind(sourceId,feedId).first();
   if (!source) return false;
   const token=crypto.randomUUID();
   const lock=await db.prepare(`INSERT INTO connector_storage_recovery(id,token,feed_id,source_id,until_ms,state,allocated_bytes)
@@ -38,6 +39,7 @@ export async function consumeConnectorStorageCanary(db:D1Database,feedId:string,
   if (allocatedBytes>=CANARY_MAX_ALLOCATION||!sourceIds.length) return undefined;
   const row=await db.prepare(`UPDATE connector_storage_recovery SET state='CONSUMED' WHERE id=1 AND state='READY'
     AND feed_id=? AND source_id IN (SELECT value FROM json_each(?)) AND allocated_bytes=? AND until_ms>?
+    AND EXISTS (${activeRssSource} AND s.id=connector_storage_recovery.source_id AND b.id=connector_storage_recovery.feed_id)
     RETURNING source_id`).bind(feedId,JSON.stringify(sourceIds),allocatedBytes,now).first<{source_id:string}>();
   return row?.source_id;
 }

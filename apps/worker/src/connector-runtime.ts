@@ -159,6 +159,7 @@ export async function runConnectorMaintenance(env:Env,now=new Date(),options:{sc
   const row=await env.DB.prepare(`SELECT s.briefing_id,s.created_at,s.source_url,s.provider,s.kind,s.input,s.actor_id,s.collection_owner,b.owner_account_id FROM sources s JOIN briefings b ON b.id=s.briefing_id JOIN accounts a ON a.id=b.owner_account_id WHERE s.id=? AND s.enabled=1 AND b.paused=0 AND a.disabled_at IS NULL AND (?=0 OR s.collection_owner='connector')`).bind(id,env.SOURCE_QUEUE_SCHEDULING_ENABLED==='true'?1:0).first<{briefing_id:string;created_at:string;source_url:string;provider:string;kind:string;input:string|null;actor_id:string|null;collection_owner:string;owner_account_id:string}>();
   if(!row)continue;
   const approved=productConnectorSource(row);if(!approved)continue;
+  if(canarySource&&approved.source.family!=='rss')continue;
   // Do not transfer a source away from its working owner until the private
   // execution binding required by this connector is configured.
   if(['telegram','website'].includes(approved.source.family)&&

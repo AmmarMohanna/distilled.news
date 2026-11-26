@@ -7,9 +7,9 @@ it.each([true,false])('opens a single grant only when SQLite can reuse real free
   try {
     sqlite.exec(`PRAGMA auto_vacuum=NONE;
       CREATE TABLE briefings(id TEXT PRIMARY KEY,paused INTEGER);
-      CREATE TABLE sources(id TEXT PRIMARY KEY,briefing_id TEXT,enabled INTEGER,collection_owner TEXT);
+      CREATE TABLE sources(id TEXT PRIMARY KEY,briefing_id TEXT,enabled INTEGER,collection_owner TEXT,provider TEXT,kind TEXT);
       INSERT INTO briefings VALUES('feed',0);
-      INSERT INTO sources VALUES('source','feed',1,'connector');
+      INSERT INTO sources VALUES('source','feed',1,'connector','rss','rss_feed'),('paid','feed',1,'connector','apify','linkedin_profile');
       CREATE TABLE connector_storage_recovery(id INTEGER PRIMARY KEY,token TEXT,feed_id TEXT,source_id TEXT,until_ms INTEGER,state TEXT,allocated_bytes INTEGER);
       CREATE TABLE connector_storage_probe(id INTEGER PRIMARY KEY,payload BLOB);
       CREATE TABLE fixture(payload BLOB);`);
@@ -33,8 +33,12 @@ it.each([true,false])('opens a single grant only when SQLite can reuse real free
       catch(error){sqlite.exec('ROLLBACK');throw error;}
     }} as unknown as D1Database;
     const now=1000;
+    expect(await authorizeConnectorStorageCanary(db,'feed','paid',now)).toBe(false);
     expect(await authorizeConnectorStorageCanary(db,'feed','source',now)).toBe(reusable);
     expect(await consumeConnectorStorageCanary(db,'other-feed',['source'],allocated()+offset,now)).toBeUndefined();
+    sqlite.exec("UPDATE sources SET kind='google_news' WHERE id='source'");
+    expect(await consumeConnectorStorageCanary(db,'feed',['source'],allocated()+offset,now)).toBeUndefined();
+    sqlite.exec("UPDATE sources SET kind='rss_feed' WHERE id='source'");
     expect(await consumeConnectorStorageCanary(db,'feed',['source'],allocated()+offset,now)).toBe(reusable?'source':undefined);
     expect(await consumeConnectorStorageCanary(db,'feed',['source'],allocated()+offset,now)).toBeUndefined();
     expect(sqlite.prepare('SELECT COUNT(*) AS count FROM connector_storage_probe').get()?.count).toBe(0);
