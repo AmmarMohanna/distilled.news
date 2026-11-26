@@ -46,6 +46,8 @@ const adminCookie=process.env.CAMPAIGN_ADMIN_COOKIE;
 if(!/^dn_session=/.test(adminCookie??''))throw Error('REAL_ADMIN_SESSION_REQUIRED');
 const unlock=lockRun(dir),client=new ApplicationClient(m,dir);
 let child=null,restore=null;
+// The protected workflow must stop the native schedule before archiving feeds.
+const workflowOwnsCleanup=command==='campaign'&&process.env.CAMPAIGN_WORKFLOW_OWNS_CLEANUP==='true';
 const opts={gmailAddress:process.env.CAMPAIGN_QA_GMAIL,emailDomain:process.env.CAMPAIGN_EMAIL_DOMAIN,mailbox:adapter.mailbox,challenge:adapter.challenge,authorizeAccount:adapter.authorizeAccount,browserEvidence:adapter.browserEvidence,adminCookie};
 try{
  if(command==='setup'){const checks=await adapter.preflight?.({manifest:m});if(checks?.ready!==true)throw Error('REAL_SETUP_INTEGRATIONS_NOT_VERIFIED');}
@@ -158,12 +160,12 @@ try{
    }else throw Error('UNKNOWN_PHASE');
   }
  }
- if(command==='campaign'){admit(m,pf,approval,'cleanup');await archive(m,client,dir,opts);}
+ if(command==='campaign'&&!workflowOwnsCleanup){admit(m,pf,approval,'cleanup');await archive(m,client,dir,opts);}
  journal(dir,{category:'phase-completed',phase:command});
 }catch(e){
  child?.kill();if(restore){try{await restore();restore=null}catch{journal(dir,{category:'URGENT_MANUAL_ROLLBACK_REQUIRED'});}}journal(dir,{category:'phase-stopped',phase:command,reason:String(e.message).replace(/[^A-Z0-9_]/gi,'_').slice(0,160)});
  // Stop new production via ordinary owned interfaces; do not delete holds or
  // resend unknown operations. Existing in-flight work remains accounted for.
- if(command==='campaign'||command==='setup')try{await archive(m,client,dir,opts)}catch{journal(dir,{category:'cleanup-required',reason:'AUTOMATIC_ARCHIVE_INCOMPLETE'});}
+ if(command==='setup'||command==='campaign'&&!workflowOwnsCleanup)try{await archive(m,client,dir,opts)}catch{journal(dir,{category:'cleanup-required',reason:'AUTOMATIC_ARCHIVE_INCOMPLETE'});}
  throw Error('CAMPAIGN_STOPPED_CHECK_PRIVATE_JOURNAL');
 }finally{if(restore)try{await restore()}catch{journal(dir,{category:'URGENT_MANUAL_ROLLBACK_REQUIRED'});}unlock();}

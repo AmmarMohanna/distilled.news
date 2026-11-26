@@ -129,3 +129,57 @@ A real read-only Gmail search was verified on November 1. Its empty field-filter
 At this checkpoint: 37 focused OAuth/mailbox/campaign contract tests passed. No registration email was sent, no account was manually verified, no paid inference was performed, and no deployment changed. Outbound sender access remains a genuine prerequisite for testing the real round trip. The operator must either securely configure the existing Outlook sender or explicitly authorize a separate QA Gmail-send integration; read-only inbox consent cannot supply sending permission.
 
 Quiet completions have no reader edition: deadline evaluation uses their durable completion time, not subsequent negative edition reads. Unknown completion times remain unknown. Resource analytics reads receive at most one bounded, budgeted retry; permanent errors still stop and archive. This does not authorize retrying paid inference or source submissions. See the real publication pilot report for observed outcomes and remaining limits.
+
+## Native adapter (GitHub Actions)
+
+Native mode uses the isolated pilot Worker, its existing D1 accounting, and a dedicated
+Gmail inbox. The workflow verifies the protected GitHub environment, the approved
+checkout and budget, and the Worker settings and deployed module before setting up
+test accounts. Native mode supports the full `run` bundle for a campaign. That bundle
+includes a current `resources.private.json` inventory for the isolated Worker, D1, and
+queues. After setup and planning, the workflow enables the isolated Worker's one-minute
+schedule. It attempts to stop and verify the schedule before archiving campaign feeds
+even when the campaign fails. If a runner is forcibly terminated, check the isolated
+Worker's schedule and campaign journal before authorizing another run.
+
+Set these GitHub Actions variables:
+
+| Variable | Value |
+| --- | --- |
+| `CAMPAIGN_ADAPTER_KIND` | `native` |
+| `CAMPAIGN_QA_GMAIL` | `testingdistilled@gmail.com`, or the dedicated QA Gmail used for consent |
+| `CAMPAIGN_PILOT_WORKER` | `distilled-news-staging-campaign-pilot` |
+| `CAMPAIGN_PROVIDER_ACCOUNT_ID` | The confirmed provider billing account ID from the pilot D1 ledger. The November 2 pilot used `pilotnov02-provider`. Verify the current ID before using it. |
+| `CAMPAIGN_MAX_MODEL_OPERATIONS` | The approved positive integer model-operation cap, at most 500 and at most the manifest's `budget.maxModelCalls`. |
+| `CAMPAIGN_EXPECTED_BUNDLE_DIGEST` | The reviewed deployed `index.js` digest. Compute it from the exact module using the command below. |
+| `CAMPAIGN_GRAFANA_OTLP_URL` | `https://otlp-gateway-prod-eu-west-2.grafana.net/otlp/v1/metrics` for the current stack |
+
+```sh
+node -e "const fs=require('node:fs');const {createHash}=require('node:crypto');const bytes=fs.readFileSync(process.argv[1]);console.log(createHash('sha256').update(JSON.stringify(bytes.toString('base64'))).digest('hex'))" path/to/index.js
+```
+
+Set these secrets in the protected `agentops-multiuser-staging-approval` environment:
+
+| Secret | Value |
+| --- | --- |
+| `CAMPAIGN_CLOUDFLARE_TOKEN` | An account-scoped Cloudflare token with D1 edit, Workers Scripts edit for schedule control, and the queue and account-analytics read permissions used by the existing observer. |
+| `CAMPAIGN_GMAIL_CLIENT_JSON` | The Google desktop OAuth client JSON from the Gmail setup described above. |
+| `CAMPAIGN_GMAIL_TOKEN_JSON` | The resulting token JSON for the same inbox with only `gmail.readonly`. |
+| `CAMPAIGN_ADMIN_COOKIE` | A current isolated staging admin session, as `dn_session=…`. |
+| `CAMPAIGN_ARTIFACT_KEY` | The 64-character hexadecimal key used to encrypt run artifacts. |
+| `CAMPAIGN_GRAFANA_AUTH` | The full authorization value for the Grafana metrics endpoint. |
+| `CAMPAIGN_PRIVATE_BUNDLE` | The fresh, reviewed bundle for the exact commit, including the manifest, preflight, approval, and isolated resource inventory. The approval must include telemetry and cleanup. |
+
+Native mode can leave all private QA bridge URLs, `CAMPAIGN_PRIVATE_API_ORIGINS`,
+`CAMPAIGN_PRIVATE_API_TOKEN`, and `CAMPAIGN_EMAIL_DOMAIN` unset. The workflow
+materializes Gmail credentials only in a private temporary directory and removes it
+afterward. Campaign artifacts still use encrypted upload.
+
+One immutable grant covers the approved provider account for each run. Each test
+account gets an admission receipt for its share of the grant. Preflight refuses an
+active schedule, active feeds, unrelated users, competing or existing run grants,
+tracking-only spending, unsettled reservations, configured unmetered providers, or
+external operation rows. Use a regular load profile with a proven accounting basis.
+Browser evidence is available as a scoped read. A run with browser discovery operations
+stops at accounting until their costs can be reconciled. The `bridge` adapter remains
+the default when `CAMPAIGN_ADAPTER_KIND` is unset.

@@ -23,6 +23,27 @@ jobs:
       - uses: grafana/setup-k6-action@c47136d33d365efbeb9ae7266908b5dcf98cdece # v1
         with:
           k6-version: '1.3.0'
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        if: vars.CAMPAIGN_ADAPTER_KIND == 'native'
+      - name: Install locked dependencies for native spending admission
+        if: vars.CAMPAIGN_ADAPTER_KIND == 'native'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Prepare private Gmail configuration
+        if: vars.CAMPAIGN_ADAPTER_KIND == 'native'
+        shell: bash
+        env:
+          GMAIL_CLIENT_JSON: ${{ secrets.CAMPAIGN_GMAIL_CLIENT_JSON }}
+          GMAIL_TOKEN_JSON: ${{ secrets.CAMPAIGN_GMAIL_TOKEN_JSON }}
+        run: |
+          set -eu
+          umask 077
+          test -n "$GMAIL_CLIENT_JSON"
+          test -n "$GMAIL_TOKEN_JSON"
+          directory="$(mktemp -d "$RUNNER_TEMP/campaign-gmail.XXXXXXXX")"
+          chmod 700 "$directory"
+          printf 'CAMPAIGN_GMAIL_DIRECTORY=%s\n' "$directory" >> "$GITHUB_ENV"
+          printf '%s' "$GMAIL_CLIENT_JSON" > "$directory/gmail-client.json"
+          printf '%s' "$GMAIL_TOKEN_JSON" > "$directory/gmail-token.json"
       - name: Run only the approved phase with private operator integrations
         env:
           CAMPAIGN_ARTIFACT_KEY: ${{ secrets.CAMPAIGN_ARTIFACT_KEY }}
@@ -39,7 +60,21 @@ jobs:
           CAMPAIGN_PRIVATE_API_TOKEN: ${{ secrets.CAMPAIGN_PRIVATE_API_TOKEN }}
           CAMPAIGN_GRAFANA_OTLP_URL: ${{ vars.CAMPAIGN_GRAFANA_OTLP_URL }}
           CAMPAIGN_GRAFANA_AUTH: ${{ secrets.CAMPAIGN_GRAFANA_AUTH }}
+          CAMPAIGN_ADAPTER_KIND: ${{ vars.CAMPAIGN_ADAPTER_KIND }}
+          CAMPAIGN_QA_GMAIL: ${{ vars.CAMPAIGN_ADAPTER_KIND == 'native' && vars.CAMPAIGN_QA_GMAIL || '' }}
+          CAMPAIGN_PILOT_WORKER: ${{ vars.CAMPAIGN_PILOT_WORKER }}
+          CAMPAIGN_PROVIDER_ACCOUNT_ID: ${{ vars.CAMPAIGN_PROVIDER_ACCOUNT_ID }}
+          CAMPAIGN_MAX_MODEL_OPERATIONS: ${{ vars.CAMPAIGN_MAX_MODEL_OPERATIONS }}
+          CAMPAIGN_EXPECTED_BUNDLE_DIGEST: ${{ vars.CAMPAIGN_EXPECTED_BUNDLE_DIGEST }}
+          CAMPAIGN_CLOUDFLARE_TOKEN: ${{ secrets.CAMPAIGN_CLOUDFLARE_TOKEN }}
         run: node evaluation/performance-reliability/real/workflow.mjs
+      - name: Remove private Gmail files
+        if: always()
+        shell: bash
+        run: |
+          case "${CAMPAIGN_GMAIL_DIRECTORY:-}" in
+            "$RUNNER_TEMP"/campaign-gmail.*) rm -rf -- "$CAMPAIGN_GMAIL_DIRECTORY" ;;
+          esac
       - name: Encrypt private evidence before artifact storage
         if: always()
         env:
