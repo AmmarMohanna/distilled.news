@@ -1,6 +1,9 @@
 import {beforeEach,it,expect,vi} from 'vitest';
 const m=vi.hoisted(()=>({load:vi.fn(),save:vi.fn(),authorize:vi.fn(),accept:vi.fn()}));
-vi.mock('@distilled/connectors',()=>({sourceSqlFromD1:()=>({}),D1ProviderSourceRepository:class{loadProviderBatch=m.load;saveProviderReceipts=m.save;}}));
+vi.mock('@distilled/connectors',async importOriginal=>({
+ ...await importOriginal<typeof import('@distilled/connectors')>(),
+ D1ProviderSourceRepository:class{loadProviderBatch=m.load;saveProviderReceipts=m.save;}
+}));
 vi.mock('./connector-runtime',()=>({authorizeConnectorSource:m.authorize}));
 vi.mock('./v1-downstream-runtime',()=>({acceptV1Handoff:m.accept}));
 import {recoverQaProviderBatch} from './qa-provider-recovery';
