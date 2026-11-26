@@ -137,6 +137,25 @@ test('Show all isolates channels and places Back below search', async ({ page })
   await expect(page.locator('.catalog-vertical-grid')).toHaveCount(0);
   await expect(page.locator('.featured-feeds')).toBeVisible();
 });
+test('landing discovery shelves recover from slow highlights and Show all', async ({ page }) => {
+  await mock(page, false);
+  let releaseHighlights!: () => void;
+  const highlightsReady = new Promise<void>(resolve => { releaseHighlights = resolve; });
+  await page.route('**/api/explore/highlights', async route => {
+    await highlightsReady;
+    await route.fulfill({ json: { trending: [feed], newest: [feed] } });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Top feeds', exact: true })).toBeVisible();
+  releaseHighlights();
+  const trending = page.getByRole('region', { name: 'Trending topics', exact: true });
+  await trending.getByRole('button', { name: 'Show all' }).click();
+  await expect(page).toHaveURL(/\/\?section=trending$/);
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(trending.first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'New feeds' })).toBeVisible();
+});
 test('channel follow toggles for visitors and is disabled for the owner', async ({ page }) => {
   await mock(page);
   let following = false;

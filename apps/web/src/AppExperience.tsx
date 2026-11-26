@@ -57,7 +57,8 @@ export function AppExperience(props: {
   const [query, setQuery] = useState("");
   const [catalogView, setCatalogView] = useState(catalogViewFromLocation);
   function showCatalog(view?: CatalogView) {
-    window.history.pushState(null, "", view ? `/explore?section=${view}` : "/explore");
+    const path = props.account ? "/explore" : window.location.pathname;
+    window.history.pushState(null, "", view ? `${path}?section=${view}` : path);
     setCatalogView(view);
     document.querySelector(".app-pages > .screen-page-viewport")?.scrollTo({ top: 0 });
   }
@@ -108,24 +109,22 @@ export function AppExperience(props: {
             setChannelMissing(error instanceof ApiError && error.uiMessage.details.status === 404);
           });
       } else {
-        // Optional shelves should settle together and must not hold up the catalog indefinitely.
-        const optional = new AbortController();
-        const cancel = () => optional.abort();
-        request.signal.addEventListener("abort", cancel, {once:true});
-        const deadline = window.setTimeout(cancel, 1800);
-        void Promise.allSettled([getExploreChannels(optional.signal, tab === "followed"), getExploreHighlights(optional.signal)])
-          .then(([channelResult, highlightResult]) => {
-            if (request.signal.aborted) return;
-            if (channelResult.status === "fulfilled") setChannels(channelResult.value);
-            if (highlightResult.status === "fulfilled") {
-              const { trending = [], newest = [] } = highlightResult.value;
-              setHighlights({ trending, newest });
-            }
-            setCatalogReady(true);
-          }).finally(() => {
-            window.clearTimeout(deadline);
-            request.signal.removeEventListener("abort", cancel);
-          });
+        const revealCatalog = () => {
+          if (!request.signal.aborted) setCatalogReady(true);
+        };
+        const deadline = window.setTimeout(revealCatalog, 1800);
+        request.signal.addEventListener("abort", () => window.clearTimeout(deadline), { once: true });
+        void Promise.allSettled([
+          getExploreChannels(request.signal, tab === "followed").then(result => {
+            if (!request.signal.aborted) setChannels(result);
+          }),
+          getExploreHighlights(request.signal).then(({ trending = [], newest = [] }) => {
+            if (!request.signal.aborted) setHighlights({ trending, newest });
+          }),
+        ]).then(() => {
+          window.clearTimeout(deadline);
+          revealCatalog();
+        });
       }
     };
     setChannel(undefined);
@@ -237,7 +236,7 @@ export function AppExperience(props: {
     setTab(next); setCatalogView(undefined); setChannelName(""); setArchiveOpen(false); setSettingsDialog(null); window.scrollTo({ top: 0 });
   }
   useEffect(() => {
-    const restore = () => { setTab(tabFromLocation()); setCatalogView(catalogViewFromLocation()); setChannelName(new URLSearchParams(window.location.search).get("channel") ?? ""); setArchiveOpen(false); setSettingsDialog(null); };
+    const restore = () => { setTab(props.account ? tabFromLocation() : "explore"); setCatalogView(catalogViewFromLocation()); setChannelName(new URLSearchParams(window.location.search).get("channel") ?? ""); setArchiveOpen(false); setSettingsDialog(null); };
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
   }, []);
@@ -289,7 +288,7 @@ export function AppExperience(props: {
     <section className="explore-view" aria-busy={loading || waitingForCatalog} style={tab !== "explore" && tab !== "followed" && props.account ? { display: "none" } : undefined}>
 
       {channelName ? <div className="channel-heading">
-        <a className="feed-nav-back" href="/explore"><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
+        <a className="feed-nav-back" href={!props.account && document.referrer.split("?")[0] === new URL("/", window.location.origin).href ? "/" : "/explore"}><ChevronLeft size={24} aria-hidden/><span>{t("Back")}</span></a>
         {channel ? <ChannelHeader channel={channel} canEdit={ownChannel && !previewingChannel} onError={setError}/> : channelFailed ? <p role="status">{t(
           channelMissing && channelName === props.account?.username ? "Your public profile appears when you have an active public feed." :
             "Channel not available"
