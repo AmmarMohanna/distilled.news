@@ -182,6 +182,23 @@ Set these secrets in the protected `agentops-multiuser-staging-approval` environ
 | `CAMPAIGN_GRAFANA_AUTH` | The full authorization value for the Grafana metrics endpoint. |
 | `CAMPAIGN_PRIVATE_BUNDLE` | Optional in native mode. Leave it unset to let the job build the bundle itself (below). Set it only to run an exact, hand-reviewed bundle. |
 
+### Redeploying the campaign Worker
+
+`apps/worker/wrangler.campaign-pilot.jsonc` deploys only the isolated campaign Worker
+(campaign D1, queues and R2 bucket, no cron trigger). Never deploy it with another config.
+From a clean checkout of this branch:
+
+```sh
+pnpm install
+pnpm --filter @distilled/web build
+cd apps/worker
+npx wrangler d1 migrations apply DB --remote -c wrangler.campaign-pilot.jsonc
+npx wrangler deploy -c wrangler.campaign-pilot.jsonc
+```
+
+Then confirm the Worker has no cron trigger, and set `CAMPAIGN_EXPECTED_BUNDLE_DIGEST` to the
+output of `bundle-digest.mjs`.
+
 ### Automatic bundle (native mode)
 
 When `CAMPAIGN_PRIVATE_BUNDLE` is unset, `real/auto-bundle.mjs` builds the run bundle

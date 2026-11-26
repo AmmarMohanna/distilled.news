@@ -58,6 +58,18 @@
     "V1_SEMANTIC_POLICY": "SEMANTIC",
     "V1_SEMANTIC_STRONG_MODEL": "openai/gpt-4.1-mini",
     "V1_SYNTHESIS_MODEL_ENABLED": "true",
+    // Pipeline behaviour copied from production (Nov 26) so results reflect the current product.
+    // Deliberately NOT copied: paid provider budgets, web-search recommendations, the source
+    // execution service, Cloudflare Images and production mail/URLs (cost and isolation guards).
+    "BRIEFING_COMPACT_VERIFICATION_ENABLED": "true",
+    "BRIEFING_SOURCE_BINDINGS_ENABLED": "true",
+    "CUTOFF_EDITIONS_ENABLED": "true",
+    "EDITION_ARTIFACTS_ENABLED": "true",
+    "SOURCE_NATIVE_EXECUTION_ENABLED": "true",
+    "V1_MODEL_UNCERTAIN_EXECUTION_POLICY": "isolate-after-5m-v1",
+    "V1_PUBLICATION_PREPARATION_ISOLATED": "true",
+    "V3_BACKLOG_CATCHUP_ENABLED": "true",
+    "WINDOW_READINESS_MODE": "relay",
     "ENVIRONMENT": "staging",
     "BRIEFING_PROMPT_VERSION": "4",
     "AGENTOPS_ENABLED": "true",
