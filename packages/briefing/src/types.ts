@@ -101,6 +101,14 @@ export interface SourceDecision {
   outcomes:Array<{stage:'preparation'|'editor'|'consolidation'|'safety_cap'|'final';decision:'selected'|'omitted'|'deferred'|'skipped'|'duplicate'|'unresolved';reason:string;headline?:string}>;
 }
 
+/** Private artifacts for editorial review. Candidate text carries no publication authority. */
+export interface BriefingReviewEvent {
+  stage: string;
+  candidates?: BriefingItem[];
+  reasons?: DroppedItem[];
+  failure?: string;
+}
+
 export interface BriefingResult {
   /** Per-input provenance, not a certificate of editorial correctness. New accounting policy only. */
   sourceDecisions?:SourceDecision[];
@@ -127,6 +135,33 @@ export interface BriefingResult {
 export interface BriefingModels {
   editor: string;
   verifier: string;
+  /** Frozen opt-in for the initial editorial pass only. */
+  generation?: BriefingGeneration;
+  stageRoutes?: BriefingStageRoutes;
+  languageStageRoutes?: Partial<Record<FeedSpec['language'], BriefingStageRoutes>>;
+}
+
+export const BRIEFING_MODEL_STAGES = [
+  'topicSelection', 'consolidation', 'novelty', 'citationCoverage', 'readerInventory',
+  'sourceInventory', 'factualReview', 'correction', 'recoveryCoverage',
+] as const;
+export type BriefingModelStage = typeof BRIEFING_MODEL_STAGES[number];
+export type BriefingStageRoutes = Partial<Record<BriefingModelStage, BriefingRoute>>;
+
+export interface BriefingRoute {
+  model: string;
+  provider: string;
+  contextTokens: number;
+  maxOutputTokens: number;
+  /** USD per million text tokens, including any higher pricing tiers. */
+  price: { prompt: number; completion: number };
+  temperature?: number;
+  reasoning?: { effort: 'low'; exclude: true } | { enabled: false; exclude?: true };
+  serviceTier?: 'flex';
+}
+
+export interface BriefingGeneration extends BriefingRoute {
+  prompt: 'v5-source-first-v1' | 'v5-source-first-v2' | 'v5-source-first-v3' | 'v5-source-first-v4' | 'v5-source-first-v5';
 }
 
 /**

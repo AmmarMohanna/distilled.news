@@ -63,6 +63,7 @@ interface GroundingResult {id:string;feedId:string;stories:{candidateId:string;c
 export interface BriefingEditionRecord {
  engine?:'v3';
  v3InputId?:string;
+ editorialApprovalId?:string;
  scheduledFor?:string;
  id:string;feedId:string;feedRevision:number;windowStart:string;windowEnd:string;language:string;selectionId:string;
  provisionalSemanticStates?:{eventVersionId:string;provenance:EventSemanticState['provenance'];rematchRequestIds:string[]}[];

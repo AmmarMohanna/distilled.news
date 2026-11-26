@@ -1,3 +1,4 @@
+import {V5ReviewError} from './v1-intelligence/v5-review-contract';
 import {campaignAvailable,campaignId,campaignPlanSchema,campaignSnapshotSchema,registerCampaignFeed,planCampaign,snapshotCampaign,assertCampaignFeed,campaignEvidence,campaignSourceProbe} from './agentops-campaign';
 import {sourceStreamHeartbeat} from './source-stream-heartbeat';
 import {generateUnreadSummary,prepareUnreadSummary,UnreadSummaryQuotaError,UnreadSummaryError} from './unread-summary';
@@ -299,6 +300,9 @@ export function createApp(options: AppOptions = {}) {
   let activeTraces = 0;
 
   app.onError((error, c) => {
+    if(error instanceof V5ReviewError)return c.json({error:error.code},error.status);
+    if(error instanceof HandoffError&&c.req.path.startsWith('/api/admin/v5-editorial/'))
+      return c.json({error:error.code},error.code==='SCOPE_DENIED'?403:409);
     if (error instanceof z.ZodError) {
       return c.json({ error: error.issues[0]?.message ?? "invalid request" }, 400);
     }
@@ -770,6 +774,47 @@ export function createApp(options: AppOptions = {}) {
 
   app.use("/api/me/*", accountAuth(repoFor));
   app.use("/api/admin/*", adminAuth(repoFor));
+  app.use('/api/admin/v5-editor/*',async (c,next)=>{
+    c.header('Cache-Control','private, no-store');
+    c.header('X-Content-Type-Options','nosniff');
+    if(c.env.BRIEFING_V5_EDITOR_REVIEW_ENABLED!=='true')return c.notFound();
+    await next();
+  });
+  app.get('/api/admin/v5-editor/workbench',async c=>{
+    const {v5WorkbenchHtml}=await import('./v1-intelligence/v5-workbench');
+    c.header('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+    c.header('Referrer-Policy','no-referrer');
+    return c.html(v5WorkbenchHtml);
+  });
+  app.get('/api/admin/v5-editor/workbench.js',async c=>{
+    const {v5WorkbenchScript}=await import('./v1-intelligence/v5-workbench');
+    return c.body(v5WorkbenchScript,200,{'Content-Type':'text/javascript; charset=utf-8'});
+  });
+  app.use('/api/admin/v5-editorial/*',async(c,next)=>{
+    c.header('Cache-Control','private, no-store');
+    if(c.env.BRIEFING_V5_EDITOR_REVIEW_ENABLED!=='true')return c.notFound();
+    await next();
+  });
+  app.get('/api/admin/v5-editorial/:feedId',async c=>{
+    const {listV5Reviews}=await import('./v1-intelligence/v5-editorial-review');
+    return c.json(await listV5Reviews(c.env,c.req.param('feedId'),c.get('account')!.id));
+  });
+  app.get('/api/admin/v5-editorial/:feedId/:windowId',async c=>{
+    const {getV5Review}=await import('./v1-intelligence/v5-editorial-review');
+    return c.json(await getV5Review(c.env,c.req.param('feedId'),c.req.param('windowId'),c.get('account')!.id));
+  });
+  app.post('/api/admin/v5-editorial/:feedId/:windowId',async c=>{
+    if(c.req.header('Origin')!==new URL(c.req.url).origin||!c.req.header('Content-Type')?.startsWith('application/json'))
+      return c.json({error:'INVALID_EDITOR_REQUEST'},403);
+    const raw=await c.req.text();
+    if(raw.length>64000)return c.json({error:'EDITOR_REQUEST_TOO_LARGE'},413);
+    let body:unknown;try{body=JSON.parse(raw);}catch{return c.json({error:'INVALID_JSON'},400);}
+    const {reviewActionSchema}=await import('./v1-intelligence/v5-review-contract');
+    const action=reviewActionSchema.safeParse(body);
+    if(!action.success)return c.json({error:'INVALID_REVIEW_ACTION'},400);
+    const {updateV5Review}=await import('./v1-intelligence/v5-editorial-review');
+    return c.json(await updateV5Review(c.env,c.req.param('feedId'),c.req.param('windowId'),c.get('account')!.id,action.data,nowFor().toISOString()));
+  });
   app.get('/api/admin/source-execution-status',async c=>{
     const sourceUrl=c.req.query('sourceUrl');
     if(sourceUrl){

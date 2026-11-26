@@ -1,4 +1,4 @@
-import { BriefingModelError, BriefingOutputError, type Usage } from "./types";
+import { BriefingBudgetError, BriefingModelError, BriefingOutputError, type BriefingGeneration, type BriefingModelStage, type BriefingRoute, type BriefingStageRoutes, type Usage } from "./types";
 
 export interface ModelRequest {
   model: string;
@@ -7,6 +7,9 @@ export interface ModelRequest {
   maxTokens: number;
   /** Optional strict provider schema. Parser validation remains authoritative. */
   responseSchema?: Record<string, unknown>;
+  /** Explicit OpenRouter route for the versioned initial writer. */
+  generation?: BriefingGeneration;
+  stageRoute?: { stage: BriefingModelStage; route: BriefingRoute };
   signal?: AbortSignal;
 }
 
@@ -22,6 +25,17 @@ export interface ModelResponse {
 /** The only thing the engine knows about model providers. */
 export interface ModelPort {
   complete(request: ModelRequest): Promise<ModelResponse>;
+}
+
+export function modelStage(port: ModelPort, routes: BriefingStageRoutes | undefined, stage: BriefingModelStage): ModelPort {
+  const route = routes?.[stage];
+  if (!route) return port;
+  return {
+    complete(request) {
+      if (request.maxTokens > route.maxOutputTokens) throw new BriefingBudgetError('BRIEFING_STAGE_OUTPUT_CAPACITY');
+      return port.complete({ ...request, model: route.model, stageRoute: { stage, route } });
+    }
+  };
 }
 
 /** USD per million tokens. Unknown models report no cost rather than a guess. */
@@ -110,12 +124,25 @@ export function openAiCompatibleModel(config: {
 } & TransportOptions): ModelPort {
   return {
     async complete(request) {
+      const route = request.stageRoute?.route ?? request.generation;
       const payload = (await post(
         config.url,
         { authorization: `Bearer ${config.apiKey}`, ...config.headers },
         {
           model: request.model,
-          temperature: 0.1,
+          ...(route
+            ? {
+              ...(route.temperature !== undefined ? { temperature: route.temperature } : {}),
+              ...(route.reasoning ? { reasoning: route.reasoning } : {}),
+              ...(route.serviceTier ? { service_tier: route.serviceTier } : {}),
+              provider: {
+                only: [route.provider],
+                allow_fallbacks: false,
+                require_parameters: true,
+                max_price: { ...route.price, request: 0 }
+              }
+            }
+            : { temperature: 0.1 }),
           max_tokens: request.maxTokens,
           response_format: request.responseSchema ? {type:'json_schema',json_schema:{name:'source_bindings',strict:true,schema:request.responseSchema}} : { type: "json_object" },
           ...(config.reportCost ? { usage: { include: true } } : {}),
