@@ -163,7 +163,7 @@ test('Show all isolates channels and places Back below search', async ({ page })
   await expect(page.locator('.catalog-vertical-grid')).toHaveCount(0);
   await expect(page.locator('.featured-feeds')).toBeVisible();
 });
-test('landing discovery shelves recover from slow highlights and Show all', async ({ page }) => {
+for (const path of ["/", "/explore"]) test(`guest discovery shelves recover from slow highlights and Show all on ${path}`, async ({ page }) => {
   await mock(page, false);
   let releaseHighlights!: () => void;
   const highlightsReady = new Promise<void>(resolve => { releaseHighlights = resolve; });
@@ -171,14 +171,14 @@ test('landing discovery shelves recover from slow highlights and Show all', asyn
     await highlightsReady;
     await route.fulfill({ json: { trending: [feed], newest: [feed] } });
   });
-  await page.goto('/');
+  await page.goto(path);
   await expect(page.getByRole('heading', { name: 'Top feeds', exact: true })).toBeVisible();
   releaseHighlights();
   const trending = page.getByRole('region', { name: 'Trending topics', exact: true });
   await trending.getByRole('button', { name: 'Show all' }).click();
-  await expect(page).toHaveURL(/\/\?section=trending$/);
+  await expect(page).toHaveURL(new URL(path + '?section=trending', page.url()).href);
   await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(new URL(path, page.url()).href);
   await expect(trending.first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'New feeds' })).toBeVisible();
 });

@@ -309,7 +309,7 @@ export function AppExperience(props: {
             onChange={updated => setChannel(current => current?.username === updated.username ? updated : current)} onError={setError}/>)}
       </div>
       {catalogView && <button type="button" className="catalog-back" onClick={() => showCatalog()}><ChevronLeft size={17} aria-hidden/>{t("Back")}</button>}
-      {!catalogView && showCatalogShelves && !isExplorePage && <>
+      {!catalogView && showCatalogShelves && !props.account && <>
         {visibleFeeds.length > 0 && <CatalogShelf title={t("Top feeds")} onShowAll={() => showCatalog("feeds")}>
           {visibleFeeds.slice(0, 8).map(feed => <FeedTile key={feed.id} feed={feed} onError={setError}/>)}
         </CatalogShelf>}
@@ -356,7 +356,7 @@ export function AppExperience(props: {
         )}
         {nextOffset !== null && !exploreError && <button type="button" className="feed-state-retry" disabled={loading} onClick={() => void exploreLoader.current(nextOffset)}>{t("Load more feeds")}</button>}
       </section>}
-      {tab === "explore" && !channelName && !query && trendingFeeds.length > 0 && (!catalogView || catalogView === "trending") && (isExplorePage || catalogView === "trending") &&
+      {tab === "explore" && !channelName && !query && trendingFeeds.length > 0 && (!catalogView || catalogView === "trending") && (props.account || catalogView === "trending") &&
         (catalogView ? <AdaptiveFeedGrid view="explore">{trendingFeeds.map(renderExploreFeed)}</AdaptiveFeedGrid>
           : <CatalogShelf title={t("Trending feeds")} onShowAll={() => showCatalog("trending")}>{trendingFeeds.map(renderExploreFeed)}</CatalogShelf>)}
       {!channelName && visibleChannels.length > 0 && (!catalogView || catalogView === "channels" || catalogView === "top-channels") &&
